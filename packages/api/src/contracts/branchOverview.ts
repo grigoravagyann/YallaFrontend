@@ -1,4 +1,3 @@
-import type { DeclineReason } from './approvals';
 import type { ReservationStatusCode } from './push';
 import type { TableStatus } from './service';
 
@@ -43,10 +42,11 @@ export interface BranchOverview {
   /** More than 200 today: the list is the first 200, and the screen says so. */
   readonly todayBookingsTruncated: boolean;
   /**
-   * The policy's grace minutes past a start before the table is let go.
-   * "Late" is still any confirmed booking past its start, as the design shows.
+   * How long past its start the branch holds a late party's table (the
+   * policy's grace). "Late" is still any confirmed booking past its start, as
+   * the design shows; a no-show is offered once this is up.
    */
-  readonly graceMinutes: number | null;
+  readonly graceMinutes: number;
 }
 
 /** The header pill: "Open until 00:00", or "Closed · opens at 12:00". */
@@ -76,6 +76,8 @@ export interface OverviewBookingCounts {
   readonly cancelled: number;
   /** The party sizes of waiting, confirmed, seated and completed bookings. */
   readonly people: number;
+  /** Of `confirmed`: bookings whose guest asked to change them, waiting for an answer. */
+  readonly pendingChanges: number;
 }
 
 /** "34 people · 9 tables of 22". */
@@ -103,6 +105,12 @@ export interface OverviewRevenue {
   readonly lastWeekDate: string;
   /** One decimal; `null` when last week had nothing to compare with. */
   readonly changePercent: number | null;
+  /**
+   * Where today's takings are counted from: the service day's first opening
+   * (its midnight when it has no hours). Last week is counted from the same
+   * opening, for as long on the clock.
+   */
+  readonly sinceUtc: string;
 }
 
 /** Booked people per hour today, and the seats the room has: the dashed line. */
@@ -138,6 +146,8 @@ export interface OverviewBooking {
   readonly status: ReservationStatusCode;
   readonly startUtc: string;
   readonly endUtc: string;
+  /** The start's calendar day at the branch: the service day's, or the next after midnight. */
+  readonly localDate: string;
   /** Wall clock at the branch, `HH:mm:ss`. */
   readonly localStartTime: string;
   readonly partySize: number;
@@ -149,33 +159,47 @@ export interface OverviewBooking {
   readonly roomName: string | null;
   readonly channel: ReservationChannel;
   /**
-   * Why a request the venue answered ended declined. Only a cancelled row is a
-   * declined request (those are not shown); a confirmed booking whose *change*
-   * was declined keeps its reason and is live.
+   * A confirmed booking whose guest asked to move it, at short notice: until
+   * the venue answers in the approvals card it is listed at the slot it keeps,
+   * as `pendingApproval`, and counted as confirmed. Nothing can be done to it
+   * from its row — seat, no-show and release are refused until it is answered.
    */
-  readonly declinedBecause: DeclineReason | null;
-  /** While a late booking's table is still held for it. */
+  readonly changeRequested: boolean;
+  /** While a late booking's table is still held for it (confirmed rows only). */
   readonly holdExpiresAtUtc: string | null;
   /**
-   * When the app asks the guest "still coming?" — the start plus the policy's
-   * late-nudge minutes. `null` for a guest with no app account: nobody asks them.
+   * The app's "still coming?" to the guest (confirmed rows only): when it went
+   * out, or when it is due. `null` when none is stored — a guest with no app
+   * account is never asked.
    */
   readonly lateNudgeAtUtc: string | null;
+  /** With `lateNudgeAtUtc`: whether it went out (true) or is still due (false). */
+  readonly lateNudgeSent: boolean | null;
 }
 
 /**
  * What a row is, for the screen: its status, with "late" split out of
- * "confirmed" — confirmed, started, and nobody seated — and every cancellation
- * one state. `declined` rows are a request the venue refused or let lapse;
- * the screen leaves them out, as the artboard does.
+ * "confirmed" — confirmed, started, and nobody seated — a confirmed booking
+ * whose change waits split out of "pending", and every cancellation one
+ * state. The server lists no cancelled or declined booking; `cancelled` is a
+ * row the venue has just called off, until the next read drops it. A status
+ * this build does not know is `unknown`: shown, with nothing offered on it.
  */
 export type OverviewRowState =
-  'pending' | 'confirmed' | 'late' | 'seated' | 'completed' | 'noShow' | 'cancelled' | 'declined';
+  | 'pending'
+  | 'changeRequested'
+  | 'confirmed'
+  | 'late'
+  | 'seated'
+  | 'completed'
+  | 'noShow'
+  | 'cancelled'
+  | 'unknown';
 
 export function overviewRowState(booking: OverviewBooking, now: Date): OverviewRowState {
   switch (booking.status) {
     case 'pendingApproval':
-      return 'pending';
+      return booking.changeRequested ? 'changeRequested' : 'pending';
     case 'confirmed':
       return Date.parse(booking.startUtc) <= now.getTime() ? 'late' : 'confirmed';
     case 'seated':
@@ -185,15 +209,18 @@ export function overviewRowState(booking: OverviewBooking, now: Date): OverviewR
     case 'noShow':
       return 'noShow';
     case 'cancelledByDiner':
-      return 'cancelled';
     case 'cancelledByVenue':
-      return booking.declinedBecause === null ? 'cancelled' : 'declined';
+      return 'cancelled';
     default:
-      return 'confirmed';
+      return 'unknown';
   }
 }
 
-/** Whole minutes since a late booking was due; never negative. */
+/**
+ * Whole minutes since a late booking was due; never negative. "Late" is any
+ * confirmed booking past its start, as the design shows; a no-show is offered
+ * only once the policy's grace is up (see the Overview's row menu).
+ */
 export function minutesLate(booking: OverviewBooking, now: Date): number {
   return Math.max(0, Math.floor((now.getTime() - Date.parse(booking.startUtc)) / 60_000));
 }
@@ -212,8 +239,10 @@ export function minutesLate(booking: OverviewBooking, now: Date): number {
  * | `seat`   | `POST /api/branches/{b}/tables/{t}/seat-reservation` | the party is here |
  * | `noShow` | `POST /api/reservations/{id}/no-show` | nobody came: counts against the diner, frees a held table |
  * | `cancel` | `POST /api/reservations/{id}/release`, outcome 2 | the venue calls it off: does **not** count as a no-show; the diner is told |
- * | `finish` | `POST /api/branches/{b}/tables/{t}/free` | the sitting is over and the table free |
+ * | `finish` | `POST /api/branches/{b}/tables/{t}/free`, naming the booking | its sitting is over and the table free |
  *
+ * `finish` names the booking, so a row read before somebody else's party sat
+ * down never ends theirs: the server refuses with `table-sitting-changed`.
  * There is no "ask whether they are coming": the app asks by itself at
  * `lateNudgeAtUtc`, and the backend has no manual nudge.
  */
@@ -231,6 +260,14 @@ export interface ConsoleBookingActionCommand {
 export interface ConsoleBookingActionResult {
   readonly kind: ConsoleBookingActionKind;
   readonly reservationId: string;
+  /**
+   * Where the booking stands now, as the server answered: for a release, the
+   * booking's own status — on a replay, what it was released as the first
+   * time, which need not be what this click asked for.
+   */
+  readonly status: ReservationStatusCode;
+  /** The command had already been applied; this is the first answer again. */
+  readonly wasReplay: boolean;
   readonly tableLabel: string;
   /**
    * Whether the table is free now. A no-show or a cancellation frees it only
@@ -241,7 +278,7 @@ export interface ConsoleBookingActionResult {
   readonly outstandingDram: number | null;
 }
 
-/** The status the booking has once the action has landed. */
+/** The status a table action leaves the booking in. A release answers its own. */
 export const STATUS_AFTER: Readonly<Record<ConsoleBookingActionKind, ReservationStatusCode>> = {
   seat: 'seated',
   noShow: 'noShow',

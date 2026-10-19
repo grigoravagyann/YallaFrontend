@@ -40,6 +40,7 @@ import {
   VenueDeletionBlockedError,
 } from '../contracts/errors';
 import {
+  type ApiError,
   ConcurrencyConflictError,
   ForbiddenError,
   NotFoundError,
@@ -76,8 +77,13 @@ import {
   type ConsoleBookingActionResult,
   type OverviewBooking,
 } from '../contracts/branchOverview';
-import type { DeclineReason } from '../contracts/approvals';
-import { branchOverviewFrom, seedTodayBookings, type OverviewTable } from './branchOverviewMock';
+import {
+  branchOverviewFrom,
+  isCancelled,
+  seedTodayBookings,
+  walkInTable,
+  type OverviewTable,
+} from './branchOverviewMock';
 import { publicBranchFixtures } from './publicVenues';
 import {
   AMENITY_KEYS,
@@ -963,13 +969,6 @@ export function createConsoleMockGateway(options: ConsoleMockOptions = {}): Cons
    */
   const bookings = new Map<string, ConsoleBooking>();
   let bookingsSeeded = false;
-  /**
-   * Why a request ended declined — by a person, or for want of an answer —
-   * so today's list can leave those rows out, as the server's
-   * `declinedBecause` lets it. A booking the venue called off after
-   * confirming it is not here: that one stays on the list.
-   */
-  const declined = new Map<string, DeclineReason>();
 
   /** `Yalla.Domain.Enums.ReservationStatus` member names, as the 409 spells them. */
   const SERVER_STATUS: Readonly<Record<ConsoleBooking['status'], string>> = {
@@ -1150,7 +1149,6 @@ export function createConsoleMockGateway(options: ConsoleMockOptions = {}): Cons
           awaitingApprovalBecause: null,
           approvalExpiresAtUtc: null,
         });
-        declined.set(booking.id, 'noAnswer');
       }
     }
   }
@@ -1200,7 +1198,6 @@ export function createConsoleMockGateway(options: ConsoleMockOptions = {}): Cons
       approvalExpiresAtUtc: null,
     };
     bookings.set(booking.id, decided);
-    if (!approve) declined.set(booking.id, 'staffDeclined');
     return decided;
   }
 
@@ -1241,7 +1238,8 @@ export function createConsoleMockGateway(options: ConsoleMockOptions = {}): Cons
   /**
    * A booking that went through approval, as a row of today's list: the
    * approvals store is the one place its status lives, so deciding it there
-   * moves it here too.
+   * moves it here too. A declined one is cancelled by the venue, and the list
+   * leaves it out with every cancelled booking.
    */
   function approvalRowsFor(branchId: string): OverviewBooking[] {
     const zone = branchTimeZone(branchId) as TimeZone;
@@ -1265,6 +1263,7 @@ export function createConsoleMockGateway(options: ConsoleMockOptions = {}): Cons
           status: booking.status,
           startUtc: start.toISOString(),
           endUtc: new Date(start.getTime() + turn * 60_000).toISOString(),
+          localDate: booking.localDate,
           localStartTime: booking.localStartTime,
           partySize: booking.partySize,
           guestName: booking.guestName,
@@ -1273,9 +1272,10 @@ export function createConsoleMockGateway(options: ConsoleMockOptions = {}): Cons
           tableStatus: booking.status === 'seated' ? 'occupied' : 'free',
           roomName: null,
           channel: 'app',
-          declinedBecause: declined.get(booking.id) ?? null,
+          changeRequested: false,
           holdExpiresAtUtc: null,
           lateNudgeAtUtc: null,
+          lateNudgeSent: null,
         } satisfies OverviewBooking;
       });
   }
@@ -1289,44 +1289,113 @@ export function createConsoleMockGateway(options: ConsoleMockOptions = {}): Cons
   };
 
   /**
+   * The table routes' answers by `clientCommandId`: a repeat is the first
+   * answer again, as on the server. (A release is a replay by the booking's
+   * state instead, below.)
+   */
+  const actionReplies = new Map<string, ConsoleBookingActionResult>();
+
+  function tableRefusal(code: string, detail: string): ApiError {
+    const problem = {
+      type: 'about:blank',
+      title: 'Conflicting state',
+      status: 409,
+      detail,
+      code,
+      traceId: 'mock',
+    };
+    return new ConcurrencyConflictError({ url: `${URL_TAG}/tables`, problem });
+  }
+
+  /**
    * The row menu's four actions, with the server's guards in its order: the
-   * booking (404), the branch (403), then the state (409). Each moves the
-   * booking where its route would, and the table with it.
+   * booking (404), the branch (403), then the state (409, or 422 for a table
+   * that cannot take the step). Each moves the booking where its route would,
+   * and the table with it.
+   *
+   * The table routes guard the table, as on the server: seating needs a
+   * table nobody sits at (`table-state-conflict`), and finishing names the
+   * booking whose sitting ends — a table where somebody else sits now, or
+   * nobody, is refused (`table-sitting-changed`).
    */
   function actOnTodayBooking(command: ConsoleBookingActionCommand): ConsoleBookingActionResult {
+    const replayed = actionReplies.get(command.clientCommandId);
+    if (replayed) return { ...replayed, wasReplay: true };
+
     seedBookings();
     sweepExpired();
     const own = todayRowsFor(command.branchId);
+    const approvals = approvalRowsFor(command.branchId);
+    const all = [...own, ...approvals];
     const index = own.findIndex((row) => row.id === command.reservationId);
-    const row =
-      index >= 0
-        ? own[index]
-        : approvalRowsFor(command.branchId).find((entry) => entry.id === command.reservationId);
+    const row = all.find((entry) => entry.id === command.reservationId);
     if (!row) {
       throw new NotFoundError({ url: `${URL_TAG}/reservations/${command.reservationId}` });
     }
 
     requireManagerForBranch(command.branchId, ACTION_OPERATION[command.kind]);
 
+    const live = all.filter((entry) => !isCancelled(entry));
+    const sitting = live.find(
+      (entry) => entry.status === 'seated' && entry.tableId === command.tableId,
+    );
+    const walkIn = walkInTable(overviewTables(command.branchId), all);
+    const someoneElseSits =
+      (sitting !== undefined && sitting.id !== row.id) || walkIn?.id === command.tableId;
     const status = SERVER_STATUS[row.status];
+
+    // A release of a booking already released answers as a replay, whatever
+    // the click asked for: the stored outcome, the table untouched (VC2 wire 2.1).
+    if (
+      command.kind !== 'seat' &&
+      command.kind !== 'finish' &&
+      (row.status === 'noShow' || row.status === 'cancelledByVenue')
+    ) {
+      return {
+        kind: command.kind,
+        reservationId: row.id,
+        status: row.status,
+        wasReplay: true,
+        tableLabel: row.tableLabel,
+        tableFreed: false,
+        outstandingDram: null,
+      };
+    }
+
     if (command.kind === 'finish') {
-      if (row.status !== 'seated') {
-        throw conflict(`Only a seated party's table can be freed; ${row.code} is ${status}.`);
+      // Named booking: freed only while the sitting open there is that
+      // booking's — not somebody seated since, not an empty table.
+      if (someoneElseSits || sitting === undefined || row.status !== 'seated') {
+        throw tableRefusal(
+          'table-sitting-changed',
+          `Table ${row.tableLabel} is not ${row.code}'s sitting any more.`,
+        );
       }
-    } else if (row.status !== 'confirmed') {
-      throw conflict(
-        command.kind === 'seat'
-          ? `Only a confirmed reservation can be seated; ${row.code} is ${status}.`
-          : `Only a confirmed reservation can be released; ${row.code} is ${status}.`,
-      );
+    } else {
+      if (row.status !== 'confirmed') {
+        throw conflict(
+          command.kind === 'seat'
+            ? `Only a confirmed reservation can be seated; ${row.code} is ${status}.`
+            : `Only a confirmed reservation can be released; ${row.code} is ${status}.`,
+        );
+      }
+      if (command.kind === 'seat' && (someoneElseSits || sitting !== undefined)) {
+        throw tableRefusal('table-state-conflict', `Table ${row.tableLabel} is occupied.`);
+      }
     }
 
     const next = STATUS_AFTER[command.kind];
     // A no-show or a cancellation frees the table only when it was held for this booking.
     const tableFreed =
       command.kind === 'finish' || (command.kind !== 'seat' && row.tableStatus === 'held');
+    // Seating at another table than the booked one moves the booking there, as on the floor.
+    const seatedAt =
+      command.kind === 'seat'
+        ? overviewTables(command.branchId).find((table) => table.id === command.tableId)
+        : undefined;
     const moved: OverviewBooking = {
       ...row,
+      ...(seatedAt ? { tableId: seatedAt.id, tableLabel: seatedAt.label } : {}),
       status: next,
       tableStatus: command.kind === 'seat' ? 'occupied' : tableFreed ? 'free' : row.tableStatus,
       holdExpiresAtUtc: null,
@@ -1337,13 +1406,19 @@ export function createConsoleMockGateway(options: ConsoleMockOptions = {}): Cons
       if (stored) bookings.set(row.id, { ...stored, status: next });
     }
 
-    return {
+    const result: ConsoleBookingActionResult = {
       kind: command.kind,
       reservationId: row.id,
+      status: next,
+      wasReplay: false,
       tableLabel: row.tableLabel,
       tableFreed,
       outstandingDram: null,
     };
+    if (command.kind === 'seat' || command.kind === 'finish') {
+      actionReplies.set(command.clientCommandId, result);
+    }
+    return result;
   }
 
   mockVenues.forEach((venue, venueIndex) => {

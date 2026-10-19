@@ -1,6 +1,6 @@
 import type { BranchOverview, OverviewHours } from '@yalla/api';
 import { useBranchOverview, useVenueProfile } from '@yalla/api/react';
-import { formatDram, formatTime, type TimeZone } from '@yalla/format';
+import { formatDram, formatTime, zonedParts, type TimeZone } from '@yalla/format';
 import { useLocale, useTranslation, type Locale } from '@yalla/i18n';
 import type { ReactNode } from 'react';
 import { Link } from 'react-router-dom';
@@ -169,10 +169,17 @@ function Kpis({
   return (
     <div className="yc-kpis">
       <Kpi label={t('overview.kpi.bookings')} value={number(bookings.total)}>
-        {t('overview.kpi.bookingsFoot', {
-          confirmed: number(bookings.confirmed),
-          pending: number(bookings.pendingApproval),
-        })}
+        {/* A change waiting for an answer is a confirmed booking still: said apart. */}
+        {t(
+          bookings.pendingChanges > 0
+            ? 'overview.kpi.bookingsFootChanges'
+            : 'overview.kpi.bookingsFoot',
+          {
+            confirmed: number(bookings.confirmed),
+            pending: number(bookings.pendingApproval),
+            changes: number(bookings.pendingChanges),
+          },
+        )}
       </Kpi>
       <Link className="yc-card yc-kpi yc-kpi-a" to="/venue/floorplan">
         <span className="yc-kpi-l">{t('overview.kpi.inRoom')}</span>
@@ -189,11 +196,26 @@ function Kpis({
           ? t('overview.kpi.unpaid', { amount: formatDram(openTabs.unpaidAmd, locale) })
           : t('overview.kpi.nothingUnpaid')}
       </Kpi>
-      <Kpi label={t('overview.kpi.revenue')} value={formatDram(revenue.todayAmd, locale)}>
+      <Kpi label={revenueLabel(t, overview, locale)} value={formatDram(revenue.todayAmd, locale)}>
         <RevenueChange change={revenue.changePercent} locale={locale} />
       </Kpi>
     </div>
   );
+}
+
+/**
+ * "Revenue today", or "Revenue since 12:00" when the service day's takings are
+ * counted from its first opening rather than midnight — as the server counts
+ * them, and the week before from the same opening.
+ */
+function revenueLabel(t: Translate, overview: BranchOverview, locale: Locale): string {
+  const zone = overview.timeZoneId as TimeZone;
+  const opening = zonedParts(new Date(overview.revenue.sinceUtc), zone);
+  return opening.hour === 0 && opening.minute === 0
+    ? t('overview.kpi.revenue')
+    : t('overview.kpi.revenueSince', {
+        time: formatTime(overview.revenue.sinceUtc, zone, locale),
+      });
 }
 
 function Kpi({

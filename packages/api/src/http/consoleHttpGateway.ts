@@ -76,6 +76,8 @@ import {
   type WireManagedVenue,
 } from './consoleMapping';
 import { branchOverviewFromWire, type WireBranchOverview } from './branchOverviewMapping';
+import { STATUS_AFTER } from '../contracts/branchOverview';
+import { reservationStatus } from './dinerMapping';
 import { tableActionResult } from './staffMapping';
 import {
   activityFromWire,
@@ -1154,7 +1156,6 @@ export function createConsoleHttpGateway(
     // --- Overview -----------------------------------------------------------------
 
     async getBranchOverview(branchId) {
-      // gateway-schema: awaiting-route — /api/branches/{branchId}/overview lands with feat/venue-console-2
       const { data } = await client.get<WireBranchOverview>(`${BRANCHES}/${branchId}/overview`);
       return branchOverviewFromWire(data);
     },
@@ -1172,14 +1173,20 @@ export function createConsoleHttpGateway(
         return {
           kind,
           reservationId,
+          status: STATUS_AFTER[kind],
+          wasReplay: result.wasReplay,
           tableLabel: result.tableLabel,
           tableFreed: result.toStatus === 'free',
           outstandingDram: result.outstandingDram,
         };
       };
+      // The booking as the release left it: on a replay, what it was released
+      // as the first time — a no-show clicked after a cancellation stays cancelled.
       const fromRelease = (data: Release) => ({
         kind,
         reservationId,
+        status: reservationStatus(data.reservation.status),
+        wasReplay: data.wasReplay,
         tableLabel: data.tableLabel,
         tableFreed: data.tableFreed,
         outstandingDram: null,
@@ -1195,10 +1202,14 @@ export function createConsoleHttpGateway(
           return fromTable(data);
         }
         case 'finish': {
+          // Names the booking whose sitting ends, so a row read before
+          // somebody else sat down can never end theirs: 409
+          // `table-sitting-changed` (VC2 wire 2.1).
           const { data } = await client.post<TableChange>(`${table}/free`, {
             clientCommandId,
             queued: false,
-          } satisfies Schemas['Yalla.Api.Endpoints.TableStateRequest']);
+            reservationId,
+          } satisfies Schemas['Yalla.Api.Endpoints.FreeTableRequest']);
           return fromTable(data);
         }
         case 'noShow': {

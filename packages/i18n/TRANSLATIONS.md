@@ -621,6 +621,23 @@ review every string in `src/locales/hy` and `src/locales/ru`.**
     `.elsewhere`, `onboarding.blockers.*` and
     `onboarding.steps.acceptsWebBookingsOptional` (online bookings switched
     off is now a "worth a look" line).
+  - Review fixes (2026-10-19), **not** in an artboard, so not read by the user
+    even in `hy`: the row refusals `overview.bookings.refused.*` (one sentence
+    per refusal the routes document — `moved`, `tableTaken`, `sittingChanged`,
+    `tableCannot`, `forbidden`, `gone`, `offline`, `generic`; the server's
+    English is never shown; they replace `bookings.failed` and `.offline`);
+    the undo of a no-show or a cancellation, `bookings.held.*`, `.heldNote`
+    (must keep saying it is sent **unless undone**) and `.undone` (must keep
+    saying **nothing was sent**); `bookings.done.replay` (a repeat that had
+    already landed, with the booking's status); `bookings.status.changeRequested`
+    and `.changeNote` (a confirmed booking whose change waits — answered in the
+    approvals card, not from its row); `bookings.status.unknown`;
+    `bookings.nudgeAt` now says the app **will** ask; `kpi.bookingsFootChanges`;
+    `kpi.revenueSince` (the takings counted from the first opening);
+    `load.onlyPending` and `load.pendingLegend` (requests drawn on top of the
+    bars); `load.aria` now names the hour now; `attn.device` / `.deviceOn` /
+    `.deviceBody` say "not heard from since", never "lost its connection" — a
+    tablet's last-seen moves only on a sign-in or a renewal.
 
 The Russian bundle carries four plural categories (`one`/`few`/`many`/`other`)
 where Armenian and English carry two. That is correct CLDR, not duplication, and

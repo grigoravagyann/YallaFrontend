@@ -29,7 +29,9 @@ export interface OverviewTable {
 
 /**
  * Today at a branch, as the artboard draws it: two parties seated, one late,
- * a few still to come, one finished, one the diner called off. Minutes from
+ * a few still to come, one finished, one the diner called off (counted, not
+ * listed, as on the server), and one confirmed booking whose guest asked to
+ * move it — listed at the slot it keeps until the venue answers. Minutes from
  * the mock's now, rounded to the quarter hour, so every status is reachable
  * whenever the mock is opened — a row that would fall on another day is left
  * out, as the server's "today" would leave it.
@@ -40,6 +42,7 @@ const TODAY: readonly {
   readonly party: number;
   readonly channel: ReservationChannel;
   readonly status: OverviewBooking['status'];
+  readonly changeRequested?: boolean;
 }[] = [
   { offset: -195, guest: 'Tigran Avetisyan', party: 2, channel: 'web', status: 'completed' },
   { offset: -75, guest: 'Մարիամ Ս.', party: 2, channel: 'app', status: 'seated' },
@@ -49,6 +52,14 @@ const TODAY: readonly {
   { offset: 65, guest: 'Gor A.', party: 4, channel: 'staff', status: 'confirmed' },
   { offset: 95, guest: 'Ruzanna M.', party: 2, channel: 'app', status: 'cancelledByDiner' },
   { offset: 110, guest: 'Սոնա Վ.', party: 4, channel: 'web', status: 'confirmed' },
+  {
+    offset: 140,
+    guest: 'Lilit B.',
+    party: 2,
+    channel: 'app',
+    status: 'pendingApproval',
+    changeRequested: true,
+  },
 ];
 
 /** How long the app waits past the start before it asks "still coming?". */
@@ -92,6 +103,7 @@ export function seedTodayBookings(input: {
       status: row.status,
       startUtc: start.toISOString(),
       endUtc: new Date(start.getTime() + input.turnTimeMinutes * 60_000).toISOString(),
+      localDate,
       localStartTime,
       partySize: row.party,
       guestName: row.guest,
@@ -100,17 +112,42 @@ export function seedTodayBookings(input: {
       tableStatus: row.status === 'seated' ? 'occupied' : late ? 'held' : 'free',
       roomName: null,
       channel: row.channel,
-      declinedBecause: null,
+      changeRequested: row.changeRequested ?? false,
       holdExpiresAtUtc: late
         ? new Date(start.getTime() + HOLD_MINUTES * 60_000).toISOString()
         : null,
       lateNudgeAtUtc:
-        row.channel === 'app'
+        row.channel === 'app' && row.status === 'confirmed'
           ? new Date(start.getTime() + LATE_NUDGE_MINUTES * 60_000).toISOString()
           : null,
+      // Worked out on every read, against the clock: see `branchOverviewFrom`.
+      lateNudgeSent: null,
     };
     return [booking];
   });
+}
+
+/**
+ * The table a walk-in party sits at: the first active table in service that
+ * no booking of today uses. Its sitting is nobody's booking, so finishing a
+ * booking there is refused (`table-sitting-changed`), and seating one there
+ * too (`table-state-conflict`).
+ */
+export function walkInTable(
+  tables: readonly OverviewTable[],
+  bookings: readonly OverviewBooking[],
+): OverviewTable | undefined {
+  return tables.find(
+    (table) =>
+      table.isActive &&
+      table.status !== 'outOfService' &&
+      !bookings.some((row) => row.tableId === table.id),
+  );
+}
+
+/** Cancelled bookings are counted on the server, never listed. */
+export function isCancelled(row: OverviewBooking): boolean {
+  return row.status === 'cancelledByDiner' || row.status === 'cancelledByVenue';
 }
 
 /** The start of a local hour of today, as an instant. */
@@ -142,7 +179,25 @@ export function branchOverviewFrom(input: {
   const now = input.now;
   const today = branchDayKey(now, zone);
   const rows = [...input.bookings].sort((a, b) => a.startUtc.localeCompare(b.startUtc));
-  const shown = rows.filter((row) => row.declinedBecause === null);
+  const shown = rows
+    .filter((row) => !isCancelled(row))
+    .map((row) => {
+      // The hold and the nudge belong to a confirmed booking only; the nudge
+      // has gone out once its time has passed.
+      const confirmed = row.status === 'confirmed';
+      const nudgeAt = confirmed ? row.lateNudgeAtUtc : null;
+      return {
+        ...row,
+        holdExpiresAtUtc: confirmed ? row.holdExpiresAtUtc : null,
+        lateNudgeAtUtc: nudgeAt,
+        lateNudgeSent: nudgeAt === null ? null : Date.parse(nudgeAt) <= now.getTime(),
+      };
+    });
+  // A change waiting for an answer keeps its slot: it counts as confirmed.
+  const asConfirmed = (row: OverviewBooking) =>
+    row.status === 'confirmed' || (row.status === 'pendingApproval' && row.changeRequested);
+  const waiting = (row: OverviewBooking) =>
+    row.status === 'pendingApproval' && !row.changeRequested;
   const count = (status: OverviewBooking['status']) =>
     shown.filter((row) => row.status === status).length;
   const holding = shown.filter((row) =>
@@ -152,10 +207,7 @@ export function branchOverviewFrom(input: {
   const active = input.tables.filter((table) => table.isActive);
   const seated = shown.filter((row) => row.status === 'seated');
   const seatedTables = new Set(seated.map((row) => row.tableId));
-  // One walk-in party at the first table nobody booked for now.
-  const walkIn = active.find(
-    (table) => table.status !== 'outOfService' && !shown.some((row) => row.tableId === table.id),
-  );
+  const walkIn = walkInTable(input.tables, rows);
   const people = seated.reduce((sum, row) => sum + row.partySize, 0) + (walkIn ? WALK_IN_PARTY : 0);
   const occupiedTables = seatedTables.size + (walkIn ? 1 : 0);
 
@@ -188,11 +240,11 @@ export function branchOverviewFrom(input: {
       const during = holding.filter(
         (row) => Date.parse(row.startUtc) < to && Date.parse(row.endUtc) > from,
       );
-      const party = (waiting: boolean) =>
+      const party = (unanswered: boolean) =>
         during
-          .filter((row) => (row.status === 'pendingApproval') === waiting)
+          .filter((row) => waiting(row) === unanswered)
           .reduce((sum, row) => sum + row.partySize, 0);
-      // Confirmed, seated and finished parties; the requests not yet answered apart.
+      // Confirmed (kept slots too), seated and finished parties; the unanswered requests apart.
       load.push({ hour, people: party(false), pendingPeople: party(true) });
     }
   }
@@ -215,18 +267,17 @@ export function branchOverviewFrom(input: {
     },
     bookings: {
       total: holding.length + count('noShow'),
-      pendingApproval: count('pendingApproval'),
-      confirmed: count('confirmed'),
+      pendingApproval: shown.filter(waiting).length,
+      confirmed: shown.filter(asConfirmed).length,
       late: shown.filter(
         (row) => row.status === 'confirmed' && Date.parse(row.startUtc) <= now.getTime(),
       ).length,
       seated: count('seated'),
       completed: count('completed'),
       noShow: count('noShow'),
-      cancelled: rows.filter(
-        (row) => row.status === 'cancelledByDiner' || row.status === 'cancelledByVenue',
-      ).length,
+      cancelled: rows.filter(isCancelled).length,
       people: holding.reduce((sum, row) => sum + row.partySize, 0),
+      pendingChanges: shown.filter((row) => row.changeRequested).length,
     },
     inRoom: {
       people,
@@ -241,6 +292,7 @@ export function branchOverviewFrom(input: {
       lastWeekDate,
       changePercent:
         lastWeekAmd > 0 ? Math.round(((todayAmd - lastWeekAmd) / lastWeekAmd) * 1000) / 10 : null,
+      sinceUtc: firstOpening(input.weeklyHours, today, zone),
     },
     load: {
       capacity: active
@@ -248,8 +300,19 @@ export function branchOverviewFrom(input: {
         .reduce((sum, table) => sum + table.seats, 0),
       hours: load,
     },
-    todayBookings: rows,
+    todayBookings: shown,
     todayBookingsTruncated: false,
     graceMinutes: input.graceMinutes,
   };
+}
+
+/** The service day's first opening, or its midnight when it has no hours. */
+function firstOpening(weeklyHours: WeeklyHours, today: string, zone: TimeZone): string {
+  const weekday = new Date(`${today}T12:00:00Z`).getUTCDay();
+  const opens = (weeklyHours.find((entry) => entry.day === weekday)?.blocks ?? [])
+    .map((block) => block.opensAt)
+    .sort()[0];
+  const [hour, minute] = (opens ?? '00:00').split(':').map(Number) as [number, number];
+  const [year, month, day] = today.split('-').map(Number) as [number, number, number];
+  return instantFromZonedClock({ year, month, day, hour, minute }, zone).toISOString();
 }

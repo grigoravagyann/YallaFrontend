@@ -4633,8 +4633,27 @@ textarea.yc-ctl {
   font-weight: var(--font-weight-semibold);
 }
 
+/* One hour: the booked bar, and the requests waiting for an answer on top. */
+.yc-lstack {
+  position: relative;
+  width: 100%;
+  max-width: 34px;
+  display: flex;
+  flex-direction: column;
+}
+
+.yc-lb.is-pending {
+  border: 1px dashed var(--console-amber);
+  background: var(--console-amber-bg);
+}
+
+.yc-lstack .yc-lb + .yc-lb {
+  border-radius: 0;
+}
+
 .yc-lb {
   position: relative;
+  flex-basis: 0;
   width: 100%;
   max-width: 34px;
   border-radius: 5px 5px 0 0;

@@ -89,6 +89,54 @@ describe('the awaiting-approval panel', () => {
     const after = await harness.gateway.listPendingReservations('b-lumen-north');
     expect(after.map((booking) => booking.id)).not.toContain(first.id);
     expect(within(panel).getAllByRole('listitem').length).toBe(before.length - 1);
+    // The focus goes on to the row now in its place, not to the page.
+    const next = within(panel).getByText(before[1]!.code).closest('li')!;
+    await waitFor(() => expect(next.contains(document.activeElement)).toBe(true));
+  });
+
+  it('takes a decided row off at once, so a second click cannot decide it again', async () => {
+    const user = userEvent.setup();
+    const base = createConsoleMockGateway({ latencyMs: 0, role: 'owner' });
+    const approve = vi.spyOn(base, 'approveReservation');
+    // The next read is slow: the row must not wait for it to go.
+    let reads = 0;
+    const slow: ConsoleGateway = {
+      ...base,
+      listPendingReservations: async (branchId) => {
+        reads += 1;
+        if (reads > 1) await new Promise((resolve) => setTimeout(resolve, 5000));
+        return base.listPendingReservations(branchId);
+      },
+    };
+    renderCard({ gateway: slow });
+    const panel = await waitForPanel();
+    const [first] = await base.listPendingReservations('b-lumen-north');
+    const row = within(panel).getByText(first!.code).closest('li')!;
+
+    await user.click(within(row).getByRole('button', { name: /^approve$/i }));
+    await waitFor(() => expect(within(panel).queryByText(first!.code)).toBeNull(), {
+      timeout: 1000,
+    });
+    expect(approve).toHaveBeenCalledTimes(1);
+  });
+
+  it('counts in its pill the same list the sidebar badge counts', async () => {
+    const base = createConsoleMockGateway({ latencyMs: 0, role: 'owner' });
+    const closed: ConsoleGateway = {
+      ...base,
+      listPendingReservations: async (branchId) =>
+        (await base.listPendingReservations(branchId)).map((booking) =>
+          booking.approvalExpiresAtUtc
+            ? { ...booking, approvalExpiresAtUtc: new Date(Date.now() - 1000).toISOString() }
+            : booking,
+        ),
+    };
+    renderCard({ gateway: closed });
+    const panel = await waitForPanel();
+    const listed = await closed.listPendingReservations('b-lumen-north');
+    // The badge is the server's list, as read; so is the pill — a row whose
+    // time ran out on this clock is still in both until the next read.
+    expect(within(panel).getByText(`${listed.length} waiting`)).toBeTruthy();
   });
 
   it('rejects with the reason typed, after asking', async () => {
@@ -234,6 +282,8 @@ describe('a booking at short notice', () => {
     expect(within(row).queryByRole('button', { name: /^decline$/i })).toBeNull();
     await userEvent.setup().click(within(row).getByRole('button', { name: /^got it$/i }));
     await waitFor(() => expect(within(panel).queryByText(tonight.code)).toBeNull());
+    // On to the next row, not lost on the page.
+    await waitFor(() => expect(panel.contains(document.activeElement)).toBe(true));
   });
 
   it('turns the clock amber under five minutes and red under one', async () => {
@@ -290,8 +340,43 @@ describe('a booking at short notice', () => {
 
     await user.click(within(row).getByRole('button', { name: /^approve$/i }));
 
-    const alert = await within(row).findByRole('alert');
+    // Said in a toast, which outlives the row: the row is gone at once.
+    const alert = await screen.findByRole('alert');
     expect(alert.textContent).toMatch(/^Too late: the time to answer ran out/u);
+    await waitFor(() => expect(within(panel).queryByText(first!.code)).toBeNull());
+  });
+
+  it('says somebody else answered first in a toast, and takes the row off', async () => {
+    const user = userEvent.setup();
+    const base = createConsoleMockGateway({ latencyMs: 0, role: 'owner' });
+    const answered: ConsoleGateway = {
+      ...base,
+      approveReservation: () =>
+        Promise.reject(
+          new ConcurrencyConflictError({
+            url: 'mock://approve',
+            problem: {
+              type: 'about:blank',
+              title: 'Conflict',
+              status: 409,
+              detail: 'Only a pending reservation can be confirmed; LUSN2 is Confirmed.',
+              code: 'conflicting-state',
+              traceId: 'mock',
+            },
+          }),
+        ),
+    };
+    renderCard({ gateway: answered });
+    const panel = await waitForPanel();
+    const [first] = await base.listPendingReservations('b-lumen-north');
+    const row = within(panel).getByText(first!.code).closest('li')!;
+
+    await user.click(within(row).getByRole('button', { name: /^approve$/i }));
+
+    expect((await screen.findByRole('alert')).textContent).toBe(
+      'Already answered by someone else.',
+    );
+    await waitFor(() => expect(within(panel).queryByText(first!.code)).toBeNull());
   });
 });
 
@@ -323,6 +408,8 @@ describe('a booking the guest before answers in the app', () => {
     expect(within(row).getByText(THEIRS)).toBeTruthy();
     expect(within(row).queryByRole('button', { name: /^approve$/i })).toBeNull();
     expect(within(row).queryByRole('button', { name: /^decline$/i })).toBeNull();
+    // No clock: the time is the guest's to answer in, not the venue's.
+    expect(within(row).queryByRole('timer')).toBeNull();
   });
 
   it('offers the decision, with its clock, when the venue rings the guest before itself', async () => {

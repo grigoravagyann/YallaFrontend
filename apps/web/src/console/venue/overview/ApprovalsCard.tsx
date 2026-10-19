@@ -1,5 +1,6 @@
 import {
   approvalCountdown,
+  isApprovalExpired,
   waitsOnEarlierGuestInApp,
   type ApprovalCountdown,
   type ConsoleBooking,
@@ -16,7 +17,11 @@ import { useEffect, useId, useRef, useState, type FormEvent } from 'react';
 import { QueryFailureNotice } from '../../../components/QueryFailureNotice';
 import { ClockIcon } from '../../ui/icons';
 import { useToast } from '../../ui/toast';
-import { decisionFailureText, isAwaitingEarlierGuest } from './decisionFailure';
+import {
+  decisionFailureText,
+  isAnsweredElsewhere,
+  isAwaitingEarlierGuest,
+} from './decisionFailure';
 
 /** Under five minutes left the clock turns amber; under one, red (the Main artboard). */
 const SOON_SECONDS = 300;
@@ -59,30 +64,48 @@ export function ApprovalsCard({
 }) {
   const { t } = useTranslation(['admin', 'common']);
   const titleId = useId();
+  const listRef = useRef<HTMLUListElement>(null);
   const query = usePendingReservations(branchId);
   // One clock for every row: the countdowns are seconds.
   const now = useNow(1000);
-  // Rows whose window closed on this device's clock and that were put away
-  // with "Got it": the next read drops them anyway, once the server agrees.
-  const [dismissed, setDismissed] = useState<ReadonlySet<string>>(() => new Set());
-  const pending = (query.data ?? []).filter((booking) => !dismissed.has(booking.id));
-  const live = pending.filter(
-    (booking) => !(approvalCountdown(booking.approvalExpiresAtUtc, now)?.expired ?? false),
-  );
+  // Rows taken off at once rather than at the next read: decided here (so a
+  // second click cannot decide them again), refused as too late or answered
+  // elsewhere, or put away with "Got it" once their time ran out. The next
+  // read drops them anyway, once the server agrees.
+  const [gone, setGone] = useState<ReadonlySet<string>>(() => new Set());
+  const pending = (query.data ?? []).filter((booking) => !gone.has(booking.id));
+  // The same set the sidebar's badge counts: the server's list, as read.
+  const waiting = query.data?.length ?? 0;
+  /** The place a row left, for the focus: the row now there, or the title. */
+  const leftAt = useRef<number | null>(null);
+
+  useEffect(() => {
+    const at = leftAt.current;
+    if (at === null) return;
+    leftAt.current = null;
+    const rows = listRef.current?.querySelectorAll<HTMLElement>(':scope > li') ?? [];
+    const next = rows[Math.min(at, rows.length - 1)];
+    (
+      next?.querySelector<HTMLElement>('button, a[href]') ?? document.getElementById(titleId)
+    )?.focus();
+  }, [gone, titleId]);
+
+  function takeOff(id: string) {
+    leftAt.current = pending.findIndex((booking) => booking.id === id);
+    setGone((current) => new Set(current).add(id));
+  }
 
   return (
     <section className="yc-card" aria-labelledby={titleId}>
       <div className="yc-card-h">
         <div>
-          <h2 className="yc-h2" id={titleId}>
+          <h2 className="yc-h2" id={titleId} tabIndex={-1}>
             {t('approvals.title')}
           </h2>
           <p className="yc-cap">{t('approvals.body')}</p>
         </div>
-        {live.length > 0 ? (
-          <span className="yc-pill yc-pill-amber">
-            {t('approvals.count', { count: live.length })}
-          </span>
+        {waiting > 0 ? (
+          <span className="yc-pill yc-pill-amber">{t('approvals.count', { count: waiting })}</span>
         ) : null}
       </div>
 
@@ -101,7 +124,7 @@ export function ApprovalsCard({
       ) : pending.length === 0 ? (
         <p className="yc-ov-empty">{t('approvals.empty')}</p>
       ) : (
-        <ul className="yc-appr" aria-live="polite">
+        <ul className="yc-appr" aria-live="polite" ref={listRef}>
           {pending.map((booking) => (
             <ApprovalRow
               key={booking.id}
@@ -109,7 +132,7 @@ export function ApprovalsCard({
               branchId={branchId}
               timeZoneId={timeZoneId}
               now={now}
-              onDismiss={() => setDismissed((current) => new Set(current).add(booking.id))}
+              onGone={() => takeOff(booking.id)}
             />
           ))}
         </ul>
@@ -123,13 +146,14 @@ function ApprovalRow({
   branchId,
   timeZoneId,
   now,
-  onDismiss,
+  onGone,
 }: {
   readonly booking: ConsoleBooking;
   readonly branchId: string;
   readonly timeZoneId: string;
   readonly now: Date;
-  readonly onDismiss: () => void;
+  /** The row is done with: decided, refused for good, or put away. */
+  readonly onGone: () => void;
 }) {
   const { t } = useTranslation(['admin', 'common']);
   const { locale } = useLocale();
@@ -181,10 +205,17 @@ function ApprovalRow({
       { reservationId: booking.id, ...command },
       {
         onSuccess: () => {
-          setDeclining(false);
           toast.say(said);
+          onGone();
         },
         onError: (error) => {
+          // Too late, or somebody else answered: the row is going, so the
+          // sentence goes in a toast that outlives it.
+          if (isApprovalExpired(error) || isAnsweredElsewhere(error)) {
+            toast.say(decisionFailureText(error, copy), { tone: 'error' });
+            onGone();
+            return;
+          }
           if (isAwaitingEarlierGuest(error)) setTheirsToAnswer(true);
           setFailure(decisionFailureText(error, copy));
         },
@@ -245,14 +276,14 @@ function ApprovalRow({
             {t('approvals.timeUp')}
           </span>
           <span className="yc-grow" />
-          <button type="button" className="yc-btn yc-btn-ghost yc-btn-sm" onClick={onDismiss}>
+          <button type="button" className="yc-btn yc-btn-ghost yc-btn-sm" onClick={onGone}>
             {t('approvals.dismiss')}
           </button>
         </div>
       ) : guestAnswers ? (
         failure ? null : (
+          // No clock: the time is the guest's to answer in, not the venue's.
           <div className="yc-ap-foot">
-            {countdown ? <Clock countdown={countdown} /> : null}
             <span className="yc-muted yc-small">{t('approvals.awaitingEarlierGuest')}</span>
           </div>
         )

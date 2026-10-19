@@ -2,10 +2,11 @@ import { describe, expect, it } from 'vitest';
 import { overviewRowState, type OverviewBooking } from './branchOverview';
 
 /**
- * What a row of today's bookings is. A declined request is a cancelled row
- * with a reason; a confirmed booking whose change was declined keeps the
- * reason and is still a live booking — hiding it would lose a party that is
- * coming.
+ * What a row of today's bookings is (VC2 wire, revision 2). The server lists
+ * no cancelled or declined booking, so nothing is hidden on the client; a
+ * confirmed booking whose change waits is listed at the slot it keeps as
+ * `pendingApproval` with `changeRequested`, and is not a request to answer
+ * from its row.
  */
 
 const NOW = new Date('2026-10-18T14:42:00Z');
@@ -15,6 +16,7 @@ const ROW: OverviewBooking = {
   status: 'confirmed',
   startUtc: '2026-10-18T15:30:00Z',
   endUtc: '2026-10-18T17:30:00Z',
+  localDate: '2026-10-18',
   localStartTime: '19:30:00',
   partySize: 2,
   guestName: 'Narine T.',
@@ -23,23 +25,29 @@ const ROW: OverviewBooking = {
   tableStatus: 'free',
   roomName: null,
   channel: 'app',
-  declinedBecause: null,
+  changeRequested: false,
   holdExpiresAtUtc: null,
   lateNudgeAtUtc: null,
+  lateNudgeSent: null,
 };
 
 describe('a row of today', () => {
-  it('keeps a confirmed booking whose change was declined on the list', () => {
-    expect(overviewRowState({ ...ROW, declinedBecause: 'staffDeclined' }, NOW)).toBe('confirmed');
-  });
-
-  it('leaves out a declined request, and keeps a booking the venue called off', () => {
-    const cancelled = { ...ROW, status: 'cancelledByVenue' as const };
-    expect(overviewRowState({ ...cancelled, declinedBecause: 'noAnswer' }, NOW)).toBe('declined');
-    expect(overviewRowState(cancelled, NOW)).toBe('cancelled');
+  it('tells a change waiting for an answer from a request', () => {
+    const waiting = { ...ROW, status: 'pendingApproval' as const };
+    expect(overviewRowState(waiting, NOW)).toBe('pending');
+    expect(overviewRowState({ ...waiting, changeRequested: true }, NOW)).toBe('changeRequested');
   });
 
   it('is late once a confirmed start has passed, grace or not', () => {
     expect(overviewRowState({ ...ROW, startUtc: '2026-10-18T14:41:00Z' }, NOW)).toBe('late');
+    expect(overviewRowState(ROW, NOW)).toBe('confirmed');
+  });
+
+  it('shows a booking just called off as cancelled until the next read drops it', () => {
+    expect(overviewRowState({ ...ROW, status: 'cancelledByVenue' }, NOW)).toBe('cancelled');
+  });
+
+  it('reads a status this build does not know as unknown, never as confirmed', () => {
+    expect(overviewRowState({ ...ROW, status: 'unknown' }, NOW)).toBe('unknown');
   });
 });

@@ -5,12 +5,13 @@ import {
   overviewRowState,
   type BranchReadiness,
   type ConsoleGateway,
+  type OverviewBooking,
 } from '@yalla/api';
 import { cleanup, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { Outlet, Route, Routes } from 'react-router-dom';
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
-import { ToastProvider } from '../../ui/toast';
+import { TOAST_UNDO_MS, ToastProvider } from '../../ui/toast';
 import { ReservationPolicyScreen } from '../policy/ReservationPolicyScreen';
 import { createConsoleHarness, initConsoleTestI18n } from '../reports/testHarness';
 import { VenueOverviewScreen } from '../VenueOverviewScreen';
@@ -96,11 +97,6 @@ describe('the overview', () => {
 
     const bookings = screen.getByText('Bookings today').closest('.yc-kpi') as HTMLElement;
     expect(within(bookings).getByText(String(overview.bookings.total))).toBeTruthy();
-    expect(
-      within(bookings).getByText(
-        `${overview.bookings.confirmed} confirmed · ${overview.bookings.pendingApproval} waiting`,
-      ),
-    ).toBeTruthy();
 
     const room = screen.getByText('In the room now', { selector: '.yc-kpi-l' }).closest('a')!;
     expect(room.getAttribute('href')).toBe('/venue/floorplan');
@@ -108,8 +104,15 @@ describe('the overview', () => {
 
     const tabs = screen.getByText('Open tabs').closest('.yc-kpi') as HTMLElement;
     expect(within(tabs).getByText(/still unpaid$/u)).toBeTruthy();
+    // Sunday the mock is shut all day: the takings count from midnight.
     const revenue = screen.getByText('Revenue today').closest('.yc-kpi') as HTMLElement;
     expect(within(revenue).getByText(/^↑ \d/u)).toBeTruthy();
+    // The change waiting for an answer is said with the confirmed it is counted in.
+    expect(
+      within(bookings).getByText(
+        `${overview.bookings.confirmed} confirmed (${overview.bookings.pendingChanges} asking to change) · ${overview.bookings.pendingApproval} waiting`,
+      ),
+    ).toBeTruthy();
   });
 
   it('draws the load by hour with the seats as its line, every hour said', async () => {
@@ -119,7 +122,7 @@ describe('the overview', () => {
     const chart = await screen.findByRole('img', { name: /^Booked people by hour/u });
 
     expect(chart.getAttribute('aria-label')).toContain(
-      `${overview.load.capacity} seats in the room`,
+      `${overview.load.capacity} seats in the room, now 18:00:`,
     );
     expect(
       within(chart).getByText(`${overview.load.capacity} seats · the room is full`),
@@ -159,6 +162,44 @@ describe('the overview', () => {
     expect(now.textContent).toBe('00');
   });
 
+  it('says where the takings are counted from when the day opens after midnight', async () => {
+    const base = mockGateway();
+    const overview = await base.getBranchOverview(BRANCH);
+    renderOverview({
+      ...base,
+      getBranchOverview: async () => ({
+        ...overview,
+        revenue: { ...overview.revenue, sinceUtc: '2026-10-18T06:00:00Z' },
+      }),
+    });
+    expect(await screen.findByText('Revenue since 10:00')).toBeTruthy();
+  });
+
+  it('draws an hour that only has requests waiting, and says so, rather than "nobody booked"', async () => {
+    const base = mockGateway();
+    const overview = await base.getBranchOverview(BRANCH);
+    renderOverview({
+      ...base,
+      getBranchOverview: async () => ({
+        ...overview,
+        load: {
+          capacity: 30,
+          hours: [
+            { hour: 19, people: 0, pendingPeople: 4 },
+            { hour: 20, people: 0, pendingPeople: 0 },
+          ],
+        },
+      }),
+    });
+    const chart = await screen.findByRole('img', { name: /^Booked people by hour/u });
+    expect(chart.getAttribute('aria-label')).toContain('19:00: 0, and 4 waiting');
+    expect(chart.querySelector('.yc-lb.is-pending')).not.toBeNull();
+    expect(
+      screen.getByText(/^Only requests waiting for your answer so far\. The light part waits/u),
+    ).toBeTruthy();
+    expect(screen.queryByText('Nobody is booked in yet today.')).toBeNull();
+  });
+
   it('says when the list of today is cut short', async () => {
     const base = mockGateway();
     const overview = await base.getBranchOverview(BRANCH);
@@ -178,20 +219,47 @@ describe('the overview', () => {
 });
 
 describe("today's bookings", () => {
+  /** The mock's evening with the grace up, so a late party may be marked a no-show. */
+  function graceUp(base: ConsoleGateway): ConsoleGateway {
+    return {
+      ...base,
+      getBranchOverview: async (branchId) => ({
+        ...(await base.getBranchOverview(branchId)),
+        graceMinutes: 0,
+      }),
+    };
+  }
+
+  async function rowsOf(gateway: ConsoleGateway) {
+    return (await gateway.getBranchOverview(BRANCH)).todayBookings;
+  }
+
+  const firstIn = (rows: readonly OverviewBooking[], state: string) =>
+    rows.find((row) => overviewRowState(row, EVENING) === state)!;
+
+  async function openMenu(
+    user: ReturnType<typeof userEvent.setup>,
+    card: HTMLElement,
+    name: string,
+  ) {
+    await user.click(within(rowOf(card, name)).getByRole('button', { name: /^Actions for/u }));
+    return screen.getByRole('menu');
+  }
+
   it('filters to what is coming up, the room now, or everything', async () => {
     const gateway = mockGateway();
     const { user } = renderOverview(gateway);
     const card = await bookingsCard();
-    const overview = await gateway.getBranchOverview(BRANCH);
-    const named = (state: string) =>
-      overview.todayBookings.find((row) => overviewRowState(row, EVENING) === state)!.guestName;
+    const rows = await rowsOf(gateway);
+    const named = (state: string) => firstIn(rows, state).guestName;
 
-    // Coming up: waiting, confirmed and late, not the seated or the finished.
+    // Coming up: waiting, confirmed (a change waiting too) and late — not the seated or the finished.
     expect(
       within(card).getByRole('button', { name: 'Coming up' }).getAttribute('aria-pressed'),
     ).toBe('true');
     expect(within(card).getByText(named('late'))).toBeTruthy();
     expect(within(card).getByText(named('confirmed'))).toBeTruthy();
+    expect(within(card).getByText(named('changeRequested'))).toBeTruthy();
     expect(within(card).queryByText(named('seated'))).toBeNull();
     expect(within(card).queryByText(named('completed'))).toBeNull();
 
@@ -202,39 +270,91 @@ describe("today's bookings", () => {
 
     await user.click(within(card).getByRole('button', { name: 'All' }));
     expect(within(card).getByText(named('completed'))).toBeTruthy();
-    expect(within(card).getByText(named('cancelled'))).toBeTruthy();
   });
 
-  it('says how late a late party is, and when the app asked them', async () => {
-    const gateway = mockGateway();
-    renderOverview(gateway);
+  it('says how late a late party is and when the app asked, and holds the no-show until the grace is up', async () => {
+    const base = mockGateway();
+    const gateway: ConsoleGateway = {
+      ...base,
+      getBranchOverview: async (branchId) => ({
+        ...(await base.getBranchOverview(branchId)),
+        graceMinutes: 30,
+      }),
+    };
+    const { user } = renderOverview(gateway);
     const card = await bookingsCard();
-    const late = (await gateway.getBranchOverview(BRANCH)).todayBookings.find(
-      (row) => overviewRowState(row, EVENING) === 'late',
-    )!;
+    const late = firstIn(await rowsOf(gateway), 'late');
     const row = rowOf(card, late.guestName);
+
     expect(within(row).getByText(/^\d+ min late$/u)).toBeTruthy();
-    expect(within(row).getByText(/^The app (asked|asks) at \d\d:\d\d$/u)).toBeTruthy();
-    // No manual nudge: the backend has none.
-    await userEvent
-      .setup({ advanceTimers: vi.advanceTimersByTime })
-      .click(within(row).getByRole('button', { name: /^Actions for/u }));
-    const menu = screen.getByRole('menu');
+    // The mock's nudge went out ten minutes after the start: it asked.
+    expect(within(row).getByText(/^The app asked at \d\d:\d\d$/u)).toBeTruthy();
+    // Twelve minutes late with thirty of grace: their table is still theirs.
+    const menu = await openMenu(user, card, late.guestName);
     expect(
       within(menu)
         .getAllByRole('menuitem')
         .map((item) => item.textContent),
-    ).toEqual(['Mark seated', 'No-show · free the table']);
+    ).toEqual(['Mark seated']);
+  });
+
+  it('says the app will ask, rather than that it asked, while the nudge is still due', async () => {
+    const base = mockGateway();
+    const rows = await rowsOf(base);
+    const late = firstIn(rows, 'late');
+    renderOverview({
+      ...base,
+      getBranchOverview: async (branchId) => {
+        const overview = await base.getBranchOverview(branchId);
+        return {
+          ...overview,
+          todayBookings: overview.todayBookings.map((row) =>
+            row.id === late.id ? { ...row, lateNudgeSent: false } : row,
+          ),
+        };
+      },
+    });
+    const row = rowOf(await bookingsCard(), late.guestName);
+    expect(within(row).getByText(/^The app will ask at \d\d:\d\d$/u)).toBeTruthy();
+    expect(within(row).queryByText(/^The app asked/u)).toBeNull();
+  });
+
+  it('offers nothing on a booking whose change waits, or whose status this build does not know', async () => {
+    const base = mockGateway();
+    const rows = await rowsOf(base);
+    const changing = firstIn(rows, 'changeRequested');
+    const odd = firstIn(rows, 'confirmed');
+    renderOverview({
+      ...base,
+      getBranchOverview: async (branchId) => {
+        const overview = await base.getBranchOverview(branchId);
+        return {
+          ...overview,
+          todayBookings: overview.todayBookings.map((row) =>
+            row.id === odd.id ? { ...row, status: 'unknown' as const } : row,
+          ),
+        };
+      },
+    });
+    const card = await bookingsCard();
+    const changeRow = rowOf(card, changing.guestName);
+    expect(within(changeRow).getByText('Change requested')).toBeTruthy();
+    expect(within(changeRow).getByText('Answer it in the card above')).toBeTruthy();
+    expect(within(changeRow).queryByRole('button', { name: /^Actions/u })).toBeNull();
+
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    await user.click(within(card).getByRole('button', { name: 'All' }));
+    const oddRow = rowOf(card, odd.guestName);
+    expect(within(oddRow).getByText('Unknown')).toBeTruthy();
+    expect(within(oddRow).queryByRole('button', { name: /^Actions/u })).toBeNull();
   });
 
   it('seats a late party from the menu with the keyboard, says so, and hands the focus back', async () => {
-    const gateway = mockGateway();
+    const gateway = graceUp(mockGateway());
     const act = vi.spyOn(gateway, 'actOnBooking');
     const { user } = renderOverview(gateway);
     const card = await bookingsCard();
-    const late = (await gateway.getBranchOverview(BRANCH)).todayBookings.find(
-      (row) => overviewRowState(row, EVENING) === 'late',
-    )!;
+    const late = firstIn(await rowsOf(gateway), 'late');
     const kebab = within(rowOf(card, late.guestName)).getByRole('button', {
       name: new RegExp(`^Actions for ${late.guestName}`, 'u'),
     });
@@ -262,66 +382,206 @@ describe("today's bookings", () => {
     expect(within(rowOf(card, late.guestName)).getByText('Seated')).toBeTruthy();
   });
 
-  it('marks a no-show and calls a booking off, each on its own action', async () => {
+  it('finishes a sitting naming its booking', async () => {
     const gateway = mockGateway();
     const act = vi.spyOn(gateway, 'actOnBooking');
     const { user } = renderOverview(gateway);
     const card = await bookingsCard();
-    const rows = (await gateway.getBranchOverview(BRANCH)).todayBookings;
-    const late = rows.find((row) => overviewRowState(row, EVENING) === 'late')!;
-    const upcoming = rows.find((row) => overviewRowState(row, EVENING) === 'confirmed')!;
+    const seated = firstIn(await rowsOf(gateway), 'seated');
+
+    await user.click(within(card).getByRole('button', { name: 'In the room now' }));
+    const menu = await openMenu(user, card, seated.guestName);
+    await user.click(within(menu).getByRole('menuitem', { name: 'Finish · free the table' }));
+
+    await waitFor(() =>
+      expect(act).toHaveBeenCalledWith(
+        expect.objectContaining({
+          kind: 'finish',
+          reservationId: seated.id,
+          tableId: seated.tableId,
+        }),
+      ),
+    );
+    expect(await screen.findByText(`Table ${seated.tableLabel} is free`)).toBeTruthy();
+  });
+
+  it('holds a no-show for its undo, sends nothing if undone, and sends it once the undo lapses', async () => {
+    const gateway = graceUp(mockGateway());
+    const act = vi.spyOn(gateway, 'actOnBooking');
+    const { user } = renderOverview(gateway);
+    const card = await bookingsCard();
+    const late = firstIn(await rowsOf(gateway), 'late');
 
     await user.click(
-      within(rowOf(card, late.guestName)).getByRole('button', { name: /^Actions/u }),
+      within(await openMenu(user, card, late.guestName)).getByRole('menuitem', {
+        name: 'No-show · free the table',
+      }),
     );
-    await user.click(screen.getByRole('menuitem', { name: 'No-show · free the table' }));
+    expect(await screen.findByText(`Marking ${late.guestName} as a no-show`)).toBeTruthy();
+    // Undo takes the focus, and nothing has gone to the server.
+    const undo = screen.getByRole('button', { name: 'Undo' });
+    await waitFor(() => expect(document.activeElement).toBe(undo));
+    expect(act).not.toHaveBeenCalled();
+    await user.click(undo);
+    expect(await screen.findByText(`Nothing was sent for ${late.guestName}`)).toBeTruthy();
+    await vi.advanceTimersByTimeAsync(TOAST_UNDO_MS + 1000);
+    expect(act).not.toHaveBeenCalled();
+    expect(within(rowOf(card, late.guestName)).getByText(/min late$/u)).toBeTruthy();
+
+    // Again, and let it lapse: it is sent, and said.
+    await user.click(
+      within(await openMenu(user, card, late.guestName)).getByRole('menuitem', {
+        name: 'No-show · free the table',
+      }),
+    );
+    expect(within(rowOf(card, late.guestName)).getByText('No-show')).toBeTruthy();
+    await vi.advanceTimersByTimeAsync(TOAST_UNDO_MS + 100);
+    await waitFor(() =>
+      expect(act).toHaveBeenCalledWith(
+        expect.objectContaining({ kind: 'noShow', reservationId: late.id }),
+      ),
+    );
     expect(
       await screen.findByText(new RegExp(`^${late.guestName} marked as a no-show`, 'u')),
     ).toBeTruthy();
-
-    await user.click(
-      within(rowOf(card, upcoming.guestName)).getByRole('button', { name: /^Actions/u }),
-    );
-    await user.click(screen.getByRole('menuitem', { name: 'Cancel the booking' }));
-    expect(
-      await screen.findByText(
-        `${upcoming.guestName}'s booking is cancelled · the guest will be notified`,
-      ),
-    ).toBeTruthy();
-    expect(act.mock.calls.map(([command]) => command.kind)).toEqual(['noShow', 'cancel']);
   });
 
-  it("says the server's refusal when somebody on the floor acted first", async () => {
+  it('sends a held cancellation at once when the page is left, rather than losing it', async () => {
+    const gateway = mockGateway();
+    const act = vi.spyOn(gateway, 'actOnBooking');
+    const { user } = renderOverview(gateway);
+    const card = await bookingsCard();
+    const upcoming = firstIn(await rowsOf(gateway), 'confirmed');
+
+    await user.click(
+      within(await openMenu(user, card, upcoming.guestName)).getByRole('menuitem', {
+        name: 'Cancel the booking',
+      }),
+    );
+    expect(act).not.toHaveBeenCalled();
+    cleanup();
+    // At once, not when the undo would have lapsed: `vi.waitFor` moves no fake timer.
+    await vi.waitFor(
+      () =>
+        expect(act).toHaveBeenCalledWith(
+          expect.objectContaining({ kind: 'cancel', reservationId: upcoming.id }),
+        ),
+      { timeout: 1000 },
+    );
+  });
+
+  it('sends a held no-show at once when the tab is hidden', async () => {
+    const gateway = graceUp(mockGateway());
+    const act = vi.spyOn(gateway, 'actOnBooking');
+    const { user } = renderOverview(gateway);
+    const card = await bookingsCard();
+    const late = firstIn(await rowsOf(gateway), 'late');
+
+    await user.click(
+      within(await openMenu(user, card, late.guestName)).getByRole('menuitem', {
+        name: 'No-show · free the table',
+      }),
+    );
+    const visibility = vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('hidden');
+    document.dispatchEvent(new Event('visibilitychange'));
+    visibility.mockRestore();
+    await vi.waitFor(() => expect(act).toHaveBeenCalledTimes(1), { timeout: 1000 });
+  });
+
+  it('keeps each row busy on its own: a second row acts while the first is in flight', async () => {
     const base = mockGateway();
-    const detail = 'Only a confirmed reservation can be seated; LUD3 is Seated.';
-    const refusing: ConsoleGateway = {
+    let release: () => void = () => undefined;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const act = vi.fn(async (command: Parameters<ConsoleGateway['actOnBooking']>[0]) => {
+      if (command.kind === 'seat') await gate;
+      return base.actOnBooking(command);
+    });
+    const { user } = renderOverview({ ...base, actOnBooking: act });
+    const card = await bookingsCard();
+    const rows = await rowsOf(base);
+    const late = firstIn(rows, 'late');
+    const seated = firstIn(rows, 'seated');
+
+    await user.click(
+      within(await openMenu(user, card, late.guestName)).getByRole('menuitem', {
+        name: 'Mark seated',
+      }),
+    );
+    // In flight: that row shows it, and offers nothing more.
+    const busyRow = rowOf(card, late.guestName);
+    expect(busyRow.getAttribute('aria-busy')).toBe('true');
+    expect(within(busyRow).queryByRole('button', { name: /^Actions/u })).toBeNull();
+
+    await user.click(within(card).getByRole('button', { name: 'In the room now' }));
+    await user.click(
+      within(await openMenu(user, card, seated.guestName)).getByRole('menuitem', {
+        name: 'Finish · free the table',
+      }),
+    );
+    await waitFor(() => expect(act).toHaveBeenCalledTimes(2));
+    release();
+    expect(await screen.findByText(`${late.guestName} is seated`)).toBeTruthy();
+  });
+
+  it("says a refusal in the console's words, never the server's", async () => {
+    const base = mockGateway();
+    const english = "Table 3 is not LUA2's sitting any more.";
+    const { user } = renderOverview({
       ...base,
       actOnBooking: () =>
         Promise.reject(
           new ConcurrencyConflictError({
-            url: 'mock://seat',
+            url: 'mock://free',
             problem: {
               type: 'about:blank',
               title: 'Conflict',
               status: 409,
-              detail,
-              code: 'conflicting-state',
+              detail: english,
+              code: 'table-sitting-changed',
               traceId: 'mock',
             },
           }),
         ),
-    };
-    const { user } = renderOverview(refusing);
+    });
     const card = await bookingsCard();
-    const late = (await base.getBranchOverview(BRANCH)).todayBookings.find(
-      (row) => overviewRowState(row, EVENING) === 'late',
-    )!;
+    const seated = firstIn(await rowsOf(base), 'seated');
+
+    await user.click(within(card).getByRole('button', { name: 'In the room now' }));
+    await user.click(
+      within(await openMenu(user, card, seated.guestName)).getByRole('menuitem', {
+        name: 'Finish · free the table',
+      }),
+    );
+    const alert = await screen.findByRole('alert');
+    expect(alert.textContent).toContain(
+      'Another party sits at that table now, so nothing was ended.',
+    );
+    expect(alert.textContent).not.toContain(english);
+  });
+
+  it('says a repeat was already done, with what the booking is', async () => {
+    const base = mockGateway();
+    const { user } = renderOverview({
+      ...base,
+      actOnBooking: async (command) => ({
+        ...(await base.actOnBooking(command)),
+        wasReplay: true,
+        status: 'cancelledByVenue' as const,
+      }),
+    });
+    const card = await bookingsCard();
+    const late = firstIn(await rowsOf(base), 'late');
 
     await user.click(
-      within(rowOf(card, late.guestName)).getByRole('button', { name: /^Actions/u }),
+      within(await openMenu(user, card, late.guestName)).getByRole('menuitem', {
+        name: 'Mark seated',
+      }),
     );
-    await user.click(screen.getByRole('menuitem', { name: 'Mark seated' }));
-    expect((await screen.findByRole('alert')).textContent).toContain(detail);
+    expect(
+      await screen.findByText(`Already done before: ${late.guestName} · Cancelled`),
+    ).toBeTruthy();
   });
 });
 

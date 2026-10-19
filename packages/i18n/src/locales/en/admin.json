@@ -1970,7 +1970,9 @@
       "revenue": "Revenue today",
       "vsLastWeek": "on the same day last week",
       "noLastWeek": "Nothing to compare with last week",
-      "sameAsLastWeek": "The same as last week"
+      "sameAsLastWeek": "The same as last week",
+      "bookingsFootChanges": "{{confirmed}} confirmed ({{changes}} asking to change) · {{pending}} waiting",
+      "revenueSince": "Revenue since {{time}}"
     },
     "bookings": {
       "title": "Today's bookings",
@@ -2005,7 +2007,9 @@
         "seated": "Seated",
         "completed": "Finished",
         "noShow": "No-show",
-        "cancelled": "Cancelled"
+        "cancelled": "Cancelled",
+        "changeRequested": "Change requested",
+        "unknown": "Unknown"
       },
       "menu": "Actions for {{name}}, {{time}}",
       "action": {
@@ -2020,18 +2024,34 @@
         "noShowKept": "{{name}} marked as a no-show",
         "cancelled": "{{name}}'s booking is cancelled · the guest will be notified",
         "finished": "{{table}} is free",
-        "finishedOwed": "{{table}} is free · {{amount}} is still unpaid on its tab"
+        "finishedOwed": "{{table}} is free · {{amount}} is still unpaid on its tab",
+        "replay": "Already done before: {{name}} · {{status}}"
       },
-      "failed": "That did not go through. Try again.",
-      "offline": "You are offline. Nothing was sent.",
       "nudged": "The app asked at {{time}}",
-      "nudgeAt": "The app asks at {{time}}",
+      "nudgeAt": "The app will ask at {{time}}",
       "empty": "No bookings today.",
       "emptyFilter": {
         "next": "Nothing coming up.",
         "seated": "Nobody with a booking is in the room now."
       },
-      "truncated": "Showing the first 200 of today's bookings."
+      "truncated": "Showing the first 200 of today's bookings.",
+      "changeNote": "Answer it in the card above",
+      "held": {
+        "noShow": "Marking {{name}} as a no-show",
+        "cancel": "Cancelling {{name}}'s booking"
+      },
+      "heldNote": "Sent in a few seconds unless you undo it",
+      "undone": "Nothing was sent for {{name}}",
+      "refused": {
+        "moved": "Someone else has already changed this booking. The list is up to date now.",
+        "tableTaken": "Someone is sitting at that table now, so the party was not seated.",
+        "sittingChanged": "Another party sits at that table now, so nothing was ended.",
+        "tableCannot": "The table cannot do that as it stands. The list is up to date now.",
+        "forbidden": "You cannot change this branch's bookings.",
+        "gone": "This booking is no longer there.",
+        "offline": "You are offline. Nothing was sent.",
+        "generic": "That did not go through. Try again."
+      }
     },
     "load": {
       "title": "Load today",
@@ -2039,13 +2059,15 @@
       "unit": "people",
       "capacity_one": "{{count}} seat · the room is full",
       "capacity_other": "{{count}} seats · the room is full",
-      "aria": "Booked people by hour, {{capacity}} seats in the room: {{hours}}",
+      "aria": "Booked people by hour, {{capacity}} seats in the room, now {{now}}: {{hours}}",
       "hour": "{{hour}}: {{people}}",
       "hourPending": "{{hour}}: {{people}}, and {{pending}} waiting",
       "peak": "The busiest hour is {{hour}}: {{people}} people, {{percent}} % of the room's {{capacity}} seats.",
       "peakNoSeats": "The busiest hour is {{hour}}: {{people}} people.",
       "empty": "Nobody is booked in yet today.",
-      "nextDay": "{{hour}} (next day)"
+      "nextDay": "{{hour}} (next day)",
+      "onlyPending": "Only requests waiting for your answer so far.",
+      "pendingLegend": "The light part waits for your answer."
     },
     "attn": {
       "title": "Worth a look",
@@ -2055,14 +2077,15 @@
       "reviews_one": "{{count}} review is reported",
       "reviews_other": "{{count}} reviews are reported",
       "reviewsBody": "Guests flagged them as inappropriate",
-      "device": "{{name}} has lost its connection",
-      "deviceBody": "Last seen {{ago}}",
+      "device": "Not heard from {{name}} since {{time}}",
+      "deviceBody": "Check that the tablet is on and connected",
       "turn_one": "Tables are kept {{count}} minute longer",
       "turn_other": "Tables are kept {{count}} minutes longer",
       "turnBody": "The middle sitting is {{median}} min against the policy's {{policy}}",
       "bookingsOff": "Online bookings are off",
       "bookingsOffBody": "Guests see the page but cannot book",
-      "empty": "Nothing needs a look right now."
+      "empty": "Nothing needs a look right now.",
+      "deviceOn": "Not heard from {{name}} since {{date}}, {{time}}"
     }
   }
 }

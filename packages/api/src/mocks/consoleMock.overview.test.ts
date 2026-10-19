@@ -1,13 +1,16 @@
 import { describe, expect, it } from 'vitest';
 import { overviewRowState, type BranchOverview } from '../contracts/branchOverview';
 import { ConcurrencyConflictError, ForbiddenError } from '../errors';
+import { newCommandId } from '../ids';
 import { createConsoleMockGateway } from './consoleMock';
 
 /**
- * Overview in the mock: one list of today's bookings that every number on the
- * screen is worked out from, and the row menu's four actions moving a booking
- * the way their routes do — with the server's refusals for a booking somebody
- * already moved and for another branch's manager.
+ * Overview in the mock (VC2 wire, revision 2): one list of the service day's
+ * bookings that every number on the screen is worked out from — cancelled
+ * ones counted, never listed — and the row menu's four actions moving a
+ * booking the way their routes do, with the server's refusals: a booking
+ * somebody already moved, a table somebody else sits at, another branch's
+ * manager, and a repeat of the same command answered as a replay.
  */
 
 /** Sunday 18 October 2026, 18:42 in Yerevan: an evening in full swing. */
@@ -18,52 +21,74 @@ function gatewayAt(role: 'owner' | 'manager' | 'generalManager' = 'owner') {
   return createConsoleMockGateway({ latencyMs: 0, role, now: () => EVENING });
 }
 
-const shown = (overview: BranchOverview) =>
-  overview.todayBookings.filter((booking) => overviewRowState(booking, EVENING) !== 'declined');
+type State = ReturnType<typeof overviewRowState>;
 
-function rowIn(overview: BranchOverview, state: ReturnType<typeof overviewRowState>) {
-  return overview.todayBookings.find((booking) => overviewRowState(booking, EVENING) === state)!;
+function of(overview: BranchOverview, state: State) {
+  return overview.todayBookings.filter((row) => overviewRowState(row, EVENING) === state);
+}
+
+function rowIn(overview: BranchOverview, state: State) {
+  return of(overview, state)[0]!;
 }
 
 describe('the console mock — a branch overview', () => {
-  it("is today's, at the branch: every row is on its day, in start order", async () => {
+  it("is the service day's, at the branch: every row on it, in start order, none cancelled", async () => {
     const overview = await gatewayAt().getBranchOverview(BRANCH);
 
     expect(overview.localDate).toBe('2026-10-18');
+    expect(overview.serviceDate).toBe('2026-10-18');
     expect(overview.localTime).toBe('18:42:00');
     expect(overview.timeZoneId).toBe('Asia/Yerevan');
     const starts = overview.todayBookings.map((booking) => booking.startUtc);
     expect(starts).toEqual([...starts].sort());
-    // Two seated, one late, some to come, one finished, one the diner called off.
     const states = new Set(overview.todayBookings.map((row) => overviewRowState(row, EVENING)));
-    for (const state of ['seated', 'late', 'confirmed', 'completed', 'cancelled', 'pending']) {
-      expect(states.has(state as never)).toBe(true);
+    for (const state of [
+      'seated',
+      'late',
+      'confirmed',
+      'completed',
+      'pending',
+      'changeRequested',
+    ]) {
+      expect(states.has(state as State)).toBe(true);
     }
+    // The diner's cancellation is counted, not listed.
+    expect(states.has('cancelled')).toBe(false);
+    expect(overview.bookings.cancelled).toBe(1);
+    for (const row of overview.todayBookings) expect(row.localDate).toBe('2026-10-18');
   });
 
-  it('counts by status from the same list the table shows', async () => {
+  it('counts by status from the same list the table shows, a waiting change as confirmed', async () => {
     const overview = await gatewayAt().getBranchOverview(BRANCH);
-    const rows = shown(overview);
-    const of = (state: string) => rows.filter((row) => overviewRowState(row, EVENING) === state);
+    const count = (state: State) => of(overview, state).length;
 
-    expect(overview.bookings.seated).toBe(of('seated').length);
-    expect(overview.bookings.late).toBe(of('late').length);
-    expect(overview.bookings.confirmed).toBe(of('confirmed').length + of('late').length);
-    expect(overview.bookings.pendingApproval).toBe(of('pending').length);
-    expect(overview.bookings.cancelled).toBe(of('cancelled').length);
-    expect(overview.bookings.total).toBe(rows.length - of('cancelled').length);
+    expect(overview.bookings.seated).toBe(count('seated'));
+    expect(overview.bookings.late).toBe(count('late'));
+    expect(overview.bookings.confirmed).toBe(
+      count('confirmed') + count('late') + count('changeRequested'),
+    );
+    expect(overview.bookings.pendingChanges).toBe(count('changeRequested'));
+    expect(overview.bookings.pendingApproval).toBe(count('pending'));
+    expect(overview.bookings.total).toBe(overview.todayBookings.length);
     expect(overview.bookings.people).toBe(
-      rows
-        .filter((row) =>
-          ['pending', 'confirmed', 'late', 'seated', 'completed'].includes(
-            overviewRowState(row, EVENING),
-          ),
-        )
+      overview.todayBookings
+        .filter((row) => overviewRowState(row, EVENING) !== 'noShow')
         .reduce((sum, row) => sum + row.partySize, 0),
     );
   });
 
-  it('draws contiguous hours under a capacity of the active seats, and people in the room', async () => {
+  it('says the nudge went out only once its time has passed, and only on a confirmed booking', async () => {
+    const overview = await gatewayAt().getBranchOverview(BRANCH);
+    const late = rowIn(overview, 'late');
+    expect(late.lateNudgeAtUtc).not.toBeNull();
+    expect(late.lateNudgeSent).toBe(Date.parse(late.lateNudgeAtUtc!) <= EVENING.getTime());
+    for (const row of overview.todayBookings.filter((entry) => entry.status !== 'confirmed')) {
+      expect(row.lateNudgeAtUtc).toBeNull();
+      expect(row.holdExpiresAtUtc).toBeNull();
+    }
+  });
+
+  it('draws contiguous hours under the seats in service, and counts from the first opening', async () => {
     const gateway = gatewayAt();
     const overview = await gateway.getBranchOverview(BRANCH);
     const plan = await gateway.getFloorPlan(BRANCH);
@@ -81,19 +106,16 @@ describe('the console mock — a branch overview', () => {
     );
     expect(overview.inRoom.tables).toBe(plan.tables.filter((table) => table.isActive).length);
     expect(overview.revenue.changePercent).not.toBeNull();
+    expect(Date.parse(overview.revenue.sinceUtc)).toBeLessThanOrEqual(EVENING.getTime());
   });
 });
-
-function of(overview: BranchOverview, state: ReturnType<typeof overviewRowState>) {
-  return overview.todayBookings.filter((row) => overviewRowState(row, EVENING) === state);
-}
 
 describe('the console mock — the row menu', () => {
   const command = (row: { id: string; tableId: string }) => ({
     branchId: BRANCH,
     reservationId: row.id,
     tableId: row.tableId,
-    clientCommandId: '6f1c2a40-1b8e-4c1a-9d43-2f6c7f0b9e11',
+    clientCommandId: newCommandId(),
   });
 
   it('seats a late booking, and the counts move with it', async () => {
@@ -102,7 +124,13 @@ describe('the console mock — the row menu', () => {
     const late = rowIn(before, 'late');
 
     const result = await gateway.actOnBooking({ ...command(late), kind: 'seat' });
-    expect(result).toMatchObject({ kind: 'seat', reservationId: late.id, tableFreed: false });
+    expect(result).toMatchObject({
+      kind: 'seat',
+      reservationId: late.id,
+      status: 'seated',
+      wasReplay: false,
+      tableFreed: false,
+    });
 
     const after = await gateway.getBranchOverview(BRANCH);
     expect(after.todayBookings.find((row) => row.id === late.id)!.status).toBe('seated');
@@ -113,70 +141,121 @@ describe('the console mock — the row menu', () => {
   it('marks a late booking a no-show, freeing the table held for it, and only once', async () => {
     const gateway = gatewayAt();
     const late = rowIn(await gateway.getBranchOverview(BRANCH), 'late');
+    const first = command(late);
 
-    const result = await gateway.actOnBooking({ ...command(late), kind: 'noShow' });
-    expect(result.tableFreed).toBe(true);
+    const result = await gateway.actOnBooking({ ...first, kind: 'noShow' });
+    expect(result).toMatchObject({ status: 'noShow', tableFreed: true });
     const after = await gateway.getBranchOverview(BRANCH);
     expect(after.todayBookings.find((row) => row.id === late.id)!.status).toBe('noShow');
     expect(after.bookings.noShow).toBe(1);
 
-    await expect(gateway.actOnBooking({ ...command(late), kind: 'noShow' })).rejects.toBeInstanceOf(
-      ConcurrencyConflictError,
-    );
+    // Released already: any repeat is the first answer again, whatever it asked for.
+    expect(await gateway.actOnBooking({ ...first, kind: 'noShow' })).toMatchObject({
+      wasReplay: true,
+      status: 'noShow',
+    });
+    expect(await gateway.actOnBooking({ ...command(late), kind: 'cancel' })).toMatchObject({
+      wasReplay: true,
+      status: 'noShow',
+      tableFreed: false,
+    });
+    // Seating it now is refused: it is not confirmed any more.
+    const refusal = await gateway
+      .actOnBooking({ ...command(late), kind: 'seat' })
+      .catch((error: unknown) => error);
+    expect((refusal as ConcurrencyConflictError).code).toBe('conflicting-state');
   });
 
-  it('cancels an upcoming booking for the venue, which is not a no-show', async () => {
+  it('cancels an upcoming booking for the venue, which is counted and no longer listed', async () => {
     const gateway = gatewayAt();
-    const upcoming = rowIn(await gateway.getBranchOverview(BRANCH), 'confirmed');
+    const before = await gateway.getBranchOverview(BRANCH);
+    const upcoming = rowIn(before, 'confirmed');
 
-    await gateway.actOnBooking({ ...command(upcoming), kind: 'cancel' });
+    expect(await gateway.actOnBooking({ ...command(upcoming), kind: 'cancel' })).toMatchObject({
+      status: 'cancelledByVenue',
+    });
     const after = await gateway.getBranchOverview(BRANCH);
-    const row = after.todayBookings.find((entry) => entry.id === upcoming.id)!;
-    expect(row.status).toBe('cancelledByVenue');
-    // Still listed: the venue called it off, it was not a request declined.
-    expect(row.declinedBecause).toBeNull();
+    expect(after.todayBookings.some((entry) => entry.id === upcoming.id)).toBe(false);
+    expect(after.bookings.cancelled).toBe(before.bookings.cancelled + 1);
     expect(after.bookings.noShow).toBe(0);
   });
 
-  it('finishes a seated sitting, and refuses to finish one nobody sits at', async () => {
+  it('finishes a seated sitting, and refuses a table nobody sits at', async () => {
     const gateway = gatewayAt();
-    const before = await gateway.getBranchOverview(BRANCH);
-    const seated = rowIn(before, 'seated');
+    const seated = rowIn(await gateway.getBranchOverview(BRANCH), 'seated');
 
     expect(await gateway.actOnBooking({ ...command(seated), kind: 'finish' })).toMatchObject({
+      status: 'completed',
       tableFreed: true,
     });
     const after = await gateway.getBranchOverview(BRANCH);
     expect(after.todayBookings.find((row) => row.id === seated.id)!.status).toBe('completed');
 
-    const upcoming = rowIn(after, 'confirmed');
-    await expect(
-      gateway.actOnBooking({ ...command(upcoming), kind: 'finish' }),
-    ).rejects.toBeInstanceOf(ConcurrencyConflictError);
+    // Its table is empty now: there is no sitting of theirs to end.
+    const refusal = await gateway
+      .actOnBooking({ ...command(seated), kind: 'finish' })
+      .catch((error: unknown) => error);
+    expect((refusal as ConcurrencyConflictError).code).toBe('table-sitting-changed');
   });
 
-  it('lists a request as waiting, and takes it off once it is declined', async () => {
+  it("never ends another party's sitting from a stale row", async () => {
+    const gateway = gatewayAt();
+    const before = await gateway.getBranchOverview(BRANCH);
+    const seated = rowIn(before, 'seated');
+    const upcoming = rowIn(before, 'confirmed');
+    // The upcoming party is seated at the table the first party has just left.
+    await gateway.actOnBooking({ ...command(seated), kind: 'finish' });
+    await gateway.actOnBooking({
+      ...command(upcoming),
+      tableId: seated.tableId,
+      kind: 'seat',
+    });
+
+    // The first party's row, read before all that, still says "seated" there.
+    const refusal = await gateway
+      .actOnBooking({ ...command(seated), kind: 'finish' })
+      .catch((error: unknown) => error);
+    expect(refusal).toBeInstanceOf(ConcurrencyConflictError);
+    expect((refusal as ConcurrencyConflictError).code).toBe('table-sitting-changed');
+  });
+
+  it('refuses to seat a party at a table somebody else sits at', async () => {
+    const gateway = gatewayAt();
+    const before = await gateway.getBranchOverview(BRANCH);
+    const seated = rowIn(before, 'seated');
+    const late = rowIn(before, 'late');
+
+    const refusal = await gateway
+      .actOnBooking({ ...command(late), tableId: seated.tableId, kind: 'seat' })
+      .catch((error: unknown) => error);
+    expect((refusal as ConcurrencyConflictError).code).toBe('table-state-conflict');
+  });
+
+  it('refuses every action on a booking whose change waits for an answer', async () => {
+    const gateway = gatewayAt();
+    const changing = rowIn(await gateway.getBranchOverview(BRANCH), 'changeRequested');
+    for (const kind of ['seat', 'noShow', 'cancel'] as const) {
+      const refusal = await gateway
+        .actOnBooking({ ...command(changing), kind })
+        .catch((error: unknown) => error);
+      expect((refusal as ConcurrencyConflictError).code).toBe('conflicting-state');
+    }
+  });
+
+  it('lists a request as waiting, and drops it once it is declined', async () => {
     const gateway = gatewayAt();
     const pending = await gateway.listPendingReservations(BRANCH);
     const tonight = pending.find((booking) => booking.awaitingApprovalBecause === 'shortNotice')!;
 
     const before = await gateway.getBranchOverview(BRANCH);
-    expect(
-      overviewRowState(
-        before.todayBookings.find((row) => row.id === tonight.id)!,
-        EVENING,
-      ),
-    ).toBe('pending');
+    const row = before.todayBookings.find((entry) => entry.id === tonight.id)!;
+    expect(overviewRowState(row, EVENING)).toBe('pending');
 
     await gateway.rejectReservation({ reservationId: tonight.id });
     const after = await gateway.getBranchOverview(BRANCH);
-    expect(
-      overviewRowState(
-        after.todayBookings.find((row) => row.id === tonight.id)!,
-        EVENING,
-      ),
-    ).toBe('declined');
+    expect(after.todayBookings.some((entry) => entry.id === tonight.id)).toBe(false);
     expect(after.bookings.pendingApproval).toBe(before.bookings.pendingApproval - 1);
+    expect(after.bookings.cancelled).toBe(before.bookings.cancelled + 1);
   });
 
   it("refuses a branch manager another branch's overview and its bookings", async () => {

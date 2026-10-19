@@ -1,6 +1,6 @@
 import type { StaffDevice } from '@yalla/api';
 import { useBranchReadiness, useDevices, useNow, useOccupancyReport } from '@yalla/api/react';
-import { formatRelativeMinutes, type TimeZone } from '@yalla/format';
+import { formatDayAndTime, type TimeZone } from '@yalla/format';
 import { useLocale, useTranslation } from '@yalla/i18n';
 import { useId, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
@@ -16,14 +16,24 @@ import { addDays, branchToday } from '../reports/range';
 import { useVenueNavCounts } from '../useVenueNavCounts';
 
 /**
- * A tablet that has not been heard from for this long, while the branch is
- * open, has probably lost its connection: the floor and kitchen tablets read
- * every few seconds while they are on.
+ * A tablet's "last seen" moves only when somebody signs in on it with a PIN or
+ * its session renews — about every 15 minutes while in use, and a tablet left
+ * idle locks after 30. So only a silence well past both says something: 45
+ * minutes, and only while the branch is open.
  */
-const QUIET_DEVICE_MINUTES = 15;
+const QUIET_DEVICE_MINUTES = 45;
+
+/** The devices list is read again this often, so "since 18:40" keeps up with the clock. */
+const DEVICES_POLL_MS = 60_000;
 
 /** The sittings are compared over the last full week. */
 const TURN_DAYS = 7;
+/** Fewer closed sittings than this in the week is too thin to say anything about. */
+const TURN_MIN_SITTINGS = 20;
+/** The middle sitting must run at least this far past the policy to be worth a look. */
+const TURN_MIN_OVERRUN_MINUTES = 10;
+/** And at least this share of sittings must have run past it. */
+const TURN_MIN_OVER_SHARE = 0.25;
 
 interface Item {
   readonly key: string;
@@ -63,7 +73,7 @@ export function WorthALook({
   const now = useNow(60_000);
   const counts = useVenueNavCounts(branchId);
   const readiness = useBranchReadiness(branchId);
-  const devices = useDevices(branchId);
+  const devices = useDevices(branchId, { pollMs: DEVICES_POLL_MS });
   const today = branchToday(timeZoneId as TimeZone, now);
   const occupancy = useOccupancyReport({
     branchId,
@@ -93,19 +103,29 @@ export function WorthALook({
     });
   }
   for (const device of open ? quietDevices(devices.data ?? [], now) : []) {
-    const minutes = Math.round((now.getTime() - Date.parse(device.lastSeenAtUtc!)) / 60_000);
+    const seen = formatDayAndTime(device.lastSeenAtUtc!, timeZoneId as TimeZone, locale, now);
     items.push({
       key: `device-${device.id}`,
       to: '/venue/staff',
       tone: 'amber',
       icon: <TabletIcon />,
-      title: t('overview.attn.device', { name: device.name }),
-      body: t('overview.attn.deviceBody', { ago: formatRelativeMinutes(-minutes, locale) }),
+      title:
+        seen.day === 'today'
+          ? t('overview.attn.device', { name: device.name, time: seen.time })
+          : t('overview.attn.deviceOn', { name: device.name, date: seen.date, time: seen.time }),
+      body: t('overview.attn.deviceBody'),
     });
   }
   const turn = occupancy.data?.turnTime;
   const median = turn?.medianMinutes ?? null;
-  if (turn && median !== null && median > turn.policyTurnTimeMinutes) {
+  // Only on enough sittings, and only for a real overrun that most nights see.
+  if (
+    turn &&
+    median !== null &&
+    turn.closedSessions >= TURN_MIN_SITTINGS &&
+    median - turn.policyTurnTimeMinutes >= TURN_MIN_OVERRUN_MINUTES &&
+    turn.overPolicyFraction >= TURN_MIN_OVER_SHARE
+  ) {
     items.push({
       key: 'turn',
       to: '/venue/reports',

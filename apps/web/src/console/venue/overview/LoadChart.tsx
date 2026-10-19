@@ -11,9 +11,11 @@ const TICKS = [1, 0.75, 0.5, 0.25, 0] as const;
  * the hours gone are faded. A bar over the line is an hour booked past the
  * seats, and the axis grows to show it rather than clipping the bar.
  *
- * `people` is confirmed, seated and finished parties; the requests still
- * waiting for an answer are not drawn — nothing is promised to them — and are
- * said in the chart's description, where a screen reader reads every hour.
+ * `people` is confirmed (a booking whose change waits, at the slot it keeps),
+ * seated and finished parties. The requests still waiting for an answer sit on
+ * top in the waiting tint — nothing is promised to them, but an hour that only
+ * has requests is not an hour nobody booked — and the chart's description
+ * says both for every hour, and which hour is now.
  */
 export function LoadChart({ overview }: { readonly overview: BranchOverview }) {
   const { t } = useTranslation(['admin', 'common']);
@@ -24,7 +26,9 @@ export function LoadChart({ overview }: { readonly overview: BranchOverview }) {
   // Past midnight at a branch still open, the service day's hours run on: 24 is 00:00.
   const nowHour =
     Number(overview.localTime.slice(0, 2)) + (overview.serviceDate !== overview.localDate ? 24 : 0);
-  const most = Math.max(0, ...hours.map((hour) => hour.people));
+  // The axis holds the booked and the waiting together: a request is drawn on top.
+  const most = Math.max(0, ...hours.map((hour) => hour.people + hour.pendingPeople));
+  const anyPending = hours.some((hour) => hour.pendingPeople > 0);
   const top = Math.max(1, capacity, most);
   const clock = (hour: number) => String(hour % 24).padStart(2, '0');
   const label = (hour: number) =>
@@ -56,7 +60,7 @@ export function LoadChart({ overview }: { readonly overview: BranchOverview }) {
           <p className="yc-cap">{t('overview.load.cap')}</p>
         </div>
       </div>
-      {hours.length === 0 || peak === null ? (
+      {hours.length === 0 || (peak === null && !anyPending) ? (
         <p className="yc-empty-line">{t('overview.load.empty')}</p>
       ) : (
         <div className="yc-load">
@@ -75,6 +79,7 @@ export function LoadChart({ overview }: { readonly overview: BranchOverview }) {
                 role="img"
                 aria-label={t('overview.load.aria', {
                   capacity: number.format(capacity),
+                  now: label(nowHour),
                   hours: described,
                 })}
               >
@@ -88,18 +93,32 @@ export function LoadChart({ overview }: { readonly overview: BranchOverview }) {
                 ) : null}
                 {hours.map((hour) => (
                   <div className="yc-lc" key={hour.hour}>
-                    {/* The number rides on its bar, so it never meets the line's label. */}
+                    {/* The number rides on its stack, so it never meets the line's label. */}
                     <span
-                      className={
-                        hour.hour < nowHour
-                          ? 'yc-lb is-past'
-                          : hour.hour === nowHour
-                            ? 'yc-lb is-now'
-                            : 'yc-lb'
-                      }
-                      style={{ height: `${((hour.people / top) * 100).toFixed(1)}%` }}
+                      className="yc-lstack"
+                      style={{
+                        height: `${(((hour.people + hour.pendingPeople) / top) * 100).toFixed(1)}%`,
+                      }}
                     >
                       <span className="yc-lv">{number.format(hour.people)}</span>
+                      {hour.pendingPeople > 0 ? (
+                        <span
+                          className="yc-lb is-pending"
+                          style={{ flexGrow: hour.pendingPeople }}
+                        />
+                      ) : null}
+                      {hour.people > 0 ? (
+                        <span
+                          className={
+                            hour.hour < nowHour
+                              ? 'yc-lb is-past'
+                              : hour.hour === nowHour
+                                ? 'yc-lb is-now'
+                                : 'yc-lb'
+                          }
+                          style={{ flexGrow: hour.people }}
+                        />
+                      ) : null}
                     </span>
                   </div>
                 ))}
@@ -119,14 +138,17 @@ export function LoadChart({ overview }: { readonly overview: BranchOverview }) {
             </div>
           </div>
           <p className="yc-help yc-load-f">
-            {capacity > 0
-              ? t('overview.load.peak', {
-                  hour: label(peak.hour),
-                  people: peak.people,
-                  capacity: number.format(capacity),
-                  percent: number.format(Math.round((peak.people / capacity) * 100)),
-                })
-              : t('overview.load.peakNoSeats', { hour: label(peak.hour), people: peak.people })}
+            {peak === null
+              ? t('overview.load.onlyPending')
+              : capacity > 0
+                ? t('overview.load.peak', {
+                    hour: label(peak.hour),
+                    people: peak.people,
+                    capacity: number.format(capacity),
+                    percent: number.format(Math.round((peak.people / capacity) * 100)),
+                  })
+                : t('overview.load.peakNoSeats', { hour: label(peak.hour), people: peak.people })}
+            {anyPending ? ` ${t('overview.load.pendingLegend')}` : null}
           </p>
         </div>
       )}

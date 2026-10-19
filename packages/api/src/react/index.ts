@@ -46,11 +46,7 @@ import {
   type ConsoleBooking,
   type DecideReservationCommand,
 } from '../contracts/approvals';
-import {
-  STATUS_AFTER,
-  type BranchOverview,
-  type ConsoleBookingActionCommand,
-} from '../contracts/branchOverview';
+import type { BranchOverview, ConsoleBookingActionCommand } from '../contracts/branchOverview';
 import type { ManagedBooking } from '../contracts/publicBranch';
 import type { ReportQuery, ReportSection } from '../contracts/reports';
 import type {
@@ -1881,13 +1877,22 @@ export function useClearPinLockout(venueId: string | undefined) {
   });
 }
 
-export function useDevices(branchId: string | undefined) {
+/**
+ * The branch's tablets. `pollMs` reads the list again on a clock, while the
+ * tab is in front — for a screen that judges how long ago each was last seen,
+ * which a list read once would get more wrong by the minute.
+ */
+export function useDevices(
+  branchId: string | undefined,
+  { pollMs }: { readonly pollMs?: number } = {},
+) {
   const gateway = useConsoleGateway();
   return useQuery({
     queryKey: queryKeys.devices(branchId ?? ''),
     queryFn: () => gateway.listDevices(branchId!),
     enabled: Boolean(branchId),
-    staleTime: staleTime.reference,
+    staleTime: pollMs ?? staleTime.reference,
+    ...(pollMs ? { refetchInterval: pollMs, refetchIntervalInBackground: false } : {}),
   });
 }
 
@@ -2126,8 +2131,10 @@ export function useBranchOverview(branchId: string | undefined) {
 /**
  * One of the Overview row menu's actions on a booking.
  *
- * On success the row moves at once — its status is written into the cached
- * overview — and the read is repeated on settle either way: a 409 means
+ * On success the row moves at once — the status the server answered is
+ * written into the cached overview (for a release, the booking's own: a replay
+ * says what it was released as the first time) — and the read is repeated on
+ * settle either way: a 409 means
  * somebody else acted first (a waiter on the floor tablet), and the list on
  * screen is what is stale. The floor's own reads go stale with it.
  *
@@ -2147,9 +2154,7 @@ export function useBookingAction(branchId: string | undefined) {
           overview && {
             ...overview,
             todayBookings: overview.todayBookings.map((booking) =>
-              booking.id === result.reservationId
-                ? { ...booking, status: STATUS_AFTER[result.kind] }
-                : booking,
+              booking.id === result.reservationId ? { ...booking, status: result.status } : booking,
             ),
           },
       );
