@@ -1,7 +1,7 @@
 /**
  * GENERATED FILE — do not edit.
  *
- * Source: http://127.0.0.1:5199/swagger/v1/swagger.json
+ * Source: http://localhost:5196/swagger/v1/swagger.json
  * Regenerate with: pnpm api:generate
  */
 
@@ -3521,6 +3521,8 @@ export interface paths {
         /**
          * Key in an order spoken at the table
          * @description The same code path as a diner's order, deliberately: the total is only right if **every** order goes through the system.
+         *
+         *     **Straight to the kitchen.** A waiter's order is answered with `status` `InKitchen`: the waiter who took it at the table is the check a phone's order waits at `New` for, so there is no second send. The tab's stream carries `OrderPlaced` and then `OrderStatusChanged` (New -> InKitchen) in the same commit.
          *
          *     `onBehalfOfParticipantId` is what keeps "everyone pays their own" working. Without it the line is **attributed to the table** and splits across everyone present - a real answer rather than a wrong one, and one whose cost the venue can see in its own numbers.
          *
