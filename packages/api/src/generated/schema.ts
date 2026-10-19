@@ -1977,7 +1977,7 @@ export interface paths {
         };
         /**
          * The activity feed: the newest audit rows, newest first
-         * @description Every change the audit log records that a member of staff made - the platform admin's own and the venues' teams' (adding staff, taking down a review, replacing a QR code). Each carries the `action` slug, the `actor` (`role` 5 is the platform admin; `displayName` as they were called then), the `target` (`type`, `id`, `displayName` then - for a review, the branch it is about, never the reviewer), the `venue` it concerns by its current name, and `detail`, the row's JSON as written (shapes in `docs/platform-admin.md`). Rows the log keeps that are not a change are left out: a diner deleting their own account (no staff member behind it), and `admin.password-change-failed` and `account.password-change-failed`, the password lockouts' counters.
+         * @description Every change the audit log records that a member of staff made - the platform admin's own and the venues' teams' (adding staff, taking down a review, replacing a QR code). Each carries the `action` slug, the `actor` (`role` 5 is the platform admin; `displayName` as they were called then), the `target` (`type`, `id`, `displayName` then - for a review, the branch it is about, never the reviewer), the `venue` it concerns by its current name, and `detail`, the row's JSON as written (shapes in `docs/platform-admin.md`). Rows the log keeps that are not a change are left out: a diner deleting their own account (no staff member behind it), `admin.password-change-failed` and `account.password-change-failed`, the password lockouts' counters, and a venue answering its own reviews - `review.reply`, and `review.remove-reply` unless the platform admin removed the reply.
          *
          *     `limit` 1-100 (default 20). `venueId` narrows it to one venue.
          */
@@ -2145,6 +2145,28 @@ export interface paths {
          */
         post: operations["dismissPlatformReviewReports"];
         delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/platform/reviews/{reviewId}/reply": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Take a venue's reply under a review down
+         * @description The platform's moderation of what a venue wrote back: the reply goes from every read - the consoles, the public reviews, the place's details, the author's own review - whether the review is shown or hidden. The platform never writes a reply; this only removes one. The author's notice of it goes too, unless they have already read it. A review with no reply is answered as it is and nothing is written.
+         *
+         *     **Audited** as `review.remove-reply` with `actorType: platform` - the one reply row the activity feed shows; a venue's own replies and removals stay out of it. Answers the review as the moderation list shows it.
+         */
+        delete: operations["deletePlatformReviewReply"];
         options?: never;
         head?: never;
         patch?: never;
@@ -6428,8 +6450,11 @@ export interface components {
              * @description 1-5.
              */
             rating: number;
-            /** @description The venue's public reply, or null. The author sees it here even while the review is hidden. */
-            reply?: components["schemas"]["Yalla.Application.Reviews.ReviewReplyView"] | null;
+            /**
+             * @description The venue's public reply, or null, signed as the public reads it ("Aram H."). The author sees it here
+             *     even while the review is hidden.
+             */
+            reply?: components["schemas"]["Yalla.Application.Reviews.PublicReviewReplyView"] | null;
             /**
              * Format: uuid
              * @description The review.
@@ -7633,7 +7658,9 @@ export interface components {
              * @description The stable slug - `venue.create`, `venue.update`, `venue.suspend`,
              *     `venue.reactivate`, `venue.delete`, `branch.create`, `branch.update`,
              *     `branch.tier-change`, `branch.relocate`, `staff.create`, `staff.sign-in-issued`,
-             *     `venue.restore`, `review.hide`, `review.unhide`, `review.dismiss-reports`, `table.regenerate-qr`,
+             *     `venue.restore`, `review.hide`, `review.unhide`, `review.dismiss-reports`,
+             *     `review.restore-reports`, `review.remove-reply` (the platform taking a venue's reply down - a
+             *     venue's own replies and removals are left out of the feed), `table.regenerate-qr`,
              *     `admin.rename`, `admin.password-change`, and a venue user's own `account.rename`,
              *     `account.password-change`, `account.sign-out-others`.
              */
@@ -8776,10 +8803,10 @@ export interface components {
              */
             rating: number;
             /**
-             * @description The venue's public reply under it, or null. Only shown reviews are listed, so a hidden review's
-             *     reply is never public either.
+             * @description The venue's public reply under it, or null, signed with the writer's first name and surname initial.
+             *     Only shown reviews are listed, so a hidden review's reply is never public either.
              */
-            reply?: components["schemas"]["Yalla.Application.Reviews.ReviewReplyView"] | null;
+            reply?: components["schemas"]["Yalla.Application.Reviews.PublicReviewReplyView"] | null;
             /**
              * Format: uuid
              * @description The review's id.
@@ -9814,8 +9841,8 @@ export interface components {
             rating?: number | null;
             /**
              * Format: double
-             * @description Rating minus the same average over the shown reviews written more than 30 days ago,
-             *                 to one decimal. Null when either side has no review.
+             * @description Today's rating of the shown reviews minus the same for the shown reviews older than 30 days, to one
+             *     decimal - rounded once, from the unrounded averages. Null when either side has no review.
              */
             ratingChange30Days?: number | null;
             /**
@@ -9899,6 +9926,34 @@ export interface components {
             /**
              * Format: date-time
              * @description Last changed.
+             */
+            updatedAtUtc: string;
+        };
+        /**
+         * @description The venue's reply as the public reads it - the public reviews, the place's details and the author's own
+         *     review in the app. The writer is shown as diners are: first name and surname initial.
+         */
+        "Yalla.Application.Reviews.PublicReviewReplyView": {
+            /**
+             * @description "Aram H." - `BranchReview.PublicReplyAuthorName` of the writer's name as written. Absent when that
+             *     name looks like contact details and cannot be published; the role then signs the reply alone. The
+             *     console reads the full name.
+             */
+            authorName?: string | null;
+            /** @description What a staff member is allowed to do, coarsely. Authorisation itself is a later task. */
+            authorRole: components["schemas"]["Yalla.Domain.Enums.StaffRole"];
+            /**
+             * Format: date-time
+             * @description First published.
+             */
+            createdAtUtc: string;
+            /** @description Changed after it was first published. */
+            edited: boolean;
+            /** @description The reply. */
+            text: string;
+            /**
+             * Format: date-time
+             * @description Last change of the text.
              */
             updatedAtUtc: string;
         };
@@ -19314,6 +19369,82 @@ export interface operations {
         };
     };
     dismissPlatformReviewReports: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                reviewId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Yalla.Application.Reviews.ModeratedReviewView"];
+                };
+            };
+            /** @description The request violated a domain rule or arrived malformed. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description No usable token was presented, or the one presented was rejected. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description The caller is authenticated but not allowed to perform this action. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description No such review. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description Too many requests in the window, or a one-time credential is out of attempts. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description Unexpected failure. Quote the traceId from the body. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+        };
+    };
+    deletePlatformReviewReply: {
         parameters: {
             query?: never;
             header?: never;

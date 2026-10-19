@@ -22,7 +22,7 @@ import { absolutePhoto } from './photoUrl';
 import { photo } from './venueSettingsMapping';
 import { venueTypeFromCode } from './venueTypeMapping';
 
-import { publicReplyFromWire, type WirePublicReviewReply } from './reviewReplyMapping';
+import { publicReplyFromWire } from './reviewReplyMapping';
 export { venueTypeCode, venueTypeFromCode } from './venueTypeMapping';
 
 type Schemas = components['schemas'];
@@ -35,16 +35,11 @@ export type WireReviewPage = Omit<
 > & {
   reviews?: WireReview[];
 };
-/** The reply signed short (`PublicReviewReplyView`), until the generated schema says so. */
-export type WireReview = Omit<Schemas['Yalla.Application.Public.PublicReviewView'], 'reply'> & {
-  readonly reply?: WirePublicReviewReply | null;
-};
+export type WireReview = Schemas['Yalla.Application.Public.PublicReviewView'];
 export type WireTableMarker = Schemas['Yalla.Application.Public.PublicTableMarker'];
 export type WireRoom = Schemas['Yalla.Application.Public.PublicRoom'];
 export type WireRooms = Schemas['Yalla.Application.Public.PublicBranchRooms'];
-export type WireDinerReview = Omit<Schemas['Yalla.Application.Diners.DinerReviewView'], 'reply'> & {
-  readonly reply?: WirePublicReviewReply | null;
-};
+export type WireDinerReview = Schemas['Yalla.Application.Diners.DinerReviewView'];
 export type WireDinerOrder = Schemas['Yalla.Application.Diners.DinerOrderView'];
 export type WireFavorite = Schemas['Yalla.Application.Diners.DinerFavoriteView'];
 export type WireFavoriteList = Schemas['Yalla.Application.Diners.DinerFavoriteList'];

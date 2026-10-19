@@ -1325,7 +1325,6 @@ export function createConsoleHttpGateway(
     },
 
     async removePlatformReviewReply(reviewId) {
-      // gateway-schema: awaiting-route — VC4 wire review round 1; regenerate against the backend
       const { data } = await client.delete<WireModeratedReview>(
         `${PLATFORM}/reviews/${reviewId}/reply`,
       );

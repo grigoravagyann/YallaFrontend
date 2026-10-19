@@ -13956,7 +13956,7 @@
           "platform"
         ],
         "summary": "The activity feed: the newest audit rows, newest first",
-        "description": "Every change the audit log records that a member of staff made - the platform admin's own and the venues' teams' (adding staff, taking down a review, replacing a QR code). Each carries the `action` slug, the `actor` (`role` 5 is the platform admin; `displayName` as they were called then), the `target` (`type`, `id`, `displayName` then - for a review, the branch it is about, never the reviewer), the `venue` it concerns by its current name, and `detail`, the row's JSON as written (shapes in `docs/platform-admin.md`). Rows the log keeps that are not a change are left out: a diner deleting their own account (no staff member behind it), and `admin.password-change-failed` and `account.password-change-failed`, the password lockouts' counters.\n\n`limit` 1-100 (default 20). `venueId` narrows it to one venue.",
+        "description": "Every change the audit log records that a member of staff made - the platform admin's own and the venues' teams' (adding staff, taking down a review, replacing a QR code). Each carries the `action` slug, the `actor` (`role` 5 is the platform admin; `displayName` as they were called then), the `target` (`type`, `id`, `displayName` then - for a review, the branch it is about, never the reviewer), the `venue` it concerns by its current name, and `detail`, the row's JSON as written (shapes in `docs/platform-admin.md`). Rows the log keeps that are not a change are left out: a diner deleting their own account (no staff member behind it), `admin.password-change-failed` and `account.password-change-failed`, the password lockouts' counters, and a venue answering its own reviews - `review.reply`, and `review.remove-reply` unless the platform admin removed the reply.\n\n`limit` 1-100 (default 20). `venueId` narrows it to one venue.",
         "operationId": "listPlatformActivity",
         "parameters": [
           {
@@ -15311,6 +15311,99 @@
         "summary": "Undo the last dismissal of a review's reports",
         "description": "The console's undo for `dismiss-reports`: the reports the **most recent** dismissal of this review set aside count again - exactly those, recognised by the dismissal's instant, which every report it dismissed shares. Reports dismissed by an earlier dismissal stay dismissed; reports filed since are untouched. The review itself is not changed.\n\n**One dismissal, once**: when the review was already restored after its latest dismissal - or nothing was ever dismissed - it is answered as it is and nothing is written; a second undo never reaches back to an older dismissal. **Audited** as `review.restore-reports`, with how many came back. Answers the review as the moderation list shows it.",
         "operationId": "restorePlatformReviewReports",
+        "parameters": [
+          {
+            "name": "reviewId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Application.Reviews.ModeratedReviewView"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request violated a domain rule or arrived malformed.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No usable token was presented, or the one presented was rejected.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller is authenticated but not allowed to perform this action.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such review.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests in the window, or a one-time credential is out of attempts.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected failure. Quote the traceId from the body.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/platform/reviews/{reviewId}/reply": {
+      "delete": {
+        "tags": [
+          "platform"
+        ],
+        "summary": "Take a venue's reply under a review down",
+        "description": "The platform's moderation of what a venue wrote back: the reply goes from every read - the consoles, the public reviews, the place's details, the author's own review - whether the review is shown or hidden. The platform never writes a reply; this only removes one. The author's notice of it goes too, unless they have already read it. A review with no reply is answered as it is and nothing is written.\n\n**Audited** as `review.remove-reply` with `actorType: platform` - the one reply row the activity feed shows; a venue's own replies and removals stay out of it. Answers the review as the moderation list shows it.",
+        "operationId": "deletePlatformReviewReply",
         "parameters": [
           {
             "name": "reviewId",
@@ -24198,10 +24291,10 @@
           "reply": {
             "allOf": [
               {
-                "$ref": "#/components/schemas/Yalla.Application.Reviews.ReviewReplyView"
+                "$ref": "#/components/schemas/Yalla.Application.Reviews.PublicReviewReplyView"
               }
             ],
-            "description": "The venue's public reply, or null. The author sees it here even while the review is hidden.",
+            "description": "The venue's public reply, or null, signed as the public reads it (\"Aram H.\"). The author sees it here\neven while the review is hidden.",
             "nullable": true
           }
         },
@@ -26383,7 +26476,7 @@
           },
           "action": {
             "type": "string",
-            "description": "The stable slug - `venue.create`, `venue.update`, `venue.suspend`,\n`venue.reactivate`, `venue.delete`, `branch.create`, `branch.update`,\n`branch.tier-change`, `branch.relocate`, `staff.create`, `staff.sign-in-issued`,\n`venue.restore`, `review.hide`, `review.unhide`, `review.dismiss-reports`, `table.regenerate-qr`,\n`admin.rename`, `admin.password-change`, and a venue user's own `account.rename`,\n`account.password-change`, `account.sign-out-others`."
+            "description": "The stable slug - `venue.create`, `venue.update`, `venue.suspend`,\n`venue.reactivate`, `venue.delete`, `branch.create`, `branch.update`,\n`branch.tier-change`, `branch.relocate`, `staff.create`, `staff.sign-in-issued`,\n`venue.restore`, `review.hide`, `review.unhide`, `review.dismiss-reports`,\n`review.restore-reports`, `review.remove-reply` (the platform taking a venue's reply down - a\nvenue's own replies and removals are left out of the feed), `table.regenerate-qr`,\n`admin.rename`, `admin.password-change`, and a venue user's own `account.rename`,\n`account.password-change`, `account.sign-out-others`."
           },
           "actor": {
             "allOf": [
@@ -28470,10 +28563,10 @@
           "reply": {
             "allOf": [
               {
-                "$ref": "#/components/schemas/Yalla.Application.Reviews.ReviewReplyView"
+                "$ref": "#/components/schemas/Yalla.Application.Reviews.PublicReviewReplyView"
               }
             ],
-            "description": "The venue's public reply under it, or null. Only shown reviews are listed, so a hidden review's\nreply is never public either.",
+            "description": "The venue's public reply under it, or null, signed with the writer's first name and surname initial.\nOnly shown reviews are listed, so a hidden review's reply is never public either.",
             "nullable": true
           }
         },
@@ -30420,7 +30513,7 @@
           },
           "ratingChange30Days": {
             "type": "number",
-            "description": "Rating minus the same average over the shown reviews written more than 30 days ago,\n            to one decimal. Null when either side has no review.",
+            "description": "Today's rating of the shown reviews minus the same for the shown reviews older than 30 days, to one\ndecimal - rounded once, from the unrounded averages. Null when either side has no review.",
             "format": "double",
             "nullable": true
           },
@@ -30536,6 +30629,51 @@
         },
         "additionalProperties": false,
         "description": "One review as a moderator sees it: the published fields, who wrote it, whether it is down and\nwhy, and how often diners have reported it."
+      },
+      "Yalla.Application.Reviews.PublicReviewReplyView": {
+        "required": [
+          "authorRole",
+          "createdAtUtc",
+          "edited",
+          "text",
+          "updatedAtUtc"
+        ],
+        "type": "object",
+        "properties": {
+          "text": {
+            "type": "string",
+            "description": "The reply."
+          },
+          "authorName": {
+            "type": "string",
+            "description": "\"Aram H.\" - `BranchReview.PublicReplyAuthorName` of the writer's name as written. Absent when that\nname looks like contact details and cannot be published; the role then signs the reply alone. The\nconsole reads the full name.",
+            "nullable": true
+          },
+          "authorRole": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Yalla.Domain.Enums.StaffRole"
+              }
+            ],
+            "description": "What a staff member is allowed to do, coarsely. Authorisation itself is a later task."
+          },
+          "createdAtUtc": {
+            "type": "string",
+            "description": "First published.",
+            "format": "date-time"
+          },
+          "updatedAtUtc": {
+            "type": "string",
+            "description": "Last change of the text.",
+            "format": "date-time"
+          },
+          "edited": {
+            "type": "boolean",
+            "description": "Changed after it was first published."
+          }
+        },
+        "additionalProperties": false,
+        "description": "The venue's reply as the public reads it - the public reviews, the place's details and the author's own\nreview in the app. The writer is shown as diners are: first name and surname initial."
       },
       "Yalla.Application.Reviews.ReviewReplyView": {
         "required": [

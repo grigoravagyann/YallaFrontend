@@ -16,13 +16,10 @@ type Schemas = components['schemas'];
  */
 export type WireReviewReply = Schemas['Yalla.Application.Reviews.ReviewReplyView'];
 /**
- * `PublicReviewReplyView` (VC4 wire, review round 1): the public reads' reply,
- * `authorName` short and left out where the rule drops it. Written over the
- * console's view until the generated schema carries it.
+ * The public reads' reply (VC4 wire, review round 1): `authorName` short, and
+ * left out where the rule drops a name that looks like contact details.
  */
-export type WirePublicReviewReply = Omit<WireReviewReply, 'authorName'> & {
-  readonly authorName?: string | null;
-};
+export type WirePublicReviewReply = Schemas['Yalla.Application.Reviews.PublicReviewReplyView'];
 export type WireReviewSummary = Schemas['Yalla.Application.Reviews.ModeratedReviewSummary'];
 
 /** `StaffRole`: 1 owner, 6 general manager, 2 branch manager — the three who may reply. */
