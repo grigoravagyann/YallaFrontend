@@ -68,11 +68,6 @@
     "mustFreeBy": "must free by {{time}}"
   },
   "queue": {
-    "pending_one": "{{count}} action waiting to sync",
-    "pending_other": "{{count}} actions waiting to sync",
-    "synced": "Nothing waiting to sync",
-    "syncing": "Syncing…",
-    "offline": "Offline — actions are saved on this tablet",
     "conflicts_one": "{{count}} needs a decision",
     "conflicts_other": "{{count}} need a decision"
   },
@@ -85,10 +80,27 @@
     "noBranch": "Your account has no branch assigned, so there is no floor to show.",
     "pendingMark": "not sent",
     "legend": {
-      "label": "What the colours mean",
-      "booked": "Booked or held"
+      "label": "What the colours mean"
     },
-    "noRoom": "No room"
+    "noRoom": "No room",
+    "rooms": {
+      "label": "Rooms",
+      "all": "All · {{count}}"
+    },
+    "tables": "Tables",
+    "card": {
+      "booked": "Reserved {{time}}",
+      "held": "Held · running late",
+      "heldFor": "booked for {{time}}",
+      "debt": "{{amount}} still owed",
+      "walkInOnly": "walk-ins only",
+      "seated_one": "Seated {{count}} min",
+      "seated_other": "Seated {{count}} min",
+      "seatedLong_one": "Seated {{count}} min · long",
+      "seatedLong_other": "Seated {{count}} min · long",
+      "party_one": "{{count}} guest",
+      "party_other": "{{count}} guests"
+    }
   },
   "kitchen": {
     "title": "Kitchen"
@@ -107,8 +119,8 @@
   },
   "unresolved": {
     "title": "Needs resolving",
-    "body": "These tables were freed with money still owed.",
-    "settle": "Settle"
+    "body": "The tab is still open. Take the money, then close it.",
+    "settle": "Take payment"
   },
   "panel": {
     "orders": {
@@ -134,14 +146,7 @@
     "calls": {
       "title": "Waiting for a waiter",
       "empty": "Nobody is waiting.",
-      "line": "Table {{label}} · {{reason}} · {{count}} min",
       "acknowledge": "On my way",
-      "reason": {
-        "napkins": "asked for napkins",
-        "water": "asked for water",
-        "bill": "asked for the bill",
-        "other": "called the waiter"
-      },
       "unreachable": "The calls could not be read."
     },
     "seating": {
@@ -153,8 +158,6 @@
     "title": "Bookings to approve",
     "empty": "No bookings are waiting for an answer.",
     "unreachable": "The bookings waiting for an answer could not be read. That is not the same as none waiting.",
-    "headerCount_one": "{{count}} booking to approve",
-    "headerCount_other": "{{count}} bookings to approve",
     "tableInRoom": "Table {{label}} · {{room}}",
     "line_one": "{{time}} · {{count}} guest · {{name}}",
     "line_other": "{{time}} · {{count}} guests · {{name}}",
@@ -393,7 +396,20 @@
   "connection": {
     "refresh": "Refresh the floor",
     "pollingHint": "Refreshed every few seconds. Refresh to be sure.",
-    "refreshQueue": "Refresh the orders"
+    "refreshQueue": "Refresh the orders",
+    "chip": {
+      "live": "Live · {{time}}",
+      "offline": "Offline",
+      "livePending_one": "Live · {{count}} action waiting to sync",
+      "livePending_other": "Live · {{count}} actions waiting to sync",
+      "offlinePending_one": "Offline · {{count}} action waiting",
+      "offlinePending_other": "Offline · {{count}} actions waiting",
+      "stale_one": "The data is {{count}} min old",
+      "stale_other": "The data is {{count}} min old",
+      "name": "{{chip}}. {{action}}",
+      "waiting_one": "{{state}} · {{count}} action waiting",
+      "waiting_other": "{{state}} · {{count}} actions waiting"
+    }
   },
   "shell": {
     "title": "Floor",
@@ -442,7 +458,46 @@
     "submit": "Sign in"
   },
   "session": {
-    "signedInAs": "{{name}}",
-    "handOverHint": "Tap to sign out and hand the tablet over."
+    "switchPerson": "{{name}} · tap to sign out and hand the tablet over"
+  },
+  "views": {
+    "label": "Screens",
+    "kitchenWaiting_one": "{{count}} order waiting in the kitchen",
+    "kitchenWaiting_other": "{{count}} orders waiting in the kitchen",
+    "floorWaiting_one": "{{count}} waiting on the floor",
+    "floorWaiting_other": "{{count}} waiting on the floor"
+  },
+  "rail": {
+    "label": "Needs attention",
+    "title": "Now",
+    "calls": {
+      "reason": {
+        "napkins": "asks for napkins",
+        "water": "asks for water",
+        "bill": "asks for the bill",
+        "other": "calls the waiter"
+      },
+      "ackNotice": "Table {{label}} · the guest can see you are coming",
+      "ackQueued": "Table {{label}} · saved; the guest sees it when the connection returns"
+    },
+    "ready": {
+      "title": "Ready to serve",
+      "empty": "Nothing is ready.",
+      "servedNotice": "Table {{label}} · served",
+      "dishes_one": "{{count}} dish",
+      "dishes_other": "{{count}} dishes",
+      "placed_one": "ordered {{count}} min ago",
+      "placed_other": "ordered {{count}} min ago"
+    },
+    "toSend": {
+      "title": "Not sent to the kitchen"
+    },
+    "unresolved": {
+      "line": "freed with {{amount}} owed"
+    },
+    "occupied_one": "{{count}} table occupied",
+    "occupied_other": "{{count}} tables occupied",
+    "minutes_one": "{{count}} min",
+    "minutes_other": "{{count}} min"
   }
 }

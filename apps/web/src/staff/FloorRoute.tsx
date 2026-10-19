@@ -5,6 +5,7 @@ import {
   tableDetail,
   type AdjustmentKind,
   type AffectedReservation,
+  type EnrolledDevice,
   type FloorTable,
   type OrderQueueEntry,
   type OrderStatus,
@@ -41,7 +42,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from '@yalla/i18n';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { QueryFailureNotice } from '../components/QueryFailureNotice';
-import { APPROVAL_PANEL_ID, ApprovalPanel, useRequestArrivals } from './ApprovalPanel';
+import { ApprovalPanel, useRequestArrivals } from './ApprovalPanel';
 import { branchToday, decidedNotice } from './approvalRequests';
 import { primeChime } from './chime';
 import { ConflictList } from './ConflictList';
@@ -49,16 +50,17 @@ import { useCommandQueue } from './commands/useCommandQueue';
 import type { NewCommand, QueuedCommand } from './commands/types';
 import { applyFloorChanges } from './live/sequence';
 import { createPollingLiveStream } from './live/stream';
+import { FloorRail, type UnresolvedTab } from './FloorRail';
 import { OrderEntry } from './OrderEntry';
-import { OrderQueuePanel } from './OrderQueuePanel';
-import { StaffHeader } from './StaffHeader';
+import { kitchenWaiting, OrderQueuePanel } from './OrderQueuePanel';
+import { StaffHeader, type StaffView } from './StaffHeader';
 import { TableActionPanel } from './TableActionPanel';
-import { TableLegend, TableList } from './TableList';
+import { tableCardText } from './tableCard';
+import { TableList } from './TableList';
 import { TabPanel } from './TabPanel';
 import { useBranchFormat } from './useBranchFormat';
 import { useCachedMenu } from './useCachedMenu';
 import { useConnectionState } from './useConnectionState';
-import { seatedMinutes } from './seatedMinutes';
 
 /**
  * The floor screen: the whole product, on a counter.
@@ -67,12 +69,14 @@ import { seatedMinutes } from './seatedMinutes';
  * minutes of training, on a tablet, sometimes in daylight. Every layout decision
  * below follows from that and not from taste:
  *
- * - **Everything is one tap from the floor.** The floor is a list of tables by
- *   room; the action panel opens beside it for the tapped table; order entry and the tab open over the floor and close back to
- *   it. There are no nested menus and no navigation, because a waiter carrying
- *   two plates cannot find their way back from a third screen.
- * - **Landscape-first, portrait survivable.** The body is a wrapping flex row,
- *   so portrait stacks the order panel under the floor rather than crushing it.
+ * - **Everything is one tap from the floor.** The floor is a grid of tables,
+ *   filtered by room; the action panel opens over it for the tapped table;
+ *   order entry and the tab open over the floor and close back to it. Beside
+ *   it, the "Now" rail holds whatever a person is waiting on. There are no
+ *   nested menus, because a waiter carrying two plates cannot find their way
+ *   back from a third screen. The one other screen is the kitchen board, a tab
+ *   in the top bar, and the floor keeps its state while it shows.
+ * - **Landscape tablet only** (floor-tablet HANDOFF §3).
  * - **Offline is a state the header shows, never an error the floor shows.** The
  *   last floor loaded stays on screen with pending work marked on it.
  *
@@ -81,6 +85,8 @@ import { seatedMinutes } from './seatedMinutes';
  */
 export interface FloorRouteProps {
   readonly identity: StaffSessionIdentity;
+  /** What the tablet is enrolled to: the venue's name for the top bar. Null on the mock. */
+  readonly device?: EnrolledDevice | null | undefined;
   /**
    * The tablet is locked and the PIN screen is over this one.
    *
@@ -104,25 +110,28 @@ interface Notice {
   readonly text: string;
 }
 
-/** A tab left open on a table that has been freed. */
-interface UnresolvedTab {
-  readonly tabId: string;
-  readonly tableLabel: string;
-  readonly amountDram: number;
+/** The minute an instant falls in, so a poll every few seconds re-renders once a minute. */
+function minuteOf(at: number): number {
+  return at - (at % 60_000);
 }
 
-export function FloorRoute({ identity, paused }: FloorRouteProps) {
+export function FloorRoute({ identity, device = null, paused }: FloorRouteProps) {
   const { t } = useTranslation(['staff', 'admin', 'common']);
   const queryClient = useQueryClient();
   const gateway = useStaffGateway();
 
   const branchId = identity.branchId;
   const active = !paused;
-  const floorQuery = useStaffFloor(active ? branchId : undefined);
+  // Paused, not dropped: under the PIN gate the last floor stays in the tree,
+  // rather than a query keyed on nothing rendering a failure behind the gate.
+  const floorQuery = useStaffFloor(branchId, active);
   const floor = floorQuery.data ?? null;
   const timeZoneId = floor?.plan.timeZoneId ?? 'Asia/Yerevan';
   const format = useBranchFormat(timeZoneId);
 
+  const [view, setView] = useState<StaffView>('floor');
+  /** The room chip that is on; null for every room. */
+  const [room, setRoom] = useState<string | null>(null);
   const [selection, setSelection] = useState<Selection | null>(null);
   const [overlay, setOverlay] = useState<'none' | 'conflicts' | 'order' | 'tab'>('none');
   const [activeTableId, setActiveTableId] = useState<string | null>(null);
@@ -178,7 +187,12 @@ export function FloorRoute({ identity, paused }: FloorRouteProps) {
             ? current
             : [
                 ...current,
-                { tabId, tableLabel: result.tableLabel, amountDram: result.outstandingDram! },
+                {
+                  tabId,
+                  tableId: result.tableId,
+                  tableLabel: result.tableLabel,
+                  amountDram: result.outstandingDram!,
+                },
               ],
         );
       }
@@ -273,6 +287,15 @@ export function FloorRoute({ identity, paused }: FloorRouteProps) {
    * own outcome is read directly when the chip is computed below.
    */
   const [streamFailing, setStreamFailing] = useState(false);
+  /** The minute the change stream last answered: the chip's "Live · 18:42". */
+  const [answeredAt, setAnsweredAt] = useState<number | null>(null);
+  /**
+   * The exact instant of the last answer, kept without a render per poll, and
+   * copied out when the polls start failing: "the data is N min old" counted
+   * from the minute it was floored to said "1 min" four seconds in.
+   */
+  const lastAnswer = useRef<number | null>(null);
+  const [staleSince, setStaleSince] = useState<number | null>(null);
 
   useEffect(() => {
     if (!branchId || !active) return;
@@ -282,7 +305,10 @@ export function FloorRoute({ identity, paused }: FloorRouteProps) {
       branchId,
       handlers: {
         onChanges: (changes) => {
+          lastAnswer.current = Date.now();
           setStreamFailing(false);
+          setStaleSince(null);
+          setAnsweredAt(minuteOf(lastAnswer.current));
           // Fold in incrementally; a gap, an unknown table, or a change whose
           // drawn state cannot be derived falls through to a full refetch
           // rather than being patched around.
@@ -299,7 +325,10 @@ export function FloorRoute({ identity, paused }: FloorRouteProps) {
           }
         },
         onResync: () => {
+          lastAnswer.current = Date.now();
           setStreamFailing(false);
+          setStaleSince(null);
+          setAnsweredAt(minuteOf(lastAnswer.current));
           void queryClient.invalidateQueries({ queryKey: queryKeys.staffFloor(branchId) });
         },
         onError: () => {
@@ -307,6 +336,7 @@ export function FloorRoute({ identity, paused }: FloorRouteProps) {
           // waiter looks; a toast per poll would be noise on a screen nobody
           // can dismiss things on.
           setStreamFailing(true);
+          setStaleSince((since) => since ?? lastAnswer.current);
         },
       },
     });
@@ -381,8 +411,8 @@ export function FloorRoute({ identity, paused }: FloorRouteProps) {
    */
   const menu = useCachedMenu(branchId, active);
 
-  const ordersQuery = useOrderQueue(active ? branchId : undefined);
-  const requestsQuery = useServiceRequests(active ? branchId : undefined);
+  const ordersQuery = useOrderQueue(branchId, active);
+  const requestsQuery = useServiceRequests(branchId, active);
   /** Bookings waiting for somebody here to say yes or no. Polled, chimed. */
   const awaitingQuery = useAwaitingApproval(branchId, active);
   const awaiting = useRequestArrivals(awaitingQuery.data, timeZoneId);
@@ -559,8 +589,14 @@ export function FloorRoute({ identity, paused }: FloorRouteProps) {
       });
       queue.sync();
       void queryClient.invalidateQueries({ queryKey: queryKeys.orderQueue(branchId) });
+      if (next === 'served') {
+        setNotice({
+          kind: 'info',
+          text: t('rail.ready.servedNotice', { label: order.tableLabel }),
+        });
+      }
     },
-    [branchId, queryClient, queue],
+    [branchId, queryClient, queue, t],
   );
 
   /**
@@ -592,8 +628,15 @@ export function FloorRoute({ identity, paused }: FloorRouteProps) {
         setAcknowledgedBills((current) => new Map(current).set(request.id, request));
       }
       sendAcknowledge(request);
+      setNotice({
+        kind: 'info',
+        // Offline it waits in the queue: the guest has seen nothing yet.
+        text: t(queue.online ? 'rail.calls.ackNotice' : 'rail.calls.ackQueued', {
+          label: request.tableLabel,
+        }),
+      });
     },
-    [sendAcknowledge],
+    [queue.online, sendAcknowledge, t],
   );
 
   const submitOrder = useCallback(
@@ -637,11 +680,24 @@ export function FloorRoute({ identity, paused }: FloorRouteProps) {
     offline,
     polling: streamFailing || floorQuery.isError ? 'failing' : floorQuery.data ? 'ok' : 'unknown',
   });
-  const branchName = floor?.plan.branchName;
+  const branchName = floor?.plan.branchName ?? device?.branchName;
+  const place = branchName
+    ? device
+      ? t('floor.branch', { venue: device.venueName, branch: branchName })
+      : branchName
+    : branchId
+      ? t('admin:loading')
+      : t('floor.noBranch');
 
   const unresolvedList = useMemo(
     () => unresolved.filter((entry) => entry.amountDram > 0),
     [unresolved],
+  );
+
+  /** What each freed table still owes, for its card. */
+  const debts = useMemo(
+    () => new Map(unresolvedList.map((entry) => [entry.tableId, entry.amountDram])),
+    [unresolvedList],
   );
 
   const activeTabLabel = plan?.tables.find((table) => table.id === activeTableId)?.label ?? '';
@@ -681,147 +737,182 @@ export function FloorRoute({ identity, paused }: FloorRouteProps) {
     });
   }, [activeTabId, acknowledgedBills, requestsQuery.data, settledBillIds]);
 
+  /** "9 tables occupied · 34 guests", from the floor read. */
+  const occupiedTables = plan?.tables.filter((table) => table.state === 'occupied') ?? [];
+  const guests = occupiedTables.reduce(
+    (sum, table) => sum + (tableDetail(floor, table.id)?.partySize ?? 0),
+    0,
+  );
+  const summary = [
+    t('rail.occupied', { count: occupiedTables.length }),
+    guests > 0 ? t('floor.card.party', { count: guests }) : null,
+  ]
+    .filter(Boolean)
+    .join(' · ');
+
+  const orders = ordersQuery.data ?? [];
+  const ordersLoading = ordersQuery.isLoading && !isOfflinePaused(ordersQuery);
+  const ordersFailed = ordersQuery.isError || (isOfflinePaused(ordersQuery) && !ordersQuery.data);
+  const now = new Date();
+
   return (
     <div className="floor" data-surface="staff">
       <StaffHeader
-        title={t('floor.title')}
-        subtitle={branchName ?? (branchId ? t('admin:loading') : t('floor.noBranch'))}
+        title={view === 'kitchen' ? t('kitchen.title') : t('floor.title')}
+        place={place}
+        timeZoneId={timeZoneId}
         who={identity.fullName}
         state={state}
+        updatedAt={
+          Math.max(
+            (streamFailing || floorQuery.isError ? staleSince : answeredAt) ?? 0,
+            floorQuery.dataUpdatedAt,
+          ) || null
+        }
         pending={queue.pending}
         conflicts={queue.conflicts}
-        syncing={queue.syncing}
         online={queue.online}
         onOpenConflicts={() => setOverlay('conflicts')}
         onRefresh={() => void floorQuery.refetch()}
-        awaiting={{
-          count: awaitingQuery.data?.length ?? 0,
-          fresh: awaiting.fresh.size > 0,
-          onOpen: () => {
-            const panel = document.getElementById(APPROVAL_PANEL_ID);
-            panel?.scrollIntoView?.({ block: 'start' });
-            panel?.focus({ preventScroll: true });
-          },
+        view={view}
+        kitchenWaiting={kitchenWaiting(orders)}
+        floorWaiting={(awaitingQuery.data?.length ?? 0) + (requestsQuery.data?.length ?? 0)}
+        onSelectView={(next) => {
+          setSelection(null);
+          setView(next);
         }}
       />
 
-      {notice ? (
+      {/* Never over the PIN gate: a notice that lands as the tablet locks is
+          somebody else's news, and the next person should not read it. */}
+      {notice && !paused ? (
         <p className={`floor-notice notice-${notice.kind}`} role="status">
           {notice.text}
         </p>
       ) : null}
 
-      <div className="floor-body">
-        <section className="floor-plan-pane">
-          <TableLegend />
+      {/* New booking requests, said once for a screen reader. Here rather than
+          in the rail, so it is heard with the rail folded or the kitchen on
+          screen; always in the tree, so a reader is listening before it speaks. */}
+      <p className="visually-hidden" role="status" data-testid="approval-announcer">
+        {awaiting.announcement}
+      </p>
 
-          <div className="floor-plan-frame">
-            {!branchId ? (
-              <p className="floor-note">{t('floor.noBranch')}</p>
-            ) : plan ? (
-              <>
-                <TableList
-                  tables={plan.tables}
-                  selectedTableId={selection?.tableId ?? null}
-                  pendingTableIds={pendingTableIds}
-                  onSelect={(tableId) => setSelection({ tableId })}
-                  seatedFor={(table) => {
-                    const minutes = table.occupiedSinceUtc
-                      ? seatedMinutes(format.minutesSince(table.occupiedSinceUtc))
-                      : null;
-                    return minutes === null ? null : t('table.minutes', { count: minutes });
+      {view === 'kitchen' ? (
+        // The kitchen board as the kitchen sees it, from the floor's own queue
+        // and orders.
+        <div className="floor-body kitchen-body">
+          <OrderQueuePanel
+            orders={orders}
+            timeZoneId={timeZoneId}
+            role={identity.role}
+            onAdvance={advanceOrder}
+            loading={ordersLoading}
+            failed={ordersFailed}
+          />
+        </div>
+      ) : null}
+
+      {/* Hidden, not unmounted, while the kitchen shows: a half-typed decline,
+          an answer in flight and its notice all live in here, and a trip to
+          the kitchen must not cost any of them. */}
+      <div className="ft-body" hidden={view === 'kitchen'}>
+        <section className="ft-floor" aria-label={t('floor.tables')}>
+          {!branchId ? (
+            <p className="floor-note">{t('floor.noBranch')}</p>
+          ) : plan ? (
+            <>
+              <TableList
+                tables={plan.tables}
+                selectedTableId={selection?.tableId ?? null}
+                pendingTableIds={pendingTableIds}
+                onSelect={(tableId) => setSelection({ tableId })}
+                room={room}
+                onRoom={setRoom}
+                describe={(table) => {
+                  const debt = debts.get(table.id);
+                  return tableCardText({
+                    table,
+                    detail: tableDetail(floor, table.id),
+                    debt: debt ? format.dram(debt) : null,
+                    now,
+                    t,
+                    time: format.time,
+                    minutesSince: format.minutesSince,
+                  });
+                }}
+              />
+
+              {selection && selectedTable ? (
+                <TableActionPanel
+                  table={selectedTable}
+                  detail={selectedDetail}
+                  timeZoneId={timeZoneId}
+                  projectedStatus={queue.projected(selection.tableId)}
+                  tab={selectedTabQuery.data ?? null}
+                  pending={pendingTableIds.has(selection.tableId)}
+                  online={queue.online}
+                  affectedReservations={affected.get(selection.tableId) ?? []}
+                  releasing={releaseReservation.isPending}
+                  onAct={act}
+                  onRelease={release}
+                  onOpenTab={() => {
+                    setActiveTableId(selection.tableId);
+                    setOverlay('tab');
+                    setSelection(null);
+                  }}
+                  onStartTab={() => startTab(selection.tableId)}
+                  startingTab={openTabForStaff.isPending}
+                  onOrder={() => {
+                    setActiveTableId(selection.tableId);
+                    setOverlay('order');
+                    setSelection(null);
+                  }}
+                  onClose={() => {
+                    const tableId = selection.tableId;
+                    setSelection(null);
+                    // Back to the card it was opened from, not the top of the page.
+                    document
+                      .querySelector<HTMLElement>(
+                        `.table-row[data-table-id="${CSS.escape(tableId)}"]`,
+                      )
+                      ?.focus();
                   }}
                 />
-
-                {selection && selectedTable ? (
-                  <TableActionPanel
-                    table={selectedTable}
-                    detail={selectedDetail}
-                    timeZoneId={timeZoneId}
-                    projectedStatus={queue.projected(selection.tableId)}
-                    tab={selectedTabQuery.data ?? null}
-                    pending={pendingTableIds.has(selection.tableId)}
-                    online={queue.online}
-                    affectedReservations={affected.get(selection.tableId) ?? []}
-                    releasing={releaseReservation.isPending}
-                    onAct={act}
-                    onRelease={release}
-                    onOpenTab={() => {
-                      setActiveTableId(selection.tableId);
-                      setOverlay('tab');
-                      setSelection(null);
-                    }}
-                    onStartTab={() => startTab(selection.tableId)}
-                    startingTab={openTabForStaff.isPending}
-                    onOrder={() => {
-                      setActiveTableId(selection.tableId);
-                      setOverlay('order');
-                      setSelection(null);
-                    }}
-                    onClose={() => {
-                      const tableId = selection.tableId;
-                      setSelection(null);
-                      // Back to the row it was opened from, not the top of the page.
-                      document
-                        .querySelector<HTMLElement>(
-                          `.table-row[data-table-id="${CSS.escape(tableId)}"]`,
-                        )
-                        ?.focus();
-                    }}
-                  />
-                ) : null}
-              </>
-            ) : offline ? (
-              <div className="floor-note">
-                <QueryFailureNotice offline onRetry={() => void floorQuery.refetch()} />
-              </div>
-            ) : floorQuery.isLoading ? (
-              <p className="floor-note">{t('floor.loading')}</p>
-            ) : (
-              <div className="floor-note">
-                <QueryFailureNotice
-                  error={floorQuery.error}
-                  onRetry={() => void floorQuery.refetch()}
-                />
-              </div>
-            )}
-          </div>
-
-          {unresolvedList.length > 0 ? (
-            <section className="unresolved" aria-label={t('unresolved.title')}>
-              <h2>{t('unresolved.title')}</h2>
-              <p className="table-note">{t('unresolved.body')}</p>
-              <ul>
-                {unresolvedList.map((entry) => (
-                  <li key={entry.tabId}>
-                    <span>
-                      {t('table.title', { label: entry.tableLabel })} ·{' '}
-                      {format.dram(entry.amountDram)}
-                    </span>
-                    <button
-                      type="button"
-                      className="button"
-                      onClick={() => settleUnresolved(entry.tabId)}
-                    >
-                      {t('unresolved.settle')}
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            </section>
-          ) : null}
+              ) : null}
+            </>
+          ) : offline ? (
+            <div className="floor-note">
+              <QueryFailureNotice offline onRetry={() => void floorQuery.refetch()} />
+            </div>
+          ) : floorQuery.isLoading || paused ? (
+            <p className="floor-note">{t('floor.loading')}</p>
+          ) : (
+            <div className="floor-note">
+              <QueryFailureNotice
+                error={floorQuery.error}
+                onRetry={() => void floorQuery.refetch()}
+              />
+            </div>
+          )}
         </section>
 
-        <OrderQueuePanel
-          orders={ordersQuery.data ?? []}
+        <FloorRail
+          summary={summary}
           requests={requestsQuery.data ?? []}
+          requestsFailed={
+            requestsQuery.isError || (isOfflinePaused(requestsQuery) && !requestsQuery.data)
+          }
+          requestsLoading={requestsQuery.isLoading && !isOfflinePaused(requestsQuery)}
+          orders={orders}
+          ordersLoading={ordersLoading}
+          ordersFailed={ordersFailed}
           timeZoneId={timeZoneId}
-          role={identity.role}
-          onAdvance={advanceOrder}
           onAcknowledge={acknowledge}
-          loading={ordersQuery.isLoading && !isOfflinePaused(ordersQuery)}
-          failed={ordersQuery.isError || (isOfflinePaused(ordersQuery) && !ordersQuery.data)}
-          lead={
+          onAdvance={advanceOrder}
+          unresolved={unresolvedList}
+          onSettle={settleUnresolved}
+          approvals={
             branchId ? (
               <ApprovalPanel
                 branchId={branchId}
@@ -833,7 +924,6 @@ export function FloorRoute({ identity, paused }: FloorRouteProps) {
                 }
                 online={queue.online}
                 fresh={awaiting.fresh}
-                announcement={awaiting.announcement}
                 onDecided={({ approved, request }) =>
                   setNotice({
                     kind: 'info',

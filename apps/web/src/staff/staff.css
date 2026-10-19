@@ -1,0 +1,947 @@
+/*
+ * The floor tablet (docs/design/floor-tablet): the staff surface on the
+ * console's palette, its one top bar, the floor grid and the "Now" rail.
+ *
+ * Every colour, size and radius is a token: the console's `--console-*`
+ * (`@yalla/tokens`, `console.ts`, where the contrast tests see them) and the
+ * staff scale the `data-surface` attribute switches on (`--font-size-*`,
+ * `--touch-*`). `staffStyles.test.ts` fails on a colour typed here.
+ *
+ * Staff sizes, not console sizes (floor-tablet HANDOFF §3): 18px body, running
+ * text at least 13px, every target at least 44×44 with 8px between
+ * neighbours, a pressed state rather than a hover, and `min-height` on buttons
+ * — a fixed height with `flex: 1` collapsed to 28px inside a column.
+ */
+
+/* --------------------------------------------------------------------------
+ * The surface: the product palette the older staff screens read, remapped
+ * onto the console's. The table panel, order entry, the tab, cash, the PIN
+ * gate and the conflicts follow the tablet's look through these until each
+ * gets its own phase, without a rule of their own.
+ * -------------------------------------------------------------------------- */
+[data-surface='staff'] {
+  --color-paper: var(--console-canvas);
+  --color-surface: var(--console-surface);
+  --color-foreground: var(--console-ink);
+  --color-muted-foreground: var(--console-muted);
+  --color-subtle-foreground: var(--console-muted);
+  --color-border: var(--console-line);
+  --color-border-soft: var(--console-line-soft);
+  --color-border-strong: var(--console-button-edge);
+  --color-border-interactive: var(--console-control);
+  --color-green-tint: var(--console-brand-tint);
+  --color-accent-tint: var(--console-brand-tint);
+  --color-primary: var(--console-brand);
+  --color-primary-pressed: var(--console-brand-hover);
+  --color-primary-foreground: var(--console-brand-foreground);
+  --color-primary-ink: var(--console-brand);
+  --color-primary-on-floor-plan: var(--console-brand);
+  --color-primary-on-floor-plan-pressed: var(--console-brand-hover);
+  --color-danger: var(--console-red);
+  --color-danger-pressed: var(--console-red-hover);
+  --color-danger-foreground: var(--console-red-foreground);
+  --color-warning: var(--console-amber);
+  --color-warning-ink: var(--console-amber);
+  --color-success: var(--console-green);
+  --color-success-ink: var(--console-green);
+  --color-info: var(--console-blue);
+  --color-focus-ring: var(--console-focus);
+  --color-scrim: var(--console-scrim);
+  --radius-card: var(--console-radius-card);
+
+  color: var(--console-ink);
+  background: var(--console-canvas);
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* A visible ring on every ground: 3px, the brand on cream, cream on the bar. */
+[data-surface='staff'] :focus-visible {
+  outline: 3px solid var(--console-focus);
+  outline-offset: 2px;
+}
+
+/* The floor fills the tablet; the grid and the rail scroll inside it. */
+.staff-shell {
+  height: 100%;
+}
+
+.kitchen-body {
+  overflow-y: auto;
+}
+
+.ft-icon {
+  width: 20px;
+  height: 20px;
+  flex: none;
+}
+
+/* --------------------------------------------------------------------------
+ * The top bar: brand, where, Floor / Kitchen, connection, conflicts, person
+ * -------------------------------------------------------------------------- */
+.ft-top {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+  height: var(--console-size-floor-bar);
+  padding: 0 var(--space-lg);
+  background: var(--console-sidebar);
+  color: var(--console-floor-bar-text);
+}
+
+.ft-top :focus-visible {
+  outline-color: var(--console-sidebar-focus);
+}
+
+.ft-brand {
+  padding-right: var(--space-md);
+  border-right: 1px solid var(--console-floor-bar-chip-edge);
+  font-family: var(--font-family-display);
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-bold);
+  line-height: 1;
+  color: var(--console-sidebar-text-strong);
+}
+
+.ft-where {
+  display: flex;
+  flex: 0 100 auto;
+  flex-direction: column;
+  /* The place gives way first, then the connection chip's words; the
+     conflicts chip and the person never do. */
+  min-width: 96px;
+}
+
+.ft-where b {
+  overflow: hidden;
+  font-size: var(--font-size-sm);
+  line-height: 1.3;
+  font-weight: var(--font-weight-semibold);
+  color: var(--console-sidebar-text-strong);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.ft-where span {
+  font-size: var(--console-text-label);
+  line-height: 1.3;
+  color: var(--console-sidebar-muted);
+  white-space: nowrap;
+}
+
+.ft-views {
+  display: flex;
+  flex: none;
+  gap: var(--space-sm);
+  margin-left: var(--space-md);
+  padding: var(--space-xs);
+  border-radius: var(--console-radius-floor-button);
+  background: var(--console-floor-bar-tabs);
+}
+
+.ft-views button {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-sm);
+  min-height: var(--touch-regular);
+  padding: 0 18px;
+  border: 0;
+  border-radius: var(--console-radius-floor-tab);
+  background: transparent;
+  color: var(--console-sidebar-text);
+  font: inherit;
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.ft-views button[aria-current='page'] {
+  background: var(--console-brand-foreground);
+  color: var(--console-brand);
+}
+
+.ft-views-count {
+  display: grid;
+  place-items: center;
+  min-width: 24px;
+  height: 24px;
+  padding: 0 7px;
+  border-radius: var(--console-radius-pill);
+  background: var(--console-amber);
+  color: var(--console-brand-foreground);
+  font-size: var(--console-text-label);
+  font-weight: var(--font-weight-bold);
+  font-feature-settings: var(--font-feature-tabular);
+}
+
+.ft-views-only {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-sm);
+  min-height: var(--touch-regular);
+  padding: 0 18px;
+  border-radius: var(--console-radius-floor-tab);
+  background: var(--console-brand-foreground);
+  color: var(--console-brand);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+  white-space: nowrap;
+}
+
+[aria-current='page'] > .ft-views-count {
+  background: var(--console-brand);
+}
+
+.ft-top-gap {
+  flex: 1;
+}
+
+.ft-chip {
+  display: inline-flex;
+  /* Whole: the place beside the brand is what gives way (it ellipsises). */
+  flex: none;
+  align-items: center;
+  gap: var(--space-sm);
+  min-height: var(--touch-regular);
+  padding: 0 var(--space-lg);
+  border: 1.5px solid var(--console-floor-bar-chip-edge);
+  border-radius: var(--console-radius-pill);
+  background: none;
+  color: var(--console-sidebar-field-text);
+  font: inherit;
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-semibold);
+  font-feature-settings: var(--font-feature-tabular);
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+/* The dot repeats the state; the words are what carry it. */
+.ft-chip i {
+  width: 9px;
+  height: 9px;
+  flex: none;
+  border-radius: 50%;
+  background: var(--console-sidebar-muted);
+}
+
+.ft-chip-live {
+  border-color: var(--console-floor-live);
+}
+
+.ft-chip-live i {
+  background: var(--console-floor-live);
+}
+
+.ft-chip-offline {
+  border-color: var(--console-floor-offline);
+  color: var(--console-floor-offline-text);
+}
+
+.ft-chip-offline i {
+  background: var(--console-floor-offline);
+}
+
+.ft-chip-failure {
+  border-color: var(--console-floor-failure);
+  color: var(--console-floor-failure-text);
+}
+
+.ft-chip-failure i {
+  background: var(--console-floor-failure);
+}
+
+.ft-who {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 10px;
+  min-height: var(--touch-regular);
+  padding: 0 var(--space-md) 0 14px;
+  border: 0;
+  border-radius: var(--console-radius-pill);
+  background: var(--console-floor-bar-who);
+  color: var(--console-sidebar-text-strong);
+  font: inherit;
+  font-size: var(--console-text-nav);
+  font-weight: var(--font-weight-semibold);
+  cursor: pointer;
+}
+
+.ft-avatar {
+  display: grid;
+  place-items: center;
+  width: var(--console-size-floor-avatar);
+  height: var(--console-size-floor-avatar);
+  border-radius: 50%;
+  background: var(--console-avatar);
+  color: var(--console-avatar-foreground);
+  font-size: var(--console-text-label);
+  font-weight: var(--font-weight-bold);
+}
+
+/* The mock's role switcher, in a dev build only: parked in a corner, off the
+   bar the tablet's own controls need. */
+.ft-top .dev-role-bar {
+  position: fixed;
+  left: var(--space-sm);
+  bottom: var(--space-sm);
+  z-index: 44;
+  box-shadow: var(--console-shadow-menu);
+}
+
+.ft-top .dev-role-bar .dev-role-label {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+/* Pressed, not hovered: this is a touch screen. */
+.ft-views button:active,
+.ft-chip:active,
+.ft-who:active,
+.ft-rooms button:active,
+.ft-btn:active:not(:disabled),
+.ft-grid .table-row:active {
+  transform: scale(var(--scale-press));
+}
+
+/* --------------------------------------------------------------------------
+ * The toast: what just happened, at the foot of the screen. Never something
+ * to dismiss.
+ * -------------------------------------------------------------------------- */
+/* Where the artboard puts it — the foot of the screen — centred under the
+   floor rather than the rail, never over the rail's buttons, and never in the
+   way of a tap: it has nothing to press, so taps go through it. The grid
+   leaves room under its last row to scroll clear of it. Not shown while the
+   PIN gate is up (FloorRoute). */
+[data-surface='staff'] .floor-notice {
+  position: fixed;
+  left: calc((100% - var(--console-size-floor-rail)) / 2);
+  bottom: var(--space-lg);
+  z-index: 45;
+  max-width: calc(100% - var(--console-size-floor-rail) - 40px);
+  pointer-events: none;
+  padding: 14px 20px;
+  border: 0;
+  border-left: 6px solid var(--console-toast-icon);
+  border-radius: var(--console-radius-floor-button);
+  background: var(--console-toast);
+  color: var(--console-toast-foreground);
+  font-size: var(--font-size-sm);
+  line-height: 1.4;
+  font-weight: var(--font-weight-semibold);
+  box-shadow: var(--console-shadow-toast);
+  transform: translateX(-50%);
+}
+
+[data-surface='staff'] .notice-warning {
+  border-left-color: var(--console-floor-offline);
+}
+
+[data-surface='staff'] .notice-race {
+  border-left-color: var(--console-toast-action);
+}
+
+/* --------------------------------------------------------------------------
+ * The floor: room chips, the legend, the grid of tables
+ * -------------------------------------------------------------------------- */
+.ft-body {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+}
+
+.ft-body[hidden] {
+  display: none;
+}
+
+.ft-floor {
+  position: relative;
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.ft-floor-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px var(--space-md);
+  padding: var(--space-md) 20px;
+  border-bottom: 1px solid var(--console-line);
+}
+
+.ft-rooms {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+}
+
+.ft-rooms button {
+  min-height: var(--touch-regular);
+  padding: 0 var(--space-lg);
+  border: 1.5px solid var(--console-button-edge);
+  border-radius: var(--console-radius-pill);
+  background: var(--console-surface);
+  color: var(--console-ink);
+  font: inherit;
+  font-size: var(--console-text-nav);
+  font-weight: var(--font-weight-semibold);
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.ft-rooms button[aria-pressed='true'] {
+  border-color: var(--console-brand);
+  background: var(--console-brand);
+  color: var(--console-brand-foreground);
+}
+
+.ft-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 14px;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: var(--console-text-label);
+  color: var(--console-muted);
+}
+
+.ft-legend li {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.ft-swatch {
+  width: 14px;
+  height: 14px;
+  border: 1.5px solid;
+  border-radius: 4px;
+}
+
+.ft-grid {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-auto-rows: var(--console-size-floor-table-row);
+  align-content: start;
+  gap: var(--space-md);
+  margin: 0;
+  padding: var(--space-lg) 20px 96px;
+  overflow-y: auto;
+  list-style: none;
+}
+
+.ft-grid > li {
+  display: flex;
+  min-width: 0;
+}
+
+/* A card: the label large, the seats in the corner, the state in words under
+   it. The state is its words, its edge (dashed when held) and its tint. */
+.ft-grid .table-row {
+  position: relative;
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  justify-content: space-between;
+  min-width: 0;
+  padding: var(--space-md) 14px;
+  border: 2px solid;
+  border-radius: var(--console-radius-floor-table);
+  color: var(--console-ink);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: transform var(--duration-control) var(--easing-standard);
+}
+
+/* Chosen: the brand edge, solid, and a second ring inside it — inside the
+   card, so it never reads as the keyboard's ring, which sits outside. */
+.ft-grid .table-row[aria-pressed='true'] {
+  border-color: var(--console-brand);
+  border-style: solid;
+  box-shadow: inset 0 0 0 3px var(--console-brand);
+}
+
+.ft-grid .table-row:focus-visible {
+  outline-offset: 4px;
+}
+
+[data-surface='staff'] [data-tone='free'] {
+  border-color: var(--console-floor-free-edge);
+  background-color: var(--console-floor-free);
+}
+
+[data-surface='staff'] [data-tone='booked'] {
+  border-color: var(--console-floor-booked-edge);
+  background-color: var(--console-floor-booked);
+}
+
+.table-row[data-tone='booked'] {
+  background-image: repeating-linear-gradient(
+    135deg,
+    transparent 0 10px,
+    var(--console-floor-booked-stripe) 10px 12px
+  );
+}
+
+[data-surface='staff'] [data-tone='held'] {
+  border-color: var(--console-floor-held-edge);
+  border-style: dashed;
+  background-color: var(--console-floor-held);
+}
+
+[data-surface='staff'] [data-tone='occupied'] {
+  border-color: var(--console-floor-occupied-edge);
+  background-color: var(--console-floor-occupied);
+}
+
+[data-surface='staff'] [data-tone='out'] {
+  border-color: var(--console-floor-out-edge);
+  background-color: var(--console-floor-out);
+}
+
+.table-row[data-tone='out'] {
+  background-image: repeating-linear-gradient(
+    45deg,
+    transparent 0 6px,
+    var(--console-floor-out-stripe) 6px 8px
+  );
+  color: var(--console-muted);
+}
+
+.ft-table-label {
+  font-family: var(--font-family-display);
+  font-size: var(--font-size-xl);
+  font-weight: var(--font-weight-bold);
+  line-height: 1;
+}
+
+.ft-table-seats {
+  position: absolute;
+  top: 10px;
+  right: var(--space-md);
+  font-size: var(--console-text-label);
+  font-weight: var(--font-weight-semibold);
+  color: var(--console-muted);
+}
+
+.ft-table-text {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+.ft-table-state,
+.ft-table-sub {
+  overflow: hidden;
+  line-height: 1.3;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.ft-table-state {
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-bold);
+}
+
+[data-surface='staff'] [data-tone='free'] .ft-table-state {
+  color: var(--console-floor-free-ink);
+}
+
+[data-surface='staff'] [data-tone='booked'] .ft-table-state {
+  color: var(--console-floor-booked-ink);
+}
+
+[data-surface='staff'] [data-tone='held'] .ft-table-state {
+  color: var(--console-floor-held-ink);
+}
+
+[data-surface='staff'] [data-tone='occupied'] .ft-table-state {
+  color: var(--console-red);
+}
+
+.ft-table-sub {
+  font-size: var(--console-text-label);
+  color: var(--console-muted);
+}
+
+/* Done on this tablet, not yet on the server. */
+.ft-table-pending {
+  position: absolute;
+  right: var(--space-md);
+  bottom: 10px;
+  padding: 1px 7px;
+  border-radius: var(--console-radius-pill);
+  background: var(--console-amber-bg);
+  color: var(--console-amber);
+  font-size: var(--console-text-label);
+  font-weight: var(--font-weight-bold);
+}
+
+/* The table's actions open over the floor, at its right, until phase 2 gives
+   them their own panel. */
+.ft-floor > .table-panel {
+  position: absolute;
+  top: var(--space-md);
+  right: var(--space-md);
+  bottom: var(--space-md);
+  width: min(440px, 60%);
+  max-height: none;
+}
+
+/* With the panel open the grid narrows to two columns beside it, so the
+   chosen card is never under the panel. */
+.ft-floor:has(> .table-panel) .ft-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  padding-right: calc(min(440px, 60%) + 2 * var(--space-md));
+}
+
+/* --------------------------------------------------------------------------
+ * The "Now" rail
+ * -------------------------------------------------------------------------- */
+.ft-rail {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  width: var(--console-size-floor-rail);
+  min-height: 0;
+  border-left: 1px solid var(--console-line);
+  background: var(--console-surface);
+}
+
+.ft-rail-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-sm);
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--console-line-soft);
+}
+
+.ft-rail-head h2 {
+  margin: 0;
+  font-family: var(--font-family-display);
+  font-size: var(--font-size-md);
+  font-weight: var(--font-weight-bold);
+}
+
+.ft-rail-head span {
+  font-size: var(--console-text-label);
+  color: var(--console-muted);
+}
+
+.ft-rail-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.ft-rail-section {
+  border-bottom: 1px solid var(--console-line-soft);
+}
+
+.ft-rail-section h3 {
+  margin: 0;
+}
+
+.ft-rail-section h3 > button {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  width: 100%;
+  min-height: var(--touch-regular);
+  padding: 0 18px;
+  border: 0;
+  background: none;
+  color: var(--console-ink);
+  font: inherit;
+  font-size: var(--console-text-nav);
+  font-weight: var(--font-weight-bold);
+  text-align: left;
+  cursor: pointer;
+}
+
+.ft-rail-section h3 > button:active {
+  background: var(--console-hover);
+}
+
+.ft-badge {
+  display: grid;
+  place-items: center;
+  min-width: 26px;
+  height: 26px;
+  margin-left: auto;
+  padding: 0 var(--space-sm);
+  border-radius: var(--console-radius-pill);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-bold);
+  font-feature-settings: var(--font-feature-tabular);
+}
+
+.ft-badge-waiting {
+  background: var(--console-amber-bg);
+  color: var(--console-amber);
+}
+
+.ft-badge-failure {
+  background: var(--console-red-bg);
+  color: var(--console-red);
+}
+
+.ft-rail-empty {
+  margin: 0;
+  padding: var(--space-sm) 18px 20px;
+  font-size: var(--console-text-nav);
+  color: var(--console-muted);
+}
+
+.ft-rail-empty.is-failed {
+  color: var(--console-red);
+}
+
+.ft-items {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.ft-item {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  padding: 14px 18px;
+  border-top: 1px solid var(--console-line-soft);
+}
+
+.ft-item.is-urgent {
+  background: var(--console-floor-urgent);
+}
+
+.ft-item-top {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-xs) 10px;
+}
+
+.ft-item-top b {
+  font-size: var(--font-size-md);
+  font-weight: var(--font-weight-bold);
+}
+
+.ft-item-top > span {
+  font-size: var(--font-size-sm);
+}
+
+.ft-item-age {
+  margin-left: auto;
+  font-size: var(--console-text-label);
+  color: var(--console-muted);
+  font-feature-settings: var(--font-feature-tabular);
+}
+
+.ft-item-age.age-waiting {
+  color: var(--console-amber);
+  font-weight: var(--font-weight-bold);
+}
+
+.ft-item-age.age-late {
+  color: var(--console-red);
+  font-weight: var(--font-weight-bold);
+}
+
+.ft-item p {
+  margin: 0;
+  font-size: var(--console-text-nav);
+  color: var(--console-muted);
+}
+
+.ft-item .ft-item-bill {
+  color: var(--console-ink);
+  font-feature-settings: var(--font-feature-tabular);
+}
+
+.ft-item-actions,
+.approval-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+}
+
+/* Side by side when they fit, one under the other in a narrow column — never
+   a button whose label breaks over two lines. */
+.ft-item-actions > *,
+.approval-actions > * {
+  flex: 1 1 8rem;
+}
+
+.ft-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-sm);
+  min-height: var(--touch-staff);
+  padding: 0 var(--space-md);
+  border: 2px solid transparent;
+  border-radius: var(--console-radius-floor-button);
+  font: inherit;
+  font-size: var(--console-text-nav);
+  font-weight: var(--font-weight-bold);
+  white-space: nowrap;
+  cursor: pointer;
+  transition: transform var(--duration-control) var(--easing-standard);
+}
+
+.ft-btn-primary {
+  border-color: var(--console-brand);
+  background: var(--console-brand);
+  color: var(--console-brand-foreground);
+}
+
+.ft-btn-secondary {
+  border-color: var(--console-button-edge);
+  background: var(--console-surface);
+  color: var(--console-brand);
+}
+
+.ft-btn-ok {
+  border-color: var(--console-green);
+  background: var(--console-green);
+  color: var(--console-surface);
+}
+
+.ft-btn-danger {
+  border-color: var(--console-red);
+  background: var(--console-surface);
+  color: var(--console-red);
+}
+
+.ft-btn:disabled {
+  border-color: var(--console-line);
+  background: var(--console-canvas);
+  color: var(--console-muted);
+  cursor: not-allowed;
+}
+
+/* --- A booking waiting for the floor's answer -------------------------------- */
+
+.approval-countdown {
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--space-xs);
+  margin-left: auto;
+  font-size: var(--console-text-label);
+  color: var(--console-muted);
+}
+
+/* The clock: tabular, and bold enough to read across the counter. */
+.approval-countdown-value {
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-bold);
+  color: var(--console-ink);
+  font-feature-settings: var(--font-feature-tabular);
+}
+
+/* The last two minutes: red, in the clock's own words and the item's tint. */
+.approval-card.is-urgent {
+  background: var(--console-floor-urgent);
+}
+
+.approval-card.is-urgent .approval-countdown-value {
+  color: var(--console-red);
+}
+
+.approval-card.is-closed .approval-countdown-value {
+  color: var(--console-muted);
+}
+
+/* Just arrived. A tint that stays put under reduced motion, and a pulse for
+   everybody else; the chime and the screen reader carry the same news. */
+.approval-card.is-fresh {
+  background: var(--console-brand-tint);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .approval-card.is-fresh {
+    animation: approval-arrive 1.2s ease-in-out 3;
+  }
+}
+
+@keyframes approval-arrive {
+  50% {
+    box-shadow: inset 6px 0 0 var(--console-amber);
+  }
+}
+
+.ft-item .approval-line {
+  color: var(--console-ink);
+  font-feature-settings: var(--font-feature-tabular);
+}
+
+.approval-because .badge {
+  display: inline-flex;
+  align-items: center;
+  min-height: 26px;
+  padding: 0 10px;
+  border-radius: var(--console-radius-pill);
+  background: var(--console-amber-bg);
+  color: var(--console-amber);
+  font-size: var(--console-text-label);
+  font-weight: var(--font-weight-semibold);
+}
+
+.approval-context {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+  margin: 0;
+  padding: var(--space-sm) 0 0;
+  border-top: 1px dashed var(--console-line);
+  list-style: none;
+  font-size: var(--console-text-nav);
+  font-feature-settings: var(--font-feature-tabular);
+}
+
+/* Booking times: ring the guest before about leaving in time — the one line to act on. */
+.approval-context-ask {
+  font-weight: var(--font-weight-semibold);
+}
+
+/* A tablet can dial. Sized as a control, not as a word in a sentence. */
+.approval-call {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--touch-minimum);
+  padding: 0 var(--space-md);
+  border: 2px solid var(--console-button-edge);
+  border-radius: var(--console-radius-pill);
+  color: var(--console-brand);
+  font-weight: var(--font-weight-bold);
+  text-decoration: none;
+}
+
+.approval-decline {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+}
+
+.approval-reason {
+  min-height: calc(var(--touch-regular) * 1.6);
+  padding: var(--space-sm) var(--space-lg);
+  border-radius: var(--console-radius-control);
+  resize: vertical;
+}

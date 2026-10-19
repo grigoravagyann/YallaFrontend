@@ -251,6 +251,92 @@ describe("the venue console's sidebar (docs/design/venue-console)", () => {
   });
 });
 
+/*
+ * The floor tablet (docs/design/floor-tablet) wears the console's palette with
+ * a few values of its own: the table states' tints and inks, and the top bar's
+ * chips. Every table state is read from its words, so each ink and the muted
+ * line under it must read on the state's own tint.
+ */
+describe('the floor tablet', () => {
+  const states = [
+    [consoleColor.floorFreeInk, consoleColor.floorFree],
+    [consoleColor.floorBookedInk, consoleColor.floorBooked],
+    [consoleColor.floorHeldInk, consoleColor.floorHeld],
+    [consoleColor.red, consoleColor.floorOccupied],
+    // The out-of-service card is painted muted throughout, label and words.
+    [consoleColor.muted, consoleColor.floorOut],
+  ] as const;
+
+  /** An `rgba()` stripe laid over a hex tint: what the eye gets where they cross. */
+  function over(stripe: string, tint: string): string {
+    const [r, g, b, a] = stripe.match(/[\d.]+/gu)!.map(Number) as [number, number, number, number];
+    const base = tint.replace('#', '');
+    const channel = (i: number, top: number) =>
+      Math.round(top * a + Number.parseInt(base.slice(i * 2, i * 2 + 2), 16) * (1 - a))
+        .toString(16)
+        .padStart(2, '0');
+    return `#${channel(0, r)}${channel(1, g)}${channel(2, b)}`;
+  }
+
+  it("still reads where a striped card's stripe crosses its words", () => {
+    const bookedStripe = over(consoleColor.floorBookedStripe, consoleColor.floorBooked);
+    const outStripe = over(consoleColor.floorOutStripe, consoleColor.floorOut);
+    for (const ground of [bookedStripe]) {
+      expect(ratio(consoleColor.floorBookedInk, ground)).toBeGreaterThanOrEqual(AA_BODY);
+      expect(ratio(consoleColor.muted, ground)).toBeGreaterThanOrEqual(AA_BODY);
+    }
+    expect(ratio(consoleColor.muted, outStripe)).toBeGreaterThanOrEqual(AA_BODY);
+  });
+
+  it("says every table state in an ink that reads on the state's own tint", () => {
+    for (const [ink, tint] of states) {
+      expect(ratio(ink, tint)).toBeGreaterThanOrEqual(AA_BODY);
+      expect(ratio(consoleColor.ink, tint)).toBeGreaterThanOrEqual(AA_BODY);
+      expect(ratio(consoleColor.muted, tint)).toBeGreaterThanOrEqual(AA_BODY);
+    }
+  });
+
+  it('keeps the top bar readable: place, tabs, chips and the person', () => {
+    for (const text of [
+      consoleColor.floorBarText,
+      consoleColor.sidebarMuted,
+      consoleColor.sidebarText,
+      consoleColor.sidebarFieldText,
+      consoleColor.floorOfflineText,
+      consoleColor.floorFailureText,
+      consoleColor.sidebarTextStrong,
+    ]) {
+      expect(ratio(text, consoleColor.sidebar)).toBeGreaterThanOrEqual(AA_BODY);
+    }
+    // The current tab is cream with brown on it; its count is amber with cream.
+    expect(ratio(consoleColor.brand, consoleColor.brandForeground)).toBeGreaterThanOrEqual(AA_BODY);
+    expect(ratio(consoleColor.brandForeground, consoleColor.amber)).toBeGreaterThanOrEqual(AA_BODY);
+  });
+
+  it("draws each connection state's dot and edge at 3:1 on the bar", () => {
+    for (const mark of [
+      consoleColor.floorLive,
+      consoleColor.floorOffline,
+      consoleColor.floorFailure,
+      consoleColor.sidebarFocus,
+    ]) {
+      expect(ratio(mark, consoleColor.sidebar)).toBeGreaterThanOrEqual(3);
+    }
+  });
+
+  it('keeps an urgent rail item readable on its tint', () => {
+    expect(ratio(consoleColor.muted, consoleColor.floorUrgent)).toBeGreaterThanOrEqual(AA_BODY);
+    expect(ratio(consoleColor.red, consoleColor.floorUrgent)).toBeGreaterThanOrEqual(AA_BODY);
+    expect(ratio(consoleColor.amber, consoleColor.surface)).toBeGreaterThanOrEqual(AA_BODY);
+  });
+
+  it('keeps red for failures: waiting is amber, and no table state is red but occupied', () => {
+    expect(consoleColor.floorBookedInk).not.toBe(consoleColor.red);
+    expect(consoleColor.floorHeldInk).not.toBe(consoleColor.red);
+    expect(consoleColor.floorOffline).not.toBe(consoleColor.floorFailure);
+  });
+});
+
 describe('the console tokens reach the stylesheet', () => {
   const css = renderTokenCss();
 

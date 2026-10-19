@@ -1,21 +1,14 @@
-import {
-  nextOrderStatus,
-  type OrderQueueEntry,
-  type OrderStatus,
-  type ServiceRequest,
-} from '@yalla/api';
+import { nextOrderStatus, type OrderQueueEntry, type OrderStatus } from '@yalla/api';
 import type { UserRole } from '@yalla/api';
 import { useTranslation } from '@yalla/i18n';
-import type { ReactNode } from 'react';
-import { billRequestText } from './billRequestText';
 import { useBranchFormat } from './useBranchFormat';
 
 /**
- * Incoming orders and service requests, in one panel.
+ * The kitchen board: the branch's orders, oldest worry first.
  *
- * One panel rather than two because they are the same job: things somebody at a
- * table is waiting for. A waiter scanning from across the counter should not
- * have to check two lists to know whether anyone needs them.
+ * The kitchen account's whole screen, and the Kitchen tab of the floor. The
+ * floor's own rail ("Now", `FloorRail`) carries the calls and the orders that
+ * are ready; this is everything still on its way.
  *
  * **Ageing is the panel's whole point.** A `New` order twelve minutes old and
  * one that arrived a minute ago are the same words and the same colour in every
@@ -27,25 +20,12 @@ import { useBranchFormat } from './useBranchFormat';
 
 export interface OrderQueuePanelProps {
   readonly orders: readonly OrderQueueEntry[];
-  /**
-   * Null on a screen that does not handle waiter calls — the kitchen's. The
-   * section is left out rather than shown empty: "nobody is waving" is a claim
-   * that screen has no way to know.
-   */
-  readonly requests: readonly ServiceRequest[] | null;
   readonly timeZoneId: string;
   readonly role: UserRole;
   readonly onAdvance: (order: OrderQueueEntry, next: OrderStatus) => void;
-  readonly onAcknowledge?: ((request: ServiceRequest) => void) | undefined;
   readonly loading: boolean;
   /** The queue could not be read at all — offline, or the branch is unreachable. */
   readonly failed: boolean;
-  /**
-   * What goes above the orders, in the same column: the floor puts the
-   * bookings waiting for its answer there, the first thing a waiter's eye
-   * lands on in the panel. Nothing on the kitchen's screen.
-   */
-  readonly lead?: ReactNode | undefined;
 }
 
 /** Minutes at which an order stops being fresh, and then stops being acceptable. */
@@ -58,6 +38,14 @@ export function ageBand(minutes: number): AgeBand {
   if (minutes >= LATE_AFTER_MINUTES) return 'late';
   if (minutes >= WAITING_AFTER_MINUTES) return 'waiting';
   return 'fresh';
+}
+
+/**
+ * The count on the Kitchen tab: orders waiting at the kitchen — the ones a
+ * waiter has still to send, and the ones cooking. Ready has left it.
+ */
+export function kitchenWaiting(orders: readonly OrderQueueEntry[]): number {
+  return orders.filter((order) => order.status === 'new' || order.status === 'inKitchen').length;
 }
 
 /**
@@ -81,7 +69,7 @@ function advanceableBy(role: UserRole, status: OrderStatus): boolean {
 }
 
 export function OrderQueuePanel(props: OrderQueuePanelProps) {
-  const { orders, requests, timeZoneId, role, loading, failed } = props;
+  const { orders, timeZoneId, role, loading, failed } = props;
   const { t } = useTranslation(['staff', 'common']);
   const format = useBranchFormat(timeZoneId);
 
@@ -89,8 +77,6 @@ export function OrderQueuePanel(props: OrderQueuePanelProps) {
 
   return (
     <aside className="floor-panel" aria-label={t('panel.orders.title')}>
-      {props.lead}
-
       <section className="queue-block">
         <h2>{t('panel.orders.title')}</h2>
 
@@ -168,52 +154,6 @@ export function OrderQueuePanel(props: OrderQueuePanelProps) {
           </ul>
         )}
       </section>
-
-      {/* Service requests share the panel but are visibly a different thing:
-          nobody is cooking, somebody is waving. */}
-      {requests === null ? null : (
-        <section className="queue-block">
-          <h2>{t('panel.calls.title')}</h2>
-
-          {failed ? (
-            <p className="table-warn">{t('panel.calls.unreachable')}</p>
-          ) : requests.length === 0 ? (
-            <p className="floor-todo">{t('panel.calls.empty')}</p>
-          ) : (
-            <ul className="queue-list">
-              {requests.map((request) => {
-                const minutes = request.waitingMinutes;
-                return (
-                  <li key={request.id} className={`call-card age-${ageBand(minutes)}`}>
-                    <p className="call-line">
-                      {t('panel.calls.line', {
-                        label: request.tableLabel,
-                        reason: t(`panel.calls.reason.${request.reason}`),
-                        count: minutes,
-                      })}
-                    </p>
-                    {/* The bill from the app's pay sheet says how much and the
-                        tip, so the waiter brings the right bill the first time. */}
-                    {request.reason === 'bill' && request.bill ? (
-                      <p className="call-bill">
-                        {billRequestText(request.bill, t, format.dram, 'short')}
-                      </p>
-                    ) : null}
-                    {request.note ? <p className="order-line-note">{request.note}</p> : null}
-                    <button
-                      type="button"
-                      className="floor-button big full"
-                      onClick={() => props.onAcknowledge?.(request)}
-                    >
-                      {t('panel.calls.acknowledge')}
-                    </button>
-                  </li>
-                );
-              })}
-            </ul>
-          )}
-        </section>
-      )}
     </aside>
   );
 }

@@ -78,13 +78,6 @@
     "mustFreeBy": "освободить до {{time}}"
   },
   "queue": {
-    "pending_one": "{{count}} действие ждёт отправки",
-    "pending_few": "{{count}} действия ждут отправки",
-    "pending_many": "{{count}} действий ждут отправки",
-    "pending_other": "{{count}} действия ждут отправки",
-    "synced": "Всё отправлено",
-    "syncing": "Отправляем…",
-    "offline": "Нет связи — действия сохраняются на планшете",
     "conflicts_one": "{{count}} ждёт вашего решения",
     "conflicts_few": "{{count}} ждут вашего решения",
     "conflicts_many": "{{count}} ждут вашего решения",
@@ -99,10 +92,33 @@
     "noBranch": "К вашей учётной записи не привязан филиал, поэтому зала нет.",
     "pendingMark": "не отправлено",
     "legend": {
-      "label": "Что означают цвета",
-      "booked": "Забронирован или удерживается"
+      "label": "Что означают цвета"
     },
-    "noRoom": "Без зала"
+    "noRoom": "Без зала",
+    "rooms": {
+      "label": "Залы",
+      "all": "Все · {{count}}"
+    },
+    "tables": "Столы",
+    "card": {
+      "booked": "Бронь {{time}}",
+      "held": "Удерживается · опаздывают",
+      "heldFor": "бронь на {{time}}",
+      "debt": "долг {{amount}}",
+      "walkInOnly": "только без брони",
+      "seated_one": "Сидят {{count}} мин",
+      "seated_few": "Сидят {{count}} мин",
+      "seated_many": "Сидят {{count}} мин",
+      "seated_other": "Сидят {{count}} мин",
+      "seatedLong_one": "Сидят {{count}} мин · долго",
+      "seatedLong_few": "Сидят {{count}} мин · долго",
+      "seatedLong_many": "Сидят {{count}} мин · долго",
+      "seatedLong_other": "Сидят {{count}} мин · долго",
+      "party_one": "{{count}} гость",
+      "party_few": "{{count}} гостя",
+      "party_many": "{{count}} гостей",
+      "party_other": "{{count}} гостя"
+    }
   },
   "kitchen": {
     "title": "Кухня"
@@ -121,8 +137,8 @@
   },
   "unresolved": {
     "title": "Требует решения",
-    "body": "Эти столы освободили, но деньги остались не оплачены.",
-    "settle": "Закрыть счёт"
+    "body": "Счёт ещё открыт. Примите деньги, затем закройте его.",
+    "settle": "Принять оплату"
   },
   "panel": {
     "orders": {
@@ -150,14 +166,7 @@
     "calls": {
       "title": "Ждут официанта",
       "empty": "Никто не ждёт.",
-      "line": "Стол {{label}} · {{reason}} · {{count}} мин",
       "acknowledge": "Иду",
-      "reason": {
-        "napkins": "просят салфетки",
-        "water": "просят воду",
-        "bill": "просят счёт",
-        "other": "позвали официанта"
-      },
       "unreachable": "Вызовы прочитать не удалось."
     },
     "seating": {
@@ -169,10 +178,6 @@
     "title": "Брони на подтверждение",
     "empty": "Нет броней, ждущих ответа.",
     "unreachable": "Не удалось прочитать брони, ждущие ответа. Это не значит, что их нет.",
-    "headerCount_one": "{{count}} бронь ждёт ответа",
-    "headerCount_few": "{{count}} брони ждут ответа",
-    "headerCount_many": "{{count}} броней ждут ответа",
-    "headerCount_other": "{{count}} брони ждут ответа",
     "tableInRoom": "Стол {{label}} · {{room}}",
     "line_one": "{{time}} · {{count}} гость · {{name}}",
     "line_few": "{{time}} · {{count}} гостя · {{name}}",
@@ -433,7 +438,28 @@
   "connection": {
     "refresh": "Обновить зал",
     "pollingHint": "Обновляется каждые несколько секунд. Нажмите обновить, чтобы быть уверенными.",
-    "refreshQueue": "Обновить заказы"
+    "refreshQueue": "Обновить заказы",
+    "chip": {
+      "live": "На связи · {{time}}",
+      "offline": "Офлайн",
+      "livePending_one": "На связи · {{count}} действие ждёт отправки",
+      "livePending_few": "На связи · {{count}} действия ждут отправки",
+      "livePending_many": "На связи · {{count}} действий ждут отправки",
+      "livePending_other": "На связи · {{count}} действия ждут отправки",
+      "offlinePending_one": "Офлайн · {{count}} действие ждёт",
+      "offlinePending_few": "Офлайн · {{count}} действия ждут",
+      "offlinePending_many": "Офлайн · {{count}} действий ждут",
+      "offlinePending_other": "Офлайн · {{count}} действия ждут",
+      "name": "{{chip}}. {{action}}",
+      "waiting_one": "{{state}} · {{count}} действие ждёт",
+      "waiting_few": "{{state}} · {{count}} действия ждут",
+      "waiting_many": "{{state}} · {{count}} действий ждут",
+      "waiting_other": "{{state}} · {{count}} действия ждут",
+      "stale_one": "Данные устарели на {{count}} мин",
+      "stale_few": "Данные устарели на {{count}} мин",
+      "stale_many": "Данные устарели на {{count}} мин",
+      "stale_other": "Данные устарели на {{count}} мин"
+    }
   },
   "shell": {
     "title": "Зал",
@@ -486,7 +512,58 @@
     "submit": "Войти"
   },
   "session": {
-    "signedInAs": "{{name}}",
-    "handOverHint": "Нажмите, чтобы выйти и передать планшет."
+    "switchPerson": "{{name}} · нажмите, чтобы выйти и передать планшет"
+  },
+  "views": {
+    "label": "Экраны",
+    "kitchenWaiting_one": "{{count}} заказ ждёт на кухне",
+    "kitchenWaiting_few": "{{count}} заказа ждут на кухне",
+    "kitchenWaiting_many": "{{count}} заказов ждут на кухне",
+    "kitchenWaiting_other": "{{count}} заказа ждут на кухне",
+    "floorWaiting_one": "ждут в зале: {{count}}",
+    "floorWaiting_few": "ждут в зале: {{count}}",
+    "floorWaiting_many": "ждут в зале: {{count}}",
+    "floorWaiting_other": "ждут в зале: {{count}}"
+  },
+  "rail": {
+    "label": "Требует внимания",
+    "title": "Сейчас",
+    "calls": {
+      "reason": {
+        "napkins": "просит салфетки",
+        "water": "просит воды",
+        "bill": "просит счёт",
+        "other": "зовёт официанта"
+      },
+      "ackNotice": "Стол {{label}} · гость видит, что вы идёте",
+      "ackQueued": "Стол {{label}} · сохранено, гость увидит, когда вернётся связь"
+    },
+    "ready": {
+      "title": "Готово к подаче",
+      "empty": "Готовых заказов нет.",
+      "servedNotice": "Стол {{label}} · подано",
+      "dishes_one": "{{count}} блюдо",
+      "dishes_few": "{{count}} блюда",
+      "dishes_many": "{{count}} блюд",
+      "dishes_other": "{{count}} блюда",
+      "placed_one": "заказан {{count}} мин назад",
+      "placed_few": "заказан {{count}} мин назад",
+      "placed_many": "заказан {{count}} мин назад",
+      "placed_other": "заказан {{count}} мин назад"
+    },
+    "toSend": {
+      "title": "Не отправлено на кухню"
+    },
+    "unresolved": {
+      "line": "освобождён с долгом {{amount}}"
+    },
+    "occupied_one": "{{count}} стол занят",
+    "occupied_few": "{{count}} стола заняты",
+    "occupied_many": "{{count}} столов заняты",
+    "occupied_other": "{{count}} стола заняты",
+    "minutes_one": "{{count}} мин",
+    "minutes_few": "{{count}} мин",
+    "minutes_many": "{{count}} мин",
+    "minutes_other": "{{count}} мин"
   }
 }

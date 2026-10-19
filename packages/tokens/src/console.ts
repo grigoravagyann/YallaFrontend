@@ -238,6 +238,56 @@ export const consoleColor = {
   reportPreviousLine: '#9A8570',
   /** The fill under this period's revenue line: the brand at 7%, over a white card only. */
   reportArea: 'rgba(58, 29, 12, 0.07)',
+
+  // --- The floor tablet (docs/design/floor-tablet) ------------------------------
+  /*
+   * The tablet wears this palette — its top bar is the `sidebar` brown — with
+   * the values below on top: the table states' tints and inks, and the top
+   * bar's chips. The state edges are the product's state hues (`color.ts`).
+   */
+  /** The top bar's running text. 12.45:1 on the bar. */
+  floorBarText: '#E9D9C6',
+  /** The Floor / Kitchen tray: cream at 8%, over the bar only. */
+  floorBarTabs: 'rgba(255, 243, 228, 0.08)',
+  /** A chip's edge at rest: cream at 30%, over the bar only. */
+  floorBarChipEdge: 'rgba(255, 243, 228, 0.3)',
+  /** The signed-in person's pill: cream at 10%, over the bar only. */
+  floorBarWho: 'rgba(255, 243, 228, 0.1)',
+  /** Connected: the chip's dot and edge. 8.20:1 on the bar. */
+  floorLive: '#5BC78F',
+  /** Offline, actions kept on the tablet: amber, never red. 9.25:1. */
+  floorOffline: '#E2B77A',
+  /** Its words. 12.64:1. */
+  floorOfflineText: '#F3D9B8',
+  /** Polls failing, or a conflict to decide: the one red on the bar. 7.09:1. */
+  floorFailure: '#F08A80',
+  /** Its words. 12.93:1. */
+  floorFailureText: '#FFD6D1',
+  /** A free table's card. */
+  floorFree: '#E6F5EC',
+  floorFreeEdge: '#35B37E',
+  /** "Free" on its card. 5.14:1. */
+  floorFreeInk: '#1E7350',
+  /** Booked soon: a tint with a faint diagonal stripe of its own hue. */
+  floorBooked: '#FBF0DA',
+  floorBookedEdge: '#C98A0E',
+  floorBookedStripe: 'rgba(201, 138, 14, 0.12)',
+  /** "Reserved 19:00". 5.04:1. */
+  floorBookedInk: '#8A5E08',
+  /** Held for a late party; the edge is dashed. */
+  floorHeld: '#E6EEFA',
+  floorHeldEdge: '#3B6FD4',
+  /** "Held · running late". 6.13:1. */
+  floorHeldInk: '#2A54A8',
+  /** Occupied; its words are `red`, 5.68:1 on this. */
+  floorOccupied: '#F7E1E0',
+  floorOccupiedEdge: '#B93B3B',
+  /** Out of service: grey, cross-hatched, the words in ink. */
+  floorOut: '#ECEEF0',
+  floorOutEdge: '#8B95A1',
+  floorOutStripe: 'rgba(139, 149, 161, 0.25)',
+  /** A rail item whose clock is nearly out. */
+  floorUrgent: '#FFF6F4',
 } as const;
 
 export type ConsoleColorToken = keyof typeof consoleColor;
@@ -275,6 +325,15 @@ export const consoleSize = {
   dialog: 460,
   dialogWide: 560,
   errorCard: 520,
+  /**
+   * The floor tablet: its top bar, the "Now" rail and a table card's row. The
+   * tablet's controls take the staff sizes (`--touch-*`), not the console's.
+   */
+  floorBar: 72,
+  floorRail: 380,
+  floorTableRow: 124,
+  /** The person's initials in the top bar. */
+  floorAvatar: 36,
 } as const;
 
 export const consoleRadius = {
@@ -290,6 +349,12 @@ export const consoleRadius = {
   /** The error page's icon tile. */
   tile: 20,
   pill: 999,
+  /** A table card on the floor tablet. */
+  floorTable: 14,
+  /** A floor tablet button, and the Floor / Kitchen tray. */
+  floorButton: 12,
+  /** A tab inside that tray. */
+  floorTab: 9,
 } as const;
 
 /**

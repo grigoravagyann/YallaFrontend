@@ -19,6 +19,7 @@ import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { initConsoleTestI18n } from '../console/venue/reports/testHarness';
+import { resetCommandStore } from './testCommandStore';
 import type * as CurrentUserModule from '../auth/useCurrentUser';
 import { ParticipantAvatar } from './TabPanel';
 
@@ -34,6 +35,11 @@ import { ParticipantAvatar } from './TabPanel';
  */
 
 const snapshot = vi.hoisted(() => ({ current: null as unknown }));
+
+// The queue's store in memory: see `testCommandStore.ts`.
+vi.mock('../offline/commandStore', async (importOriginal) =>
+  (await import('./testCommandStore')).withMemoryStore(await importOriginal()),
+);
 
 vi.mock('./auth/staffSession', () => ({
   staffAuthAvailable: true,
@@ -152,6 +158,7 @@ beforeAll(async () => {
 afterEach(() => {
   cleanup();
   vi.restoreAllMocks();
+  resetCommandStore();
 });
 
 describe('a bill request from the app', () => {
@@ -165,9 +172,8 @@ describe('a bill request from the app', () => {
       `Whole bill: ${dram(whole.bill!.amountDram)} · tip 5% · ${dram(whole.bill!.tipDram)}`,
     );
     const card = line.closest('li')!;
-    expect(
-      within(card).getByText(new RegExp(`^Table ${tableLabel} · asked for the bill`, 'u')),
-    ).toBeTruthy();
+    expect(within(card).getByText(`Table ${tableLabel}`)).toBeTruthy();
+    expect(within(card).getByText('asks for the bill')).toBeTruthy();
     expect(
       screen.getByText(
         `Their share: ${dram(mine.bill!.amountDram)} · tip 10% · ${dram(mine.bill!.tipDram)}`,
@@ -181,7 +187,7 @@ describe('a bill request from the app', () => {
     signIn();
     const gateway = createStaffMockGateway({ latencyMs: 0, branchId: BRANCH });
     const { whole, mine, tableLabel } = await seededBills(gateway);
-    const user = userEvent.setup();
+    const user = userEvent.setup({ delay: null });
     renderFloor(gateway);
 
     const tab = await openTabOf(user, tableLabel);
@@ -208,7 +214,7 @@ describe('a bill request from the app', () => {
     const { whole, mine, tableLabel } = await seededBills(gateway);
     const record = vi.spyOn(gateway, 'recordCashPayment');
     const acknowledge = vi.spyOn(gateway, 'acknowledgeServiceRequest');
-    const user = userEvent.setup();
+    const user = userEvent.setup({ delay: null });
     renderFloor(gateway);
 
     const tab = await openTabOf(user, tableLabel);
@@ -252,7 +258,7 @@ describe('a bill request from the app', () => {
     const { whole, mine, tableLabel } = await seededBills(gateway);
     const record = vi.spyOn(gateway, 'recordCashPayment');
     const acknowledge = vi.spyOn(gateway, 'acknowledgeServiceRequest');
-    const user = userEvent.setup();
+    const user = userEvent.setup({ delay: null });
     renderFloor(gateway);
 
     const tab = await openTabOf(user, tableLabel);
@@ -289,7 +295,7 @@ describe('a bill request from the app', () => {
     const gateway = createStaffMockGateway({ latencyMs: 0, branchId: BRANCH });
     const { mine, tableLabel } = await seededBills(gateway);
     const record = vi.spyOn(gateway, 'recordCashPayment');
-    const user = userEvent.setup();
+    const user = userEvent.setup({ delay: null });
     renderFloor(gateway);
 
     const tab = await openTabOf(user, tableLabel);
@@ -318,7 +324,7 @@ describe('a bill request from the app', () => {
     const { mine, tableLabel, tab: staffTab } = await seededBills(gateway);
     const record = vi.spyOn(gateway, 'recordCashPayment');
     const acknowledge = vi.spyOn(gateway, 'acknowledgeServiceRequest');
-    const user = userEvent.setup();
+    const user = userEvent.setup({ delay: null });
     renderFloor(gateway);
 
     const tab = await openTabOf(user, tableLabel);
@@ -359,7 +365,7 @@ describe('a bill request from the app', () => {
     const { whole, mine, tableLabel } = await seededBills(gateway);
     const record = vi.spyOn(gateway, 'recordCashPayment');
     const acknowledge = vi.spyOn(gateway, 'acknowledgeServiceRequest');
-    const user = userEvent.setup();
+    const user = userEvent.setup({ delay: null });
     renderFloor(gateway);
 
     const line = await screen.findByText(/^Whole bill:/u);
@@ -391,7 +397,7 @@ describe('a bill request from the app', () => {
       (table) => table.label !== tableLabel && tableDetail(floor, table.id)?.openTabId,
     );
     expect(other, 'the fixture has a second table with a tab').toBeTruthy();
-    const user = userEvent.setup();
+    const user = userEvent.setup({ delay: null });
     renderFloor(gateway);
 
     const tab = await openTabOf(user, other!.label);
@@ -408,7 +414,7 @@ describe('the people on a tab', () => {
     signIn();
     const gateway = createStaffMockGateway({ latencyMs: 0, branchId: BRANCH });
     const { tableLabel } = await seededBills(gateway);
-    const user = userEvent.setup();
+    const user = userEvent.setup({ delay: null });
     renderFloor(gateway);
 
     const tab = await openTabOf(user, tableLabel);

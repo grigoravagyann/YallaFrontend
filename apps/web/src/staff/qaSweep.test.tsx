@@ -107,7 +107,8 @@ describe('the connection chip on the staff header', () => {
     render(providers(createStaffMockGateway({ latencyMs: 0, branchId: BRANCH }), <StaffRoute />));
 
     await screen.findByRole('heading', { level: 1, name: 'Floor' });
-    await waitFor(() => expect(screen.getByText('Live')).toBeTruthy());
+    // With the time of the last answer, as the top bar's chip says it.
+    await waitFor(() => expect(screen.getByText(/^Live · \d\d:\d\d$/u)).toBeTruthy());
     expect(screen.queryByText('Live updates not connected yet')).toBeNull();
   });
 
@@ -129,7 +130,7 @@ describe('the connection chip on the staff header', () => {
     render(providers(gateway, <StaffRoute />));
 
     await screen.findByRole('heading', { level: 1, name: 'Floor' });
-    await waitFor(() => expect(screen.getByText('Live')).toBeTruthy());
+    await waitFor(() => expect(screen.getByText(/^Live · /u)).toBeTruthy());
 
     // The next poll is the one that fails. Coming back online polls at once
     // rather than waiting out the interval, which is the lever this uses.
@@ -146,10 +147,10 @@ describe('the connection chip on the staff header', () => {
     render(providers(createStaffMockGateway({ latencyMs: 0, branchId: BRANCH }), <StaffRoute />));
 
     await screen.findByRole('heading', { level: 1, name: 'Kitchen' });
-    await waitFor(() => expect(screen.getByText('Live')).toBeTruthy());
-    // The kitchen has no floor to refresh.
-    expect(screen.getByRole('button', { name: 'Refresh the orders' })).toBeTruthy();
-    expect(screen.queryByRole('button', { name: 'Refresh the floor' })).toBeNull();
+    await waitFor(() => expect(screen.getByText(/^Live · /u)).toBeTruthy());
+    // The chip refreshes, and the kitchen has no floor to refresh.
+    expect(screen.getByRole('button', { name: /\. Refresh the orders$/u })).toBeTruthy();
+    expect(screen.queryByRole('button', { name: /Refresh the floor/u })).toBeNull();
   });
 });
 
@@ -179,31 +180,34 @@ describe('the staff floor, read without a pointer', () => {
   });
 
   it('lists the tables by room, in room order and then by label, with no drawn plan', async () => {
+    const user = userEvent.setup();
     signIn('waiter');
     render(providers(createStaffMockGateway({ latencyMs: 0, branchId: BRANCH }), <StaffRoute />));
 
-    const bar = await screen.findByRole('list', { name: 'Bar' });
-    const windows = screen.getByRole('list', { name: 'Windows' });
-    expect(bar.compareDocumentPosition(windows) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    expect(screen.getByRole('heading', { name: 'Bar' })).toBeTruthy();
-
-    const labels = (list: HTMLElement) =>
-      within(list)
+    const grid = await screen.findByRole('list', { name: 'Tables' });
+    const labels = () =>
+      within(grid)
         .getAllByRole('button')
         .map((button) => /^Table (\d+),/u.exec(button.getAttribute('aria-label') ?? '')?.[1]);
-    expect(labels(bar)).toEqual(['1', '2', '3', '4', '9', '10', '11']);
-    expect(labels(windows)).toEqual(['5', '6', '7', '8']);
+    // Every room: Bar's tables before Windows', each room by label.
+    expect(labels()).toEqual(['1', '2', '3', '4', '9', '10', '11', '5', '6', '7', '8']);
+
+    const rooms = screen.getByRole('group', { name: 'Rooms' });
+    await user.click(within(rooms).getByRole('button', { name: 'Bar' }));
+    expect(labels()).toEqual(['1', '2', '3', '4', '9', '10', '11']);
+    await user.click(within(rooms).getByRole('button', { name: 'Windows' }));
+    expect(labels()).toEqual(['5', '6', '7', '8']);
     expect(document.querySelector('svg[role="img"], [data-testid="floor-plan"]')).toBeNull();
   });
 
-  it('colours each row by its state: free, booked or held, occupied, out of service', async () => {
+  it('colours each card by its state: free, booked, held, occupied, out of service', async () => {
     signIn('waiter');
     render(providers(createStaffMockGateway({ latencyMs: 0, branchId: BRANCH }), <StaffRoute />));
 
     const tone = async (name: RegExp) =>
       (await screen.findByRole('button', { name })).getAttribute('data-tone');
     expect(await tone(/^Table 2, 2 seats, Free/u)).toBe('free');
-    expect(await tone(/^Table 3, 4 seats, Held/u)).toBe('booked');
+    expect(await tone(/^Table 3, 4 seats, Held/u)).toBe('held');
     expect(await tone(/^Table 6, 4 seats, Reserved/u)).toBe('booked');
     expect(await tone(/^Table 1, 2 seats, Occupied/u)).toBe('occupied');
     expect(await tone(/^Table 10, 2 seats, Out of service/u)).toBe('out');
@@ -465,11 +469,15 @@ describe('the staff floor, from QA 2026-10-16', () => {
     expect(document.activeElement).toBe(row);
   });
 
-  it('names each room as a region', async () => {
+  it("names each room: a chip to narrow the floor to it, and the end of each table's name", async () => {
     signIn('waiter');
     render(providers(createStaffMockGateway({ latencyMs: 0, branchId: BRANCH }), <StaffRoute />));
 
-    expect(await screen.findByRole('region', { name: 'Bar' })).toBeTruthy();
-    expect(screen.getByRole('region', { name: 'Windows' })).toBeTruthy();
+    const rooms = await screen.findByRole('group', { name: 'Rooms' });
+    expect(within(rooms).getByRole('button', { name: 'Bar' })).toBeTruthy();
+    expect(within(rooms).getByRole('button', { name: 'Windows' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: /^Table 5, /u }).getAttribute('aria-label')).toMatch(
+      /, Windows$/u,
+    );
   });
 });

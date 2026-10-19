@@ -90,11 +90,22 @@ export function commandReducer(state: CommandState, action: CommandAction): Comm
         (max, command) => Math.max(max, command.seq),
         0,
       );
+      // Anything enqueued before the read finished is kept, behind what was on
+      // disk and renumbered after it: the store is read asynchronously, and a
+      // tap made in that window used to be replaced — lost without a trace.
+      const storedIds = new Set(action.queue.map((command) => command.id));
+      const early = state.queue
+        .filter((command) => !storedIds.has(command.id))
+        .map((command, index) => ({ ...command, seq: highest + 1 + index }));
+      const conflictIds = new Set(action.conflicts.map((entry) => entry.command.id));
       return {
         ...state,
-        queue: [...action.queue].sort((a, b) => a.seq - b.seq),
-        conflicts: [...action.conflicts],
-        nextSeq: highest + 1,
+        queue: [...[...action.queue].sort((a, b) => a.seq - b.seq), ...early],
+        conflicts: [
+          ...action.conflicts,
+          ...state.conflicts.filter((entry) => !conflictIds.has(entry.command.id)),
+        ],
+        nextSeq: highest + 1 + early.length,
       };
     }
 

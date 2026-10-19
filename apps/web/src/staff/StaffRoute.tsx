@@ -10,6 +10,7 @@ import { useStaffSessionSnapshot, useTouchOnInteraction } from './auth/useStaffS
 import { FloorRoute } from './FloorRoute';
 import { KitchenRoute } from './KitchenRoute';
 import { usePageTitle } from '../public/meta';
+import './staff.css';
 
 /**
  * The counter screen and everything that guards it.
@@ -63,11 +64,14 @@ export function StaffRoute() {
   }, []);
 
   // A revoked tablet is discovered here rather than by a request failing three
-  // screens in. Runs whenever the tablet becomes enrolled-but-locked, which is
-  // also every launch.
+  // screens in. Runs whenever the tablet is enrolled and does not know its
+  // device yet: locked, which is also every launch — and signed in, because a
+  // reload restores a live session without the device, and the top bar takes
+  // the venue's name from it. Once per state, not per render.
   useEffect(() => {
     if (!staffSession || !restored) return;
-    if (snapshot.state !== 'locked' || snapshot.device) return;
+    if (snapshot.state !== 'locked' && snapshot.state !== 'signedIn') return;
+    if (snapshot.device) return;
     void staffSession.refreshDevice().catch(() => undefined);
   }, [restored, snapshot.state, snapshot.device]);
 
@@ -157,5 +161,5 @@ function StaffFloor({
     return <KitchenRoute identity={resolved} device={device} paused={paused} />;
   }
 
-  return <FloorRoute identity={resolved} paused={paused} />;
+  return <FloorRoute identity={resolved} device={device} paused={paused} />;
 }

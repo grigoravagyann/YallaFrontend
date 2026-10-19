@@ -470,8 +470,12 @@ select {
  *
  * This screen shows a floor plan, so its primary control is ink, not green,
  * and nothing here is a blob or a texture.
+ *
+ * The redesigned tablet (docs/design/floor-tablet) — its top bar, the floor
+ * grid, the "Now" rail, and the console palette the rules below now read —
+ * is in `staff/staff.css`. What is left here is restyled phase by phase.
  * -------------------------------------------------------------------------- */
-[data-surface='staff'] :is(.button, .field, select, .status-chip, .nav-link) {
+[data-surface='staff'] :is(.button, .field, select, .nav-link) {
   min-height: var(--touch-staff);
 }
 
@@ -480,71 +484,6 @@ select {
   flex-direction: column;
   height: 100%;
   background: var(--color-paper);
-}
-
-.floor-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-lg);
-  flex-wrap: wrap;
-  padding: var(--space-md) var(--space-xl);
-  background: var(--color-surface);
-  border-bottom: 1px solid var(--color-border-strong);
-}
-
-.floor-where h1 {
-  margin: 0;
-  font-size: var(--font-size-xl);
-  line-height: var(--line-height-xl);
-}
-
-.floor-where p {
-  margin: 0;
-  font-size: var(--font-size-md);
-  line-height: var(--line-height-md);
-  color: var(--color-muted-foreground);
-}
-
-.floor-status {
-  display: flex;
-  align-items: center;
-  gap: var(--space-sm);
-  flex-wrap: wrap;
-}
-
-/* Each state differs in wording as well as colour — from two metres in a
-   bright room the hue may not resolve at all, so the border carries it too. */
-.status-chip {
-  display: inline-flex;
-  align-items: center;
-  min-height: var(--touch-minimum);
-  padding: 0 var(--space-lg);
-  border: 1px solid var(--color-border-strong);
-  border-radius: var(--radius-pill);
-  background: var(--color-surface);
-  color: var(--color-foreground);
-  font-size: var(--font-size-sm);
-  line-height: var(--line-height-sm);
-  font-weight: var(--font-weight-medium);
-}
-
-.status-live {
-  border-color: var(--color-success);
-}
-
-.status-stale {
-  border-color: var(--color-danger);
-  color: var(--color-danger);
-}
-
-.status-pending {
-  border-color: var(--color-warning);
-}
-
-.status-unknown {
-  border-style: dashed;
-  color: var(--color-muted-foreground);
 }
 
 /* The beige fill with an ink edge, because a floor plan is on screen: the fill
@@ -586,168 +525,6 @@ select {
   flex-wrap: wrap;
 }
 
-.floor-plan-pane {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-md);
-  flex: 3 1 480px;
-  min-width: 0;
-  min-height: 320px;
-}
-
-/* The floor: its own solid surface, so no grain reaches it. The table list
-   scrolls; the action panel sits beside it and stays in view. */
-.floor-plan-frame {
-  display: flex;
-  flex: 1;
-  flex-wrap: wrap;
-  align-items: flex-start;
-  gap: var(--space-lg);
-  min-height: 320px;
-  padding: var(--space-md);
-  border: 1px solid var(--color-border-strong);
-  border-radius: var(--radius-soft);
-  background: var(--color-surface);
-  overflow-y: auto;
-}
-
-/* --- The table list ---------------------------------------------------------- */
-
-.table-rooms {
-  display: flex;
-  flex: 1 1 320px;
-  flex-direction: column;
-  gap: var(--space-lg);
-  min-width: 0;
-}
-
-.table-room-name {
-  margin: 0 0 var(--space-sm);
-  font-size: var(--font-size-lg);
-  line-height: var(--line-height-lg);
-}
-
-.table-rows {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr));
-  gap: var(--space-sm);
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-/* A row is a counter-sized button: the dot and the words say the state. */
-.table-row {
-  display: grid;
-  grid-template-columns: auto auto 1fr;
-  grid-template-areas:
-    'dot label seats'
-    'dot state state';
-  align-items: center;
-  column-gap: var(--space-sm);
-  width: 100%;
-  min-height: var(--touch-staff);
-  padding: var(--space-sm) var(--space-md);
-  border: 2px solid var(--color-border);
-  border-left-width: 8px;
-  border-radius: var(--radius-soft);
-  background: var(--color-surface);
-  color: var(--color-foreground);
-  font: inherit;
-  text-align: left;
-  cursor: pointer;
-}
-
-.table-row[data-tone='free'] {
-  border-left-color: var(--table-free-fill);
-}
-.table-row[data-tone='booked'] {
-  border-left-color: var(--table-reserved-soon-fill);
-}
-.table-row[data-tone='occupied'] {
-  border-left-color: var(--table-occupied-fill);
-}
-.table-row[data-tone='out'] {
-  border-left-color: var(--table-out-of-service-fill);
-  color: var(--color-muted-foreground);
-}
-
-.table-row[aria-pressed='true'] {
-  border-color: var(--color-primary-ink);
-  outline: 3px solid var(--color-primary-ink);
-  outline-offset: -1px;
-}
-
-.table-row:focus-visible {
-  outline: 3px solid var(--color-foreground);
-  outline-offset: 2px;
-}
-
-.table-row .table-dot {
-  grid-area: dot;
-}
-
-.table-row-label {
-  grid-area: label;
-  font-size: var(--font-size-xl);
-  font-weight: var(--font-weight-bold);
-  font-feature-settings: var(--font-feature-tabular);
-}
-
-.table-row-seats {
-  grid-area: seats;
-  color: var(--color-muted-foreground);
-  font-size: var(--font-size-sm);
-}
-
-.table-row-state {
-  grid-area: state;
-  font-size: var(--font-size-sm);
-}
-
-.table-row-pending {
-  grid-column: 3;
-  grid-row: 1;
-  justify-self: end;
-  color: var(--color-warning);
-  font-size: var(--font-size-sm);
-  font-weight: var(--font-weight-bold);
-}
-
-.table-dot {
-  display: inline-block;
-  width: 1rem;
-  height: 1rem;
-  border-radius: var(--radius-pill);
-}
-.table-dot.tone-free {
-  background: var(--table-free-fill);
-}
-.table-dot.tone-booked {
-  background: var(--table-reserved-soon-fill);
-}
-.table-dot.tone-occupied {
-  background: var(--table-occupied-fill);
-}
-.table-dot.tone-out {
-  background: var(--table-out-of-service-fill);
-}
-
-.table-legend {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-lg);
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.table-legend li {
-  display: flex;
-  align-items: center;
-  gap: var(--space-xs);
-}
-
 .floor-note {
   display: flex;
   flex-direction: column;
@@ -778,21 +555,6 @@ select {
 .kitchen-body .queue-list {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-}
-
-.floor-panel-block {
-  flex: 1;
-  padding: var(--space-xl);
-  border: 1px dashed var(--color-border-strong);
-  border-radius: var(--radius-card);
-  background: var(--color-surface);
-}
-
-.floor-panel-block h2 {
-  margin: 0 0 var(--space-sm);
-  font-size: var(--font-size-lg);
-  line-height: var(--line-height-lg);
-  font-weight: var(--font-weight-bold);
 }
 
 .floor-todo {
@@ -1319,16 +1081,6 @@ fieldset.editor-body:disabled {
  * 3. Nothing needs typing except a void reason's "other" and the cash keypad.
  * -------------------------------------------------------------------------- */
 
-/* A conflict is a button, so it needs to look like one without becoming the
-   loudest thing in the header. */
-.status-conflict {
-  border-color: var(--color-danger);
-  border-width: 2px;
-  color: var(--color-danger);
-  font-weight: var(--font-weight-bold);
-  cursor: pointer;
-}
-
 /* Transient, readable at arm's length, and never something to dismiss. */
 .floor-notice {
   margin: 0;
@@ -1726,234 +1478,6 @@ fieldset.editor-body:disabled {
   font-size: var(--font-size-md);
   line-height: var(--line-height-md);
   font-variant-numeric: var(--font-feature-tabular);
-}
-
-/* --- Bookings waiting for the floor's answer ------------------------------ */
-
-/* The count in the header. Warning-edged like every "not yet", heavier than
-   the connection chips because a clock is running on each of these. */
-.status-approval {
-  border-color: var(--color-warning);
-  border-width: 2px;
-  color: var(--color-warning-ink);
-  font-weight: var(--font-weight-bold);
-  cursor: pointer;
-}
-
-/* Quiet when nobody is waiting; edged like a "not yet" when somebody is. */
-.approvals-block {
-  flex-shrink: 0;
-}
-
-.approvals-block.has-requests {
-  border-width: 2px;
-  border-color: var(--color-warning);
-}
-
-.approvals-block:focus-visible {
-  outline: 3px solid var(--color-focus-ring);
-  outline-offset: 2px;
-}
-
-.approvals-heading {
-  display: flex;
-  align-items: center;
-  gap: var(--space-sm);
-}
-
-.approvals-count {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 2rem;
-  padding: 0 var(--space-sm);
-  border-radius: var(--radius-pill);
-  background: var(--color-warning);
-  color: var(--color-foreground);
-  font-size: var(--font-size-md);
-  font-feature-settings: var(--font-feature-tabular);
-}
-
-.approval-card {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-sm);
-  padding: var(--space-md);
-  border: 1px solid var(--color-warning);
-  border-left-width: 8px;
-  border-radius: var(--radius-soft);
-  background: var(--color-paper);
-}
-
-/* The last two minutes: the rule and the clock go red, in words as well as
-   hue — the countdown itself is the words. */
-.approval-card.is-urgent {
-  border-color: var(--color-danger);
-  border-width: 2px;
-  border-left-width: 10px;
-}
-
-.approval-card.is-closed {
-  border-color: var(--color-border-strong);
-  border-left-color: var(--color-border-strong);
-}
-
-/* Just arrived. A tint that stays put under reduced motion, and a pulse for
-   everybody else; the chime and the screen reader carry the same news. */
-.approval-card.is-fresh,
-.status-approval.is-fresh {
-  background: var(--color-green-tint);
-}
-
-@media (prefers-reduced-motion: no-preference) {
-  .approval-card.is-fresh,
-  .status-approval.is-fresh {
-    animation: approval-arrive 1.2s ease-in-out 3;
-  }
-}
-
-@keyframes approval-arrive {
-  50% {
-    box-shadow: 0 0 0 6px var(--color-warning);
-  }
-}
-
-.approval-head {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: var(--space-md);
-  flex-wrap: wrap;
-}
-
-.approval-countdown {
-  display: inline-flex;
-  align-items: baseline;
-  gap: var(--space-xs);
-}
-
-.approval-countdown-label {
-  color: var(--color-muted-foreground);
-  font-size: var(--font-size-sm);
-}
-
-/* The clock is the second thing read, after the table. */
-.approval-countdown-value {
-  font-size: var(--font-size-xl);
-  line-height: var(--line-height-xl);
-  font-weight: var(--font-weight-bold);
-  font-feature-settings: var(--font-feature-tabular);
-}
-
-.is-urgent .approval-countdown-value {
-  color: var(--color-danger);
-}
-
-.approval-line {
-  margin: 0;
-  font-size: var(--font-size-lg);
-  line-height: var(--line-height-lg);
-  font-weight: var(--font-weight-medium);
-  font-feature-settings: var(--font-feature-tabular);
-}
-
-.approval-because {
-  margin: 0;
-}
-
-.approval-context {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-xs);
-  margin: 0;
-  padding: var(--space-sm) 0 0;
-  border-top: 1px dashed var(--color-border-strong);
-  list-style: none;
-  font-size: var(--font-size-md);
-  line-height: var(--line-height-md);
-  font-feature-settings: var(--font-feature-tabular);
-}
-
-/* Booking times: ring the guest before about leaving in time — the one line to act on. */
-.approval-context-ask {
-  font-weight: var(--font-weight-semibold);
-}
-
-/* A tablet can dial. Sized as a control, not as a word in a sentence. */
-.approval-call {
-  display: inline-flex;
-  align-items: center;
-  min-height: var(--touch-regular);
-  padding: 0 var(--space-md);
-  border: 2px solid var(--color-primary-ink);
-  border-radius: var(--radius-pill);
-  color: var(--color-primary-ink);
-  font-weight: var(--font-weight-bold);
-  text-decoration: none;
-}
-
-/* Side by side when they fit, one under the other in a narrow column — never
-   a button whose label breaks over three lines. */
-.approval-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-sm);
-}
-
-.approval-actions > * {
-  flex: 1 1 8rem;
-  white-space: nowrap;
-}
-
-.approval-decline {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-sm);
-}
-
-.approval-reason {
-  min-height: calc(var(--touch-regular) * 1.6);
-  padding: var(--space-sm) var(--space-lg);
-  border-radius: var(--radius-soft);
-  resize: vertical;
-}
-
-.approval-decline-confirm {
-  border-color: var(--color-danger);
-  color: var(--color-danger);
-}
-
-/* --- Needs resolving ------------------------------------------------------ */
-
-.unresolved {
-  padding: var(--space-md) var(--space-lg);
-  border: 2px solid var(--color-warning);
-  border-radius: var(--radius-card);
-  background: var(--color-surface);
-}
-
-.unresolved h2 {
-  margin: 0 0 var(--space-xs);
-  font-size: var(--font-size-lg);
-  font-weight: var(--font-weight-bold);
-}
-
-.unresolved ul {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-sm);
-  margin: var(--space-md) 0 0;
-  padding: 0;
-  list-style: none;
-}
-
-.unresolved li {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-md);
-  font-size: var(--font-size-md);
-  font-weight: var(--font-weight-medium);
 }
 
 /* --- Overlays ------------------------------------------------------------- */
@@ -2594,10 +2118,6 @@ fieldset.editor-body:disabled {
 /* Portrait: everything above is a wrapping flex row, so this only has to keep
    the floor from being squeezed into an unusable strip. */
 @media (orientation: portrait) {
-  .floor-plan-pane {
-    flex-basis: 100%;
-  }
-
   .order-draft,
   .tab-money {
     flex-basis: 100%;
@@ -2758,10 +2278,6 @@ fieldset.editor-body:disabled {
    makes it visibly not the thing being interacted with. */
 .staff-shell[inert] {
   filter: grayscale(0.4);
-}
-
-.status-who {
-  cursor: pointer;
 }
 
 /* --- The two release outcomes ------------------------------------------------ */

@@ -1177,12 +1177,17 @@ export function useRegenerateTableQr() {
  * over the same cache entry, and neither would be the one the screen is
  * reasoning about.
  */
-export function useStaffFloor(branchId: string | undefined) {
+/**
+ * The staff floor. `enabled: false` pauses it and keeps what it last read —
+ * the tablet locks over a floor that stays mounted, and a query keyed on no
+ * branch would have nothing to show under the gate but a failure.
+ */
+export function useStaffFloor(branchId: string | undefined, enabled = true) {
   const gateway = useStaffGateway();
   return useQuery({
     queryKey: queryKeys.staffFloor(branchId ?? ''),
     queryFn: () => gateway.getFloor(branchId!),
-    enabled: Boolean(branchId),
+    enabled: Boolean(branchId) && enabled,
     staleTime: staleTime.live,
   });
 }
