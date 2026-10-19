@@ -1,4 +1,9 @@
 import type { ConsoleBooking, DecideReservationCommand } from './contracts/approvals';
+import type {
+  BranchOverview,
+  ConsoleBookingActionCommand,
+  ConsoleBookingActionResult,
+} from './contracts/branchOverview';
 import type { VenueListing, VenueListingInput } from './contracts/listing';
 import type {
   EditorFloorArea,
@@ -529,6 +534,33 @@ export interface ConsoleGateway {
    * the reason recorded, and the diner is told. Same guards as approve.
    */
   rejectReservation(command: DecideReservationCommand): Promise<ConsoleBooking>;
+
+  // --- Overview -----------------------------------------------------------------
+
+  /**
+   * The branch's today in one read: bookings by status, people in the room,
+   * open tabs, revenue against the same weekday last week, booked people per
+   * hour, and every booking of the day.
+   *
+   * `GET /api/branches/{branchId}/overview` — `ManagerOrAbove` and
+   * `BranchScoped`, with the stored-row check: an owner or general manager at
+   * any branch of their venue, a branch manager at their own only.
+   *
+   * @throws {ForbiddenError} not a manager of this branch.
+   */
+  getBranchOverview(branchId: string): Promise<BranchOverview>;
+
+  /**
+   * One of the Overview row menu's actions on a booking of today: seat it,
+   * mark it a no-show, call it off for the venue, or finish its sitting. See
+   * `ConsoleBookingActionKind` for the route each one is.
+   *
+   * @throws {ForbiddenError} not a manager of this booking's branch.
+   * @throws {ConcurrencyConflictError} the booking or its table is not in a
+   * state the action applies to — somebody else acted first; the server's
+   * sentence is the message.
+   */
+  actOnBooking(command: ConsoleBookingActionCommand): Promise<ConsoleBookingActionResult>;
 
   // --- Review moderation ------------------------------------------------------
 

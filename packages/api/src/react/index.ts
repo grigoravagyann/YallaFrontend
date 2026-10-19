@@ -46,6 +46,11 @@ import {
   type ConsoleBooking,
   type DecideReservationCommand,
 } from '../contracts/approvals';
+import {
+  STATUS_AFTER,
+  type BranchOverview,
+  type ConsoleBookingActionCommand,
+} from '../contracts/branchOverview';
 import type { ManagedBooking } from '../contracts/publicBranch';
 import type { ReportQuery, ReportSection } from '../contracts/reports';
 import type {
@@ -291,6 +296,8 @@ export const queryKeys = {
   publicProfile: (branchId: string) => ['console', 'publicProfile', branchId] as const,
   branchListing: (branchId: string) => ['console', 'listing', branchId] as const,
   pendingReservations: (branchId: string) => ['console', 'pendingReservations', branchId] as const,
+  /** A branch's today: Overview's cards, chart and bookings. */
+  branchOverview: (branchId: string) => ['console', 'branchOverview', branchId] as const,
   /*
    * `['console', 'readiness', …]` is the prefix the staff and device mutations
    * already invalidate, so a checklist reading this key refreshes when a person
@@ -2084,6 +2091,8 @@ function useDecideReservation(
       void queryClient.invalidateQueries({
         queryKey: queryKeys.pendingReservations(branchId ?? ''),
       });
+      // An approved booking joins today's list as confirmed; a declined one leaves it.
+      void queryClient.invalidateQueries({ queryKey: queryKeys.branchOverview(branchId ?? '') });
     },
   });
 }
@@ -2094,6 +2103,62 @@ export function useApproveReservation(branchId: string | undefined) {
 
 export function useRejectReservation(branchId: string | undefined) {
   return useDecideReservation(branchId, (gateway, command) => gateway.rejectReservation(command));
+}
+
+// --- Overview -------------------------------------------------------------------
+
+/**
+ * A branch's today: `GET /api/branches/{branchId}/overview`, read every 30
+ * seconds like the approvals list beside it, while the tab is in front.
+ */
+export function useBranchOverview(branchId: string | undefined) {
+  const gateway = useConsoleGateway();
+  return useQuery({
+    queryKey: queryKeys.branchOverview(branchId ?? ''),
+    queryFn: () => gateway.getBranchOverview(branchId!),
+    enabled: Boolean(branchId),
+    staleTime: staleTime.live,
+    refetchInterval: 30_000,
+    refetchIntervalInBackground: false,
+  });
+}
+
+/**
+ * One of the Overview row menu's actions on a booking.
+ *
+ * On success the row moves at once — its status is written into the cached
+ * overview — and the read is repeated on settle either way: a 409 means
+ * somebody else acted first (a waiter on the floor tablet), and the list on
+ * screen is what is stale. The floor's own reads go stale with it.
+ *
+ * Never retried: a command id makes a repeat harmless on the server, but a
+ * click that failed is the person's to repeat, after reading why.
+ */
+export function useBookingAction(branchId: string | undefined) {
+  const gateway = useConsoleGateway();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (command: ConsoleBookingActionCommand) => gateway.actOnBooking(command),
+    retry: false,
+    onSuccess: (result) => {
+      queryClient.setQueryData<BranchOverview>(
+        queryKeys.branchOverview(branchId ?? ''),
+        (overview) =>
+          overview && {
+            ...overview,
+            todayBookings: overview.todayBookings.map((booking) =>
+              booking.id === result.reservationId
+                ? { ...booking, status: STATUS_AFTER[result.kind] }
+                : booking,
+            ),
+          },
+      );
+    },
+    onSettled: () => {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.branchOverview(branchId ?? '') });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.staffFloor(branchId ?? '') });
+    },
+  });
 }
 
 // --- The public branch page ---------------------------------------------------

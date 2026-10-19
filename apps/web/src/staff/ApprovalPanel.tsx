@@ -5,7 +5,7 @@ import { useEffect, useId, useRef, useState } from 'react';
 import {
   decisionFailureText,
   isAwaitingEarlierGuest,
-} from '../console/venue/policy/decisionFailure';
+} from '../console/venue/overview/decisionFailure';
 import {
   arrivalAnnouncement,
   branchToday,

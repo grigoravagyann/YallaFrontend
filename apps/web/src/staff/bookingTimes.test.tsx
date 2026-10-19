@@ -3,7 +3,7 @@ import { ApiError, type AwaitingApproval } from '@yalla/api';
 import { i18next } from '@yalla/i18n';
 import { beforeAll, describe, expect, it } from 'vitest';
 import { initConsoleTestI18n } from '../console/venue/reports/testHarness';
-import { decisionFailureText } from '../console/venue/policy/decisionFailure';
+import { decisionFailureText } from '../console/venue/overview/decisionFailure';
 import { contextLines, nextBookingLine } from './approvalRequests';
 
 /**

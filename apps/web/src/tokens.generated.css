@@ -234,6 +234,8 @@
   --console-grey: #57534E;
   --console-grey-bg: #EEE8E1;
   --console-grey-line: #DDD3C8;
+  --console-blue: #1D4E89;
+  --console-blue-bg: #E6EEF8;
   --console-meter-fair: #6E8B3D;
   --console-step-done: #B07A45;
   --console-skeleton: #EFE6DB;
@@ -272,6 +274,8 @@
   --console-alert-item: rgba(255, 255, 255, 0.7);
   --console-card-hover-edge: #D4BFA8;
   --console-readonly-field: #FAF6F0;
+  --console-load-bar: #D9C3AA;
+  --console-capacity-line: #D2BFA8;
   --console-size-sidebar: 232px;
   --console-size-sidebar-grouped: 248px;
   --console-size-button: 40px;
@@ -311,6 +315,7 @@
   --console-text-claim: 24px;
   --console-text-claim-narrow: 19px;
   --console-text-kpi: 26px;
+  --console-text-booking-time: 20px;
   --console-shadow-dialog: 0 24px 60px rgba(42, 26, 16, 0.3);
   --console-shadow-toast: 0 10px 30px rgba(42, 26, 16, 0.25);
   --console-shadow-menu: 0 12px 32px rgba(42, 26, 16, 0.14);

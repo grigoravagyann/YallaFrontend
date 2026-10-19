@@ -930,11 +930,9 @@
     }
   },
   "checklist": {
-    "title": "What is still needed",
-    "body": "This branch can take diners once all of this is done. The order does not matter.",
+    "title": "What is still needed before guests can come",
+    "body": "The branch takes guests once all of this is done. The order does not matter.",
     "progress": "{{done}} of {{total}} done",
-    "finish": "Finish",
-    "elsewhere": "Done from another screen",
     "step": {
       "floorPlan": "Rooms set up, with a table diners can book on a photo",
       "tableLabels": "Every table labelled",
@@ -944,7 +942,10 @@
       "policy": "Reservation policy reviewed",
       "staff": "Staff added",
       "devices": "At least one tablet enrolled"
-    }
+    },
+    "progressLabel": "Readiness",
+    "done": "done",
+    "todo": "not done yet"
   },
   "reports": {
     "intro": "How the week went, and what is worth changing.",
@@ -1275,9 +1276,9 @@
     "enrolledOn": "Enrolled {{when}}"
   },
   "approvals": {
-    "title": "Awaiting approval",
-    "body": "Bookings the policy stopped, and app bookings at short notice, which the floor has 15 minutes to answer. Nothing is promised to the diner until somebody decides.",
-    "empty": "Nothing is waiting.",
+    "title": "Waiting for your decision",
+    "body": "Nothing is promised to the guest until you answer. Short-notice bookings have 15 minutes for an answer.",
+    "empty": "Nothing is waiting. New requests will appear here.",
     "count_one": "{{count}} waiting",
     "count_other": "{{count}} waiting",
     "party_one": "{{count}} person",
@@ -1303,27 +1304,16 @@
     "tooLate": "Too late: the time to answer ran out, and the diner has been told the venue could not confirm.",
     "answeredElsewhere": "Already answered by someone else.",
     "offline": "You are offline. The decision was not sent.",
-    "awaitingEarlierGuest": "The guest before is answering this in the app. It is decided when they do, or declined if they do not."
+    "awaitingEarlierGuest": "The guest before is answering this in the app. It is decided when they do, or declined if they do not.",
+    "minutesLeft_one": "{{count}} minute left",
+    "minutesLeft_other": "{{count}} minutes left",
+    "dismiss": "Got it",
+    "approved": "{{name}}'s booking is confirmed · the guest will be notified",
+    "declined": "{{name}}'s booking was declined"
   },
   "onboarding": {
     "steps": {
-      "acceptsWebBookings": "Online bookings turned on",
-      "acceptsWebBookingsOptional": "Optional. With it off, diners still see the room, the menu and the hours, but cannot book."
-    },
-    "blockers": {
-      "title": "What stops diners using this branch",
-      "ready": "This branch is ready for diners.",
-      "floorPlanEmpty": "No tables have been added to the rooms yet.",
-      "tablesUnlabelled": "Some tables have no label yet.",
-      "menuNoCategories": "The menu has no categories yet.",
-      "menuNoItems": "The menu has categories but no dishes.",
-      "menuIncomplete_one": "{{count}} dish is missing a photo, a description, ingredients, allergens, a portion size or a prep time, and is hidden from diners until it is finished.",
-      "menuIncomplete_other": "{{count}} dishes are missing a photo, a description, ingredients, allergens, a portion size or a prep time, and are hidden from diners until they are finished.",
-      "hoursNotSet": "Opening hours have not been set.",
-      "policyNotReviewed": "Nobody has reviewed the reservation policy yet; it is still on the defaults.",
-      "noStaff": "No staff work at this branch yet.",
-      "noDevice": "No tablet has been enrolled at this branch yet.",
-      "roomsNoBookablePin": "No room has a photo with a bookable table on it, so diners have nothing to book."
+      "acceptsWebBookings": "Online bookings turned on"
     }
   },
   "platform": {
@@ -1947,6 +1937,132 @@
       "failed": "Signing out everywhere else didn't work. Try again.",
       "signInUnknown": "This sign-in is too old to tell apart from the others, so nothing was signed out. Sign in again, then try once more.",
       "signInAgain": "Sign in again"
+    }
+  },
+  "overview": {
+    "noBranch": "No branch is assigned to you yet.",
+    "greeting": {
+      "morning": "Good morning, {{name}}",
+      "afternoon": "Good afternoon, {{name}}",
+      "evening": "Good evening, {{name}}",
+      "morningPlain": "Good morning",
+      "afternoonPlain": "Good afternoon",
+      "eveningPlain": "Good evening"
+    },
+    "sub": "{{date}} · {{branch}} · updated {{time}}",
+    "hours": {
+      "open": "Open until {{time}}",
+      "openNextDay": "Open until {{time}} (next day)",
+      "openNow": "Open now",
+      "closedOpensAt": "Closed · opens at {{time}}",
+      "closedToday": "Closed for the rest of today"
+    },
+    "kpi": {
+      "bookings": "Bookings today",
+      "bookingsFoot": "{{confirmed}} confirmed · {{pending}} waiting",
+      "inRoom": "In the room now",
+      "people_one": "{{count}} person",
+      "people_other": "{{count}} people",
+      "inRoomFoot": "{{occupied}} of {{tables}} tables · see the room →",
+      "tabs": "Open tabs",
+      "unpaid": "{{amount}} still unpaid",
+      "nothingUnpaid": "Nothing unpaid",
+      "revenue": "Revenue today",
+      "vsLastWeek": "on the same day last week",
+      "noLastWeek": "Nothing to compare with last week",
+      "sameAsLastWeek": "The same as last week"
+    },
+    "bookings": {
+      "title": "Today's bookings",
+      "cap_one": "{{count}} booking · {{people}} people",
+      "cap_other": "{{count}} bookings · {{people}} people",
+      "filterLabel": "Show",
+      "filter": {
+        "next": "Coming up",
+        "seated": "In the room now",
+        "all": "All"
+      },
+      "column": {
+        "time": "Time",
+        "guest": "Guest",
+        "party": "People",
+        "table": "Table",
+        "source": "From",
+        "status": "Status",
+        "actions": "Actions"
+      },
+      "channel": {
+        "app": "App",
+        "web": "Web",
+        "staff": "Phone",
+        "unknown": "—"
+      },
+      "status": {
+        "pending": "Waiting",
+        "confirmed": "Confirmed",
+        "late_one": "{{count}} min late",
+        "late_other": "{{count}} min late",
+        "seated": "Seated",
+        "completed": "Finished",
+        "noShow": "No-show",
+        "cancelled": "Cancelled"
+      },
+      "menu": "Actions for {{name}}, {{time}}",
+      "action": {
+        "seat": "Mark seated",
+        "noShow": "No-show · free the table",
+        "cancel": "Cancel the booking",
+        "finish": "Finish · free the table"
+      },
+      "done": {
+        "seated": "{{name}} is seated",
+        "noShow": "{{name}} marked as a no-show, {{table}} is free",
+        "noShowKept": "{{name}} marked as a no-show",
+        "cancelled": "{{name}}'s booking is cancelled · the guest will be notified",
+        "finished": "{{table}} is free",
+        "finishedOwed": "{{table}} is free · {{amount}} is still unpaid on its tab"
+      },
+      "failed": "That did not go through. Try again.",
+      "offline": "You are offline. Nothing was sent.",
+      "nudged": "The app asked at {{time}}",
+      "nudgeAt": "The app asks at {{time}}",
+      "empty": "No bookings today.",
+      "emptyFilter": {
+        "next": "Nothing coming up.",
+        "seated": "Nobody with a booking is in the room now."
+      },
+      "truncated": "Showing the first 200 of today's bookings."
+    },
+    "load": {
+      "title": "Load today",
+      "cap": "Booked people by hour",
+      "unit": "people",
+      "capacity_one": "{{count}} seat · the room is full",
+      "capacity_other": "{{count}} seats · the room is full",
+      "aria": "Booked people by hour, {{capacity}} seats in the room: {{hours}}",
+      "hour": "{{hour}}: {{people}}",
+      "hourPending": "{{hour}}: {{people}}, and {{pending}} waiting",
+      "peak": "The busiest hour is {{hour}}: {{people}} people, {{percent}} % of the room's {{capacity}} seats.",
+      "peakNoSeats": "The busiest hour is {{hour}}: {{people}} people.",
+      "empty": "Nobody is booked in yet today.",
+      "nextDay": "{{hour}} (next day)"
+    },
+    "attn": {
+      "title": "Worth a look",
+      "dishes_one": "{{count}} dish is still unfinished",
+      "dishes_other": "{{count}} dishes are still unfinished",
+      "dishesBody": "Hidden from guests until you finish them",
+      "reviews_one": "{{count}} review is reported",
+      "reviews_other": "{{count}} reviews are reported",
+      "reviewsBody": "Guests flagged them as inappropriate",
+      "device": "{{name}} has lost its connection",
+      "deviceBody": "Last seen {{ago}}",
+      "turn_one": "Tables are kept {{count}} minute longer",
+      "turn_other": "Tables are kept {{count}} minutes longer",
+      "turnBody": "The middle sitting is {{median}} min against the policy's {{policy}}",
+      "bookingsOff": "Online bookings are off",
+      "bookingsOffBody": "Guests see the page but cannot book",
+      "empty": "Nothing needs a look right now."
     }
   }
 }

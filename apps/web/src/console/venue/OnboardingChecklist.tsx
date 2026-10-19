@@ -6,18 +6,22 @@ import {
 } from '@yalla/api';
 import { useBranchReadiness, useEditorFloorPlan } from '@yalla/api/react';
 import { useTranslation } from '@yalla/i18n';
+import { useId } from 'react';
 import { Link } from 'react-router-dom';
 import { QueryFailureNotice } from '../../components/QueryFailureNotice';
+import { CheckIcon } from '../ui/icons';
 import { useVenueOutlet } from './VenueLayout';
 
 /**
- * What this branch still needs before it can take diners.
+ * What this branch still needs before it can take diners: the Main artboard's
+ * `setup` card, at the top of Overview while anything is left, and gone once
+ * nothing is.
  *
  * **A checklist, not a wizard.** Onboarding happens out of order, in a cafe,
  * interrupted — the floor plan gets drawn while the owner is on the phone, the
  * photos arrive two days later, and the hours are the last thing anybody
  * thinks of. A wizard would insist on a sequence nobody follows and would be
- * abandoned at step two.
+ * abandoned at step two. Each line opens the screen that finishes it.
  *
  * **The server's answer, rendered.** Every line comes from
  * `GET /api/branches/{id}/readiness` and nothing is worked out here. The
@@ -27,9 +31,13 @@ import { useVenueOutlet } from './VenueLayout';
  * policy. The server counts it only once somebody has *saved* one, and each
  * save that feeds a line invalidates this read, so a line flips without a
  * reload.
+ *
+ * The online-bookings switch is a choice, not a gap, so it is not a line here:
+ * Overview's "worth a look" says when it is off.
  */
 export function OnboardingChecklist() {
   const { t } = useTranslation(['admin', 'common']);
+  const titleId = useId();
   const { branchId } = useVenueOutlet();
   const readiness = useBranchReadiness(branchId ?? undefined);
   // The one line the server's answer cannot settle yet: it counts tables, and
@@ -39,73 +47,63 @@ export function OnboardingChecklist() {
 
   if (readiness.isError && !readiness.data) {
     return (
-      <section className="checklist">
-        <header>
-          <h3>{t('checklist.title')}</h3>
-        </header>
+      <section className="yc-card yc-setup" aria-labelledby={titleId}>
+        <h2 className="yc-h2" id={titleId}>
+          {t('checklist.title')}
+        </h2>
         <QueryFailureNotice error={readiness.error} onRetry={() => void readiness.refetch()} />
       </section>
     );
   }
 
+  // Nothing until the answer is in: a card that appears and vanishes on a
+  // finished branch would be a flash of "you are not done".
   const data = readiness.data;
-  const steps = data ? checklistSteps(data, rooms) : [];
-  const required = steps.filter((step) => !step.optional);
-  const done = required.filter((step) => step.done).length;
-  const blockers = data ? readinessBlockers(data, rooms) : [];
+  if (!data) return null;
+
+  const steps = checklistSteps(data, rooms).filter((step) => !step.optional);
+  const done = steps.filter((step) => step.done).length;
+  if (done === steps.length) return null;
 
   return (
-    <section className="checklist">
-      <header>
-        <h3>{t('checklist.title')}</h3>
-        <p className="muted small">
-          {data ? t('checklist.progress', { done, total: required.length }) : t('loading')}
-        </p>
-      </header>
-
-      {data ? (
-        <>
-          <ul className="checklist-list">
-            {steps.map((step) => (
-              <li key={step.id} className={step.done ? 'is-done' : ''} data-step={step.id}>
-                <span className="checklist-mark" aria-hidden>
-                  {step.done ? '✓' : '·'}
+    <section className="yc-card yc-setup" aria-labelledby={titleId}>
+      <div className="yc-setup-h">
+        <div>
+          <h2 className="yc-h2" id={titleId}>
+            {t('checklist.title')}
+          </h2>
+          <p className="yc-cap">{t('checklist.body')}</p>
+        </div>
+        <b className="yc-setup-n">{t('checklist.progress', { done, total: steps.length })}</b>
+      </div>
+      <div
+        className="yc-prog"
+        role="progressbar"
+        aria-valuemin={0}
+        aria-valuemax={steps.length}
+        aria-valuenow={done}
+        aria-label={t('checklist.progressLabel')}
+      >
+        <span style={{ width: `${Math.round((done / steps.length) * 100)}%` }} />
+      </div>
+      <ul className="yc-sgrid">
+        {steps.map((step) => (
+          <li key={step.id} className={step.done ? 'is-done' : 'is-todo'} data-step={step.id}>
+            <Link to={step.to}>
+              {step.done ? (
+                <span className="yc-sck is-done" aria-label={t('checklist.done')}>
+                  <CheckIcon />
                 </span>
-                <span className="checklist-label">
-                  {t(step.labelKey)}
-                  {step.detail ? <span className="small muted"> · {step.detail}</span> : null}
-                  {step.optional ? (
-                    <span className="small muted">
-                      {' '}
-                      · {t('onboarding.steps.acceptsWebBookingsOptional')}
-                    </span>
-                  ) : null}
-                </span>
-                <Link className="link-button" to={step.to}>
-                  {step.done ? t('common:action.edit') : t('checklist.finish')}
-                </Link>
-              </li>
-            ))}
-          </ul>
-
-          <div className="checklist-blockers">
-            <h4>{t('onboarding.blockers.title')}</h4>
-            {blockers.length === 0 ? (
-              <p className="muted small">{t('onboarding.blockers.ready')}</p>
-            ) : (
-              <ul className="small">
-                {blockers.map((blocker) => (
-                  <li key={blocker.key}>
-                    {blocker.count !== undefined
-                      ? t(`onboarding.blockers.${blocker.key}`, { count: blocker.count })
-                      : t(`onboarding.blockers.${blocker.key}`)}
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
-        </>
-      ) : null}
+              ) : (
+                <span className="yc-sck is-todo" aria-label={t('checklist.todo')} />
+              )}
+              <span className="yc-sgrid-t">{t(step.labelKey)}</span>
+              {/* The server's count with the line: tables, dishes left, staff. */}
+              {step.detail ? <span className="yc-sgrid-v">{step.detail}</span> : null}
+            </Link>
+          </li>
+        ))}
+      </ul>
     </section>
   );
 }
@@ -209,39 +207,6 @@ export function checklistSteps(
       optional: true,
     },
   ];
-}
-
-export interface ReadinessBlocker {
-  /** Under `onboarding.blockers`. */
-  readonly key: string;
-  readonly count?: number | undefined;
-}
-
-/**
- * What stops diners, in the console's own words.
- *
- * The server's `blockers` are English sentences meant for logs; a screen that
- * printed them would show English to an Armenian owner. The same lines are
- * rebuilt here from the booleans, one sentence per gap, in the server's order.
- */
-export function readinessBlockers(
-  readiness: BranchReadiness,
-  rooms?: boolean,
-): readonly ReadinessBlocker[] {
-  const blockers: ReadinessBlocker[] = [];
-  if (!readiness.floorPlanDrawn) blockers.push({ key: 'floorPlanEmpty' });
-  else if (!readiness.tablesLabelled) blockers.push({ key: 'tablesUnlabelled' });
-  else if (rooms === false) blockers.push({ key: 'roomsNoBookablePin' });
-  if (!readiness.menuCategoriesPresent) blockers.push({ key: 'menuNoCategories' });
-  else if (readiness.menuItemCount === 0) blockers.push({ key: 'menuNoItems' });
-  else if (readiness.incompleteMenuItemCount > 0) {
-    blockers.push({ key: 'menuIncomplete', count: readiness.incompleteMenuItemCount });
-  }
-  if (!readiness.openingHoursSet) blockers.push({ key: 'hoursNotSet' });
-  if (!readiness.reservationPolicyReviewed) blockers.push({ key: 'policyNotReviewed' });
-  if (!readiness.staffEnrolled) blockers.push({ key: 'noStaff' });
-  if (!readiness.deviceEnrolled) blockers.push({ key: 'noDevice' });
-  return blockers;
 }
 
 /** Whether every item on this menu is finished. Used by the menu editor. */

@@ -1,3 +1,4 @@
+import { branchDayKey, instantFromZonedClock, type TimeZone } from '@yalla/format';
 import type { ConsoleGateway } from '../consoleGateway';
 import {
   APPROVAL_EXPIRED_CODE,
@@ -69,6 +70,14 @@ import {
 import { createMockReviewStore, type MockReviewStore, type StoredReview } from './reviewStore';
 import { invalidRequest, validationFailed, type MockViolation } from './problems';
 import { approvalExpiryFor, localDateAndTime } from './approvalWindow';
+import {
+  STATUS_AFTER,
+  type ConsoleBookingActionCommand,
+  type ConsoleBookingActionResult,
+  type OverviewBooking,
+} from '../contracts/branchOverview';
+import type { DeclineReason } from '../contracts/approvals';
+import { branchOverviewFrom, seedTodayBookings, type OverviewTable } from './branchOverviewMock';
 import { publicBranchFixtures } from './publicVenues';
 import {
   AMENITY_KEYS,
@@ -954,6 +963,13 @@ export function createConsoleMockGateway(options: ConsoleMockOptions = {}): Cons
    */
   const bookings = new Map<string, ConsoleBooking>();
   let bookingsSeeded = false;
+  /**
+   * Why a request ended declined — by a person, or for want of an answer —
+   * so today's list can leave those rows out, as the server's
+   * `declinedBecause` lets it. A booking the venue called off after
+   * confirming it is not here: that one stays on the list.
+   */
+  const declined = new Map<string, DeclineReason>();
 
   /** `Yalla.Domain.Enums.ReservationStatus` member names, as the 409 spells them. */
   const SERVER_STATUS: Readonly<Record<ConsoleBooking['status'], string>> = {
@@ -1134,6 +1150,7 @@ export function createConsoleMockGateway(options: ConsoleMockOptions = {}): Cons
           awaitingApprovalBecause: null,
           approvalExpiresAtUtc: null,
         });
+        declined.set(booking.id, 'noAnswer');
       }
     }
   }
@@ -1183,7 +1200,150 @@ export function createConsoleMockGateway(options: ConsoleMockOptions = {}): Cons
       approvalExpiresAtUtc: null,
     };
     bookings.set(booking.id, decided);
+    if (!approve) declined.set(booking.id, 'staffDeclined');
     return decided;
+  }
+
+  // --- Overview -------------------------------------------------------------------
+
+  /** Today's bookings that never waited for approval, per branch, seeded on first read. */
+  const todayRows = new Map<string, OverviewBooking[]>();
+
+  function branchTimeZone(branchId: string): string {
+    return allBranches().find((branch) => branch.id === branchId)?.timeZoneId ?? 'Asia/Yerevan';
+  }
+
+  function overviewTables(branchId: string): OverviewTable[] {
+    return floorPlanFor(branchId).tables.map((table) => ({
+      id: table.id,
+      label: table.label,
+      seats: table.seats,
+      isActive: table.isActive,
+      status: table.status,
+    }));
+  }
+
+  function todayRowsFor(branchId: string): OverviewBooking[] {
+    let rows = todayRows.get(branchId);
+    if (!rows) {
+      rows = seedTodayBookings({
+        branchId,
+        timeZoneId: branchTimeZone(branchId),
+        now: now(),
+        tables: overviewTables(branchId),
+        turnTimeMinutes: policyFor(branchId).turnTimeMinutes,
+      });
+      todayRows.set(branchId, rows);
+    }
+    return rows;
+  }
+
+  /**
+   * A booking that went through approval, as a row of today's list: the
+   * approvals store is the one place its status lives, so deciding it there
+   * moves it here too.
+   */
+  function approvalRowsFor(branchId: string): OverviewBooking[] {
+    const zone = branchTimeZone(branchId) as TimeZone;
+    const today = branchDayKey(now(), zone);
+    const plan = floorPlanFor(branchId);
+    const turn = policyFor(branchId).turnTimeMinutes;
+    return [...bookings.values()]
+      .filter((booking) => booking.branchId === branchId && booking.localDate === today)
+      .map((booking) => {
+        const [year, month, day] = booking.localDate.split('-').map(Number) as [
+          number,
+          number,
+          number,
+        ];
+        const [hour, minute] = booking.localStartTime.split(':').map(Number) as [number, number];
+        const start = instantFromZonedClock({ year, month, day, hour, minute }, zone);
+        const table = plan.tables.find((candidate) => candidate.label === booking.tableLabel);
+        return {
+          id: booking.id,
+          code: booking.code,
+          status: booking.status,
+          startUtc: start.toISOString(),
+          endUtc: new Date(start.getTime() + turn * 60_000).toISOString(),
+          localStartTime: booking.localStartTime,
+          partySize: booking.partySize,
+          guestName: booking.guestName,
+          tableId: table?.id ?? `tbl-${branchId}-${booking.tableLabel}`,
+          tableLabel: booking.tableLabel,
+          tableStatus: booking.status === 'seated' ? 'occupied' : 'free',
+          roomName: null,
+          channel: 'app',
+          declinedBecause: declined.get(booking.id) ?? null,
+          holdExpiresAtUtc: null,
+          lateNudgeAtUtc: null,
+        } satisfies OverviewBooking;
+      });
+  }
+
+  /** The action, as `StaffPermissionException` names it in a refusal. */
+  const ACTION_OPERATION: Readonly<Record<ConsoleBookingActionCommand['kind'], string>> = {
+    seat: 'Seat a booking',
+    noShow: 'Mark a booking as a no-show',
+    cancel: 'Release a booking',
+    finish: 'Free a table',
+  };
+
+  /**
+   * The row menu's four actions, with the server's guards in its order: the
+   * booking (404), the branch (403), then the state (409). Each moves the
+   * booking where its route would, and the table with it.
+   */
+  function actOnTodayBooking(command: ConsoleBookingActionCommand): ConsoleBookingActionResult {
+    seedBookings();
+    sweepExpired();
+    const own = todayRowsFor(command.branchId);
+    const index = own.findIndex((row) => row.id === command.reservationId);
+    const row =
+      index >= 0
+        ? own[index]
+        : approvalRowsFor(command.branchId).find((entry) => entry.id === command.reservationId);
+    if (!row) {
+      throw new NotFoundError({ url: `${URL_TAG}/reservations/${command.reservationId}` });
+    }
+
+    requireManagerForBranch(command.branchId, ACTION_OPERATION[command.kind]);
+
+    const status = SERVER_STATUS[row.status];
+    if (command.kind === 'finish') {
+      if (row.status !== 'seated') {
+        throw conflict(`Only a seated party's table can be freed; ${row.code} is ${status}.`);
+      }
+    } else if (row.status !== 'confirmed') {
+      throw conflict(
+        command.kind === 'seat'
+          ? `Only a confirmed reservation can be seated; ${row.code} is ${status}.`
+          : `Only a confirmed reservation can be released; ${row.code} is ${status}.`,
+      );
+    }
+
+    const next = STATUS_AFTER[command.kind];
+    // A no-show or a cancellation frees the table only when it was held for this booking.
+    const tableFreed =
+      command.kind === 'finish' || (command.kind !== 'seat' && row.tableStatus === 'held');
+    const moved: OverviewBooking = {
+      ...row,
+      status: next,
+      tableStatus: command.kind === 'seat' ? 'occupied' : tableFreed ? 'free' : row.tableStatus,
+      holdExpiresAtUtc: null,
+    };
+    if (index >= 0) own[index] = moved;
+    else {
+      const stored = bookings.get(row.id);
+      if (stored) bookings.set(row.id, { ...stored, status: next });
+    }
+
+    return {
+      kind: command.kind,
+      reservationId: row.id,
+      tableLabel: row.tableLabel,
+      tableFreed,
+      outstandingDram: null,
+    };
   }
 
   mockVenues.forEach((venue, venueIndex) => {
@@ -3412,6 +3572,29 @@ export function createConsoleMockGateway(options: ConsoleMockOptions = {}): Cons
     async rejectReservation(command) {
       await wait();
       return decideBooking(command, false);
+    },
+
+    // --- Overview -------------------------------------------------------------------
+
+    async getBranchOverview(branchId) {
+      await wait();
+      requireManagerAtBranch(branchId, `${URL_TAG}/branches/${branchId}/overview`);
+      seedBookings();
+      sweepExpired();
+      return branchOverviewFrom({
+        branchId,
+        timeZoneId: branchTimeZone(branchId),
+        now: now(),
+        weeklyHours: hoursFor(branchId),
+        tables: overviewTables(branchId),
+        bookings: [...todayRowsFor(branchId), ...approvalRowsFor(branchId)],
+        graceMinutes: policyFor(branchId).graceMinutes,
+      });
+    },
+
+    async actOnBooking(command) {
+      await wait();
+      return actOnTodayBooking(command);
     },
 
     // --- Review moderation ------------------------------------------------------

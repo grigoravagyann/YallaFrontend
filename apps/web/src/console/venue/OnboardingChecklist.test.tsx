@@ -68,14 +68,12 @@ describe('the onboarding checklist', () => {
     const toggle = await screen.findByLabelText(/confirm bookings automatically/i);
     await waitFor(() => expect(policyLine()).not.toBeNull());
     expect(policyLine()!.classList.contains('is-done')).toBe(false);
-    expect(screen.getByText(/nobody has reviewed the reservation policy/i)).toBeTruthy();
     expect(readiness).toHaveBeenCalled();
 
     await user.click(toggle);
     await user.click(screen.getByRole('button', { name: /save the policy/i }));
 
     await waitFor(() => expect(policyLine()!.classList.contains('is-done')).toBe(true));
-    expect(screen.queryByText(/nobody has reviewed the reservation policy/i)).toBeNull();
   });
 
   it('renders nothing of its own for a readiness the server failed to answer', async () => {

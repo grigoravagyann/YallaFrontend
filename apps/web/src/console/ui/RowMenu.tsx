@@ -10,7 +10,7 @@ import {
   type ReactNode,
 } from 'react';
 import { createPortal } from 'react-dom';
-import { MoreIcon } from '../../ui/icons';
+import { MoreIcon } from './icons';
 
 export interface RowMenuItem {
   readonly key: string;

@@ -1,6 +1,6 @@
 import type { BranchReadiness, EditorFloorPlan } from '@yalla/api';
 import { describe, expect, it } from 'vitest';
-import { checklistSteps, readinessBlockers, roomsReady } from './OnboardingChecklist';
+import { checklistSteps, roomsReady } from './OnboardingChecklist';
 
 /**
  * The checklist renders the server's readiness answer and decides nothing.
@@ -76,42 +76,6 @@ describe('the checklist lines', () => {
   });
 });
 
-describe('what stops diners', () => {
-  it('is nothing for a ready branch, whatever the booking switch says', () => {
-    expect(readinessBlockers(READY)).toEqual([]);
-  });
-
-  it('names each gap once, in the server order, with the unfinished dish count', () => {
-    expect(
-      readinessBlockers({
-        ...READY,
-        isReadyForDiners: false,
-        tablesLabelled: false,
-        menuComplete: false,
-        incompleteMenuItemCount: 2,
-        reservationPolicyReviewed: false,
-        deviceEnrolled: false,
-        deviceCount: 0,
-      }),
-    ).toEqual([
-      { key: 'tablesUnlabelled' },
-      { key: 'menuIncomplete', count: 2 },
-      { key: 'policyNotReviewed' },
-      { key: 'noDevice' },
-    ]);
-  });
-
-  it('says the plan is empty rather than unlabelled when there are no tables', () => {
-    const keys = readinessBlockers({
-      ...READY,
-      floorPlanDrawn: false,
-      tablesLabelled: false,
-      tableCount: 0,
-    }).map((blocker) => blocker.key);
-    expect(keys).toEqual(['floorPlanEmpty']);
-  });
-});
-
 describe('the rooms line (QA 2026-10-16)', () => {
   const photo = {
     photoId: 'p1',
@@ -150,10 +114,5 @@ describe('the rooms line (QA 2026-10-16)', () => {
       false,
     );
     expect(checklistSteps(READY, true).find((entry) => entry.id === 'floorPlan')!.done).toBe(true);
-  });
-
-  it('says what stops diners when tables exist but none is on a photo they can book from', () => {
-    expect(readinessBlockers(READY, false)).toEqual([{ key: 'roomsNoBookablePin' }]);
-    expect(readinessBlockers(READY, true)).toEqual([]);
   });
 });

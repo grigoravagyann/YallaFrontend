@@ -58,6 +58,7 @@ describe('console text', () => {
       [consoleColor.red, consoleColor.redBg],
       [consoleColor.green, consoleColor.greenBg],
       [consoleColor.grey, consoleColor.greyBg],
+      [consoleColor.blue, consoleColor.blueBg],
     ] as const;
     for (const [text, tint] of pairs) {
       expect(ratio(text, tint)).toBeGreaterThanOrEqual(AA_BODY);
