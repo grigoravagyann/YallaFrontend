@@ -137,6 +137,15 @@ describe('the console sidebar', () => {
     expect(side?.body).toMatch(/height:\s*100vh/u);
     expect(side?.body).toMatch(/overflow-y:\s*auto/u);
   });
+
+  // A window shorter than the sidebar (768px tall, a venue's full nav) made the
+  // person at the foot need the sidebar's own scroll: it is pinned to the foot.
+  it('keeps the person at its foot in view when the sidebar itself scrolls', () => {
+    const foot = consoleRules().find((rule) => rule.selector === '.yc-side-foot');
+    expect(foot?.body).toMatch(/position:\s*sticky/u);
+    expect(foot?.body).toMatch(/bottom:\s*0/u);
+    expect(foot?.body).toMatch(/background:\s*var\(--console-sidebar\)/u);
+  });
 });
 
 describe("a branch's sub-tabs", () => {
