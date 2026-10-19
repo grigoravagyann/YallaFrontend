@@ -1,7 +1,7 @@
 /**
  * GENERATED FILE — do not edit.
  *
- * Source: http://localhost:5199/swagger/v1/swagger.json
+ * Source: http://localhost:5203/swagger/v1/swagger.json
  * Regenerate with: pnpm api:generate
  */
 
@@ -2854,6 +2854,8 @@ export interface paths {
          *     **Never automatic.** Prompt 2's rule that the decision belongs to a waiter applies here more than anywhere: only a person standing in the room knows whether the party is late or absent.
          *
          *     Counts toward the diner's rolling no-show threshold. If they telephoned to say they could not come, use `release` with `outcome: 2` instead - a diner who let the venue know must not be punished for it.
+         *
+         *     **Only from the booking's start.** Before `startUtc` nobody can have failed to come, so the answer is `409 reservation-not-started` (`context.reservationId`, `context.startUtc`) and nothing changes - the hold stays, the booking stays confirmed. From the start itself there is no further wait: the branch's grace period times the late nudge, and whether a party past their time is late or absent is the waiter's call. To let a booking go earlier, use `release` with `outcome: 2`.
          */
         post: operations["markReservationNoShow"];
         delete?: never;
@@ -2905,6 +2907,8 @@ export interface paths {
          *     Render these as two buttons - *release, marked no-show* and *release, they let us know*. With one button a busy waiter taps it for both, and the threshold ends up punishing the people who phoned ahead. A table out of service is always the second one: a broken chair is the venue's doing.
          *
          *     The table is freed when it is **held for this booking**, through the state machine, so the audit row is written and the branch change sequence moves. A table somebody is **sitting at** is left alone - the booking is released either way, and a floor plan that shows an occupied table as free costs more than a stale hold.
+         *
+         *     **`outcome: 1` only from the booking's start.** Before `startUtc` a no-show is refused with `409 reservation-not-started` (`context.reservationId`, `context.startUtc`) and nothing changes. `outcome: 2` is allowed at any time, and so is the table's own `release-hold`.
          */
         post: operations["releaseReservation"];
         delete?: never;
@@ -22540,7 +22544,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
                 };
             };
-            /** @description The booking cannot be released. */
+            /** @description `reservation-not-started`: the booking has not started yet. Otherwise the booking cannot be released - it was already seated, completed or cancelled by the diner. */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -22718,7 +22722,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
                 };
             };
-            /** @description The booking is not in a state that can be released - it was already seated, completed or cancelled by the diner. */
+            /** @description `reservation-not-started`: `outcome: 1` before the booking's start. Otherwise the booking is not in a state that can be released - it was already seated, completed or cancelled by the diner. */
             409: {
                 headers: {
                     [name: string]: unknown;
