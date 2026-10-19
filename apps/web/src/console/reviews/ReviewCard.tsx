@@ -66,7 +66,12 @@ export function ReviewCard({
             <div className="yc-pe">{formatDate(review.createdAtUtc, timeZoneId, locale)}</div>
           </div>
         </div>
-        <span className="yc-stars" aria-label={t('branchReviews.stars', { count: stars })}>
+        {/* An image to a screen reader: a plain span's label is not read out. */}
+        <span
+          className="yc-stars"
+          role="img"
+          aria-label={t('branchReviews.stars', { count: stars })}
+        >
           <span aria-hidden="true">{'★'.repeat(stars)}</span>
           <span className="is-off" aria-hidden="true">
             {'★'.repeat(5 - stars)}
@@ -91,7 +96,12 @@ export function ReviewCard({
         </div>
       ) : null}
       {review.reply ? (
-        <ReplyBlock reply={review.reply} timeZoneId={timeZoneId} locale={locale} />
+        <ReplyBlock
+          reply={review.reply}
+          reviewUpdatedAtUtc={review.updatedAtUtc}
+          timeZoneId={timeZoneId}
+          locale={locale}
+        />
       ) : null}
       {children}
     </article>
@@ -104,12 +114,19 @@ export function useReplySignature(): (name: string, role: ReviewReply['authorRol
   return (name, role) => t('reviews.reply.signature', { name, role: t(`role.${role}`) });
 }
 
+/** The guest changed their review after the venue answered it: the answer may no longer fit. */
+export function reviewEditedAfterReply(reviewUpdatedAtUtc: string, reply: ReviewReply): boolean {
+  return Date.parse(reviewUpdatedAtUtc) > Date.parse(reply.updatedAtUtc);
+}
+
 function ReplyBlock({
   reply,
+  reviewUpdatedAtUtc,
   timeZoneId,
   locale,
 }: {
   readonly reply: ReviewReply;
+  readonly reviewUpdatedAtUtc: string;
   readonly timeZoneId: string;
   readonly locale: Locale;
 }) {
@@ -124,6 +141,9 @@ function ReplyBlock({
           {reply.edited ? ` · ${t('reviews.reply.edited')}` : ''}
         </small>
         <p>{reply.text}</p>
+        {reviewEditedAfterReply(reviewUpdatedAtUtc, reply) ? (
+          <small className="yc-reply-note">{t('reviews.reply.reviewEditedAfter')}</small>
+        ) : null}
       </div>
     </div>
   );

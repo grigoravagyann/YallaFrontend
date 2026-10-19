@@ -1,5 +1,10 @@
 // @vitest-environment jsdom
-import { createConsoleMockGateway, defaultPolicyFor, type ConsoleGateway } from '@yalla/api';
+import {
+  PolicyBoundsError,
+  createConsoleMockGateway,
+  defaultPolicyFor,
+  type ConsoleGateway,
+} from '@yalla/api';
 import { cleanup, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { Outlet, Route, Routes } from 'react-router-dom';
@@ -71,6 +76,12 @@ describe('a field', () => {
     await user.click(screen.getByRole('button', { name: 'Increase: How long a table is held' }));
     expect(turn.value).toBe(String(Number(shipped) + 5));
     expect(within(holding).getByText('Changed')).toBeTruthy();
+    // The contents list says how many changed, in words a screen reader reads.
+    expect(
+      within(screen.getByRole('navigation', { name: 'Policy groups' })).getByRole('img', {
+        name: '1 changed field',
+      }),
+    ).toBeTruthy();
     expect(within(saveBar()).getByText('1 unsaved change')).toBeTruthy();
 
     await user.click(within(holding).getByRole('button', { name: 'Reset' }));
@@ -108,6 +119,8 @@ describe('a field', () => {
     expect(turn.getAttribute('aria-invalid')).toBe('true');
     const error = screen.getByText('Must be between 15 and 360');
     expect(turn.getAttribute('aria-describedby')).toContain(error.id);
+    // Pointed at, not shouted while typing: an alert is for a refused save.
+    expect(error.getAttribute('role')).toBeNull();
     expect(within(saveBar()).getByText('The fields marked in red are out of bounds')).toBeTruthy();
 
     turn.blur();
@@ -185,6 +198,55 @@ describe('saving', () => {
   });
 });
 
+describe('a refused save', () => {
+  it('marks every field the server named, says it at once, and puts the cursor on the first', async () => {
+    const gateway = createConsoleMockGateway({ latencyMs: 0, role: 'owner' });
+    vi.spyOn(gateway, 'replaceReservationPolicy').mockRejectedValueOnce(
+      new PolicyBoundsError({
+        url: '/api/branches/b-lumen-cascade/reservation-policy',
+        field: 'graceMinutes',
+        fields: ['graceMinutes', 'turnTimeMinutes'],
+        detail: 'Two fields are out of bounds.',
+      }),
+    );
+    const user = userEvent.setup();
+    renderPolicy(gateway);
+    await ready();
+    await user.click(screen.getByRole('button', { name: 'Increase: How long a table is held' }));
+    await user.click(screen.getByRole('button', { name: 'Save the policy' }));
+
+    const grace = input('How long a late party keeps the table');
+    // Changed from the default, so its name carries the "Changed" mark too.
+    const turn = screen.getByRole('textbox', { name: /^How long a table is held/u });
+    await waitFor(() => expect(grace.getAttribute('aria-invalid')).toBe('true'));
+    expect(turn.getAttribute('aria-invalid')).toBe('true');
+    expect(document.activeElement).toBe(grace);
+    const alerts = screen
+      .getAllByRole('alert')
+      .filter(
+        (alert) =>
+          alert.textContent === 'The server did not accept this value. Check it and save again.',
+      );
+    expect(alerts).toHaveLength(2);
+  });
+
+  it('offers no reset while a save is on its way', async () => {
+    const gateway = createConsoleMockGateway({ latencyMs: 0, role: 'owner' });
+    vi.spyOn(gateway, 'replaceReservationPolicy').mockReturnValue(new Promise(() => undefined));
+    const user = userEvent.setup();
+    renderPolicy(gateway);
+    await ready();
+    const holding = group('How long a table is held');
+    await user.click(screen.getByRole('button', { name: 'Increase: How long a table is held' }));
+    await user.click(screen.getByRole('button', { name: 'Save the policy' }));
+    await waitFor(() =>
+      expect(
+        (within(holding).getByRole('button', { name: 'Reset' }) as HTMLButtonElement).disabled,
+      ).toBe(true),
+    );
+  });
+});
+
 describe('the defaults', () => {
   it("are the server's for this branch, not the client's copy", async () => {
     const base = createConsoleMockGateway({ latencyMs: 0, role: 'owner' });
@@ -216,6 +278,11 @@ describe('the defaults', () => {
       within(group('When somebody is late')).getByText(
         `Default: ${defaultPolicyFor('cafe').graceMinutes} minutes`,
       ),
+    ).toBeTruthy();
+    // The copy the server ships today (booking-times change), not the drifted 15 and 30.
+    expect(within(group('How long a table is held')).getByText('Default: 5 minutes')).toBeTruthy();
+    expect(
+      within(group('How far ahead people can book')).getByText('Default: 10 minutes'),
     ).toBeTruthy();
   });
 });

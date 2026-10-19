@@ -264,12 +264,36 @@ function ListingForm({
     );
   }
 
+  /**
+   * Out of the gallery, with an Undo that puts the photo back where it was in
+   * the gallery as it is *then* — not a copy of the whole gallery from before,
+   * which would undo every move and upload made since.
+   */
   function remove(index: number) {
-    const before = gallery;
-    setGallery(gallery.filter((_, position) => position !== index));
+    const photo = gallery[index];
+    if (!photo) return;
+    const left = gallery.length - 1;
+    setGallery((current) => current.filter((p) => p.photoId !== photo.photoId));
     setJustSaved(false);
+    // The focus stays in the gallery: on the photo that took this one's place,
+    // the one before it at the end, or the gallery's label once it is empty.
+    const next = left === 0 ? null : Math.min(index, left - 1);
+    requestAnimationFrame(() =>
+      (next === null
+        ? document.getElementById('pp-gallery-l')
+        : document.getElementById(`pp-gal-remove-${next}`)
+      )?.focus(),
+    );
     toast.say(t('publicPage.listing.gallery.removed', { position: index + 1 }), {
-      undo: () => setGallery(before),
+      undo: () => {
+        setGallery((current) => {
+          if (current.some((p) => p.photoId === photo.photoId)) return current;
+          if (current.length >= MAX_GALLERY_PHOTOS) return current;
+          const at = Math.min(index, current.length);
+          return [...current.slice(0, at), photo, ...current.slice(at)];
+        });
+        setJustSaved(false);
+      },
       fallbackFocus: () => document.getElementById('pp-gallery-l'),
     });
   }
@@ -677,6 +701,7 @@ function ListingForm({
                     </button>
                     <button
                       type="button"
+                      id={`pp-gal-remove-${index}`}
                       className="yc-mini yc-mini-del"
                       aria-label={t('publicPage.listing.gallery.remove', { position: index + 1 })}
                       onClick={() => remove(index)}

@@ -58,6 +58,8 @@ const KIND_ICON: Readonly<Record<string, IoniconName>> = {
   'booking-reminder': 'notifications-outline',
   'order-ready': 'restaurant-outline',
   'review-hidden': actionIcon.star,
+  // The venue answered: a speech bubble, the reply under the review.
+  'review-replied': 'chatbubble-ellipses-outline',
 };
 
 function kindIcon(notification: DinerNotification): IoniconName {

@@ -65,6 +65,10 @@ describe('the list', () => {
     const articles = screen.getAllByRole('article');
     expect(within(articles[0]!).getByText('2 reports')).toBeTruthy();
     expect(within(reviewOf(/quick coffee/i)).queryByText(/report/i)).toBeNull();
+    // The stars are read out as one image with its words, not five glyphs.
+    expect(
+      within(reviewOf(/quick coffee/i)).getByRole('img', { name: '5 stars out of 5' }),
+    ).toBeTruthy();
 
     await user.click(filter(/^Reported/u));
     await waitFor(() => expect(screen.queryByText(/quick coffee/i)).toBeNull());
@@ -318,6 +322,85 @@ describe('the reply', () => {
       expect(reply).toHaveBeenLastCalledWith('b-lumen-north', 'review-seed-1', 'Thanks!'),
     );
     await within(reviewOf(/quick coffee/i)).findByText('Thanks!');
+  });
+
+  it("changes, and never takes down, a colleague's reply the list had not shown yet", async () => {
+    const gateway = owner();
+    const remove = vi.spyOn(gateway, 'removeReviewReply');
+    const user = userEvent.setup();
+    renderReviews(gateway);
+
+    await screen.findByText(/quick coffee/i);
+    // A colleague answers after this list was read: it still offers "Reply".
+    await gateway.replyToReview('b-lumen-north', 'review-seed-1', 'Thanks from the floor!');
+    await user.click(within(reviewOf(/quick coffee/i)).getByRole('button', { name: 'Reply' }));
+    await user.type(
+      within(reviewOf(/quick coffee/i)).getByLabelText(/^Reply to the guest/u),
+      'Thank you!',
+    );
+    await user.click(
+      within(reviewOf(/quick coffee/i)).getByRole('button', { name: 'Publish the reply' }),
+    );
+
+    // The server says it changed a reply: not "published", no notification
+    // promised, and no undo that would delete the colleague's words.
+    expect(await screen.findByText('The reply is changed')).toBeTruthy();
+    expect(screen.queryByText(/the guest will get a notification/u)).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Undo' })).toBeNull();
+    await within(reviewOf(/quick coffee/i)).findByText('Thank you!');
+    expect(remove).not.toHaveBeenCalled();
+  });
+
+  it('closes the form when the review was hidden in the meantime, and says so', async () => {
+    const gateway = owner();
+    const user = userEvent.setup();
+    renderReviews(gateway);
+
+    await screen.findByText(/quick coffee/i);
+    await user.click(within(reviewOf(/quick coffee/i)).getByRole('button', { name: 'Reply' }));
+    // Hidden by somebody else while the reply was being written.
+    await gateway.setVenueReviewVisibility('b-lumen-north', 'review-seed-1', {
+      hidden: true,
+      reason: 'Spam',
+    });
+    await user.type(
+      within(reviewOf(/quick coffee/i)).getByLabelText(/^Reply to the guest/u),
+      'Thank you!',
+    );
+    await user.click(
+      within(reviewOf(/quick coffee/i)).getByRole('button', { name: 'Publish the reply' }),
+    );
+
+    expect((await screen.findByRole('alert')).textContent).toMatch(/hidden in the meantime/u);
+    await waitFor(() => expect(within(reviewOf(/quick coffee/i)).queryByRole('form')).toBeNull());
+    // The fresh list shows it hidden, and its own way back has the focus.
+    await waitFor(() =>
+      expect(document.activeElement).toBe(
+        within(reviewOf(/quick coffee/i)).getByRole('button', { name: 'Show again' }),
+      ),
+    );
+  });
+
+  it('says when the guest edited the review after it was answered', async () => {
+    const gateway = owner();
+    await gateway.replyToReview('b-lumen-north', 'review-seed-1', 'Thanks!');
+    const list = gateway.listVenueBranchReviews.bind(gateway);
+    vi.spyOn(gateway, 'listVenueBranchReviews').mockImplementation(async (branchId, query) => {
+      const page = await list(branchId, query);
+      return {
+        ...page,
+        items: page.items.map((item) =>
+          item.reply ? { ...item, updatedAtUtc: '2099-01-01T00:00:00Z' } : item,
+        ),
+      };
+    });
+    renderReviews(gateway);
+
+    await screen.findByText('Thanks!');
+    expect(
+      within(reviewOf(/quick coffee/i)).getByText('The guest edited the review after this reply.'),
+    ).toBeTruthy();
+    expect(within(reviewOf(/a long wait/i)).queryByText(/edited the review/u)).toBeNull();
   });
 
   it('is not offered on a hidden review', async () => {

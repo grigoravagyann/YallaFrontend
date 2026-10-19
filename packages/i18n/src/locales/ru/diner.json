@@ -963,7 +963,9 @@
           "owner": "владелец",
           "generalManager": "главный менеджер",
           "manager": "менеджер филиала"
-        }
+        },
+        "roleOnly": "{{role}}",
+        "reviewEditedAfter": "Отзыв изменён после этого ответа."
       }
     },
     "favorite": "В избранное",

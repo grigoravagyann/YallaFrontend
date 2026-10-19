@@ -115,7 +115,19 @@ describe('the console review list', () => {
   it('reads an omitted rating and change as null, and a server with no summary as none', async () => {
     const { gateway } = gatewayOver({
       'GET /api/branches/b-1/reviews': {
-        body: { items: [], total: 0, page: 1, pageSize: 20, summary: { all: 0, visible: 0 } },
+        body: {
+          items: [],
+          total: 0,
+          page: 1,
+          pageSize: 20,
+          summary: {
+            all: 0,
+            reported: 0,
+            hidden: 0,
+            visible: 0,
+            distribution: [5, 4, 3, 2, 1].map((stars) => ({ stars, count: 0 })),
+          },
+        },
       },
       'GET /api/platform/branches/b-1/reviews': {
         body: { items: [], total: 0, page: 1, pageSize: 20 },
@@ -141,6 +153,14 @@ describe('a reply', () => {
     const removed = await gateway.removeReviewReply('b-1', 'r-1');
     expect(backend.requests[1]?.method).toBe('DELETE');
     expect(removed.reply).toBeNull();
+  });
+
+  it('is taken down by the platform on its own route', async () => {
+    const { gateway, backend } = gatewayOver({
+      'DELETE /api/platform/reviews/r-1/reply': { body: REVIEW },
+    });
+    expect((await gateway.removePlatformReviewReply('r-1')).reply).toBeNull();
+    expect(backend.requests[0]?.method).toBe('DELETE');
   });
 
   it('on a hidden review is refused as such', async () => {

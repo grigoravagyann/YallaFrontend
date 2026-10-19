@@ -144,12 +144,16 @@ export function LoadingCard() {
   );
 }
 
-/** International format: a plus and eight to fifteen digits, spaces allowed between them. */
-const PHONE = /^\+\d{8,15}$/u;
+/**
+ * International format, as the server's `PhoneNumber.Normalise` takes it: a
+ * plus, a country code that does not start with 0, eight to fifteen digits in
+ * all; spaces, brackets and dashes between them are dropped.
+ */
+const PHONE = /^\+[1-9]\d{7,14}$/u;
 
-function phoneProblem(phone: string): boolean {
+export function phoneProblem(phone: string): boolean {
   const typed = phone.trim();
-  return typed !== '' && !PHONE.test(typed.replace(/\s+/gu, ''));
+  return typed !== '' && !PHONE.test(typed.replace(/[\s()-]/gu, ''));
 }
 
 /**

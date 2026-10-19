@@ -64,6 +64,22 @@ export interface ReviewReply {
   readonly edited: boolean;
 }
 
+/**
+ * The reply as diners read it — the public reviews, the place's details and
+ * the author's own review (VC4 wire, review round 1): signed short, "Aram H.",
+ * by the rule diners' own names follow. No name at all when the stored one
+ * looks like contact details: the role signs alone then.
+ */
+export interface PublicReviewReply extends Omit<ReviewReply, 'authorName'> {
+  readonly authorName: string | null;
+}
+
+/** The short public signature for a writer's full name, or null where the rule drops it. */
+export function publicReplyAuthorName(fullName: string): string | null {
+  const short = publicAuthorName(fullName);
+  return short === ANONYMOUS_AUTHOR ? null : short;
+}
+
 /** One review as a moderator sees it: the public card plus who wrote it and its takedown state. */
 export interface ModeratedReview {
   readonly reviewId: string;

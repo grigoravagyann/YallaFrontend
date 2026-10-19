@@ -732,6 +732,7 @@ function PlaceDetails({
               ) : null}
               <ReviewComposer
                 placeId={place.id}
+                timeZoneId={place.timeZoneId}
                 initialRating={initialRating}
                 style={styles.composer}
               />

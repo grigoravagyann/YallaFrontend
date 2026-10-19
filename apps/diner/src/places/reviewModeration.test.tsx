@@ -128,6 +128,7 @@ describe("the venue's reply", () => {
     authorRole: 'owner' as const,
     date: '2026-09-02',
     edited: false,
+    reviewEditedAfter: false,
   };
 
   it('is shown under the review, signed by its writer and their role', () => {
@@ -144,6 +145,27 @@ describe("the venue's reply", () => {
     expect(screen.getByText('Thank you, come again!')).toBeTruthy();
   });
 
+  it('is signed by the role alone when the server sends no name, and says the review changed since', () => {
+    withClient(
+      <ReviewList
+        placeId="b1"
+        reviews={[
+          {
+            ...review('r2', 'Tigran M.'),
+            reply: { ...REPLY, authorName: null, reviewEditedAfter: true },
+          },
+        ]}
+      />,
+    );
+
+    expect(
+      screen.getByText(
+        /^place\.review\.reply\.from place\.review\.reply\.roleOnly place\.review\.reply\.role\.owner$/u,
+      ),
+    ).toBeTruthy();
+    expect(screen.getByText('place.review.reply.reviewEditedAfter')).toBeTruthy();
+  });
+
   it("is read by the review's author on their own review, hidden or not", async () => {
     useSession.setState({ signedIn: true, profile: PROFILE as never });
     gateway.getMyBranchReview.mockResolvedValue(
@@ -153,14 +175,16 @@ describe("the venue's reply", () => {
           text: 'Sorry to hear it.',
           authorName: 'Aram Hakobyan',
           authorRole: 'owner',
-          createdAtUtc: '2026-09-02T10:00:00Z',
-          updatedAtUtc: '2026-09-02T10:00:00Z',
+          // 01:40 on the 3rd in Yerevan: the place's day, not the UTC one.
+          createdAtUtc: '2026-09-02T21:40:00Z',
+          updatedAtUtc: '2026-09-02T21:40:00Z',
           edited: false,
         },
       }),
     );
-    withClient(<ReviewComposer placeId="b1" />);
+    withClient(<ReviewComposer placeId="b1" timeZoneId="Asia/Yerevan" />);
     expect(await screen.findByText('Sorry to hear it.')).toBeTruthy();
+    expect(screen.getByText(/^3 Sept? 2026$/u)).toBeTruthy();
   });
 });
 

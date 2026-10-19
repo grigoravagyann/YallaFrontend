@@ -174,11 +174,13 @@ export {
   REVIEW_REPORT_REASONS,
   REVIEW_VISIT_WINDOW_DAYS,
   publicAuthorName,
+  publicReplyAuthorName,
   summariseReviews,
 } from './contracts/reviews';
 export type {
   ModeratedReview,
   ModeratedReviewPage,
+  PublicReviewReply,
   ReplyAuthorRole,
   ReportReviewCommand,
   ReviewModerationFilter,

@@ -186,10 +186,10 @@ export function changedFields(
 // Refusals
 // ---------------------------------------------------------------------------
 
-/** A server refusal, resolved to the input it belongs against. */
+/** A server refusal, resolved to the inputs it belongs against. */
 export interface FieldRefusal {
-  /** Null when the message named no field this screen knows. */
-  readonly field: keyof ReservationPolicy | null;
+  /** Every field it named that this screen knows, in the server's order; empty when none. */
+  readonly fields: readonly (keyof ReservationPolicy)[];
   /** The server's own sentence: for a developer, never shown to an owner as is. */
   readonly message: string;
 }
@@ -197,19 +197,18 @@ export interface FieldRefusal {
 /**
  * Where a rejection should be rendered.
  *
- * The server refuses an out-of-range value rather than clamping it, and names
- * the field in prose — *"Turn time must be between 15 and 360 minutes; 5
- * minutes was given."* The gateway maps that prose back to a key, and this
- * turns it into something the form can put under one input.
- *
- * A message that named nothing recognisable yields `field: null`, and the
- * screen says the save failed. Never lost: a refusal silently swallowed
- * because the mapping missed is a save button that does nothing.
+ * The server refuses an out-of-range value rather than clamping it. A 422
+ * names every field out of bounds; an older server's 400 named one in prose,
+ * which the gateway maps back to a key. Each named field is marked on the
+ * form; a refusal naming nothing known yields no fields, and the screen says
+ * the save failed. Never lost: a refusal silently swallowed because the
+ * mapping missed is a save button that does nothing.
  */
 export function refusalFor(error: unknown): FieldRefusal | null {
   if (!isPolicyBounds(error)) return null;
+  const known = new Set<string>(POLICY_FIELDS.map((field) => field.key));
   return {
-    field: (error.field as keyof ReservationPolicy | null) ?? null,
+    fields: error.fields.filter((field): field is keyof ReservationPolicy => known.has(field)),
     message: error.detail,
   };
 }

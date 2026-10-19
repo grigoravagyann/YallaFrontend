@@ -159,3 +159,40 @@ describe('the reviewer', () => {
     ).toEqual([]);
   });
 });
+
+describe("the platform and a venue's reply", () => {
+  it('takes it down, audited, and taking down nothing writes nothing', async () => {
+    const reviews = createMockReviewStore({ seed: true });
+    const owner = createConsoleMockGateway({ latencyMs: 0, role: 'owner', reviews });
+    const admin = createConsoleMockGateway({ latencyMs: 0, role: 'platformAdmin', reviews });
+    await owner.replyToReview(NORTH, 'review-seed-1', 'Thank you.');
+
+    expect((await admin.removePlatformReviewReply('review-seed-1')).reply).toBeNull();
+    expect((await admin.removePlatformReviewReply('review-seed-1')).reply).toBeNull();
+    expect(await caught(owner.removePlatformReviewReply('review-seed-1'))).toBeInstanceOf(
+      ForbiddenError,
+    );
+    expect(await caught(admin.removePlatformReviewReply('no-such-review'))).toBeInstanceOf(
+      NotFoundError,
+    );
+  });
+});
+
+describe('a reply as diners read it', () => {
+  it('is signed short, and by the role alone when the name looks like contact details', async () => {
+    const reviews = createMockReviewStore();
+    const diner = createMockGateway({ reviews });
+    const owner = createConsoleMockGateway({ latencyMs: 0, role: 'owner', reviews });
+    await signInSeeded(diner);
+    const mine = await diner.saveMyBranchReview({ branchId: NORTH, rating: 4, text: 'Nice.' });
+    await owner.replyToReview(NORTH, mine.reviewId, 'Thank you!');
+
+    const reply = (await diner.getMyBranchReview(NORTH))?.reply;
+    const full = (await owner.listVenueBranchReviews(NORTH)).items.find(
+      (review) => review.reviewId === mine.reviewId,
+    )?.reply?.authorName;
+    // "Aram Hakobyan" in the console, "Aram H." to diners.
+    expect(full).toMatch(/^\S+ \S+/u);
+    expect(reply?.authorName).toBe(`${full!.split(' ')[0]} ${full!.split(' ')[1]![0]}.`);
+  });
+});

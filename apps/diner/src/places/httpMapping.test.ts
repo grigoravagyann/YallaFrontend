@@ -417,6 +417,8 @@ describe('a review posted after midnight in Yerevan', () => {
       authorRole: 'generalManager',
       date: '2026-10-16',
       edited: false,
+      // Answered after the review's last change.
+      reviewEditedAfter: false,
     });
   });
 });

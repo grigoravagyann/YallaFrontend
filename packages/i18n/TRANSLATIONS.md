@@ -761,6 +761,17 @@ review every string in `src/locales/hy` and `src/locales/ru`.**
     name) and the feed row for it (`notifications.kind.reviewReplied`, the
     first reply only). Written by the team, **not** reviewed.
 
+- `admin` and `diner` — the venue console phase 4 review round (2026-10-19),
+  **not** in an artboard, so not read by the user even in `hy`:
+  `branchReviews.reply.*` (the platform takes a venue's reply down — the
+  confirm must keep saying it **cannot be undone**, because only the venue
+  writes replies), `home.activity.action.reviewRemoveReply`,
+  `reviews.reply.reviewEditedAfter` and `diner` `place.review.reply.reviewEditedAfter`
+  (the guest changed the review after the answer), `diner`
+  `place.review.reply.roleOnly` (the role signs alone when the server drops a
+  name that looks like contact details), and `reviews.reply.hidden` reworded
+  to fit a review hidden by the venue **or** by Yalla.
+
 The Russian bundle carries four plural categories (`one`/`few`/`many`/`other`)
 where Armenian and English carry two. That is correct CLDR, not duplication, and
 `pnpm i18n:check` verifies each language has exactly the categories

@@ -2219,6 +2219,26 @@ export function useReviewReply(branchId: string | undefined) {
   });
 }
 
+/**
+ * The platform takes a venue's reply down. Settles once both moderation lists
+ * have refetched; the home feed reads the audit line it writes.
+ */
+export function useRemovePlatformReviewReply() {
+  const gateway = useConsoleGateway();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (reviewId: string) => gateway.removePlatformReviewReply(reviewId),
+    retry: false,
+    onSettled: () => {
+      refreshPlatformViews(queryClient);
+      return Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['console', 'platformReviews'] }),
+        queryClient.invalidateQueries({ queryKey: ['console', 'venueReviews'] }),
+      ]);
+    },
+  });
+}
+
 // --- Bookings waiting for approval ------------------------------------------
 
 /**

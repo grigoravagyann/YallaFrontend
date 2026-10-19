@@ -6,7 +6,7 @@ import { Route, Routes } from 'react-router-dom';
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { VenueLayout } from '../VenueLayout';
 import { createConsoleHarness, initConsoleTestI18n } from '../reports/testHarness';
-import { PublicPageScreen } from './PublicPageScreen';
+import { PublicPageScreen, phoneProblem } from './PublicPageScreen';
 
 /**
  * The Public page (Public artboard): the page and booking form — the number,
@@ -199,5 +199,19 @@ describe('the public page screen', () => {
     });
     expect(link.getAttribute('target')).toBe('_blank');
     expect(within(preview).getByText(`${venue.name} · ${branch.name}`)).toBeTruthy();
+  });
+});
+
+describe('the number check', () => {
+  it("takes what the server's PhoneNumber.Normalise takes, and nothing else", () => {
+    expect(phoneProblem('+374 (11) 22-33-44')).toBe(false);
+    expect(phoneProblem('+37411223344')).toBe(false);
+    expect(phoneProblem('')).toBe(false);
+    // No country code starts with 0; seven digits are too few, sixteen too many.
+    expect(phoneProblem('+0374 11 22 33 44')).toBe(true);
+    expect(phoneProblem('+1234567')).toBe(true);
+    expect(phoneProblem('+1234567890123456')).toBe(true);
+    expect(phoneProblem('374 11 22 33 44')).toBe(true);
+    expect(phoneProblem('+374 11 22 33 44 ext 5')).toBe(true);
   });
 });

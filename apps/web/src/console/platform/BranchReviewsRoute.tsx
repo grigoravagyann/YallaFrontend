@@ -6,6 +6,7 @@ import {
 import {
   useDismissReviewReports,
   usePlatformBranchReviews,
+  useRemovePlatformReviewReply,
   useRestoreReviewReports,
   useSetReviewVisibility,
 } from '@yalla/api/react';
@@ -13,13 +14,12 @@ import { formatDate } from '@yalla/format';
 import { useLocale, useTranslation } from '@yalla/i18n';
 import { useEffect, useRef, useState } from 'react';
 import { HideForm, ReviewCard, ReviewRules, ReviewSummaryCard } from '../reviews/ReviewCard';
+import { Dialog } from '../ui/Dialog';
 import { useToast } from '../ui/toast';
 import { usePendingFocus } from './venue/venueFields';
 import { BranchPage } from './PlatformBranchHeader';
 
 const PAGE_SIZE = 20;
-/** The summary's sample: the newest hundred, the most a page may carry. */
-const SUMMARY_SIZE = 100;
 const FILTERS: readonly ReviewModerationFilter[] = ['all', 'reported', 'hidden'];
 
 /**
@@ -63,13 +63,13 @@ function ReviewsModeration({
   const [filter, setFilter] = useState<ReviewModerationFilter>('all');
   const [page, setPage] = useState(1);
   const list = usePlatformBranchReviews(branchId, { filter, page, pageSize: PAGE_SIZE });
-  const sample = usePlatformBranchReviews(branchId, { filter: 'all', pageSize: SUMMARY_SIZE });
-  const reported = usePlatformBranchReviews(branchId, { filter: 'reported', pageSize: 1 });
-  const hidden = usePlatformBranchReviews(branchId, { filter: 'hidden', pageSize: 1 });
   const visibility = useSetReviewVisibility();
   const dismiss = useDismissReviewReports();
   const restoreReports = useRestoreReviewReports();
+  const removeReply = useRemovePlatformReviewReply();
   const [editing, setEditing] = useState<string | null>(null);
+  /** The review whose venue reply is waiting for "Remove" to be confirmed. */
+  const [removing, setRemoving] = useState<VenueModeratedReview | null>(null);
   const [failure, setFailure] = useState<string | null>(null);
 
   /**
@@ -170,15 +170,37 @@ function ReviewsModeration({
     });
   }
 
+  /**
+   * The venue's reply taken down, once confirmed. No undo: the platform cannot
+   * write a reply, so it has no way to put the venue's words back.
+   */
+  async function confirmRemoveReply(review: VenueModeratedReview) {
+    const since = fetchedAt.current;
+    setFailure(null);
+    try {
+      await removeReply.mutateAsync(review.reviewId);
+    } catch {
+      setFailure(t('branchReviews.failed'));
+      return;
+    } finally {
+      setRemoving(null);
+    }
+    focusAfter(review.reviewId, since);
+    toast.say(t('branchReviews.reply.removed'));
+  }
+
   const isReported = (review: VenueModeratedReview) => review.reportCount > 0 && !review.hidden;
   const items = [...(list.data?.items ?? [])];
   // Under "all", the reported reviews still showing come first.
   if (filter === 'all') items.sort((a, b) => Number(isReported(b)) - Number(isReported(a)));
 
+  // The branch's counts and rating, whatever the filter and page, as the
+  // server sums them up with the list (VC4 wire §1).
+  const summary = list.data?.summary ?? null;
   const counts: Record<ReviewModerationFilter, number | undefined> = {
-    all: sample.data?.total,
-    reported: reported.data?.total,
-    hidden: hidden.data?.total,
+    all: summary?.all,
+    reported: summary?.reported,
+    hidden: summary?.hidden,
   };
   const filterLabel = (key: ReviewModerationFilter) =>
     key === 'all'
@@ -251,6 +273,17 @@ function ReviewsModeration({
             ) : (
               <div className="yc-rv-f">
                 <span className="yc-grow" />
+                {review.reply ? (
+                  <button
+                    type="button"
+                    id={`rv-unreply-${review.reviewId}`}
+                    className="yc-btn yc-btn-ghost-red yc-btn-sm"
+                    disabled={removeReply.isPending}
+                    onClick={() => setRemoving(review)}
+                  >
+                    {t('branchReviews.reply.remove')}
+                  </button>
+                ) : null}
                 {isReported(review) ? (
                   <button
                     type="button"
@@ -347,9 +380,36 @@ function ReviewsModeration({
       </div>
 
       <aside className="yc-panel-body">
-        <ReviewSummaryCard summary={summariseReviews(sample.data?.items ?? [])} />
+        <ReviewSummaryCard summary={summary ?? summariseReviews(items)} showChange />
         <ReviewRules />
       </aside>
+      {removing ? (
+        <Dialog
+          alert
+          title={t('branchReviews.reply.confirmTitle')}
+          description={t('branchReviews.reply.confirmBody', { name: removing.authorName })}
+          onClose={() => setRemoving(null)}
+        >
+          <div className="yc-acts">
+            <button
+              type="button"
+              className="yc-btn yc-btn-sec"
+              data-autofocus=""
+              onClick={() => setRemoving(null)}
+            >
+              {t('branchReviews.cancel')}
+            </button>
+            <button
+              type="button"
+              className="yc-btn yc-btn-danger"
+              aria-busy={removeReply.isPending}
+              onClick={() => void confirmRemoveReply(removing)}
+            >
+              {t('branchReviews.reply.remove')}
+            </button>
+          </div>
+        </Dialog>
+      ) : null}
     </div>
   );
 }

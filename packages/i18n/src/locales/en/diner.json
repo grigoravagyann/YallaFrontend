@@ -933,7 +933,9 @@
           "owner": "owner",
           "generalManager": "general manager",
           "manager": "branch manager"
-        }
+        },
+        "roleOnly": "the {{role}}",
+        "reviewEditedAfter": "The review was edited after this reply."
       }
     },
     "favorite": "Save to favorites",

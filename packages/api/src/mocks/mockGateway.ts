@@ -96,6 +96,8 @@ import {
   MAX_MODERATION_TEXT,
   REVIEW_REPORT_REASONS,
   REVIEW_VISIT_WINDOW_DAYS,
+  publicReplyAuthorName,
+  type PublicReviewReply,
 } from '../contracts/reviews';
 import { createMockReviewStore, type MockReviewStore, type StoredReview } from './reviewStore';
 import {
@@ -1956,6 +1958,13 @@ export function createMockGateway(options: MockGatewayOptions = {}): MockGateway
    */
   const reviewStore = options.reviews ?? createMockReviewStore({ now });
 
+  /** The reply as diners read it: signed short, by the same rule as their names. */
+  function publicReply(review: StoredReview): PublicReviewReply | null {
+    return review.reply
+      ? { ...review.reply, authorName: publicReplyAuthorName(review.reply.authorName) }
+      : null;
+  }
+
   function toPublicReview(review: StoredReview): BranchReview {
     return {
       reviewId: review.reviewId,
@@ -1965,7 +1974,7 @@ export function createMockGateway(options: MockGatewayOptions = {}): MockGateway
       createdAtUtc: review.createdAtUtc,
       updatedAtUtc: review.updatedAtUtc,
       edited: review.updatedAtUtc !== review.createdAtUtc,
-      reply: review.reply,
+      reply: publicReply(review),
     };
   }
 
@@ -1979,7 +1988,7 @@ export function createMockGateway(options: MockGatewayOptions = {}): MockGateway
       updatedAtUtc: review.updatedAtUtc,
       publicAuthorName: review.authorName,
       hidden: review.hidden,
-      reply: review.reply,
+      reply: publicReply(review),
     };
   }
 

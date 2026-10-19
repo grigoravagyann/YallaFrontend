@@ -1,7 +1,7 @@
 import type { SpecialDay } from './branchSettings';
 import type { VenueType } from './booking';
 import type { Photo } from './menuAdmin';
-import type { ReviewReply } from './reviews';
+import type { PublicReviewReply } from './reviews';
 
 /**
  * Diner browse, reviews and the diner's own orders, as the gateway hands them
@@ -76,8 +76,8 @@ export interface BranchReview {
   readonly updatedAtUtc: string;
   /** Revised since it was first written. An identical save does not count. */
   readonly edited: boolean;
-  /** The venue's public reply under it, signed; null when it has none. */
-  readonly reply: ReviewReply | null;
+  /** The venue's public reply under it, signed short; null when it has none. */
+  readonly reply: PublicReviewReply | null;
 }
 
 export interface BranchTableMarker {
@@ -170,7 +170,7 @@ export interface MyBranchReview {
   /** Taken down by the venue or the platform: the diner still sees it, nobody else does. */
   readonly hidden: boolean;
   /** The venue's reply — shown to its author even while the review is hidden. */
-  readonly reply: ReviewReply | null;
+  readonly reply: PublicReviewReply | null;
 }
 
 export interface SubmitBranchReviewCommand {

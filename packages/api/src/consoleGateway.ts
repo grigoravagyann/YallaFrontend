@@ -679,6 +679,17 @@ export interface ConsoleGateway {
   restoreReviewReports(reviewId: string): Promise<VenueModeratedReview>;
 
   /**
+   * The platform takes a venue's reply down — `DELETE
+   * /api/platform/reviews/{reviewId}/reply` (VC4 wire, review round 1). Shown
+   * or hidden review alike; nothing to remove is not an error. Audited, and
+   * on the platform's activity feed. The platform never writes a reply.
+   *
+   * @throws {NotFoundError} no such review.
+   * @throws {ForbiddenError} not a platform admin.
+   */
+  removePlatformReviewReply(reviewId: string): Promise<VenueModeratedReview>;
+
+  /**
    * The platform's takedown, `PUT /api/platform/reviews/{reviewId}/visibility`.
    * Audited. A review the platform hides cannot be restored by the venue; one
    * the venue hid can be restored here.

@@ -156,6 +156,37 @@ describe('the listing section', () => {
     expect(within(form).queryByText('Unsaved changes')).toBeNull();
   });
 
+  it('puts a removed photo back where it was, keeping what changed since, and keeps the focus in the gallery', async () => {
+    const gateway = createConsoleMockGateway({ latencyMs: 0 });
+    const first = await uploadTo(gateway, 'a.png', 3);
+    const second = await uploadTo(gateway, 'b.png', 4);
+    const third = await uploadTo(gateway, 'c.png', 5);
+    const current = await gateway.getBranchListing(BRANCH);
+    await gateway.updateBranchListing({
+      branchId: BRANCH,
+      listing: { ...current, galleryPhotoIds: [first, second, third] },
+    });
+    const update = vi.spyOn(gateway, 'updateBranchListing');
+    const user = userEvent.setup();
+    renderScreen(gateway);
+
+    const form = await listingForm();
+    await user.click(within(form).getByRole('button', { name: 'Remove photo 1' }));
+    // The photo that took its place has the focus, not the page.
+    await waitFor(() =>
+      expect(document.activeElement).toBe(
+        within(form).getByRole('button', { name: 'Remove photo 1' }),
+      ),
+    );
+    // A change after the removal: the last two swap.
+    await user.click(within(form).getByRole('button', { name: 'Photo 1: move later' }));
+    await user.click(screen.getByRole('button', { name: 'Undo' }));
+    await user.click(within(form).getByRole('button', { name: /save listing/i }));
+
+    await waitFor(() => expect(update).toHaveBeenCalledTimes(1));
+    expect(update.mock.calls[0]?.[0].listing.galleryPhotoIds).toEqual([first, third, second]);
+  });
+
   it('lets an owner move the branch: a new address and pin are saved and shown', async () => {
     const gateway = createConsoleMockGateway({ latencyMs: 0, role: 'owner' });
     const update = vi.spyOn(gateway, 'updateBranchListing');

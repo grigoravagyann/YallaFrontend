@@ -1177,7 +1177,6 @@ export function createConsoleHttpGateway(
     },
 
     async getReservationPolicyDefaults(branchId: string): Promise<ReservationPolicyDefaults> {
-      // gateway-schema: awaiting-route — VC4 wire §2, regenerate once the backend ships it
       const { data } = await client.get<WirePolicyDefaults>(
         `${BRANCHES}/${branchId}/reservation-policy/defaults`,
       );
@@ -1312,21 +1311,29 @@ export function createConsoleHttpGateway(
     },
 
     async dismissReviewReports(reviewId) {
-      const { data } = await client.post<Schemas['Yalla.Application.Reviews.ModeratedReviewView']>(
+      const { data } = await client.post<WireModeratedReview>(
         `${PLATFORM}/reviews/${reviewId}/dismiss-reports`,
       );
       return venueReviewFromWire(data);
     },
 
     async restoreReviewReports(reviewId) {
-      const { data } = await client.post<Schemas['Yalla.Application.Reviews.ModeratedReviewView']>(
+      const { data } = await client.post<WireModeratedReview>(
         `${PLATFORM}/reviews/${reviewId}/restore-reports`,
       );
       return venueReviewFromWire(data);
     },
 
+    async removePlatformReviewReply(reviewId) {
+      // gateway-schema: awaiting-route — VC4 wire review round 1; regenerate against the backend
+      const { data } = await client.delete<WireModeratedReview>(
+        `${PLATFORM}/reviews/${reviewId}/reply`,
+      );
+      return venueReviewFromWire(data);
+    },
+
     async setReviewVisibility(reviewId, command) {
-      const { data } = await client.put<Schemas['Yalla.Application.Reviews.ModeratedReviewView']>(
+      const { data } = await client.put<WireModeratedReview>(
         `${PLATFORM}/reviews/${reviewId}/visibility`,
         { hidden: command.hidden, reason: command.reason },
       );
@@ -1349,7 +1356,6 @@ export function createConsoleHttpGateway(
 
     async replyToReview(branchId, reviewId, text) {
       try {
-        // gateway-schema: awaiting-route — VC4 wire §1, regenerate once the backend ships it
         const { data } = await client.put<WireModeratedReview>(
           `${BRANCHES}/${branchId}/reviews/${reviewId}/reply`,
           { text },
@@ -1368,7 +1374,6 @@ export function createConsoleHttpGateway(
     },
 
     async removeReviewReply(branchId, reviewId) {
-      // gateway-schema: awaiting-route — VC4 wire §1, regenerate once the backend ships it
       const { data } = await client.delete<WireModeratedReview>(
         `${BRANCHES}/${branchId}/reviews/${reviewId}/reply`,
       );
@@ -1377,7 +1382,7 @@ export function createConsoleHttpGateway(
 
     async setVenueReviewVisibility(branchId, reviewId, command) {
       try {
-        const { data } = await client.put<Schemas['Yalla.Application.Reviews.ModeratedReviewView']>(
+        const { data } = await client.put<WireModeratedReview>(
           `${BRANCHES}/${branchId}/reviews/${reviewId}/visibility`,
           { hidden: command.hidden, reason: command.reason },
         );
@@ -1553,17 +1558,16 @@ export function createConsoleHttpGateway(
       } catch (error) {
         // Today a `422 validation-failed` naming every field out of bounds
         // (`ReservationPolicyLimits.Check`); an older server answered 400 with
-        // the field only in its prose. Either way the first field named is
-        // the one the form puts the refusal under.
+        // the field only in its prose. Every field named is marked on the form.
         if (error instanceof ApiError && (error.status === 400 || error.status === 422)) {
           const detail = error.problem?.detail ?? error.message;
           const named =
-            error instanceof ValidationError
-              ? (error.violations[0]?.field ?? error.field ?? null)
-              : null;
+            error instanceof ValidationError ? error.violations.map((v) => v.field) : [];
+          const field = named[0] ?? (error instanceof ValidationError ? error.field : null);
           throw new PolicyBoundsError({
             url: error.url,
-            field: named ?? policyFieldFromMessage(detail),
+            field: field ?? policyFieldFromMessage(detail),
+            fields: named.length > 0 ? named : undefined,
             detail,
             requestId: error.requestId,
           });

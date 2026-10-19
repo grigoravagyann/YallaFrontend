@@ -6,6 +6,7 @@ import {
   staleTime,
 } from '@yalla/api';
 import { useGateway } from '@yalla/api/react';
+import { branchDayKey } from '@yalla/format';
 import { useTranslation } from '@yalla/i18n';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
@@ -26,6 +27,8 @@ const MAX_TEXT = 1000;
 export interface ReviewComposerProps {
   /** The branch id — the place's own id. */
   readonly placeId: string;
+  /** The place's zone: the venue's reply is dated on the place's own calendar. */
+  readonly timeZoneId?: string | undefined;
   /**
    * Stars already chosen elsewhere — the rating on a closed bill — so the
    * form opens with them filled in. The diner still writes and saves.
@@ -46,7 +49,7 @@ export interface ReviewComposerProps {
  * review needs a visit in the last 180 days (K8), and the refusal says exactly
  * that. The review is public under the name shown above the stars.
  */
-export function ReviewComposer({ placeId, initialRating, style }: ReviewComposerProps) {
+export function ReviewComposer({ placeId, timeZoneId, initialRating, style }: ReviewComposerProps) {
   const { t } = useTranslation('diner');
   const signedIn = useSession((state) => state.signedIn);
   const profile = useSession((state) => state.profile);
@@ -74,13 +77,14 @@ export function ReviewComposer({ placeId, initialRating, style }: ReviewComposer
   return (
     <VerifiedComposer
       placeId={placeId}
+      timeZoneId={timeZoneId}
       initialRating={initialRating}
       {...(style ? { style } : {})}
     />
   );
 }
 
-function VerifiedComposer({ placeId, initialRating, style }: ReviewComposerProps) {
+function VerifiedComposer({ placeId, timeZoneId, initialRating, style }: ReviewComposerProps) {
   const { t } = useTranslation('diner');
   const gateway = useGateway();
   const queryClient = useQueryClient();
@@ -166,8 +170,10 @@ function VerifiedComposer({ placeId, initialRating, style }: ReviewComposerProps
             text: mine.data.reply.text,
             authorName: mine.data.reply.authorName,
             authorRole: mine.data.reply.authorRole,
-            date: mine.data.reply.updatedAtUtc.slice(0, 10),
+            date: branchDayKey(mine.data.reply.updatedAtUtc, timeZoneId ?? 'Asia/Yerevan'),
             edited: mine.data.reply.edited,
+            reviewEditedAfter:
+              Date.parse(mine.data.updatedAtUtc) > Date.parse(mine.data.reply.updatedAtUtc),
           }}
         />
       ) : null}

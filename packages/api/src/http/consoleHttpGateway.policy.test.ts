@@ -80,6 +80,7 @@ describe('a policy refusal', () => {
 
     expect(refusal).toBeInstanceOf(PolicyBoundsError);
     expect((refusal as PolicyBoundsError).field).toBe('graceMinutes');
+    expect((refusal as PolicyBoundsError).fields).toEqual(['graceMinutes', 'turnTimeMinutes']);
   });
 
   it("still reads the field out of an older server's 400 prose", async () => {
@@ -97,5 +98,6 @@ describe('a policy refusal', () => {
     );
 
     expect((refusal as PolicyBoundsError).field).toBe('turnTimeMinutes');
+    expect((refusal as PolicyBoundsError).fields).toEqual(['turnTimeMinutes']);
   });
 });

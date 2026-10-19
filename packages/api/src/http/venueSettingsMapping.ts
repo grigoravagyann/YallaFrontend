@@ -306,26 +306,18 @@ export function reservationPolicy(view: WirePolicy): ReservationPolicy {
   };
 }
 
-/**
- * `GET …/reservation-policy/defaults` (VC4 wire §2). Written by hand until the
- * generated schema carries the route: the defaults are the policy's own view,
- * and each bound names its field the way the wire does.
- */
-export interface WirePolicyDefaults {
-  readonly defaults: WirePolicy;
-  readonly bounds?: readonly {
-    readonly field?: string | null;
-    readonly min: number;
-    readonly max?: number | null;
-  }[];
-}
+/** `GET …/reservation-policy/defaults` (VC4 wire §2): the bound's `max` is left out when there is no ceiling. */
+export type WirePolicyDefaults =
+  Schemas['Yalla.Application.BranchSettings.ReservationPolicyDefaultsView'];
 
 export function policyDefaults(view: WirePolicyDefaults): ReservationPolicyDefaults {
   return {
     defaults: reservationPolicy(view.defaults),
-    bounds: (view.bounds ?? [])
-      .filter((bound) => Boolean(bound.field))
-      .map((bound) => ({ field: bound.field ?? '', min: bound.min, max: bound.max ?? null })),
+    bounds: view.bounds.map((bound) => ({
+      field: bound.field,
+      min: bound.min,
+      max: bound.max ?? null,
+    })),
   };
 }
 

@@ -7,7 +7,7 @@ import {
 } from '@yalla/api/react';
 import { intlTag } from '@yalla/format';
 import { useLocale, useTranslation, type Locale } from '@yalla/i18n';
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { QueryFailureNotice } from '../../../components/QueryFailureNotice';
 import { InfoIcon, PhoneIcon } from '../../ui/icons';
 import { PageHeader } from '../../ui/PageHeader';
@@ -146,9 +146,19 @@ function PolicyForm({
   /** As last loaded or saved: what "discard" goes back to. */
   const [saved, setSaved] = useState<PolicyDraft>(initial);
   const [draft, setDraft] = useState<PolicyDraft>(initial);
-  /** A field the server refused that this form thought was fine. */
-  const [refused, setRefused] = useState<keyof ReservationPolicy | null>(null);
+  /** The fields the last save's refusal named: marked until they are edited. */
+  const [refused, setRefused] = useState<ReadonlySet<keyof ReservationPolicy>>(() => new Set());
   const [result, setResult] = useState<{ readonly affected: number } | null>(null);
+  /**
+   * The field a refused save sends the cursor to, once the inputs the save
+   * disabled are enabled again: focusing a disabled input does nothing.
+   */
+  const focusTo = useRef<keyof ReservationPolicy | null>(null);
+  useEffect(() => {
+    if (!focusTo.current || save.isPending) return;
+    document.getElementById(inputId(focusTo.current))?.focus();
+    focusTo.current = null;
+  });
 
   const dirtyKeys = changedFields(draft, saved);
   const dirty = dirtyKeys.length > 0;
@@ -160,7 +170,12 @@ function PolicyForm({
     setDraft((current) => ({ ...current, [key]: value }));
     // A result is about the policy that was saved; editing starts a new one.
     setResult(null);
-    if (refused === key) setRefused(null);
+    setRefused((current) => {
+      if (!current.has(key)) return current;
+      const next = new Set(current);
+      next.delete(key);
+      return next;
+    });
   }
 
   function onSave() {
@@ -178,7 +193,7 @@ function PolicyForm({
       toast.say(t('policy.noChanges'));
       return;
     }
-    setRefused(null);
+    setRefused(new Set());
     save.mutate(draft as ReservationPolicy, {
       onSuccess: (outcome) => {
         setSaved(outcome.policy);
@@ -187,9 +202,10 @@ function PolicyForm({
       },
       onError: (error) => {
         const refusal = refusalFor(error);
-        if (refusal?.field) {
-          setRefused(refusal.field);
-          document.getElementById(inputId(refusal.field))?.focus();
+        const first = refusal?.fields[0];
+        if (refusal && first) {
+          setRefused(new Set(refusal.fields));
+          focusTo.current = first;
         }
         toast.say(t('policy.saveFailed'), { tone: 'error' });
       },
@@ -261,6 +277,7 @@ function PolicyForm({
                 {changed > 0 ? (
                   <span
                     className="yc-toc-n"
+                    role="img"
                     aria-label={t('policy.tocChanged', { count: changed })}
                   >
                     {changed}
@@ -294,7 +311,7 @@ function PolicyForm({
                   policy={draft}
                   shipped={defaults[field.key]}
                   invalid={invalid.includes(field.key)}
-                  refused={refused === field.key}
+                  refused={refused.has(field.key)}
                   disabled={save.isPending}
                   onChange={set}
                 />
@@ -321,7 +338,7 @@ function PolicyForm({
             disabled={save.isPending}
             onClick={() => {
               setDraft(saved);
-              setRefused(null);
+              setRefused(new Set());
               toast.say(t('policy.discarded'));
             }}
           >
@@ -447,14 +464,21 @@ function PolicyField({
           />
         )}
         {error ? (
-          <span className="yc-err" id={errorId} role="alert">
+          // Said at once only when a save was refused; while typing, the
+          // field points at it (`aria-describedby`) rather than interrupting.
+          <span className="yc-err" id={errorId} role={refused ? 'alert' : undefined}>
             {error}
           </span>
         ) : null}
         <span className="yc-pf-d">
           {t('policy.default', { value: shippedText })}
           {changed ? (
-            <button type="button" className="yc-lnk" onClick={() => onChange(key, shipped)}>
+            <button
+              type="button"
+              className="yc-lnk"
+              disabled={disabled}
+              onClick={() => onChange(key, shipped)}
+            >
               {t('policy.reset')}
             </button>
           ) : null}

@@ -46,9 +46,15 @@ const PAGE_SIZE = 20;
  * - **Yalla has the last word.** A review the Yalla team hid shows why in
  *   place of "Show again"; if they hide one after this list was read, the
  *   server's refusal locks the row the same way.
- * - **Undo** from the toast takes back exactly what was done: a first reply is
- *   taken down, an edit goes back to the words before, a hide is shown again
- *   and a "show again" hidden again with the same reason.
+ * - **Undo** from the toast takes back what was done: a first reply is taken
+ *   down, a hide is shown again and a "show again" hidden again with the same
+ *   reason. An edit's undo puts the words before back — but as a new save, so
+ *   the reply stays marked edited and is signed by whoever pressed Undo; the
+ *   server keeps no earlier writer to return to.
+ * - **A reply is first only if the server says so.** A list read before a
+ *   colleague answered offers "Reply" on a review that already has one; the
+ *   save then changes the colleague's reply, and the toast says "changed",
+ *   with no undo — taking it down would delete their words.
  */
 export function VenueReviewsScreen() {
   const { t } = useTranslation(['admin', 'common']);
@@ -166,35 +172,56 @@ function VenueReviews({
     });
   }
 
-  /** Write or change the reply; null takes it down (an undo of a first reply). */
-  async function writeReply(review: VenueModeratedReview, text: string | null): Promise<boolean> {
+  /**
+   * Write or change the reply; null takes it down (an undo of a first reply).
+   * The review as the server answers it, or null when it refused.
+   */
+  async function writeReply(
+    review: VenueModeratedReview,
+    text: string | null,
+  ): Promise<VenueModeratedReview | null> {
     setFailure(null);
     try {
-      await reply.mutateAsync({ reviewId: review.reviewId, text });
-      return true;
+      return await reply.mutateAsync({ reviewId: review.reviewId, text });
     } catch (error) {
-      setFailure(
-        error instanceof ReviewHiddenNoReplyError ? t('reviews.reply.hidden') : t('reviews.failed'),
-      );
-      return false;
+      if (error instanceof ReviewHiddenNoReplyError) {
+        // Hidden since the list was read, by the venue or by Yalla: the form
+        // closes, and the row's own action — "Show again", or the filter
+        // when Yalla's lock leaves none — takes the focus once it is fresh.
+        setEditing(null);
+        focusAfter(actionId(review), fetchedAt.current);
+        setFailure(t('reviews.reply.hidden'));
+      } else {
+        setFailure(t('reviews.failed'));
+      }
+      return null;
     }
   }
 
   async function sendReply(review: VenueModeratedReview, text: string) {
     const before = review.reply?.text ?? null;
     const since = fetchedAt.current;
-    if (!(await writeReply(review, text))) return;
+    const saved = await writeReply(review, text);
+    if (!saved) return;
     setEditing(null);
     focusAfter(replyId(review), since);
+    const undoTo = (words: string | null) => () => {
+      const undoneSince = fetchedAt.current;
+      void writeReply(review, words).then((done) => {
+        if (done) focusAfter(replyId(review), undoneSince);
+      });
+    };
     // A first reply tells the reviewer in the app; an edit tells nobody.
-    toast.say(before === null ? t('reviews.reply.published') : t('reviews.reply.updated'), {
-      undo: () => {
-        const undoneSince = fetchedAt.current;
-        void writeReply(review, before).then((done) => {
-          if (done) focusAfter(replyId(review), undoneSince);
-        });
-      },
-    });
+    const first = before === null && saved.reply !== null && !saved.reply.edited;
+    if (first) {
+      toast.say(t('reviews.reply.published'), { undo: undoTo(null) });
+    } else if (before === null) {
+      // Somebody else answered first: this changed their reply. Nothing here
+      // knows their words, so there is nothing to put back.
+      toast.say(t('reviews.reply.updated'));
+    } else {
+      toast.say(t('reviews.reply.updated'), { undo: undoTo(before) });
+    }
   }
 
   const isReported = (review: VenueModeratedReview) => review.reportCount > 0 && !review.hidden;
@@ -255,7 +282,12 @@ function VenueReviews({
         {items.map((review) => {
           const lockedHere =
             review.hidden && (review.hiddenByPlatform || locked.has(review.reviewId));
-          const open = editing?.reviewId === review.reviewId ? editing.kind : null;
+          // A reply form closes once a fresh list shows the review hidden: the
+          // server would refuse what is typed in it.
+          const open =
+            editing?.reviewId === review.reviewId && !(editing.kind === 'reply' && review.hidden)
+              ? editing.kind
+              : null;
           return (
             <ReviewCard
               key={review.reviewId}

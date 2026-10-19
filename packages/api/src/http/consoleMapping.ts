@@ -29,26 +29,17 @@ import {
   approvalTrigger,
   type WireReservationWithApproval,
 } from './approvalMapping';
-import {
-  reviewReplyFromWire,
-  reviewSummaryFromWire,
-  type WireReviewReply,
-  type WireReviewSummary,
-} from './reviewReplyMapping';
+import { reviewReplyFromWire, reviewSummaryFromWire } from './reviewReplyMapping';
 import { venueTypeFromCode } from './venueTypeMapping';
 
 type Schemas = components['schemas'];
-/** With the VC4 additions (wire §1), until the generated schema carries them. */
-export type WireModeratedReview = Schemas['Yalla.Application.Reviews.ModeratedReviewView'] & {
-  readonly reply?: WireReviewReply | null;
-  readonly hiddenByName?: string | null;
-};
+export type WireModeratedReview = Schemas['Yalla.Application.Reviews.ModeratedReviewView'];
+/** `summary` optional: a server that predates it (VC4 wire §1) sends none. */
 type WireModeratedReviewPage = Omit<
   Schemas['Yalla.Application.Reviews.ModeratedReviewPage'],
-  'items'
+  'summary'
 > & {
-  readonly items?: readonly WireModeratedReview[] | null;
-  readonly summary?: WireReviewSummary | null;
+  readonly summary?: Schemas['Yalla.Application.Reviews.ModeratedReviewSummary'];
 };
 type WireVenue = Schemas['Yalla.Application.Platform.VenueSummary'];
 type WireBranch = Schemas['Yalla.Application.Platform.BranchSummary'];

@@ -6812,6 +6812,14 @@ textarea.yc-ctl {
   margin: 2px 0 0;
 }
 
+/* The guest changed the review after this answer: said under it, in amber. */
+.yc .yc-reply .yc-reply-note {
+  display: block;
+  margin-top: 4px;
+  color: var(--console-amber);
+  font-weight: var(--font-weight-semibold);
+}
+
 .yc-replybox {
   display: flex;
   flex-direction: column;

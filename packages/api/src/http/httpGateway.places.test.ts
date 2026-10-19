@@ -115,6 +115,22 @@ describe('places over /api/public/branches', () => {
           updatedAtUtc: '2026-09-11T10:00:00Z',
           edited: true,
         },
+        {
+          reviewId: 'r2',
+          authorName: 'Tigran M.',
+          rating: 4,
+          createdAtUtc: '2026-09-10T10:00:00Z',
+          updatedAtUtc: '2026-09-10T10:00:00Z',
+          edited: false,
+          // Signed short; the API leaves the name out where the rule drops it.
+          reply: {
+            text: 'Thank you!',
+            authorRole: 6,
+            createdAtUtc: '2026-09-12T10:00:00Z',
+            updatedAtUtc: '2026-09-12T10:00:00Z',
+            edited: false,
+          },
+        },
       ],
       rooms: [
         { roomId: 'r-empty', name: 'Cellar', displayOrder: 0, photos: [] },
@@ -156,6 +172,12 @@ describe('places over /api/public/branches', () => {
       { day: 1, opensAt: '18:00', closesAt: '02:00', closesNextDay: true },
     ]);
     expect(read?.recentReviews[0]?.text).toBeNull();
+    expect(read?.recentReviews[0]?.reply).toBeNull();
+    expect(read?.recentReviews[1]?.reply).toMatchObject({
+      text: 'Thank you!',
+      authorName: null,
+      authorRole: 'generalManager',
+    });
     // A room with no photo is not a room a diner can pick.
     expect(read?.rooms.map((room) => room.name)).toEqual(['Hall']);
     expect(read?.rooms[0]?.photos[0]?.photo.fullUrl).toBe(`${BASE_URL}/api/photos/p9/full`);

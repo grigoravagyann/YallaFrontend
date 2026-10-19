@@ -4005,6 +4005,25 @@ export function createConsoleMockGateway(options: ConsoleMockOptions = {}): Cons
       return toVenueModerated(review);
     },
 
+    async removePlatformReviewReply(reviewId) {
+      await wait();
+      const url = `${URL_TAG}/platform/reviews/${reviewId}/reply`;
+      if (role !== 'platformAdmin') throw new ForbiddenError({ url });
+      const review = reviewStore.find(reviewId);
+      if (!review) throw new NotFoundError({ url });
+      // Idempotent, as on the server: no reply writes nothing.
+      if (review.reply) {
+        reviewStore.removeReply(reviewId);
+        const venueId = venueOfBranch(review.branchId);
+        log(
+          'review.remove-reply',
+          { type: 'BranchReview', id: reviewId, name: branchName(review.branchId) },
+          venueId ? (venues.get(venueId) ?? null) : null,
+        );
+      }
+      return toVenueModerated(review);
+    },
+
     /** The platform's word is final: it can hide anything, and restore what the venue hid. */
     async setReviewVisibility(reviewId, command) {
       await wait();

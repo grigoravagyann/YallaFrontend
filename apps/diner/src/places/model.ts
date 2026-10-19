@@ -98,11 +98,14 @@ export interface Review {
 /** The venue's reply as the place page shows it: the words, who signed them, and the day. */
 export interface ReviewReplyView {
   readonly text: string;
-  readonly authorName: string;
+  /** Signed short by the server ("Aram H."); null when the role signs alone. */
+  readonly authorName: string | null;
   readonly authorRole: 'owner' | 'generalManager' | 'manager';
   /** ISO-8601 date, `YYYY-MM-DD`, of the last change, in the branch's zone. */
   readonly date: string;
   readonly edited: boolean;
+  /** The diner changed the review after this answer: it may no longer fit. */
+  readonly reviewEditedAfter: boolean;
 }
 
 /** One page of a place's reviews, newest first. */

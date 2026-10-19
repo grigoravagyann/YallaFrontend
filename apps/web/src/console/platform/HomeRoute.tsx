@@ -861,6 +861,9 @@ function sentence(entry: PlatformActivityEntry, t: Translate): string {
       return t('home.activity.action.reviewDismiss', { target });
     case 'review.restore-reports':
       return t('home.activity.action.reviewRestore', { target });
+    case 'review.remove-reply':
+      // Shown only when the platform took a venue's reply down (VC4 wire).
+      return t('home.activity.action.reviewRemoveReply', { target });
     case 'table.regenerate-qr':
       return t('home.activity.action.tableQr', { target });
     // The platform admin's own account, and a venue person's (My account):

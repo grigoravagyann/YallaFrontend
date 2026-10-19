@@ -1562,7 +1562,8 @@
       "edit": "Change the reply",
       "published": "The reply is published · the guest will get a notification",
       "updated": "The reply is changed",
-      "hidden": "A hidden review cannot be replied to. Show it again first."
+      "hidden": "This review was hidden in the meantime, so it cannot be replied to.",
+      "reviewEditedAfter": "The guest edited the review after this reply."
     },
     "summary": {
       "up": "↑ {{change}} in the last 30 days",
@@ -2002,6 +2003,12 @@
       "personal": "Personal details: a phone number, a surname",
       "elsewhere": "Written about somewhere else",
       "lowRating": "A low rating alone is no reason to hide a review."
+    },
+    "reply": {
+      "remove": "Remove the reply",
+      "confirmTitle": "Remove the venue's reply?",
+      "confirmBody": "Guests will no longer see it under {{name}}'s review. Only the venue can write a reply, so this cannot be undone.",
+      "removed": "The venue's reply was removed"
     }
   },
   "home": {
@@ -2119,7 +2126,8 @@
         "rename": "changed their name",
         "password": "changed their password",
         "other": "made a change",
-        "signOutOthers": "signed out of their other devices"
+        "signOutOthers": "signed out of their other devices",
+        "reviewRemoveReply": "removed the venue's reply on a review at {{target}}"
       }
     }
   },

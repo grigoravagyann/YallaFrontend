@@ -22,7 +22,7 @@ import { absolutePhoto } from './photoUrl';
 import { photo } from './venueSettingsMapping';
 import { venueTypeFromCode } from './venueTypeMapping';
 
-import { reviewReplyFromWire, type WireReviewReply } from './reviewReplyMapping';
+import { publicReplyFromWire, type WirePublicReviewReply } from './reviewReplyMapping';
 export { venueTypeCode, venueTypeFromCode } from './venueTypeMapping';
 
 type Schemas = components['schemas'];
@@ -35,15 +35,15 @@ export type WireReviewPage = Omit<
 > & {
   reviews?: WireReview[];
 };
-/** With the venue's reply (VC4 wire §1), until the generated schema carries it. */
-export type WireReview = Schemas['Yalla.Application.Public.PublicReviewView'] & {
-  readonly reply?: WireReviewReply | null;
+/** The reply signed short (`PublicReviewReplyView`), until the generated schema says so. */
+export type WireReview = Omit<Schemas['Yalla.Application.Public.PublicReviewView'], 'reply'> & {
+  readonly reply?: WirePublicReviewReply | null;
 };
 export type WireTableMarker = Schemas['Yalla.Application.Public.PublicTableMarker'];
 export type WireRoom = Schemas['Yalla.Application.Public.PublicRoom'];
 export type WireRooms = Schemas['Yalla.Application.Public.PublicBranchRooms'];
-export type WireDinerReview = Schemas['Yalla.Application.Diners.DinerReviewView'] & {
-  readonly reply?: WireReviewReply | null;
+export type WireDinerReview = Omit<Schemas['Yalla.Application.Diners.DinerReviewView'], 'reply'> & {
+  readonly reply?: WirePublicReviewReply | null;
 };
 export type WireDinerOrder = Schemas['Yalla.Application.Diners.DinerOrderView'];
 export type WireFavorite = Schemas['Yalla.Application.Diners.DinerFavoriteView'];
@@ -161,7 +161,7 @@ export function branchReviewFromWire(wire: WireReview): BranchReview {
     // The server's flag (K8). A server that predates it never sends one, and
     // there a revision is exactly a later `updatedAtUtc`.
     edited: wire.edited ?? wire.updatedAtUtc !== wire.createdAtUtc,
-    reply: reviewReplyFromWire(wire.reply),
+    reply: publicReplyFromWire(wire.reply),
   };
 }
 
@@ -265,7 +265,7 @@ export function myReviewFromWire(wire: WireDinerReview): MyBranchReview {
     updatedAtUtc: wire.updatedAtUtc,
     publicAuthorName: orNull(wire.publicAuthorName),
     hidden: Boolean(wire.hidden),
-    reply: reviewReplyFromWire(wire.reply),
+    reply: publicReplyFromWire(wire.reply),
   };
 }
 

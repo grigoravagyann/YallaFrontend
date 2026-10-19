@@ -37,7 +37,7 @@ describe('a bounds rejection from the server', () => {
     );
 
     expect(refusal).not.toBeNull();
-    expect(refusal?.field).toBe('turnTimeMinutes');
+    expect(refusal?.fields).toEqual(['turnTimeMinutes']);
     // The server's own sentence, verbatim. It already contains the bounds and
     // the value given, which is more than the client knows how to say.
     expect(refusal?.message).toContain('between 15 and 360');
@@ -54,8 +54,20 @@ describe('a bounds rejection from the server', () => {
 
     // Wrong-looking, and never silent. A refusal swallowed because the mapping
     // missed is a save button that does nothing.
-    expect(refusal?.field).toBeNull();
+    expect(refusal?.fields).toEqual([]);
     expect(refusal?.message).toBe('Something the client has never heard of was rejected.');
+  });
+
+  it('names every field a 422 listed that the form has, in its order', () => {
+    const refusal = refusalFor(
+      new PolicyBoundsError({
+        url: '/api/branches/b1/reservation-policy',
+        field: 'graceMinutes',
+        fields: ['graceMinutes', 'somethingNew', 'turnTimeMinutes'],
+        detail: 'Two fields are out of bounds.',
+      }),
+    );
+    expect(refusal?.fields).toEqual(['graceMinutes', 'turnTimeMinutes']);
   });
 
   it('is not produced for an error that is not a bounds refusal', () => {

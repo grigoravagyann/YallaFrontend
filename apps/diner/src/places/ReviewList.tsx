@@ -162,10 +162,11 @@ export function ReplyView({ reply }: { readonly reply: NonNullable<Review['reply
   );
   const parsed = new Date(reply.date);
   const date = Number.isNaN(parsed.getTime()) ? reply.date : format.format(parsed);
-  const by = t('place.review.reply.signature', {
-    name: reply.authorName,
-    role: t(`place.review.reply.role.${reply.authorRole}`),
-  });
+  const role = t(`place.review.reply.role.${reply.authorRole}`);
+  // The server drops a name that looks like contact details: the role signs alone.
+  const by = reply.authorName
+    ? t('place.review.reply.signature', { name: reply.authorName, role })
+    : t('place.review.reply.roleOnly', { role });
   return (
     <View style={styles.reply}>
       <Text style={styles.replyBy}>{t('place.review.reply.from', { by })}</Text>
@@ -173,6 +174,9 @@ export function ReplyView({ reply }: { readonly reply: NonNullable<Review['reply
       <Text style={styles.reviewDate}>
         {reply.edited ? t('place.review.reply.editedOn', { date }) : date}
       </Text>
+      {reply.reviewEditedAfter ? (
+        <Text style={styles.reviewDate}>{t('place.review.reply.reviewEditedAfter')}</Text>
+      ) : null}
     </View>
   );
 }
