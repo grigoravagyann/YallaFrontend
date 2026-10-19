@@ -1139,17 +1139,21 @@ export class OverlappingHoursError extends ApiError {
 export class PolicyBoundsError extends ApiError {
   /** The client's field name, or `null` when the message named nothing known. */
   readonly field: string | null;
+  /** Every field the refusal named — a 422 names all of them — `field` first. */
+  readonly fields: readonly string[];
   readonly detail: string;
 
   constructor(options: {
     url: string;
     field: string | null;
+    fields?: readonly string[] | undefined;
     detail: string;
     requestId?: string | undefined;
   }) {
     super(options.detail, { status: 400, url: options.url, requestId: options.requestId });
     this.name = 'PolicyBoundsError';
     this.field = options.field;
+    this.fields = options.fields ?? (options.field ? [options.field] : []);
     this.detail = options.detail;
   }
 }
@@ -1570,6 +1574,24 @@ export class ReviewHiddenByPlatformError extends ApiError {
       requestId: options.requestId,
     });
     this.name = 'ReviewHiddenByPlatformError';
+    this.reviewId = options.reviewId;
+  }
+}
+
+/**
+ * A hidden review takes no reply — `conflicting-state`, 409 (VC4 wire §1).
+ * One the venue hid can be shown again first; one Yalla hid never can.
+ */
+export class ReviewHiddenNoReplyError extends ApiError {
+  readonly reviewId: string;
+
+  constructor(options: RefusalOptions & { reviewId: string }) {
+    super('A hidden review cannot be replied to.', {
+      status: 409,
+      url: options.url,
+      requestId: options.requestId,
+    });
+    this.name = 'ReviewHiddenNoReplyError';
     this.reviewId = options.reviewId;
   }
 }

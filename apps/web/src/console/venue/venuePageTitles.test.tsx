@@ -45,15 +45,24 @@ const PAGES: readonly (readonly [string, string])[] = [
   ['/venue/account', 'My account'],
 ];
 
+// Each page is a lazy chunk compiled on first import; on a busy CI runner the
+// Reports chunk (charts) has taken over 5 s. The wait is for the import, not
+// for the page: the heading itself renders at once.
+const LAZY_CHUNK_MS = 20_000;
+
 describe('every venue page', () => {
-  it.each(PAGES)('%s has one h1: "%s"', async (path, title) => {
-    const gateway = createConsoleMockGateway({ latencyMs: 0, role: 'owner' });
-    const user = await gateway.getCurrentUser();
-    const harness = createConsoleHarness({ gateway });
-    render(harness.wrap(<AppRoutes user={user} />, path));
-    expect(
-      await screen.findByRole('heading', { level: 1, name: title }, { timeout: 5000 }),
-    ).toBeTruthy();
-    await waitFor(() => expect(screen.getAllByRole('heading', { level: 1 })).toHaveLength(1));
-  });
+  it.each(PAGES)(
+    '%s has one h1: "%s"',
+    async (path, title) => {
+      const gateway = createConsoleMockGateway({ latencyMs: 0, role: 'owner' });
+      const user = await gateway.getCurrentUser();
+      const harness = createConsoleHarness({ gateway });
+      render(harness.wrap(<AppRoutes user={user} />, path));
+      expect(
+        await screen.findByRole('heading', { level: 1, name: title }, { timeout: LAZY_CHUNK_MS }),
+      ).toBeTruthy();
+      await waitFor(() => expect(screen.getAllByRole('heading', { level: 1 })).toHaveLength(1));
+    },
+    LAZY_CHUNK_MS + 5_000,
+  );
 });

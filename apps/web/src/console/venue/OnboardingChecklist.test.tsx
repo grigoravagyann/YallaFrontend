@@ -4,6 +4,7 @@ import { cleanup, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { Outlet, Route, Routes } from 'react-router-dom';
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
+import { ToastProvider } from '../ui/toast';
 import { OnboardingChecklist } from './OnboardingChecklist';
 import { ReservationPolicyScreen } from './policy/ReservationPolicyScreen';
 import { createConsoleHarness, initConsoleTestI18n } from './reports/testHarness';
@@ -37,19 +38,21 @@ function renderOverviewWithPolicy(gateway: ConsoleGateway) {
   };
   render(
     harness.wrap(
-      <Routes>
-        <Route path="/venue" element={<Outlet context={context} />}>
-          <Route
-            index
-            element={
-              <>
-                <OnboardingChecklist />
-                <ReservationPolicyScreen />
-              </>
-            }
-          />
-        </Route>
-      </Routes>,
+      <ToastProvider>
+        <Routes>
+          <Route path="/venue" element={<Outlet context={context} />}>
+            <Route
+              index
+              element={
+                <>
+                  <OnboardingChecklist />
+                  <ReservationPolicyScreen />
+                </>
+              }
+            />
+          </Route>
+        </Routes>
+      </ToastProvider>,
       '/venue',
     ),
   );

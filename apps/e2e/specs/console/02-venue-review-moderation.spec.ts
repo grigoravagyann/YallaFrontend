@@ -38,24 +38,28 @@ test('The branch manager hides a reported review with a reason, and the public l
   await signInConsole(page, manager.email, manager.password);
 
   await page.getByRole('link', { name: 'Reviews', exact: true }).click();
-  await page.getByRole('button', { name: 'Reported', exact: true }).click();
+  // The filters carry the branch's counts since the venue console redesign
+  // (phase 4): "Reported 1", not "Reported".
+  const filters = page.getByRole('group', { name: 'Filter' });
+  await filters.getByRole('button', { name: /^Reported/u }).click();
 
-  const row = page.getByRole('listitem').filter({ hasText: text });
+  // Each review is an article since the redesign, no longer a list item.
+  const row = page.getByRole('article').filter({ hasText: text });
   await expect(row.getByText('1 report', { exact: true })).toBeVisible();
 
   await row.getByRole('button', { name: 'Hide', exact: true }).click();
-  await row.getByLabel('Reason').fill('Advertising, reported by a diner');
-  await row.getByRole('button', { name: 'Hide', exact: true }).click();
+  await row.getByRole('textbox', { name: 'Reason' }).fill('Advertising, reported by a diner');
+  await row.getByRole('button', { name: 'Hide the review', exact: true }).click();
   // Hidden, it is no longer "reported" (the server lists only visible reviews
   // with open reports there): it leaves this list…
   await expect(row).toHaveCount(0);
   // …and is under Hidden, with the reason the venue gave and the way back.
-  await page.getByRole('button', { name: 'Hidden', exact: true }).click();
-  const hiddenRow = page.getByRole('listitem').filter({ hasText: text });
-  await expect(
-    hiddenRow.getByText('Reason: Advertising, reported by a diner', { exact: true }),
-  ).toBeVisible();
+  await filters.getByRole('button', { name: /^Hidden/u }).click();
+  const hiddenRow = page.getByRole('article').filter({ hasText: text });
+  await expect(hiddenRow.getByText(/Advertising, reported by a diner · Hidden by /u)).toBeVisible();
   await expect(hiddenRow.getByRole('button', { name: 'Show again' })).toBeVisible();
+  // A hidden review takes no reply (VC4 wire §1).
+  await expect(hiddenRow.getByRole('button', { name: 'Reply' })).toHaveCount(0);
 
   await expect
     .poll(async () =>
@@ -67,6 +71,52 @@ test('The branch manager hides a reported review with a reason, and the public l
   await expect
     .poll(async () => (await publicReviews(api, demo.branchId)).map((r) => r.reviewId))
     .not.toContain(reviewId);
+
+  await api.dispose();
+});
+
+/**
+ * Venue console phase 4: the branch manager answers a review from the
+ * console, and the answer is public under it, signed.
+ */
+test('The branch manager replies to a review, and the public list shows the reply under it', async ({
+  page,
+}) => {
+  const api = await newApi();
+  const demo = await demoBranch(api);
+
+  const author = await registerDiner(api);
+  // A table of its own: table 4 still has the first test's tab open, and a
+  // second diner scanning it waits for that host's approval, which is not a
+  // visit the server lets them review (review-needs-visit).
+  await openTab(api, author, (await tableByLabel(api, demo.branchId, '7')).qrToken);
+  const text = `Reply check ${uniqueTag()}: the terrace was lovely.`;
+  const { reviewId } = await postReview(api, author, demo.branchId, { rating: 5, text });
+
+  const manager = await managerSession(api);
+  await signInConsole(page, manager.email, manager.password);
+  await page.getByRole('link', { name: 'Reviews', exact: true }).click();
+
+  const row = page.getByRole('article').filter({ hasText: text });
+  await row.getByRole('button', { name: 'Reply', exact: true }).click();
+  const answer = `Thank you, come again! ${uniqueTag()}`;
+  await row.getByRole('textbox', { name: 'Reply to the guest' }).fill(answer);
+  await row.getByRole('button', { name: 'Publish the reply' }).click();
+
+  await expect(
+    page
+      .getByRole('status')
+      .getByText('The reply is published · the guest will get a notification'),
+  ).toBeVisible();
+  await expect(row.getByText(answer, { exact: true })).toBeVisible();
+  await expect(row.getByRole('button', { name: 'Change the reply' })).toBeVisible();
+
+  await expect
+    .poll(
+      async () =>
+        (await publicReviews(api, demo.branchId)).find((r) => r.reviewId === reviewId)?.reply?.text,
+    )
+    .toBe(answer);
 
   await api.dispose();
 });

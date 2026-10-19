@@ -32,6 +32,7 @@ import {
   CategoryInUseError,
   RelocationNotAllowedError,
   ReviewHiddenByPlatformError,
+  ReviewHiddenNoReplyError,
   OutOfScopeError,
   OverlappingHoursError,
   PolicyBoundsError,
@@ -62,8 +63,11 @@ import type { BranchPublicProfile } from '../contracts/publicProfile';
 import type { BranchReadiness } from '../contracts/readiness';
 import {
   MAX_MODERATION_TEXT,
+  MAX_REVIEW_REPLY,
   REVIEW_MODERATION_FILTERS,
+  summariseReviews,
   type ModeratedReview,
+  type ModeratedReviewPage,
   type SetReviewVisibilityCommand,
   type VenueModeratedReview,
   type VenueReviewQuery,
@@ -115,6 +119,7 @@ import type {
   HoursBlock,
   PolicyChangeResult,
   ReservationPolicy,
+  ReservationPolicyDefaults,
   SpecialDay,
   SpecialDaysList,
   SpecialDaysSaved,
@@ -2292,6 +2297,8 @@ export function createConsoleMockGateway(options: ConsoleMockOptions = {}): Cons
       hiddenReason: review.hiddenReason,
       hiddenAtUtc: review.hiddenAtUtc,
       hiddenByPlatform: review.hiddenBy === 'platform',
+      hiddenByName: review.hiddenBy === 'venue' ? review.hiddenByName : null,
+      reply: review.reply,
     };
   }
 
@@ -2304,7 +2311,7 @@ export function createConsoleMockGateway(options: ConsoleMockOptions = {}): Cons
     url: string,
     branchId: string,
     query: VenueReviewQuery,
-  ): Page<VenueModeratedReview> {
+  ): ModeratedReviewPage {
     const page = query.page ?? 1;
     const pageSize = query.pageSize ?? REVIEW_PAGE_SIZE;
     const filter = query.filter ?? 'all';
@@ -2317,17 +2324,15 @@ export function createConsoleMockGateway(options: ConsoleMockOptions = {}): Cons
     if (!REVIEW_MODERATION_FILTERS.includes(filter)) {
       throw invalidRequest(url, 'filter', 'The filter is all, reported or hidden.');
     }
-    const rows = reviewStore
-      .all(branchId)
-      .map(toVenueModerated)
-      .filter((review) =>
-        // A hidden review is not "reported": the platform already acted on it.
-        filter === 'reported'
-          ? review.reportCount > 0 && !review.hidden
-          : filter === 'hidden'
-            ? review.hidden
-            : true,
-      );
+    const everyReview = reviewStore.all(branchId).map(toVenueModerated);
+    const rows = everyReview.filter((review) =>
+      // A hidden review is not "reported": the platform already acted on it.
+      filter === 'reported'
+        ? review.reportCount > 0 && !review.hidden
+        : filter === 'hidden'
+          ? review.hidden
+          : true,
+    );
     // The server orders the reported filter by the newest report, then the
     // newest written, then the id, all descending.
     if (filter === 'reported') {
@@ -2338,7 +2343,15 @@ export function createConsoleMockGateway(options: ConsoleMockOptions = {}): Cons
           b.reviewId.localeCompare(a.reviewId),
       );
     }
-    return pageOf(rows, page, pageSize);
+    return {
+      ...pageOf(rows, page, pageSize),
+      // The whole branch, whatever the filter, as the server sends it.
+      summary: summariseReviews(
+        everyReview,
+        (review) => (review as VenueModeratedReview).reportCount,
+        now(),
+      ),
+    };
   }
 
   function toVenueModerated(review: StoredReview): VenueModeratedReview {
@@ -3881,6 +3894,26 @@ export function createConsoleMockGateway(options: ConsoleMockOptions = {}): Cons
       return policyFor(branchId);
     },
 
+    async getReservationPolicyDefaults(branchId): Promise<ReservationPolicyDefaults> {
+      await wait();
+      requireBranchInVenue(branchId);
+      const venueId = venueOfBranch(branchId);
+      const type = (venueId ? venues.get(venueId)?.type : undefined) ?? 'cafe';
+      return {
+        defaults: defaultPolicyFor(type),
+        // The server's editing bounds (`ReservationPolicyLimits`), wire names and all.
+        bounds: [
+          ...Object.entries(POLICY_BOUNDS).map(([field, bound]) => ({
+            field,
+            min: bound.min,
+            max: bound.max,
+          })),
+          { field: 'maxSeatOverhang', min: 0, max: null },
+          { field: 'approvalRequiredAbovePartySize', min: 1, max: null },
+        ],
+      };
+    },
+
     // --- Bookings waiting for approval ------------------------------------------
 
     async listPendingReservations(branchId) {
@@ -3972,6 +4005,25 @@ export function createConsoleMockGateway(options: ConsoleMockOptions = {}): Cons
       return toVenueModerated(review);
     },
 
+    async removePlatformReviewReply(reviewId) {
+      await wait();
+      const url = `${URL_TAG}/platform/reviews/${reviewId}/reply`;
+      if (role !== 'platformAdmin') throw new ForbiddenError({ url });
+      const review = reviewStore.find(reviewId);
+      if (!review) throw new NotFoundError({ url });
+      // Idempotent, as on the server: no reply writes nothing.
+      if (review.reply) {
+        reviewStore.removeReply(reviewId);
+        const venueId = venueOfBranch(review.branchId);
+        log(
+          'review.remove-reply',
+          { type: 'BranchReview', id: reviewId, name: branchName(review.branchId) },
+          venueId ? (venues.get(venueId) ?? null) : null,
+        );
+      }
+      return toVenueModerated(review);
+    },
+
     /** The platform's word is final: it can hide anything, and restore what the venue hid. */
     async setReviewVisibility(reviewId, command) {
       await wait();
@@ -4006,6 +4058,52 @@ export function createConsoleMockGateway(options: ConsoleMockOptions = {}): Cons
       return moderationPage(url, branchId, query);
     },
 
+    async replyToReview(branchId, reviewId, text) {
+      await wait();
+      const url = `${URL_TAG}/branches/${branchId}/reviews/${reviewId}/reply`;
+      // The venue answers as itself: the platform does not reply for it.
+      if (role === 'platformAdmin') throw new ForbiddenError({ url });
+      requireManagerAtBranch(branchId, url);
+      const trimmed = text.trim();
+      if (trimmed === '') {
+        throw validationFailed(url, [
+          { field: 'text', message: 'Write the reply.', bound: 'required' },
+        ]);
+      }
+      if (trimmed.length > MAX_REVIEW_REPLY) {
+        throw validationFailed(url, [
+          {
+            field: 'text',
+            message: `The reply can be at most ${MAX_REVIEW_REPLY} characters.`,
+            bound: 'max',
+            max: MAX_REVIEW_REPLY,
+          },
+        ]);
+      }
+      const review = reviewStore.find(reviewId);
+      if (!review || review.branchId !== branchId) throw new NotFoundError({ url });
+      if (review.hidden) throw new ReviewHiddenNoReplyError({ url, reviewId });
+      const author = currentUser();
+      reviewStore.setReply({
+        reviewId,
+        text: trimmed,
+        authorName: author.displayName,
+        authorRole: role === 'owner' || role === 'generalManager' ? role : 'manager',
+        atUtc: now().toISOString(),
+      });
+      return toVenueModerated(review);
+    },
+
+    async removeReviewReply(branchId, reviewId) {
+      await wait();
+      const url = `${URL_TAG}/branches/${branchId}/reviews/${reviewId}/reply`;
+      if (role === 'platformAdmin') throw new ForbiddenError({ url });
+      requireManagerAtBranch(branchId, url);
+      const review = reviewStore.find(reviewId);
+      if (!review || review.branchId !== branchId) throw new NotFoundError({ url });
+      return toVenueModerated(reviewStore.removeReply(reviewId));
+    },
+
     async setVenueReviewVisibility(branchId, reviewId, command) {
       await wait();
       const url = `${URL_TAG}/branches/${branchId}/reviews/${reviewId}/visibility`;
@@ -4025,6 +4123,7 @@ export function createConsoleMockGateway(options: ConsoleMockOptions = {}): Cons
           hidden: command.hidden,
           reason,
           by: 'venue',
+          byName: currentUser().displayName,
           atUtc: now().toISOString(),
         }),
       );

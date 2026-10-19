@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ANONYMOUS_AUTHOR, publicAuthorName } from './reviews';
+import { ANONYMOUS_AUTHOR, publicAuthorName, publicReplyAuthorName } from './reviews';
 
 /** The K8 author-name rule, with the backend's own cases first. */
 describe('publicAuthorName', () => {
@@ -26,5 +26,13 @@ describe('publicAuthorName', () => {
     expect(publicAuthorName('Ani 2nd')).toBe('Ani');
     expect(publicAuthorName('Ani')).toBe('Ani');
     expect(publicAuthorName(`${'a'.repeat(30)} Brown`)).toBe(`${'a'.repeat(24)} B.`);
+  });
+});
+
+describe("a venue reply's public signature", () => {
+  it('is the short name, and nothing where the rule would hide the name', () => {
+    expect(publicReplyAuthorName('Aram Hakobyan')).toBe('Aram H.');
+    expect(publicReplyAuthorName('aram@example.test')).toBeNull();
+    expect(publicReplyAuthorName('+374 91 000 999')).toBeNull();
   });
 });

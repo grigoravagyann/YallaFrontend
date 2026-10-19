@@ -15,6 +15,7 @@ import type {
 import type { BranchReadiness } from './contracts/readiness';
 import type {
   ModeratedReview,
+  ModeratedReviewPage,
   SetReviewVisibilityCommand,
   VenueModeratedReview,
   VenueReviewQuery,
@@ -30,6 +31,7 @@ import type {
 import type {
   PolicyChangeResult,
   ReservationPolicy,
+  ReservationPolicyDefaults,
   SpecialDay,
   SpecialDaysList,
   SpecialDaysSaved,
@@ -556,13 +558,21 @@ export interface ConsoleGateway {
   getReservationPolicy(branchId: string): Promise<ReservationPolicy>;
 
   /**
+   * What this branch's policy ships with, and the server's editing bounds:
+   * `GET /api/branches/{id}/reservation-policy/defaults`. Same access as the
+   * policy itself.
+   */
+  getReservationPolicyDefaults(branchId: string): Promise<ReservationPolicyDefaults>;
+
+  /**
    * Replace the policy.
    *
    * Out-of-range values are **refused, never clamped**, and the refusal names
    * the field in prose. The result says how many existing bookings now fall
    * outside the new rules — they are not changed, and somebody has to be told.
    *
-   * @throws {PolicyBoundsError} a field is outside its bounds.
+   * @throws {PolicyBoundsError} a field is outside its bounds (a `422
+   * validation-failed` naming it, or the older 400 in prose).
    */
   replaceReservationPolicy(input: {
     branchId: string;
@@ -642,7 +652,7 @@ export interface ConsoleGateway {
   listPlatformBranchReviews(
     branchId: string,
     query?: VenueReviewQuery,
-  ): Promise<Page<VenueModeratedReview>>;
+  ): Promise<ModeratedReviewPage>;
 
   /**
    * Set a review's reports aside and leave the review as it is: the platform
@@ -669,6 +679,17 @@ export interface ConsoleGateway {
   restoreReviewReports(reviewId: string): Promise<VenueModeratedReview>;
 
   /**
+   * The platform takes a venue's reply down — `DELETE
+   * /api/platform/reviews/{reviewId}/reply` (VC4 wire, review round 1). Shown
+   * or hidden review alike; nothing to remove is not an error. Audited, and
+   * on the platform's activity feed. The platform never writes a reply.
+   *
+   * @throws {NotFoundError} no such review.
+   * @throws {ForbiddenError} not a platform admin.
+   */
+  removePlatformReviewReply(reviewId: string): Promise<VenueModeratedReview>;
+
+  /**
    * The platform's takedown, `PUT /api/platform/reviews/{reviewId}/visibility`.
    * Audited. A review the platform hides cannot be restored by the venue; one
    * the venue hid can be restored here.
@@ -688,10 +709,7 @@ export interface ConsoleGateway {
    *
    * @throws {ForbiddenError} not a manager of this branch.
    */
-  listVenueBranchReviews(
-    branchId: string,
-    query?: VenueReviewQuery,
-  ): Promise<Page<VenueModeratedReview>>;
+  listVenueBranchReviews(branchId: string, query?: VenueReviewQuery): Promise<ModeratedReviewPage>;
 
   /**
    * The venue's own hide or restore, with a reason,
@@ -707,6 +725,26 @@ export interface ConsoleGateway {
     reviewId: string,
     command: SetReviewVisibilityCommand,
   ): Promise<VenueModeratedReview>;
+
+  /**
+   * Write the venue's one public reply under a review, or replace its text —
+   * `PUT /api/branches/{branchId}/reviews/{reviewId}/reply` (VC4 wire §1). The
+   * owner, a general manager, or the branch's own manager; signed with their
+   * name and role. The first reply tells the reviewer in the diner app's feed.
+   *
+   * @throws {ValidationError} no text, or over {@link MAX_REVIEW_REPLY} once trimmed.
+   * @throws {ReviewHiddenNoReplyError} the review is hidden.
+   * @throws {NotFoundError} no such review at this branch.
+   * @throws {ForbiddenError} not the venue's owner or manager here (the platform included).
+   */
+  replyToReview(branchId: string, reviewId: string, text: string): Promise<VenueModeratedReview>;
+
+  /**
+   * Take the reply down — `DELETE …/reviews/{reviewId}/reply`. What Undo after
+   * a first reply calls; it also takes back the reviewer's unread notice.
+   * Nothing to remove is not an error.
+   */
+  removeReviewReply(branchId: string, reviewId: string): Promise<VenueModeratedReview>;
 
   // --- Staff ----------------------------------------------------------------
 

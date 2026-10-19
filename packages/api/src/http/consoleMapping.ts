@@ -17,7 +17,11 @@ import type {
 import type { ConsoleBooking } from '../contracts/approvals';
 import type { ReservationStatusCode } from '../contracts/push';
 import type { BranchReadiness } from '../contracts/readiness';
-import type { ModeratedReview, VenueModeratedReview } from '../contracts/reviews';
+import type {
+  ModeratedReview,
+  ModeratedReviewPage,
+  VenueModeratedReview,
+} from '../contracts/reviews';
 import type { components } from '../generated/schema';
 import {
   approvalExpiry,
@@ -25,11 +29,18 @@ import {
   approvalTrigger,
   type WireReservationWithApproval,
 } from './approvalMapping';
+import { reviewReplyFromWire, reviewSummaryFromWire } from './reviewReplyMapping';
 import { venueTypeFromCode } from './venueTypeMapping';
 
 type Schemas = components['schemas'];
-type WireModeratedReview = Schemas['Yalla.Application.Reviews.ModeratedReviewView'];
-type WireModeratedReviewPage = Schemas['Yalla.Application.Reviews.ModeratedReviewPage'];
+export type WireModeratedReview = Schemas['Yalla.Application.Reviews.ModeratedReviewView'];
+/** `summary` optional: a server that predates it (VC4 wire §1) sends none. */
+type WireModeratedReviewPage = Omit<
+  Schemas['Yalla.Application.Reviews.ModeratedReviewPage'],
+  'summary'
+> & {
+  readonly summary?: Schemas['Yalla.Application.Reviews.ModeratedReviewSummary'];
+};
 type WireVenue = Schemas['Yalla.Application.Platform.VenueSummary'];
 type WireBranch = Schemas['Yalla.Application.Platform.BranchSummary'];
 type WireDetail = Schemas['Yalla.Application.Platform.VenueDetail'];
@@ -315,6 +326,8 @@ export function moderatedReviewFromWire(view: WireModeratedReview): ModeratedRev
     hiddenReason: view.hiddenReason ?? null,
     hiddenAtUtc: view.hiddenAtUtc ?? null,
     hiddenByPlatform: Boolean(view.hidden) && Boolean(view.hiddenByPlatform),
+    hiddenByName: view.hidden && !view.hiddenByPlatform ? view.hiddenByName?.trim() || null : null,
+    reply: reviewReplyFromWire(view.reply),
   };
 }
 
@@ -326,15 +339,13 @@ export function venueReviewFromWire(view: WireModeratedReview): VenueModeratedRe
   };
 }
 
-export function reviewPageFromWire<T>(
-  wire: WireModeratedReviewPage,
-  map: (item: WireModeratedReview) => T,
-): Page<T> {
+export function reviewPageFromWire(wire: WireModeratedReviewPage): ModeratedReviewPage {
   return {
-    items: (wire.items ?? []).map(map),
+    items: (wire.items ?? []).map(venueReviewFromWire),
     total: wire.total ?? 0,
     page: wire.page,
     pageSize: wire.pageSize,
+    summary: reviewSummaryFromWire(wire.summary),
   };
 }
 

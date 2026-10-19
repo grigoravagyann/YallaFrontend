@@ -3209,62 +3209,6 @@ fieldset.editor-body:disabled {
   flex: 1;
 }
 
-/* --- The diner app listing ------------------------------------------------------ */
-
-/* Fieldsets for grouping and screen readers, without the browser's box: the
-   console's cards already say where a group starts. */
-.listing-form fieldset {
-  min-width: 0;
-  margin: 0;
-  padding: 0;
-  border: 0;
-}
-
-.listing-form legend {
-  margin-bottom: var(--space-xs);
-  padding: 0;
-  font-weight: var(--font-weight-bold);
-}
-
-.listing-map-link {
-  color: var(--color-primary-ink);
-}
-
-.listing-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
-  gap: var(--space-md);
-}
-
-.gallery-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(10rem, 1fr));
-  gap: var(--space-sm);
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.gallery-tile {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-xs);
-}
-
-.gallery-tile img {
-  width: 100%;
-  aspect-ratio: 4 / 3;
-  object-fit: cover;
-  border-radius: var(--radius-soft);
-  background: var(--color-green-tint);
-}
-
-.gallery-tile-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-xs);
-}
-
 .rooms-list {
   flex: 1 1 220px;
   min-width: 220px;
@@ -3569,95 +3513,6 @@ fieldset.editor-body:disabled {
   align-items: center;
   gap: var(--space-xs);
   max-width: 18rem;
-}
-
-/* --- The reservation policy ---------------------------------------------------------- */
-
-.policy-group {
-  margin: 0 0 var(--space-xl);
-  padding: var(--space-lg);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-card);
-}
-
-.policy-group legend {
-  padding: 0 var(--space-sm);
-  font-weight: var(--font-weight-bold);
-}
-
-.policy-fields {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(18rem, 1fr));
-  gap: var(--space-lg);
-  margin-top: var(--space-md);
-}
-
-.policy-field {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-xs);
-}
-
-.policy-input {
-  display: flex;
-  align-items: baseline;
-  gap: var(--space-xs);
-}
-
-.policy-input .numeric {
-  width: 7rem;
-  text-align: end;
-  font-variant-numeric: var(--font-feature-tabular);
-}
-
-/*
-  The sentence, not help text behind an icon.
-
-  Every field here is a number whose meaning is not obvious from its name, and
-  an owner who has to hover to find out what turn time is will not hover.
-*/
-.policy-why {
-  margin: 0;
-  font-size: var(--font-size-sm);
-  line-height: var(--line-height-sm);
-  color: var(--color-muted-foreground);
-}
-
-.policy-default {
-  display: flex;
-  align-items: baseline;
-  gap: var(--space-xs);
-  margin: 0;
-}
-
-.policy-field.is-invalid .field {
-  border-color: var(--color-danger);
-}
-
-/* Not a toast. The most surprising behaviour on the screen stays on the page. */
-.policy-affected {
-  border-color: var(--color-warning);
-}
-
-.affected-ids {
-  margin: var(--space-xs) 0 0;
-  padding-inline-start: var(--space-lg);
-}
-
-/* A review a venue or the platform may take down. */
-.review-body {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-xs);
-  min-width: 0;
-  overflow-wrap: anywhere;
-}
-
-.review-hide {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-xs);
-  min-width: 16rem;
 }
 
 .visually-hidden {
@@ -4485,15 +4340,6 @@ fieldset.editor-body:disabled {
    alone: each carries a badge saying what it is. */
 .is-inactive > * {
   opacity: 0.62;
-}
-
-/* A hidden review is still acted on (its reason is read, it is shown again),
-   so it is marked by its badge and a ground tint, at full opacity: fading it
-   would take its date, badges, reason and button below readable contrast. */
-.review-row.is-hidden {
-  padding-left: var(--space-md);
-  padding-right: var(--space-md);
-  background: var(--color-paper);
 }
 
 .block {

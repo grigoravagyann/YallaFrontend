@@ -96,6 +96,8 @@ import {
   MAX_MODERATION_TEXT,
   REVIEW_REPORT_REASONS,
   REVIEW_VISIT_WINDOW_DAYS,
+  publicReplyAuthorName,
+  type PublicReviewReply,
 } from '../contracts/reviews';
 import { createMockReviewStore, type MockReviewStore, type StoredReview } from './reviewStore';
 import {
@@ -1956,6 +1958,13 @@ export function createMockGateway(options: MockGatewayOptions = {}): MockGateway
    */
   const reviewStore = options.reviews ?? createMockReviewStore({ now });
 
+  /** The reply as diners read it: signed short, by the same rule as their names. */
+  function publicReply(review: StoredReview): PublicReviewReply | null {
+    return review.reply
+      ? { ...review.reply, authorName: publicReplyAuthorName(review.reply.authorName) }
+      : null;
+  }
+
   function toPublicReview(review: StoredReview): BranchReview {
     return {
       reviewId: review.reviewId,
@@ -1965,6 +1974,7 @@ export function createMockGateway(options: MockGatewayOptions = {}): MockGateway
       createdAtUtc: review.createdAtUtc,
       updatedAtUtc: review.updatedAtUtc,
       edited: review.updatedAtUtc !== review.createdAtUtc,
+      reply: publicReply(review),
     };
   }
 
@@ -1978,6 +1988,7 @@ export function createMockGateway(options: MockGatewayOptions = {}): MockGateway
       updatedAtUtc: review.updatedAtUtc,
       publicAuthorName: review.authorName,
       hidden: review.hidden,
+      reply: publicReply(review),
     };
   }
 
@@ -2077,6 +2088,8 @@ export function createMockGateway(options: MockGatewayOptions = {}): MockGateway
   const feeds = new Map<string, DinerNotification[]>();
   /** `account:review` → the review's `hideCount` its last `review-hidden` row announced. */
   const announcedHides = new Map<string, number>();
+  /** `account:review` → the review's `replyCount` its last `review-replied` row announced. */
+  const announcedReplies = new Map<string, number>();
   let notificationOrder = 0;
 
   /**
@@ -2188,6 +2201,39 @@ export function createMockGateway(options: MockGatewayOptions = {}): MockGateway
           tabId: null,
           orderId: null,
           createdAtUtc: hiddenAt,
+        });
+      }
+    }
+
+    // The venue's first answer to a review of the diner's: one row per reply
+    // written from none, never per edit. A reply taken back takes its row
+    // with it while the row is unread, as the server's DELETE does.
+    for (const venue of mockVenues) {
+      for (const branch of venue.branches) {
+        const review = reviewStore.mine(branch.id, accountId);
+        if (!review) continue;
+        const key = `${accountId}:${review.reviewId}`;
+        if (!review.reply) {
+          const unread = feed.findIndex(
+            (row) =>
+              row.kind === 'review-replied' &&
+              !row.read &&
+              row.params['reviewId'] === review.reviewId,
+          );
+          if (unread >= 0) feed.splice(unread, 1);
+          continue;
+        }
+        if ((announcedReplies.get(key) ?? 0) >= review.replyCount) continue;
+        announcedReplies.set(key, review.replyCount);
+        add({
+          kind: 'review-replied',
+          params: { reviewId: review.reviewId, venueName: venue.name, branchName: branch.name },
+          branchId: branch.id,
+          branchName: branch.name,
+          reservationId: null,
+          tabId: null,
+          orderId: null,
+          createdAtUtc: review.reply.createdAtUtc,
         });
       }
     }

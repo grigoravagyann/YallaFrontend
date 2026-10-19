@@ -236,11 +236,16 @@ describe('Home', () => {
       listPlatformActivity: async () => [
         entry('a-1', 'review.restore-reports'),
         entry('a-2', 'menu.bulk-import'),
+        entry('a-3', 'review.remove-reply'),
       ],
     });
     const feed = await screen.findByRole('region', { name: 'Recent activity' });
     expect(
       await within(feed).findByText(/put back the reports on a review at Կենտրոն/u),
+    ).toBeTruthy();
+    // The platform took a venue's reply down (VC4 wire, review round 1).
+    expect(
+      within(feed).getByText(/removed the venue's reply on a review at Կենտրոն/u),
     ).toBeTruthy();
     expect(within(feed).getByText(/made a change$/u)).toBeTruthy();
     expect(within(feed).queryByText(/menu\.bulk-import/u)).toBeNull();

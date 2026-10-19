@@ -22,6 +22,7 @@ import { absolutePhoto } from './photoUrl';
 import { photo } from './venueSettingsMapping';
 import { venueTypeFromCode } from './venueTypeMapping';
 
+import { publicReplyFromWire } from './reviewReplyMapping';
 export { venueTypeCode, venueTypeFromCode } from './venueTypeMapping';
 
 type Schemas = components['schemas'];
@@ -155,6 +156,7 @@ export function branchReviewFromWire(wire: WireReview): BranchReview {
     // The server's flag (K8). A server that predates it never sends one, and
     // there a revision is exactly a later `updatedAtUtc`.
     edited: wire.edited ?? wire.updatedAtUtc !== wire.createdAtUtc,
+    reply: publicReplyFromWire(wire.reply),
   };
 }
 
@@ -258,6 +260,7 @@ export function myReviewFromWire(wire: WireDinerReview): MyBranchReview {
     updatedAtUtc: wire.updatedAtUtc,
     publicAuthorName: orNull(wire.publicAuthorName),
     hidden: Boolean(wire.hidden),
+    reply: publicReplyFromWire(wire.reply),
   };
 }
 

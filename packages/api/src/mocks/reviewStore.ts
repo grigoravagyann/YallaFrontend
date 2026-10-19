@@ -1,4 +1,9 @@
-import { publicAuthorName, type ReviewReportReason } from '../contracts/reviews';
+import {
+  publicAuthorName,
+  type ReplyAuthorRole,
+  type ReviewReply,
+  type ReviewReportReason,
+} from '../contracts/reviews';
 
 /**
  * Reviews, reports and takedowns, in memory — one store that the diner mock and
@@ -34,6 +39,15 @@ export interface StoredReview {
   hiddenAtUtc: string | null;
   /** Who hid it, which decides who may restore it. `null` while visible. */
   hiddenBy: HiddenBy | null;
+  /** The venue person who hid it, by name; null while visible or when the platform hid it. */
+  hiddenByName: string | null;
+  /** The venue's one public reply. */
+  reply: ReviewReply | null;
+  /**
+   * How many times a reply went from none to one: the server writes the
+   * author's `review-replied` notice on that transition only, never on an edit.
+   */
+  replyCount: number;
   /**
    * How many times it went from shown to hidden. The server writes the
    * author's `review-hidden` notice on that transition only, so re-hiding a
@@ -89,8 +103,23 @@ export interface MockReviewStore {
     readonly hidden: boolean;
     readonly reason: string | null;
     readonly by: HiddenBy;
+    /** The venue person's name, for "hidden by"; ignored for the platform. */
+    readonly byName?: string | null;
     readonly atUtc: string;
   }): StoredReview;
+  /**
+   * Write the venue's reply or change its text; the writer signs it. The same
+   * text again changes nothing, its time included. True when it was the first.
+   */
+  setReply(input: {
+    readonly reviewId: string;
+    readonly text: string;
+    readonly authorName: string;
+    readonly authorRole: ReplyAuthorRole;
+    readonly atUtc: string;
+  }): { readonly review: StoredReview; readonly first: boolean };
+  /** Take the reply down; nothing to take down changes nothing. */
+  removeReply(reviewId: string): StoredReview;
 }
 
 export interface MockReviewStoreOptions {
@@ -117,13 +146,21 @@ export function createMockReviewStore(options: MockReviewStoreOptions = {}): Moc
     b.createdAtUtc.localeCompare(a.createdAtUtc) || b.sequence - a.sequence;
 
   function insert(
-    input: Omit<StoredReview, 'sequence' | 'authorName' | 'hideCount'> & {
+    input: Omit<
+      StoredReview,
+      'sequence' | 'authorName' | 'hideCount' | 'hiddenByName' | 'reply' | 'replyCount'
+    > & {
       displayName: string | null;
+      hiddenByName?: string | null;
+      reply?: ReviewReply | null;
     },
   ): StoredReview {
-    const { displayName, ...rest } = input;
+    const { displayName, hiddenByName = null, reply = null, ...rest } = input;
     const stored: StoredReview = {
       ...rest,
+      hiddenByName,
+      reply,
+      replyCount: reply ? 1 : 0,
       hideCount: rest.hidden ? 1 : 0,
       authorName: publicAuthorName(displayName),
       sequence: (sequence += 1),
@@ -226,7 +263,23 @@ export function createMockReviewStore(options: MockReviewStoreOptions = {}): Moc
       'Տեռասից տեսարանը հիասքանչ է, ամրագրումը տևեց մեկ րոպե։',
       1,
     );
-    seed(14, cascade, 'Arthur', 3, 'Ուտելիքը լավն էր, բայց ուրբաթ երեկոյան սպասեցինք 25 րոպե։', 3);
+    const answered = seed(
+      14,
+      cascade,
+      'Arthur',
+      3,
+      'Ուտելիքը լավն էր, բայց ուրբաթ երեկոյան սպասեցինք 25 րոպե։',
+      3,
+    );
+    // Answered by the owner, as the Reviews artboard shows a reply.
+    answered.reply = {
+      text: 'Շնորհակալություն, Arthur։ Ուրբաթ երեկոները հիմա երկու մատուցող ավելի ունենք։',
+      authorName: 'Aram Hakobyan',
+      authorRole: 'owner',
+      createdAtUtc: ago(2),
+      updatedAtUtc: ago(2),
+      edited: false,
+    };
     seed(
       15,
       cascade,
@@ -351,7 +404,7 @@ export function createMockReviewStore(options: MockReviewStoreOptions = {}): Moc
       }
     },
 
-    setVisibility({ reviewId, hidden, reason, by, atUtc }) {
+    setVisibility({ reviewId, hidden, reason, by, byName = null, atUtc }) {
       const review = reviews.get(reviewId);
       if (!review) throw new Error(`No review ${reviewId}.`);
       if (hidden && !review.hidden) review.hideCount += 1;
@@ -359,6 +412,33 @@ export function createMockReviewStore(options: MockReviewStoreOptions = {}): Moc
       review.hiddenReason = hidden ? reason : null;
       review.hiddenAtUtc = hidden ? atUtc : null;
       review.hiddenBy = hidden ? by : null;
+      review.hiddenByName = hidden && by === 'venue' ? byName : null;
+      return review;
+    },
+
+    setReply({ reviewId, text, authorName, authorRole, atUtc }) {
+      const review = reviews.get(reviewId);
+      if (!review) throw new Error(`No review ${reviewId}.`);
+      const current = review.reply;
+      if (current && current.text === text) return { review, first: false };
+      review.reply = current
+        ? { ...current, text, authorName, authorRole, updatedAtUtc: atUtc, edited: true }
+        : {
+            text,
+            authorName,
+            authorRole,
+            createdAtUtc: atUtc,
+            updatedAtUtc: atUtc,
+            edited: false,
+          };
+      if (current === null) review.replyCount += 1;
+      return { review, first: current === null };
+    },
+
+    removeReply(reviewId) {
+      const review = reviews.get(reviewId);
+      if (!review) throw new Error(`No review ${reviewId}.`);
+      review.reply = null;
       return review;
     },
   };

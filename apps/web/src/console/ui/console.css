@@ -6322,6 +6322,514 @@ textarea.yc-ctl {
   }
 }
 
+/* --------------------------------------------------------------------------
+ * Venue console, phase 4: the reservation policy (Policy artboard)
+ * -------------------------------------------------------------------------- */
+.yc-pol {
+  display: grid;
+  grid-template-columns: 220px minmax(0, 1fr);
+  gap: 20px;
+  align-items: start;
+}
+
+/* The groups, in reach while the page scrolls past them. */
+.yc-toc {
+  position: sticky;
+  top: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: var(--space-sm);
+}
+
+.yc .yc-toc a {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-sm);
+  padding: var(--space-sm) 10px;
+  border-radius: var(--console-radius-small);
+  color: var(--console-ink);
+  font-size: var(--console-text-label);
+  font-weight: var(--font-weight-medium);
+  text-decoration: none;
+}
+
+.yc .yc-toc a:hover {
+  background: var(--console-hover);
+  color: var(--console-ink);
+}
+
+.yc-toc-n {
+  min-width: 18px;
+  height: 18px;
+  display: grid;
+  place-items: center;
+  padding: 0 5px;
+  border-radius: var(--console-radius-pill);
+  background: var(--console-brand-tint);
+  color: var(--console-brand);
+  font-size: var(--console-text-caption);
+  font-weight: var(--font-weight-bold);
+}
+
+.yc-pol-groups {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-lg);
+  min-width: 0;
+}
+
+/* The anchor lands with the card's top in view, not under the window's edge. */
+.yc-pol-groups > section {
+  scroll-margin-top: 20px;
+}
+
+/* One field: what it is and why on the left, the control and its default on the right. */
+.yc-pf {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: var(--space-sm) var(--space-xl);
+  align-items: center;
+  padding: var(--space-lg) 20px;
+  border-bottom: 1px solid var(--console-line-soft);
+}
+
+.yc-pf.is-changed {
+  background: var(--console-surface-muted);
+}
+
+.yc-pf-t {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.yc-pf-l {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-sm);
+  font-weight: var(--font-weight-semibold);
+}
+
+.yc-pf-w {
+  max-width: 62ch;
+  color: var(--console-muted);
+  font-size: var(--console-text-label);
+}
+
+.yc-pf-c {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+}
+
+.yc-pf-d {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  color: var(--console-muted);
+  font-size: var(--console-text-caption);
+}
+
+.yc .yc-pf-d .yc-lnk {
+  font-size: var(--console-text-caption);
+}
+
+.yc-pill-xs {
+  height: 20px;
+  font-size: var(--console-text-caption);
+}
+
+/* − 30 + minutes: one control, one edge, one focus ring. */
+.yc-step {
+  display: flex;
+  align-items: center;
+  overflow: hidden;
+  border: 1px solid var(--console-control);
+  border-radius: var(--console-radius-control);
+  background: var(--console-surface);
+}
+
+.yc-step.is-bad {
+  border-color: var(--console-red);
+}
+
+.yc-step:focus-within {
+  outline: 2px solid var(--console-focus);
+  outline-offset: 2px;
+}
+
+.yc-step button {
+  width: 38px;
+  height: var(--console-size-button);
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--console-brand);
+  font: inherit;
+  font-size: 18px;
+  font-weight: var(--font-weight-bold);
+  cursor: pointer;
+}
+
+.yc-step button:hover {
+  background: var(--console-hover);
+}
+
+.yc-step button:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.yc .yc-step input {
+  width: 72px;
+  height: var(--console-size-button);
+  border: 0;
+  border-right: 1px solid var(--console-line-soft);
+  border-left: 1px solid var(--console-line-soft);
+  border-radius: 0;
+  background: var(--console-surface);
+  color: var(--console-ink);
+  font: inherit;
+  font-size: 15px;
+  font-variant-numeric: tabular-nums;
+  font-weight: var(--font-weight-semibold);
+  text-align: center;
+}
+
+.yc .yc-step input::placeholder {
+  color: var(--console-muted);
+  font-size: var(--console-text-caption);
+  font-weight: var(--font-weight-regular);
+  opacity: 1;
+}
+
+.yc .yc-step input:focus-visible {
+  outline: none;
+  background: var(--console-surface-muted);
+}
+
+.yc-step-u {
+  padding: 0 10px;
+  color: var(--console-muted);
+  font-size: var(--console-text-label);
+  white-space: nowrap;
+}
+
+/* What a guest sees: the group's sentence as the app would put it. */
+.yc-pol-example {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin: 0 20px var(--space-lg);
+  padding: var(--space-md) 14px;
+  border: 1px dashed var(--console-button-edge);
+  border-radius: var(--console-radius-control);
+  background: var(--console-surface-muted);
+  font-size: var(--console-text-label);
+}
+
+.yc-pol-example .yc-i {
+  color: var(--console-brand);
+}
+
+.yc-pol-example b,
+.yc-pol-result b {
+  font-weight: var(--font-weight-semibold);
+}
+
+.yc-pol-result {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.yc-pol-page .yc-banner {
+  align-items: flex-start;
+}
+
+@media (max-width: 1000px) {
+  .yc-pol {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .yc-toc {
+    position: static;
+    flex-direction: row;
+    flex-wrap: wrap;
+  }
+}
+
+/* --------------------------------------------------------------------------
+ * Venue console, phase 4: the public page (Public and BranchPublic artboards)
+ * -------------------------------------------------------------------------- */
+.yc-pp-forms {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-lg);
+  min-width: 0;
+}
+
+.yc .yc-pp-link {
+  color: var(--console-muted);
+  font-size: var(--console-text-label);
+  overflow-wrap: anywhere;
+}
+
+.yc-pp-b {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  padding: 20px;
+}
+
+/* A form's own save, at its foot: each card is saved on its own. */
+.yc-pp-f {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-md);
+  padding: 14px 20px;
+  border-top: 1px solid var(--console-line-soft);
+  border-radius: 0 0 var(--console-radius-card) var(--console-radius-card);
+  background: var(--console-surface-muted);
+}
+
+.yc-dirty {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--console-amber);
+  font-size: var(--console-text-label);
+  font-weight: var(--font-weight-semibold);
+}
+
+.yc-dirty::before {
+  content: '';
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.yc-pp-switch {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  padding: 14px;
+  border: 1px solid var(--console-line);
+  border-radius: var(--console-radius-control);
+}
+
+.yc-pp-sw-t {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.yc-pp-sw-t b {
+  font-weight: var(--font-weight-semibold);
+}
+
+.yc-count.is-over {
+  color: var(--console-red);
+  font-weight: var(--font-weight-bold);
+}
+
+/* Amenities: checkboxes worn as chips, the box still there to tick. */
+.yc-amen {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.yc-amen legend {
+  margin-bottom: var(--space-sm);
+  padding: 0;
+  font-size: var(--console-text-label);
+  font-weight: var(--font-weight-semibold);
+}
+
+.yc-ach {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-sm);
+  height: 36px;
+  padding: 0 var(--space-md);
+  border: 1px solid var(--console-button-edge);
+  border-radius: var(--console-radius-pill);
+  background: var(--console-surface);
+  font-size: var(--console-text-label);
+  cursor: pointer;
+}
+
+.yc-ach:hover {
+  background: var(--console-hover);
+}
+
+.yc-ach.is-on {
+  border-color: var(--console-brand);
+  background: var(--console-brand-tint);
+  color: var(--console-brand);
+  font-weight: var(--font-weight-semibold);
+}
+
+.yc .yc-ach input {
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  accent-color: var(--console-brand);
+}
+
+/* Who may move the branch, said in place of an editor whose save would be refused. */
+.yc-pp-lock {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: var(--space-md) 14px;
+  border-radius: var(--console-radius-control);
+  background: var(--console-grey-bg);
+  color: var(--console-grey);
+  font-size: var(--console-text-label);
+}
+
+.yc .yc-pp-map {
+  align-self: flex-start;
+  font-size: var(--console-text-label);
+  font-weight: var(--font-weight-semibold);
+}
+
+.yc-pp-gal-h {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-md);
+}
+
+.yc-pp-gal {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: var(--space-md);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.yc-pp-tile {
+  position: relative;
+  overflow: hidden;
+  border: 1px solid var(--console-line);
+  border-radius: var(--console-radius-control);
+  background: var(--console-brand-tint);
+}
+
+.yc-pp-tile img {
+  display: block;
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  object-fit: cover;
+}
+
+.yc-pp-pos {
+  position: absolute;
+  top: 6px;
+  left: 6px;
+  min-width: 22px;
+  height: 22px;
+  display: grid;
+  place-items: center;
+  padding: 0 6px;
+  border-radius: 6px;
+  background: var(--console-toast);
+  color: var(--console-toast-foreground);
+  font-size: var(--console-text-caption);
+  font-weight: var(--font-weight-bold);
+}
+
+.yc-pp-tile-a {
+  display: flex;
+  justify-content: space-between;
+  gap: 4px;
+  padding: 6px;
+  background: var(--console-surface);
+}
+
+.yc .yc-mini-del:hover {
+  background: var(--console-red-bg);
+  color: var(--console-red);
+}
+
+.yc-pp-add {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+}
+
+/* The card's first gallery photos, three across. */
+.yc-pc-g {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 4px;
+}
+
+.yc-pcard .yc-pc-g img {
+  aspect-ratio: 1;
+  border-radius: 6px;
+}
+
+/* --------------------------------------------------------------------------
+ * Venue console, phase 4: a review's reply, and the form that writes it
+ * -------------------------------------------------------------------------- */
+.yc-reply {
+  display: flex;
+  gap: 10px;
+  padding: 10px var(--space-md) 10px 14px;
+  border-left: 3px solid var(--console-brand);
+  border-radius: 0 var(--console-radius-small) var(--console-radius-small) 0;
+  background: var(--console-surface-muted);
+  font-size: var(--console-text-label);
+  overflow-wrap: anywhere;
+}
+
+.yc-reply b {
+  font-weight: var(--font-weight-semibold);
+}
+
+.yc-reply small {
+  color: var(--console-muted);
+  font-size: var(--console-text-caption);
+}
+
+.yc-reply p {
+  margin: 2px 0 0;
+}
+
+/* The guest changed the review after this answer: said under it, in amber. */
+.yc .yc-reply .yc-reply-note {
+  display: block;
+  margin-top: 4px;
+  color: var(--console-amber);
+  font-weight: var(--font-weight-semibold);
+}
+
+.yc-replybox {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px;
+  border: 1px solid var(--console-line);
+  border-radius: var(--console-radius-control);
+  background: var(--console-surface-muted);
+}
+
 @media (prefers-reduced-motion: reduce) {
   .yc *,
   .yc *::before,

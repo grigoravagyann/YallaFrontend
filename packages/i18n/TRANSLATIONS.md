@@ -708,6 +708,70 @@ review every string in `src/locales/hy` and `src/locales/ru`.**
   `unsavedChanges.leaveTitle` / `.leaveConfirm`: the console's own dialog for
   a link clicked over unsaved work, which replaced the browser's confirm.
 
+- `admin` and `diner` — the venue console redesign, phase 4 (2026-10-19):
+  Policy, Public and Reviews with replies. The `hy` copy is the approved
+  artboards' (`docs/design/venue-console`, Policy, Public and Reviews), except
+  where marked; `ru` and `en` were written from it and are **not** reviewed.
+  Formal `Դուք` throughout. Where an artboard glued a case ending onto a name
+  or a time ("Lilit Sargsyan-ը", "19:10-ին", "Լուսանկար 3-ը", "դիմեք
+  Aram Hakobyan-ին"), the `hy` puts it after a colon or rephrases
+  (`i18n:check` refuses a glued suffix).
+  - Policy (`policy.*`): the header line (`sub`, `changedCount_*`,
+    `allDefault`), the groups and every field's label and sentence
+    (`group.*`, `field.*` — `minLeadMinutes.why` is followed by `lead.*`,
+    which says what the number means for a 19:00 table), the stepper
+    (`decrease`, `increase`, `default`, `reset`, `changed`, `defaultOn` /
+    `Off`, `outOfBounds`), what a guest sees per group (`guestSees`,
+    `example.*`), the result after a save (`result.*` — must keep saying the
+    bookings were **not changed or cancelled**) and the save bar (`saveBar`,
+    `bar.*`, `discard`, `discarded`, `fixFirst`, `noChanges`). Not in the
+    artboard, so **not** read by the user even in `hy`: `atLeast` (the two
+    counts with no ceiling), `refused` (the server refused a value this form
+    thought fine), `tocLabel`, `tocChanged_*`, `example.approvalAll` (no
+    party-size threshold), `bar.unreviewed` (a policy nobody has confirmed
+    yet: saving it unchanged confirms it, which is what ticks "policy
+    reviewed"). Removed, nothing renders them: `policy.shipped`,
+    `.serviceChargeNote` (folded into the service charge's sentence, as the
+    artboard does) and `policy.affected.*`.
+  - Public (`publicPage.*`): `sub`, `page.*`, the cover, phone and booking
+    switch's help, `phone.invalid`, `unsaved`, `saved`, and in `listing.*`
+    the intro, the helps, the map pin's errors, `address.*`,
+    `relocateOwnerOnly` (now says to contact the owner — never names them),
+    `gallery.*` (every photo control now says its number) and the saves'
+    lines and toasts. Not in the artboard, so **not** read by the user even
+    in `hy`: `page.capPlatform` and `listing.introPlatform` (the platform's
+    branch page, which does not say "your"), `cover.changed`'s wording,
+    `gallery.removed` (a photo taken out of the gallery — must keep saying
+    to **save** for guests to see it), `listing.checkFields`. Removed:
+    `publicPage.intro`, `listing.gallery.empty`.
+  - Reviews (`reviews.*`): `sub`, `reasonHelp`, `platformHidden`, `empty`,
+    `hiddenByYalla`, `hiddenByName`, `hiddenByVenue`, the reply (`reply.*`:
+    the signature "name, role", the form, its help — which must keep saying
+    the reply is **public** and signed — `published`), `summary.up` /
+    `.down` and `rules.lowRating` (the venue's version: Yalla can bring back
+    hides without a reason). Not in the artboard, so **not** read by the user
+    even in `hy`: `reply.edited`, `reply.updated` (an edit notifies nobody, so
+    it must not say the guest will be told), `reply.hidden`,
+    `hiddenByVenue`. The filters, the hide form, the summary and the rules
+    are the platform's `branchReviews.*`, shared. Removed:
+    `reviews.filter.*`, `.hiddenBadge`, `.hide`, `.unhide`,
+    `.hiddenReasonLine`, `.reasonRequired`, `.reports_*`.
+  - The diner app (`diner`): the venue's reply under a review
+    (`place.review.reply.*`; the role names are lower case, read after the
+    name) and the feed row for it (`notifications.kind.reviewReplied`, the
+    first reply only). Written by the team, **not** reviewed.
+
+- `admin` and `diner` — the venue console phase 4 review round (2026-10-19),
+  **not** in an artboard, so not read by the user even in `hy`:
+  `branchReviews.reply.*` (the platform takes a venue's reply down — the
+  confirm must keep saying it **cannot be undone**, because only the venue
+  writes replies), `home.activity.action.reviewRemoveReply`,
+  `reviews.reply.reviewEditedAfter` and `diner` `place.review.reply.reviewEditedAfter`
+  (the guest changed the review after the answer), `diner`
+  `place.review.reply.roleOnly` (the role signs alone when the server drops a
+  name that looks like contact details), and `reviews.reply.hidden` reworded
+  to fit a review hidden by the venue **or** by Yalla.
+
 The Russian bundle carries four plural categories (`one`/`few`/`many`/`other`)
 where Armenian and English carry two. That is correct CLDR, not duplication, and
 `pnpm i18n:check` verifies each language has exactly the categories

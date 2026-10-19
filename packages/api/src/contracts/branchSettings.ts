@@ -263,6 +263,24 @@ export const POLICY_BOUNDS = {
 
 export type BoundedPolicyField = keyof typeof POLICY_BOUNDS;
 
+/** One of the server's editing bounds, by the wire's field name. `max` null: no ceiling. */
+export interface PolicyFieldBound {
+  readonly field: string;
+  readonly min: number;
+  readonly max: number | null;
+}
+
+/**
+ * `GET /api/branches/{id}/reservation-policy/defaults`: what this branch ships
+ * with (by its venue type) and the bounds the server edits within — the
+ * "Default: …" and "Reset" beside every field, from the server rather than a
+ * copy that can drift.
+ */
+export interface ReservationPolicyDefaults {
+  readonly defaults: ReservationPolicy;
+  readonly bounds: readonly PolicyFieldBound[];
+}
+
 /**
  * What ships, so an owner who changed turn time to 45 and watched bookings
  * collapse has a way back.
@@ -271,17 +289,23 @@ export type BoundedPolicyField = keyof typeof POLICY_BOUNDS;
  * cafe or a bar holds a table for two hours and a restaurant for ninety
  * minutes. Every other default is shared, so the shape is one object with the
  * turn time supplied.
+ *
+ * The console reads the server's own copy (`getReservationPolicyDefaults`);
+ * this one is the mock's, and the screen's fallback for a server that predates
+ * that route. It had drifted once — the booking-times change moved the buffer
+ * to 5 and the shortest notice to 10 on the server and nowhere else — which is
+ * why the screen no longer trusts it first.
  */
 export function defaultPolicyFor(venueType: VenueType): ReservationPolicy {
   return {
     // A bar's default is the cafe's: people linger over a drink as they do
     // over a coffee, and the server's `DefaultFor` has a Bar arm saying so.
     turnTimeMinutes: venueType === 'restaurant' ? 90 : 120,
-    bufferMinutes: 15,
+    bufferMinutes: 5,
     graceMinutes: 15,
     lateNudgeAfterMinutes: 10,
     graceExtensionMinutes: 10,
-    minLeadMinutes: 30,
+    minLeadMinutes: 10,
     bookingWindowDays: 14,
     cancellationDeadlineMinutes: 120,
     walkInHoldbackMinutes: 30,

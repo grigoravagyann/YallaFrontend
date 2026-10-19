@@ -1887,6 +1887,99 @@
         }
       }
     },
+    "/api/branches/{branchId}/reservation-policy/defaults": {
+      "get": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "What this branch's reservation policy ships with, and the bounds a save is held to",
+        "description": "`defaults` is the policy a branch of this venue's type starts with - every field, in the shape `GET /reservation-policy` reads - for the console's \"default: …\" line and its reset. Only the turn time differs by venue type (a restaurant 90 minutes, a cafe or a bar 120), and an owner who changes the venue's type changes the defaults with it.\n\n`bounds` is every field `PUT /reservation-policy` checks, by its wire name, with the `min` and `max` a save is held to; `max` is null where there is no ceiling (`maxSeatOverhang`, `approvalRequiredAbovePartySize`). The server refuses outside them and never clamps, so a form need not be stricter.",
+        "operationId": "getReservationPolicyDefaults",
+        "parameters": [
+          {
+            "name": "branchId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Application.BranchSettings.ReservationPolicyDefaultsView"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request violated a domain rule or arrived malformed.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No usable token was presented, or the one presented was rejected.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller is authenticated but not allowed to perform this action.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such branch.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests in the window, or a one-time credential is out of attempts.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected failure. Quote the traceId from the body.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/branches/{branchId}/opening-hours": {
       "get": {
         "tags": [
@@ -4903,7 +4996,7 @@
           "admin"
         ],
         "summary": "This branch's reviews for moderation, with report counts",
-        "description": "Every review of the branch - published or hidden - with `hidden`, `hiddenReason`, `hiddenAtUtc`, `hiddenByPlatform`, `reportCount` and `lastReportedAtUtc`. `authorName` is the public name, never the account's full name, number or email.\n\n`filter`: `all` (default, newest written first), `reported` (at least one diner report, most recently reported first) or `hidden`. `page` from 1, `pageSize` 1-100 (default 20); `total` counts the rows for the filter.\n\nScoped like every branch setting: a manager whose account names a home branch reaches that branch only.",
+        "description": "Every review of the branch - published or hidden - with `hidden`, `hiddenReason`, `hiddenAtUtc`, `hiddenByPlatform`, `reportCount` and `lastReportedAtUtc`. `authorName` is the public name, never the account's full name, number or email. `hiddenByName` is the venue staff member who hid it (absent when shown, or when the platform hid it), and `reply` the venue's public reply (absent until there is one).\n\n`summary` is the whole branch whatever the filter and page: `all`, `reported`, `hidden` and `visible` counts, `rating` (shown reviews, one decimal), `ratingChange30Days` (that minus the rating of the shown reviews written more than 30 days ago) and `distribution`, five rows of `{ stars, count }` from 5 down.\n\n`filter`: `all` (default, newest written first), `reported` (at least one diner report, most recently reported first) or `hidden`. `page` from 1, `pageSize` 1-100 (default 20); `total` counts the rows for the filter.\n\nScoped like every branch setting: a manager whose account names a home branch reaches that branch only.",
         "operationId": "listBranchReviewsForModeration",
         "parameters": [
           {
@@ -5115,6 +5208,243 @@
               "application/problem+json": {
                 "schema": {
                   "$ref": "#/components/schemas/Yalla.Api.Errors.ValidationFailedProblem"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests in the window, or a one-time credential is out of attempts.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected failure. Quote the traceId from the body.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/branches/{branchId}/reviews/{reviewId}/reply": {
+      "put": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Publish the venue's reply under a review of this branch, or change its text",
+        "description": "`{ \"text\": \"…\" }`, required, at most 500 characters after trimming. **One reply per review**: a second PUT replaces the text, and whoever sends it signs it - `reply.authorName` is the writer's full name and `reply.authorRole` their role (1 Owner, 2 Manager, 6 GeneralManager), both kept as written. `reply.createdAtUtc` is when it was first published; `updatedAtUtc` and `edited` say whether it changed since. The same text again writes nothing.\n\nThe reply is public: it shows under the review on the public reviews page, the place's details and the author's own review in the app. **The first reply tells the author** in their notifications feed (`review-replied`; no push). An edit does not.\n\n**The venue's own ranks only**: the owner, a general manager, or this branch's manager. A platform admin is `403 forbidden`. A **hidden review is not answered**: `409 conflicting-state`, whichever tier hid it. **Audited** as `review.reply`. Answers the review as the list shows it.",
+        "operationId": "putBranchReviewReply",
+        "parameters": [
+          {
+            "name": "branchId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "reviewId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "allOf": [
+                  {
+                    "$ref": "#/components/schemas/Yalla.Api.Endpoints.ReplyToReviewRequest"
+                  }
+                ],
+                "description": "Body of the venue's reply route."
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Application.Reviews.ModeratedReviewView"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request violated a domain rule or arrived malformed.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No usable token was presented, or the one presented was rejected.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller does not cover this branch, or is a platform admin.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such review at this branch.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The review is hidden.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "`text` missing or blank (bound `required`), or over 500 characters (bound `max`).",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.ValidationFailedProblem"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests in the window, or a one-time credential is out of attempts.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected failure. Quote the traceId from the body.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Take the venue's reply under a review down",
+        "description": "Removes the reply, whether the review is shown or hidden - the console's undo of a first reply. The author's notice of it goes too, unless they have already read it. A review with no reply is answered as it is and nothing is written. Who may: as for the PUT. **Audited** as `review.remove-reply`. Answers the review as the list shows it, `reply` null.",
+        "operationId": "deleteBranchReviewReply",
+        "parameters": [
+          {
+            "name": "branchId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "reviewId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Application.Reviews.ModeratedReviewView"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request violated a domain rule or arrived malformed.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No usable token was presented, or the one presented was rejected.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller does not cover this branch, or is a platform admin.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such review at this branch.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
                 }
               }
             }
@@ -11804,7 +12134,7 @@
           "diner"
         ],
         "summary": "The diner's notifications, newest first, with the unread count",
-        "description": "`{ items, nextCursor, unreadCount }`. Each item is `{ notificationId, kind, params, branchId, branchName, reservationId, tabId, orderId, createdAtUtc, read }`.\n\n`kind` is `booking-reminder`, `booking-confirmed`, `booking-declined`, `booking-cancelled-by-venue`, `order-ready` or `review-hidden`. **The server sends no prose**: the app writes the text from `kind` and the string values in `params`.\n\nA reminder appears when it is due, not when the booking was made; cancelling the booking before then removes it. `unreadCount` covers the whole feed, not the page.\n\nPages: `limit` 1-50 (default 20); pass `nextCursor` back as `before` for the next page - absent on the last. A cursor this feed did not issue, or a `limit` out of range, is `400`. Entries are kept for 90 days.",
+        "description": "`{ items, nextCursor, unreadCount }`. Each item is `{ notificationId, kind, params, branchId, branchName, reservationId, tabId, orderId, createdAtUtc, read }`.\n\n`kind` is `booking-reminder`, `booking-confirmed`, `booking-declined`, `booking-cancelled-by-venue`, `order-ready`, `review-hidden`, `review-replied` (the venue answered the diner's review; `params` as `review-hidden`), `table-request` or `table-request-decided`. **The server sends no prose**: the app writes the text from `kind` and the string values in `params`.\n\nA reminder appears when it is due, not when the booking was made; cancelling the booking before then removes it. `unreadCount` covers the whole feed, not the page.\n\nPages: `limit` 1-50 (default 20); pass `nextCursor` back as `before` for the next page - absent on the last. A cursor this feed did not issue, or a `limit` out of range, is `400`. Entries are kept for 90 days.",
         "operationId": "getDinerNotifications",
         "parameters": [
           {
@@ -13626,7 +13956,7 @@
           "platform"
         ],
         "summary": "The activity feed: the newest audit rows, newest first",
-        "description": "Every change the audit log records that a member of staff made - the platform admin's own and the venues' teams' (adding staff, taking down a review, replacing a QR code). Each carries the `action` slug, the `actor` (`role` 5 is the platform admin; `displayName` as they were called then), the `target` (`type`, `id`, `displayName` then - for a review, the branch it is about, never the reviewer), the `venue` it concerns by its current name, and `detail`, the row's JSON as written (shapes in `docs/platform-admin.md`). Rows the log keeps that are not a change are left out: a diner deleting their own account (no staff member behind it), and `admin.password-change-failed` and `account.password-change-failed`, the password lockouts' counters.\n\n`limit` 1-100 (default 20). `venueId` narrows it to one venue.",
+        "description": "Every change the audit log records that a member of staff made - the platform admin's own and the venues' teams' (adding staff, taking down a review, replacing a QR code). Each carries the `action` slug, the `actor` (`role` 5 is the platform admin; `displayName` as they were called then), the `target` (`type`, `id`, `displayName` then - for a review, the branch it is about, never the reviewer), the `venue` it concerns by its current name, and `detail`, the row's JSON as written (shapes in `docs/platform-admin.md`). Rows the log keeps that are not a change are left out: a diner deleting their own account (no staff member behind it), `admin.password-change-failed` and `account.password-change-failed`, the password lockouts' counters, and a venue answering its own reviews - `review.reply`, and `review.remove-reply` unless the platform admin removed the reply.\n\n`limit` 1-100 (default 20). `venueId` narrows it to one venue.",
         "operationId": "listPlatformActivity",
         "parameters": [
           {
@@ -14981,6 +15311,99 @@
         "summary": "Undo the last dismissal of a review's reports",
         "description": "The console's undo for `dismiss-reports`: the reports the **most recent** dismissal of this review set aside count again - exactly those, recognised by the dismissal's instant, which every report it dismissed shares. Reports dismissed by an earlier dismissal stay dismissed; reports filed since are untouched. The review itself is not changed.\n\n**One dismissal, once**: when the review was already restored after its latest dismissal - or nothing was ever dismissed - it is answered as it is and nothing is written; a second undo never reaches back to an older dismissal. **Audited** as `review.restore-reports`, with how many came back. Answers the review as the moderation list shows it.",
         "operationId": "restorePlatformReviewReports",
+        "parameters": [
+          {
+            "name": "reviewId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Application.Reviews.ModeratedReviewView"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request violated a domain rule or arrived malformed.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No usable token was presented, or the one presented was rejected.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller is authenticated but not allowed to perform this action.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such review.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests in the window, or a one-time credential is out of attempts.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected failure. Quote the traceId from the body.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/platform/reviews/{reviewId}/reply": {
+      "delete": {
+        "tags": [
+          "platform"
+        ],
+        "summary": "Take a venue's reply under a review down",
+        "description": "The platform's moderation of what a venue wrote back: the reply goes from every read - the consoles, the public reviews, the place's details, the author's own review - whether the review is shown or hidden. The platform never writes a reply; this only removes one. The author's notice of it goes too, unless they have already read it. A review with no reply is answered as it is and nothing is written.\n\n**Audited** as `review.remove-reply` with `actorType: platform` - the one reply row the activity feed shows; a venue's own replies and removals stay out of it. Answers the review as the moderation list shows it.",
+        "operationId": "deletePlatformReviewReply",
         "parameters": [
           {
             "name": "reviewId",
@@ -19462,6 +19885,18 @@
         "additionalProperties": false,
         "description": "Body of `POST /api/auth/staff/renew` and `/api/auth/staff/sign-out`."
       },
+      "Yalla.Api.Endpoints.ReplyToReviewRequest": {
+        "type": "object",
+        "properties": {
+          "text": {
+            "type": "string",
+            "description": "Required, at most 500 characters after trimming.",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false,
+        "description": "Body of the venue's reply route."
+      },
       "Yalla.Api.Endpoints.RequestDinerCodeRequest": {
         "required": [
           "phoneE164"
@@ -23019,6 +23454,32 @@
         "additionalProperties": false,
         "description": "The console's save of the special days: the whole list from today on, against the revision it loaded."
       },
+      "Yalla.Application.BranchSettings.ReservationPolicyBound": {
+        "required": [
+          "field",
+          "min"
+        ],
+        "type": "object",
+        "properties": {
+          "field": {
+            "type": "string",
+            "description": "The wire name, e.g. `turnTimeMinutes`."
+          },
+          "min": {
+            "type": "number",
+            "description": "The least a save accepts.",
+            "format": "double"
+          },
+          "max": {
+            "type": "number",
+            "description": "The most a save accepts, or null where there is no ceiling.",
+            "format": "double",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false,
+        "description": "One field's editing bounds, as Yalla.Domain.Venues.ReservationPolicyLimits enforces them."
+      },
       "Yalla.Application.BranchSettings.ReservationPolicyChangeResult": {
         "required": [
           "affectedExistingReservations",
@@ -23128,6 +23589,32 @@
         },
         "additionalProperties": false,
         "description": "Every field of the policy, as written. The whole form is replaced at once."
+      },
+      "Yalla.Application.BranchSettings.ReservationPolicyDefaultsView": {
+        "required": [
+          "bounds",
+          "defaults"
+        ],
+        "type": "object",
+        "properties": {
+          "defaults": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Yalla.Application.BranchSettings.ReservationPolicyView"
+              }
+            ],
+            "description": "The policy a branch of this venue's type starts with."
+          },
+          "bounds": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Yalla.Application.BranchSettings.ReservationPolicyBound"
+            },
+            "description": "Every bounded field, in the order the form lists them."
+          }
+        },
+        "additionalProperties": false,
+        "description": "What a branch's policy ships with and the bounds a save is held to - read from the server so the\nconsole's \"default\" line and its reset cannot drift from M:Yalla.Domain.Venues.ReservationPolicy.DefaultFor(Yalla.Domain.Enums.VenueType)."
       },
       "Yalla.Application.BranchSettings.ReservationPolicyView": {
         "required": [
@@ -23458,7 +23945,7 @@
           },
           "kind": {
             "type": "string",
-            "description": "`booking-reminder`, `booking-confirmed`, `booking-declined`,\n            `booking-cancelled-by-venue`, `order-ready` or `review-hidden`. The app writes the text."
+            "description": "`booking-reminder`, `booking-confirmed`, `booking-declined`,\n            `booking-cancelled-by-venue`, `order-ready`, `review-hidden`, `review-replied`,\n            `table-request` or `table-request-decided`. The app writes the text."
           },
           "params": {
             "type": "object",
@@ -23800,6 +24287,15 @@
           "hidden": {
             "type": "boolean",
             "description": "Taken down by moderation: the diner still sees it here, nobody else sees it anywhere."
+          },
+          "reply": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Yalla.Application.Reviews.PublicReviewReplyView"
+              }
+            ],
+            "description": "The venue's public reply, or null, signed as the public reads it (\"Aram H.\"). The author sees it here\neven while the review is hidden.",
+            "nullable": true
           }
         },
         "additionalProperties": false,
@@ -25980,7 +26476,7 @@
           },
           "action": {
             "type": "string",
-            "description": "The stable slug - `venue.create`, `venue.update`, `venue.suspend`,\n`venue.reactivate`, `venue.delete`, `branch.create`, `branch.update`,\n`branch.tier-change`, `branch.relocate`, `staff.create`, `staff.sign-in-issued`,\n`venue.restore`, `review.hide`, `review.unhide`, `review.dismiss-reports`, `table.regenerate-qr`,\n`admin.rename`, `admin.password-change`, and a venue user's own `account.rename`,\n`account.password-change`, `account.sign-out-others`."
+            "description": "The stable slug - `venue.create`, `venue.update`, `venue.suspend`,\n`venue.reactivate`, `venue.delete`, `branch.create`, `branch.update`,\n`branch.tier-change`, `branch.relocate`, `staff.create`, `staff.sign-in-issued`,\n`venue.restore`, `review.hide`, `review.unhide`, `review.dismiss-reports`,\n`review.restore-reports`, `review.remove-reply` (the platform taking a venue's reply down - a\nvenue's own replies and removals are left out of the feed), `table.regenerate-qr`,\n`admin.rename`, `admin.password-change`, and a venue user's own `account.rename`,\n`account.password-change`, `account.sign-out-others`."
           },
           "actor": {
             "allOf": [
@@ -28063,6 +28559,15 @@
           "edited": {
             "type": "boolean",
             "description": "Whether it was changed after it was first written."
+          },
+          "reply": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Yalla.Application.Reviews.PublicReviewReplyView"
+              }
+            ],
+            "description": "The venue's public reply under it, or null, signed with the writer's first name and surname initial.\nOnly shown reviews are listed, so a hidden review's reply is never public either.",
+            "nullable": true
           }
         },
         "additionalProperties": false,
@@ -29931,6 +30436,7 @@
           "items",
           "page",
           "pageSize",
+          "summary",
           "total"
         ],
         "type": "object",
@@ -29956,10 +30462,71 @@
             "type": "integer",
             "description": "Rows across every page for this filter.",
             "format": "int32"
+          },
+          "summary": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Yalla.Application.Reviews.ModeratedReviewSummary"
+              }
+            ],
+            "description": "The branch's numbers, independent of the filter and the page."
           }
         },
         "additionalProperties": false,
         "description": "A page of a branch's reviews for moderation."
+      },
+      "Yalla.Application.Reviews.ModeratedReviewSummary": {
+        "required": [
+          "all",
+          "distribution",
+          "hidden",
+          "reported",
+          "visible"
+        ],
+        "type": "object",
+        "properties": {
+          "all": {
+            "type": "integer",
+            "description": "Every review, hidden ones included.",
+            "format": "int32"
+          },
+          "reported": {
+            "type": "integer",
+            "description": "Shown reviews with an open report - the `reported` filter's total.",
+            "format": "int32"
+          },
+          "hidden": {
+            "type": "integer",
+            "description": "Taken down - the `hidden` filter's total.",
+            "format": "int32"
+          },
+          "visible": {
+            "type": "integer",
+            "description": "Shown, and so counted in the rating.",
+            "format": "int32"
+          },
+          "rating": {
+            "type": "number",
+            "description": "The shown reviews' average to one decimal, as the public card shows it; null with none.",
+            "format": "double",
+            "nullable": true
+          },
+          "ratingChange30Days": {
+            "type": "number",
+            "description": "Today's rating of the shown reviews minus the same for the shown reviews older than 30 days, to one\ndecimal - rounded once, from the unrounded averages. Null when either side has no review.",
+            "format": "double",
+            "nullable": true
+          },
+          "distribution": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Yalla.Application.Reviews.ReviewStarCount"
+            },
+            "description": "Shown reviews per star, always five rows, 5 stars first."
+          }
+        },
+        "additionalProperties": false,
+        "description": "The whole branch's reviews in numbers, whatever the list's filter and page: the filter chips' counts,\nthe rating card and its change."
       },
       "Yalla.Application.Reviews.ModeratedReviewView": {
         "required": [
@@ -30044,10 +30611,135 @@
             "description": "The newest of those reports, or absent when there is none.",
             "format": "date-time",
             "nullable": true
+          },
+          "reply": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Yalla.Application.Reviews.ReviewReplyView"
+              }
+            ],
+            "description": "The venue's public reply, or null. Shown here on hidden reviews too.",
+            "nullable": true
+          },
+          "hiddenByName": {
+            "type": "string",
+            "description": "The full name of the venue staff member who took it down, read live. Null when it is shown, and when\nthe platform took it down - the console says \"the Yalla team\" and never names a platform admin.",
+            "nullable": true
           }
         },
         "additionalProperties": false,
         "description": "One review as a moderator sees it: the published fields, who wrote it, whether it is down and\nwhy, and how often diners have reported it."
+      },
+      "Yalla.Application.Reviews.PublicReviewReplyView": {
+        "required": [
+          "authorRole",
+          "createdAtUtc",
+          "edited",
+          "text",
+          "updatedAtUtc"
+        ],
+        "type": "object",
+        "properties": {
+          "text": {
+            "type": "string",
+            "description": "The reply."
+          },
+          "authorName": {
+            "type": "string",
+            "description": "\"Aram H.\" - `BranchReview.PublicReplyAuthorName` of the writer's name as written. Absent when that\nname looks like contact details and cannot be published; the role then signs the reply alone. The\nconsole reads the full name.",
+            "nullable": true
+          },
+          "authorRole": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Yalla.Domain.Enums.StaffRole"
+              }
+            ],
+            "description": "What a staff member is allowed to do, coarsely. Authorisation itself is a later task."
+          },
+          "createdAtUtc": {
+            "type": "string",
+            "description": "First published.",
+            "format": "date-time"
+          },
+          "updatedAtUtc": {
+            "type": "string",
+            "description": "Last change of the text.",
+            "format": "date-time"
+          },
+          "edited": {
+            "type": "boolean",
+            "description": "Changed after it was first published."
+          }
+        },
+        "additionalProperties": false,
+        "description": "The venue's reply as the public reads it - the public reviews, the place's details and the author's own\nreview in the app. The writer is shown as diners are: first name and surname initial."
+      },
+      "Yalla.Application.Reviews.ReviewReplyView": {
+        "required": [
+          "authorName",
+          "authorRole",
+          "createdAtUtc",
+          "edited",
+          "text",
+          "updatedAtUtc"
+        ],
+        "type": "object",
+        "properties": {
+          "text": {
+            "type": "string",
+            "description": "The reply, 1-500 characters."
+          },
+          "authorName": {
+            "type": "string",
+            "description": "The full name of the staff member who last wrote it, as it was then."
+          },
+          "authorRole": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Yalla.Domain.Enums.StaffRole"
+              }
+            ],
+            "description": "What a staff member is allowed to do, coarsely. Authorisation itself is a later task."
+          },
+          "createdAtUtc": {
+            "type": "string",
+            "description": "First published. A reply removed and written again starts over.",
+            "format": "date-time"
+          },
+          "updatedAtUtc": {
+            "type": "string",
+            "description": "When the text last changed; equal to CreatedAtUtc until an edit.",
+            "format": "date-time"
+          },
+          "edited": {
+            "type": "boolean",
+            "description": "Changed after it was first published."
+          }
+        },
+        "additionalProperties": false,
+        "description": "The venue's public reply under a review, as every read shows it: the console, the public reviews,\nthe place's details and the author's own review."
+      },
+      "Yalla.Application.Reviews.ReviewStarCount": {
+        "required": [
+          "count",
+          "stars"
+        ],
+        "type": "object",
+        "properties": {
+          "stars": {
+            "type": "integer",
+            "description": "5 down to 1.",
+            "format": "int32"
+          },
+          "count": {
+            "type": "integer",
+            "description": "Shown reviews with that many stars.",
+            "format": "int32"
+          }
+        },
+        "additionalProperties": false,
+        "description": "One row of Yalla.Application.Reviews.ModeratedReviewSummary.Distribution."
       },
       "Yalla.Application.Staff.CreateStaffCommand": {
         "required": [

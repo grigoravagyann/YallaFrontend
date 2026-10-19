@@ -113,8 +113,12 @@ describe('the public page', () => {
       { timeout: 5000 },
     );
     expect(within(listing).getByRole('button', { name: 'Save listing' })).toBeTruthy();
-    const cover = screen.getByRole('heading', { name: 'Cover photo' }).closest('form')!;
+    const cover = await screen.findByRole('form', { name: 'Page and booking' });
     expect(within(cover).getByRole('button', { name: 'Save' })).toBeTruthy();
+    // The platform admin may move the branch (K5): no owner-only lock here.
+    expect((within(listing).getByLabelText(/street address/i) as HTMLInputElement).readOnly).toBe(
+      false,
+    );
 
     const preview = screen.getByRole('complementary', { name: 'Preview' });
     expect(within(preview).getByText('Cascade Cafe · Կենտրոն')).toBeTruthy();
@@ -125,7 +129,7 @@ describe('the public page', () => {
     expect(within(preview).getByText('Grill and coffee')).toBeTruthy();
 
     // The booking switch is on the other form, and the preview follows it too.
-    const bookings = within(cover).getByRole('checkbox');
+    const bookings = within(cover).getByRole('switch', { name: /take bookings/i });
     const before = within(preview).getByText(/Book a table|Booking is closed/u).textContent;
     await user.click(bookings);
     expect(within(preview).getByText(/Book a table|Booking is closed/u).textContent).not.toBe(
@@ -179,6 +183,56 @@ describe('the reviews page', () => {
     await user.click(within(filters).getByRole('button', { name: /^Hidden\s*1/u }));
     await waitFor(() => expect(screen.getAllByRole('article')).toHaveLength(1));
     expect(within(screen.getByRole('article')).getByText(/Գրված է այլ վայրի մասին/u)).toBeTruthy();
+  });
+
+  it("counts and rates from the server's summary, with the change over thirty days, in one read", async () => {
+    const gateway = createConsoleMockGateway({ latencyMs: 0, role: 'platformAdmin' });
+    const list = gateway.listPlatformBranchReviews.bind(gateway);
+    const read = vi
+      .spyOn(gateway, 'listPlatformBranchReviews')
+      .mockImplementation(async (branchId, query) => {
+        const page = await list(branchId, query);
+        return { ...page, summary: { ...page.summary!, ratingChange30Days: -0.3 } };
+      });
+    await openReviews(gateway);
+
+    const summary = screen.getByRole('region', { name: 'Rating' });
+    expect(within(summary).getByText('↓ 0.3 in the last 30 days')).toBeTruthy();
+    // No sample of a hundred and no count-only reads beside the list itself;
+    // the one other read is the branch header's badge on the Reviews tab.
+    const others = read.mock.calls
+      .map(([, query]) => query)
+      .filter((query) => query?.pageSize !== 20);
+    expect(new Set(others.map((query) => JSON.stringify(query)))).toEqual(
+      new Set([JSON.stringify({ filter: 'reported', pageSize: 1 })]),
+    );
+  });
+
+  it("takes a venue's reply down once confirmed, with no undo, and never offers to write one", async () => {
+    const user = userEvent.setup();
+    const reviews = createMockReviewStore({ seed: true });
+    const gateway = createConsoleMockGateway({ latencyMs: 0, role: 'platformAdmin', reviews });
+    const remove = vi.spyOn(gateway, 'removePlatformReviewReply');
+    await openReviews(gateway);
+
+    // Arthur's review has the owner's reply in the seed.
+    const answered = reviewOf('Arthur');
+    expect(within(answered).getByText(/Reply from Aram Hakobyan, Owner/u)).toBeTruthy();
+    expect(within(answered).queryByRole('button', { name: /^Reply$/u })).toBeNull();
+    await user.click(within(answered).getByRole('button', { name: 'Remove the reply' }));
+
+    const dialog = screen.getByRole('alertdialog', { name: "Remove the venue's reply?" });
+    await user.click(within(dialog).getByRole('button', { name: 'Cancel' }));
+    expect(remove).not.toHaveBeenCalled();
+
+    await user.click(within(reviewOf('Arthur')).getByRole('button', { name: 'Remove the reply' }));
+    await user.click(
+      within(screen.getByRole('alertdialog')).getByRole('button', { name: 'Remove the reply' }),
+    );
+    expect(await screen.findByText("The venue's reply was removed")).toBeTruthy();
+    expect(remove).toHaveBeenCalledWith('review-seed-14');
+    expect(screen.queryByRole('button', { name: 'Undo' })).toBeNull();
+    await waitFor(() => expect(within(reviewOf('Arthur')).queryByText(/Reply from/u)).toBeNull());
   });
 
   it('says where hidden reviews show up when there are none', async () => {

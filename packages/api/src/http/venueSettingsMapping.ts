@@ -2,6 +2,7 @@ import type {
   HoursBlock,
   PolicyChangeResult,
   ReservationPolicy,
+  ReservationPolicyDefaults,
   SpecialDay,
   SpecialDaysList,
   SpecialDaysSaved,
@@ -302,6 +303,21 @@ export function reservationPolicy(view: WirePolicy): ReservationPolicy {
     maxSeatOverhang: view.maxSeatOverhang ?? null,
     serviceChargePercent: view.serviceChargePercent,
     pricesIncludeVat: view.pricesIncludeVat,
+  };
+}
+
+/** `GET …/reservation-policy/defaults` (VC4 wire §2): the bound's `max` is left out when there is no ceiling. */
+export type WirePolicyDefaults =
+  Schemas['Yalla.Application.BranchSettings.ReservationPolicyDefaultsView'];
+
+export function policyDefaults(view: WirePolicyDefaults): ReservationPolicyDefaults {
+  return {
+    defaults: reservationPolicy(view.defaults),
+    bounds: view.bounds.map((bound) => ({
+      field: bound.field,
+      min: bound.min,
+      max: bound.max ?? null,
+    })),
   };
 }
 

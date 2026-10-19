@@ -119,6 +119,7 @@ describe('notificationCopy', () => {
     'booking-cancelled-by-venue',
     'order-ready',
     'review-hidden',
+    'review-replied',
     'a-kind-from-a-newer-server',
   ])('has a title and a body in every language for %s', (variant) => {
     const [kind, flag] = variant.split(':') as [string, string | undefined];
@@ -168,6 +169,10 @@ describe('notificationRoute', () => {
 
   it('opens the place for a hidden review, and nothing when a row names nothing', () => {
     expect(notificationRoute(row({ kind: 'review-hidden', reservationId: null }))?.pathname).toBe(
+      '/place/[placeId]',
+    );
+    // The venue answered: the reply is under the review on the place's page.
+    expect(notificationRoute(row({ kind: 'review-replied', reservationId: null }))?.pathname).toBe(
       '/place/[placeId]',
     );
     expect(

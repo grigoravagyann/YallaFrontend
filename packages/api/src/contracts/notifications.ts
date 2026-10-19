@@ -15,6 +15,8 @@ export const DINER_NOTIFICATION_KINDS = [
   'booking-cancelled-by-venue',
   'order-ready',
   'review-hidden',
+  // The venue answered the diner's review: the first reply only (VC4 wire §1).
+  'review-replied',
   // Booking times: somebody would like the diner's table after them, and
   // what came of their answer (`accepted`, `requestedTime`, `freeByTime`).
   'table-request',

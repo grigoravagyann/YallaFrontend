@@ -122,6 +122,17 @@ export function reviewFromApi(review: BranchReview, timeZoneId: string): Review 
     text: review.text ?? '',
     date: branchDayKey(review.updatedAtUtc || review.createdAtUtc, timeZoneId),
     edited: review.edited,
+    reply: review.reply
+      ? {
+          text: review.reply.text,
+          authorName: review.reply.authorName,
+          authorRole: review.reply.authorRole,
+          date: branchDayKey(review.reply.updatedAtUtc || review.reply.createdAtUtc, timeZoneId),
+          edited: review.reply.edited,
+          reviewEditedAfter:
+            Date.parse(review.updatedAtUtc) > Date.parse(review.reply.updatedAtUtc),
+        }
+      : null,
   };
 }
 

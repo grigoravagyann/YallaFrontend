@@ -41,6 +41,45 @@ export const REVIEW_MODERATION_FILTERS: readonly ReviewModerationFilter[] = [
   'hidden',
 ];
 
+/** The longest a venue's reply may be, trimmed (VC4 wire §1). */
+export const MAX_REVIEW_REPLY = 500;
+
+/** Who may sign a reply: the venue's owner, general manager or branch manager. */
+export type ReplyAuthorRole = 'owner' | 'generalManager' | 'manager';
+
+/**
+ * The venue's one public reply under a review (HANDOFF §5.3). Signed with the
+ * name the writer had when they last saved it, and their role: "Aram Hakobyan,
+ * Owner". The last writer signs — a general manager who edits the owner's reply
+ * makes it theirs.
+ */
+export interface ReviewReply {
+  readonly text: string;
+  readonly authorName: string;
+  readonly authorRole: ReplyAuthorRole;
+  /** First published; a reply removed and written again starts over. */
+  readonly createdAtUtc: string;
+  /** The text's last change; the same as `createdAtUtc` until edited. */
+  readonly updatedAtUtc: string;
+  readonly edited: boolean;
+}
+
+/**
+ * The reply as diners read it — the public reviews, the place's details and
+ * the author's own review (VC4 wire, review round 1): signed short, "Aram H.",
+ * by the rule diners' own names follow. No name at all when the stored one
+ * looks like contact details: the role signs alone then.
+ */
+export interface PublicReviewReply extends Omit<ReviewReply, 'authorName'> {
+  readonly authorName: string | null;
+}
+
+/** The short public signature for a writer's full name, or null where the rule drops it. */
+export function publicReplyAuthorName(fullName: string): string | null {
+  const short = publicAuthorName(fullName);
+  return short === ANONYMOUS_AUTHOR ? null : short;
+}
+
 /** One review as a moderator sees it: the public card plus who wrote it and its takedown state. */
 export interface ModeratedReview {
   readonly reviewId: string;
@@ -58,12 +97,51 @@ export interface ModeratedReview {
   readonly hiddenAtUtc: string | null;
   /** Hidden by the platform rather than the venue: a venue cannot show it again. False while visible. */
   readonly hiddenByPlatform: boolean;
+  /**
+   * Who at the venue hid it, by their name now. Null while visible, when the
+   * Yalla team hid it, or from a server that does not say.
+   */
+  readonly hiddenByName: string | null;
+  /** The venue's reply. Kept on a hidden review too: the venue sees what it wrote. */
+  readonly reply: ReviewReply | null;
 }
 
 /** The venue's view adds how often, and how recently, diners reported it. */
 export interface VenueModeratedReview extends ModeratedReview {
   readonly reportCount: number;
   readonly lastReportedAtUtc: string | null;
+}
+
+/**
+ * The whole branch's reviews in numbers, whatever the filter and page (VC4
+ * wire §1): the filter chips' counts, the nav badge, and the rating card.
+ */
+export interface ReviewSummary {
+  /** Every review, hidden ones included. */
+  readonly all: number;
+  /** Visible, with reports nobody has set aside. */
+  readonly reported: number;
+  readonly hidden: number;
+  readonly visible: number;
+  /** The visible reviews' average, one decimal; null with none. */
+  readonly rating: number | null;
+  /**
+   * The rating now minus the rating of the visible reviews written more than
+   * thirty days ago, one decimal; null when either side has none.
+   */
+  readonly ratingChange30Days: number | null;
+  /** Visible reviews by stars, 5 down to 1, always five rows. */
+  readonly distribution: readonly { readonly stars: number; readonly count: number }[];
+}
+
+/** A page of a branch's reviews for a moderator, with the branch's summary. */
+export interface ModeratedReviewPage {
+  readonly items: readonly VenueModeratedReview[];
+  readonly total: number;
+  readonly page: number;
+  readonly pageSize: number;
+  /** Null from a server that does not send it yet. */
+  readonly summary: ReviewSummary | null;
 }
 
 export interface VenueReviewQuery {
@@ -82,6 +160,39 @@ export interface VenueReviewQuery {
 export interface SetReviewVisibilityCommand {
   readonly hidden: boolean;
   readonly reason: string | null;
+}
+
+/**
+ * The average of a set of reviews' stars and how they spread, worked out on
+ * the client: what a moderator's summary card shows when the server has not
+ * sent its own (`ModeratedReviewPage.summary`).
+ */
+export function summariseReviews(
+  reviews: readonly ModeratedReview[],
+  reportCount: (review: ModeratedReview) => number = () => 0,
+  now: Date = new Date(),
+): ReviewSummary {
+  const visible = reviews.filter((review) => !review.hidden);
+  const average = (list: readonly ModeratedReview[]) =>
+    list.length === 0
+      ? null
+      : Math.round((list.reduce((sum, review) => sum + review.rating, 0) / list.length) * 10) / 10;
+  const rating = average(visible);
+  const monthAgo = now.getTime() - 30 * 24 * 60 * 60_000;
+  const before = average(visible.filter((review) => Date.parse(review.createdAtUtc) < monthAgo));
+  return {
+    all: reviews.length,
+    reported: visible.filter((review) => reportCount(review) > 0).length,
+    hidden: reviews.length - visible.length,
+    visible: visible.length,
+    rating,
+    ratingChange30Days:
+      rating !== null && before !== null ? Math.round((rating - before) * 10) / 10 : null,
+    distribution: [5, 4, 3, 2, 1].map((stars) => ({
+      stars,
+      count: visible.filter((review) => Math.round(review.rating) === stars).length,
+    })),
+  };
 }
 
 /** The public name for a display name. Anything that looks like contact details is dropped. */

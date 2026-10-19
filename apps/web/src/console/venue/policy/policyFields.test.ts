@@ -3,12 +3,15 @@ import { describe, expect, it } from 'vitest';
 import {
   POLICY_FIELDS,
   POLICY_GROUPS,
-  defaultValue,
+  clock,
   differsFromDefaults,
   fieldsInGroup,
   isDefault,
+  leadExample,
   outOfBounds,
   refusalFor,
+  stepped,
+  withServerBounds,
 } from './policyFields';
 
 /**
@@ -34,7 +37,7 @@ describe('a bounds rejection from the server', () => {
     );
 
     expect(refusal).not.toBeNull();
-    expect(refusal?.field).toBe('turnTimeMinutes');
+    expect(refusal?.fields).toEqual(['turnTimeMinutes']);
     // The server's own sentence, verbatim. It already contains the bounds and
     // the value given, which is more than the client knows how to say.
     expect(refusal?.message).toContain('between 15 and 360');
@@ -51,8 +54,20 @@ describe('a bounds rejection from the server', () => {
 
     // Wrong-looking, and never silent. A refusal swallowed because the mapping
     // missed is a save button that does nothing.
-    expect(refusal?.field).toBeNull();
+    expect(refusal?.fields).toEqual([]);
     expect(refusal?.message).toBe('Something the client has never heard of was rejected.');
+  });
+
+  it('names every field a 422 listed that the form has, in its order', () => {
+    const refusal = refusalFor(
+      new PolicyBoundsError({
+        url: '/api/branches/b1/reservation-policy',
+        field: 'graceMinutes',
+        fields: ['graceMinutes', 'somethingNew', 'turnTimeMinutes'],
+        detail: 'Two fields are out of bounds.',
+      }),
+    );
+    expect(refusal?.fields).toEqual(['graceMinutes', 'turnTimeMinutes']);
   });
 
   it('is not produced for an error that is not a bounds refusal', () => {
@@ -65,6 +80,16 @@ describe('the local bounds check', () => {
   it('marks a value the server would refuse', () => {
     const policy = { ...defaultPolicyFor('cafe'), turnTimeMinutes: 5, bookingWindowDays: 400 };
     expect(outOfBounds(policy)).toEqual(['bookingWindowDays', 'turnTimeMinutes']);
+  });
+
+  it('marks an emptied field that cannot be empty, and leaves an emptied "no limit" alone', () => {
+    const policy = {
+      ...defaultPolicyFor('cafe'),
+      graceMinutes: null,
+      approvalRequiredAbovePartySize: null,
+      maxSeatOverhang: -1,
+    };
+    expect(outOfBounds(policy)).toEqual(['maxSeatOverhang', 'graceMinutes']);
   });
 
   it('marks nothing on the shipped defaults', () => {
@@ -89,17 +114,18 @@ describe('the shipped defaults', () => {
 
   it('give a bar the cafe defaults', () => {
     expect(defaultPolicyFor('bar')).toEqual(defaultPolicyFor('cafe'));
-    expect(defaultValue('turnTimeMinutes', 'bar')).toBe(120);
-    expect(differsFromDefaults(defaultPolicyFor('cafe'), 'bar')).toEqual([]);
-    expect(differsFromDefaults(defaultPolicyFor('restaurant'), 'bar')).toEqual(['turnTimeMinutes']);
+    const bar = defaultPolicyFor('bar');
+    expect(differsFromDefaults(defaultPolicyFor('cafe'), bar)).toEqual([]);
+    expect(differsFromDefaults(defaultPolicyFor('restaurant'), bar)).toEqual(['turnTimeMinutes']);
   });
 
   it('give a reset target for every field, and say which have been changed', () => {
     const changed = { ...defaultPolicyFor('cafe'), turnTimeMinutes: 45, bufferMinutes: 0 };
 
-    expect(isDefault(changed, 'turnTimeMinutes', 'cafe')).toBe(false);
-    expect(isDefault(changed, 'graceMinutes', 'cafe')).toBe(true);
-    expect(differsFromDefaults(changed, 'cafe')).toEqual(['turnTimeMinutes', 'bufferMinutes']);
+    const cafe = defaultPolicyFor('cafe');
+    expect(isDefault(changed, 'turnTimeMinutes', cafe)).toBe(false);
+    expect(isDefault(changed, 'graceMinutes', cafe)).toBe(true);
+    expect(differsFromDefaults(changed, cafe)).toEqual(['turnTimeMinutes', 'bufferMinutes']);
   });
 });
 
@@ -117,5 +143,54 @@ describe('the form layout', () => {
     const shipped = Object.keys(defaultPolicyFor('cafe')).sort();
     const editable = POLICY_FIELDS.map((field) => field.key as string).sort();
     expect(editable).toEqual(shipped);
+  });
+});
+
+describe('the steppers', () => {
+  const field = (key: string) => POLICY_FIELDS.find((spec) => spec.key === key)!;
+
+  it("move by the field's step and stop at its bounds", () => {
+    expect(stepped(field('turnTimeMinutes'), 120, 1)).toBe(125);
+    expect(stepped(field('turnTimeMinutes'), 17, -1)).toBe(15);
+    expect(stepped(field('turnTimeMinutes'), 358, 1)).toBe(360);
+    expect(stepped(field('cancellationDeadlineMinutes'), 120, -1)).toBe(105);
+  });
+
+  it('go from "no limit" to the smallest limit, and no lower than "no limit"', () => {
+    expect(stepped(field('approvalRequiredAbovePartySize'), null, 1)).toBe(1);
+    expect(stepped(field('approvalRequiredAbovePartySize'), null, -1)).toBeNull();
+    expect(stepped(field('maxSeatOverhang'), 0, -1)).toBe(0);
+  });
+});
+
+describe("the guest's view", () => {
+  it('tells the time on a wall clock, past midnight too', () => {
+    expect(clock(19 * 60 + 105)).toBe('20:45');
+    expect(clock(19 * 60 + 360)).toBe('01:00');
+  });
+
+  it('says what the shortest notice means for a 19:00 table', () => {
+    expect(leadExample(0)).toEqual({ kind: 'zero' });
+    expect(leadExample(30)).toEqual({ kind: 'until', time: '18:30' });
+    expect(leadExample(19 * 60)).toEqual({ kind: 'sameDay' });
+  });
+});
+
+describe("the server's bounds", () => {
+  it('replace the mirrored ones where the server names a field, so the form is never stricter', () => {
+    const fields = withServerBounds([
+      { field: 'turnTimeMinutes', min: 10, max: 480 },
+      { field: 'somethingNew', min: 0, max: 1 },
+    ]);
+    const turn = fields.find((field) => field.key === 'turnTimeMinutes');
+    expect(turn?.bounds).toEqual({ min: 10, max: 480 });
+    const policy = { ...defaultPolicyFor('cafe'), turnTimeMinutes: 400 };
+    expect(outOfBounds(policy)).toEqual(['turnTimeMinutes']);
+    expect(outOfBounds(policy, fields)).toEqual([]);
+  });
+
+  it('leave the mirrored bounds when the server sent none', () => {
+    expect(withServerBounds(undefined)).toBe(POLICY_FIELDS);
+    expect(withServerBounds([])).toBe(POLICY_FIELDS);
   });
 });

@@ -132,6 +132,7 @@ export function ReviewCard({ review, onReport, style }: ReviewCardProps) {
       </View>
       <Stars rating={review.rating} />
       {review.text ? <Text style={styles.reviewText}>{review.text}</Text> : null}
+      {review.reply ? <ReplyView reply={review.reply} /> : null}
       {onReport ? (
         <Button
           label={t('place.review.report.action')}
@@ -142,6 +143,39 @@ export function ReviewCard({ review, onReport, style }: ReviewCardProps) {
           onPress={onReport}
           style={styles.report}
         />
+      ) : null}
+    </View>
+  );
+}
+
+/**
+ * The venue's answer under a review, signed as the venue signed it: "Reply
+ * from Aram Hakobyan, Owner". Set apart by a rule on its leading edge, the
+ * way a quoted answer reads, so it is never mistaken for the diner's words.
+ */
+export function ReplyView({ reply }: { readonly reply: NonNullable<Review['reply']> }) {
+  const { t } = useTranslation('diner');
+  const { locale } = useLocale();
+  const format = useMemo(
+    () => new Intl.DateTimeFormat(intlTag(locale), { dateStyle: 'medium', timeZone: 'UTC' }),
+    [locale],
+  );
+  const parsed = new Date(reply.date);
+  const date = Number.isNaN(parsed.getTime()) ? reply.date : format.format(parsed);
+  const role = t(`place.review.reply.role.${reply.authorRole}`);
+  // The server drops a name that looks like contact details: the role signs alone.
+  const by = reply.authorName
+    ? t('place.review.reply.signature', { name: reply.authorName, role })
+    : t('place.review.reply.roleOnly', { role });
+  return (
+    <View style={styles.reply}>
+      <Text style={styles.replyBy}>{t('place.review.reply.from', { by })}</Text>
+      <Text style={styles.replyText}>{reply.text}</Text>
+      <Text style={styles.reviewDate}>
+        {reply.edited ? t('place.review.reply.editedOn', { date }) : date}
+      </Text>
+      {reply.reviewEditedAfter ? (
+        <Text style={styles.reviewDate}>{t('place.review.reply.reviewEditedAfter')}</Text>
       ) : null}
     </View>
   );
@@ -191,6 +225,15 @@ const styles = StyleSheet.create({
   },
   reviewDate: { ...typography.caption, color: colors.textMuted },
   reviewText: { ...typography.body, color: colors.text },
+  reply: {
+    gap: space.xs,
+    marginTop: space.xs,
+    paddingLeft: space.md,
+    borderLeftWidth: 3,
+    borderLeftColor: colors.brand,
+  },
+  replyBy: { ...typography.caption, fontWeight: fontWeight.bold, color: colors.text },
+  replyText: { ...typography.body, color: colors.text },
   report: { alignSelf: 'flex-start', paddingHorizontal: 0 },
   noReviews: { ...typography.body, color: colors.textMuted },
   toast: {

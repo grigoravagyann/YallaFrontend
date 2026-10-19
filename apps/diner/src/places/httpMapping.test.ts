@@ -180,6 +180,7 @@ describe('placeFromDetail', () => {
         createdAtUtc: '2026-09-01T10:00:00Z',
         updatedAtUtc: '2026-09-02T10:00:00Z',
         edited: true,
+        reply: null,
       },
     ],
     rooms: [],
@@ -200,7 +201,15 @@ describe('placeFromDetail', () => {
     expect(place.phone).toBeUndefined();
     expect(place.acceptsAppBookings).toBe(false);
     expect(place.reviews).toEqual([
-      { id: 'r', author: 'Anahit S.', rating: 5, text: '', date: '2026-09-02', edited: true },
+      {
+        id: 'r',
+        author: 'Anahit S.',
+        rating: 5,
+        text: '',
+        date: '2026-09-02',
+        edited: true,
+        reply: null,
+      },
     ]);
     expect(place.rooms).toEqual([]);
     expect(place).not.toHaveProperty('menu');
@@ -350,6 +359,7 @@ describe('review pages', () => {
     createdAtUtc: '2026-09-01T10:00:00Z',
     updatedAtUtc: '2026-09-01T10:00:00Z',
     edited: false,
+    reply: null,
   });
   const page = (number: number, count: number, total: number): BranchReviewPage => ({
     branchId: 'b1',
@@ -378,7 +388,37 @@ describe('a review posted after midnight in Yerevan', () => {
       createdAtUtc: '2026-10-15T21:40:00Z', // 01:40 on the 16th in Yerevan
       updatedAtUtc: '2026-10-15T21:40:00Z',
       edited: false,
+      reply: null,
     };
     expect(reviewFromApi(posted, 'Asia/Yerevan').date).toBe('2026-10-16');
+  });
+
+  it("dates the venue's reply in the branch's zone too, and keeps who signed it", () => {
+    const answered = {
+      reviewId: 'r-late',
+      authorName: 'Anahit S.',
+      rating: 5,
+      text: 'late',
+      createdAtUtc: '2026-10-15T08:00:00Z',
+      updatedAtUtc: '2026-10-15T08:00:00Z',
+      edited: false,
+      reply: {
+        text: 'Thank you!',
+        authorName: 'Aram Hakobyan',
+        authorRole: 'generalManager' as const,
+        createdAtUtc: '2026-10-15T21:40:00Z',
+        updatedAtUtc: '2026-10-15T21:40:00Z',
+        edited: false,
+      },
+    };
+    expect(reviewFromApi(answered, 'Asia/Yerevan').reply).toEqual({
+      text: 'Thank you!',
+      authorName: 'Aram Hakobyan',
+      authorRole: 'generalManager',
+      date: '2026-10-16',
+      edited: false,
+      // Answered after the review's last change.
+      reviewEditedAfter: false,
+    });
   });
 });

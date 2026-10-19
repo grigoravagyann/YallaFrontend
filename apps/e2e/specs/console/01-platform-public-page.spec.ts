@@ -35,32 +35,26 @@ test('Platform admin edits the demo branch: listing, cover, address and a table 
   const listing = page.getByRole('form', { name: 'In the Yalla app' });
   const cuisine = `Armenian and grill ${tag}`;
   await listing.getByLabel('Cuisine').fill(cuisine);
+  // Amenities are checkboxes worn as chips since the venue console redesign (phase 4).
   for (const amenity of ['Wi-Fi', 'Parking']) {
-    const chip = listing.getByRole('button', { name: amenity, exact: true });
-    if ((await chip.getAttribute('aria-pressed')) !== 'true') await chip.click();
-    await expect(chip).toHaveAttribute('aria-pressed', 'true');
+    const box = listing.getByRole('checkbox', { name: amenity, exact: true });
+    await box.check();
+    await expect(box).toBeChecked();
   }
   await listing.getByRole('button', { name: 'Save listing' }).click();
-  await expect(listing.getByText('Listing saved.')).toBeVisible();
+  await expect(listing.getByText('Listing saved', { exact: true })).toBeVisible();
 
   await page.reload();
   await expect(listing.getByLabel('Cuisine')).toHaveValue(cuisine);
-  await expect(listing.getByRole('button', { name: 'Wi-Fi', exact: true })).toHaveAttribute(
-    'aria-pressed',
-    'true',
-  );
-  await expect(listing.getByRole('button', { name: 'Parking', exact: true })).toHaveAttribute(
-    'aria-pressed',
-    'true',
-  );
+  await expect(listing.getByRole('checkbox', { name: 'Wi-Fi', exact: true })).toBeChecked();
+  await expect(listing.getByRole('checkbox', { name: 'Parking', exact: true })).toBeChecked();
   await expect
     .poll(async () => (await branchDetail(api, demo.branchId)).listing.cuisine)
     .toBe(cuisine);
 
   // --- Cover: a new picture is uploaded and saved ------------------------------------
-  const coverCard = page
-    .locator('form')
-    .filter({ has: page.getByRole('heading', { name: 'Cover photo' }) });
+  // The page-and-booking form, named by its heading since the redesign (phase 4).
+  const coverCard = page.getByRole('form', { name: 'Page and booking' });
   await coverCard.locator('input[type="file"]').setInputFiles({
     name: `cover-${tag}.png`,
     mimeType: 'image/png',
@@ -87,7 +81,7 @@ test('Platform admin edits the demo branch: listing, cover, address and a table 
     ((await savedProfile).postDataJSON() as { coverPhotoId?: string }).coverPhotoId,
     'the public-profile save sends the uploaded cover',
   ).toBe(newCoverId);
-  await expect(coverCard.getByText('Saved.', { exact: true })).toBeVisible();
+  await expect(coverCard.getByText('Saved', { exact: true })).toBeVisible();
 
   // --- Address and pin: the public details follow -------------------------------------
   const address = `${tag} Test Street, Yerevan`;
@@ -95,7 +89,7 @@ test('Platform admin edits the demo branch: listing, cover, address and a table 
   await listing.getByLabel('Latitude').fill('40.1812');
   await listing.getByLabel('Longitude').fill('44.5136');
   await listing.getByRole('button', { name: 'Save listing' }).click();
-  await expect(listing.getByText('Listing saved.')).toBeVisible();
+  await expect(listing.getByText('Listing saved', { exact: true })).toBeVisible();
 
   await expect
     .poll(async () => (await branchDetail(api, demo.branchId)).listing.address, { timeout: 30_000 })
