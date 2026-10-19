@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="hy">
+<head>
+<meta charset="utf-8">
+<title>Էջի վիճակներ — Yalla</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+Armenian:wght@400;500;600;700&amp;family=Noto+Serif+Armenian:wght@600;700&amp;display=swap">
+<style>
+body{margin:0}
+a{color:#3A1D0C}a:hover{color:#5A2E14}
+.s{--bg:#F7F1E8;--paper:#FFFFFF;--bar:#2B1608;--brand:#3A1D0C;--brand-ink:#FFF3E4;--ink:#2A1A10;--muted:#6B5A4F;--line:#E8DDD0;--soft:#F1E9DF;--sk:#EADFD2;width:390px;height:844px;overflow:hidden;font-family:'Noto Sans Armenian','Noto Sans',system-ui,sans-serif;font-size:16px;line-height:1.5;color:var(--ink);background:var(--bg);display:flex;flex-direction:column}
+.s *{box-sizing:border-box}
+.s :focus-visible{outline:3px solid #3A1D0C;outline-offset:2px;border-radius:6px}
+.s h1{font-family:'Noto Serif Armenian',Georgia,serif;margin:0;font-size:26px;line-height:1.2;text-wrap:balance}
+.bar{height:60px;flex:none;background:var(--bar);display:flex;align-items:center;padding:0 16px}
+.bar .word{font-family:'Noto Serif Armenian',Georgia,serif;font-weight:700;font-size:22px;color:#FFF3E4;text-decoration:none;min-height:44px;display:inline-flex;align-items:center}
+.sw{display:flex;flex-wrap:wrap;gap:4px;padding:8px 16px 0}
+.sw button{height:30px;padding:0 8px;border-radius:8px;border:1px solid #D8C8B6;background:var(--paper);font:inherit;font-size:12px;font-weight:600;color:var(--ink);cursor:pointer}
+.sw button[aria-pressed="true"]{background:var(--brand);border-color:var(--brand);color:#FFF3E4}
+.c{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;gap:12px;padding:24px 28px 80px}
+.ic{width:80px;height:80px;border-radius:50%;background:var(--soft);color:#8C7666;display:grid;place-items:center;margin-bottom:4px}
+.ic svg{width:40px;height:40px}
+.c p{margin:0;color:var(--muted);max-width:32ch}
+.c .vn{font-weight:700;color:var(--ink);margin:0}
+.btn{min-height:52px;padding:0 22px;border-radius:999px;border:1.5px solid transparent;font:inherit;font-size:16px;font-weight:700;display:inline-flex;align-items:center;justify-content:center;gap:8px;text-decoration:none;cursor:pointer;margin-top:8px}
+.btn-pri{background:var(--brand);color:var(--brand-ink)}
+.btn-sec{background:var(--paper);color:var(--brand);border-color:#D8C8B6}
+.btn svg{width:20px;height:20px}
+.sk{padding:0 0 24px;display:flex;flex-direction:column;gap:14px}
+.sk i{display:block;background:var(--sk);border-radius:10px;animation:pulse 1.4s ease-in-out infinite}
+.sk .cv{height:292px;border-radius:0}
+.sk .pad{padding:0 16px;display:flex;flex-direction:column;gap:10px}
+@keyframes pulse{50%{opacity:.55}}
+@media (prefers-reduced-motion:reduce){.sk i{animation:none}}
+.vh{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+</style>
+</helmet>
+<div class="s">
+<header class="bar"><a class="word" href="Main.dc.html">Yalla</a></header>
+<div class="sw" aria-label="Դիզայնի վիճակ">
+<sc-for list="{{ cases }}" as="c" hint-placeholder-count="5"><button type="button" aria-pressed="{{ c.on }}" onClick="{{ c.pick }}">{{ c.label }}</button></sc-for>
+</div>
+<sc-if value="{{ isLoading }}" hint-placeholder-val="{{ false }}">
+<div class="sk" role="status" style="margin-top: 8px"><span class="vh">Բեռնվում է…</span><i class="cv"></i><div class="pad"><i style="height: 34px; width: 70%"></i><i style="height: 18px; width: 45%"></i><i style="height: 72px; border-radius: 16px"></i><i style="height: 48px; width: 60%; border-radius: 999px"></i><i style="height: 220px; border-radius: 20px"></i></div></div>
+</sc-if>
+<sc-if value="{{ isMsg }}" hint-placeholder-val="{{ true }}">
+<main class="c" role="{{ role }}">
+<div class="ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="{{ icon }}"></path></svg></div>
+<sc-if value="{{ venueName }}" hint-placeholder-val="{{ false }}"><p class="vn">{{ venueName }}</p></sc-if>
+<h1>{{ title }}</h1>
+<p>{{ body }}</p>
+<sc-if value="{{ retry }}" hint-placeholder-val="{{ false }}"><button type="button" class="btn btn-pri" onClick="{{ doRetry }}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 0 1 15-6.7L21 8M21 3v5h-5M21 12a9 9 0 0 1-15 6.7L3 16M3 21v-5h5"></path></svg>Կրկնել</button></sc-if>
+<sc-if value="{{ call }}" hint-placeholder-val="{{ false }}"><a class="btn btn-sec" href="tel:+37411223344">Զանգահարել · +374 11 22 33 44</a></sc-if>
+</main>
+</sc-if>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"state":{"editor":"enum","options":["loading","notFound","unavailable","offline","error"],"default":"notFound","section":"Վիճակ"},"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+  constructor(props) { super(props); this.state = { st: null }; }
+  renderVals() {
+    const st = this.state.st || this.props.state || 'notFound';
+    const M = {
+      notFound: ['M21 21l-4.3-4.3M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16zM8 11h6', 'Չգտանք այդ վայրը', 'Ստուգեք հղումը՝ հնարավոր է սխալ է գրված կամ վայրը փոխել է այն։', '', false, false, 'main'],
+      unavailable: ['M12 9v4M12 17h.01M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z', 'Այս պահին Yalla-ում չէ', 'Վայրի էջը ժամանակավորապես փակ է։ Նրանց հեռախոսը և դուռը շարունակում են աշխատել։', 'Cascade Cafe · Կասկադ', false, true, 'main'],
+      offline: ['M2 2l20 20M8.5 16.4a5 5 0 0 1 7 0M5 12.9a10 10 0 0 1 5.2-2.8M19 12.9a10 10 0 0 0-2.1-1.6M12 20h.01', 'Կապ չկա', 'Ստուգեք ինտերնետը։ Էջը կբացվի, հենց կապը վերադառնա։', '', true, false, 'alert'],
+      error: ['M12 8v4M12 16h.01M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20z', 'Մեր կողմից ինչ-որ բան սխալ գնաց', 'Ձեր տվյալները չեն կորել։ Փորձեք նորից մի քանի վայրկյանից։', '', true, false, 'alert'],
+    };
+    const m = M[st] || M.notFound;
+    return {
+      cases: [['loading', 'Բեռնում'], ['notFound', 'Չգտնվեց'], ['unavailable', 'Հասանելի չէ'], ['offline', 'Կապ չկա'], ['error', 'Սխալ']].map((c) => ({ label: c[1], on: st === c[0] ? 'true' : 'false', pick: () => this.setState({ st: c[0] }) })),
+      isLoading: st === 'loading', isMsg: st !== 'loading',
+      icon: m[0], title: m[1], body: m[2], venueName: m[3], retry: m[4], call: m[5], role: m[6],
+      doRetry: () => this.setState({ st: 'loading' }),
+    };
+  }
+}
+</script>
+</body>
+</html>

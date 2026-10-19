@@ -1,0 +1,531 @@
+<!doctype html>
+<html lang="hy">
+<head>
+<meta charset="utf-8">
+<title>Cascade Cafe · Կասկադ — Yalla</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+Armenian:wght@400;500;600;700&amp;family=Noto+Serif+Armenian:wght@600;700&amp;display=swap">
+<style>
+body{margin:0;background:#F7F1E8}
+a{color:#3A1D0C}a:hover{color:#5A2E14}
+.p{--bg:#F7F1E8;--paper:#FFFFFF;--bar:#2B1608;--brand:#3A1D0C;--brand-ink:#FFF3E4;--ink:#2A1A10;--muted:#6B5A4F;--line:#E8DDD0;--soft:#F1E9DF;--amber:#8A4B08;--amber-bg:#FDF1DE;--red:#A8261B;--red-bg:#FCEAE7;--green:#0F6A4B;--green-bg:#E4F2EA;--free:#1E7350;--booked:#8A5E08;--grey:#57534E;--grey-bg:#ECE6DF;font-family:'Noto Sans Armenian','Noto Sans',system-ui,sans-serif;font-size:16px;line-height:1.5;color:var(--ink);background:var(--bg);min-height:100%}
+.p *{box-sizing:border-box}
+.p :focus-visible{outline:3px solid #3A1D0C;outline-offset:2px;border-radius:6px}
+.p h1,.p h2,.p h3{font-family:'Noto Serif Armenian',Georgia,serif;text-wrap:balance;margin:0;color:var(--ink)}
+.bar{position:sticky;top:0;z-index:5;height:60px;background:var(--bar);display:flex;align-items:center;gap:8px;padding:0 max(16px,env(safe-area-inset-left,0px))}
+.bar .word{font-family:'Noto Serif Armenian',Georgia,serif;font-weight:700;font-size:22px;color:#FFF3E4;text-decoration:none;min-height:44px;display:inline-flex;align-items:center;line-height:1}
+.bar .sp{flex:1}
+.lang{display:flex;gap:2px;background:rgba(255,243,228,.08);border-radius:999px;padding:3px}
+.lang button{min-width:48px;height:44px;border:0;border-radius:999px;background:none;color:#E9D9C6;font:inherit;font-size:14px;font-weight:600;cursor:pointer}
+.lang button[aria-pressed="true"]{background:#FFF3E4;color:var(--brand)}
+.wrap{max-width:1180px;margin:0 auto;padding:0 16px 40px;display:grid;grid-template-columns:minmax(0,1fr);row-gap:28px}
+.sec{grid-column:1;min-width:0;scroll-margin-top:76px}
+.hero{display:grid;gap:8px;margin:0 -16px}
+.cover{position:relative;aspect-ratio:4/3;max-width:100%;overflow:hidden;background:#3A2A1E}
+.cover img{width:100%;height:100%;object-fit:cover;display:block}
+.cover .cnt{position:absolute;right:12px;bottom:12px;background:rgba(20,10,4,.72);color:#FFF3E4;font-size:13px;font-weight:600;padding:4px 10px;border-radius:999px}
+.gal{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px;padding:0 16px}
+.gal button{padding:0;border:2px solid transparent;border-radius:10px;overflow:hidden;aspect-ratio:4/3;background:#3A2A1E;cursor:pointer;position:relative;min-height:44px}
+.gal button[aria-pressed="true"]{border-color:var(--brand)}
+.gal img{width:100%;height:100%;object-fit:cover;display:block}
+.gal .more{position:absolute;inset:0;display:grid;place-items:center;text-align:center;background:rgba(20,10,4,.62);color:#FFF3E4;font-weight:700;font-size:13px;line-height:1.2}
+.gov{position:fixed;inset:0;z-index:20;background:rgba(20,10,4,.62);display:flex;justify-content:center;align-items:flex-start;padding:16px;overflow:auto}
+.gpan{background:var(--bg);border-radius:20px;max-width:760px;width:100%;padding:16px}
+.ghead{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px}
+.ghead h2{font-size:20px}
+.gx{width:44px;height:44px;border-radius:50%;border:0;background:var(--soft);color:var(--ink);display:grid;place-items:center;cursor:pointer;flex:none}
+.ggrid{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.ggrid img{width:100%;aspect-ratio:4/3;object-fit:cover;border-radius:12px;display:block}
+.head{display:flex;flex-direction:column;gap:6px}
+.head h1{font-size:30px;line-height:1.15}
+.brrow{display:flex;flex-wrap:wrap;align-items:center;gap:0 12px}
+.head .br{font-size:17px;font-weight:600;color:var(--ink)}
+.allbr{display:inline-flex;align-items:center;min-height:44px;font-size:15px;font-weight:600;text-underline-offset:3px}
+.head .meta{color:var(--muted);font-size:15px;display:flex;flex-wrap:wrap;gap:4px 10px;align-items:center}
+.head .meta b{color:var(--ink);font-weight:700}
+.star{color:#8A5E08}
+.now{margin-top:8px;background:var(--paper);border:1px solid var(--line);border-radius:16px;padding:12px 14px;display:flex;flex-direction:column;gap:2px;min-height:72px}
+.now .st{display:flex;align-items:center;gap:8px;font-weight:700}
+.now .st i{width:10px;height:10px;border-radius:50%;flex:none}
+.now .st i.op{background:#2E9E5B}.now .st i.cl{background:#A39383}
+.now .lv{color:var(--muted);font-size:15px}
+.acts{display:flex;gap:8px;flex-wrap:wrap;margin-top:6px}
+.btn{min-height:48px;padding:0 18px;border-radius:999px;border:1.5px solid transparent;font:inherit;font-size:16px;font-weight:700;display:inline-flex;align-items:center;justify-content:center;gap:8px;text-decoration:none;cursor:pointer;white-space:nowrap}
+.btn svg{width:20px;height:20px;flex:none}
+.btn-pri{background:var(--brand);color:var(--brand-ink);border-color:var(--brand)}
+.btn-pri:hover{background:#4A2612;color:var(--brand-ink)}
+.btn-sec{background:var(--paper);color:var(--brand);border-color:#D8C8B6}
+.btn-sec:hover{background:#FBF6EF;color:var(--brand)}
+.btn[aria-disabled="true"]{background:#E7DED3;border-color:#E7DED3;color:#5E4F45;cursor:not-allowed}
+.btn.full{width:100%}
+.only-phone{display:inline-flex}
+.card{background:var(--paper);border:1px solid var(--line);border-radius:20px;padding:18px 16px;display:flex;flex-direction:column;gap:16px}
+.card h2,.sec>h2{font-size:22px;line-height:1.2}
+.lbl{font-size:14px;font-weight:700;color:var(--muted);margin:0 0 8px;display:block}
+.days{display:flex;gap:8px;overflow-x:auto;padding-bottom:4px;margin:0 -4px;padding-left:4px;scrollbar-width:none}
+.day{flex:none;width:64px;height:64px;border-radius:14px;border:1.5px solid #D8C8B6;background:var(--paper);font:inherit;color:var(--ink);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:0;cursor:pointer;line-height:1.2}
+.day small{font-size:13px;color:var(--muted);font-weight:600}
+.day b{font-size:20px}
+.day[aria-pressed="true"]{background:var(--brand);border-color:var(--brand);color:#FFF3E4}
+.day[aria-pressed="true"] small{color:#E9D9C6}
+.day.other{width:auto;padding:0 14px;font-size:14px;font-weight:700}
+.datein{margin-top:8px;display:flex;flex-direction:column;gap:4px}
+.ctl{height:48px;border:1.5px solid #D8C8B6;border-radius:12px;padding:0 12px;font:inherit;font-size:16px;color:var(--ink);background:var(--paper)}
+.party{display:flex;align-items:center;gap:12px}
+.step{width:48px;height:48px;border-radius:50%;border:1.5px solid #D8C8B6;background:var(--paper);font:inherit;font-size:24px;line-height:1;color:var(--brand);cursor:pointer;display:grid;place-items:center}
+.step[aria-disabled="true"]{color:#B5A797;cursor:not-allowed}
+.party output{font-size:20px;font-weight:700;min-width:96px;text-align:center}
+.hint{font-size:14px;color:var(--muted);margin:6px 0 0}
+.seg{display:flex;background:var(--soft);border-radius:12px;padding:3px;gap:3px;margin-bottom:10px}
+.seg button{flex:1;height:44px;border:0;border-radius:10px;background:none;font:inherit;font-size:15px;font-weight:600;color:var(--muted);cursor:pointer}
+.seg button[aria-pressed="true"]{background:var(--paper);color:var(--ink);box-shadow:0 1px 3px rgba(42,26,16,.12)}
+.slots{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}
+.slot{height:48px;border-radius:12px;border:1.5px solid #D8C8B6;background:var(--paper);font:inherit;font-size:16px;font-weight:700;color:var(--ink);cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;line-height:1.1;font-variant-numeric:tabular-nums}
+.slot small{font-size:12px;font-weight:700;color:var(--amber)}
+.slot[aria-pressed="true"]{background:var(--brand);border-color:var(--brand);color:#FFF3E4}
+.slot[aria-pressed="true"] small{color:#F6D7A8}
+.slot.full{background:var(--soft);border-color:var(--soft);color:var(--muted);text-decoration:line-through;cursor:not-allowed}
+.empty{background:var(--soft);border-radius:12px;padding:14px;color:var(--muted);font-size:15px;margin:0}
+.pick{border-top:1px solid var(--line);padding-top:14px;display:flex;flex-direction:column;gap:10px}
+.pick .what{display:flex;align-items:flex-start;gap:12px}
+.pick .tn{width:48px;height:48px;border-radius:12px;display:grid;place-items:center;font-family:'Noto Serif Armenian',Georgia,serif;font-size:20px;font-weight:700;flex:none}
+.pick .tn.on{background:var(--brand);color:#FFF3E4}.pick .tn.off{background:var(--soft);color:var(--muted)}
+.pick .what b{display:block;font-size:16px}
+.pick .what span{font-size:14px;color:var(--muted)}
+.note{border-radius:12px;padding:10px 12px;font-size:14px;display:flex;gap:8px;align-items:flex-start}
+.note svg{width:18px;height:18px;flex:none;margin-top:2px}
+.note.amber{background:var(--amber-bg);color:var(--amber)}
+.note.green{background:var(--green-bg);color:var(--green)}
+.note.red{background:var(--red-bg);color:var(--red)}
+.room h2{margin-bottom:4px}
+.room .sub{color:var(--muted);font-size:15px;margin:0 0 12px}
+.tabs{display:flex;gap:8px;overflow-x:auto;scrollbar-width:none;margin-bottom:10px}
+.tab{flex:none;min-height:44px;padding:0 14px;border-radius:999px;border:1.5px solid #D8C8B6;background:var(--paper);font:inherit;font-size:15px;font-weight:600;color:var(--ink);cursor:pointer;display:inline-flex;align-items:center;gap:6px}
+.tab small{font-size:13px;color:var(--muted);font-weight:600}
+.tab[aria-pressed="true"]{background:var(--brand);border-color:var(--brand);color:#FFF3E4}
+.tab[aria-pressed="true"] small{color:#E9D9C6}
+.viewsw{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:10px}
+.viewsw .seg{margin:0;width:200px}
+.photo{position:relative;aspect-ratio:4/3;max-width:100%;border-radius:16px;overflow:hidden;background:#3A2A1E}
+.photo img{width:100%;height:100%;object-fit:cover;display:block;filter:saturate(.9) brightness(.92)}
+.pin{position:absolute;width:44px;height:44px;margin:-22px 0 0 -22px;border-radius:50%;border:0;padding:0;background:none;cursor:pointer;display:grid;place-items:center}
+.pin span{width:34px;height:34px;border-radius:50%;display:grid;place-items:center;font-size:14px;font-weight:700;box-shadow:0 0 0 3px #FFFFFF,0 2px 6px rgba(0,0,0,.35);font-variant-numeric:tabular-nums}
+.pin.free span{background:var(--free);color:#fff}
+.pin.booked span{background:var(--booked);color:#fff}
+.pin.nofit span{background:rgba(255,255,255,.9);color:var(--grey);box-shadow:0 0 0 2px #FFFFFF;outline:2px dashed var(--grey);outline-offset:-2px}
+.pin.out span{background:#D9D3CC;color:#57534E;text-decoration:line-through}
+.pin.sel span{background:var(--brand);color:#FFF3E4;box-shadow:0 0 0 3px #FFFFFF,0 0 0 6px var(--brand),0 2px 8px rgba(0,0,0,.4);transform:scale(1.12)}
+.legend{display:flex;flex-wrap:wrap;gap:6px 14px;margin:10px 0 0;padding:0;list-style:none;font-size:13px;color:var(--muted)}
+.legend li{display:flex;align-items:center;gap:6px}
+.legend i{width:14px;height:14px;border-radius:50%;flex:none}
+.lg-free{background:var(--free)}.lg-booked{background:var(--booked)}.lg-nofit{border:2px dashed var(--grey)}.lg-out{background:#D9D3CC}
+.live{min-height:24px;font-size:14px;color:var(--muted);margin:8px 0 0}
+.tlist{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:8px}
+.trow{width:100%;min-height:56px;border:1.5px solid var(--line);border-radius:14px;background:var(--paper);font:inherit;color:var(--ink);display:flex;align-items:center;gap:12px;padding:6px 12px;cursor:pointer;text-align:left}
+.trow .tn{width:40px;height:40px;border-radius:10px;display:grid;place-items:center;font-weight:700;flex:none}
+.trow.free .tn{background:var(--green-bg);color:var(--free)}
+.trow.booked .tn{background:var(--amber-bg);color:var(--booked)}
+.trow.nofit .tn,.trow.out .tn{background:var(--soft);color:var(--grey)}
+.trow b{display:block;font-size:15px}
+.trow span{font-size:13px;color:var(--muted)}
+.trow .sp{flex:1}
+.trow[aria-pressed="true"]{border-color:var(--brand);box-shadow:0 0 0 1px var(--brand)}
+.trow[aria-pressed="true"] .tn{background:var(--brand);color:#FFF3E4}
+.nophoto{border:1.5px dashed #D8C8B6;border-radius:16px;padding:14px;color:var(--muted);font-size:14px;margin-bottom:10px;display:flex;gap:10px;align-items:center}
+.nophoto svg{width:22px;height:22px;flex:none}
+.cats{display:flex;gap:8px;overflow-x:auto;scrollbar-width:none;margin:10px 0 12px}
+.menu .own{color:var(--muted);font-size:14px;margin:4px 0 0}
+.dishes{list-style:none;margin:0;padding:0;display:flex;flex-direction:column}
+.dish{display:flex;gap:12px;padding:12px 0;border-bottom:1px solid var(--line);align-items:flex-start}
+.dish:last-child{border-bottom:0}
+.dish .th{width:88px;aspect-ratio:4/3;border-radius:10px;overflow:hidden;flex:none;background:var(--soft);display:grid;place-items:center;font-family:'Noto Serif Armenian',Georgia,serif;font-size:22px;color:#7A6655}
+.dish .th img{width:100%;height:100%;object-fit:cover;display:block}
+.dish .tx{flex:1;min-width:0}
+.dish b{display:block;font-size:16px}
+.dish p{margin:2px 0 0;font-size:14px;color:var(--muted)}
+.dish .pr{font-weight:700;white-space:nowrap;font-variant-numeric:tabular-nums}
+.dish.out{opacity:.62}
+.dish .so{display:inline-block;margin-top:4px;font-size:13px;font-weight:700;color:var(--red);background:var(--red-bg);padding:1px 8px;border-radius:999px}
+.about p{margin:8px 0 0;max-width:62ch}
+.amen{display:flex;flex-wrap:wrap;gap:8px;margin:12px 0 0;padding:0;list-style:none}
+.amen li{display:flex;align-items:center;gap:6px;background:var(--paper);border:1px solid var(--line);border-radius:999px;padding:6px 12px;font-size:14px;font-weight:600}
+.amen svg{width:18px;height:18px;color:var(--brand)}
+.rv-sum{display:flex;gap:18px;align-items:center;margin:10px 0 14px}
+.rv-sum .big{font-family:'Noto Serif Armenian',Georgia,serif;font-size:44px;font-weight:700;line-height:1}
+.rv-sum .of{font-size:14px;color:var(--muted)}
+.bars{flex:1;display:flex;flex-direction:column;gap:3px;font-size:12px;color:var(--muted)}
+.bars div{display:flex;align-items:center;gap:6px}
+.bars i{flex:1;height:6px;border-radius:3px;background:var(--soft);position:relative;overflow:hidden}
+.bars i b{position:absolute;left:0;top:0;bottom:0;background:#8A5E08;border-radius:3px}
+.rvs{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:10px}
+.rv{background:var(--paper);border:1px solid var(--line);border-radius:16px;padding:14px}
+.rv .who{display:flex;align-items:center;gap:10px}
+.rv .av{width:36px;height:36px;border-radius:50%;background:#EFE5D8;color:var(--brand);display:grid;place-items:center;font-weight:700;font-size:14px;flex:none}
+.rv .who b{display:block;font-size:15px}
+.rv .who span{font-size:13px;color:var(--muted)}
+.rv p{margin:8px 0 0;font-size:15px}
+.rv .rep{margin-top:10px;background:var(--soft);border-radius:12px;padding:10px 12px;font-size:14px}
+.rv .rep b{display:block;font-size:13px;margin-bottom:2px}
+.hours{list-style:none;margin:8px 0 0;padding:0;font-size:15px}
+.hours li{display:flex;justify-content:space-between;gap:12px;padding:9px 4px;border-bottom:1px solid var(--line)}
+.hours li span:last-child{font-variant-numeric:tabular-nums}
+.hours li.today{font-weight:700}
+.hours li.today small{font-weight:600;color:var(--muted);font-size:13px}
+.tz{font-size:14px;color:var(--muted);margin:4px 0 0}
+.spec{margin-top:14px;background:var(--amber-bg);border-radius:14px;padding:12px 14px}
+.spec h3{font-size:16px;color:var(--amber)}
+.spec ul{list-style:none;margin:6px 0 0;padding:0;font-size:14px;display:flex;flex-direction:column;gap:4px;color:#5E3606}
+.find .addr{font-size:17px;font-weight:600;margin:8px 0 2px}
+.find .dist{color:var(--muted);font-size:15px;margin:0 0 12px}
+.find .row{display:flex;flex-wrap:wrap;gap:8px}
+.find .tel{font-variant-numeric:tabular-nums}
+.pickbar{margin-top:12px;background:var(--paper);border:1.5px solid var(--brand);border-radius:16px;padding:12px;display:flex;flex-direction:column;gap:10px}
+.pickbar .what{display:flex;align-items:center;gap:12px}
+.pickbar .tn{width:44px;height:44px;border-radius:12px;background:var(--brand);color:#FFF3E4;display:grid;place-items:center;font-family:'Noto Serif Armenian',Georgia,serif;font-size:19px;font-weight:700;flex:none}
+.pickbar b{display:block;font-size:16px}.pickbar span{font-size:14px;color:var(--muted)}
+.vh{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+.foot{grid-column:1/-1;border-top:1px solid var(--line);padding-top:16px;color:var(--muted);font-size:13px;display:flex;flex-wrap:wrap;gap:6px 16px;justify-content:space-between}
+@media (min-width:960px){
+.wrap{grid-template-columns:minmax(0,1fr) 400px;column-gap:40px;padding:24px 32px 56px;row-gap:36px}
+.hero{margin:0;grid-template-columns:2fr 1fr;grid-template-rows:auto;gap:10px}
+.cover{border-radius:20px;aspect-ratio:16/10}
+.gal{grid-template-columns:repeat(2,minmax(0,1fr));padding:0;align-content:start}
+.aside{grid-column:2;grid-row:1 / span 9;align-self:start;position:sticky;top:84px}
+.head h1{font-size:40px}
+.only-phone{display:none}
+.pickbar{display:none}
+.card{padding:22px}
+}
+@media (prefers-reduced-motion:reduce){.pin.sel span{transform:none}}
+</style>
+</helmet>
+<div class="p" id="top">
+<header class="bar">
+<a class="word" href="#top">Yalla</a>
+<span class="sp"></span>
+<div class="lang" role="group" aria-label="Լեզու">
+<sc-for list="{{ langs }}" as="l" hint-placeholder-count="3"><button type="button" aria-pressed="{{ l.on }}" aria-label="{{ l.full }}" lang="{{ l.code }}" onClick="{{ l.pick }}">{{ l.short }}</button></sc-for>
+</div>
+</header>
+<main class="wrap">
+
+<section class="sec hero" aria-label="Լուսանկարներ">
+<div class="cover"><img src="{{ coverSrc }}" alt="{{ coverAlt }}"><span class="cnt">{{ coverCount }}</span></div>
+<div class="gal">
+<sc-for list="{{ gallery }}" as="g" hint-placeholder-count="5"><button type="button" aria-pressed="{{ g.on }}" aria-label="{{ g.aria }}" onClick="{{ g.pick }}"><img src="{{ g.src }}" alt=""><sc-if value="{{ g.last }}" hint-placeholder-val="{{ false }}"><span class="more" aria-hidden="true">Բոլորը<br>7</span></sc-if></button></sc-for>
+</div>
+</section>
+
+<section class="sec head" aria-labelledby="v-name">
+<h1 id="v-name">Cascade Cafe</h1>
+<div class="brrow"><span class="br">Կասկադ մասնաճյուղ</span><a class="allbr" href="Venue.dc.html">Բոլոր 3 մասնաճյուղերը</a></div>
+<div class="meta"><span>Սրճարան · Հայկական և միջերկրածովյան</span></div>
+<div class="meta"><span><span class="star" aria-hidden="true">★</span> <b>4,7</b> (128 կարծիք)</span><span aria-hidden="true">·</span><span>Կենտրոն</span><span aria-hidden="true">·</span><span aria-label="Գնային մակարդակ՝ միջին">֏֏ · միջին</span></div>
+<div class="now" role="status">
+<div class="st"><i class="{{ dotCls }}" aria-hidden="true"></i>{{ statusText }}</div>
+<div class="lv">{{ liveText }}</div>
+</div>
+<div class="acts">
+<sc-if value="{{ bookingsOn }}" hint-placeholder-val="{{ true }}"><a class="btn btn-pri only-phone" href="#book"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2"></rect><path d="M16 2v4M8 2v4M3 10h18"></path></svg>Ամրագրել սեղան</a></sc-if>
+<a class="btn btn-sec" href="tel:+37411223344"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1.9.4 1.8.7 2.7a2 2 0 0 1-.5 2.1L8 9.8a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.4c.9.3 1.8.6 2.7.7a2 2 0 0 1 1.7 2z"></path></svg>Զանգահարել</a>
+<a class="btn btn-sec" href="#find"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0z"></path><circle cx="12" cy="10" r="3"></circle></svg>Հասցե</a>
+<button type="button" class="btn btn-sec" onClick="{{ share }}" aria-live="polite"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="18" cy="5" r="3"></circle><circle cx="6" cy="12" r="3"></circle><circle cx="18" cy="19" r="3"></circle><path d="m8.6 13.5 6.8 4M15.4 6.5l-6.8 4"></path></svg>{{ shareText }}</button>
+</div>
+</section>
+
+<aside class="sec aside" id="book" aria-labelledby="b-h">
+<sc-if value="{{ bookingsOn }}" hint-placeholder-val="{{ true }}">
+<div class="card">
+<h2 id="b-h">Ամրագրել սեղան</h2>
+<div>
+<span class="lbl" id="d-l">Օր</span>
+<div class="days" role="group" aria-labelledby="d-l">
+<sc-for list="{{ days }}" as="d" hint-placeholder-count="7"><button type="button" class="day" aria-pressed="{{ d.on }}" aria-label="{{ d.aria }}" onClick="{{ d.pick }}"><small>{{ d.top }}</small><b>{{ d.num }}</b></button></sc-for>
+<button type="button" class="day other" aria-pressed="{{ otherOn }}" onClick="{{ pickOther }}">Այլ օր…</button>
+</div>
+<sc-if value="{{ showDateIn }}" hint-placeholder-val="{{ false }}"><div class="datein"><label class="lbl" for="d-in">Ընտրեք ամսաթիվը (մինչև 60 օր առաջ)</label><input id="d-in" class="ctl" type="date" min="2026-10-19" max="2026-12-18" value="{{ otherVal }}" onChange="{{ onOther }}"></div></sc-if>
+</div>
+<div>
+<span class="lbl" id="p-l">Հյուրեր</span>
+<div class="party" role="group" aria-labelledby="p-l">
+<button type="button" class="step" aria-label="Պակասեցնել" aria-disabled="{{ minusDis }}" onClick="{{ minus }}">−</button>
+<output aria-live="polite">{{ partyText }}</output>
+<button type="button" class="step" aria-label="Ավելացնել" aria-disabled="{{ plusDis }}" onClick="{{ plus }}">+</button>
+</div>
+<sc-if value="{{ bigParty }}" hint-placeholder-val="{{ false }}"><p class="hint">10-ից ավելի հյուրի համար զանգահարեք՝ <a href="tel:+37411223344">+374 11 22 33 44</a></p></sc-if>
+</div>
+<div>
+<span class="lbl" id="t-l">Ժամ</span>
+<div class="seg" role="group" aria-label="Օրվա մաս">
+<button type="button" aria-pressed="{{ dayPartOn }}" onClick="{{ pickDayPart }}">Ցերեկ</button>
+<button type="button" aria-pressed="{{ evePartOn }}" onClick="{{ pickEvePart }}">Երեկո</button>
+</div>
+<sc-if value="{{ hasSlots }}" hint-placeholder-val="{{ true }}"><div class="slots" role="group" aria-labelledby="t-l">
+<sc-for list="{{ slots }}" as="t" hint-placeholder-count="12"><button type="button" class="{{ t.cls }}" aria-pressed="{{ t.on }}" aria-disabled="{{ t.dis }}" aria-label="{{ t.aria }}" onClick="{{ t.pick }}">{{ t.time }}<sc-if value="{{ t.req }}" hint-placeholder-val="{{ false }}"><small>հարցումով</small></sc-if></button></sc-for>
+</div></sc-if>
+<sc-if value="{{ noSlots }}" hint-placeholder-val="{{ false }}"><p class="empty">Այսօրվա ցերեկային ժամերն արդեն անցել են։ Ընտրեք երեկոն կամ մեկ այլ օր։</p></sc-if>
+<sc-if value="{{ isReq }}" hint-placeholder-val="{{ false }}"><div class="note amber" style="margin-top: 10px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><path d="M12 6v6l4 2"></path></svg><span>Ժամը շատ մոտ է, ուստի վայրը նախ կհաստատի սեղանը։ Պատասխանը՝ 15 րոպեի ընթացքում։</span></div></sc-if>
+</div>
+<div class="pick">
+<div class="what"><span class="{{ pickTnCls }}" aria-hidden="true">{{ pickTn }}</span><div><b>{{ pickHead }}</b><span>{{ pickSub }}</span></div></div>
+<sc-if value="{{ hasTable }}" hint-placeholder-val="{{ false }}"><a class="btn btn-pri full" href="Book.dc.html">Ամրագրել սեղան {{ tableLabel }}</a></sc-if>
+<sc-if value="{{ noTable }}" hint-placeholder-val="{{ true }}"><button type="button" class="btn btn-sec full" onClick="{{ autoPick }}">Ընտրել ինձ համար</button></sc-if>
+<sc-if value="{{ hasTable }}" hint-placeholder-val="{{ false }}"><p class="hint" style="margin: 0">Անվճար չեղարկում մինչև {{ cancelBy }}։ Հեռախոսը կհաստատենք մեկ կոդով։</p></sc-if>
+</div>
+</div>
+</sc-if>
+<sc-if value="{{ bookingsOff }}" hint-placeholder-val="{{ false }}">
+<div class="card">
+<h2 id="b-h">Ամրագրում</h2>
+<p style="margin: 0">Այս վայրը դեռ չի ընդունում ամրագրում Yalla-ով։ Սեղան պահելու համար զանգահարեք։</p>
+<a class="btn btn-pri full" href="tel:+37411223344">Զանգահարել · +374 11 22 33 44</a>
+<p class="hint" style="margin: 0">Ներքևի սրահը ցույց է տալիս, թե որ սեղաններն են ազատ հենց հիմա։</p>
+</div>
+</sc-if>
+</aside>
+
+<section class="sec room" aria-labelledby="r-h">
+<h2 id="r-h">{{ roomHead }}</h2>
+<p class="sub">{{ roomSub }}</p>
+<div class="tabs" role="group" aria-label="Սրահ">
+<sc-for list="{{ rooms }}" as="r" hint-placeholder-count="3"><button type="button" class="tab" aria-pressed="{{ r.on }}" onClick="{{ r.pick }}">{{ r.name }}<small>{{ r.count }}</small></button></sc-for>
+</div>
+<sc-if value="{{ hasPhoto }}" hint-placeholder-val="{{ true }}"><div class="viewsw"><span class="lbl" style="margin: 0">Ինչպես ցույց տալ</span><div class="seg" role="group" aria-label="Ինչպես ցույց տալ սեղանները"><button type="button" aria-pressed="{{ photoOn }}" onClick="{{ toPhoto }}">Նկար</button><button type="button" aria-pressed="{{ listOn }}" onClick="{{ toList }}">Ցուցակ</button></div></div></sc-if>
+<sc-if value="{{ noPhoto }}" hint-placeholder-val="{{ false }}"><div class="nophoto"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2"></rect><circle cx="9" cy="9" r="2"></circle><path d="m21 15-3.1-3.1a2 2 0 0 0-2.8 0L6 21"></path></svg><span>Այս սրահի լուսանկարը դեռ չկա, սեղանները ցուցակով են։</span></div></sc-if>
+<sc-if value="{{ showPins }}" hint-placeholder-val="{{ true }}">
+<div class="photo"><img src="{{ roomPhoto }}" alt="{{ roomAlt }}">
+<sc-for list="{{ tables }}" as="t" hint-placeholder-count="8"><button type="button" class="{{ t.cls }}" style="{{ t.pos }}" aria-label="{{ t.aria }}" aria-pressed="{{ t.on }}" onClick="{{ t.pick }}"><span>{{ t.n }}</span></button></sc-for>
+</div>
+<ul class="legend"><li><i class="lg-free" aria-hidden="true"></i>Ազատ</li><li><i class="lg-booked" aria-hidden="true"></i>Ամրագրված</li><li><i class="lg-nofit" aria-hidden="true"></i>Ձեր խմբի համար չէ</li><li><i class="lg-out" aria-hidden="true"></i>Չի սպասարկվում</li></ul>
+</sc-if>
+<sc-if value="{{ showList }}" hint-placeholder-val="{{ false }}">
+<ul class="tlist">
+<sc-for list="{{ tables }}" as="t" hint-placeholder-count="5"><li><button type="button" class="{{ t.rowCls }}" aria-pressed="{{ t.on }}" onClick="{{ t.pick }}"><span class="tn" aria-hidden="true">{{ t.n }}</span><span class="sp"><b>Սեղան {{ t.n }} · {{ t.seats }} տեղ</b><span>{{ t.why }}</span></span></button></li></sc-for>
+</ul>
+</sc-if>
+<sc-if value="{{ roomNone }}" hint-placeholder-val="{{ false }}"><p class="empty" style="margin-top: 10px">{{ roomNoneText }}</p></sc-if>
+<p class="live" aria-live="polite">{{ hint }}</p>
+<sc-if value="{{ hasTable }}" hint-placeholder-val="{{ false }}"><div class="pickbar"><div class="what"><span class="tn" aria-hidden="true">{{ tableLabel }}</span><div><b>{{ pickHead }}</b><span>{{ pickSub }}</span></div></div><a class="btn btn-pri full" href="Book.dc.html">Ամրագրել սեղան {{ tableLabel }}</a></div></sc-if>
+</section>
+
+<section class="sec menu" aria-labelledby="m-h">
+<h2 id="m-h">Ճաշացանկ</h2>
+<p class="own">Գները դրամով են, սպասարկումը՝ 10 %։ Ճաշացանկը վայրի լեզվով է։</p>
+<div class="cats" role="group" aria-label="Բաժին">
+<sc-for list="{{ cats }}" as="c" hint-placeholder-count="5"><button type="button" class="tab" aria-pressed="{{ c.on }}" onClick="{{ c.pick }}">{{ c.name }}<small>{{ c.n }}</small></button></sc-for>
+</div>
+<ul class="dishes">
+<sc-for list="{{ dishes }}" as="d" hint-placeholder-count="4"><li class="{{ d.cls }}"><span class="th" aria-hidden="true"><sc-if value="{{ d.img }}" hint-placeholder-val="{{ true }}"><img src="{{ d.img }}" alt=""></sc-if><sc-if value="{{ d.noImg }}" hint-placeholder-val="{{ false }}">{{ d.ini }}</sc-if></span><span class="tx"><b>{{ d.name }}</b><sc-if value="{{ d.desc }}" hint-placeholder-val="{{ true }}"><p>{{ d.desc }}</p></sc-if><sc-if value="{{ d.out }}" hint-placeholder-val="{{ false }}"><span class="so">Այսօր վերջացել է</span></sc-if></span><span class="pr">{{ d.price }}</span></li></sc-for>
+</ul>
+</section>
+
+<section class="sec about" aria-labelledby="a-h">
+<h2 id="a-h">Վայրի մասին</h2>
+<p>Սրճարան Կասկադի աստիճանների մոտ՝ տեռասով և քաղաքի տեսարանով։ Առավոտյան՝ նախաճաշ և սուրճ, երեկոյան՝ գինի, կոկտեյլներ և տաք ուտեստներ։</p>
+<ul class="amen">
+<li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v18M5 8h14l-2 6H7z"></path></svg>Բացօթյա տեռաս</li>
+<li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.6a10 10 0 0 1 14 0M8.5 16.1a5 5 0 0 1 7 0M12 20h.01"></path></svg>Wi-Fi</li>
+<li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="5" width="20" height="14" rx="2"></rect><path d="M2 10h20"></path></svg>Քարտով վճարում</li>
+</ul>
+</section>
+
+<section class="sec reviews" aria-labelledby="rv-h">
+<h2 id="rv-h">Կարծիքներ</h2>
+<div class="rv-sum">
+<div><div class="big">4,7</div><div class="of"><span class="star" aria-hidden="true">★★★★★</span><span class="vh">5-ից 4,7</span> 128 կարծիք</div></div>
+<div class="bars" role="img" aria-label="5 աստղ՝ 92, 4 աստղ՝ 24, 3 աստղ՝ 7, 2 աստղ՝ 3, 1 աստղ՝ 2">
+<sc-for list="{{ dist }}" as="b" hint-placeholder-count="5"><div><span>{{ b.k }}</span><i><b style="{{ b.w }}"></b></i><span>{{ b.n }}</span></div></sc-for>
+</div>
+</div>
+<ul class="rvs">
+<li class="rv"><div class="who"><span class="av" aria-hidden="true">Ա</span><div><b>Անի Մ.</b><span><span class="star" aria-hidden="true">★★★★★</span><span class="vh">5 աստղ</span> · 2 օր առաջ</span></div></div><p>Երեկոյան տեռասը հրաշալի է, սուրճը՝ քաղաքի լավագույններից։ Սեղանը պատրաստ էր ճիշտ ժամին։</p></li>
+<li class="rv"><div class="who"><span class="av" aria-hidden="true">Դ</span><div><b>Դավիթ Կ.</b><span><span class="star" aria-hidden="true">★★★★</span><span class="vh">4 աստղ</span> · 1 շաբաթ առաջ</span></div></div><p>Ստեյքը լավն էր, բայց ուրբաթ երեկոյան մի քիչ աղմկոտ էր։</p><div class="rep"><b>Cascade Cafe-ի պատասխանը</b>Շնորհակալություն, Դավիթ։ Ուրբաթ օրերին խորհուրդ ենք տալիս տեռասը՝ այնտեղ ավելի հանգիստ է։</div></li>
+<li class="rv"><div class="who"><span class="av" aria-hidden="true">Մ</span><div><b>Մարիամ Ս.</b><span><span class="star" aria-hidden="true">★★★★★</span><span class="vh">5 աստղ</span> · 3 շաբաթ առաջ</span></div></div><p>Ծննդյան տոնակատարություն արեցինք VIP սենյակում, ամեն ինչ կազմակերպված էր։</p></li>
+<sc-if value="{{ moreRv }}" hint-placeholder-val="{{ false }}"><li class="rv"><div class="who"><span class="av" aria-hidden="true">Ա</span><div><b>Արամ Հ.</b><span><span class="star" aria-hidden="true">★★★★★</span><span class="vh">5 աստղ</span> · 1 ամիս առաջ</span></div></div><p>Նախաճաշը տեռասում՝ լավագույն սկիզբը շաբաթ օրվա համար։</p></li><li class="rv"><div class="who"><span class="av" aria-hidden="true">Լ</span><div><b>Լիլիթ Գ.</b><span><span class="star" aria-hidden="true">★★★</span><span class="vh">3 աստղ</span> · 1 ամիս առաջ</span></div></div><p>Համեղ էր, բայց ստիպված եղանք 20 րոպե սպասել աղանդերին։</p><div class="rep"><b>Cascade Cafe-ի պատասխանը</b>Ներողություն սպասելու համար, Լիլիթ։ Այդ երեկո խոհանոցում մեկ հոգի պակաս էր, արդեն ուղղել ենք։</div></li></sc-if>
+</ul>
+<button type="button" class="btn btn-sec" style="margin-top: 12px" onClick="{{ toggleRv }}">{{ rvBtn }}</button>
+<p class="hint">Կարծիք կարող են թողնել միայն նրանք, ովքեր եղել են այստեղ Yalla-ով։</p>
+</section>
+
+<section class="sec" aria-labelledby="h-h">
+<h2 id="h-h">Աշխատաժամեր</h2>
+<p class="tz">Ժամերը Երևանի ժամանակով են։</p>
+<ul class="hours">
+<sc-for list="{{ week }}" as="w" hint-placeholder-count="7"><li class="{{ w.cls }}"><span>{{ w.d }}<sc-if value="{{ w.today }}" hint-placeholder-val="{{ false }}"><small> · այսօր</small></sc-if></span><span>{{ w.h }}</span></li></sc-for>
+</ul>
+<div class="spec"><h3>Հատուկ օրեր</h3><ul><li>Երկ, 31 դեկտեմբերի · 09:00–03:00 · Ամանորի գիշեր</li><li>Երք, 1 հունվարի · Փակ</li></ul></div>
+</section>
+
+<section class="sec find" id="find" aria-labelledby="f-h">
+<h2 id="f-h">Ինչպես գտնել</h2>
+<p class="addr">Թամանյան 10, Երևան</p>
+<p class="dist">Կենտրոն · Կասկադի աստիճանների ստորոտում</p>
+<div class="row">
+<a class="btn btn-sec" href="https://maps.google.com/?q=40.1897,44.5153" target="_blank" rel="noopener">Բացել քարտեզում ↗</a>
+<a class="btn btn-sec tel" href="tel:+37411223344">+374 11 22 33 44</a>
+<a class="btn btn-sec" href="https://cascade.am" target="_blank" rel="noopener">cascade.am ↗</a>
+</div>
+</section>
+
+<footer class="foot"><span>Ամրագրումը՝ Yalla-ով։ Հղումը ձեր ամրագրումը կառավարելու համար կստանաք ամրագրելուց հետո։</span><span>© Yalla</span></footer>
+</main>
+<sc-if value="{{ galOpen }}" hint-placeholder-val="{{ false }}"><div class="gov" role="dialog" aria-modal="true" aria-labelledby="g-h" onKeyDown="{{ galKey }}"><div class="gpan"><div class="ghead"><h2 id="g-h">Լուսանկարներ · {{ photoCount }}</h2><button type="button" class="gx" aria-label="Փակել" autoFocus="{{ true }}" onClick="{{ closeGal }}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="width: 20px; height: 20px"><path d="M18 6 6 18M6 6l12 12"></path></svg></button></div><ul class="ggrid"><sc-for list="{{ allPhotos }}" as="ph" hint-placeholder-count="7"><li><img src="{{ ph.src }}" alt="{{ ph.alt }}" loading="lazy"></li></sc-for></ul></div></div></sc-if>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"bookings":{"editor":"boolean","default":true,"section":"Վայր"},"open":{"editor":"boolean","default":true,"section":"Վայր"},"$preview":{"width":390,"height":4960}}'>
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    this.state = { galOpen: false, moreRv: false, shared: false, lang: 'hy', day: 0, other: '', showDate: false, party: 2, part: 'eve', time: null, room: 'main', view: 'photo', table: null, cat: 'coffee', g: 0, hint: '' };
+  }
+  renderVals() {
+    const s = this.state;
+    const bookings = this.props.bookings !== false;
+    const open = this.props.open !== false;
+    const COVER = '/_blob/cf03671831d1698feb245d61ab9ae1f2', HALL = '/_blob/1522d0c226a849d926e6f4c3f938ceb8';
+    const LATTE = '/_blob/19821f74f1454e3d06d2d85ac51f6264', CAKE = '/_blob/3e3a3e369a88b0e768e0fe7e2a6cc150', STEAK = '/_blob/bf042a5d9bd6ea6f6e26d335faf37c42';
+    const COSMO = '/_blob/1d24577b51d364a83201def1cd76e025', OLD = '/_blob/fb0f4f3c5f13ce6f46b78eaa01fe4d8d';
+    const pad = (n) => (n < 10 ? '0' : '') + n;
+    const hm = (m) => pad(Math.floor(m / 60) % 24) + ':' + pad(m % 60);
+    const DAYS = [['Այսօր', '19', 'Երկ, 19 հոկտեմբերի'], ['Վաղը', '20', 'Երք, 20 հոկտեմբերի'], ['Չրք', '21', 'Չրք, 21 հոկտեմբերի'], ['Հնգ', '22', 'Հնգ, 22 հոկտեմբերի'], ['Ուրբ', '23', 'Ուրբ, 23 հոկտեմբերի'], ['Շբթ', '24', 'Շբթ, 24 հոկտեմբերի'], ['Կիր', '25', 'Կիր, 25 հոկտեմբերի']];
+    const day = s.day;
+    const dayIdx = day === 7 ? 3 : day;
+    const dayText = day === 7 ? (s.other ? s.other.split('-').reverse().join('.') : 'Ընտրված օր') : DAYS[day][2];
+    const lastFor = (d) => (d === 6 ? 21 * 60 + 30 : d === 4 || d === 5 ? 23 * 60 + 30 : 22 * 60 + 30);
+    let start = s.part === 'day' ? 12 * 60 : 17 * 60;
+    const end = s.part === 'day' ? 16 * 60 + 45 : lastFor(dayIdx);
+    if (day === 0) start = Math.max(start, 19 * 60 + 15);
+    const list = [];
+    for (let m = start; m <= end; m += 15) list.push({ m: m, full: (m / 15 + dayIdx * 3) % 7 === 3, req: day === 0 && m < 19 * 60 + 45 });
+    let cur = list.find((x) => x.m === s.time && !x.full);
+    if (!cur) cur = list.find((x) => !x.full && !x.req) || list.find((x) => !x.full) || null;
+    const tm = cur ? cur.m : 19 * 60 + 30;
+    const party = s.party;
+    const ROOMS = [
+      { id: 'main', name: 'Գլխավոր սրահ', photo: HALL, alt: 'Գլխավոր սրահը՝ կլոր սեղաններով և տաք լույսով', t: [[1, 2, 14, 80], [2, 2, 31, 84], [3, 4, 49, 81], [4, 4, 68, 85], [5, 6, 86, 77], [6, 4, 22, 58], [7, 2, 42, 60], [8, 4, 67, 56, true]] },
+      { id: 'ter', name: 'Տեռաս', photo: COVER, alt: 'Տեռասը սրճարանի մուտքի առջև', t: [[11, 2, 12, 84], [12, 2, 30, 87], [13, 4, 52, 88], [14, 4, 73, 86], [15, 6, 90, 82]] },
+      { id: 'vip', name: 'VIP սենյակ', photo: null, alt: '', t: [[21, 8], [22, 10]] },
+    ];
+    const nowM = 18 * 60 + 45;
+    const at = bookings ? tm : nowM;
+    const stOf = (t) => {
+      if (t[4] === true) return 'out';
+      if (!bookings) return (t[0] * 3) % 4 === 0 ? 'booked' : 'free';
+      if (!(t[1] >= party && t[1] <= party + 4)) return 'nofit';
+      if ((t[0] * 5 + at / 15 + dayIdx) % 4 === 0) return 'booked';
+      return 'free';
+    };
+    const why = (t, st) => {
+      if (st === 'free') return bookings ? 'Ազատ է ' + hm(at) + '-ին' : 'Ազատ է հիմա';
+      if (st === 'booked') return bookings ? 'Ամրագրված է այս ժամին' : 'Զբաղված է հիմա';
+      if (st === 'out') return 'Այսօր չի սպասարկվում';
+      return t[1] < party ? 'Փոքր է ' + party + ' հյուրի համար' : 'Մեծ է ' + party + ' հյուրի համար';
+    };
+    const freeIn = (r) => r.t.filter((t) => stOf(t) === 'free').length;
+    const nowFree = ROOMS.reduce((a, r) => a + r.t.filter((t) => t[4] !== true && (t[0] * 3) % 4 !== 0).length, 0);
+    const room = ROOMS.find((r) => r.id === s.room) || ROOMS[0];
+    let sel = s.table;
+    let lost = '';
+    if (sel) {
+      const rr = ROOMS.find((r) => r.id === sel.room);
+      const tt = rr && rr.t.find((t) => t[0] === sel.n);
+      if (!tt || stOf(tt) !== 'free') { lost = 'Սեղան ' + sel.n + '-ն այս ընտրությամբ ազատ չէ։ Ընտրեք ուրիշը։'; sel = null; }
+    }
+    const selRoom = sel ? ROOMS.find((r) => r.id === sel.room) : null;
+    const selT = sel ? selRoom.t.find((t) => t[0] === sel.n) : null;
+    const pickT = (r, t) => () => {
+      const st = stOf(t);
+      if (!bookings) { this.setState({ hint: 'Սեղան ' + t[0] + '․ ' + why(t, st).toLowerCase() }); return; }
+      if (st !== 'free') { this.setState({ hint: 'Սեղան ' + t[0] + '․ ' + why(t, st).toLowerCase() }); return; }
+      this.setState({ table: { room: r.id, n: t[0] }, hint: 'Ընտրված է սեղան ' + t[0] + '՝ ' + t[1] + ' տեղ' });
+    };
+    const usePhoto = !!room.photo && s.view === 'photo';
+    const tables = room.t.map((t) => {
+      const st = stOf(t);
+      const on = !!(sel && sel.room === room.id && sel.n === t[0]);
+      return {
+        n: t[0], seats: t[1], why: why(t, st),
+        cls: 'pin ' + st + (on ? ' sel' : ''), rowCls: 'trow ' + st,
+        pos: t[2] !== undefined ? 'left: ' + t[2] + '%; top: ' + t[3] + '%' : '',
+        on: on ? 'true' : 'false',
+        aria: 'Սեղան ' + t[0] + ', ' + t[1] + ' տեղ, ' + why(t, st).toLowerCase(),
+        pick: pickT(room, t),
+      };
+    });
+    const roomFree = freeIn(room);
+    const autoPick = () => {
+      const order = [room].concat(ROOMS.filter((r) => r.id !== room.id));
+      for (const r of order) {
+        const fr = r.t.filter((t) => stOf(t) === 'free').sort((a, b) => a[1] - b[1]);
+        if (fr.length) { this.setState({ room: r.id, table: { room: r.id, n: fr[0][0] }, hint: 'Ընտրեցինք սեղան ' + fr[0][0] + '՝ ' + fr[0][1] + ' տեղ, ' + r.name }); return; }
+      }
+      this.setState({ hint: 'Այս ժամին ' + party + ' հյուրի համար ազատ սեղան չկա։ Փորձեք մեկ այլ ժամ։' });
+    };
+    const CATS = [
+      ['coffee', 'Սուրճ', [['Լատտե', 'Կաթով էսպրեսո, 300 մլ', 1400, LATTE], ['Կապուչինո', '', 1300, LATTE], ['Էսպրեսո', '', 800, null], ['Ռաֆ վանիլով', 'Սերուցքով և վանիլով', 1700, null, true]]],
+      ['brk', 'Նախաճաշ', [['Ձվածեղ բանջարեղենով', 'Երեք ձու, լոլիկ, պղպեղ, թարմ հաց', 2400, null], ['Սիրնիկի թթվասերով', '', 2200, null], ['Տոստ լավաշով', 'Պանիր, կանաչի', 1900, null]]],
+      ['hot', 'Տաք ուտեստներ', [['Տավարի ստեյք', '300 գ, խորոված բանջարեղենով', 9800, STEAK], ['Խոզի խորոված', 'Լավաշով և սոխով', 6400, null], ['Իշխանի ֆիլե', 'Կարագով և կիտրոնով', 7200, null]]],
+      ['dess', 'Դեսերտներ', [['Ազնվամորու տորթ', 'Թարմ ազնվամորով', 2600, CAKE], ['Գաթա', '', 1200, null]]],
+      ['bar', 'Կոկտեյլներ', [['Կոսմոպոլիտեն', 'Օղի, լոռամրգի հյութ, լայմ', 3600, COSMO], ['Old Fashioned', 'Բուրբոն, դառը թուրմ, նարինջ', 4200, OLD], ['Ապերոլ շպրից', '', 3400, null]]],
+    ];
+    const cat = CATS.find((c) => c[0] === s.cat) || CATS[0];
+    const dram = (n) => String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ' ') + ' ֏';
+    const imgs = [[COVER, 'Cascade Cafe-ի մուտքը երեկոյան'], [HALL, 'Գլխավոր սրահը'], [COSMO, 'Կոսմոպոլիտեն կոկտեյլ'], [STEAK, 'Տավարի ստեյք'], [CAKE, 'Ազնվամորու տորթ'], [LATTE, 'Լատտե'], [OLD, 'Old Fashioned կոկտեյլ']];
+    const thumbs = imgs.slice(0, 4);
+    const cancelBy = hm(Math.max(tm - 120, 0));
+    return {
+      langs: [['hy', 'Հայ', 'Հայերեն'], ['ru', 'Рус', 'Русский'], ['en', 'Eng', 'English']].map((l) => ({ code: l[0], short: l[1], full: l[2], on: s.lang === l[0] ? 'true' : 'false', pick: () => this.setState({ lang: l[0] }) })),
+      coverSrc: imgs[s.g][0], coverAlt: imgs[s.g][1], coverCount: (s.g + 1) + ' / ' + imgs.length,
+      gallery: thumbs.map((g, i) => { const last = i === thumbs.length - 1; return { src: g[0], on: !last && s.g === i ? 'true' : 'false', last: last, aria: last ? 'Բոլոր ' + imgs.length + ' լուսանկարները' : 'Լուսանկար ' + (i + 1) + '-ը ' + imgs.length + '-ից', pick: last ? () => this.setState({ galOpen: true }) : () => this.setState({ g: i }) }; }),
+      galOpen: s.galOpen, closeGal: () => this.setState({ galOpen: false }), galKey: (e) => { if (e.key === 'Escape') this.setState({ galOpen: false }); },
+      allPhotos: imgs.map((g) => ({ src: g[0], alt: g[1] })), photoCount: String(imgs.length),
+      moreRv: s.moreRv, toggleRv: () => this.setState({ moreRv: !s.moreRv }), rvBtn: s.moreRv ? 'Ցույց տալ ավելի քիչ' : 'Տեսնել բոլոր 128 կարծիքները',
+      share: () => { this.setState({ shared: true }); clearTimeout(this._s); this._s = setTimeout(() => this.setState({ shared: false }), 2500); }, shareText: s.shared ? 'Հղումը պատճենվեց' : 'Կիսվել',
+      dotCls: open ? 'op' : 'cl',
+      statusText: open ? 'Բաց է մինչև 00:00' : 'Փակ է · բացվում է 09:00',
+      liveText: open ? nowFree + ' ազատ սեղան հենց հիմա · թարմացվում է ինքնաբերաբար' : (bookings ? 'Կարող եք նախապես ամրագրել։' : 'Երեկոյան սովորաբար ազատ սեղաններ լինում են։'),
+      bookingsOn: bookings, bookingsOff: !bookings,
+      days: DAYS.map((d, i) => ({ top: d[0], num: d[1], aria: i < 2 ? d[0] + ', ' + d[2] : d[2], on: s.day === i ? 'true' : 'false', pick: () => this.setState({ day: i, showDate: false, time: null }) })),
+      otherOn: day === 7 ? 'true' : 'false', showDateIn: s.showDate || day === 7, otherVal: s.other,
+      pickOther: () => this.setState({ showDate: true }),
+      onOther: (e) => this.setState({ other: e.target.value, day: 7, time: null }),
+      partyText: party + ' հյուր', minusDis: party <= 1 ? 'true' : 'false', plusDis: party >= 10 ? 'true' : 'false', bigParty: party >= 10,
+      minus: () => { if (party > 1) this.setState({ party: party - 1 }); },
+      plus: () => { if (party < 10) this.setState({ party: party + 1 }); },
+      dayPartOn: s.part === 'day' ? 'true' : 'false', evePartOn: s.part === 'eve' ? 'true' : 'false',
+      pickDayPart: () => this.setState({ part: 'day', time: null }), pickEvePart: () => this.setState({ part: 'eve', time: null }),
+      hasSlots: list.length > 0, noSlots: list.length === 0,
+      slots: list.map((x) => {
+        const on = cur && cur.m === x.m;
+        return { time: hm(x.m), req: x.req && !x.full, cls: 'slot' + (x.full ? ' full' : ''), on: on ? 'true' : 'false', dis: x.full ? 'true' : 'false',
+          aria: hm(x.m) + (x.full ? ', տեղեր չկան' : x.req ? ', հարցումով' : ''), pick: () => { if (!x.full) this.setState({ time: x.m }); } };
+      }),
+      isReq: !!(cur && cur.req),
+      pickTnCls: 'tn ' + (sel ? 'on' : 'off'), pickTn: sel ? String(sel.n) : '?',
+      pickHead: sel ? 'Սեղան ' + sel.n + ' · ' + selRoom.name : 'Սեղանը դեռ ընտրված չէ',
+      pickSub: sel ? selT[1] + ' տեղ · ' + dayText + ', ' + hm(tm) + ' · ' + party + ' հյուր' : (lost || 'Հպեք ազատ սեղանին սրահի նկարում կամ թողեք ընտրությունը մեզ։'),
+      hasTable: !!sel, noTable: !sel, tableLabel: sel ? String(sel.n) : '', cancelBy: cancelBy, autoPick: autoPick,
+      roomHead: bookings ? 'Ընտրեք սեղանը' : 'Սրահը հիմա',
+      roomSub: bookings ? dayText + ' · ' + hm(tm) + ' · ' + party + ' հյուր' : 'Թարմացվում է ինքնաբերաբար',
+      rooms: ROOMS.map((r) => ({ name: r.name, count: freeIn(r) + ' ազատ', on: r.id === room.id ? 'true' : 'false', pick: () => this.setState({ room: r.id, hint: '' }) })),
+      hasPhoto: !!room.photo, noPhoto: !room.photo,
+      photoOn: s.view === 'photo' ? 'true' : 'false', listOn: s.view === 'list' ? 'true' : 'false',
+      toPhoto: () => this.setState({ view: "photo" }), toList: () => this.setState({ view: "list" }),
+      showPins: usePhoto, showList: !usePhoto,
+      roomPhoto: room.photo || '', roomAlt: room.alt, tables: tables,
+      roomNone: bookings && roomFree === 0, roomNoneText: 'Այս սրահում ' + party + ' հյուրի համար ազատ սեղան չկա այս ժամին։ Նայեք մյուս սրահները կամ ընտրեք այլ ժամ։',
+      hint: s.hint,
+      cats: CATS.map((c) => ({ name: c[1], n: String(c[2].length), on: c[0] === cat[0] ? 'true' : 'false', pick: () => this.setState({ cat: c[0] }) })),
+      dishes: cat[2].map((d) => ({ name: d[0], desc: d[1], price: dram(d[2]), img: d[3], noImg: !d[3], ini: d[0].charAt(0), out: !!d[4], cls: 'dish' + (d[4] ? ' out' : '') })),
+      dist: [[5, 92], [4, 24], [3, 7], [2, 3], [1, 2]].map((b) => ({ k: b[0] + '★', n: String(b[1]), w: 'width: ' + Math.round((b[1] / 128) * 100) + '%' })),
+      week: [['Երկուշաբթի', '09:00–00:00'], ['Երեքշաբթի', '09:00–00:00'], ['Չորեքշաբթի', '09:00–00:00'], ['Հինգշաբթի', '09:00–00:00'], ['Ուրբաթ', '09:00–01:00'], ['Շաբաթ', '09:00–01:00'], ['Կիրակի', '10:00–23:00']].map((w, i) => ({ d: w[0], h: w[1], cls: i === 0 ? 'today' : '', today: i === 0 })),
+    };
+  }
+}
+</script>
+</body>
+</html>
