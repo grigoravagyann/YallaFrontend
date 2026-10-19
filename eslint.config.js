@@ -121,10 +121,10 @@ export default tseslint.config(
     },
   },
 
-  // Metro reads its config with `require`, so these files are CommonJS whether
+  // Metro and Expo read their config with `require`, so these files are CommonJS whether
   // or not the rest of the workspace is ESM.
   {
-    files: ['**/metro.config.js', '**/babel.config.js'],
+    files: ['**/metro.config.js', '**/babel.config.js', 'apps/diner/app.config.js'],
     languageOptions: {
       sourceType: 'commonjs',
       globals: { ...globals.node },
