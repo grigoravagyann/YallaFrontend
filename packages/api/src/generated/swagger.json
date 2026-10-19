@@ -2172,6 +2172,99 @@
         }
       }
     },
+    "/api/branches/{branchId}/overview": {
+      "get": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "The console's Overview: today at this branch",
+        "description": "One read for the Overview screen's numbers. No parameters. Poll it with the approvals list and read it again after any booking action.\n\n**Today is the branch's service day** (`serviceDate`), in its own time zone at `asOfUtc`: the calendar day at the branch (`localDate`, `localTime`), except while last night's opening block is still open past midnight - at 01:00 on Sunday a bar open 20:00-02:00 is still in Saturday's service. A booking belongs to the service day it starts in: 00:30 on Sunday inside Saturday's block is Saturday's, and 00:30 on Saturday was Friday night's. A block closing at 00:00 does not run past midnight.\n\n- `graceMinutes`: how long past its start a late party's table is held (the policy's grace).\n- `hours`: `isOpen`; while open `closesAt` and `closesNextDay` (the close falls after midnight tonight - \"(next day)\"; false for a 00:00 close, which reads \"until 00:00\", and for last night's block, which closes today); while shut `opensAt`, the next opening later today, absent when there is none.\n- `bookings`: the service day's bookings - `total` (pending, confirmed, seated, completed and no-shows), `pendingApproval` (requests with no confirmed slot today to fall back to), `confirmed` (the late ones and the confirmed bookings whose change is waiting included), `late` (of those, start passed), `seated`, `completed`, `noShow`, `cancelled` (by the diner or the venue, declined requests included), `people` (the party sizes of the pending, confirmed, seated and completed) and `pendingChanges` (confirmed bookings with a change waiting).\n- `inRoom`: `people` at the sittings still open, `occupiedTables`, `tables` (active, any state) and `outOfServiceTables`.\n- `openTabs`: `count` open or settling and `unpaidAmd`, what they still owe.\n- `revenue`: `todayAmd`, the closed tabs' totals from `sinceUtc` - the service date's first opening, or its local midnight when it has no hours - until now, against `lastWeekAmd` from the same opening on `lastWeekDate` (seven days before) for as long on the clock; `changePercent` to one decimal, absent when last week took nothing. A tab counts at the moment it closed.\n- `load`: `capacity` (seats at the active tables in service - the chart's full-room line) and `hours`, one entry per hour **numbered from the service date's midnight**: 0-23 on that date, then 24 for 00:00-01:00 of the next, 25 for 01:00 - label one `hour % 24`. They run from the first opening (or booking) to the last open (or booked) hour. `people` are the confirmed, seated and completed parties whose sitting touches the hour, `pendingPeople` the unanswered requests and the slots changes ask for. Empty when shut all day with nothing booked.\n- `todayBookings`: the service day's bookings by start, **leaving out the cancelled and declined**, at most 200 (`todayBookingsTruncated` when there were more; the counts and the chart read them all) - `id`, `code`, `status`, `startUtc`, `endUtc`, `localDate`, `localStartTime`, `partySize`, `guestName`, `tableId`, `tableLabel`, `tableStatus` (the table now), `roomName`, `channel`, `changeRequested`, `holdExpiresAtUtc` and `lateNudgeAtUtc`/`lateNudgeSent`. A confirmed booking whose change is waiting is listed at the slot still promised (its time, table and party) with `changeRequested` true and `status` 1 PendingApproval: the change is in the approvals list, and the floor's actions on it wait for that answer. `holdExpiresAtUtc` and the nudge are given only for a `Confirmed` booking; the nudge is the one the outbox holds - its send time once `lateNudgeSent`, else when it is due; there is no manual nudge. No guest phone numbers.\n\nThe row menu's actions are the floor's own routes, which the console's sign-in may call: `seat-reservation` and `free` under `/api/branches/{branchId}/tables/{tableId}`, and `no-show`, `release` (`outcome` 2 to cancel as the venue), `approve` and `reject` under `/api/reservations/{id}`.\n\nAt most seven statements however many bookings. An owner or general manager at any branch of their venue, a branch manager at their own branch only, a platform admin anywhere.",
+        "operationId": "getBranchOverview",
+        "parameters": [
+          {
+            "name": "branchId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Application.Overview.BranchOverview"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request violated a domain rule or arrived malformed.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No usable token was presented, or the one presented was rejected.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "A waiter's or cook's tablet session, a diner, another venue's staff, or a manager of another branch.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such branch.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests in the window, or a one-time credential is out of attempts.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected failure. Quote the traceId from the body.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/branches/{branchId}/floor-plan": {
       "get": {
         "tags": [
@@ -15969,7 +16062,7 @@
           "staff"
         ],
         "summary": "Free a table (Occupied to Free)",
-        "description": "Closes the occupancy. Closes the tab when nothing is owed; when a balance is outstanding the table is still freed - the diners have left - and the response carries the amount as a warning.",
+        "description": "Closes the occupancy. Closes the tab when nothing is owed; when a balance is outstanding the table is still freed - the diners have left - and the response carries the amount as a warning.\n\n**`reservationId`, optional: finish that booking's sitting and nobody else's.** The console's Overview sends the booking of the row it shows. The table is then freed only while the sitting open at it is that booking's and the booking is seated (it completes); otherwise `409 table-sitting-changed` - `context`: `tableId`, `tableLabel`, `reservationId`, `tableStatus` and `currentSessionId` when somebody else is sitting there - and nothing changes, however often it is sent. Left out, the table is freed whoever is at it, as the tablet always has.",
         "operationId": "freeTable",
         "parameters": [
           {
@@ -15997,10 +16090,10 @@
               "schema": {
                 "allOf": [
                   {
-                    "$ref": "#/components/schemas/Yalla.Api.Endpoints.TableStateRequest"
+                    "$ref": "#/components/schemas/Yalla.Api.Endpoints.FreeTableRequest"
                   }
                 ],
-                "description": "Body of a state-change request that needs nothing beyond the table."
+                "description": "Body of `POST /api/branches/{branchId}/tables/{tableId}/free`."
               }
             }
           },
@@ -18238,6 +18331,51 @@
         },
         "additionalProperties": false,
         "description": "Body of `POST /api/reservations/{id}/extend-hold`."
+      },
+      "Yalla.Api.Endpoints.FreeTableRequest": {
+        "required": [
+          "clientCommandId",
+          "queued"
+        ],
+        "type": "object",
+        "properties": {
+          "clientCommandId": {
+            "type": "string",
+            "description": "As Yalla.Api.Endpoints.TableStateRequest. <b>Required.</b>",
+            "format": "uuid"
+          },
+          "reservationId": {
+            "type": "string",
+            "description": "The booking whose sitting is being finished, when the caller means one - the console's Overview row.\nOptional. When given, the table is freed only if the sitting open at it is that booking's and the\nbooking is seated; otherwise `409 table-sitting-changed`, so a stale row cannot end a walk-in's\nsitting that started since. Left out, the table is freed whoever is at it, as the tablet always has.",
+            "format": "uuid",
+            "nullable": true
+          },
+          "reason": {
+            "type": "string",
+            "description": "Optional free text for the audit log.",
+            "nullable": true
+          },
+          "queued": {
+            "type": "boolean",
+            "description": "As Yalla.Api.Endpoints.TableStateRequest."
+          },
+          "expectedFromStatus": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Yalla.Domain.Enums.TableStatus"
+              }
+            ],
+            "description": "As Yalla.Api.Endpoints.TableStateRequest.",
+            "nullable": true
+          },
+          "expectedRowVersion": {
+            "type": "string",
+            "description": "As Yalla.Api.Endpoints.TableStateRequest.",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false,
+        "description": "Body of `POST /api/branches/{branchId}/tables/{tableId}/free`."
       },
       "Yalla.Api.Endpoints.JoinTabRequest": {
         "required": [
@@ -24478,6 +24616,486 @@
         },
         "additionalProperties": false,
         "description": "The tab's money, in whole dram. Server-computed; a client only ever displays it."
+      },
+      "Yalla.Application.Overview.BranchOverview": {
+        "required": [
+          "asOfUtc",
+          "bookings",
+          "branchId",
+          "graceMinutes",
+          "hours",
+          "inRoom",
+          "load",
+          "localDate",
+          "localTime",
+          "openTabs",
+          "revenue",
+          "serviceDate",
+          "timeZoneId",
+          "todayBookings",
+          "todayBookingsTruncated"
+        ],
+        "type": "object",
+        "properties": {
+          "branchId": {
+            "type": "string",
+            "description": "The branch.",
+            "format": "uuid"
+          },
+          "timeZoneId": {
+            "type": "string",
+            "description": "The branch's IANA zone, which every local value here is in."
+          },
+          "asOfUtc": {
+            "type": "string",
+            "description": "The instant the numbers are true of - the screen's \"updated at\".",
+            "format": "date-time"
+          },
+          "localDate": {
+            "type": "string",
+            "description": "The calendar date at the branch now.",
+            "format": "date"
+          },
+          "localTime": {
+            "type": "string",
+            "description": "The branch's wall clock at Yalla.Application.Overview.BranchOverview.AsOfUtc, whole seconds.",
+            "format": "time"
+          },
+          "serviceDate": {
+            "type": "string",
+            "description": "The service day everything here is about: Yalla.Application.Overview.BranchOverview.LocalDate, or the day before while last night's\nblock is still open.",
+            "format": "date"
+          },
+          "graceMinutes": {
+            "type": "integer",
+            "description": "How long past its start the branch holds a late party's table (the policy's grace).",
+            "format": "int32"
+          },
+          "hours": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Yalla.Application.Overview.OverviewHours"
+              }
+            ],
+            "description": "Whether the branch is open now, and until or from when."
+          },
+          "bookings": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Yalla.Application.Overview.OverviewBookingCounts"
+              }
+            ],
+            "description": "The service day's bookings, counted by status."
+          },
+          "inRoom": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Yalla.Application.Overview.OverviewRoom"
+              }
+            ],
+            "description": "The parties sitting down now."
+          },
+          "openTabs": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Yalla.Application.Overview.OverviewOpenTabs"
+              }
+            ],
+            "description": "The bills still open, and what they still owe."
+          },
+          "revenue": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Yalla.Application.Overview.OverviewRevenue"
+              }
+            ],
+            "description": "The service day's takings so far against the same point a week before."
+          },
+          "load": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Yalla.Application.Overview.OverviewLoad"
+              }
+            ],
+            "description": "Booked people per hour of the service day, against the room's seats."
+          },
+          "todayBookings": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Yalla.Application.Overview.OverviewBooking"
+            },
+            "description": "The service day's bookings one by one, earliest first, leaving out the cancelled and declined ones; at\nmost `200`."
+          },
+          "todayBookingsTruncated": {
+            "type": "boolean",
+            "description": "More bookings than the list carries: the counts and the chart still have them all."
+          }
+        },
+        "additionalProperties": false,
+        "description": "The venue console's Overview of one branch, today: what is booked, who is in, what is owed, what came in."
+      },
+      "Yalla.Application.Overview.OverviewBooking": {
+        "required": [
+          "changeRequested",
+          "channel",
+          "code",
+          "endUtc",
+          "guestName",
+          "id",
+          "localDate",
+          "localStartTime",
+          "partySize",
+          "startUtc",
+          "status",
+          "tableId",
+          "tableLabel",
+          "tableStatus"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "The booking.",
+            "format": "uuid"
+          },
+          "code": {
+            "type": "string",
+            "description": "Its door code."
+          },
+          "status": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Yalla.Domain.Enums.ReservationStatus"
+              }
+            ],
+            "description": "Lifecycle of a booking. Every member is the result of somebody doing something."
+          },
+          "startUtc": {
+            "type": "string",
+            "description": "When it starts.",
+            "format": "date-time"
+          },
+          "endUtc": {
+            "type": "string",
+            "description": "When its sitting ends.",
+            "format": "date-time"
+          },
+          "localDate": {
+            "type": "string",
+            "description": "The start's calendar date: the service date, or the next for a sitting after midnight.",
+            "format": "date"
+          },
+          "localStartTime": {
+            "type": "string",
+            "description": "The start on the branch's clock.",
+            "format": "time"
+          },
+          "partySize": {
+            "type": "integer",
+            "description": "How many.",
+            "format": "int32"
+          },
+          "guestName": {
+            "type": "string",
+            "description": "Whose."
+          },
+          "tableId": {
+            "type": "string",
+            "description": "The table - what `seat-reservation` and `free` are addressed by.",
+            "format": "uuid"
+          },
+          "tableLabel": {
+            "type": "string",
+            "description": "The table's label."
+          },
+          "tableStatus": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Yalla.Domain.Enums.TableStatus"
+              }
+            ],
+            "description": "The <b>physical</b> state of a table: what somebody did to it."
+          },
+          "roomName": {
+            "type": "string",
+            "description": "The room the table is in, when it is in one.",
+            "nullable": true
+          },
+          "channel": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Yalla.Domain.Enums.ReservationChannel"
+              }
+            ],
+            "description": "Where a booking was made from."
+          },
+          "changeRequested": {
+            "type": "boolean",
+            "description": "A confirmed booking whose change is waiting for an answer: the start, table and party here are the slot\nstill promised, and the change is in the approvals list. Its status is `PendingApproval`, so the\nfloor's actions on it wait for that answer."
+          },
+          "holdExpiresAtUtc": {
+            "type": "string",
+            "description": "While the booking is confirmed and its table held for a late party: until when.",
+            "format": "date-time",
+            "nullable": true
+          },
+          "lateNudgeAtUtc": {
+            "type": "string",
+            "description": "While the booking is confirmed: when the app asked, or will ask, the guest whether they are still coming -\nthe nudge as it stands in the outbox, its send time once sent. Absent when none is scheduled.",
+            "format": "date-time",
+            "nullable": true
+          },
+          "lateNudgeSent": {
+            "type": "boolean",
+            "description": "With LateNudgeAtUtc: whether it has gone out.",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false,
+        "description": "One of the service day's bookings, as the Overview's table lists it."
+      },
+      "Yalla.Application.Overview.OverviewBookingCounts": {
+        "required": [
+          "cancelled",
+          "completed",
+          "confirmed",
+          "late",
+          "noShow",
+          "pendingApproval",
+          "pendingChanges",
+          "people",
+          "seated",
+          "total"
+        ],
+        "type": "object",
+        "properties": {
+          "total": {
+            "type": "integer",
+            "description": "Every booking still on the books: pending, confirmed, seated, completed and no-shows - not the cancelled or declined.",
+            "format": "int32"
+          },
+          "pendingApproval": {
+            "type": "integer",
+            "description": "Requests waiting for an answer, that have no confirmed slot today to fall back to.",
+            "format": "int32"
+          },
+          "confirmed": {
+            "type": "integer",
+            "description": "Promised and not yet seated - the late ones included, and a confirmed booking whose change is waiting\n(Yalla.Application.Overview.OverviewBookingCounts.PendingChanges), counted at the slot it still holds.",
+            "format": "int32"
+          },
+          "late": {
+            "type": "integer",
+            "description": "Of Yalla.Application.Overview.OverviewBookingCounts.Confirmed, those whose start has passed.",
+            "format": "int32"
+          },
+          "seated": {
+            "type": "integer",
+            "description": "At their table now.",
+            "format": "int32"
+          },
+          "completed": {
+            "type": "integer",
+            "description": "Came, ate, left.",
+            "format": "int32"
+          },
+          "noShow": {
+            "type": "integer",
+            "description": "Marked as not having come.",
+            "format": "int32"
+          },
+          "cancelled": {
+            "type": "integer",
+            "description": "Called off by the diner or the venue, declined requests included.",
+            "format": "int32"
+          },
+          "people": {
+            "type": "integer",
+            "description": "The party sizes of the pending, confirmed, seated and completed.",
+            "format": "int32"
+          },
+          "pendingChanges": {
+            "type": "integer",
+            "description": "Of Yalla.Application.Overview.OverviewBookingCounts.Confirmed, those with a change waiting for an answer.",
+            "format": "int32"
+          }
+        },
+        "additionalProperties": false,
+        "description": "The service day's bookings by status."
+      },
+      "Yalla.Application.Overview.OverviewHours": {
+        "required": [
+          "closesNextDay",
+          "isOpen"
+        ],
+        "type": "object",
+        "properties": {
+          "isOpen": {
+            "type": "boolean",
+            "description": "Inside an opening block now - today's, or last night's that runs past midnight."
+          },
+          "closesAt": {
+            "type": "string",
+            "description": "While open: when the current block closes. Absent while shut.",
+            "format": "time",
+            "nullable": true
+          },
+          "closesNextDay": {
+            "type": "boolean",
+            "description": "While open: the close falls after midnight tonight, so it reads \"(next day)\". False for a block closing\nat 00:00 - \"until 00:00\" - and for last night's block, which closes today."
+          },
+          "opensAt": {
+            "type": "string",
+            "description": "While shut: the next opening later today. Absent when open, or when nothing opens later today.",
+            "format": "time",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false,
+        "description": "The header's \"open until\" line, from the weekly hours."
+      },
+      "Yalla.Application.Overview.OverviewLoad": {
+        "required": [
+          "capacity",
+          "hours"
+        ],
+        "type": "object",
+        "properties": {
+          "capacity": {
+            "type": "integer",
+            "description": "Seats at the active tables in service - the chart's \"the room is full\" line.",
+            "format": "int32"
+          },
+          "hours": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Yalla.Application.Overview.OverviewLoadHour"
+            },
+            "description": "One entry per hour, contiguous and earliest first, numbered from midnight starting the service date:\n0 to 23 on that date, then 24 for 00:00-01:00 of the next, 25 for 01:00 and so on - label an hour\n`hour % 24`. From the first opening (or the first booking, if earlier) to the last hour the branch\nis open (or the last booked hour, if later). Empty when the branch is shut all day and nothing is booked."
+          }
+        },
+        "additionalProperties": false,
+        "description": "The load chart: booked people per hour of the service day, against the room."
+      },
+      "Yalla.Application.Overview.OverviewLoadHour": {
+        "required": [
+          "hour",
+          "pendingPeople",
+          "people"
+        ],
+        "type": "object",
+        "properties": {
+          "hour": {
+            "type": "integer",
+            "description": "The hour from the service date's midnight: 0 to 23, then 24 onwards past midnight.",
+            "format": "int32"
+          },
+          "people": {
+            "type": "integer",
+            "description": "Confirmed, seated and completed parties whose sitting touches this hour.",
+            "format": "int32"
+          },
+          "pendingPeople": {
+            "type": "integer",
+            "description": "Requests not yet answered whose sitting touches this hour.",
+            "format": "int32"
+          }
+        },
+        "additionalProperties": false,
+        "description": "One bar of the load chart."
+      },
+      "Yalla.Application.Overview.OverviewOpenTabs": {
+        "required": [
+          "count",
+          "unpaidAmd"
+        ],
+        "type": "object",
+        "properties": {
+          "count": {
+            "type": "integer",
+            "description": "Tabs open or settling.",
+            "format": "int32"
+          },
+          "unpaidAmd": {
+            "type": "integer",
+            "description": "What they still owe, in whole dram: the server's own `RemainingAmd`, summed.",
+            "format": "int64"
+          }
+        },
+        "additionalProperties": false,
+        "description": "The bills not yet closed."
+      },
+      "Yalla.Application.Overview.OverviewRevenue": {
+        "required": [
+          "lastWeekAmd",
+          "lastWeekDate",
+          "sinceUtc",
+          "todayAmd"
+        ],
+        "type": "object",
+        "properties": {
+          "todayAmd": {
+            "type": "integer",
+            "description": "Closed from Yalla.Application.Overview.OverviewRevenue.SinceUtc until now.",
+            "format": "int64"
+          },
+          "lastWeekAmd": {
+            "type": "integer",
+            "description": "Closed from the same opening seven days before, for as long on the clock.",
+            "format": "int64"
+          },
+          "lastWeekDate": {
+            "type": "string",
+            "description": "The service day a week before.",
+            "format": "date"
+          },
+          "changePercent": {
+            "type": "number",
+            "description": "The change, to one decimal. Absent when last week took nothing.",
+            "format": "double",
+            "nullable": true
+          },
+          "sinceUtc": {
+            "type": "string",
+            "description": "Where the service day's takings start: its first opening (the first block on the service date), or local\nmidnight of the service date when it has no hours.",
+            "format": "date-time"
+          }
+        },
+        "additionalProperties": false,
+        "description": "The service day's takings so far, and the same weekday's a week before up to the same point - so 18:42 on\na Saturday is compared with 18:42 the Saturday before, and 01:00 on Sunday with 01:00 the Sunday before."
+      },
+      "Yalla.Application.Overview.OverviewRoom": {
+        "required": [
+          "occupiedTables",
+          "outOfServiceTables",
+          "people",
+          "tables"
+        ],
+        "type": "object",
+        "properties": {
+          "people": {
+            "type": "integer",
+            "description": "The party sizes of the sittings still open.",
+            "format": "int32"
+          },
+          "occupiedTables": {
+            "type": "integer",
+            "description": "Active tables somebody is sitting at.",
+            "format": "int32"
+          },
+          "tables": {
+            "type": "integer",
+            "description": "Active tables, whatever their state - out of service included.",
+            "format": "int32"
+          },
+          "outOfServiceTables": {
+            "type": "integer",
+            "description": "Active tables withdrawn from service.",
+            "format": "int32"
+          }
+        },
+        "additionalProperties": false,
+        "description": "The room now."
       },
       "Yalla.Application.Platform.ActivityActor": {
         "required": [

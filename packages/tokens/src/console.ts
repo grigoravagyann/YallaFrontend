@@ -142,6 +142,9 @@ export const consoleColor = {
   grey: '#57534E',
   greyBg: '#EEE8E1',
   greyLine: '#DDD3C8',
+  /** Booked and confirmed, still to come: a booking's state, not a warning (Main artboard). */
+  blue: '#1D4E89',
+  blueBg: '#E6EEF8',
   /** The password meter's third step, between amber and green. */
   meterFair: '#6E8B3D',
   /** A finished step in a dialog's step list: a warm bar beside the step's name. */
@@ -213,6 +216,12 @@ export const consoleColor = {
   cardHoverEdge: '#D4BFA8',
   /** A field that shows a value nobody can change here (the admin's email). */
   readonlyField: '#FAF6F0',
+
+  // --- The venue Overview (venue-console Main artboard) -------------------------
+  /** An hour still to come in the load chart; the hour now is `brand`, those gone `line`. */
+  loadBar: '#D9C3AA',
+  /** The load chart's dashed "the room is full" line. */
+  capacityLine: '#D2BFA8',
 } as const;
 
 export type ConsoleColorToken = keyof typeof consoleColor;
@@ -294,6 +303,8 @@ export const consoleText = {
   claimNarrow: 19,
   /** A number on a venue page card. */
   kpi: 26,
+  /** A waiting booking's start on Overview: the first thing read on its row. */
+  bookingTime: 20,
 } as const;
 
 export const consoleShadow = {

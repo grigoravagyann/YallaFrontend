@@ -7,19 +7,21 @@ import {
 } from '@yalla/api';
 import { cleanup, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { Outlet, Route, Routes } from 'react-router-dom';
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
-import { ReservationPolicyScreen } from './ReservationPolicyScreen';
+import { ToastProvider } from '../../ui/toast';
 import { createConsoleHarness, initConsoleTestI18n } from '../reports/testHarness';
+import { ApprovalsCard } from './ApprovalsCard';
 
 /**
- * The bookings waiting for a person.
+ * The bookings waiting for a person, at the top of Overview.
  *
- * The policy tab is where an owner turns approval on, so it is where the
- * consequence lives: every booking the rule stopped, with the two decisions
- * beside it. What matters is that a decision leaves the list at once, that a
- * rejection carries the reason typed, and that a refusal from the server is
- * shown in the server's own words rather than as a generic failure.
+ * The panel moved here from the policy screen (venue HANDOFF section 6). What
+ * matters is unchanged: a decision leaves the list at once, a rejection
+ * carries the reason typed, a refusal from the server is shown in the
+ * server's own words, and a short-notice booking shows its clock. New with
+ * the Main artboard: the decision is said in a toast, declining moves the
+ * focus into the reason and back, and a row whose time ran out is put away
+ * with "Got it".
  */
 
 beforeAll(async () => {
@@ -28,25 +30,16 @@ beforeAll(async () => {
 
 afterEach(cleanup);
 
-function renderPolicy(options: { readonly gateway?: ConsoleGateway } = {}) {
+function renderCard(options: { readonly gateway?: ConsoleGateway } = {}) {
   const harness = createConsoleHarness({
     gateway: options.gateway ?? createConsoleMockGateway({ latencyMs: 0, role: 'owner' }),
   });
-  const context = {
-    branchId: 'b-lumen-north',
-    timeZoneId: 'Asia/Yerevan',
-    branchCount: 3,
-    canRollUpVenue: true,
-  };
-
   render(
     harness.wrap(
-      <Routes>
-        <Route path="/venue" element={<Outlet context={context} />}>
-          <Route path="policy" element={<ReservationPolicyScreen />} />
-        </Route>
-      </Routes>,
-      '/venue/policy',
+      <ToastProvider>
+        <ApprovalsCard branchId="b-lumen-north" timeZoneId="Asia/Yerevan" />
+      </ToastProvider>,
+      '/venue',
     ),
   );
   return harness;
@@ -55,7 +48,7 @@ function renderPolicy(options: { readonly gateway?: ConsoleGateway } = {}) {
 async function waitForPanel() {
   const panel = await screen.findByRole(
     'region',
-    { name: /awaiting approval/i },
+    { name: /waiting for your decision/i },
     { timeout: 5000 },
   );
   await waitFor(() => expect(within(panel).getAllByRole('listitem').length).toBeGreaterThan(0), {
@@ -66,7 +59,7 @@ async function waitForPanel() {
 
 describe('the awaiting-approval panel', () => {
   it("shows the diner's note on the booking that has one, and nothing on the one that does not", async () => {
-    const harness = renderPolicy();
+    const harness = renderCard();
     const panel = await waitForPanel();
 
     const pending = await harness.gateway.listPendingReservations('b-lumen-north');
@@ -83,7 +76,7 @@ describe('the awaiting-approval panel', () => {
 
   it('approves a booking and it leaves the list', async () => {
     const user = userEvent.setup();
-    const harness = renderPolicy();
+    const harness = renderCard();
     const panel = await waitForPanel();
 
     const before = await harness.gateway.listPendingReservations('b-lumen-north');
@@ -96,13 +89,61 @@ describe('the awaiting-approval panel', () => {
     const after = await harness.gateway.listPendingReservations('b-lumen-north');
     expect(after.map((booking) => booking.id)).not.toContain(first.id);
     expect(within(panel).getAllByRole('listitem').length).toBe(before.length - 1);
+    // The focus goes on to the row now in its place, not to the page.
+    const next = within(panel).getByText(before[1]!.code).closest('li')!;
+    await waitFor(() => expect(next.contains(document.activeElement)).toBe(true));
+  });
+
+  it('takes a decided row off at once, so a second click cannot decide it again', async () => {
+    const user = userEvent.setup();
+    const base = createConsoleMockGateway({ latencyMs: 0, role: 'owner' });
+    const approve = vi.spyOn(base, 'approveReservation');
+    // The next read is slow: the row must not wait for it to go.
+    let reads = 0;
+    const slow: ConsoleGateway = {
+      ...base,
+      listPendingReservations: async (branchId) => {
+        reads += 1;
+        if (reads > 1) await new Promise((resolve) => setTimeout(resolve, 5000));
+        return base.listPendingReservations(branchId);
+      },
+    };
+    renderCard({ gateway: slow });
+    const panel = await waitForPanel();
+    const [first] = await base.listPendingReservations('b-lumen-north');
+    const row = within(panel).getByText(first!.code).closest('li')!;
+
+    await user.click(within(row).getByRole('button', { name: /^approve$/i }));
+    await waitFor(() => expect(within(panel).queryByText(first!.code)).toBeNull(), {
+      timeout: 1000,
+    });
+    expect(approve).toHaveBeenCalledTimes(1);
+  });
+
+  it('counts in its pill the same list the sidebar badge counts', async () => {
+    const base = createConsoleMockGateway({ latencyMs: 0, role: 'owner' });
+    const closed: ConsoleGateway = {
+      ...base,
+      listPendingReservations: async (branchId) =>
+        (await base.listPendingReservations(branchId)).map((booking) =>
+          booking.approvalExpiresAtUtc
+            ? { ...booking, approvalExpiresAtUtc: new Date(Date.now() - 1000).toISOString() }
+            : booking,
+        ),
+    };
+    renderCard({ gateway: closed });
+    const panel = await waitForPanel();
+    const listed = await closed.listPendingReservations('b-lumen-north');
+    // The badge is the server's list, as read; so is the pill — a row whose
+    // time ran out on this clock is still in both until the next read.
+    expect(within(panel).getByText(`${listed.length} waiting`)).toBeTruthy();
   });
 
   it('rejects with the reason typed, after asking', async () => {
     const user = userEvent.setup();
     const base = createConsoleMockGateway({ latencyMs: 0, role: 'owner' });
     const reject = vi.spyOn(base, 'rejectReservation');
-    renderPolicy({ gateway: base });
+    renderCard({ gateway: base });
     const panel = await waitForPanel();
 
     const [first] = await base.listPendingReservations('b-lumen-north');
@@ -145,7 +186,7 @@ describe('the awaiting-approval panel', () => {
           }),
         ),
     };
-    renderPolicy({ gateway: refusing });
+    renderCard({ gateway: refusing });
     const panel = await waitForPanel();
 
     const [first] = await base.listPendingReservations('b-lumen-north');
@@ -159,9 +200,46 @@ describe('the awaiting-approval panel', () => {
   });
 });
 
+describe('deciding', () => {
+  it('says the decision in a toast', async () => {
+    const user = userEvent.setup();
+    const harness = renderCard();
+    const panel = await waitForPanel();
+    const [first] = await harness.gateway.listPendingReservations('b-lumen-north');
+    const row = within(panel).getByText(first!.code).closest('li')!;
+
+    await user.click(within(row).getByRole('button', { name: /^approve$/i }));
+
+    expect(
+      await screen.findByText(
+        `${first!.guestName}'s booking is confirmed · the guest will be notified`,
+      ),
+    ).toBeTruthy();
+  });
+
+  it('moves the focus into the reason on decline, and back to Decline on Keep it', async () => {
+    const user = userEvent.setup();
+    const harness = renderCard();
+    const panel = await waitForPanel();
+    const [first] = await harness.gateway.listPendingReservations('b-lumen-north');
+    const row = within(panel).getByText(first!.code).closest('li')!;
+
+    await user.click(within(row).getByRole('button', { name: /^decline$/i }));
+    const reason = within(row).getByLabelText(/reason/i);
+    await waitFor(() => expect(document.activeElement).toBe(reason));
+    expect(reason.getAttribute('aria-describedby')).toBeTruthy();
+    expect(reason.getAttribute('maxlength')).toBe('200');
+
+    await user.click(within(row).getByRole('button', { name: /^keep it$/i }));
+    await waitFor(() =>
+      expect(document.activeElement).toBe(within(row).getByRole('button', { name: /^decline$/i })),
+    );
+  });
+});
+
 describe('a booking at short notice', () => {
   it('says why it waits and how long is left to answer, and the others have no clock', async () => {
-    renderPolicy();
+    renderCard();
     const panel = await waitForPanel();
     const pending = await createConsoleMockGateway({
       latencyMs: 0,
@@ -191,7 +269,7 @@ describe('a booking at short notice', () => {
             : booking,
         ),
     };
-    renderPolicy({ gateway: closed });
+    renderCard({ gateway: closed });
     const panel = await waitForPanel();
     const tonight = (await closed.listPendingReservations('b-lumen-north')).find(
       (booking) => booking.awaitingApprovalBecause === 'shortNotice',
@@ -199,9 +277,40 @@ describe('a booking at short notice', () => {
 
     const row = within(panel).getByText(tonight.code).closest('li')!;
     expect(within(row).getByText(/^Time is up\./u)).toBeTruthy();
-    expect(
-      (within(row).getByRole('button', { name: /^approve$/i }) as HTMLButtonElement).disabled,
-    ).toBe(true);
+    // No decision the server would refuse; "Got it" puts the row away.
+    expect(within(row).queryByRole('button', { name: /^approve$/i })).toBeNull();
+    expect(within(row).queryByRole('button', { name: /^decline$/i })).toBeNull();
+    await userEvent.setup().click(within(row).getByRole('button', { name: /^got it$/i }));
+    await waitFor(() => expect(within(panel).queryByText(tonight.code)).toBeNull());
+    // On to the next row, not lost on the page.
+    await waitFor(() => expect(panel.contains(document.activeElement)).toBe(true));
+  });
+
+  it('turns the clock amber under five minutes and red under one', async () => {
+    const base = createConsoleMockGateway({ latencyMs: 0, role: 'owner' });
+    const left = (seconds: number): ConsoleGateway => ({
+      ...base,
+      listPendingReservations: async (branchId) =>
+        (await base.listPendingReservations(branchId)).map((booking) =>
+          booking.approvalExpiresAtUtc
+            ? {
+                ...booking,
+                approvalExpiresAtUtc: new Date(Date.now() + seconds * 1000).toISOString(),
+              }
+            : booking,
+        ),
+    });
+
+    renderCard({ gateway: left(210) });
+    let timer = within(await waitForPanel()).getByRole('timer');
+    expect(timer.className).toContain('is-soon');
+    expect(timer.getAttribute('aria-label')).toBe('4 minutes left');
+    cleanup();
+
+    renderCard({ gateway: left(40) });
+    timer = within(await waitForPanel()).getByRole('timer');
+    expect(timer.className).toContain('is-now');
+    expect(timer.getAttribute('aria-label')).toBe('1 minute left');
   });
 
   it('says it was too late when the window closed before the decision landed', async () => {
@@ -224,15 +333,50 @@ describe('a booking at short notice', () => {
           }),
         ),
     };
-    renderPolicy({ gateway: late });
+    renderCard({ gateway: late });
     const panel = await waitForPanel();
     const [first] = await base.listPendingReservations('b-lumen-north');
     const row = within(panel).getByText(first!.code).closest('li')!;
 
     await user.click(within(row).getByRole('button', { name: /^approve$/i }));
 
-    const alert = await within(row).findByRole('alert');
+    // Said in a toast, which outlives the row: the row is gone at once.
+    const alert = await screen.findByRole('alert');
     expect(alert.textContent).toMatch(/^Too late: the time to answer ran out/u);
+    await waitFor(() => expect(within(panel).queryByText(first!.code)).toBeNull());
+  });
+
+  it('says somebody else answered first in a toast, and takes the row off', async () => {
+    const user = userEvent.setup();
+    const base = createConsoleMockGateway({ latencyMs: 0, role: 'owner' });
+    const answered: ConsoleGateway = {
+      ...base,
+      approveReservation: () =>
+        Promise.reject(
+          new ConcurrencyConflictError({
+            url: 'mock://approve',
+            problem: {
+              type: 'about:blank',
+              title: 'Conflict',
+              status: 409,
+              detail: 'Only a pending reservation can be confirmed; LUSN2 is Confirmed.',
+              code: 'conflicting-state',
+              traceId: 'mock',
+            },
+          }),
+        ),
+    };
+    renderCard({ gateway: answered });
+    const panel = await waitForPanel();
+    const [first] = await base.listPendingReservations('b-lumen-north');
+    const row = within(panel).getByText(first!.code).closest('li')!;
+
+    await user.click(within(row).getByRole('button', { name: /^approve$/i }));
+
+    expect((await screen.findByRole('alert')).textContent).toBe(
+      'Already answered by someone else.',
+    );
+    await waitFor(() => expect(within(panel).queryByText(first!.code)).toBeNull());
   });
 });
 
@@ -257,13 +401,15 @@ describe('a booking the guest before answers in the app', () => {
             : booking,
         ),
     };
-    renderPolicy({ gateway: theirs });
+    renderCard({ gateway: theirs });
     const panel = await waitForPanel();
     const row = within(panel).getByText(first!.code).closest('li')!;
 
     expect(within(row).getByText(THEIRS)).toBeTruthy();
     expect(within(row).queryByRole('button', { name: /^approve$/i })).toBeNull();
     expect(within(row).queryByRole('button', { name: /^decline$/i })).toBeNull();
+    // No clock: the time is the guest's to answer in, not the venue's.
+    expect(within(row).queryByRole('timer')).toBeNull();
   });
 
   it('offers the decision, with its clock, when the venue rings the guest before itself', async () => {
@@ -283,7 +429,7 @@ describe('a booking the guest before answers in the app', () => {
             : booking,
         ),
     };
-    renderPolicy({ gateway: venues });
+    renderCard({ gateway: venues });
     const panel = await waitForPanel();
     const row = within(panel).getByText(first!.code).closest('li')!;
 
@@ -312,7 +458,7 @@ describe('a booking the guest before answers in the app', () => {
           }),
         ),
     };
-    renderPolicy({ gateway: refused });
+    renderCard({ gateway: refused });
     const panel = await waitForPanel();
     const [first] = await base.listPendingReservations('b-lumen-north');
     const row = within(panel).getByText(first!.code).closest('li')!;

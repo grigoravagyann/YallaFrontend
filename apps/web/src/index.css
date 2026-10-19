@@ -2847,52 +2847,6 @@ fieldset.editor-body:disabled {
   font-weight: var(--font-weight-regular);
 }
 
-/* --- The venue overview and its checklist ------------------------------------ */
-
-.checklist {
-  max-width: 44rem;
-  padding: var(--space-lg);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-card);
-  background: var(--color-surface);
-}
-
-.checklist header h3 {
-  margin: 0;
-}
-
-.checklist-list {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-sm);
-  margin: var(--space-md) 0 0;
-  padding: 0;
-  list-style: none;
-}
-
-.checklist-list li {
-  display: grid;
-  grid-template-columns: 1.5rem 1fr auto;
-  align-items: baseline;
-  gap: var(--space-sm);
-  padding: var(--space-sm) 0;
-  border-top: 1px solid var(--color-border);
-}
-
-.checklist-mark {
-  color: var(--color-subtle-foreground);
-  font-weight: var(--font-weight-bold);
-}
-
-.checklist-list li.is-done .checklist-mark {
-  color: var(--color-primary-ink);
-}
-
-/* Done rows recede. The list is a to-do, and what is left is what it is for. */
-.checklist-list li.is-done .checklist-label {
-  color: var(--color-muted-foreground);
-}
-
 /* --- The menu editor ---------------------------------------------------------- */
 
 .page-head {
@@ -3690,58 +3644,6 @@ fieldset.editor-body:disabled {
   padding-inline-start: var(--space-lg);
 }
 
-/* The bookings waiting for a decision, on the policy tab. */
-.approvals-title {
-  display: flex;
-  align-items: center;
-  gap: var(--space-sm);
-  margin: 0;
-}
-
-.approvals-list {
-  list-style: none;
-  margin: var(--space-md) 0 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-sm);
-}
-
-.approvals-row {
-  display: grid;
-  grid-template-columns: minmax(10rem, 1fr) minmax(14rem, 2fr) auto;
-  gap: var(--space-md);
-  align-items: start;
-  padding: var(--space-sm) 0;
-  border-top: 1px solid var(--color-line, rgb(0 0 0 / 10%));
-}
-
-.approvals-who,
-.approvals-what {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-xs);
-}
-
-.approvals-what .badge {
-  align-self: flex-start;
-}
-
-/* The time left to answer a short-notice booking, red in its last two minutes. */
-.approvals-countdown {
-  font-weight: var(--font-weight-bold);
-  font-feature-settings: var(--font-feature-tabular);
-}
-
-.approvals-countdown.is-urgent {
-  color: var(--color-danger);
-}
-
-/* The diner's note on a booking waiting for approval (K9): plain text, wraps. */
-.approvals-note {
-  overflow-wrap: anywhere;
-}
-
 /* A review a venue or the platform may take down. */
 .review-body {
   display: flex;
@@ -3756,34 +3658,6 @@ fieldset.editor-body:disabled {
   flex-direction: column;
   gap: var(--space-xs);
   min-width: 16rem;
-}
-
-.checklist-blockers {
-  margin-top: var(--space-md);
-}
-
-.approvals-actions {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-xs);
-  align-items: flex-end;
-}
-
-.approvals-decline {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-xs);
-  min-width: 16rem;
-}
-
-@media (max-width: 40rem) {
-  .approvals-row {
-    grid-template-columns: 1fr;
-  }
-
-  .approvals-actions {
-    align-items: stretch;
-  }
 }
 
 .visually-hidden {

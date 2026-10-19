@@ -152,6 +152,7 @@ export function VenueLayout({ user }: VenueLayoutProps) {
       context={
         {
           branchId,
+          branchName: current?.name ?? null,
           timeZoneId: current?.timeZoneId ?? 'Asia/Yerevan',
           branchCount: branches.length,
           // The server allows the venue-wide report rollup to an owner, a
@@ -265,6 +266,8 @@ function VenuePlace({ venueName, roleLabel, branches, current, onSwitch }: Venue
 /** What every screen under `/venue` is given: the branch it may act on. */
 export interface VenueOutletContext {
   readonly branchId: string | null;
+  /** The branch's name, for a screen that says which branch it is about (Overview's subtitle). */
+  readonly branchName?: string | null;
   readonly timeZoneId: string;
   /**
    * How many branches this person actually covers.

@@ -89,6 +89,10 @@ account. Its extra tokens: `sidebarGroup` (a group heading), `sidebarPanel`,
 `navItemGrouped` (40px) for the wider, tighter grouped sidebar. Its screens
 keep their own markup until their redesign phases and wear these tokens
 through `.yc-legacy`, as they already did inside the platform's branch pages.
+Overview (phase 2, the Main artboard) adds `blue` on `blueBg` (a confirmed
+booking still to come: a state, not a warning), `loadBar` and `capacityLine`
+(the load chart's hours to come and its dashed "room full" line) and the
+20px `bookingTime` (a waiting booking's start).
 
 The values are tokens like every other value in the product:
 `packages/tokens/src/console.ts`, emitted as `--console-*` custom properties
@@ -113,6 +117,7 @@ components.
 | `red` on `redBg`                | `#A8261B` on `#FCEAE7`            | Real failures and destructive buttons only            |
 | `green` on `greenBg`            | `#0F6A4B` on `#E4F2EA`            | Done, active, saved                                   |
 | `grey` on `greyBg`              | `#57534E` on `#EEE8E1`            | Suspended, off                                        |
+| `blue` on `blueBg`              | `#1D4E89` on `#E6EEF8`            | A confirmed booking still to come (venue Overview)    |
 
 The rules the artboards were reviewed against, and that the screens keep:
 

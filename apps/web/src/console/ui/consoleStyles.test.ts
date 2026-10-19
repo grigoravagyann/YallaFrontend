@@ -43,6 +43,10 @@ function redesignFiles(): string[] {
     // The venue console's shell and My account (venue-console redesign phase 1).
     join(SRC, 'console', 'venue', 'VenueLayout.tsx'),
     ...inFolder(join(SRC, 'console', 'venue', 'account')),
+    // Overview (venue-console redesign phase 2).
+    join(SRC, 'console', 'venue', 'VenueOverviewScreen.tsx'),
+    join(SRC, 'console', 'venue', 'OnboardingChecklist.tsx'),
+    ...inFolder(join(SRC, 'console', 'venue', 'overview')),
     join(SRC, 'auth', 'AuthLayout.tsx'),
     join(SRC, 'auth', 'SignInRoute.tsx'),
     join(SRC, 'auth', 'ResetPasswordRoute.tsx'),

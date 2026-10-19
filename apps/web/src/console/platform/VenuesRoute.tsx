@@ -33,7 +33,7 @@ import { useToast } from '../ui/toast';
 import { issueFailureText } from '../venue/staff/signInIssue';
 import { CreateVenueDialog, type CreatedVenue } from './venues/CreateVenueDialog';
 import { DeleteVenueDialog } from './venues/DeleteVenueDialog';
-import { RowMenu, type RowMenuItem } from './venues/RowMenu';
+import { RowMenu, type RowMenuItem } from '../ui/RowMenu';
 import { TierDialog } from './venues/TierDialog';
 import { VenueThumb } from './venues/VenueThumb';
 import {

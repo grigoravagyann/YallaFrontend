@@ -586,6 +586,64 @@ review every string in `src/locales/hy` and `src/locales/ru`.**
     keep saying **nothing was signed out** and that signing in again is the
     fix; the button signs this browser out to the sign-in page.
 
+- `admin` — the venue console redesign, phase 2 (2026-10-19): Overview. The
+  `hy` copy is the approved Main artboard's (`docs/design/venue-console`),
+  except where marked; `ru` and `en` were written from it and are **not**
+  reviewed. Formal `Դուք` throughout.
+  - New `overview.*`: the greeting by the branch's clock (`greeting.*`, with
+    a `*Plain` form when the name is not known), `sub`, the hours pill
+    (`hours.*`), the four numbers (`kpi.*`), today's bookings
+    (`bookings.*`: filters, columns, channels, statuses, the row menu's
+    `action.*` and its toasts `done.*`), the load chart (`load.*`) and
+    "worth a look" (`attn.*`). Not in the artboard, so **not** read by the
+    user even in `hy`: `noBranch`, `hours.openNextDay`, `.openNow`,
+    `.closedOpensAt`, `.closedToday`, `kpi.nothingUnpaid`, `.noLastWeek`,
+    `.sameAsLastWeek`, `bookings.status.completed` / `.cancelled`,
+    `bookings.done.noShowKept` (a no-show whose table somebody else sits at),
+    `.finishedOwed`, `bookings.failed`, `.offline`, `bookings.nudged` /
+    `.nudgeAt` (the backend has no manual "are you coming?", so a late row
+    says when the app asked — must keep saying it is **the app** that asks),
+    `bookings.empty*`, `bookings.truncated` (more than 200 today), `load.hour*`,
+    `load.nextDay` (an hour past midnight of the service day), `load.peakNoSeats`, `load.empty`,
+    `attn.device*`, `attn.bookingsOff*` and `attn.empty`. `kpi.vsLastWeek`
+    says "the same day last week" rather than the artboard's weekday, which
+    would need a case per weekday. The `hy` toasts that name a guest or a
+    table put the name after a colon or leave the case ending off
+    (`i18n:check` refuses a suffix glued to a value).
+  - The approvals moved from the policy screen to Overview: `approvals.*`
+    `title`, `body`, `empty`, `party_*` ("հոգի"), `leftToAnswer`, `timeUp`,
+    `reasonLabel` and `reasonHint` now carry the artboard's `hy`; new
+    `dismiss`, `approved`, `declined` (toasts) and `minutesLeft_*` (the
+    clock's screen-reader label, **not** in the artboard).
+  - The setup card: `checklist.title`, `.body`, `.progress` and four
+    `checklist.step.*` take the artboard's `hy`; new `progressLabel`, `done`,
+    `todo`. Removed, nothing renders them any more: `checklist.finish`,
+    `.elsewhere`, `onboarding.blockers.*` and
+    `onboarding.steps.acceptsWebBookingsOptional` (online bookings switched
+    off is now a "worth a look" line).
+  - Review fixes (2026-10-19), **not** in an artboard, so not read by the user
+    even in `hy`: the row refusals `overview.bookings.refused.*` (one sentence
+    per refusal the routes document — `moved`, `tableTaken`, `sittingChanged`,
+    `tableCannot`, `forbidden`, `gone`, `offline`, `generic`; the server's
+    English is never shown; they replace `bookings.failed` and `.offline`);
+    the undo of a no-show or a cancellation, `bookings.held.*`, `.heldNote`
+    (must keep saying it is sent **unless undone**) and `.undone` (must keep
+    saying **nothing was sent**); `bookings.done.replay` (a repeat that had
+    already landed, with the booking's status); `bookings.status.changeRequested`
+    and `.changeNote` (a confirmed booking whose change waits — answered in the
+    approvals card, not from its row); `bookings.status.unknown`;
+    `bookings.nudgeAt` now says the app **will** ask; `kpi.bookingsFootChanges`;
+    `kpi.revenueSince` (the takings counted from the first opening);
+    `load.onlyPending` and `load.pendingLegend` (requests drawn on top of the
+    bars); `load.aria` now names the hour now; `attn.device` / `.deviceOn` /
+    `.deviceBody` say "not heard from since", never "lost its connection" — a
+    tablet's last-seen moves only on a sign-in or a renewal.
+  - QA fix (2026-10-19), **not** in an artboard: `overview.bookings.tableTaken`
+    and `.tableOutOfService`, the reason under a disabled "Mark seated" in the
+    row menu when the booking's table is occupied or out of service, and the
+    sentence for the server's `invalid-table-transition` on a seat. `hy` names
+    the table without a glued case ending ("Սեղան 1 հիմա զբաղված է").
+
 The Russian bundle carries four plural categories (`one`/`few`/`many`/`other`)
 where Armenian and English carry two. That is correct CLDR, not duplication, and
 `pnpm i18n:check` verifies each language has exactly the categories

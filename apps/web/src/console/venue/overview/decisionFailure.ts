@@ -19,6 +19,13 @@ export function isAwaitingEarlierGuest(error: unknown): boolean {
   );
 }
 
+/** The decision was refused because somebody else answered it first. */
+export function isAnsweredElsewhere(error: unknown): boolean {
+  return (
+    error instanceof ApiError && error.status === 409 && error.code === ANSWERED_ELSEWHERE_CODE
+  );
+}
+
 /** The console's own sentences, for the failures the server's are not written for. */
 export interface DecisionFailureCopy {
   readonly offline: string;
@@ -58,14 +65,7 @@ export interface DecisionFailureCopy {
 export function decisionFailureText(error: unknown, copy: DecisionFailureCopy): string {
   if (copy.tooLate && isApprovalExpired(error)) return copy.tooLate;
   if (copy.awaitingEarlierGuest && isAwaitingEarlierGuest(error)) return copy.awaitingEarlierGuest;
-  if (
-    copy.answeredElsewhere &&
-    error instanceof ApiError &&
-    error.status === 409 &&
-    error.code === ANSWERED_ELSEWHERE_CODE
-  ) {
-    return copy.answeredElsewhere;
-  }
+  if (copy.answeredElsewhere && isAnsweredElsewhere(error)) return copy.answeredElsewhere;
   const kind = describeFailure(error);
   if (kind === 'offline') return copy.offline;
   const spoken =

@@ -467,3 +467,22 @@ export function MonitorIcon(props: IconProps) {
     </Icon>
   );
 }
+
+/** A reported review: a flag (Overview's "worth a look"). */
+export function FlagIcon(props: IconProps) {
+  return (
+    <Icon strokeWidth={2} {...props}>
+      <path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1zM4 22v-7" />
+    </Icon>
+  );
+}
+
+/** A tablet on the floor or in the kitchen. */
+export function TabletIcon(props: IconProps) {
+  return (
+    <Icon strokeWidth={2} {...props}>
+      <rect width="16" height="20" x="4" y="2" rx="2" />
+      <path d="M12 18h.01" />
+    </Icon>
+  );
+}

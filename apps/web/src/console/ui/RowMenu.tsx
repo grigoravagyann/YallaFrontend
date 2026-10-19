@@ -10,7 +10,7 @@ import {
   type ReactNode,
 } from 'react';
 import { createPortal } from 'react-dom';
-import { MoreIcon } from '../../ui/icons';
+import { MoreIcon } from './icons';
 
 export interface RowMenuItem {
   readonly key: string;
@@ -18,6 +18,13 @@ export interface RowMenuItem {
   readonly icon: ReactNode;
   /** Red, after a separator: the destructive item. */
   readonly danger?: boolean;
+  /**
+   * Shown but not available, with `hint` saying why: `aria-disabled`, still in
+   * the arrow-key order so the reason is read out, and choosing it does nothing.
+   */
+  readonly disabled?: boolean;
+  /** A short line under the label: why a disabled item is not available. */
+  readonly hint?: string;
   readonly onSelect: () => void;
 }
 
@@ -199,13 +206,23 @@ export function RowMenu({ label, items, open, onOpenChange, id }: RowMenuProps) 
                     role="menuitem"
                     tabIndex={-1}
                     className={item.danger ? 'yc-menu-item is-danger' : 'yc-menu-item'}
+                    {...(item.disabled ? { 'aria-disabled': true } : {})}
                     onClick={() => {
+                      // Stays open on a disabled item: its reason is the answer.
+                      if (item.disabled) return;
                       onOpenChange(false);
                       item.onSelect();
                     }}
                   >
                     {item.icon}
-                    {item.label}
+                    {item.hint ? (
+                      <span className="yc-menu-t">
+                        {item.label}
+                        <small>{item.hint}</small>
+                      </span>
+                    ) : (
+                      item.label
+                    )}
                   </button>
                 </Fragment>
               ))}
