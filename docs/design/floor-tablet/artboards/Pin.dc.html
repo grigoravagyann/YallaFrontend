@@ -1,0 +1,155 @@
+<!doctype html>
+<html lang="hy">
+<head>
+<meta charset="utf-8">
+<title>PIN մուտք — Yalla պլանշետ</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+Armenian:wght@400;500;600;700&amp;family=Noto+Serif+Armenian:wght@700&amp;display=swap">
+<style>
+body{margin:0}
+a{color:#3A1D0C}a:hover{color:#5A2E14}
+.y{--bg:#F7F1E8;--paper:#FFFFFF;--bar:#2B1608;--brand:#3A1D0C;--brand-ink:#FFF3E4;--ink:#2A1A10;--muted:#6B5A4F;--line:#E8DDD0;--line-2:#F1E9DF;--amber:#8A4B08;--amber-bg:#FDF1DE;--red:#A8261B;--red-bg:#FCEAE7;--green:#0F6A4B;--green-bg:#E4F2EA;--grey:#57534E;--grey-bg:#EEE8E1;font-family:'Noto Sans Armenian','Noto Sans',system-ui,sans-serif;font-size:18px;line-height:1.4;color:var(--ink);width:1280px;height:800px;display:flex;overflow:hidden;user-select:none;-webkit-tap-highlight-color:transparent;position:relative;background:var(--bg)}
+.y *{box-sizing:border-box}
+.ghost{position:absolute;inset:0;padding:88px 20px 20px;display:grid;grid-template-columns:repeat(5,minmax(0,1fr));grid-auto-rows:120px;gap:12px;align-content:start;opacity:.25;filter:blur(2px) saturate(.5)}
+.ghost div{border-radius:14px;border:2px solid #D8C8B6;background:var(--paper)}
+.gate{position:absolute;inset:0;background:rgba(42,26,16,.55);display:grid;place-items:center}
+.card{width:980px;height:640px;background:var(--paper);border-radius:22px;display:grid;grid-template-columns:420px minmax(0,1fr);overflow:hidden;box-shadow:0 30px 80px rgba(20,9,4,.4)}
+.left{background:var(--bar);color:#E9D9C6;padding:28px;display:flex;flex-direction:column;gap:18px;min-height:0}
+.brand{font-family:'Noto Serif Armenian',Georgia,serif;font-size:28px;font-weight:700;color:#FFF3E4;line-height:1}
+.dev{display:flex;flex-direction:column;gap:2px}
+.dev b{font-size:17px;color:#FFF3E4;font-weight:600}
+.dev span{font-size:13px;color:#BFA88F}
+.lk{display:flex;gap:10px;align-items:flex-start;padding:12px 14px;border-radius:12px;background:rgba(255,243,228,.08);font-size:14px;color:#EAD9C5}
+.lk svg{flex:none;margin-top:2px}
+.ppl{flex:1;min-height:0;display:flex;flex-direction:column;gap:6px}
+.ppl h2{margin:0 0 4px;font-size:13px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#A8907A}
+.pl{flex:1;min-height:0;overflow-y:auto;display:flex;flex-direction:column;gap:6px}
+.pp{height:56px;padding:0 12px;border-radius:12px;border:1.5px solid transparent;background:rgba(255,243,228,.06);color:#F3E6D6;font:inherit;font-size:16px;font-weight:600;display:flex;align-items:center;gap:12px;text-align:left;cursor:pointer}
+.pp .av{width:36px;height:36px;border-radius:50%;background:#C3B59F;color:#2B1608;display:grid;place-items:center;font-size:13px;font-weight:700;flex:none}
+.pp .r{margin-left:auto;font-size:13px;color:#BFA88F;font-weight:500}
+.pp[aria-pressed="true"]{background:#FFF3E4;color:var(--brand);border-color:#FFF3E4}
+.pp[aria-pressed="true"] .r{color:var(--muted)}
+.pp.other .av{background:rgba(255,243,228,.15);color:#F3E6D6}
+.right{padding:28px 32px;display:flex;flex-direction:column;align-items:center;gap:16px;min-height:0}
+.prompt{text-align:center;display:flex;flex-direction:column;gap:4px}
+.prompt h1{margin:0;font-family:'Noto Serif Armenian',Georgia,serif;font-size:26px;font-weight:700}
+.prompt p{margin:0;color:var(--muted);font-size:15px}
+.dots{display:flex;gap:16px;height:28px;align-items:center}
+.dots i{width:20px;height:20px;border-radius:50%;border:2.5px solid #C8B39C;background:var(--paper);transition:transform .1s}
+.dots i.on{background:var(--brand);border-color:var(--brand);transform:scale(1.1)}
+.dots.bad i{border-color:var(--red);background:var(--red-bg)}
+.dots.bad i.on{background:var(--red);border-color:var(--red)}
+.msg{min-height:48px;display:flex;align-items:center;justify-content:center;text-align:center;font-size:15px;font-weight:600;padding:0 12px;border-radius:10px}
+.msg.err{color:var(--red);background:var(--red-bg);padding:10px 14px}
+.msg.lock{color:var(--red);background:var(--red-bg);padding:10px 14px;flex-direction:column;gap:2px}
+.msg.off{color:var(--amber);background:var(--amber-bg);padding:10px 14px}
+.msg small{font-weight:500;font-size:13px}
+.keys{display:grid;grid-template-columns:repeat(3,96px);grid-auto-rows:76px;gap:10px}
+.k{border-radius:16px;border:2px solid #D8C8B6;background:var(--paper);font:inherit;font-size:30px;font-weight:700;color:var(--ink);cursor:pointer;transition:transform .06s}
+.k:active{transform:scale(.94);background:var(--bg)}
+.k.fn{font-size:15px;color:var(--brand);background:#FCF9F5}
+.k[aria-disabled="true"]{opacity:.35;cursor:not-allowed}
+.k svg{width:28px;height:28px}
+.foot{margin-top:auto;font-size:13px;color:var(--muted);text-align:center}
+.foot button{border:0;background:none;font:inherit;font-size:13px;font-weight:700;color:var(--brand);cursor:pointer;text-decoration:underline}
+.sw{position:absolute;top:12px;left:12px;z-index:5;display:flex;gap:4px;padding:6px;border-radius:10px;background:rgba(255,255,255,.85)}
+.sw button{height:44px;padding:0 10px;border-radius:8px;border:1px solid #D8C8B6;background:var(--paper);font:inherit;font-size:12px;font-weight:700;cursor:pointer;color:var(--muted)}
+.sw button[aria-pressed="true"]{background:var(--brand);color:var(--brand-ink);border-color:var(--brand)}
+:focus-visible{outline:3px solid var(--brand);outline-offset:2px}
+.left :focus-visible{outline-color:#F3D9B8}
+@media (prefers-reduced-motion:reduce){.y *{transition:none!important}}
+</style>
+</helmet>
+<div class="y">
+<div class="ghost" aria-hidden="true"><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div></div>
+<div class="sw" role="group" aria-label="Դիզայնի վիճակ"><sc-for list="{{ cases }}" as="c" hint-placeholder-count="5"><button type="button" aria-pressed="{{ c.on }}" onClick="{{ c.pick }}">{{ c.label }}</button></sc-for></div>
+
+<div class="gate">
+<div class="card" role="dialog" aria-modal="true" aria-labelledby="pin-h">
+<div class="left">
+<span class="brand">Yalla</span>
+<div class="dev"><b>Cascade Cafe · Կասկադ</b><span>Սրահի պլանշետ 1 · {{ devLine }}</span></div>
+<sc-if value="{{ showIdle }}" hint-placeholder-val="{{ false }}"><div class="lk"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="18" height="11" x="3" y="11" rx="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg><span>Պլանշետը կողպվեց անգործության պատճառով։ Ձեր կիսատ պատվերը տեղում է՝ սեղան 2։</span></div></sc-if>
+<sc-if value="{{ showEnded }}" hint-placeholder-val="{{ false }}"><div class="lk"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><path d="M12 6v6l4 2"></path></svg><span>Հերթափոխի սեսիան ավարտվեց։ Սեղմեք ձեր PIN-ը նորից։</span></div></sc-if>
+<div class="ppl"><h2>Ով է մտնում</h2>
+<div class="pl">
+<sc-for list="{{ people }}" as="p" hint-placeholder-count="5"><button type="button" class="{{ p.cls }}" aria-pressed="{{ p.on }}" onClick="{{ p.pick }}"><span class="av" aria-hidden="true">{{ p.init }}</span>{{ p.name }}<span class="r">{{ p.role }}</span></button></sc-for>
+<button type="button" class="pp other" aria-pressed="{{ otherOn }}" onClick="{{ pickOther }}"><span class="av" aria-hidden="true">?</span>Ուրիշ մեկը<span class="r">ID-ով</span></button>
+</div>
+<sc-if value="{{ rosterStale }}" hint-placeholder-val="{{ false }}"><span style="font-size: 12px; color: #E2B77A">Ցանկը չբեռնվեց։ Ցույց են տրվում նրանք, ովքեր այստեղ մտել են առաջ։</span></sc-if>
+</div>
+</div>
+
+<div class="right">
+<div class="prompt"><h1 id="pin-h">{{ promptTitle }}</h1><p>{{ promptSub }}</p></div>
+<sc-if value="{{ needsId }}" hint-placeholder-val="{{ false }}"><div style="width: 100%; display: flex; flex-direction: column; gap: 6px"><label for="sid" style="font-size: 14px; font-weight: 600">Աշխատողի ID</label><input id="sid" style="height: 52px; border-radius: 12px; border: 1.5px solid #D8C8B6; font: inherit; font-size: 18px; padding: 0 14px; color: var(--ink)" placeholder="օր.՝ 4F7K-22" value="{{ sid }}" onInput="{{ onSid }}"><span style="font-size: 13px; color: var(--muted)">Մենեջերը այն տեսնում է վահանակում՝ Աշխատողներ → Պատճենել ID-ն։ Երբ ցանկը բեռնվի, ձեր անունն այստեղ կլինի։</span></div></sc-if>
+<div class="{{ dotsCls }}" role="status" aria-label="{{ dotsAria }}"><i class="{{ d1 }}"></i><i class="{{ d2 }}"></i><i class="{{ d3 }}"></i><i class="{{ d4 }}"></i></div>
+<div class="{{ msgCls }}" aria-live="assertive">{{ msgText }}<sc-if value="{{ hasMsgSub }}" hint-placeholder-val="{{ false }}"><small>{{ msgSub }}</small></sc-if></div>
+<div class="keys" role="group" aria-label="PIN ստեղնաշար">
+<sc-for list="{{ keys }}" as="k" hint-placeholder-count="12"><button type="button" class="{{ k.cls }}" aria-label="{{ k.aria }}" aria-disabled="{{ k.dis }}" onClick="{{ k.press }}">{{ k.label }}</button></sc-for>
+</div>
+<p class="foot">PIN-ը անձնական է, չի ցուցադրվում։ Մոռացե՞լ եք։ <button type="button" onClick="{{ forgot }}">Մենեջերը կարող է նորը տալ վահանակից</button></p>
+</div>
+</div>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"state":{"editor":"enum","options":["fresh","idleLock","wrong","locked","offline"],"default":"fresh","section":"Վիճակ"},"$preview":{"width":1280,"height":800}}'>
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    this.state = { st: null, who: 6, pin: '', wrong: 0, sid: '', unlocked: false };
+  }
+  componentWillUnmount() { clearTimeout(this._t); }
+  renderVals() {
+    const s = this.state;
+    const st = s.st || this.props.state || 'fresh';
+    const people = [[6, 'Narek Petrosyan', 'NP', 'Մատուցող'], [7, 'Ani Khachatryan', 'AK', 'Մատուցող'], [9, 'Tigran Mkrtchyan', 'TM', 'Մատուցող'], [10, 'Sona Harutyunyan', 'SH', 'Խոհանոց'], [3, 'Davit Grigoryan', 'DG', 'Մենեջեր']];
+    const me = people.find((p) => p[0] === s.who);
+    const locked = st === 'locked' || s.wrong >= 3;
+    const off = st === 'offline';
+    const wrongNow = st === 'wrong' && s.pin.length === 0 && s.wrong === 0 ? 1 : s.wrong;
+    const left = 3 - wrongNow;
+    const press = (d) => {
+      if (locked || off) return;
+      const pin = s.pin + d;
+      if (pin.length < 4) { this.setState({ pin: pin }); return; }
+      this.setState({ pin: pin });
+      clearTimeout(this._t);
+      this._t = setTimeout(() => { if (pin === '1234') this.setState({ unlocked: true, pin: '' }); else this.setState({ pin: '', wrong: wrongNow + 1, st: wrongNow + 1 >= 3 ? 'locked' : 'wrong' }); }, 250);
+    };
+    const keys = ['1', '2', '3', '4', '5', '6', '7', '8', '9', 'who', '0', 'del'].map((k) => ({
+      label: k === 'who' ? 'Ուրիշը' : k === 'del' ? '⌫' : k,
+      cls: 'k' + (k === 'who' || k === 'del' ? ' fn' : ''),
+      aria: k === 'who' ? 'Ընտրել այլ աշխատողի' : k === 'del' ? 'Ջնջել վերջին թիվը' : k,
+      dis: (locked || off) && k !== 'who' ? 'true' : 'false',
+      press: () => (k === 'who' ? this.setState({ who: null, pin: '' }) : k === 'del' ? this.setState({ pin: s.pin.slice(0, -1) }) : press(k))
+    }));
+    const n = s.pin.length;
+    const dot = (i) => (n >= i ? 'on' : '');
+    return {
+      cases: [['fresh', 'Նոր'], ['idleLock', 'Կողպվեց'], ['wrong', 'Սխալ PIN'], ['locked', 'Կողպված'], ['offline', 'Օֆլայն']].map((c) => ({ label: c[1], on: st === c[0] ? 'true' : 'false', pick: () => this.setState({ st: c[0], pin: '', wrong: c[0] === 'wrong' ? 1 : 0, unlocked: false }) })),
+      devLine: off ? 'կապ չկա' : 'կապ կա · 18:42',
+      showIdle: st === 'idleLock', showEnded: false, rosterStale: off,
+      people: people.map((p) => ({ name: p[1], init: p[2], role: p[3], cls: 'pp', on: s.who === p[0] ? 'true' : 'false', pick: () => this.setState({ who: p[0], pin: '', wrong: 0, st: st === 'wrong' || st === 'locked' ? 'fresh' : st }) })),
+      otherOn: s.who === null ? 'true' : 'false', pickOther: () => this.setState({ who: null, pin: '' }),
+      needsId: s.who === null, sid: s.sid, onSid: (e) => this.setState({ sid: e.target.value }),
+      promptTitle: s.unlocked ? 'Բարի գալուստ, ' + (me ? me[1].split(' ')[0] : '') : me ? me[1].split(' ')[0] + ', սեղմեք ձեր PIN-ը' : 'Սեղմեք ձեր PIN-ը',
+      promptSub: s.unlocked ? 'Սրահը բացվում է…' : me ? me[3] + ' · 4 թիվ' : 'Նախ գրեք աշխատողի ID-ն',
+      dotsCls: 'dots' + (st === 'wrong' && n === 0 ? ' bad' : ''), dotsAria: n + ' թիվ մուտքագրված 4-ից',
+      d1: dot(1), d2: dot(2), d3: dot(3), d4: dot(4),
+      msgCls: 'msg' + (locked ? ' lock' : st === 'wrong' && n === 0 ? ' err' : off ? ' off' : ''),
+      msgText: locked ? 'Չափից շատ սխալ PIN։ Այս PIN-ը կողպված է։' : st === 'wrong' && n === 0 ? 'PIN-ը սխալ է։ Մնաց ' + left + ' փորձ։' : off ? 'Կապ չկա։ Մուտքի համար սերվեր է պետք։' : '',
+      hasMsgSub: locked, msgSub: 'Մենեջերը կբացի վահանակից՝ Աշխատողներ → Ապակողպել PIN-ը։',
+      keys: keys,
+      forgot: () => this.setState({ st: 'locked' })
+    };
+  }
+}
+</script>
+</body>
+</html>

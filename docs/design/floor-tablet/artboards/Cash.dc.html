@@ -1,0 +1,172 @@
+<!doctype html>
+<html lang="hy">
+<head>
+<meta charset="utf-8">
+<title>Կանխիկ — Yalla պլանշետ</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+Armenian:wght@400;500;600;700&amp;family=Noto+Serif+Armenian:wght@700&amp;display=swap">
+<style>
+body{margin:0}
+a{color:#3A1D0C}a:hover{color:#5A2E14}
+.y{--bg:#F7F1E8;--paper:#FFFFFF;--bar:#2B1608;--brand:#3A1D0C;--brand-ink:#FFF3E4;--ink:#2A1A10;--muted:#6B5A4F;--line:#E8DDD0;--line-2:#F1E9DF;--amber:#8A4B08;--amber-bg:#FDF1DE;--red:#A8261B;--red-bg:#FCEAE7;--green:#0F6A4B;--green-bg:#E4F2EA;--grey:#57534E;--grey-bg:#EEE8E1;--blue:#2A54A8;--blue-bg:#E6EEFA;font-family:'Noto Sans Armenian','Noto Sans',system-ui,sans-serif;font-size:18px;line-height:1.4;color:var(--ink);background:var(--bg);width:1280px;height:800px;display:flex;flex-direction:column;overflow:hidden;user-select:none;-webkit-tap-highlight-color:transparent;position:relative}
+.y *{box-sizing:border-box}
+.top{height:72px;flex:none;background:var(--bar);color:#E9D9C6;display:flex;align-items:center;gap:14px;padding:0 16px}
+.back{height:48px;padding:0 16px 0 10px;border-radius:12px;border:0;background:rgba(255,243,228,.1);color:#FFF3E4;font:inherit;font-size:16px;font-weight:700;display:inline-flex;align-items:center;gap:8px;text-decoration:none}
+.ttl{display:flex;flex-direction:column;min-width:0}
+.ttl b{font-family:'Noto Serif Armenian',Georgia,serif;font-size:22px;font-weight:700;color:#FFF3E4;line-height:1.1}
+.ttl span{font-size:13px;color:#BFA88F}
+.sp{flex:1}
+.chip{height:48px;padding:0 16px;border-radius:999px;border:1.5px solid #5BC78F;background:none;color:#F3E6D6;font:inherit;font-size:14px;font-weight:600;display:inline-flex;align-items:center;gap:8px}
+.chip i{width:9px;height:9px;border-radius:50%;background:#5BC78F}
+.chip.off{border-color:#E2B77A;color:#F3D9B8}.chip.off i{background:#E2B77A}
+.body{flex:1;min-height:0;display:grid;grid-template-columns:minmax(0,1fr) 520px}
+.left{padding:24px 32px;display:flex;flex-direction:column;gap:18px;min-height:0;overflow-y:auto}
+.owe{display:flex;flex-direction:column;gap:4px;padding:18px 22px;border-radius:16px;background:var(--paper);border:1.5px solid var(--line)}
+.owe span{font-size:14px;color:var(--muted);font-weight:600}
+.owe b{font-family:'Noto Serif Armenian',Georgia,serif;font-size:36px;font-weight:700;font-variant-numeric:tabular-nums;line-height:1.1}
+.owe small{font-size:14px;color:var(--muted)}
+.req{display:flex;gap:10px;align-items:flex-start;padding:12px 14px;border-radius:12px;background:var(--blue-bg);color:var(--blue);font-size:15px}
+.req b{font-weight:700}
+.fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.fld{display:flex;flex-direction:column;gap:6px}
+.fld label{font-size:14px;font-weight:600;color:var(--muted)}
+.amt{height:72px;border-radius:14px;border:2px solid #D8C8B6;background:var(--paper);display:flex;align-items:center;padding:0 18px;font-family:'Noto Serif Armenian',Georgia,serif;font-size:32px;font-weight:700;font-variant-numeric:tabular-nums;cursor:pointer;text-align:left;font-family:inherit;color:var(--ink)}
+.amt.on{border-color:var(--brand);background:#FCF9F5;box-shadow:0 0 0 3px #F3E6D6}
+.amt.bad{border-color:var(--red)}
+.amt .cur{font-size:20px;color:var(--muted);margin-right:8px;font-weight:600}
+.amt .ph{color:#C8B39C}
+.quick{display:flex;gap:8px;flex-wrap:wrap}
+.qb{height:48px;padding:0 16px;border-radius:12px;border:1.5px solid #D8C8B6;background:var(--paper);font:inherit;font-size:16px;font-weight:700;cursor:pointer;color:var(--brand);font-variant-numeric:tabular-nums}
+.qb[aria-pressed="true"]{background:var(--brand);border-color:var(--brand);color:var(--brand-ink)}
+.msg{display:flex;gap:10px;align-items:flex-start;padding:12px 14px;border-radius:12px;font-size:15px}
+.m-amber{background:var(--amber-bg);color:var(--amber)}.m-red{background:var(--red-bg);color:var(--red)}.m-green{background:var(--green-bg);color:var(--green)}.m-grey{background:var(--grey-bg);color:var(--grey)}
+.msg b{font-weight:700}
+.sum{margin-top:auto;display:flex;flex-direction:column;gap:6px;padding:16px 18px;border-radius:14px;background:var(--paper);border:1.5px solid var(--line)}
+.sr{display:flex;justify-content:space-between;font-size:16px}
+.sr span:last-child{font-variant-numeric:tabular-nums;font-weight:600}
+.sr.big{font-size:20px;font-weight:700;padding-top:8px;border-top:2px solid var(--ink);margin-top:4px}
+.sr.change{color:var(--green)}
+.hint{font-size:13px;color:var(--muted);margin:0}
+.right{background:var(--paper);border-left:1px solid var(--line);display:flex;flex-direction:column;padding:20px 24px;gap:12px}
+.keys{flex:1;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));grid-auto-rows:minmax(0,1fr);gap:10px;min-height:0}
+.k{border-radius:16px;border:2px solid #D8C8B6;background:var(--paper);font:inherit;font-size:34px;font-weight:700;color:var(--ink);cursor:pointer;transition:transform .06s;font-variant-numeric:tabular-nums}
+.k:active{transform:scale(.95);background:var(--bg)}
+.k.fn{font-size:18px;color:var(--brand);background:#FCF9F5}
+.k.del{color:var(--red)}
+.k svg{width:30px;height:30px}
+.btn{height:64px;padding:0 20px;border-radius:14px;border:2px solid transparent;font:inherit;font-size:19px;font-weight:700;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:10px;white-space:nowrap;text-decoration:none;transition:transform .08s}
+.btn:active{transform:scale(.97)}
+.btn-ok{background:var(--green);color:#fff;border-color:var(--green)}
+.btn-sec{background:var(--paper);color:var(--brand);border-color:#D8C8B6}
+.btn[aria-disabled="true"]{opacity:.45;cursor:not-allowed}
+.btn svg{width:24px;height:24px}
+.done{position:absolute;inset:0;z-index:30;background:rgba(42,26,16,.5);display:grid;place-items:center}
+.done-card{width:520px;background:var(--paper);border-radius:18px;padding:28px;display:flex;flex-direction:column;align-items:center;gap:12px;text-align:center}
+.done-card .ok{width:80px;height:80px;border-radius:50%;background:var(--green-bg);color:var(--green);display:grid;place-items:center}
+.done-card h3{margin:0;font-family:'Noto Serif Armenian',Georgia,serif;font-size:26px}
+.done-card p{margin:0;color:var(--muted);font-size:16px}
+.done-card .chg{font-family:'Noto Serif Armenian',Georgia,serif;font-size:40px;font-weight:700;color:var(--green);font-variant-numeric:tabular-nums}
+:focus-visible{outline:3px solid var(--brand);outline-offset:2px}
+.top :focus-visible{outline-color:#F3D9B8}
+@media (prefers-reduced-motion:reduce){.y *{transition:none!important}}
+</style>
+</helmet>
+<div class="y">
+<header class="top">
+<a class="back" href="Tab.dc.html"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 18-6-6 6-6"></path></svg>Հաշիվ</a>
+<div class="ttl"><b>Կանխիկ · սեղան 4</b><span>Gor · 5 հոգի · Narek-ը ընդունում է</span></div>
+<span class="sp"></span>
+<span class="{{ connCls }}"><i aria-hidden="true"></i>{{ connText }}</span>
+</header>
+
+<div class="body">
+<section class="left" aria-label="Գումար">
+<div class="owe"><span>Մնաց վճարել</span><b>{{ owedText }}</b><small>Հաշիվ ֏ 42 600 · սպասարկում ֏ 4 260 · վճարված ֏ 0</small></div>
+<sc-if value="{{ hasReq }}" hint-placeholder-val="{{ true }}"><div class="req"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="14" height="20" x="5" y="2" rx="2"></rect><path d="M12 18h.01"></path></svg><span><b>Լրացված է հավելվածի խնդրանքից.</b> Gor-ը ուզում է վճարել ամբողջը, թեյավճար 10 %։ Փոխեք, եթե այլ կերպ են վճարում։</span></div></sc-if>
+<div class="fields">
+<div class="fld"><label for="amt">Վճարում</label><button type="button" id="amt" class="{{ amtCls }}" onClick="{{ focusAmt }}" aria-label="{{ amtAria }}"><span class="cur" aria-hidden="true">֏</span>{{ amtShow }}</button></div>
+<div class="fld"><label for="tip">Թեյավճար</label><button type="button" id="tip" class="{{ tipCls }}" onClick="{{ focusTip }}" aria-label="{{ tipAria }}"><span class="cur" aria-hidden="true">֏</span>{{ tipShow }}</button></div>
+</div>
+<div class="quick" role="group" aria-label="Արագ գումարներ"><sc-for list="{{ quick }}" as="q" hint-placeholder-count="5"><button type="button" class="qb" aria-pressed="{{ q.on }}" onClick="{{ q.pick }}">{{ q.label }}</button></sc-for></div>
+<sc-if value="{{ offline }}" hint-placeholder-val="{{ false }}"><div class="msg m-amber"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 8.8a15 15 0 0 1 20 0M5 12.9a10 10 0 0 1 14 0M8.5 16.4a5 5 0 0 1 7 0M2 2l20 20"></path></svg><span><b>Կանխիկը օֆլայն չի գրանցվում։</b> Վերցրեք գումարը և գրանցեք, երբ կապը վերադառնա։</span></div></sc-if>
+<sc-if value="{{ isOver }}" hint-placeholder-val="{{ false }}"><div class="msg m-green"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"></path></svg><span><b>Ավելի է, քան պարտքը։</b> Մանր՝ {{ change }}։ Եթե մնացածը թեյավճար է, նշեք թեյավճարի դաշտում։</span></div></sc-if>
+<sc-if value="{{ isPartial }}" hint-placeholder-val="{{ false }}"><div class="msg m-amber"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><path d="M12 8v4M12 16h.01"></path></svg><span><b>Մասնակի վճարում։</b> Սրանից հետո կմնա {{ left }}։ Հաշիվը բաց կմնա։</span></div></sc-if>
+<div class="sum">
+<div class="sr"><span>Գրանցվում է հաշվին</span><span>{{ applied }}</span></div>
+<div class="sr"><span>Թեյավճար</span><span>{{ tipText }}</span></div>
+<sc-if value="{{ isOver }}" hint-placeholder-val="{{ false }}"><div class="sr change"><span>Մանր վերադարձնել</span><span>{{ change }}</span></div></sc-if>
+<div class="sr big"><span>Կմնա հաշվին</span><span>{{ left }}</span></div>
+</div>
+<p class="hint">Սա գրանցում է վճարումը Yalla-ում։ Կտրոնը տալիս է ռեստորանի սեփական դրամարկղը։</p>
+</section>
+
+<aside class="right" aria-label="Ստեղնաշար">
+<div class="keys" role="group" aria-label="{{ keysAria }}">
+<sc-for list="{{ keys }}" as="k" hint-placeholder-count="12"><button type="button" class="{{ k.cls }}" onClick="{{ k.press }}" aria-label="{{ k.aria }}">{{ k.label }}</button></sc-for>
+</div>
+<button type="button" class="btn btn-ok" aria-disabled="{{ recDis }}" onClick="{{ record }}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"></path></svg>{{ recLabel }}</button>
+</aside>
+</div>
+
+<sc-if value="{{ doneOpen }}" hint-placeholder-val="{{ false }}">
+<div class="done" role="dialog" aria-modal="true" aria-labelledby="dn-h">
+<div class="done-card"><span class="ok"><svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"></path></svg></span><h3 id="dn-h">{{ doneTitle }}</h3><sc-if value="{{ doneChange }}" hint-placeholder-val="{{ false }}"><span class="chg">{{ change }}</span><p>մանր վերադարձնել</p></sc-if><p>{{ doneBody }}</p><div style="display: flex; gap: 10px; width: 100%; margin-top: 6px"><sc-if value="{{ doneClosed }}" hint-placeholder-val="{{ true }}"><a class="btn btn-sec" style="flex: 1" href="Table.dc.html">Ազատել սեղանը</a></sc-if><a class="btn btn-ok" style="flex: 1" href="Main.dc.html">Սրահ</a></div></div>
+</div>
+</sc-if>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"connection":{"editor":"enum","options":["online","offline"],"default":"online","section":"Վիճակ"},"$preview":{"width":1280,"height":800}}'>
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    this.state = { amt: '46860', tip: '4260', field: 'amt', done: null, fromReq: true };
+  }
+  renderVals() {
+    const s = this.state;
+    const off = (this.props.connection || 'online') === 'offline';
+    const owed = 46860;
+    const dram = (n) => '֏ ' + String(Math.round(n)).replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
+    const fmt = (str) => (str ? String(+str).replace(/\B(?=(\d{3})+(?!\d))/g, ' ') : '');
+    const amt = +s.amt || 0, tip = +s.tip || 0;
+    const applied = Math.min(amt, owed);
+    const change = Math.max(0, amt - owed);
+    const left = Math.max(0, owed - amt);
+    const cur = s.field;
+    const set = (k, v) => this.setState({ [k]: v, fromReq: false });
+    const press = (d) => { const v = (s[cur] === '0' ? '' : s[cur]) + d; if (v.length > 8) return; set(cur, v); };
+    const keys = ['1', '2', '3', '4', '5', '6', '7', '8', '9', 'C', '0', '⌫'].map((k) => ({
+      label: k === 'C' ? 'Մաքրել' : k === '⌫' ? '⌫' : k,
+      cls: 'k' + (k === 'C' ? ' fn' : k === '⌫' ? ' fn del' : ''),
+      aria: k === 'C' ? 'Մաքրել' : k === '⌫' ? 'Ջնջել վերջին թիվը' : k,
+      press: () => (k === 'C' ? set(cur, '') : k === '⌫' ? set(cur, s[cur].slice(0, -1)) : press(k))
+    }));
+    const canRecord = !off && amt > 0;
+    return {
+      connCls: 'chip' + (off ? ' off' : ''), connText: off ? 'Օֆլայն' : 'Կապ կա', offline: off,
+      owedText: dram(owed),
+      hasReq: s.fromReq,
+      amtCls: 'amt' + (cur === 'amt' ? ' on' : ''), tipCls: 'amt' + (cur === 'tip' ? ' on' : ''),
+      amtShow: fmt(s.amt) || '0', tipShow: fmt(s.tip) || '0',
+      amtAria: 'Վճարում ' + dram(amt) + (cur === 'amt' ? ', մուտքագրվում է' : ''), tipAria: 'Թեյավճար ' + dram(tip) + (cur === 'tip' ? ', մուտքագրվում է' : ''),
+      focusAmt: () => this.setState({ field: 'amt' }), focusTip: () => this.setState({ field: 'tip' }),
+      quick: [['Ամբողջը', String(owed)], ['50 000', '50000'], ['60 000', '60000'], ['Կեսը', String(Math.round(owed / 2))], ['Առանց թեյ.', null]].map((q) => ({ label: q[0], on: (q[1] === null ? s.tip === '' || s.tip === '0' : s.amt === q[1] && cur === 'amt') ? 'true' : 'false', pick: () => (q[1] === null ? set('tip', '') : this.setState({ amt: q[1], field: 'amt', fromReq: false })) })),
+      isOver: change > 0, isPartial: amt > 0 && left > 0,
+      change: dram(change), left: dram(left), applied: dram(applied), tipText: tip ? dram(tip) + ' · հաշվից դուրս' : 'չկա',
+      keys: keys, keysAria: cur === 'amt' ? 'Ստեղնաշար՝ վճարման գումարի համար' : 'Ստեղնաշար՝ թեյավճարի համար',
+      recDis: canRecord ? 'false' : 'true',
+      recLabel: off ? 'Օֆլայն · չի գրանցվում' : amt ? 'Գրանցել ' + dram(applied) + (tip ? ' + թեյ.' : '') : 'Գրեք գումարը',
+      record: () => { if (!canRecord) return; this.setState({ done: { closed: left === 0, change: change } }); },
+      doneOpen: !!s.done,
+      doneTitle: s.done ? (s.done.closed ? 'Վճարված է ամբողջը' : dram(applied) + ' գրանցվեց') : '',
+      doneChange: !!(s.done && s.done.change > 0), doneClosed: !!(s.done && s.done.closed),
+      doneBody: s.done ? (s.done.closed ? 'Հաշիվը փակվեց։ Սեղանը մնում է զբաղված, մինչև ազատեք։' + (tip ? ' Թեյավճար ' + dram(tip) + '։' : '') : 'Հաշիվը բաց է, մնաց ' + dram(left) + '։') : '',
+    };
+  }
+}
+</script>
+</body>
+</html>

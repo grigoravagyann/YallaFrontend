@@ -31,3 +31,4 @@ apps/web/src/tokens.generated.css
 # exported so it can be diffed against the live design.
 docs/design/console/
 docs/design/venue-console/
+docs/design/floor-tablet/

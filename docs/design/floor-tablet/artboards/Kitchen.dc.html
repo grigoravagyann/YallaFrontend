@@ -1,0 +1,158 @@
+<!doctype html>
+<html lang="hy">
+<head>
+<meta charset="utf-8">
+<title>Խոհանոց — Yalla պլանշետ</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+Armenian:wght@400;500;600;700&amp;family=Noto+Serif+Armenian:wght@700&amp;display=swap">
+<style>
+body{margin:0}
+a{color:#3A1D0C}a:hover{color:#5A2E14}
+.y{--bg:#F7F1E8;--paper:#FFFFFF;--bar:#2B1608;--brand:#3A1D0C;--brand-ink:#FFF3E4;--ink:#2A1A10;--muted:#6B5A4F;--line:#E8DDD0;--line-2:#F1E9DF;--amber:#8A4B08;--amber-bg:#FDF1DE;--red:#A8261B;--red-bg:#FCEAE7;--green:#0F6A4B;--green-bg:#E4F2EA;--grey:#57534E;--grey-bg:#EEE8E1;font-family:'Noto Sans Armenian','Noto Sans',system-ui,sans-serif;font-size:18px;line-height:1.4;color:var(--ink);background:var(--bg);width:1280px;height:800px;display:flex;flex-direction:column;overflow:hidden;user-select:none;-webkit-tap-highlight-color:transparent;position:relative}
+.y *{box-sizing:border-box}
+.top{height:72px;flex:none;background:var(--bar);color:#E9D9C6;display:flex;align-items:center;gap:12px;padding:0 16px}
+.brand{font-family:'Noto Serif Armenian',Georgia,serif;font-size:22px;font-weight:700;color:#FFF3E4;padding-right:12px;border-right:1px solid rgba(255,243,228,.18);line-height:1}
+.where{display:flex;flex-direction:column;min-width:0}
+.where b{font-size:16px;font-weight:600;color:#FFF3E4;white-space:nowrap}
+.where span{font-size:13px;color:#BFA88F;white-space:nowrap}
+.views{display:flex;gap:4px;margin-left:12px;background:rgba(255,243,228,.08);padding:4px;border-radius:12px}
+.views a{height:48px;padding:0 18px;border-radius:9px;display:inline-flex;align-items:center;gap:8px;font-size:16px;font-weight:600;color:#D9C5B0;text-decoration:none;white-space:nowrap}
+.views a.on{background:#FFF3E4;color:var(--brand)}
+.sp{flex:1}
+.chip{height:48px;padding:0 16px;border-radius:999px;border:1.5px solid #5BC78F;background:none;color:#F3E6D6;font:inherit;font-size:14px;font-weight:600;display:inline-flex;align-items:center;gap:8px}
+.chip i{width:9px;height:9px;border-radius:50%;background:#5BC78F}
+.who{height:48px;padding:0 6px 0 14px;border-radius:999px;background:rgba(255,243,228,.1);color:#FFF3E4;font-size:15px;font-weight:600;display:inline-flex;align-items:center;gap:10px;text-decoration:none}
+.who .av{width:36px;height:36px;border-radius:50%;background:#C3B59F;color:#2B1608;display:grid;place-items:center;font-size:13px;font-weight:700}
+.bar{display:flex;align-items:center;gap:14px;padding:12px 20px;border-bottom:1px solid var(--line)}
+.cnt{display:flex;gap:8px}
+.cnt span{height:44px;padding:0 14px;border-radius:999px;font-size:15px;font-weight:700;display:inline-flex;align-items:center;gap:8px;background:var(--paper);border:1.5px solid var(--line)}
+.cnt i{width:10px;height:10px;border-radius:50%}
+.i-fresh{background:#5BC78F}.i-wait{background:#E2B77A}.i-late{background:#D9534F}
+.sort{margin-left:auto;display:flex;gap:4px;background:var(--paper);padding:4px;border-radius:12px;border:1.5px solid var(--line)}
+.sort button{height:44px;padding:0 14px;border-radius:9px;border:0;background:none;font:inherit;font-size:14px;font-weight:600;color:var(--muted);cursor:pointer}
+.sort button[aria-pressed="true"]{background:var(--brand);color:var(--brand-ink)}
+.board{flex:1;min-height:0;overflow-x:auto;overflow-y:hidden;padding:14px 20px 20px;display:flex;gap:12px;align-items:flex-start;scroll-snap-type:x proximity}
+.card{scroll-snap-align:start}
+.card{flex:none;width:296px;max-height:100%;display:flex;flex-direction:column;border-radius:16px;background:var(--paper);border:2px solid var(--line);overflow:hidden}
+.card.wait{border-color:#E2B77A}.card.late{border-color:#D9534F;box-shadow:0 0 0 3px #FCEAE7}
+.card.ready{opacity:.7}
+.ch{display:flex;align-items:center;gap:10px;padding:12px 14px;border-bottom:1px solid var(--line-2)}
+.ch .tn{font-family:'Noto Serif Armenian',Georgia,serif;font-size:30px;font-weight:700;line-height:1}
+.ch .meta{display:flex;flex-direction:column;flex:1;min-width:0}
+.ch .meta b{font-size:14px;font-weight:600}
+.ch .meta span{font-size:13px;color:var(--muted)}
+.age{font-size:22px;font-weight:700;font-variant-numeric:tabular-nums;padding:4px 10px;border-radius:10px}
+.age.fresh{background:var(--green-bg);color:var(--green)}.age.wait{background:var(--amber-bg);color:var(--amber)}.age.late{background:var(--red);color:#fff}
+.items{flex:1;min-height:0;overflow-y:auto;padding:6px 0}
+.it{display:flex;gap:12px;padding:10px 14px;border-bottom:1px solid var(--line-2);align-items:flex-start}
+.it:last-child{border-bottom:0}
+.it .q{font-size:24px;font-weight:700;font-variant-numeric:tabular-nums;min-width:34px;line-height:1.2}
+.it .t{display:flex;flex-direction:column;gap:2px;min-width:0}
+.it b{font-size:19px;font-weight:700;line-height:1.25}
+.it .note{font-size:15px;color:var(--amber);font-weight:700;background:var(--amber-bg);padding:2px 8px;border-radius:6px;align-self:flex-start}
+.it .alg{font-size:13px;color:var(--red);font-weight:700}
+.cf{padding:12px 14px;border-top:1px solid var(--line-2);display:flex;flex-direction:column;gap:8px}
+.btn{height:64px;padding:0 18px;border-radius:14px;border:2px solid transparent;font:inherit;font-size:20px;font-weight:700;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:10px;white-space:nowrap;transition:transform .08s;width:100%}
+.btn:active{transform:scale(.97)}
+.btn-ok{background:var(--green);color:#fff;border-color:var(--green)}
+.btn-sec{background:var(--paper);color:var(--brand);border-color:#D8C8B6;height:48px;font-size:15px}
+.btn svg{width:26px;height:26px}
+.readyl{font-size:14px;color:var(--green);font-weight:700;text-align:center}
+.cf .hint{font-size:13px;color:var(--muted);text-align:center;margin:0}
+.empty{flex:1;display:grid;place-items:center;color:var(--muted);font-size:20px}
+.toast{position:absolute;left:50%;bottom:20px;transform:translateX(-50%);z-index:40;display:flex;align-items:center;gap:12px;background:var(--ink);color:#FFF3E4;border-radius:12px;padding:14px 20px;font-size:16px;font-weight:600;box-shadow:0 10px 30px rgba(42,26,16,.3)}
+.toast svg{color:#9FD9BD;width:20px;height:20px;flex:none}
+.tbtn{border:0;background:rgba(255,243,228,.12);color:#F3D9B8;font:inherit;font-size:14px;font-weight:700;cursor:pointer;height:36px;padding:0 12px;border-radius:8px}
+:focus-visible{outline:3px solid var(--brand);outline-offset:2px}
+.top :focus-visible{outline-color:#F3D9B8}
+@media (prefers-reduced-motion:reduce){.y *{transition:none!important}}
+</style>
+</helmet>
+<div class="y">
+<header class="top">
+<span class="brand">Yalla</span>
+<div class="where"><b>Cascade Cafe · Կասկադ</b><span>Շաբաթ, 18:42</span></div>
+<nav class="views" aria-label="Էկրաններ"><a href="Main.dc.html">Սրահ</a><a href="Kitchen.dc.html" class="on" aria-current="page">Խոհանոց</a></nav>
+<span class="sp"></span>
+<span class="chip"><i aria-hidden="true"></i>Կապ կա · թարմացվում է</span>
+<a class="who" href="Pin.dc.html" aria-label="Sona Harutyunyan · սեղմեք՝ դուրս գալու համար"><span class="av" aria-hidden="true">SH</span>Sona</a>
+</header>
+
+<div class="bar">
+<div class="cnt" aria-label="Պատվերներ ըստ սպասման"><span><i class="i-fresh" aria-hidden="true"></i>{{ nFresh }} նոր</span><span><i class="i-wait" aria-hidden="true"></i>{{ nWait }} սպասում է</span><span><i class="i-late" aria-hidden="true"></i>{{ nLate }} ուշանում է</span></div>
+<span style="font-size: 14px; color: var(--muted)">Ուշացած է 12 րոպեից հետո։ Ամենահինը՝ ձախից, {{ moreRight }}</span>
+<div class="sort" role="group" aria-label="Դասավորություն"><button type="button" aria-pressed="{{ sortAge }}" onClick="{{ byAge }}">Ըստ սպասման</button><button type="button" aria-pressed="{{ sortTable }}" onClick="{{ byTable }}">Ըստ սեղանի</button></div>
+</div>
+
+<div class="board" role="list" aria-label="Պատվերներ խոհանոցում">
+<sc-for list="{{ orders }}" as="o" hint-placeholder-count="4">
+<article class="{{ o.cls }}" role="listitem" aria-label="{{ o.aria }}">
+<div class="ch"><span class="tn" aria-hidden="true">{{ o.table }}</span><span class="meta"><b>Սեղան {{ o.table }}</b><span>{{ o.sentAt }} · {{ o.by }}</span></span><span class="{{ o.ageCls }}" role="timer">{{ o.ageText }}</span></div>
+<div class="items">
+<sc-for list="{{ o.items }}" as="i" hint-placeholder-count="3"><div class="it"><span class="q">{{ i.qty }}×</span><span class="t"><b>{{ i.name }}</b><sc-if value="{{ i.hasNote }}" hint-placeholder-val="{{ false }}"><span class="note">{{ i.note }}</span></sc-if><sc-if value="{{ i.hasAlg }}" hint-placeholder-val="{{ false }}"><span class="alg">⚠ {{ i.alg }}</span></sc-if></span></div></sc-for>
+</div>
+<div class="cf">
+<sc-if value="{{ o.inKitchen }}" hint-placeholder-val="{{ true }}"><button type="button" class="btn btn-ok" onClick="{{ o.ready }}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"></path></svg>Պատրաստ է</button></sc-if>
+<sc-if value="{{ o.isReady }}" hint-placeholder-val="{{ false }}"><span class="readyl">Պատրաստ է · սպասում է մատուցողին {{ o.readyFor }} ր</span><p class="hint">Մատուցված է նշում է մատուցողը</p></sc-if>
+<sc-if value="{{ o.isNew }}" hint-placeholder-val="{{ false }}"><p class="hint">Նոր է. մատուցողը դեռ չի ուղարկել խոհանոց</p></sc-if>
+</div>
+</article>
+</sc-for>
+<sc-if value="{{ noOrders }}" hint-placeholder-val="{{ false }}"><div class="empty">Պատվեր չկա։ Նորերը կհայտնվեն այստեղ ձայնով։</div></sc-if>
+</div>
+
+<sc-if value="{{ hasToast }}" hint-placeholder-val="{{ false }}">
+<div class="toast" role="status"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"></path></svg><span>{{ toast }}</span><sc-if value="{{ hasUndo }}" hint-placeholder-val="{{ false }}"><button type="button" class="tbtn" onClick="{{ undo }}">Հետարկել</button></sc-if></div>
+</sc-if>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":800}}'>
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    this.state = {
+      sort: 'age', toast: null,
+      orders: [
+        { id: 1, table: '4', sentAt: '18:28', by: 'Narek', age: 14, st: 'k', items: [{ qty: 2, name: 'Տավարի ստեյք', note: 'Միջին եփված', alg: '' }, { qty: 1, name: 'Խոզի խորոված', note: '', alg: '' }] },
+        { id: 2, table: '8', sentAt: '18:33', by: 'Ani', age: 9, st: 'k', items: [{ qty: 1, name: 'Իշխանի ֆիլե', note: 'Առանց կիտրոնի', alg: 'Ձուկ' }, { qty: 2, name: 'Տոլմա', note: '', alg: '' }] },
+        { id: 3, table: '14', sentAt: '18:38', by: 'Narek', age: 4, st: 'k', items: [{ qty: 3, name: 'Խոզի խորոված', note: '', alg: '' }, { qty: 1, name: 'Ազնվամորու տորթ', note: 'Ծննդյան մոմ', alg: 'Ընկույզ' }] },
+        { id: 4, table: '2', sentAt: '18:40', by: 'Ani', age: 2, st: 'k', items: [{ qty: 1, name: 'Չիզքեյք', note: '', alg: '' }] },
+        { id: 5, table: '12', sentAt: '18:41', by: 'Narek', age: 1, st: 'n', items: [{ qty: 2, name: 'Լատտե', note: 'Առանց շաքարի', alg: '' }] },
+        { id: 6, table: '6', sentAt: '18:30', by: 'Ani', age: 12, st: 'r', readyFor: 3, items: [{ qty: 2, name: 'Գաթա', note: '', alg: '' }] }
+      ]
+    };
+  }
+  componentWillUnmount() { clearTimeout(this._t); }
+  say(msg, undo) { this.setState({ toast: { msg: msg, undo: undo || null } }); clearTimeout(this._t); this._t = setTimeout(() => this.setState({ toast: null }), undo ? 7000 : 3500); }
+  renderVals() {
+    const s = this.state;
+    const band = (o) => (o.st === 'r' ? 'ready' : o.age >= 12 ? 'late' : o.age >= 6 ? 'wait' : 'fresh');
+    const list = s.orders.slice().sort((a, b) => (s.sort === 'age' ? (a.st === 'r') - (b.st === 'r') || b.age - a.age : +a.table - +b.table));
+    const act = s.orders.filter((o) => o.st !== 'r');
+    return {
+      nFresh: act.filter((o) => band(o) === 'fresh').length, nWait: act.filter((o) => band(o) === 'wait').length, nLate: act.filter((o) => band(o) === 'late').length,
+      sortAge: s.sort === 'age' ? 'true' : 'false', sortTable: s.sort === 'table' ? 'true' : 'false',
+      byAge: () => this.setState({ sort: 'age' }), byTable: () => this.setState({ sort: 'table' }),
+      noOrders: list.length === 0,
+      moreRight: list.length > 4 ? 'ևս ' + (list.length - 4) + '-ը՝ աջ սահեցնելով։' : 'բոլորը երևում են։',
+      orders: list.map((o) => { const b = band(o); return {
+        table: o.table, sentAt: o.sentAt, by: o.by, age: o.age, readyFor: o.readyFor || 0,
+        cls: 'card ' + b, ageCls: 'age ' + (b === 'ready' ? 'fresh' : b),
+        ageText: o.age + ' ր' + (b === 'late' ? ' · ուշ' : ''),
+        aria: 'Սեղան ' + o.table + ', ' + o.age + ' րոպե, ' + (b === 'late' ? 'ուշանում է' : b === 'wait' ? 'սպասում է' : b === 'ready' ? 'պատրաստ է' : 'նոր') + ', ' + o.items.map((i) => i.qty + ' ' + i.name).join(', '),
+        items: o.items.map((i) => ({ qty: i.qty, name: i.name, note: i.note, hasNote: !!i.note, alg: i.alg, hasAlg: !!i.alg })),
+        inKitchen: o.st === 'k', isReady: o.st === 'r', isNew: o.st === 'n',
+        ready: () => { this.setState({ orders: s.orders.map((x) => (x.id === o.id ? Object.assign({}, x, { st: 'r', readyFor: 0 }) : x)) }); this.say('Սեղան ' + o.table + ' · պատրաստ է, մատուցողը տեսնում է', () => this.setState({ orders: s.orders })); }
+      }; }),
+      hasToast: !!s.toast, toast: s.toast ? s.toast.msg : '', hasUndo: !!(s.toast && s.toast.undo),
+      undo: () => { const u = s.toast && s.toast.undo; this.setState({ toast: null }); if (u) u(); }
+    };
+  }
+}
+</script>
+</body>
+</html>

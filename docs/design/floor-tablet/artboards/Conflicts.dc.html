@@ -1,0 +1,159 @@
+<!doctype html>
+<html lang="hy">
+<head>
+<meta charset="utf-8">
+<title>Օֆլայն և որոշումներ — Yalla պլանշետ</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+Armenian:wght@400;500;600;700&amp;family=Noto+Serif+Armenian:wght@700&amp;display=swap">
+<style>
+body{margin:0}
+a{color:#3A1D0C}a:hover{color:#5A2E14}
+.y{--bg:#F7F1E8;--paper:#FFFFFF;--bar:#2B1608;--brand:#3A1D0C;--brand-ink:#FFF3E4;--ink:#2A1A10;--muted:#6B5A4F;--line:#E8DDD0;--line-2:#F1E9DF;--amber:#8A4B08;--amber-bg:#FDF1DE;--red:#A8261B;--red-bg:#FCEAE7;--green:#0F6A4B;--green-bg:#E4F2EA;--grey:#57534E;--grey-bg:#EEE8E1;font-family:'Noto Sans Armenian','Noto Sans',system-ui,sans-serif;font-size:18px;line-height:1.4;color:var(--ink);background:var(--bg);width:1280px;height:800px;display:flex;flex-direction:column;overflow:hidden;user-select:none;-webkit-tap-highlight-color:transparent;position:relative}
+.y *{box-sizing:border-box}
+.top{height:72px;flex:none;background:var(--bar);color:#E9D9C6;display:flex;align-items:center;gap:14px;padding:0 16px}
+.back{height:48px;padding:0 16px 0 10px;border-radius:12px;border:0;background:rgba(255,243,228,.1);color:#FFF3E4;font:inherit;font-size:16px;font-weight:700;display:inline-flex;align-items:center;gap:8px;text-decoration:none}
+.ttl{display:flex;flex-direction:column;min-width:0}
+.ttl b{font-family:'Noto Serif Armenian',Georgia,serif;font-size:22px;font-weight:700;color:#FFF3E4;line-height:1.1}
+.ttl span{font-size:13px;color:#BFA88F}
+.sp{flex:1}
+.chip{height:48px;padding:0 16px;border-radius:999px;border:1.5px solid;background:none;color:#F3E6D6;font:inherit;font-size:14px;font-weight:600;display:inline-flex;align-items:center;gap:8px}
+.chip i{width:9px;height:9px;border-radius:50%}
+.chip.live{border-color:#5BC78F}.chip.live i{background:#5BC78F}
+.chip.off{border-color:#E2B77A;color:#F3D9B8}.chip.off i{background:#E2B77A}
+.body{flex:1;min-height:0;display:grid;grid-template-columns:minmax(0,1fr) 400px}
+.main{padding:20px 24px;display:flex;flex-direction:column;gap:14px;min-height:0;overflow-y:auto}
+.intro{margin:0;color:var(--muted);font-size:15px}
+.cf{border-radius:16px;background:var(--paper);border:2px solid #EBC3BC;display:flex;flex-direction:column;gap:12px;padding:16px 18px}
+.cf.done{border-color:var(--line);opacity:.6}
+.cf-h{display:flex;align-items:flex-start;gap:12px}
+.cf-h .tn{width:52px;height:52px;border-radius:12px;background:var(--red-bg);color:var(--red);display:grid;place-items:center;font-family:'Noto Serif Armenian',Georgia,serif;font-size:22px;font-weight:700;flex:none}
+.cf-h .t{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
+.cf-h b{font-size:18px;font-weight:700}
+.cf-h span{font-size:14px;color:var(--muted)}
+.why{display:flex;gap:10px;align-items:flex-start;padding:10px 12px;border-radius:10px;background:var(--bg);font-size:15px}
+.why svg{flex:none;margin-top:2px;color:var(--amber)}
+.row{display:flex;gap:10px}
+.btn{min-height:56px;padding:0 18px;border-radius:14px;border:2px solid transparent;font:inherit;font-size:17px;font-weight:700;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:10px;white-space:nowrap;text-decoration:none;transition:transform .08s;flex:1}
+.btn:active{transform:scale(.97)}
+.btn-pri{background:var(--brand);color:var(--brand-ink);border-color:var(--brand)}
+.btn-sec{background:var(--paper);color:var(--brand);border-color:#D8C8B6}
+.btn-ghost{background:none;color:var(--muted);border-color:transparent;min-height:44px;height:44px;font-size:14px;flex:none}
+.hint{font-size:13px;color:var(--muted);margin:0}
+.empty{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;color:var(--muted);text-align:center;padding:40px}
+.empty .ok{width:72px;height:72px;border-radius:50%;background:var(--green-bg);color:var(--green);display:grid;place-items:center}
+.empty b{font-size:20px;color:var(--ink)}
+.side{background:var(--paper);border-left:1px solid var(--line);display:flex;flex-direction:column;min-height:0}
+.sh{padding:16px 20px;border-bottom:1px solid var(--line-2)}
+.sh h2{margin:0;font-family:'Noto Serif Armenian',Georgia,serif;font-size:18px}
+.sh p{margin:4px 0 0;font-size:14px;color:var(--muted)}
+.q{flex:1;min-height:0;overflow-y:auto}
+.qi{display:flex;gap:12px;align-items:flex-start;padding:12px 20px;border-bottom:1px solid var(--line-2)}
+.qi .st{width:12px;height:12px;border-radius:50%;flex:none;margin-top:7px}
+.st.wait{background:#E2B77A}.st.sent{background:#5BC78F}.st.fail{background:#D9534F}
+.qi .t{flex:1;min-width:0;display:flex;flex-direction:column}
+.qi b{font-size:15px;font-weight:600}
+.qi span{font-size:13px;color:var(--muted)}
+.sf{padding:14px 20px;border-top:1px solid var(--line-2);display:flex;flex-direction:column;gap:8px}
+.ofl{display:flex;gap:10px;align-items:flex-start;padding:12px 14px;border-radius:12px;background:var(--amber-bg);color:var(--amber);font-size:14px}
+.ofl b{font-weight:700}
+.toast{position:absolute;left:50%;bottom:20px;transform:translateX(-50%);z-index:40;display:flex;align-items:center;gap:12px;background:var(--ink);color:#FFF3E4;border-radius:12px;padding:14px 20px;font-size:16px;font-weight:600;box-shadow:0 10px 30px rgba(42,26,16,.3)}
+.toast svg{color:#9FD9BD;width:20px;height:20px;flex:none}
+:focus-visible{outline:3px solid var(--brand);outline-offset:2px}
+.top :focus-visible{outline-color:#F3D9B8}
+@media (prefers-reduced-motion:reduce){.y *{transition:none!important}}
+</style>
+</helmet>
+<div class="y">
+<header class="top">
+<a class="back" href="Main.dc.html"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 18-6-6 6-6"></path></svg>Սրահ</a>
+<div class="ttl"><b>Պետք է որոշում</b><span>Օֆլայն արված գործողություններ, որոնք սերվերը չընդունեց</span></div>
+<span class="sp"></span>
+<button type="button" class="{{ connCls }}" onClick="{{ toggleConn }}"><i aria-hidden="true"></i>{{ connText }}</button>
+</header>
+
+<div class="body">
+<section class="main" aria-label="Որոշում պահանջող">
+<p class="intro">Կապը կորել էր 18:21-ից 18:39։ Այդ ընթացքում պլանշետը պահել է ձեր գործողությունները։ Սրանք չկիրառվեցին, որովհետև սեղանի վիճակն այդ ընթացքում փոխվել էր։ Ոչինչ ինքնուրույն չի լուծվում։</p>
+<sc-if value="{{ hasConf }}" hint-placeholder-val="{{ true }}">
+<sc-for list="{{ conflicts }}" as="c" hint-placeholder-count="2">
+<article class="{{ c.cls }}" aria-label="{{ c.aria }}">
+<div class="cf-h"><span class="tn" aria-hidden="true">{{ c.table }}</span><div class="t"><b>{{ c.head }}</b><span>Ձեր «{{ c.action }}»-ը {{ c.at }}-ին չկիրառվեց · {{ c.by }}</span></div></div>
+<div class="why"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m21.7 18-8-14a2 2 0 0 0-3.5 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.7-3"></path><path d="M12 9v4M12 17h.01"></path></svg><span>{{ c.why }}</span></div>
+<sc-if value="{{ c.open }}" hint-placeholder-val="{{ true }}">
+<div class="row"><button type="button" class="btn btn-sec" onClick="{{ c.discard }}">Հրաժարվել գործողությունից</button><button type="button" class="btn btn-pri" onClick="{{ c.force }}">{{ c.forceLabel }}</button></div>
+<p class="hint">«{{ c.forceLabel }}»-ը կրկին ուղարկում է՝ առանց սեղանի վիճակը ստուգելու։</p>
+</sc-if>
+<sc-if value="{{ c.resolved }}" hint-placeholder-val="{{ false }}"><p class="hint">{{ c.result }}</p></sc-if>
+</article>
+</sc-for>
+</sc-if>
+<sc-if value="{{ noConf }}" hint-placeholder-val="{{ false }}"><div class="empty"><span class="ok"><svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"></path></svg></span><b>Ոչինչ չի սպասում ձեզ</b><span>Բոլոր գործողությունները կիրառված են։</span><a class="btn btn-pri" style="flex: none; margin-top: 8px" href="Main.dc.html">Վերադառնալ սրահ</a></div></sc-if>
+</section>
+
+<aside class="side" aria-label="Սինխրոնիզացիայի հերթ">
+<div class="sh"><h2>Հերթը</h2><p>{{ queueSummary }}</p></div>
+<div class="q">
+<sc-for list="{{ queue }}" as="q" hint-placeholder-count="6"><div class="qi"><span class="{{ q.stCls }}" aria-hidden="true"></span><span class="t"><b>{{ q.what }}</b><span>{{ q.when }} · {{ q.state }}</span></span></div></sc-for>
+</div>
+<div class="sf">
+<sc-if value="{{ offline }}" hint-placeholder-val="{{ false }}"><div class="ofl"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 8.8a15 15 0 0 1 20 0M5 12.9a10 10 0 0 1 14 0M8.5 16.4a5 5 0 0 1 7 0M2 2l20 20"></path></svg><span><b>Օֆլայն է։</b> Սեղան նստեցնելը, պատվերը և ազատելը պահվում են։ Կանխիկը, ամրագրման պատասխանը և մուտքը սպասում են կապին։</span></div></sc-if>
+<p class="hint">Հերթը ուղարկվում է ինքնաբերաբար, երբ կապը վերադառնա։ Կրկին փորձելու կարիք չկա։</p>
+</div>
+</aside>
+</div>
+
+<sc-if value="{{ hasToast }}" hint-placeholder-val="{{ false }}">
+<div class="toast" role="status"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"></path></svg><span>{{ toast }}</span></div>
+</sc-if>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"connection":{"editor":"enum","options":["online","offline"],"default":"online","section":"Վիճակ"},"$preview":{"width":1280,"height":800}}'>
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    this.state = {
+      conn: null, toast: null,
+      conflicts: [
+        { id: 1, table: '7', head: 'Սեղան 7-ը զբաղված է և բաց հաշիվ ունի', action: 'նստեցնել առանց ամրագրման', at: '18:24', by: 'Narek', why: 'Մինչ կապ չկար, Ani-ն այս սեղանին նստեցրել է 4 հոգի 18:26-ին։ Ձեր 2 հոգին հավանաբար այլ սեղանի մոտ են։', force: 'Նստեցնել այնուամենայնիվ', res: null },
+        { id: 2, table: '3', head: 'Սեղան 3-ը կրկին ազատ է, բայց այդ ընթացքում օգտագործվել է', action: 'ազատել սեղանը', at: '18:31', by: 'Narek', why: 'Սեղանը արդեն ազատվել է, հետո նոր հյուրեր են նստել և դուրս եկել։ Ձեր «ազատել»-ը հիմա ոչինչ չի անի կամ կազատի ուրիշին։', force: 'Ազատել այնուամենայնիվ', res: null }
+      ],
+      queue: [
+        { what: 'Պատվեր · սեղան 8 · 2 ուտեստ', when: '18:33', st: 'sent' }, { what: 'Նստեցնել · սեղան 7 · 2 հոգի', when: '18:24', st: 'fail' },
+        { what: 'Ազատել · սեղան 3', when: '18:31', st: 'fail' }, { what: 'Պատվեր · սեղան 14 · 3 ուտեստ', when: '18:36', st: 'sent' },
+        { what: 'Հյուրը տեսավ՝ գալիս եմ · սեղան 14', when: '18:38', st: 'sent' }, { what: 'Պատվեր · սեղան 12 · 2 ուտեստ', when: '18:41', st: 'wait' }
+      ]
+    };
+  }
+  componentWillUnmount() { clearTimeout(this._t); }
+  say(msg) { this.setState({ toast: msg }); clearTimeout(this._t); this._t = setTimeout(() => this.setState({ toast: null }), 3500); }
+  renderVals() {
+    const s = this.state;
+    const conn = s.conn || this.props.connection || 'online';
+    const off = conn === 'offline';
+    const open = s.conflicts.filter((c) => !c.res);
+    const stName = { wait: 'սպասում է', sent: 'ուղարկված է', fail: 'մերժվեց · որոշում է պետք' };
+    return {
+      connCls: 'chip ' + (off ? 'off' : 'live'), connText: off ? 'Օֆլայն' : 'Կապ կա · 18:42',
+      toggleConn: () => this.setState({ conn: off ? 'online' : 'offline' }),
+      offline: off,
+      hasConf: open.length > 0, noConf: open.length === 0,
+      conflicts: s.conflicts.map((c) => ({
+        table: c.table, head: c.head, action: c.action, at: c.at, by: c.by, why: c.why, forceLabel: c.force,
+        cls: 'cf' + (c.res ? ' done' : ''), open: !c.res, resolved: !!c.res, result: c.res || '',
+        aria: 'Սեղան ' + c.table + '. ' + c.head,
+        discard: () => { this.setState({ conflicts: s.conflicts.map((x) => (x.id === c.id ? Object.assign({}, x, { res: 'Հրաժարվեցիք։ Սեղանի վիճակը մնում է այնպես, ինչպես սերվերում է։' }) : x)) }); this.say('Սեղան ' + c.table + ' · գործողությունը հանվեց'); },
+        force: () => { this.setState({ conflicts: s.conflicts.map((x) => (x.id === c.id ? Object.assign({}, x, { res: 'Ուղարկվեց առանց ստուգման։ Ստուգեք սեղանը սրահում։' }) : x)) }); this.say('Սեղան ' + c.table + ' · ուղարկվեց այնուամենայնիվ'); }
+      })),
+      queueSummary: s.queue.filter((q) => q.st === 'wait').length + ' սպասում է · ' + s.queue.filter((q) => q.st === 'fail').length + ' մերժվեց · ' + s.queue.filter((q) => q.st === 'sent').length + ' ուղարկված',
+      queue: s.queue.map((q) => ({ what: q.what, when: q.when, state: stName[q.st], stCls: 'st ' + q.st })),
+      hasToast: !!s.toast, toast: s.toast || ''
+    };
+  }
+}
+</script>
+</body>
+</html>

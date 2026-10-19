@@ -25,6 +25,7 @@ export default tseslint.config(
       // scripts and the scenario checks that run them are the spec, not code.
       'docs/design/console/**',
       'docs/design/venue-console/**',
+      'docs/design/floor-tablet/**',
     ],
   },
 
