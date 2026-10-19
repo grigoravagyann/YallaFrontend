@@ -23,6 +23,13 @@ const REDESIGNED = [
   'layout.ts',
   'BranchRoute.tsx',
   'BookingCard.tsx',
+  'PhotoGallery.tsx',
+  'BranchHeader.tsx',
+  'AboutSection.tsx',
+  'ReviewsSection.tsx',
+  'BranchDetails.tsx',
+  'MenuSection.tsx',
+  'icons.tsx',
 ];
 
 /** Comments may quote a value; only code is checked. */
@@ -83,6 +90,19 @@ describe('the public page redesign', () => {
       const size = /font-size:\s*([^;]+);/u.exec(body!)?.[1];
       if (!size) continue;
       expect(size, selector!.trim()).toMatch(/^max\(16px,|^var\(--console-text-public-input\)$/u);
+    }
+  });
+
+  it('keeps the line breaks of a review and of a reply', () => {
+    // Both are written in multi-line boxes: the diner app's composer and the
+    // console's reply textarea.
+    const text = css();
+    for (const selector of ['.pub-review-text {', '.pub-review-reply-text {']) {
+      const start = text.indexOf(selector);
+      expect(start, selector).toBeGreaterThanOrEqual(0);
+      expect(text.slice(start, text.indexOf('}', start)), selector).toMatch(
+        /white-space: pre-line;/u,
+      );
     }
   });
 });

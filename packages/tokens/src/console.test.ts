@@ -397,6 +397,27 @@ describe('the public page (docs/design/public-page)', () => {
     expect(ratio(consoleColor.publicOpenDot, consoleColor.surface)).toBeGreaterThanOrEqual(3);
   });
 
+  it('keeps the words on a photo readable over the brightest photo', () => {
+    // The cover's "2 / 7" and the "All 7" tile sit on whatever the photo is:
+    // checked over plain white, the worst it can be.
+    const onWhite = (scrim: string) => {
+      const [r, g, b, a] = scrim.match(/[\d.]+/gu)!.map(Number) as [number, number, number, number];
+      const channel = (top: number) =>
+        Math.round(top * a + 255 * (1 - a))
+          .toString(16)
+          .padStart(2, '0');
+      return `#${channel(r)}${channel(g)}${channel(b)}`;
+    };
+    for (const scrim of [consoleColor.publicPhotoScrim, consoleColor.publicPhotoCount]) {
+      expect(ratio(consoleColor.photoText, onWhite(scrim))).toBeGreaterThanOrEqual(AA_BODY);
+    }
+  });
+
+  it("draws a review's stars at 3:1 on the card and the page", () => {
+    expect(ratio(consoleColor.publicStar, consoleColor.surface)).toBeGreaterThanOrEqual(3);
+    expect(ratio(consoleColor.publicStar, consoleColor.canvas)).toBeGreaterThanOrEqual(3);
+  });
+
   it('keeps its type at 12px and up, with inputs at 16 so iOS does not zoom', () => {
     const publicSteps = Object.entries(consoleText).filter(([name]) => name.startsWith('public'));
     expect(publicSteps.length).toBeGreaterThan(0);

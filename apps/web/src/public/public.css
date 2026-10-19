@@ -183,9 +183,17 @@ body:has(.pub)::before {
  * Head: cover, name, the open-state card
  * -------------------------------------------------------------------------- */
 
-/* Edge to edge on a phone, flush under the bar. */
-.pub-cover {
+/* The photos: the cover with four thumbnails under it, edge to edge on a
+   phone and flush under the bar; from 960px the thumbnails are a 2×2 grid
+   beside the cover (Main and Desktop artboards). */
+.pub-hero {
+  display: grid;
+  gap: var(--space-sm);
   margin: calc(-1 * var(--space-lg)) calc(-1 * var(--space-lg)) 0;
+}
+
+.pub-cover {
+  position: relative;
   overflow: hidden;
   background: var(--console-public-photo-ground);
 }
@@ -198,6 +206,219 @@ body:has(.pub)::before {
      space is reserved before a byte of the photo arrives. */
   aspect-ratio: 4 / 3;
   object-fit: cover;
+}
+
+.pub-cover-count {
+  position: absolute;
+  right: var(--space-md);
+  bottom: var(--space-md);
+  padding: var(--space-xs) 10px;
+  border-radius: var(--console-radius-pill);
+  background: var(--console-public-photo-count);
+  color: var(--console-photo-text);
+  font-size: 13px;
+  font-weight: var(--font-weight-semibold);
+  font-variant-numeric: tabular-nums;
+}
+
+.pub-gallery {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 6px;
+  padding: 0 var(--space-lg);
+}
+
+.pub-gallery button {
+  position: relative;
+  min-height: var(--touch-minimum);
+  aspect-ratio: 4 / 3;
+  padding: 0;
+  overflow: hidden;
+  border: 2px solid transparent;
+  border-radius: 10px;
+  background: var(--console-public-photo-ground);
+  cursor: pointer;
+}
+
+.pub-gallery button[aria-pressed='true'] {
+  border-color: var(--console-brand);
+}
+
+.pub-gallery.is-loading span {
+  min-height: var(--touch-minimum);
+  aspect-ratio: 4 / 3;
+  border-radius: 10px;
+}
+
+.pub-gallery img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* "All 7" over the fourth photo: cream on the photo scrim. */
+.pub-gallery-more {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  text-align: center;
+  background: var(--console-public-photo-scrim);
+  color: var(--console-photo-text);
+  font-size: 13px;
+  font-weight: var(--font-weight-bold);
+  line-height: 1.2;
+}
+
+/* Every photo, two to a row, over the scrim; the page behind does not scroll. */
+.pub-gallery-dialog {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  padding: var(--space-lg);
+  overflow: auto;
+  background: var(--console-public-photo-scrim);
+}
+
+.pub-gallery-panel {
+  width: 100%;
+  max-width: 760px;
+  padding: var(--space-lg);
+  border-radius: var(--console-radius-public-card);
+  background: var(--console-canvas);
+}
+
+.pub-gallery-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-md);
+  margin-bottom: var(--space-md);
+}
+
+.pub .pub-gallery-head h2 {
+  margin: 0;
+  font-size: 20px;
+}
+
+.pub-icon-button {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: var(--touch-minimum);
+  height: var(--touch-minimum);
+  border: 0;
+  border-radius: 50%;
+  background: var(--console-line-soft);
+  color: var(--console-ink);
+  cursor: pointer;
+}
+
+.pub-gallery-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-sm);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.pub-gallery-grid img {
+  display: block;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 4 / 3;
+  object-fit: cover;
+  border-radius: var(--console-radius-public-control);
+  background: var(--console-public-photo-ground);
+}
+
+/* The branch, and "All 3 branches" beside it, wrapping under it when long. */
+.pub-branch-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0 var(--space-md);
+}
+
+.pub .pub-all-branches {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--touch-minimum);
+  font-size: var(--console-text-public-meta);
+  font-weight: var(--font-weight-semibold);
+  color: var(--console-brand);
+  text-underline-offset: 3px;
+}
+
+.pub .pub-all-branches:hover {
+  color: var(--console-link-hover);
+}
+
+/* "★ 4,7 (128 reviews) · Kentron · ֏֏ · moderate". */
+.pub-facts {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-xs) 10px;
+  margin: 0;
+  color: var(--console-muted);
+  font-size: var(--console-text-public-meta);
+}
+
+.pub-facts-dot {
+  margin-inline-end: 10px;
+}
+
+.pub-facts b {
+  color: var(--console-ink);
+  font-weight: var(--font-weight-bold);
+}
+
+.pub-star {
+  color: var(--console-public-star);
+}
+
+.pub-star-off {
+  color: var(--console-star-off);
+}
+
+/* Half a star: the left half lit, the right half off. */
+.pub-star-half {
+  background: linear-gradient(90deg, var(--console-public-star) 50%, var(--console-star-off) 50%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.pub-facts-skeleton {
+  width: 55%;
+  height: 20px;
+}
+
+/* Call, address, share: secondary buttons that wrap. */
+.pub-head-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+  margin-top: 6px;
+}
+
+.pub-share-manual {
+  flex-basis: 100%;
+  margin: 0;
+  font-size: var(--console-text-public-label);
+  color: var(--console-muted);
+}
+
+.pub-share-url {
+  color: var(--console-ink);
+  overflow-wrap: anywhere;
+  user-select: all;
 }
 
 .pub-head {
@@ -984,15 +1205,57 @@ body:has(.pub)::before {
 }
 
 /* --------------------------------------------------------------------------
- * The menu
+ * The menu: chips for the categories, one shown at a time (Main artboard)
  * -------------------------------------------------------------------------- */
 
 .pub-menu-note {
   margin-bottom: var(--space-md);
 }
 
-.pub-menu-group h3 {
-  margin: var(--space-lg) 0 var(--space-sm);
+.pub-chips {
+  display: flex;
+  gap: var(--space-sm);
+  margin: 0 calc(-1 * var(--space-lg)) var(--space-md);
+  padding: 2px var(--space-lg);
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.pub-chip {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: var(--touch-minimum);
+  padding: 0 14px;
+  border: 1.5px solid var(--console-button-edge);
+  border-radius: var(--console-radius-pill);
+  background: var(--console-surface);
+  color: var(--console-ink);
+  font: inherit;
+  font-size: var(--console-text-public-meta);
+  font-weight: var(--font-weight-semibold);
+  cursor: pointer;
+}
+
+.pub-chip small {
+  font-size: 13px;
+  font-weight: var(--font-weight-semibold);
+  color: var(--console-muted);
+}
+
+.pub-chip[aria-pressed='true'] {
+  border-color: var(--console-brand);
+  background: var(--console-brand);
+  color: var(--console-brand-foreground);
+}
+
+.pub-chip[aria-pressed='true'] small {
+  color: var(--console-floor-bar-text);
+}
+
+.pub .pub-menu-category {
+  margin: 0 0 var(--space-sm);
   font-size: var(--console-text-public-body);
   font-weight: var(--font-weight-bold);
   color: var(--console-muted);
@@ -1013,22 +1276,31 @@ body:has(.pub)::before {
   border-bottom: 1px solid var(--console-line);
 }
 
+.pub-menu-item:last-child {
+  border-bottom: 0;
+}
+
 .pub-menu-item.is-sold-out {
   opacity: 0.62;
 }
 
 /* Fixed size, so the row keeps its shape whether the photo has loaded, has
-   failed, or was never there. */
+   failed, or was never there — then the dish's initial stands in. */
 .pub-menu-photo {
-  width: 72px;
-  height: 72px;
+  display: block;
+  width: 88px;
+  height: 66px;
   border-radius: 10px;
   object-fit: cover;
   background: var(--console-line-soft);
 }
 
-.pub-menu-photo.is-missing {
-  display: block;
+.pub-dish-initial {
+  display: grid;
+  place-items: center;
+  font-family: var(--font-family-display);
+  font-size: 22px;
+  color: var(--console-public-state-icon);
 }
 
 /* The name and description column: allowed to shrink, and a long unbroken
@@ -1049,11 +1321,16 @@ body:has(.pub)::before {
   color: var(--console-muted);
 }
 
+/* Sold out is not a failure: amber, never red (HANDOFF §3). */
 .pub-menu-soldout {
+  display: inline-block;
   margin: var(--space-xs) 0 0;
+  padding: 1px var(--space-sm);
+  border-radius: var(--console-radius-pill);
+  background: var(--console-amber-bg);
+  color: var(--console-amber);
   font-size: 13px;
   font-weight: var(--font-weight-bold);
-  color: var(--console-amber);
 }
 
 .pub-menu-price {
@@ -1064,7 +1341,7 @@ body:has(.pub)::before {
 }
 
 /* --------------------------------------------------------------------------
- * Address and hours
+ * Hours and how to find
  * -------------------------------------------------------------------------- */
 
 .pub-address {
@@ -1074,14 +1351,21 @@ body:has(.pub)::before {
   font-weight: var(--font-weight-semibold);
 }
 
-.pub-hours summary {
-  min-height: var(--touch-minimum);
-  display: flex;
-  align-items: center;
-  cursor: pointer;
-  color: var(--console-brand);
-  font-size: var(--console-text-public-meta);
-  font-weight: var(--font-weight-semibold);
+.pub .pub-find-district {
+  margin: 2px 0 0;
+}
+
+.pub-find .pub-actions {
+  margin-top: var(--space-md);
+}
+
+.pub-tel {
+  font-variant-numeric: tabular-nums;
+}
+
+.pub .pub-hours-zone {
+  margin: 0 0 var(--space-xs);
+  font-size: var(--console-text-public-label);
 }
 
 .pub-hours-table {
@@ -1093,39 +1377,287 @@ body:has(.pub)::before {
 .pub-hours-table th {
   text-align: start;
   font-weight: var(--font-weight-regular);
-  color: var(--console-muted);
-  padding: var(--space-sm) var(--space-xs);
+  color: var(--console-ink);
+  padding: 9px var(--space-xs);
   border-bottom: 1px solid var(--console-line);
 }
 
 .pub-hours-table td {
   text-align: end;
-  padding: var(--space-sm) var(--space-xs);
+  padding: 9px var(--space-xs);
   border-bottom: 1px solid var(--console-line);
   font-variant-numeric: tabular-nums;
 }
 
 .pub-hours-table tr[aria-current='date'] th,
 .pub-hours-table tr[aria-current='date'] td {
-  color: var(--console-ink);
   font-weight: var(--font-weight-bold);
 }
 
-/* Holidays and closures, under the folded week. */
+.pub-hours-today {
+  font-size: 13px;
+  font-weight: var(--font-weight-semibold);
+  color: var(--console-muted);
+}
+
+/* Today's special day, named on today's row: amber, as in the box below. */
+.pub-hours-today.pub-hours-special {
+  color: var(--console-amber);
+}
+
+/* Holidays and closures replace the week's hours on their date: amber, under it. */
+.pub-special {
+  margin-top: 14px;
+  padding: var(--space-md) 14px;
+  border-radius: 14px;
+  background: var(--console-amber-bg);
+}
+
 .pub-special-days {
-  margin-top: var(--space-md);
+  font-size: var(--console-text-public-label);
 }
 
 .pub-special-days caption {
-  padding: var(--space-xs) 0;
+  padding: 0 0 6px;
   color: var(--console-amber);
   font-family: var(--font-family-display);
+  font-size: var(--console-text-public-body);
   font-weight: var(--font-weight-bold);
   text-align: start;
 }
 
+.pub-special-days th,
+.pub-special-days td {
+  padding: var(--space-xs) 0;
+  border-bottom: 0;
+  color: var(--console-amber);
+}
+
 .pub-special-note {
-  color: var(--console-ink);
+  color: var(--console-amber);
+}
+
+/* --------------------------------------------------------------------------
+ * About and reviews
+ * -------------------------------------------------------------------------- */
+
+.pub-about-text {
+  max-width: 62ch;
+  margin: 0;
+}
+
+.pub-amenities {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+  margin: var(--space-md) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.pub-amenities li {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px var(--space-md);
+  border: 1px solid var(--console-line);
+  border-radius: var(--console-radius-pill);
+  background: var(--console-surface);
+  font-size: var(--console-text-public-label);
+  font-weight: var(--font-weight-semibold);
+}
+
+.pub-amenity-icon {
+  flex: none;
+  width: 18px;
+  height: 18px;
+  color: var(--console-brand);
+}
+
+/* A section whose part of the listing did not load: one line and a retry. */
+.pub-section-failed {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-sm) var(--space-md);
+}
+
+.pub-section-failed .pub-muted {
+  margin: 0;
+}
+
+/* "Show fewer" brings this heading back into view: clear of the sticky bar. */
+.pub-reviews > h2 {
+  scroll-margin-top: calc(var(--console-size-public-bar) + var(--space-lg));
+}
+
+.pub-review-summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-md) 18px;
+  margin-bottom: 14px;
+}
+
+.pub-review-average {
+  margin: 0;
+  font-family: var(--font-family-display);
+  font-size: 44px;
+  font-weight: var(--font-weight-bold);
+  line-height: 1;
+}
+
+.pub-review-of {
+  margin: var(--space-xs) 0 0;
+  font-size: var(--console-text-public-label);
+  color: var(--console-muted);
+}
+
+.pub-review-bars {
+  flex: 1;
+  min-width: 180px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  font-size: var(--console-text-caption);
+  color: var(--console-muted);
+}
+
+.pub-review-bars div {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.pub-review-bars span:first-child {
+  width: 2.2em;
+}
+
+.pub-review-bars i {
+  position: relative;
+  flex: 1;
+  height: 6px;
+  overflow: hidden;
+  border-radius: 3px;
+  background: var(--console-line-soft);
+}
+
+.pub-review-bars b {
+  position: absolute;
+  inset: 0 auto 0 0;
+  border-radius: 3px;
+  background: var(--console-public-star);
+}
+
+.pub-review-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.pub-review {
+  padding: 14px;
+  border: 1px solid var(--console-line);
+  border-radius: var(--console-radius-public-status);
+  background: var(--console-surface);
+}
+
+.pub-review-who {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.pub-review-avatar {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: var(--console-line-soft);
+  color: var(--console-brand);
+  font-size: var(--console-text-public-label);
+  font-weight: var(--font-weight-bold);
+}
+
+.pub .pub-review h3 {
+  margin: 0;
+  font-family: inherit;
+  font-size: var(--console-text-public-meta);
+  font-weight: var(--font-weight-bold);
+}
+
+.pub-review-meta {
+  margin: 0;
+  font-size: 13px;
+  color: var(--console-muted);
+}
+
+.pub-review-text {
+  margin: var(--space-sm) 0 0;
+  font-size: var(--console-text-public-meta);
+  overflow-wrap: anywhere;
+  /* Written in a multi-line box (the diner app's composer): keep its breaks. */
+  white-space: pre-line;
+}
+
+/* The venue's answer, set apart so it is never read as the guest's words. */
+.pub-review-reply {
+  margin-top: 10px;
+  padding: 10px var(--space-md);
+  border-radius: var(--console-radius-public-control);
+  background: var(--console-line-soft);
+  font-size: var(--console-text-public-label);
+  overflow-wrap: anywhere;
+}
+
+.pub-review-reply p {
+  margin: 0;
+}
+
+/* Written in the console's textarea: keep its breaks. */
+.pub-review-reply-text {
+  white-space: pre-line;
+}
+
+.pub-review-reply .pub-review-reply-meta {
+  margin-top: var(--space-xs);
+  font-size: 13px;
+  color: var(--console-muted);
+}
+
+.pub .pub-review-loading {
+  margin: var(--space-sm) 0 0;
+}
+
+.pub .pub-review-loading:empty {
+  margin: 0;
+}
+
+.pub-review-reply .pub-review-reply-by {
+  margin-bottom: 2px;
+  font-size: 13px;
+  font-weight: var(--font-weight-bold);
+}
+
+.pub-review-more {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+  margin-top: var(--space-md);
+}
+
+.pub-review-skeleton {
+  height: 140px;
+}
+
+.pub .pub-review-note {
+  margin-top: var(--space-md);
+  font-size: var(--console-text-public-label);
 }
 
 /* --------------------------------------------------------------------------
@@ -1356,13 +1888,34 @@ a.pub-branch-card:hover {
     align-self: start;
   }
 
-  .pub-cover {
+  /* The cover and, beside it, the thumbnails as a 2×2 grid (Desktop artboard). */
+  .pub-hero {
     margin: 0;
+    gap: 10px;
+  }
+
+  .pub-hero.has-gallery {
+    grid-template-columns: 2fr 1fr;
+  }
+
+  .pub-cover {
     border-radius: var(--console-radius-public-card);
   }
 
   .pub-cover img {
     aspect-ratio: 16 / 10;
+  }
+
+  .pub-gallery {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-content: start;
+    padding: 0;
+  }
+
+  .pub-chips {
+    margin: 0 0 var(--space-md);
+    padding: 2px 0;
+    flex-wrap: wrap;
   }
 
   .pub-head h1 {

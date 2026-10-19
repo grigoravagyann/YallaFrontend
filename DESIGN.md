@@ -559,9 +559,17 @@ columns from 960px (the booking column sticky on the right). It reads the
 dots, `public*` sizes (60px bar, 1180px page, 400px booking column, 48px
 buttons and controls, 52px on a page state's action) and `public*` type (body
 16, the venue's name 30/40, a section 22, a state 26, inputs never under 16).
-`public.css` remaps the product palette onto these for the sections not yet
-redesigned, and `publicStyles.test.ts` fails on a colour typed into it. Red is
+`public.css` reads these directly and never the product palette
+(`--color-*`), and `publicStyles.test.ts` fails on a colour typed into it or a
+product-palette variable read. Red is
 only for real failures; waiting is blue, needs-attention amber.
+
+Phase 2 added the header and details: `publicPhotoScrim` (the "All 7" tile and
+the gallery dialog's backdrop) and `publicPhotoCount` (the cover's "2 / 7"),
+both checked for cream text over a white photo, and `publicStar` for the
+rating's stars. A sold-out dish is an amber pill, not the artboard's red.
+Money is `formatDram` everywhere: "1 400 ֏" in hy and ru whatever number data
+the browser ships, "1,400 ֏" in en.
 
 ---
 

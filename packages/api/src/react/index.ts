@@ -1,6 +1,7 @@
 import {
   keepPreviousData,
   type QueryClient,
+  useInfiniteQuery,
   useMutation,
   useQueries,
   useQuery,
@@ -295,6 +296,10 @@ export const queryKeys = {
   publicBranch: (venueSlug: string, branchSlug: string) =>
     ['public', 'branch', venueSlug, branchSlug] as const,
   publicMenu: (branchId: string) => ['public', 'menu', branchId] as const,
+  /** The branch's listing half: cuisine, price, rating, about, gallery, newest reviews. */
+  publicBranchDetail: (branchId: string) => ['public', 'branchDetail', branchId] as const,
+  /** Every published review, a page at a time, for "see all". */
+  publicReviews: (branchId: string) => ['public', 'reviews', branchId] as const,
   managedBooking: (token: string) => ['public', 'booking', token] as const,
   openingHours: (branchId: string) => ['console', 'hours', branchId] as const,
   specialDays: (branchId: string) => ['console', 'specialDays', branchId] as const,
@@ -2461,19 +2466,41 @@ export function useBookingAction(branchId: string | undefined) {
 export const PUBLIC_REFRESH_MS = 45_000;
 
 /**
+ * How long the branch page trusts its count of a venue's branches. The read
+ * is the whole public venue list (there is no by-slug route), on the city-wide
+ * browse budget, so a link going round a group chat must not repeat it; a
+ * branch count field on the branch page replaces it (public page phase 5).
+ */
+const PUBLIC_BRANCH_COUNT_STALE_MS = 30 * 60_000;
+
+/**
  * The venue-level chooser.
  *
  * Reference data with a live number attached, so it takes the live cadence: the
  * per-branch free counts are the only reason this screen beats a phone call.
  */
-export function usePublicVenue(venueSlug: string | undefined) {
+export function usePublicVenue(
+  venueSlug: string | undefined,
+  options: {
+    /**
+     * Refresh the per-branch counts on the live cadence. Off for a reader that
+     * only needs the branches themselves — the branch page's "all 3 branches"
+     * link — so it does not poll a list it never shows.
+     */
+    readonly live?: boolean;
+  } = {},
+) {
   const gateway = usePublicGateway();
+  const live = options.live ?? true;
   return useQuery({
     queryKey: queryKeys.publicVenue(venueSlug ?? ''),
     queryFn: () => gateway.resolveVenue(venueSlug!),
     enabled: Boolean(venueSlug),
-    staleTime: staleTime.live,
-    refetchInterval: PUBLIC_REFRESH_MS,
+    // Not live: the number of branches changes when a venue opens one, so it
+    // is read once for the visit and not again on focus.
+    staleTime: live ? staleTime.live : PUBLIC_BRANCH_COUNT_STALE_MS,
+    refetchInterval: live ? PUBLIC_REFRESH_MS : false,
+    refetchOnWindowFocus: live,
     // A page in a background tab is a page nobody is reading. Refetching it
     // spends a stranger's mobile data on a number they cannot see.
     refetchIntervalInBackground: false,
@@ -2517,6 +2544,44 @@ export function usePublicMenu(branchId: string | undefined) {
     queryKey: queryKeys.publicMenu(branchId ?? ''),
     queryFn: () => gateway.getBranchMenuDetail(branchId!),
     enabled: Boolean(branchId),
+    staleTime: staleTime.reference,
+    refetchOnWindowFocus: false,
+  });
+}
+
+/**
+ * The branch's listing: cuisine, price level, rating and review count,
+ * district, about, website, amenities, the gallery and the newest three
+ * reviews with their replies (`GET /api/public/branches/{branchId}`).
+ *
+ * Reference data, read once: none of it changes while somebody reads the page,
+ * and the live half (open now, free tables) comes from `usePublicBranch`.
+ */
+export function usePublicBranchDetail(branchId: string | undefined) {
+  const gateway = useGateway();
+  return useQuery({
+    queryKey: queryKeys.publicBranchDetail(branchId ?? ''),
+    queryFn: () => gateway.getBranchDetail(branchId!),
+    enabled: Boolean(branchId),
+    staleTime: staleTime.reference,
+    refetchOnWindowFocus: false,
+  });
+}
+
+/**
+ * Every published review, newest first, twenty to a page
+ * (`GET /api/public/branches/{branchId}/reviews`). Asked only when `enabled`:
+ * the page shows the newest three from the detail until somebody wants more.
+ */
+export function usePublicReviews(branchId: string | undefined, enabled: boolean) {
+  const gateway = useGateway();
+  return useInfiniteQuery({
+    queryKey: queryKeys.publicReviews(branchId ?? ''),
+    queryFn: ({ pageParam }) => gateway.getBranchReviews({ branchId: branchId!, page: pageParam }),
+    initialPageParam: 1,
+    getNextPageParam: (last) =>
+      last && last.page * last.pageSize < last.reviewCount ? last.page + 1 : undefined,
+    enabled: enabled && Boolean(branchId),
     staleTime: staleTime.reference,
     refetchOnWindowFocus: false,
   });

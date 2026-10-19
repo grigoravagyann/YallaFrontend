@@ -38,7 +38,9 @@
     "room": "Зал",
     "menu": "Меню",
     "findUs": "Как добраться",
-    "hours": "Часы работы"
+    "hours": "Часы работы",
+    "about": "О заведении",
+    "reviews": "Отзывы"
   },
   "room": {
     "empty": "Здесь ещё не отметили столы.",
@@ -70,11 +72,10 @@
     "empty": "Меню пока не опубликовано.",
     "ownLanguage": "Меню написано на языке заведения.",
     "soldOut": "Закончилось",
-    "loading": "Загружаем меню…"
+    "loading": "Загружаем меню…",
+    "sections": "Разделы меню"
   },
   "hours": {
-    "show": "Показать всю неделю",
-    "hide": "Скрыть неделю",
     "closed": "Закрыто",
     "today": "Сегодня",
     "day": {
@@ -86,11 +87,15 @@
       "5": "Пятница",
       "6": "Суббота"
     },
-    "special": "Особые дни"
+    "special": "Особые дни",
+    "todayMark": "сегодня",
+    "zone": "Время указано по часовому поясу {{zone}}.",
+    "zoneYerevan": "Указано время по Еревану."
   },
   "findUs": {
     "openMap": "Открыть на карте",
-    "call": "Позвонить"
+    "call": "Позвонить",
+    "newTab": "откроется в новой вкладке"
   },
   "language": {
     "change": "Язык"
@@ -136,5 +141,81 @@
       "body": "Возможно, срок истёк или бронь уже прошла."
     },
     "seeVenue": "Посмотреть заведение"
+  },
+  "header": {
+    "allBranches_one": "Все {{count}} филиал",
+    "allBranches_few": "Все {{count}} филиала",
+    "allBranches_many": "Все {{count}} филиалов",
+    "allBranches_other": "Все {{count}} филиала",
+    "reviewCount_one": "{{count}} отзыв",
+    "reviewCount_few": "{{count}} отзыва",
+    "reviewCount_many": "{{count}} отзывов",
+    "reviewCount_other": "{{count}} отзыва",
+    "rating": "Оценка {{rating}} из 5",
+    "noReviews": "Пока нет отзывов",
+    "priceLabel": "Уровень цен: {{level}}",
+    "price": {
+      "1": "недорого",
+      "2": "средние цены",
+      "3": "дорого",
+      "4": "премиум"
+    },
+    "call": "Позвонить",
+    "address": "Адрес",
+    "share": "Поделиться",
+    "copied": "Ссылка скопирована",
+    "copyThis": "Скопируйте эту ссылку:",
+    "actions": "Связаться и поделиться"
+  },
+  "gallery": {
+    "label": "Фотографии",
+    "photo": "Фото {{index}} из {{count}}",
+    "all": "Все фото ({{count}})",
+    "allShort": "Все",
+    "title": "Фотографии · {{count}}",
+    "close": "Закрыть"
+  },
+  "reviews": {
+    "outOf": "{{rating}} из 5",
+    "count_one": "{{count}} отзыв",
+    "count_few": "{{count}} отзыва",
+    "count_many": "{{count}} отзывов",
+    "count_other": "{{count}} отзыва",
+    "stars_one": "{{count}} звезда",
+    "stars_few": "{{count}} звезды",
+    "stars_many": "{{count}} звёзд",
+    "stars_other": "{{count}} звезды",
+    "bar": "{{stars}}: {{count}}",
+    "distribution": "Как гости оценили заведение",
+    "seeAll_one": "Все {{count}} отзыв",
+    "seeAll_few": "Все {{count}} отзыва",
+    "seeAll_many": "Все {{count}} отзывов",
+    "seeAll_other": "Все {{count}} отзыва",
+    "showFewer": "Показать меньше",
+    "more": "Показать ещё отзывы",
+    "loading": "Загружаем отзывы…",
+    "none": "Пока нет отзывов.",
+    "who": "Оставить отзыв могут только гости, которые были здесь через Yalla.",
+    "failed": "Не удалось загрузить отзывы.",
+    "edited": "изменён",
+    "age": {
+      "today": "сегодня",
+      "days_one": "{{count}} день назад",
+      "days_few": "{{count}} дня назад",
+      "days_many": "{{count}} дней назад",
+      "days_other": "{{count}} дня назад",
+      "weeks_one": "{{count}} неделю назад",
+      "weeks_few": "{{count}} недели назад",
+      "weeks_many": "{{count}} недель назад",
+      "weeks_other": "{{count}} недели назад",
+      "months_one": "{{count}} месяц назад",
+      "months_few": "{{count}} месяца назад",
+      "months_many": "{{count}} месяцев назад",
+      "months_other": "{{count}} месяца назад",
+      "years_one": "{{count}} год назад",
+      "years_few": "{{count}} года назад",
+      "years_many": "{{count}} лет назад",
+      "years_other": "{{count}} года назад"
+    }
   }
 }

@@ -10,6 +10,7 @@ import type {
   PublicVenueHeader,
 } from '../contracts/publicBranch';
 import type { Booking } from '../contracts/booking';
+import type { SpecialDay } from '../contracts/branchSettings';
 import { openStateFrom } from '../contracts/openState';
 import {
   publicBranchFixtures,
@@ -36,6 +37,13 @@ export interface PublicMockOptions {
   readonly gateway: YallaGateway;
   readonly now?: (() => Date) | undefined;
   readonly latencyMs?: number | undefined;
+  /**
+   * Northern Avenue closed for a day five days out and open late for a wine
+   * night nine days out, so the hours' special days show in mock mode. Off
+   * unless asked: the public fixtures keep to their week in tests, and the
+   * console mock owns special days.
+   */
+  readonly showcaseSpecialDays?: boolean | undefined;
 }
 
 /**
@@ -103,6 +111,24 @@ function findBranchBySlug(
     if (fixture && fixture.slug === branchSlug) return { branch, fixture };
   }
   return null;
+}
+
+/** The branch the mock's showcase data sits on. */
+const SHOWCASE_BRANCH = 'b-lumen-north';
+
+/** Two special days ahead of `now`, as calendar dates in the branch's zone. */
+function showcaseSpecialDays(now: Date, timeZoneId: string): SpecialDay[] {
+  const dateIn = (days: number) =>
+    new Intl.DateTimeFormat('en-CA', {
+      timeZone: timeZoneId,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    }).format(new Date(now.getTime() + days * 86_400_000));
+  return [
+    { date: dateIn(5), note: 'Staff training', blocks: [] },
+    { date: dateIn(9), note: 'Wine night', blocks: [{ opensAt: '09:00', closesAt: '02:00' }] },
+  ];
 }
 
 export function createPublicMockGateway(options: PublicMockOptions): PublicGateway {
@@ -242,7 +268,10 @@ export function createPublicMockGateway(options: PublicMockOptions): PublicGatew
         openState: openStateFrom(fixture.weeklyHours, now(), branch.timeZoneId),
         weeklyHours: fixture.weeklyHours,
         // The public fixtures keep to their week; the console mock owns special days.
-        specialDays: [],
+        specialDays:
+          options.showcaseSpecialDays && branch.id === SHOWCASE_BRANCH
+            ? showcaseSpecialDays(now(), branch.timeZoneId)
+            : [],
         freeTables: counts.free,
         totalTables: counts.total,
         asOfUtc: now().toISOString(),

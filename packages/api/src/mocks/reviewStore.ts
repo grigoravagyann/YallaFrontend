@@ -130,6 +130,12 @@ export interface MockReviewStoreOptions {
    * is reachable on first load. The authors are placeholders, not people.
    */
   readonly seed?: boolean;
+  /**
+   * Two dozen published reviews at Northern Avenue (b-lumen-north), a few with the
+   * venue's reply, for walking the public page in mock mode. Not for tests that
+   * read an unreviewed branch.
+   */
+  readonly showcase?: boolean | undefined;
 }
 
 const DAY_MS = 24 * 60 * 60_000;
@@ -321,6 +327,143 @@ export function createMockReviewStore(options: MockReviewStoreOptions = {}): Moc
         createdAtUtc: ago(2),
       },
     );
+  }
+
+  if (options.showcase) {
+    /*
+     * Northern Avenue as a venue a few months in: two dozen reviews in the
+     * languages its guests write in, mostly good, a few answered. More than a
+     * page of twenty, so the public page's "see all" has a second page.
+     */
+    const ago = (days: number, hours = 0) =>
+      new Date(now().getTime() - days * DAY_MS - hours * 3_600_000).toISOString();
+    const branchId = 'b-lumen-north';
+    const reply = (
+      text: string,
+      authorName: string,
+      authorRole: ReplyAuthorRole,
+      days: number,
+    ): ReviewReply => ({
+      text,
+      authorName,
+      authorRole,
+      createdAtUtc: ago(days),
+      updatedAtUtc: ago(days),
+      edited: false,
+    });
+    const showcase: readonly (readonly [
+      name: string,
+      rating: number,
+      text: string | null,
+      days: number,
+      reply?: ReviewReply,
+    ])[] = [
+      [
+        'Ani Martirosyan',
+        5,
+        'Սուրճը քաղաքի լավագույններից է, իսկ պատուհանի մոտ սեղանը պատրաստ էր ճիշտ ժամին։',
+        1,
+      ],
+      [
+        'Davit Karapetyan',
+        4,
+        'Նախաճաշը համեղ էր, բայց շաբաթ առավոտյան մի քիչ աղմկոտ էր։',
+        3,
+        reply(
+          'Շնորհակալություն, Դավիթ։ Շաբաթ օրերին խորհուրդ ենք տալիս հետևի սրահը՝ այնտեղ ավելի հանգիստ է։',
+          'Aram Hakobyan',
+          'owner',
+          2,
+        ),
+      ],
+      ['Mariam Sargsyan', 5, 'Booked a table for six on the web in a minute. Great flat white.', 6],
+      ['Ольга Петрова', 5, 'Очень уютно, вкусные сырники и отличный фильтр-кофе.', 9],
+      ['Aram Hovhannisyan', 5, null, 12],
+      [
+        'Lilit Grigoryan',
+        3,
+        'Համեղ էր, բայց աղանդերին 20 րոպե սպասեցինք։',
+        16,
+        reply(
+          'Ներողություն սպասելու համար, Լիլիթ։ Այդ օրը խոհանոցում մեկ հոգի պակաս էր, արդեն ուղղել ենք։',
+          'Nare Sargsyan',
+          'generalManager',
+          15,
+        ),
+      ],
+      [
+        'Tigran Avetisyan',
+        5,
+        'Լավագույն տեղը աշխատելու համար՝ արագ Wi-Fi և հանգիստ երաժշտություն։',
+        20,
+      ],
+      [
+        'James Miller',
+        4,
+        'Lovely terrace, friendly staff. The avocado toast could use more salt.',
+        24,
+      ],
+      ['Анна Смирнова', 5, 'Заказали столик через сайт — всё было готово к нашему приходу.', 29],
+      ['Gayane Petrosyan', 5, 'Բնական գինին երեկոյան՝ հաճելի անակնկալ։', 33],
+      ['Hayk Melkonyan', 4, null, 38],
+      [
+        'Sofia Rossi',
+        2,
+        'Our booking was not found at first and we waited at the door for ten minutes.',
+        44,
+        reply(
+          'We are sorry, Sofia. A tablet lost its connection that evening; it now warns the host when it does.',
+          'Aram Hakobyan',
+          'owner',
+          43,
+        ),
+      ],
+      ['Narek Ghazaryan', 5, 'Ամեն անգամ վերադառնում ենք կապուչինոյի համար։', 51],
+      [
+        'Елена Ковалёва',
+        4,
+        'Хорошее место для завтрака, но по выходным лучше бронировать заранее.',
+        58,
+      ],
+      ['Arpi Simonyan', 5, 'Շատ ջերմ սպասարկում և գեղեցիկ ինտերիեր։', 64],
+      ['Michael Brown', 5, 'Best coffee we had in Yerevan.', 71],
+      ['Karen Abrahamyan', 3, 'Լավ էր, բայց գները մի փոքր բարձր են։', 79],
+      ['Sona Hakobyan', 5, null, 86],
+      ['Armen Vardanyan', 5, 'Հիանալի նախաճաշ ամբողջ ընտանիքով։', 94],
+      [
+        'Мария Иванова',
+        4,
+        'Уютно и вкусно, только музыка была громковата.',
+        103,
+        reply(
+          'Спасибо, Мария! Мы сделали музыку в зале тише по утрам.',
+          'Nare Sargsyan',
+          'generalManager',
+          101,
+        ),
+      ],
+      ['Vahe Mkrtchyan', 5, 'Ամենալավ ֆիլտր սուրճը քաղաքում։', 117],
+      ['Emma Wilson', 5, 'Quiet back room, good for a work call. Will come back.', 132],
+      ['Ruzanna Harutyunyan', 4, 'Հաճելի մթնոլորտ, բայց երեկոյան տեղ գտնելը դժվար է։', 150],
+      ['Gor Asatryan', 5, 'Առաջին անգամն էր, անպայման կվերադառնանք։', 171],
+    ];
+    showcase.forEach(([name, rating, text, days, answer], index) => {
+      insert({
+        reviewId: `review-showcase-${index + 1}`,
+        branchId,
+        dinerUserId: `diner-showcase-${index + 1}`,
+        displayName: name,
+        rating,
+        text,
+        createdAtUtc: ago(days, index % 5),
+        updatedAtUtc: ago(days, index % 5),
+        hidden: false,
+        hiddenReason: null,
+        hiddenAtUtc: null,
+        hiddenBy: null,
+        reply: answer ?? null,
+      });
+    });
   }
 
   return {

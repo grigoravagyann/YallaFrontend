@@ -36,7 +36,9 @@
     "room": "The room",
     "menu": "Menu",
     "findUs": "Find us",
-    "hours": "Opening hours"
+    "hours": "Opening hours",
+    "about": "About",
+    "reviews": "Reviews"
   },
   "room": {
     "empty": "This place has not mapped its tables yet.",
@@ -68,11 +70,10 @@
     "empty": "No menu published yet.",
     "ownLanguage": "The menu is written in the venue's own language.",
     "soldOut": "Sold out",
-    "loading": "Loading the menu…"
+    "loading": "Loading the menu…",
+    "sections": "Menu sections"
   },
   "hours": {
-    "show": "See the whole week",
-    "hide": "Hide the week",
     "closed": "Closed",
     "today": "Today",
     "day": {
@@ -84,11 +85,15 @@
       "5": "Friday",
       "6": "Saturday"
     },
-    "special": "Special days"
+    "special": "Special days",
+    "todayMark": "today",
+    "zone": "Times are in the {{zone}} time zone.",
+    "zoneYerevan": "Times are Yerevan time."
   },
   "findUs": {
     "openMap": "Open in maps",
-    "call": "Call"
+    "call": "Call",
+    "newTab": "opens in a new tab"
   },
   "language": {
     "change": "Language"
@@ -134,5 +139,63 @@
       "body": "It may have expired, or the booking may already be over."
     },
     "seeVenue": "See the venue"
+  },
+  "header": {
+    "allBranches_one": "All {{count}} branch",
+    "allBranches_other": "All {{count}} branches",
+    "reviewCount_one": "{{count}} review",
+    "reviewCount_other": "{{count}} reviews",
+    "rating": "Rated {{rating}} out of 5",
+    "noReviews": "No reviews yet",
+    "priceLabel": "Price level: {{level}}",
+    "price": {
+      "1": "budget",
+      "2": "moderate",
+      "3": "pricey",
+      "4": "fine dining"
+    },
+    "call": "Call",
+    "address": "Address",
+    "share": "Share",
+    "copied": "Link copied",
+    "copyThis": "Copy this link:",
+    "actions": "Contact and share"
+  },
+  "gallery": {
+    "label": "Photos",
+    "photo": "Photo {{index}} of {{count}}",
+    "all": "All {{count}} photos",
+    "allShort": "All",
+    "title": "Photos · {{count}}",
+    "close": "Close"
+  },
+  "reviews": {
+    "outOf": "{{rating}} out of 5",
+    "count_one": "{{count}} review",
+    "count_other": "{{count}} reviews",
+    "stars_one": "{{count}} star",
+    "stars_other": "{{count}} stars",
+    "bar": "{{stars}}: {{count}}",
+    "distribution": "How guests rated it",
+    "seeAll_one": "See {{count}} review",
+    "seeAll_other": "See all {{count}} reviews",
+    "showFewer": "Show fewer",
+    "more": "Show more reviews",
+    "loading": "Loading reviews…",
+    "none": "No reviews yet.",
+    "who": "Only guests who came here through Yalla can leave a review.",
+    "failed": "We could not load the reviews.",
+    "edited": "edited",
+    "age": {
+      "today": "today",
+      "days_one": "{{count}} day ago",
+      "days_other": "{{count}} days ago",
+      "weeks_one": "{{count}} week ago",
+      "weeks_other": "{{count}} weeks ago",
+      "months_one": "{{count}} month ago",
+      "months_other": "{{count}} months ago",
+      "years_one": "{{count}} year ago",
+      "years_other": "{{count}} years ago"
+    }
   }
 }
