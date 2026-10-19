@@ -346,8 +346,8 @@ describe('a PIN somebody on the same tablet already uses', () => {
     expect(first).not.toBe(second);
     expect(within(dialog).getByText(second!)).toBeTruthy();
     // The refused PIN is shown nowhere as a PIN. Not a page-wide substring check:
-    // a random four digits can sit inside a phone number on the list (CI drew 7720,
-    // and +37477201010 is in the fixture).
+    // a random four digits can sit inside a phone number on the list (CI drew one
+    // that a fixture's number contains).
     expect(screen.queryByText(first!, { exact: true })).toBeNull();
   });
 });
