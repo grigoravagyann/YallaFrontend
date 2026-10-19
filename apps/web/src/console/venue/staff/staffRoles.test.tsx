@@ -345,6 +345,9 @@ describe('a PIN somebody on the same tablet already uses', () => {
     const [first, second] = setPin.mock.calls.map((call) => call[0].pin);
     expect(first).not.toBe(second);
     expect(within(dialog).getByText(second!)).toBeTruthy();
-    expect(document.body.textContent).not.toContain(first!);
+    // The refused PIN is shown nowhere as a PIN. Not a page-wide substring check:
+    // a random four digits can sit inside a phone number on the list (CI drew 7720,
+    // and +37477201010 is in the fixture).
+    expect(screen.queryByText(first!, { exact: true })).toBeNull();
   });
 });
