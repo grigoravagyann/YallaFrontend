@@ -218,7 +218,7 @@ describe('special days', () => {
     await waitForWeek();
 
     await user.click(await screen.findByRole('button', { name: 'Remove Christmas' }));
-    expect(await screen.findByText('“Christmas” removed from the special days')).toBeTruthy();
+    expect(await screen.findByText('“Christmas” removed from the special days.')).toBeTruthy();
     await waitFor(() => expect(screen.queryByText('Christmas', { selector: 'small' })).toBeNull());
 
     await user.click(screen.getByRole('button', { name: /undo/i }));
@@ -313,7 +313,7 @@ describe('special days', () => {
     await waitForWeek();
 
     await user.click(await screen.findByRole('button', { name: 'Remove Christmas' }));
-    await screen.findByText('“Christmas” removed from the special days');
+    await screen.findByText('“Christmas” removed from the special days.');
     // Another console adds a day before the undo is pressed.
     const now = await gateway.getSpecialDays('b-lumen-cascade');
     await gateway.replaceSpecialDays({
