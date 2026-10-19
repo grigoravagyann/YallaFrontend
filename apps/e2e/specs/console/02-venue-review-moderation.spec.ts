@@ -86,7 +86,10 @@ test('The branch manager replies to a review, and the public list shows the repl
   const demo = await demoBranch(api);
 
   const author = await registerDiner(api);
-  await openTab(api, author, (await tableByLabel(api, demo.branchId, '4')).qrToken);
+  // A table of its own: table 4 still has the first test's tab open, and a
+  // second diner scanning it waits for that host's approval, which is not a
+  // visit the server lets them review (review-needs-visit).
+  await openTab(api, author, (await tableByLabel(api, demo.branchId, '7')).qrToken);
   const text = `Reply check ${uniqueTag()}: the terrace was lovely.`;
   const { reviewId } = await postReview(api, author, demo.branchId, { rating: 5, text });
 
