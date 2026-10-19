@@ -342,6 +342,9 @@
   --console-size-floor-done-card: 520px;
   --console-size-floor-face: 30px;
   --console-size-floor-radio: 22px;
+  --console-size-floor-ticket: 296px;
+  --console-size-floor-conflict-side: 400px;
+  --console-size-floor-conflict-mark: 52px;
   --console-radius-card: 12px;
   --console-radius-control: 10px;
   --console-radius-small: 8px;

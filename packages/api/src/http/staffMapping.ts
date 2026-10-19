@@ -508,10 +508,15 @@ export function orderQueueEntry(order: KitchenOrder): OrderQueueEntry {
     waitingMinutes: order.waitingMinutes,
     lines: order.lines.map((line) => ({
       lineId: line.lineId,
+      menuItemId: line.menuItemId,
       name: line.name,
       quantity: line.quantity,
       note: line.note ?? null,
+      // Absent on a shared or table-attributed line (FT4 wire, gap 3).
+      onBehalfOfParticipantId: line.onBehalfOfParticipantId ?? null,
     })),
+    // Absent on the wire for a diner's own order from the app (FT4 wire).
+    placedByName: order.placedByName ?? null,
   };
 }
 
@@ -711,6 +716,7 @@ export function menuFrom(view: MenuView, fetchedAtUtc: string, baseUrl: string):
         isAvailable: item.isAvailable,
         // Server-relative on the wire; the tablet's page is not the API's origin.
         photo: absolutePhoto(baseUrl, item.photo),
+        allergens: item.allergens || null,
       })),
     })),
   };

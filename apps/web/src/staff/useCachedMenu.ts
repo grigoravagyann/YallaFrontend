@@ -30,6 +30,8 @@ export interface CachedMenuResult {
   readonly unavailable: boolean;
   /** What is on screen came off this device because the network could not refresh it. */
   readonly fromCache: boolean;
+  /** Read it again now: the kitchen board does when a ticket names a dish it lacks. */
+  readonly refetch?: (() => void) | undefined;
 }
 
 /**
@@ -67,7 +69,11 @@ export function resolveMenuState(input: {
   };
 }
 
-export function useCachedMenu(branchId: string | undefined, enabled = true): CachedMenuResult {
+export function useCachedMenu(
+  branchId: string | undefined,
+  enabled = true,
+  refetchIntervalMs?: number,
+): CachedMenuResult {
   const [seed, setSeed] = useState<CachedMenu | null | undefined>(undefined);
 
   // The read has to finish before the query mounts with its seed, so the query
@@ -85,6 +91,7 @@ export function useCachedMenu(branchId: string | undefined, enabled = true): Cac
   }, [branchId]);
 
   const query = useStaffMenu(enabled && seed !== undefined ? branchId : undefined, {
+    refetchIntervalMs,
     initialData: seed?.menu ?? null,
     ...(seed ? { initialDataUpdatedAt: seed.storedAtMs } : {}),
   });
@@ -96,11 +103,15 @@ export function useCachedMenu(branchId: string | undefined, enabled = true): Cac
     void menuCache.write(branchId, query.data);
   }, [branchId, query.data, seed]);
 
-  return resolveMenuState({
-    seed,
-    queryData: query.data,
-    fetchStatus: query.fetchStatus,
-    isLoading: query.isLoading,
-    isError: query.isError,
-  });
+  const { refetch } = query;
+  return {
+    ...resolveMenuState({
+      seed,
+      queryData: query.data,
+      fetchStatus: query.fetchStatus,
+      isLoading: query.isLoading,
+      isError: query.isError,
+    }),
+    refetch: () => void refetch(),
+  };
 }

@@ -170,6 +170,8 @@ describe('a kitchen account on the tablet', () => {
     expect(document.querySelector('.floor-plan-pane')).toBeNull();
   });
 
+  // The menu is not on this list: it is anonymous, and the board reads it for
+  // each dish's allergens (floor tablet phase 4).
   it('never asks for the floor, its changes, tabs or service requests', async () => {
     const { gateway, calls } = recordingGateway();
     signIn('kitchen');
@@ -184,7 +186,6 @@ describe('a kitchen account on the tablet', () => {
       'getStaffTab',
       'getTabLines',
       'listServiceRequests',
-      'getMenu',
     ] as const) {
       expect(calls, refused).not.toContain(refused);
     }
@@ -196,7 +197,7 @@ describe('a kitchen account on the tablet', () => {
     renderStaff(gateway);
     const user = userEvent.setup();
 
-    await user.click(await screen.findByRole('button', { name: 'Mark ready' }));
+    await user.click(await screen.findByRole('button', { name: 'Ready · table 4' }));
 
     await waitFor(() => expect(calls).toContain('setOrderStatus'));
     expect(statuses).toEqual([expect.objectContaining({ orderId: 'o1', status: 'ready' })]);

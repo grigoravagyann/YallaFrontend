@@ -5,6 +5,7 @@ import {
   ConcurrencyConflictError,
   InvalidTransitionError,
   NotFoundError,
+  UnauthorizedError,
   ValidationError,
 } from '../errors';
 import {
@@ -34,6 +35,7 @@ import type {
   FloorChange,
   FloorChangePage,
   OrderQueueEntry,
+  OrderQueueLine,
   OrderStatus,
   PaymentResult,
   PlaceOrderCommand,
@@ -71,7 +73,7 @@ import type {
 import { answerWindowClosed, approvalExpiryFor, localDateAndTime } from './approvalWindow';
 import type { Photo } from '../contracts/menuAdmin';
 import { mockMenuFor } from './menu';
-import { mockPhoto } from './menuDetail';
+import { mockBranchMenu, mockPhoto } from './menuDetail';
 import { computeBill, percentOf, type BillingLine } from './billing';
 
 /**
@@ -143,6 +145,25 @@ export interface StaffMockOptions {
     readonly displayName: string;
     readonly status: 'pendingApproval' | 'removed';
   }[];
+  /**
+   * Who the tablet's orders are sent by, as the server names them on a kitchen
+   * ticket (`placedByName`, floor tablet gap 2). The mock has no signed-in
+   * person of its own, so it stands in for one; a waiter from the staff
+   * fixture by default.
+   */
+  readonly staffName?: string;
+  /**
+   * A busy pass, for mock mode: more than four tickets, late ones, notes on
+   * dishes with allergens, one from the app and one ready, so the kitchen board
+   * shows its states. Off in tests, which read the room as it always was.
+   */
+  readonly seedKitchen?: boolean;
+  /**
+   * Whether a staff session is signed in now. When given, every staff read
+   * and write answers 401 without one, as the server does with no token — so
+   * a test can see a request that went out under the PIN gate (FT4 review S6).
+   */
+  readonly signedIn?: () => boolean;
 }
 
 interface MockTableState {
@@ -172,6 +193,13 @@ interface MockOrder {
   status: OrderStatus;
   readonly placedAtUtc: string;
   readonly lineIds: string[];
+  /** The waiter who sent it; null for a diner's own order from the app. */
+  readonly placedByName: string | null;
+  /**
+   * The ticket's lines when there is no tab behind them: the busy pass seeded
+   * for mock mode (`seedKitchen`) is tickets only.
+   */
+  readonly ticketLines?: readonly OrderQueueLine[];
 }
 
 /** A line, plus the owner the wire only carries as a share snapshot. */
@@ -288,6 +316,25 @@ function iso(date: Date): string {
   return date.toISOString();
 }
 
+/**
+ * The cafe menu with each dish's allergens, from the same detail fixture the
+ * console's menu reads, so the kitchen board warns about what the venue wrote.
+ */
+function withAllergens(menu: Menu, branchId: string): Menu {
+  const detail = new Map(
+    mockBranchMenu(branchId, 'cafe').categories.flatMap((category) =>
+      category.items.map((item) => [item.id, item.allergens] as const),
+    ),
+  );
+  return {
+    ...menu,
+    sections: menu.sections.map((section) => ({
+      ...section,
+      items: section.items.map((item) => ({ ...item, allergens: detail.get(item.id) || null })),
+    })),
+  };
+}
+
 function minutesFrom(now: Date, minutes: number): string {
   return iso(new Date(now.getTime() + minutes * 60_000));
 }
@@ -301,6 +348,10 @@ export function createStaffMockGateway(options: StaffMockOptions = {}): StaffGat
   const latency = options.latencyMs ?? 0;
   const now = options.now ?? (() => new Date());
   let failSends = options.failSends ?? 0;
+  /** No token, no answer: the server's 401, when the caller says who is signed in. */
+  const requireSession = (url: string) => {
+    if (options.signedIn && !options.signedIn()) throw new UnauthorizedError({ url });
+  };
   const racing = new Set(options.raceOnTables ?? []);
   const churning = new Set(options.churnOnTables ?? []);
 
@@ -318,7 +369,7 @@ export function createStaffMockGateway(options: StaffMockOptions = {}): StaffGat
   // the whole session, which is exactly the kind of small permanent lie this
   // screen must not tell.
   const plan: FloorPlanData = { ...cafeFloorPlan, branchId, branchName: 'Lumen · Northern Avenue' };
-  const menu: Menu = mockMenuFor(branchId, 'cafe');
+  const menu: Menu = withAllergens(mockMenuFor(branchId, 'cafe'), branchId);
   const menuItems = new Map(menu.sections.flatMap((s) => s.items.map((i) => [i.id, i] as const)));
 
   let sequence = 0;
@@ -513,6 +564,87 @@ export function createStaffMockGateway(options: StaffMockOptions = {}): StaffGat
   }
 
   /*
+   * A busy pass, for mock mode only (`seedKitchen`): tickets with no tab behind
+   * them, at tables the floor need not know about. Oldest first, so the board
+   * shows late, waiting and fresh, a ticket nobody has sent yet, one from the
+   * app, and one ready for its waiter.
+   */
+  if (options.seedKitchen) {
+    const labels = plan.tables.map((table) => table.label);
+    const tickets: readonly {
+      readonly minutesAgo: number;
+      readonly status: OrderStatus;
+      readonly by: string | null;
+      readonly lines: readonly (readonly [string, number, string | null])[];
+    }[] = [
+      {
+        minutesAgo: 16,
+        status: 'inKitchen',
+        by: 'Ani Hakobyan',
+        lines: [
+          ['matnakash-eggs', 2, 'Մեկը՝ առանց սոխի'],
+          ['croissant', 1, null],
+        ],
+      },
+      {
+        minutesAgo: 13,
+        status: 'inKitchen',
+        by: 'Davit Manukyan',
+        lines: [
+          ['gata', 2, null],
+          ['napoleon', 1, 'Ծննդյան մոմ'],
+        ],
+      },
+      {
+        // From the app, and late: the widest age badge beside the sender.
+        minutesAgo: 14,
+        status: 'inKitchen',
+        by: null,
+        lines: [
+          ['avocado-toast', 1, 'Առանց չիլիի'],
+          ['granola', 1, null],
+        ],
+      },
+      { minutesAgo: 7, status: 'ready', by: 'Ani Hakobyan', lines: [['cheesecake', 2, null]] },
+      {
+        minutesAgo: 4,
+        status: 'inKitchen',
+        by: 'Davit Manukyan',
+        lines: [
+          ['cappuccino', 3, null],
+          ['croissant', 2, null],
+        ],
+      },
+      {
+        minutesAgo: 2,
+        status: 'inKitchen',
+        by: 'Ani Hakobyan',
+        lines: [['granola', 1, 'Մեղրը՝ առանձին']],
+      },
+      // Old and never sent: not the kitchen's to cook, so never late on its board.
+      { minutesAgo: 18, status: 'new', by: 'Ani Hakobyan', lines: [['lemonade', 2, null]] },
+    ];
+    tickets.forEach((ticket, index) => {
+      const orderId = id('order');
+      orders.set(orderId, {
+        id: orderId,
+        tabId: id('tab-kitchen'),
+        tableLabel: labels[(index + 3) % labels.length] ?? String(index + 1),
+        status: ticket.status,
+        placedAtUtc: minutesFrom(start, -ticket.minutesAgo),
+        lineIds: [],
+        placedByName: ticket.by,
+        ticketLines: ticket.lines.flatMap(([itemId, quantity, note]) => {
+          const item = menuItems.get(itemId);
+          return item
+            ? [{ lineId: id('line'), menuItemId: item.id, name: item.name, quantity, note }]
+            : [];
+        }),
+      });
+    });
+  }
+
+  /*
    * Booking times, for mock mode only. Tomorrow at table 9, a booking for the
    * table somebody booked shortly before — on the web, so no push reaches
    * them: the floor rings them and decides, with two hours to do it from when
@@ -654,6 +786,7 @@ export function createStaffMockGateway(options: StaffMockOptions = {}): StaffGat
       status: 'inKitchen',
       placedAtUtc: minutesFrom(start, -12),
       lineIds: [],
+      placedByName: 'Davit Manukyan',
     };
     const [host, guest] = seededTab.participants;
     // Two things for the table, and one drink that is the guest's own, so the
@@ -922,6 +1055,18 @@ export function createStaffMockGateway(options: StaffMockOptions = {}): StaffGat
   function orderEntry(order: MockOrder): OrderQueueEntry {
     const tab = tabs.get(order.tabId);
     const lines = (tab?.lines ?? []).filter((line) => order.lineIds.includes(line.id));
+    const ticketLines =
+      order.ticketLines ??
+      lines.map((line) => ({
+        lineId: line.id,
+        menuItemId: line.menuItemId,
+        name: line.name,
+        quantity: line.quantity,
+        note: line.note,
+        // As the server: the line's guest, absent on a shared line.
+        onBehalfOfParticipantId:
+          line.isShared || line.isTableAttributed ? null : line.onBehalfOfParticipantId,
+      }));
     return {
       orderId: order.id,
       tabId: order.tabId,
@@ -933,12 +1078,8 @@ export function createStaffMockGateway(options: StaffMockOptions = {}): StaffGat
         0,
         Math.floor((now().getTime() - new Date(order.placedAtUtc).getTime()) / 60_000),
       ),
-      lines: lines.map((line) => ({
-        lineId: line.id,
-        name: line.name,
-        quantity: line.quantity,
-        note: line.note,
-      })),
+      lines: ticketLines,
+      placedByName: order.placedByName,
     };
   }
 
@@ -1124,6 +1265,7 @@ export function createStaffMockGateway(options: StaffMockOptions = {}): StaffGat
 
   return {
     async getFloor(requested): Promise<StaffFloor | null> {
+      requireSession('/api/branches/floor');
       if (!requested) return settle(null);
       branchId = requested;
       const at = now();
@@ -1167,6 +1309,7 @@ export function createStaffMockGateway(options: StaffMockOptions = {}): StaffGat
     },
 
     async applyTableAction(command: TableActionCommand): Promise<TableActionResult> {
+      requireSession(`/api/branches/${branchId}/tables/${command.tableId}`);
       const at = now();
 
       // The idempotency log first, exactly as the server does it: a repeated
@@ -1178,6 +1321,26 @@ export function createStaffMockGateway(options: StaffMockOptions = {}): StaffGat
       if (!state) {
         throw new NotFoundError({
           url: `/api/branches/${branchId}/tables/${command.tableId}`,
+        });
+      }
+
+      // A command that says it waited in a queue must say what it expected
+      // (`TableStateService.RequirePrecondition`, a 400 on the server). Without
+      // this the mock let a resend that broke the rule through, and the
+      // tablet's "…anyway" shipped failing against the real API (FT4 review B1).
+      if (command.queued && !command.precondition) {
+        throw new ValidationError({
+          url: `/api/branches/${branchId}/tables/${command.tableId}`,
+          status: 400,
+          problem: {
+            type: 'about:blank',
+            title: 'Invalid request',
+            status: 400,
+            detail: 'A queued command must carry the status it expected the table to be in.',
+            code: 'invalid-request',
+            traceId: 'mock',
+            context: { field: 'expectedFromStatus' },
+          },
         });
       }
 
@@ -1590,6 +1753,7 @@ export function createStaffMockGateway(options: StaffMockOptions = {}): StaffGat
     },
 
     async placeOrder(command: PlaceOrderCommand): Promise<PlaceOrderResult> {
+      requireSession(`/api/tabs/${command.tabId}/staff-orders`);
       const tab = requireTab(command.tabId);
       const at = now();
 
@@ -1616,6 +1780,7 @@ export function createStaffMockGateway(options: StaffMockOptions = {}): StaffGat
         status: 'new',
         placedAtUtc: iso(at),
         lineIds: [],
+        placedByName: options.staffName ?? 'Ani Hakobyan',
       };
 
       // A tab that takes no more orders says why, as the server's `context.status`.
@@ -1745,6 +1910,7 @@ export function createStaffMockGateway(options: StaffMockOptions = {}): StaffGat
     },
 
     async setOrderStatus(command: SetOrderStatusCommand): Promise<OrderQueueEntry> {
+      requireSession(`/api/orders/${command.orderId}/status`);
       const order = orders.get(command.orderId);
       if (!order) throw new NotFoundError({ url: `/api/orders/${command.orderId}` });
       order.status = command.status;
@@ -1772,6 +1938,7 @@ export function createStaffMockGateway(options: StaffMockOptions = {}): StaffGat
     async acknowledgeServiceRequest(
       command: AcknowledgeServiceRequestCommand,
     ): Promise<ServiceRequest> {
+      requireSession(`/api/service-requests/${command.requestId}/acknowledge`);
       const request = serviceRequests.get(command.requestId);
       if (!request) {
         throw new NotFoundError({ url: `/api/service-requests/${command.requestId}` });

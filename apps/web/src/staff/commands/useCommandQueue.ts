@@ -14,13 +14,14 @@ import {
   optimisticFloor,
   pendingCount,
   projectedStatus,
-  replayOrder,
   type CommandAction,
 } from './reducer';
+import { heldFor, isHeld, sendableInOrder } from './conflictPolicy';
 import { sendCommand } from './sync';
 import {
   isQueueable,
   takenOfflineNow,
+  type CommandAuthor,
   type CommandState,
   type ConflictEntry,
   type NewCommand,
@@ -40,6 +41,14 @@ export interface CommandQueue {
   /** Derived from the queue, never counted alongside it. */
   readonly pending: number;
   readonly conflicts: number;
+  /**
+   * Queued commands taken by somebody other than the person signed in. Not
+   * sent until that person signs in again, or somebody here claims or drops
+   * them (`conflictPolicy.ts`).
+   */
+  readonly held: readonly QueuedCommand[];
+  /** What this tablet has sent since it was opened, the latest first. */
+  readonly recent: readonly SentCommand[];
   readonly online: boolean;
   readonly syncing: boolean;
   /** True once the durable queue has been read back. */
@@ -55,7 +64,12 @@ export interface CommandQueue {
   /** Send everything now. Called on reconnect and after each enqueue. */
   sync(): void;
   discard(id: string): void;
+  /** Re-send a conflict without its precondition, under the person signed in. */
   applyAnyway(id: string): void;
+  /** Send somebody else's held command under the person signed in. */
+  claim(id: string): void;
+  /** Drop somebody else's held command: a person's choice, never the device's. */
+  drop(id: string): void;
   /** The status a table will be in once the queue drains, for preconditions. */
   projected(tableId: string): ReturnType<typeof projectedStatus>;
   /** The floor with unsent commands applied and marked. */
@@ -87,6 +101,11 @@ export interface UseCommandQueueOptions {
   readonly onLiveRace?: ((entry: ConflictEntry) => void) | undefined;
   readonly store?: CommandStore;
   /**
+   * Who is signed in. Stamped on every command taken, and the person whose
+   * commands are sent; null where there is no staff sign-in (the mock).
+   */
+  readonly actor?: CommandAuthor | null | undefined;
+  /**
    * False while the tablet is locked.
    *
    * The queue keeps everything it holds — locking is not signing out — but it
@@ -96,6 +115,15 @@ export interface UseCommandQueueOptions {
   readonly enabled?: boolean | undefined;
 }
 
+/** A command this tablet sent, for the conflicts screen's queue list. */
+export interface SentCommand {
+  readonly command: QueuedCommand;
+  readonly atMs: number;
+}
+
+/** The queue list shows the latest few; older ones have long stopped mattering. */
+const RECENT_KEPT = 12;
+
 export function useCommandQueue(options: UseCommandQueueOptions): CommandQueue {
   const { gateway, floor } = options;
   const store = options.store ?? commandStore;
@@ -103,6 +131,9 @@ export function useCommandQueue(options: UseCommandQueueOptions): CommandQueue {
 
   const [state, dispatch] = useReducer(commandReducer, initialCommandState);
   const [ready, setReady] = useState(false);
+  const [recent, setRecent] = useState<readonly SentCommand[]>([]);
+  const actor = options.actor ?? null;
+  const actorId = actor?.staffMemberId ?? null;
   const [online, setOnline] = useState(() =>
     typeof navigator === 'undefined' ? true : navigator.onLine,
   );
@@ -121,7 +152,10 @@ export function useCommandQueue(options: UseCommandQueueOptions): CommandQueue {
   const onLiveRaceRef = useRef(options.onLiveRace);
   const onSettledRef = useRef(options.onSettled);
   const enabledRef = useRef(enabled);
+  const actorRef = useRef(actor);
   const running = useRef(false);
+  /** Asked to sync while a pass was running: run again when it ends. */
+  const again = useRef(false);
 
   useEffect(() => {
     stateRef.current = state;
@@ -130,6 +164,7 @@ export function useCommandQueue(options: UseCommandQueueOptions): CommandQueue {
     onLiveRaceRef.current = options.onLiveRace;
     onSettledRef.current = options.onSettled;
     enabledRef.current = enabled;
+    actorRef.current = actor;
   });
 
   // --- Hydrate --------------------------------------------------------------
@@ -179,7 +214,10 @@ export function useCommandQueue(options: UseCommandQueueOptions): CommandQueue {
   // --- Replay ---------------------------------------------------------------
 
   const sync = useCallback(() => {
-    if (running.current) return;
+    if (running.current) {
+      again.current = true;
+      return;
+    }
     if (!enabledRef.current) return;
     if (typeof navigator !== 'undefined' && !navigator.onLine) return;
     if (stateRef.current.queue.length === 0) return;
@@ -192,10 +230,22 @@ export function useCommandQueue(options: UseCommandQueueOptions): CommandQueue {
         // A scope that fails is skipped for the rest of this pass. The next
         // command on that table depends on the one that just failed, so sending
         // it now would apply them out of order; other tables are unaffected,
-        // which is what keeps one stuck table from freezing the floor.
+        // which is what keeps one stuck table from freezing the floor. A command
+        // somebody else took is not sent at all, nor anything behind it.
         const blocked = new Set<string>();
+        const signedIn = actorRef.current?.staffMemberId ?? null;
 
-        for (const command of replayOrder(stateRef.current)) {
+        for (const command of sendableInOrder(stateRef.current, signedIn)) {
+          // Each send is awaited, and on poor wifi each can take a full
+          // timeout: the tablet may have locked, or changed hands, since the
+          // pass began. Locked, nothing more goes — there is no token. Signed
+          // in as somebody else, their commands wait for them, and so does
+          // everything behind them (FT4 review B2).
+          if (!enabledRef.current) break;
+          if (isHeld(command, actorRef.current?.staffMemberId ?? null)) {
+            blocked.add(command.scope);
+            continue;
+          }
           if (blocked.has(command.scope)) continue;
 
           const action: CommandAction = await sendCommand(command, {
@@ -209,6 +259,8 @@ export function useCommandQueue(options: UseCommandQueueOptions): CommandQueue {
           if (action.type === 'deferred') blocked.add(command.scope);
           if (action.type === 'applied' || action.type === 'replayed') {
             onSettledRef.current?.(command);
+            const sent = { command, atMs: Date.now() };
+            setRecent((current) => [sent, ...current].slice(0, RECENT_KEPT));
           }
 
           if (action.type === 'conflicted') {
@@ -231,18 +283,31 @@ export function useCommandQueue(options: UseCommandQueueOptions): CommandQueue {
       } finally {
         running.current = false;
         dispatch({ type: 'syncFinished' });
+        // A sync asked for mid-pass — new work, a reconnect, a new person —
+        // would otherwise wait for the next change to the queue.
+        if (again.current) {
+          again.current = false;
+          queueMicrotask(() => syncRef.current());
+        }
       }
     })();
   }, [gateway]);
 
+  const syncRef = useRef(sync);
+  useEffect(() => {
+    syncRef.current = sync;
+  }, [sync]);
+
   // Replay whenever the connection returns or work appears. Both are the same
   // trigger — "there is something to send and a way to send it" — so they are
   // one effect rather than two that can disagree.
+  // The person signed in is a trigger too: a command waiting for Narek goes
+  // the moment Narek is back.
   useEffect(() => {
     if (!ready || !online || !enabled) return;
     if (state.queue.length === 0) return;
     sync();
-  }, [ready, online, enabled, state.queue, sync]);
+  }, [ready, online, enabled, state.queue, actorId, sync]);
 
   // --- API ------------------------------------------------------------------
 
@@ -256,6 +321,7 @@ export function useCommandQueue(options: UseCommandQueueOptions): CommandQueue {
       command,
       atMs: Date.now(),
       takenOffline: takenOfflineNow(),
+      by: actorRef.current,
     });
     return true;
   }, []);
@@ -265,8 +331,19 @@ export function useCommandQueue(options: UseCommandQueueOptions): CommandQueue {
   }, []);
 
   const applyAnyway = useCallback((id: string) => {
-    dispatch({ type: 'retryConflict', id, atMs: Date.now() });
+    dispatch({ type: 'retryConflict', id, atMs: Date.now(), by: actorRef.current });
   }, []);
+
+  const claim = useCallback((id: string) => {
+    const by = actorRef.current;
+    if (by) dispatch({ type: 'claimed', id, by });
+  }, []);
+
+  const drop = useCallback((id: string) => {
+    dispatch({ type: 'dropped', id });
+  }, []);
+
+  const held = useMemo(() => heldFor(state, actorId), [state, actorId]);
 
   // Computed from the current props and state rather than from the refs: this
   // one is read *during* render, and the refs are a commit behind by design.
@@ -285,6 +362,8 @@ export function useCommandQueue(options: UseCommandQueueOptions): CommandQueue {
       state,
       pending: pendingCount(state),
       conflicts: conflictCount(state),
+      held,
+      recent,
       online,
       syncing: state.syncing,
       ready,
@@ -292,10 +371,26 @@ export function useCommandQueue(options: UseCommandQueueOptions): CommandQueue {
       sync,
       discard,
       applyAnyway,
+      claim,
+      drop,
       projected,
       overlay,
     }),
-    [state, online, ready, enqueue, sync, discard, applyAnyway, projected, overlay],
+    [
+      state,
+      held,
+      recent,
+      online,
+      ready,
+      enqueue,
+      sync,
+      discard,
+      applyAnyway,
+      claim,
+      drop,
+      projected,
+      overlay,
+    ],
   );
 }
 

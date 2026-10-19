@@ -30,6 +30,11 @@ export interface TableListProps {
   readonly tables: readonly FloorTable[];
   readonly selectedTableId: string | null;
   readonly pendingTableIds: ReadonlySet<string>;
+  /**
+   * Tables whose pending command waits for somebody else to sign in, and who:
+   * "waiting for Ani" rather than a "not sent" that will not clear by itself.
+   */
+  readonly heldTables?: ReadonlyMap<string, string> | undefined;
   readonly onSelect: (tableId: string) => void;
   /** What the card says. The screen knows the clock, the details and the debts. */
   readonly describe: (table: FloorTable) => TableCardText;
@@ -61,6 +66,7 @@ export function TableList({
   tables,
   selectedTableId,
   pendingTableIds,
+  heldTables,
   onSelect,
   describe,
   room,
@@ -118,6 +124,8 @@ export function TableList({
         {visible.map((table) => {
           const card = describe(table);
           const pending = pendingTableIds.has(table.id);
+          const heldFor = heldTables?.get(table.id);
+          const mark = heldFor ? t('floor.heldMark', { name: heldFor }) : t('floor.pendingMark');
           const status = t(`common:tableStatus.${table.state}`);
           const tone = tableTone(table.state);
           // The card's own words where they begin with the state's ("Reserved
@@ -131,7 +139,7 @@ export function TableList({
             }),
             leads ? null : card.state,
             card.sub,
-            pending ? t('floor.pendingMark') : null,
+            pending ? mark : null,
             table.floorAreaName,
           ]
             .filter(Boolean)
@@ -156,9 +164,7 @@ export function TableList({
                   </span>
                   {card.sub ? <span className="ft-table-sub">{card.sub}</span> : null}
                 </span>
-                {pending ? (
-                  <span className="ft-table-pending">{t('floor.pendingMark')}</span>
-                ) : null}
+                {pending ? <span className="ft-table-pending">{mark}</span> : null}
               </button>
             </li>
           );

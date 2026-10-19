@@ -356,6 +356,12 @@ export const consoleSize = {
   /** A face in the tab's people pills, a dish's count badge, and a bill request's radio. */
   floorFace: 30,
   floorRadio: 22,
+  /** A kitchen ticket: four across a 1280px tablet, the rest a swipe away. */
+  floorTicket: 296,
+  /** The conflicts screen's sync-queue column. */
+  floorConflictSide: 400,
+  /** The table's mark on a conflict card. */
+  floorConflictMark: 52,
 } as const;
 
 export const consoleRadius = {

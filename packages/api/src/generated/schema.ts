@@ -935,6 +935,8 @@ export interface paths {
         /**
          * The kitchen queue
          * @description Open orders for the branch, oldest first, with the table label, the lines and their kitchen notes. Omit `status` for everything still outstanding - New, InKitchen and Ready - which is what a kitchen screen shows.
+         *
+         *     `placedByName` is who sent each ticket: the waiter's name as the PIN roster shows it, read as they are now (renamed or no longer active, it is still theirs). **Absent** when a diner ordered from their own phone - say it came from the app. Nothing else of the staff member is on a ticket.
          */
         get: operations["getBranchOrders"];
         put?: never;
@@ -2006,6 +2008,8 @@ export interface paths {
          * @description `New -> InKitchen -> Ready -> Served`. Named transitions against an explicit table, the same shape as the table state machine: going backwards is refused, because a Ready order tapped back to InKitchen loses the fact that it was ever cooked.
          *
          *     **The Kitchen role may make exactly one move: `InKitchen -> Ready`.** Serving is a floor action and belongs to whoever carried the plate.
+         *
+         *     Answers with the ticket as the queue shows it, `placedByName` included.
          */
         post: operations["moveOrderStatus"];
         delete?: never;
@@ -7214,6 +7218,12 @@ export interface components {
              * @description When it was sent.
              */
             placedAtUtc: string;
+            /**
+             * @description Who sent it: the waiter's name as the staff sign-in roster shows it, when a waiter keyed it in.
+             *     <b>Absent</b> when a diner ordered from their own phone - the ticket then says it came from the
+             *     app. Read as the staff member is now: a rename shows, and a waiter no longer active still sent it.
+             */
+            placedByName?: string | null;
             /** @description Kitchen-facing progress of one order placed against a tab. */
             status: components["schemas"]["Yalla.Domain.Enums.TabOrderStatus"];
             /**

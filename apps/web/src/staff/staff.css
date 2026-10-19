@@ -65,8 +65,13 @@
   height: 100%;
 }
 
+/* The kitchen board fills what is under the bar: on the kitchen's own screen
+   and on the waiter's Kitchen tab alike. */
 .kitchen-body {
-  overflow-y: auto;
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
 }
 
 .ft-icon {
@@ -3075,4 +3080,630 @@
 .cash-record {
   min-height: 64px;
   font-size: var(--font-size-sm);
+}
+
+/* --------------------------------------------------------------------------
+ * The kitchen board (floor-tablet `Kitchen`): counts, sort, and a horizontal
+ * board of 296px tickets that snap, oldest on the left. Waiting is amber, and
+ * red is only for late — said in words on the ticket as well.
+ * -------------------------------------------------------------------------- */
+.ft-kitchen {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.ft-kbar {
+  display: flex;
+  flex: none;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-sm) 14px;
+  padding: var(--space-md) 20px;
+  border-bottom: 1px solid var(--console-line);
+}
+
+.ft-kcounts {
+  display: flex;
+  gap: var(--space-sm);
+}
+
+.ft-kcount {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-sm);
+  min-height: var(--touch-minimum);
+  padding: 0 14px;
+  border: 1.5px solid var(--console-line);
+  border-radius: var(--radius-pill);
+  background: var(--console-surface);
+  font-size: var(--console-text-nav);
+  font-weight: var(--font-weight-bold);
+  white-space: nowrap;
+}
+
+.ft-kcount i {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+}
+
+.ft-kcount .is-fresh {
+  background: var(--console-floor-live);
+}
+
+.ft-kcount .is-waiting {
+  background: var(--console-floor-offline);
+}
+
+.ft-kcount .is-late {
+  background: var(--console-red);
+}
+
+.ft-khint {
+  flex: 1 1 16rem;
+  margin: 0;
+  font-size: var(--console-text-body);
+  line-height: 1.4;
+  color: var(--console-muted);
+}
+
+.ft-ksort {
+  display: flex;
+  gap: var(--space-sm);
+  margin-left: auto;
+  padding: 4px;
+  border: 1.5px solid var(--console-line);
+  border-radius: var(--console-radius-floor-button);
+  background: var(--console-surface);
+}
+
+.ft-ksort button {
+  min-height: var(--touch-minimum);
+  padding: 0 14px;
+  border: 0;
+  border-radius: var(--console-radius-floor-tab);
+  background: none;
+  color: var(--console-muted);
+  font: inherit;
+  font-size: var(--console-text-body);
+  font-weight: var(--font-weight-semibold);
+  cursor: pointer;
+}
+
+.ft-ksort button[aria-pressed='true'] {
+  background: var(--console-brand);
+  color: var(--console-brand-foreground);
+}
+
+.ft-kmessage {
+  margin: 20px;
+}
+
+.ft-kempty {
+  display: grid;
+  flex: 1;
+  place-items: center;
+  margin: 0;
+  padding: 20px;
+  font-size: var(--font-size-md);
+  color: var(--console-muted);
+  text-align: center;
+}
+
+.ft-kboard {
+  display: flex;
+  flex: 1;
+  align-items: flex-start;
+  gap: 12px;
+  min-height: 0;
+  margin: 0;
+  padding: 14px 20px 20px;
+  list-style: none;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scroll-snap-type: x proximity;
+  scroll-padding-inline: 20px;
+}
+
+.ft-ticket {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  width: var(--console-size-floor-ticket);
+  max-height: 100%;
+  overflow: hidden;
+  border: 2px solid var(--console-line);
+  border-radius: var(--console-radius-floor-table);
+  background: var(--console-surface);
+  scroll-snap-align: start;
+}
+
+.ft-ticket.is-waiting {
+  border-color: var(--console-floor-offline);
+}
+
+/* Late: a red edge and a ring, and "late" in the age badge's words. */
+.ft-ticket.is-late {
+  border-color: var(--console-red);
+  box-shadow: 0 0 0 3px var(--console-red-bg);
+}
+
+/* Not sent by its waiter yet: shown, because it is coming, but quiet — the
+   kitchen cannot act on it, so it is never red (live QA 1). */
+.ft-ticket.is-unsent {
+  border-style: dashed;
+}
+
+/* Ready has left the kitchen: it stays to be seen, quieter, at the end. */
+.ft-ticket.is-ready {
+  border-style: dashed;
+  background: var(--console-canvas);
+}
+
+.ft-ticket-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--console-line-soft);
+}
+
+.ft-ticket-label {
+  font-family: var(--font-family-display);
+  font-size: var(--font-size-xl);
+  font-weight: var(--font-weight-bold);
+  line-height: 1;
+}
+
+/* The sender is the point of the line under the table (gap 2): when the age
+   badge is wide, the badge drops under it rather than cutting the name off. */
+.ft-ticket-head {
+  flex-wrap: wrap;
+}
+
+.ft-ticket-meta {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 6rem;
+}
+
+.ft-ticket-meta b {
+  font-size: var(--console-text-body);
+  font-weight: var(--font-weight-semibold);
+}
+
+.ft-ticket-meta span {
+  font-size: var(--console-text-label);
+  color: var(--console-muted);
+  overflow-wrap: anywhere;
+}
+
+.ft-ticket-age {
+  flex: none;
+  padding: 4px 10px;
+  border-radius: var(--console-radius-floor-tab);
+  background: var(--console-green-bg);
+  color: var(--console-green);
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-bold);
+  font-feature-settings: var(--font-feature-tabular);
+  white-space: nowrap;
+}
+
+.ft-ticket-age.is-waiting {
+  background: var(--console-amber-bg);
+  color: var(--console-amber);
+}
+
+.ft-ticket-age.is-late {
+  background: var(--console-red);
+  color: var(--console-red-foreground);
+}
+
+.ft-ticket-age.is-ready,
+.ft-ticket-age.is-unsent {
+  background: var(--console-line-soft);
+  color: var(--console-muted);
+}
+
+.ft-ticket-lines {
+  flex: 1;
+  min-height: 0;
+  margin: 0;
+  padding: 6px 0;
+  list-style: none;
+  overflow-y: auto;
+}
+
+.ft-ticket-lines li {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--console-line-soft);
+}
+
+.ft-ticket-lines li:last-child {
+  border-bottom: 0;
+}
+
+.ft-ticket-qty {
+  min-width: 34px;
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-bold);
+  line-height: 1.2;
+  font-feature-settings: var(--font-feature-tabular);
+}
+
+.ft-ticket-dish {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  min-width: 0;
+}
+
+.ft-ticket-dish b {
+  font-size: var(--font-size-md);
+  line-height: 1.25;
+}
+
+.ft-ticket-note {
+  padding: 2px 8px;
+  border-radius: 6px;
+  background: var(--console-amber-bg);
+  color: var(--console-amber);
+  font-size: var(--console-text-nav);
+  font-weight: var(--font-weight-bold);
+}
+
+.ft-ticket-allergen {
+  display: inline-flex;
+  gap: 6px;
+  color: var(--console-red);
+  font-size: var(--console-text-label);
+  font-weight: var(--font-weight-bold);
+}
+
+/* A warning the tablet cannot give yet: check, in amber, never silence. */
+.ft-ticket-allergen.is-unknown {
+  color: var(--console-amber);
+}
+
+.ft-ticket-foot {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  padding: 12px 14px;
+  border-top: 1px solid var(--console-line-soft);
+}
+
+.ft-ticket-action {
+  width: 100%;
+  min-height: 64px;
+  font-size: var(--font-size-lg);
+}
+
+.ft-ticket-action .ft-icon {
+  width: 26px;
+  height: 26px;
+}
+
+.ft-ticket-send {
+  width: 100%;
+  min-height: var(--touch-regular);
+}
+
+.ft-ticket-ready {
+  margin: 0;
+  color: var(--console-green);
+  font-size: var(--console-text-body);
+  font-weight: var(--font-weight-bold);
+  text-align: center;
+}
+
+.ft-ticket-foot .ft-hint {
+  text-align: center;
+}
+
+/* Moved on this tablet, not yet on the server: said in words, in amber. */
+.ft-ticket-pending {
+  align-self: center;
+  padding: 2px 10px;
+  border-radius: var(--console-radius-pill);
+  background: var(--console-amber-bg);
+  color: var(--console-amber);
+  font-size: var(--console-text-label);
+  font-weight: var(--font-weight-bold);
+}
+
+.ft-ksort button:active,
+.ft-ticket-action:active,
+.ft-ticket-send:active,
+.ft-conf-actions .ft-btn:active,
+.ft-conf-empty .ft-btn:active {
+  transform: scale(var(--scale-press));
+}
+
+/* A notice on a screen with no rail: centred on the whole width. */
+[data-surface='staff'] .floor-notice.is-wide {
+  left: 50%;
+  max-width: calc(100% - 40px);
+}
+
+/* --------------------------------------------------------------------------
+ * Conflicts (floor-tablet `Conflicts`): a card per refused or held command,
+ * the sync queue beside them, and the offline note.
+ * -------------------------------------------------------------------------- */
+.ft-conf-body {
+  display: grid;
+  flex: 1;
+  grid-template-columns: minmax(0, 1fr) var(--console-size-floor-conflict-side);
+  min-height: 0;
+}
+
+.ft-conf-main {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-height: 0;
+  padding: 20px 24px;
+  overflow-y: auto;
+}
+
+.ft-conf-intro {
+  margin: 0;
+  font-size: var(--console-text-nav);
+  line-height: 1.45;
+  color: var(--console-muted);
+}
+
+.ft-conf-card {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px 18px;
+  border: 2px solid var(--console-red-bg);
+  border-radius: var(--console-radius-floor-table);
+  background: var(--console-surface);
+}
+
+/* Settled here: kept to read, out of the way. */
+.ft-conf-card.is-done {
+  border-color: var(--console-line);
+  background: var(--console-canvas);
+}
+
+.ft-conf-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.ft-conf-label {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: var(--console-size-floor-conflict-mark);
+  height: var(--console-size-floor-conflict-mark);
+  border-radius: var(--console-radius-floor-button);
+  background: var(--console-red-bg);
+  color: var(--console-red);
+  font-family: var(--font-family-display);
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-bold);
+}
+
+.ft-conf-card.is-done .ft-conf-label {
+  background: var(--console-line-soft);
+  color: var(--console-muted);
+}
+
+.ft-conf-title {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.ft-conf-title b {
+  font-size: var(--font-size-md);
+  line-height: 1.3;
+}
+
+.ft-conf-title span {
+  font-size: var(--console-text-body);
+  line-height: 1.4;
+  color: var(--console-muted);
+}
+
+.ft-conf-why {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: var(--console-radius-floor-tab);
+  background: var(--console-canvas);
+  font-size: var(--console-text-nav);
+  line-height: 1.4;
+}
+
+.ft-conf-why .ft-icon {
+  margin-top: 2px;
+  color: var(--console-amber);
+}
+
+.ft-conf-actions {
+  display: flex;
+  gap: 10px;
+}
+
+.ft-conf-actions .ft-btn {
+  flex: 1;
+  font-size: var(--font-size-sm);
+}
+
+.ft-conf-empty {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 40px;
+  color: var(--console-muted);
+  text-align: center;
+}
+
+.ft-conf-empty b {
+  font-size: var(--font-size-lg);
+  color: var(--console-ink);
+}
+
+.ft-conf-empty .ft-btn {
+  margin-top: var(--space-sm);
+  padding: 0 var(--space-lg);
+}
+
+.ft-conf-ok {
+  display: grid;
+  place-items: center;
+  width: 72px;
+  height: 72px;
+  border-radius: 50%;
+  background: var(--console-green-bg);
+  color: var(--console-green);
+}
+
+.ft-conf-ok svg {
+  width: 36px;
+  height: 36px;
+}
+
+.ft-conf-side {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  border-left: 1px solid var(--console-line);
+  background: var(--console-surface);
+}
+
+.ft-conf-side-head {
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--console-line-soft);
+}
+
+.ft-conf-side-head h2 {
+  margin: 0;
+  font-family: var(--font-family-display);
+  font-size: var(--font-size-md);
+}
+
+.ft-conf-side-head p {
+  margin: 4px 0 0;
+  font-size: var(--console-text-body);
+  color: var(--console-muted);
+}
+
+.ft-conf-queue {
+  flex: 1;
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  overflow-y: auto;
+}
+
+.ft-conf-queue li {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 12px 20px;
+  border-bottom: 1px solid var(--console-line-soft);
+}
+
+.ft-conf-dot {
+  flex: none;
+  width: 12px;
+  height: 12px;
+  margin-top: 6px;
+  border-radius: 50%;
+}
+
+.ft-conf-dot.is-wait {
+  background: var(--console-floor-offline);
+}
+
+.ft-conf-dot.is-sent {
+  background: var(--console-floor-live);
+}
+
+.ft-conf-dot.is-fail {
+  background: var(--console-red);
+}
+
+.ft-conf-queue-text {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.ft-conf-queue-text b {
+  font-size: var(--console-text-nav);
+  font-weight: var(--font-weight-semibold);
+}
+
+.ft-conf-queue-text span {
+  font-size: var(--console-text-label);
+  color: var(--console-muted);
+}
+
+.ft-conf-queue-empty {
+  flex: 1;
+  margin: 0;
+  padding: 16px 20px;
+  font-size: var(--console-text-body);
+  color: var(--console-muted);
+}
+
+.ft-conf-side-foot {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  padding: 14px 20px;
+  border-top: 1px solid var(--console-line-soft);
+}
+
+.ft-conf-side-foot .ft-note {
+  font-size: var(--console-text-body);
+}
+
+/* The screen's own notice, at the foot of the cards' column; nothing to press. */
+.ft-conf-toast {
+  position: fixed;
+  left: calc((100% - var(--console-size-floor-conflict-side)) / 2);
+  bottom: var(--space-lg);
+  z-index: 47;
+  margin: 0;
+  pointer-events: none;
+  padding: 14px 20px;
+  border-left: 6px solid var(--console-toast-icon);
+  border-radius: var(--console-radius-floor-button);
+  background: var(--console-toast);
+  color: var(--console-toast-foreground);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+  box-shadow: var(--console-shadow-toast);
+  transform: translateX(-50%);
+}
+
+.ft-conf-toast:empty {
+  display: none;
 }
