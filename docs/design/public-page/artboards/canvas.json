@@ -1,0 +1,20 @@
+{
+  "v": 3,
+  "createdOnFiles": { "v": 1, "at": "2026-10-19T12:00:00Z" },
+  "title": "Yalla Public Page",
+  "launch": { "view": "canvas" },
+  "pages": [],
+  "boards": {
+    "Main.dc.html": { "x": 0, "y": 0, "w": 390, "h": 4960, "title": "Մասնաճյուղի էջ · հեռախոս", "is_interactive": true },
+    "Book.dc.html": { "x": 470, "y": 0, "w": 390, "h": 844, "title": "Ամրագրում · քայլեր", "is_interactive": true },
+    "Manage.dc.html": { "x": 940, "y": 0, "w": 390, "h": 844, "title": "Ձեր ամրագրումը", "is_interactive": true },
+    "Venue.dc.html": { "x": 1410, "y": 0, "w": 390, "h": 844, "title": "Վայր · մասնաճյուղեր", "is_interactive": true },
+    "States.dc.html": { "x": 1880, "y": 0, "w": 390, "h": 844, "title": "Վիճակներ", "is_interactive": true },
+    "Desktop.dc.html": { "x": 2350, "y": 0, "w": 1440, "h": 3820, "title": "Մասնաճյուղի էջ · համակարգիչ", "is_interactive": true, "expand": "fill" }
+  },
+  "order": ["Main.dc.html", "Book.dc.html", "Manage.dc.html", "Venue.dc.html", "States.dc.html", "Desktop.dc.html"],
+  "notes": {
+    "row1": { "x": 0, "y": -300, "text": "Հանրային էջ · yalla.am/cascade/kaskad", "kind": "title1", "maxW": 3790 }
+  },
+  "designSystems": []
+}

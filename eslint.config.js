@@ -26,6 +26,7 @@ export default tseslint.config(
       'docs/design/console/**',
       'docs/design/venue-console/**',
       'docs/design/floor-tablet/**',
+      'docs/design/public-page/**',
     ],
   },
 

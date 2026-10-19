@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="hy">
+<head>
+<meta charset="utf-8">
+<title>Cascade Cafe — Yalla</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+Armenian:wght@400;500;600;700&amp;family=Noto+Serif+Armenian:wght@600;700&amp;display=swap">
+<style>
+body{margin:0}
+a{color:#3A1D0C}a:hover{color:#5A2E14}
+.v{--bg:#F7F1E8;--paper:#FFFFFF;--bar:#2B1608;--brand:#3A1D0C;--ink:#2A1A10;--muted:#6B5A4F;--line:#E8DDD0;--soft:#F1E9DF;width:390px;height:844px;overflow-y:auto;font-family:'Noto Sans Armenian','Noto Sans',system-ui,sans-serif;font-size:16px;line-height:1.5;color:var(--ink);background:var(--bg)}
+.v *{box-sizing:border-box}
+.v :focus-visible{outline:3px solid #3A1D0C;outline-offset:2px;border-radius:6px}
+.v h1,.v h2{font-family:'Noto Serif Armenian',Georgia,serif;margin:0;text-wrap:balance}
+.bar{height:60px;background:var(--bar);display:flex;align-items:center;padding:0 16px}
+.bar .word{font-family:'Noto Serif Armenian',Georgia,serif;font-weight:700;font-size:22px;color:#FFF3E4;text-decoration:none;min-height:44px;display:inline-flex;align-items:center}
+.sw{display:flex;gap:4px;padding:8px 16px 0}
+.sw button{height:30px;padding:0 8px;border-radius:8px;border:1px solid #D8C8B6;background:var(--paper);font:inherit;font-size:12px;font-weight:600;color:var(--ink);cursor:pointer}
+.sw button[aria-pressed="true"]{background:var(--brand);border-color:var(--brand);color:#FFF3E4}
+.hero{aspect-ratio:16/9;max-width:100%;overflow:hidden;background:#3A2A1E;margin-top:8px}
+.hero img{width:100%;height:100%;object-fit:cover;display:block}
+.in{padding:16px 16px 32px;display:flex;flex-direction:column;gap:14px}
+h1{font-size:30px;line-height:1.15}
+.type{color:var(--muted);margin:0;font-size:15px}
+h2{font-size:20px;margin-top:6px}
+.list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:10px}
+.br{display:flex;gap:12px;align-items:stretch;background:var(--paper);border:1px solid var(--line);border-radius:18px;padding:10px;text-decoration:none;color:var(--ink);min-height:96px}
+a.br:hover{border-color:#CDB9A3;color:var(--ink)}
+.br .ph{width:96px;border-radius:12px;overflow:hidden;flex:none;background:var(--soft)}
+.br .ph img{width:100%;height:100%;object-fit:cover;display:block}
+.br .tx{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px;justify-content:center}
+.br b{font-size:17px}
+.br .ad{font-size:14px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.br .st{font-size:14px;display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.br .st i{width:8px;height:8px;border-radius:50%;flex:none}
+.br .st i.op{background:#2E9E5B}.br .st i.cl{background:#A39383}
+.br .go{align-self:center;color:var(--brand);flex:none}
+.br .go svg{width:22px;height:22px}
+.br.off{background:var(--soft);border-style:dashed}
+.br.off .ph{opacity:.5}
+.tag{font-size:12px;font-weight:700;background:var(--paper);border:1px solid var(--line);color:var(--muted);border-radius:999px;padding:1px 8px}
+.empty{background:var(--paper);border:1.5px dashed #D8C8B6;border-radius:18px;padding:20px;text-align:center;color:var(--muted)}
+</style>
+</helmet>
+<div class="v">
+<header class="bar"><a class="word" href="#">Yalla</a></header>
+<div class="sw" aria-label="Դիզայնի վիճակ"><button type="button" aria-pressed="{{ listOn }}" onClick="{{ showList }}">Մասնաճյուղեր</button><button type="button" aria-pressed="{{ emptyOn }}" onClick="{{ showEmpty }}">Դեռ չկան</button></div>
+<div class="hero"><img src="/_blob/1522d0c226a849d926e6f4c3f938ceb8" alt="Cascade Cafe-ի սրահը"></div>
+<main class="in">
+<h1>Cascade Cafe</h1>
+<p class="type">Սրճարան · Հայկական և միջերկրածովյան</p>
+<h2>Ընտրեք մասնաճյուղը</h2>
+<sc-if value="{{ hasList }}" hint-placeholder-val="{{ true }}">
+<ul class="list">
+<li><a class="br" href="Main.dc.html"><span class="ph"><img src="/_blob/cf03671831d1698feb245d61ab9ae1f2" alt=""></span><span class="tx"><b>Կասկադ</b><span class="ad">Թամանյան 10 · Կենտրոն</span><span class="st"><i class="op" aria-hidden="true"></i>Բաց է մինչև 00:00 · 5 ազատ սեղան</span></span><span class="go" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"></path></svg></span></a></li>
+<li><a class="br" href="Main.dc.html"><span class="ph"><img src="/_blob/1522d0c226a849d926e6f4c3f938ceb8" alt=""></span><span class="tx"><b>Արաբկիր</b><span class="ad">Կոմիտասի 35 · Արաբկիր</span><span class="st"><i class="op" aria-hidden="true"></i>Բաց է · հիմա ազատ սեղան չկա</span><span class="st" style="color: var(--muted)">Կարող եք ամրագրել ավելի ուշ ժամի համար</span></span><span class="go" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"></path></svg></span></a></li>
+<li><div class="br off"><span class="ph"><img src="/_blob/19821f74f1454e3d06d2d85ac51f6264" alt=""></span><span class="tx"><b>Դավթաշեն</b><span class="ad">Ա. Միկոյանի 4 · Դավթաշեն</span><span class="st"><span class="tag">Հասանելի չէ</span>Շուտով կբացվի Yalla-ում</span></span></div></li>
+</ul>
+</sc-if>
+<sc-if value="{{ isEmpty }}" hint-placeholder-val="{{ false }}"><div class="empty">Այս վայրը դեռ մասնաճյուղ չի ավելացրել Yalla-ում։ Փորձեք մի փոքր ուշ։</div></sc-if>
+</main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"state":{"editor":"enum","options":["list","empty"],"default":"list","section":"Վիճակ"},"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+  constructor(props) { super(props); this.state = { st: null }; }
+  renderVals() {
+    const st = this.state.st || this.props.state || 'list';
+    return {
+      listOn: st === 'list' ? 'true' : 'false', emptyOn: st === 'empty' ? 'true' : 'false',
+      showList: () => this.setState({ st: 'list' }), showEmpty: () => this.setState({ st: 'empty' }),
+      hasList: st === 'list', isEmpty: st === 'empty',
+    };
+  }
+}
+</script>
+</body>
+</html>
