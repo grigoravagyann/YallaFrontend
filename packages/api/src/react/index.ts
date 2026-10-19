@@ -41,7 +41,12 @@ import type {
   CreateMenuItemInput,
   UpdateMenuItemInput,
 } from '../contracts/menuAdmin';
-import type { ReservationPolicy, SpecialDay, WeeklyHours } from '../contracts/branchSettings';
+import type {
+  ReservationPolicy,
+  SpecialDay,
+  SpecialDaysList,
+  WeeklyHours,
+} from '../contracts/branchSettings';
 import type { BranchPublicProfileInput } from '../contracts/publicProfile';
 import type { VenueListingInput } from '../contracts/listing';
 import {
@@ -1513,7 +1518,7 @@ function useMenuMutation<TInput, TResult>(
 
 export function useCreateCategory(branchId: string | undefined) {
   const gateway = useConsoleGateway();
-  return useMenuMutation(branchId, (input: { name: string; displayOrder: number }) =>
+  return useMenuMutation(branchId, (input: { name: string; displayOrder?: number | undefined }) =>
     gateway.createCategory({ branchId: branchId!, ...input }),
   );
 }
@@ -1548,10 +1553,39 @@ export function useUpdateMenuItem(branchId: string | undefined) {
   );
 }
 
+/**
+ * The sold-out switch. Its answer is written into the cached menu at once, so
+ * the row says what the server now holds before the read that follows.
+ */
 export function useSetMenuItemAvailability(branchId: string | undefined) {
   const gateway = useConsoleGateway();
-  return useMenuMutation(branchId, (input: { itemId: string; isAvailable: boolean }) =>
-    gateway.setMenuItemAvailability({ branchId: branchId!, ...input }),
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: { itemId: string; isAvailable: boolean }) =>
+      gateway.setMenuItemAvailability({ branchId: branchId!, ...input }),
+    retry: false,
+    onSuccess: (item) => {
+      queryClient.setQueryData<readonly AdminMenuCategory[]>(
+        queryKeys.adminMenu(branchId ?? ''),
+        (menu) =>
+          menu?.map((category) => ({
+            ...category,
+            items: category.items.map((entry) => (entry.id === item.id ? item : entry)),
+          })),
+      );
+      void queryClient.invalidateQueries({ queryKey: queryKeys.adminMenu(branchId ?? '') });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.readiness(branchId ?? '') });
+      refreshVenueViews(queryClient);
+      refreshPlatformViews(queryClient);
+    },
+  });
+}
+
+/** A dish's photo taken off (`DELETE …/photo`): the one field the PATCH cannot clear. */
+export function useRemoveMenuItemPhoto(branchId: string | undefined) {
+  const gateway = useConsoleGateway();
+  return useMenuMutation(branchId, (input: { itemId: string }) =>
+    gateway.removeMenuItemPhoto({ branchId: branchId!, ...input }),
   );
 }
 
@@ -1653,7 +1687,10 @@ export function useSaveOpeningHours(branchId: string | undefined) {
   });
 }
 
-/** The branch's special days from its today on: holidays, closures, different hours. */
+/**
+ * The branch's special days from its service date on, with the list's
+ * version: the one a save is sent against.
+ */
 export function useSpecialDays(branchId: string | undefined) {
   const gateway = useConsoleGateway();
   return useQuery({
@@ -1666,20 +1703,27 @@ export function useSpecialDays(branchId: string | undefined) {
 }
 
 /**
- * The whole list, replaced. The answer is the list as saved, and it becomes
- * the cached one at once, so the next add or remove starts from it.
+ * The whole list, replaced against the version it was read at. The answer —
+ * the list and its new version — becomes the cached one at once, so the next
+ * add or remove starts from it.
  */
 export function useSaveSpecialDays(branchId: string | undefined) {
   const gateway = useConsoleGateway();
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (days: readonly SpecialDay[]) =>
-      gateway.replaceSpecialDays({ branchId: branchId!, days }),
+    mutationFn: (input: { expectedVersion: string; days: readonly SpecialDay[] }) =>
+      gateway.replaceSpecialDays({ branchId: branchId!, ...input }),
     retry: false,
     onSuccess: (saved) => {
-      queryClient.setQueryData(queryKeys.specialDays(branchId ?? ''), saved.days);
-      // Overview's hours pill and its service day follow a special day.
+      queryClient.setQueryData<SpecialDaysList>(queryKeys.specialDays(branchId ?? ''), {
+        version: saved.version,
+        days: saved.days,
+      });
+      // Overview's hours pill and its service day follow a special day, and
+      // so does every list that says "open now", like the weekly save.
       void queryClient.invalidateQueries({ queryKey: queryKeys.branchOverview(branchId ?? '') });
+      refreshVenueViews(queryClient);
+      refreshPlatformViews(queryClient);
     },
   });
 }

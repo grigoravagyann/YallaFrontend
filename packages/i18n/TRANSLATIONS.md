@@ -696,6 +696,18 @@ review every string in `src/locales/hy` and `src/locales/ru`.**
     `.stay`), from the Hours artboard, now asked in the console's dialog
     rather than the browser's.
 
+- `admin` — the venue console phase 3 review round (2026-10-19), **not** in an
+  artboard, so not read by the user even in `hy`: `hours.special.now` (last
+  night's special day, still running past midnight, read-only),
+  `hours.special.superseded` (the list moved twice while one change was
+  re-applied — must keep saying the **newer list is loaded** and nothing of
+  theirs was overwritten), `menu.dish.photoRemoved` (must keep saying guests
+  **do not see** the dish without a photo), `menu.dish.photoRemoveFailed`,
+  `rooms.delete.undoGone` (a delete's undo pressed after leaving Rooms or
+  during a save — must keep saying the table was **not** put back), and
+  `unsavedChanges.leaveTitle` / `.leaveConfirm`: the console's own dialog for
+  a link clicked over unsaved work, which replaced the browser's confirm.
+
 The Russian bundle carries four plural categories (`one`/`few`/`many`/`other`)
 where Armenian and English carry two. That is correct CLDR, not duplication, and
 `pnpm i18n:check` verifies each language has exactly the categories

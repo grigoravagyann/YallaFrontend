@@ -220,7 +220,12 @@ export function placeFromDetail(detail: BranchDetail, context: PlaceMappingConte
     // none published, the server's flag stands.
     openState:
       hours.length > 0
-        ? openStateFor(hours, context.now, base.timeZoneId, context.locale, specialDays)
+        ? {
+            ...openStateFor(hours, context.now, base.timeZoneId, context.locale, specialDays),
+            // The server's "open now" is the truth (it knows the special days
+            // and the clock); the hours only say until or from when.
+            isOpen: base.openState.isOpen,
+          }
         : base.openState,
     photos: [...(cover ? [cover] : []), ...detail.gallery.map((photo) => photo.fullUrl)],
     ...(detail.phoneE164 ? { phone: detail.phoneE164 } : {}),

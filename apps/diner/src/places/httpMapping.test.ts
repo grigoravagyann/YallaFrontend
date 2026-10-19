@@ -300,13 +300,21 @@ describe('placeFromDetail', () => {
     });
 
     it('is closed between the two, and says when dinner opens', () => {
-      // Monday 16:00 in Yerevan.
+      // Monday 16:00 in Yerevan; the server says shut too.
       const at = { ...CONTEXT, now: new Date('2026-09-14T12:00:00Z') };
-      expect(placeFromDetail(split, at).openState).toMatchObject({
+      const shut = { ...split, listing: { ...split.listing, isOpenNow: false } };
+      expect(placeFromDetail(shut, at).openState).toMatchObject({
         isOpen: false,
         opensAt: '18:00',
         closesAt: '23:00',
       });
+    });
+
+    it("keeps the server's open-now, which knows what the hours do not", () => {
+      // Monday 16:00, between the blocks, but the server says open: the
+      // hours only say until or from when, never whether (VC3 wire §1).
+      const at = { ...CONTEXT, now: new Date('2026-09-14T12:00:00Z') };
+      expect(placeFromDetail(split, at).openState.isOpen).toBe(true);
     });
   });
 });

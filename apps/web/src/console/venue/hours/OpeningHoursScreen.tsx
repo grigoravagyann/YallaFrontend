@@ -8,6 +8,7 @@ import {
   closesNextDay,
   type HoursBlock,
   type SpecialDay,
+  type SpecialDaysList,
   type SpecialDaysSaved,
   type WeekdayIndex,
 } from '@yalla/api';
@@ -77,7 +78,7 @@ export function OpeningHoursScreen() {
   useUnsavedChangesGuard(dirty);
 
   const specialQuery = useSpecialDays(branchId ?? undefined);
-  const specialDays = specialQuery.data ?? [];
+  const specialDays = specialQuery.data?.days ?? [];
 
   if (!branchId) {
     return (
@@ -258,14 +259,19 @@ export function OpeningHoursScreen() {
 
         <aside className="yc-hr-side">
           <SpecialDaysCard
+            // Another branch is another list: nothing typed here carries over.
+            key={branchId}
             branchId={branchId}
             zone={zone}
             locale={locale}
             now={now}
-            days={specialDays}
+            list={specialQuery.isSuccess ? specialQuery.data : null}
             loading={specialQuery.isLoading}
             failed={specialQuery.isError ? specialQuery.error : null}
-            onRetry={() => void specialQuery.refetch()}
+            reload={async () => {
+              const fresh = await specialQuery.refetch();
+              return fresh.isSuccess ? fresh.data : null;
+            }}
           />
           <GuestNowCard
             t={t}
@@ -538,32 +544,56 @@ function specialHours(t: Translate, day: SpecialDay): string {
     .join(', ');
 }
 
+/** Somebody else saved the list again while one change was being re-applied: told, never overwritten. */
+class Superseded extends Error {}
+
+/** The day a re-applied add finds taken by somebody else's save meanwhile. */
+class TakenMeanwhile extends Error {}
+
+/** A 409 on the special days: saved by somebody else since the version sent, or the branch lock timed out. */
+function isConflict(caught: unknown): boolean {
+  return caught instanceof ApiError && caught.status === 409;
+}
+
+type FieldError = { readonly text: string; readonly field: 'date' | 'note' | 'hours' };
+
 /**
  * Holidays, closures, one-day hours (Hours artboard, "Special days").
  *
  * Each add and remove is its own save, at once: the whole list from today on
- * is sent with the one change, and the answer is the list from then on. Not
- * part of the week's save bar — a closure for tomorrow should not wait on
+ * is sent with the one change, against the **version** it was read at, and
+ * the answer — the list and its new version — is the list from then on. Not
+ * part of the week's save bar: a closure for tomorrow should not wait on
  * somebody finishing their edit of Thursdays.
+ *
+ * - **Nothing is offered until the list has loaded.** A save replaces the
+ *   whole list, so one sent from an empty or failed read would wipe it.
+ * - **A list somebody else saved meanwhile is read again**, and the one
+ *   change the person made is applied to it once more; if it moves again in
+ *   between, they are told and nothing is overwritten.
+ * - **Last night's special day**, still running past midnight, comes first
+ *   and is read-only: the server keeps it whatever is sent.
  */
 function SpecialDaysCard({
   branchId,
   zone,
   locale,
   now,
-  days,
+  list,
   loading,
   failed,
-  onRetry,
+  reload,
 }: {
   readonly branchId: string;
   readonly zone: TimeZone;
   readonly locale: Locale;
   readonly now: Date;
-  readonly days: readonly SpecialDay[];
+  /** The list as last read or saved; null until a read has succeeded. */
+  readonly list: SpecialDaysList | null;
   readonly loading: boolean;
   readonly failed: unknown;
-  readonly onRetry: () => void;
+  /** A fresh read; null when it failed. */
+  readonly reload: () => Promise<SpecialDaysList | null>;
 }) {
   const { t } = useTranslation(['admin', 'common']);
   const toast = useToast();
@@ -574,29 +604,70 @@ function SpecialDaysCard({
   const [kind, setKind] = useState<'closed' | 'hours'>('closed');
   const [from, setFrom] = useState('12:00');
   const [to, setTo] = useState('18:00');
-  const [error, setError] = useState<{ text: string; field: 'date' | 'note' | 'hours' } | null>(
-    null,
-  );
+  const [error, setError] = useState<FieldError | null>(null);
+  /** The list the undo of a removal is rebuilt on: whatever is cached when it is pressed. */
+  const listRef = useRef(list);
+  useEffect(() => {
+    listRef.current = list;
+  }, [list]);
 
+  const ready = list !== null && !saveDays.isPending;
+  const days = list?.days ?? [];
   const today = branchDayKey(now, zone);
   const horizon = shiftDate(today, SPECIAL_DAY_HORIZON_DAYS);
   const label = (day: SpecialDay) =>
     day.note ??
     (day.blocks.length === 0 ? t('hours.special.closedDay') : t('hours.special.otherHours'));
 
-  /** What the server's refusal says, under the form. */
-  function refusal(caught: unknown): { text: string; field: 'date' | 'note' | 'hours' } {
+  /**
+   * The list to send: from the branch's today on. Last night's entry, still
+   * running, is history the server keeps whatever is sent.
+   */
+  const upcoming = (all: readonly SpecialDay[]) => all.filter((day) => day.date >= today);
+
+  /**
+   * One change — the add or the remove the person did — saved against the
+   * version it was read at. A version moved meanwhile is read again and the
+   * same change applied to the newer list, once.
+   */
+  async function commit(
+    change: (current: readonly SpecialDay[]) => readonly SpecialDay[],
+  ): Promise<SpecialDaysSaved> {
+    const base = listRef.current;
+    if (!base) throw new Superseded();
+    try {
+      return await saveDays.mutateAsync({
+        expectedVersion: base.version,
+        days: upcoming(change(base.days)),
+      });
+    } catch (caught) {
+      if (!isConflict(caught)) throw caught;
+    }
+    const fresh = await reload();
+    if (!fresh) throw new Superseded();
+    try {
+      return await saveDays.mutateAsync({
+        expectedVersion: fresh.version,
+        days: upcoming(change(fresh.days)),
+      });
+    } catch (caught) {
+      if (isConflict(caught)) {
+        void reload();
+        throw new Superseded();
+      }
+      throw caught;
+    }
+  }
+
+  /** What a refusal says, under the form. */
+  function refusal(caught: unknown): FieldError {
+    if (caught instanceof TakenMeanwhile) return { field: 'date', text: t('hours.special.taken') };
     if (caught instanceof ValidationError) {
       const first = caught.violations[0];
       if (first?.field.endsWith('.date')) {
         return {
           field: 'date',
-          text:
-            first.bound === 'min'
-              ? t('hours.special.past')
-              : first.bound === 'max'
-                ? t('hours.special.tooFar')
-                : t('hours.special.taken'),
+          text: first.bound === 'max' ? t('hours.special.tooFar') : t('hours.special.taken'),
         };
       }
       if (first?.field.endsWith('.note')) {
@@ -605,41 +676,35 @@ function SpecialDaysCard({
           text: t('hours.special.noteTooLong', { max: SPECIAL_DAY_NOTE_MAX }),
         };
       }
-      if (first?.field.includes('blocks'))
+      if (first?.field.includes('blocks')) {
         return { field: 'hours', text: t('hours.special.badHours') };
+      }
     }
     return { field: 'date', text: t('hours.special.failed') };
   }
 
   /**
-   * The bookings a change left outside the hours, said only when there are
-   * some: the server lists those on the dates this save changed.
+   * The bookings this save put outside the hours, said only when there are
+   * some: the server lists the ones on the dates the save changed.
    */
   function affected(saved: SpecialDaysSaved): string {
     const count = saved.affectedReservationIds.length;
     return count > 0 ? ` ${t('hours.special.affected', { count })}` : '';
   }
 
-  /** Somebody else saved the list meanwhile (409): theirs is read, never overwritten. */
-  function superseded(caught: unknown): boolean {
-    if (!(caught instanceof ApiError) || caught.status !== 409) return false;
-    toast.say(t('hours.special.superseded'), { tone: 'error' });
-    onRetry();
-    return true;
+  function failedToast(caught: unknown) {
+    toast.say(
+      caught instanceof Superseded ? t('hours.special.superseded') : t('hours.special.failed'),
+      { tone: 'error' },
+    );
   }
-
-  /**
-   * The list to send: from the branch's today on. A page left open past
-   * midnight still holds yesterday's day, which is history the server keeps.
-   */
-  const upcoming = (list: readonly SpecialDay[]) => list.filter((day) => day.date >= today);
 
   async function add(event: FormEvent) {
     event.preventDefault();
-    if (saveDays.isPending) return;
-    const focus = (field: 'date' | 'note' | 'hours') =>
+    if (!ready) return;
+    const focus = (field: FieldError['field']) =>
       document.getElementById(`${id}-${field === 'hours' ? 'from' : field}`)?.focus();
-    const fail = (next: { text: string; field: 'date' | 'note' | 'hours' }) => {
+    const fail = (next: FieldError) => {
       setError(next);
       focus(next.field);
     };
@@ -649,8 +714,9 @@ function SpecialDaysCard({
     }
     if (date < today) return fail({ field: 'date', text: t('hours.special.past') });
     if (date > horizon) return fail({ field: 'date', text: t('hours.special.tooFar') });
-    if (kind === 'hours' && from === to)
+    if (kind === 'hours' && from === to) {
       return fail({ field: 'hours', text: t('hours.special.badHours') });
+    }
 
     const day: SpecialDay = {
       date,
@@ -658,7 +724,11 @@ function SpecialDaysCard({
       blocks: kind === 'closed' ? [] : [{ opensAt: from, closesAt: to }],
     };
     try {
-      const saved = await saveDays.mutateAsync(upcoming([...days, day]));
+      const saved = await commit((current) => {
+        // Somebody else's save meanwhile set this date: theirs stands.
+        if (current.some((existing) => existing.date === day.date)) throw new TakenMeanwhile();
+        return [...current, day];
+      });
       setDate('');
       setNote('');
       setError(null);
@@ -666,32 +736,38 @@ function SpecialDaysCard({
         `${t('hours.special.added', { date: formatDate(date, locale), name: label(day) })}${affected(saved)}`,
       );
     } catch (caught) {
-      if (!superseded(caught)) fail(refusal(caught));
+      if (caught instanceof Superseded) failedToast(caught);
+      else fail(refusal(caught));
     }
   }
 
-  function remove(day: SpecialDay) {
-    const before = upcoming(days);
-    const failed = (caught: unknown) => {
-      if (!superseded(caught)) toast.say(t('hours.special.failed'), { tone: 'error' });
-    };
-    saveDays.mutate(
-      before.filter((candidate) => candidate.date !== day.date),
-      {
-        onSuccess: (saved) =>
-          toast.say(`${t('hours.special.removed', { name: label(day) })}${affected(saved)}`, {
-            focusUndo: true,
-            fallbackFocus: () => document.getElementById(`${id}-date`),
-            undo: () =>
-              saveDays.mutate(upcoming(before), {
-                onSuccess: () => toast.say(t('hours.special.restored', { name: label(day) })),
-                onError: failed,
-              }),
-          }),
-        onError: failed,
-      },
-    );
+  async function remove(day: SpecialDay) {
+    if (!ready) return;
+    try {
+      const saved = await commit((current) =>
+        current.filter((candidate) => candidate.date !== day.date),
+      );
+      toast.say(`${t('hours.special.removed', { name: label(day) })}${affected(saved)}`, {
+        focusUndo: true,
+        fallbackFocus: () => document.getElementById(`${id}-date`),
+        // Put back onto the list as it is when Undo is pressed, not the one it
+        // was taken from: a day added in between stays.
+        undo: () =>
+          void commit((current) =>
+            current.some((candidate) => candidate.date === day.date) ? current : [...current, day],
+          ).then(
+            (back) =>
+              toast.say(`${t('hours.special.restored', { name: label(day) })}${affected(back)}`),
+            failedToast,
+          ),
+      });
+    } catch (caught) {
+      failedToast(caught);
+    }
   }
+
+  const describedBy = (field: FieldError['field']) =>
+    error?.field === field ? `${id}-err` : undefined;
 
   return (
     <section className="yc-card" aria-labelledby={`${id}-h`}>
@@ -709,32 +785,40 @@ function SpecialDaysCard({
         </p>
       ) : failed ? (
         <div className="yc-ov-pad">
-          <QueryFailureNotice error={failed} onRetry={onRetry} />
+          <QueryFailureNotice error={failed} onRetry={() => void reload()} />
         </div>
       ) : days.length === 0 ? (
         <p className="yc-empty-p">{t('hours.special.empty')}</p>
       ) : (
         <ul className="yc-sd">
-          {days.map((day) => (
-            <li key={day.date}>
-              <span>
-                <b>{formatDate(day.date, locale)}</b>
-                <small>{label(day)}</small>
-              </span>
-              <span className={day.blocks.length === 0 ? 'yc-closed' : 'yc-sd-h'}>
-                {specialHours(t, day)}
-              </span>
-              <button
-                type="button"
-                className="yc-ib"
-                aria-label={t('hours.special.remove', { name: label(day) })}
-                disabled={saveDays.isPending}
-                onClick={() => remove(day)}
-              >
-                <CrossIcon />
-              </button>
-            </li>
-          ))}
+          {days.map((day) => {
+            // Last night's, still running past midnight: read-only.
+            const running = day.date < today;
+            return (
+              <li key={day.date}>
+                <span>
+                  <b>{formatDate(day.date, locale)}</b>
+                  <small>{label(day)}</small>
+                </span>
+                <span className={day.blocks.length === 0 ? 'yc-closed' : 'yc-sd-h'}>
+                  {specialHours(t, day)}
+                </span>
+                {running ? (
+                  <span className="yc-pill yc-pill-green">{t('hours.special.now')}</span>
+                ) : (
+                  <button
+                    type="button"
+                    className="yc-ib"
+                    aria-label={t('hours.special.remove', { name: label(day) })}
+                    aria-disabled={!ready}
+                    onClick={() => void remove(day)}
+                  >
+                    <CrossIcon />
+                  </button>
+                )}
+              </li>
+            );
+          })}
         </ul>
       )}
       <form className="yc-sdadd" noValidate onSubmit={(event) => void add(event)}>
@@ -748,7 +832,7 @@ function SpecialDaysCard({
             max={horizon}
             value={date}
             aria-invalid={error?.field === 'date'}
-            aria-describedby={error ? `${id}-err` : undefined}
+            aria-describedby={describedBy('date')}
             onChange={(event) => {
               setDate(event.target.value);
               setError(null);
@@ -764,6 +848,7 @@ function SpecialDaysCard({
             placeholder={t('hours.special.namePlaceholder')}
             value={note}
             aria-invalid={error?.field === 'note'}
+            aria-describedby={describedBy('note')}
             onChange={(event) => setNote(event.target.value)}
           />
         </label>
@@ -789,6 +874,7 @@ function SpecialDaysCard({
                 className="yc-ctl"
                 value={from}
                 aria-invalid={error?.field === 'hours'}
+                aria-describedby={describedBy('hours')}
                 onChange={(event) => setFrom(event.target.value)}
               />
             </label>
@@ -800,6 +886,7 @@ function SpecialDaysCard({
                 className="yc-ctl"
                 value={to}
                 aria-invalid={error?.field === 'hours'}
+                aria-describedby={describedBy('hours')}
                 onChange={(event) => setTo(event.target.value)}
               />
             </label>
@@ -808,6 +895,7 @@ function SpecialDaysCard({
         <button
           type="submit"
           className="yc-btn yc-btn-sec yc-btn-sm yc-sd-add"
+          aria-disabled={!ready}
           aria-busy={saveDays.isPending}
         >
           {t('hours.special.add')}

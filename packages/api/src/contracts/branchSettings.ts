@@ -126,14 +126,32 @@ export const SPECIAL_DAY_NOTE_MAX = 60;
 /** How far ahead a special day may be set: a year and a day from the branch's today. */
 export const SPECIAL_DAY_HORIZON_DAYS = 366;
 
+/**
+ * The special days as the console edits them (`SpecialOpeningDaysView`): the
+ * list from the branch's **service date** on, with the revision it is.
+ *
+ * While last night's special block is still running past midnight, the list
+ * starts with **yesterday's** entry. That one is read-only — a save replaces
+ * today on, so the server keeps it whatever is sent — and is what makes "open
+ * until 03:00" true at 01:00 on the 1st.
+ */
+export interface SpecialDaysList {
+  /** Opaque; sent back as `expectedVersion`, never parsed. */
+  readonly version: string;
+  readonly days: readonly SpecialDay[];
+}
+
 /** What saving the list did (`SpecialOpeningDaysChangeResult`). */
 export interface SpecialDaysSaved {
-  /** The list as saved, from the branch's today on, earliest first. */
+  /** The next save's `expectedVersion`. */
+  readonly version: string;
+  /** The list as saved, from the service date on, earliest first. */
   readonly days: readonly SpecialDay[];
   /**
-   * Live bookings on the saved dates that no longer fit those dates' hours.
-   * **They are not changed or cancelled** — the same rule as a policy save —
-   * so somebody has to call those guests.
+   * Live bookings this save put outside the hours — on a date it added,
+   * removed or changed, that fitted before and do not now. **They are not
+   * changed or cancelled** — the same rule as a policy save — so somebody has
+   * to call those guests.
    */
   readonly affectedExistingReservations: number;
   readonly affectedReservationIds: readonly string[];

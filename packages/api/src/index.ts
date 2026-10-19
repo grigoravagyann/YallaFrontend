@@ -618,6 +618,7 @@ export type {
   PolicyChangeResult,
   ReservationPolicy,
   SpecialDay,
+  SpecialDaysList,
   SpecialDaysSaved,
   WeekdayIndex,
   WeeklyHours,

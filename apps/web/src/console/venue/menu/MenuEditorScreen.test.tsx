@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { createConsoleMockGateway, type ConsoleGateway } from '@yalla/api';
+import { createConsoleMockGateway, type ConsoleGateway, type Photo } from '@yalla/api';
 import { cleanup, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { Outlet, Route, Routes } from 'react-router-dom';
@@ -19,6 +19,40 @@ import { MenuEditorScreen } from './MenuEditorScreen';
 
 vi.mock('./BulkPhotoDrop', () => ({ BulkPhotoDrop: () => null }));
 
+/**
+ * The photo picker, stubbed: a real choice means cropping on a canvas, which
+ * jsdom does not have. It says which photo it holds, hands over the queued
+ * one as a finished upload would, and offers Remove when the drawer does.
+ */
+const picker = vi.hoisted(() => ({ next: null as Photo | null }));
+vi.mock('./PhotoPicker', async () => {
+  const { createElement, Fragment } = await import('react');
+  return {
+    PhotoPicker: ({
+      photo,
+      onChange,
+      onRemove,
+    }: {
+      photo: Photo | null;
+      onChange: (photo: Photo) => void;
+      onRemove?: () => void;
+    }) =>
+      createElement(
+        Fragment,
+        null,
+        createElement('span', { 'data-testid': 'picker-photo' }, photo?.photoId ?? 'none'),
+        createElement(
+          'button',
+          { type: 'button', onClick: () => picker.next && onChange(picker.next) },
+          'Use the queued photo',
+        ),
+        onRemove
+          ? createElement('button', { type: 'button', onClick: onRemove }, 'Remove the photo')
+          : null,
+      ),
+  };
+});
+
 class NoopResizeObserver {
   observe() {}
   unobserve() {}
@@ -30,7 +64,10 @@ beforeAll(async () => {
   await initConsoleTestI18n();
 });
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  picker.next = null;
+});
 
 function renderMenu(gateway?: ConsoleGateway) {
   const harness = createConsoleHarness({
@@ -342,5 +379,147 @@ describe('deleting a category', () => {
 
     expect((await within(confirm).findByRole('alert')).textContent).toMatch(/already on an order/i);
     expect(screen.getByRole('button', { name: /^pastry(?!:)/i })).toBeTruthy();
+  });
+});
+
+describe('the menu, round 2', () => {
+  it('lets the server put a new dish and a new category last, sending no order', async () => {
+    const gateway = createConsoleMockGateway({ latencyMs: 0, role: 'owner' });
+    const createItem = vi.spyOn(gateway, 'createMenuItem');
+    const createCategory = vi.spyOn(gateway, 'createCategory');
+    const user = userEvent.setup();
+    renderMenu(gateway);
+    await waitForCategories();
+
+    await user.click(screen.getByRole('button', { name: /add a dish/i }));
+    const drawer = screen.getByRole('dialog', { name: 'New dish' });
+    await user.type(within(drawer).getByLabelText(/^name/i), 'Doppio');
+    await user.type(within(drawer).getByLabelText(/^price/i), '900');
+    await user.click(within(drawer).getByRole('button', { name: 'Save draft' }));
+    await waitFor(() => expect(createItem).toHaveBeenCalledTimes(1));
+    expect(createItem.mock.calls[0]![0].item).not.toHaveProperty('displayOrder');
+
+    await user.click(screen.getByRole('button', { name: /add a category/i }));
+    const dialog = screen.getByRole('dialog', { name: /new category/i });
+    await user.type(within(dialog).getByLabelText(/category name/i), 'Tea');
+    await user.click(within(dialog).getByRole('button', { name: /^add$/i }));
+    await waitFor(() => expect(createCategory).toHaveBeenCalledTimes(1));
+    expect(createCategory.mock.calls[0]![0]).not.toHaveProperty('displayOrder');
+  });
+
+  it('counts the fields the server says are missing in the save toast', async () => {
+    const gateway = createConsoleMockGateway({ latencyMs: 0, role: 'owner' });
+    const real = gateway.createMenuItem.bind(gateway);
+    vi.spyOn(gateway, 'createMenuItem').mockImplementation(async (input) => ({
+      ...(await real(input)),
+      missingFields: ['photoId'],
+    }));
+    const user = userEvent.setup();
+    renderMenu(gateway);
+    await waitForCategories();
+
+    await user.click(screen.getByRole('button', { name: /add a dish/i }));
+    const drawer = screen.getByRole('dialog', { name: 'New dish' });
+    await user.type(within(drawer).getByLabelText(/^name/i), 'Doppio');
+    await user.type(within(drawer).getByLabelText(/^price/i), '900');
+    await user.click(within(drawer).getByRole('button', { name: 'Save draft' }));
+    expect(
+      await screen.findByText('“Doppio” saved, but hidden from guests until you fill in 1 field'),
+    ).toBeTruthy();
+  });
+
+  it('takes back a replacement photo to the saved one, not to none', async () => {
+    const gateway = createConsoleMockGateway({ latencyMs: 0, role: 'owner' });
+    const user = userEvent.setup();
+    renderMenu(gateway);
+    await waitForCategories();
+
+    await user.click(within(rowOfDish('Americano')).getByRole('button', { name: /^edit$/i }));
+    const drawer = screen.getByRole('dialog', { name: 'Edit: Americano' });
+    const saved = within(drawer).getByTestId('picker-photo').textContent;
+    expect(saved).not.toBe('none');
+    const { photo } = await gateway.uploadPhoto({
+      branchId: 'b-lumen-cascade',
+      file: new Blob([new Uint8Array([1, 2, 3])], { type: 'image/png' }),
+      fileName: 'other.png',
+    });
+    picker.next = photo;
+    await user.click(within(drawer).getByRole('button', { name: 'Use the queued photo' }));
+    expect(within(drawer).getByTestId('picker-photo').textContent).toBe(photo.photoId);
+
+    await user.click(within(drawer).getByRole('button', { name: 'Remove the photo' }));
+    expect(within(drawer).getByTestId('picker-photo').textContent).toBe(saved);
+  });
+
+  it("removes a dish's saved photo at once, with an undo that puts it back", async () => {
+    const gateway = createConsoleMockGateway({ latencyMs: 0, role: 'owner' });
+    const removePhoto = vi.spyOn(gateway, 'removeMenuItemPhoto');
+    const update = vi.spyOn(gateway, 'updateMenuItem');
+    const user = userEvent.setup();
+    renderMenu(gateway);
+    await waitForCategories();
+
+    await user.click(within(rowOfDish('Americano')).getByRole('button', { name: /^edit$/i }));
+    const drawer = screen.getByRole('dialog', { name: 'Edit: Americano' });
+    const saved = within(drawer).getByTestId('picker-photo').textContent!;
+    await user.click(within(drawer).getByRole('button', { name: 'Remove the photo' }));
+
+    await waitFor(() => expect(removePhoto).toHaveBeenCalledTimes(1));
+    expect(
+      await screen.findByText('“Americano” has no photo now, so guests do not see it'),
+    ).toBeTruthy();
+    expect(within(drawer).getByTestId('picker-photo').textContent).toBe('none');
+
+    await user.click(screen.getByRole('button', { name: /undo/i }));
+    await waitFor(() => expect(update).toHaveBeenCalledTimes(1));
+    expect(update.mock.calls[0]![0].patch).toEqual({ photoId: saved });
+  });
+
+  it('keeps the sold-out switch still while its answer is on the way', async () => {
+    const gateway = createConsoleMockGateway({ latencyMs: 0, role: 'owner' });
+    let release: () => void = () => undefined;
+    const real = gateway.setMenuItemAvailability.bind(gateway);
+    const set = vi.spyOn(gateway, 'setMenuItemAvailability').mockImplementation(async (input) => {
+      await new Promise<void>((resolve) => {
+        release = resolve;
+      });
+      return real(input);
+    });
+    const user = userEvent.setup();
+    renderMenu(gateway);
+    await waitForCategories();
+
+    const toggle = within(rowOfDish('Americano')).getByRole('switch');
+    await user.click(toggle);
+    expect(toggle.getAttribute('aria-disabled')).toBe('true');
+    await user.click(toggle);
+    expect(set).toHaveBeenCalledTimes(1);
+    release();
+    await waitFor(() => expect(toggle.getAttribute('aria-checked')).toBe('false'));
+  });
+
+  it('offers no undo for a dish on an order that was sold out already', async () => {
+    const gateway = createConsoleMockGateway({ latencyMs: 0, role: 'owner' });
+    const user = userEvent.setup();
+    renderMenu(gateway);
+    await waitForCategories();
+
+    // Pastry's first dish is on an order: a delete keeps it, sold out.
+    await user.click(screen.getByRole('button', { name: /^pastry(?!:)/i }));
+    const first = document.querySelector('.yc-dn')!.textContent!;
+    await user.click(within(rowOfDish(first)).getByRole('switch'));
+    await waitFor(() =>
+      expect(within(rowOfDish(first)).getByRole('switch').getAttribute('aria-checked')).toBe(
+        'false',
+      ),
+    );
+
+    await user.click(within(rowOfDish(first)).getByRole('button', { name: /^edit$/i }));
+    await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: /^delete$/i }));
+    await user.click(
+      within(screen.getByRole('alertdialog')).getByRole('button', { name: /^delete$/i }),
+    );
+    expect(await screen.findByText(/has been ordered, so it was kept/)).toBeTruthy();
+    expect(screen.queryByRole('button', { name: /undo/i })).toBeNull();
   });
 });

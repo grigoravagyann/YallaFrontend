@@ -174,21 +174,37 @@ function nextBlockAfter(blocks: readonly HoursBlock[]): HoursBlock {
 /** The break the artboard draws: two hours, centred on the span, on the half hour. */
 const BREAK_MINUTES = 120;
 
+/** The least either half of a split day keeps. */
+const MIN_HALF_MINUTES = 60;
+
 /**
  * One span as two, with a break in the middle: 09:00–23:00 becomes 09:00–15:00
- * and 17:00–23:00. A span too short to keep half an hour either side gets a
- * second span after it instead, as "add a span" always did.
+ * and 17:00–23:00.
+ *
+ * Both halves stay on the day the span opens: a second span that opened at or
+ * after midnight would be the next day's (a block belongs to the date it opens
+ * on), so the break is pulled back to end by 23:30. A span with no room for an
+ * hour either side of such a break gets a second span after it instead, as
+ * "add a span" always did.
  */
 function splitBlock(block: HoursBlock): readonly HoursBlock[] {
+  const fallback = [block, nextBlockAfter([block])];
   const opens = toMinutes(block.opensAt);
   const closes = toMinutes(block.closesAt);
-  if (opens < 0 || closes < 0) return [block, nextBlockAfter([block])];
+  if (opens < 0 || closes < 0) return fallback;
   const end = closes <= opens ? closes + 1440 : closes;
-  if (end - opens < BREAK_MINUTES + 60) return [block, nextBlockAfter([block])];
-  const middle = opens + Math.round((end - opens) / 2 / 30) * 30;
+  const half = BREAK_MINUTES / 2;
+  const middle = Math.min(
+    opens + Math.round((end - opens) / 2 / 30) * 30,
+    // The second half opens by 23:30.
+    1440 - 30 - half,
+  );
+  if (middle - half - opens < MIN_HALF_MINUTES || end - (middle + half) < MIN_HALF_MINUTES) {
+    return fallback;
+  }
   return [
-    { opensAt: block.opensAt, closesAt: clock((middle - BREAK_MINUTES / 2) % 1440) },
-    { opensAt: clock((middle + BREAK_MINUTES / 2) % 1440), closesAt: block.closesAt },
+    { opensAt: block.opensAt, closesAt: clock(middle - half) },
+    { opensAt: clock(middle + half), closesAt: block.closesAt },
   ];
 }
 

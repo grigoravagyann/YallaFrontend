@@ -56,13 +56,7 @@ export function TableQr({ label, qrToken }: { readonly label: string; readonly q
   const print = () => {
     const frame = window.open('', '_blank', 'width=420,height=560');
     if (!frame || !image) return;
-    frame.document.write(
-      `<!doctype html><title>${label}</title>` +
-        `<body style="font-family:system-ui;text-align:center;padding:32px">` +
-        `<h1 style="font-size:72px;margin:0 0 16px">${label}</h1>` +
-        `<img src="${image}" alt="" style="width:240px;height:240px">` +
-        `<p style="font-size:12px;word-break:break-all">${qrToken}</p></body>`,
-    );
+    frame.document.write(printablePage(label, image, qrToken));
     frame.document.close();
     frame.focus();
     frame.print();
@@ -116,5 +110,27 @@ export function TableQr({ label, qrToken }: { readonly label: string; readonly q
         )}
       </div>
     </div>
+  );
+}
+
+/** Text as HTML: the print page is written as markup, and a table's number is not. */
+function escapeHtml(text: string): string {
+  return text
+    .replace(/&/gu, '&amp;')
+    .replace(/</gu, '&lt;')
+    .replace(/>/gu, '&gt;')
+    .replace(/"/gu, '&quot;')
+    .replace(/'/gu, '&#39;');
+}
+
+/** The page the print window shows: the table's number, its QR and the code under it. */
+export function printablePage(label: string, image: string, qrToken: string): string {
+  const name = escapeHtml(label);
+  return (
+    `<!doctype html><title>${name}</title>` +
+    `<body style="font-family:system-ui;text-align:center;padding:32px">` +
+    `<h1 style="font-size:72px;margin:0 0 16px">${name}</h1>` +
+    `<img src="${escapeHtml(image)}" alt="" style="width:240px;height:240px">` +
+    `<p style="font-size:12px;word-break:break-all">${escapeHtml(qrToken)}</p></body>`
   );
 }

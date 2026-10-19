@@ -21,6 +21,7 @@ import {
   useDeleteMenuItem,
   useReorderMenuCategories,
   useReorderMenuItems,
+  useRemoveMenuItemPhoto,
   useSetMenuItemAvailability,
   useUpdateCategory,
   useUpdateMenuItem,
@@ -46,7 +47,7 @@ import { menuItemAnchorId, menuItemIdFromHash } from '../menuAnchors';
 import { useVenueOutlet } from '../VenueLayout';
 import { BulkPhotoDrop } from './BulkPhotoDrop';
 import { CategoryNameDialog } from './CategoryNameDialog';
-import { DESCRIPTIVE_FIELDS, DishDrawer, descriptiveGaps, knownValues } from './DishDrawer';
+import { DESCRIPTIVE_FIELDS, DishDrawer, knownValues } from './DishDrawer';
 
 type Editing =
   | {
@@ -103,6 +104,7 @@ export function MenuEditorScreen() {
   const updateItem = useUpdateMenuItem(branchId ?? undefined);
   const setAvailability = useSetMenuItemAvailability(branchId ?? undefined);
   const deleteItem = useDeleteMenuItem(branchId ?? undefined);
+  const removePhoto = useRemoveMenuItemPhoto(branchId ?? undefined);
   const reorderCategories = useReorderMenuCategories(branchId ?? undefined);
   const reorderItems = useReorderMenuItems(branchId ?? undefined);
 
@@ -120,6 +122,8 @@ export function MenuEditorScreen() {
   const [dragging, setDragging] = useState<{ list: 'category' | 'item'; index: number } | null>(
     null,
   );
+  /** The dish whose sold-out switch is on its way to the server. */
+  const [availabilityFor, setAvailabilityFor] = useState<string | null>(null);
   /** A reorder in flight: its orders are computed from the list as it was. */
   const [moving, setMoving] = useState(false);
 
@@ -198,30 +202,29 @@ export function MenuEditorScreen() {
       portionSize: draft.portionSize.trim(),
       spiceLevel: draft.spiceLevel,
     };
-    const missing = descriptiveGaps(draft).length;
     try {
-      if (editing.mode === 'create') {
-        await createItem.mutateAsync({
-          ...fields,
-          categoryId: editing.categoryId,
-          prepMinutes: draft.prepMinutes && draft.prepMinutes > 0 ? draft.prepMinutes : null,
-          photoId: draft.photoId,
-          displayOrder:
-            categories.find((category) => category.id === editing.categoryId)?.items.length ?? 0,
-        });
-      } else {
-        await updateItem.mutateAsync({
-          itemId: editing.item.id,
-          patch: {
-            ...fields,
-            // Not sent rather than sent empty: the server keeps what it had.
-            ...(draft.prepMinutes && draft.prepMinutes > 0
-              ? { prepMinutes: draft.prepMinutes }
-              : {}),
-            ...(draft.photoId ? { photoId: draft.photoId } : {}),
-          },
-        });
-      }
+      // Created with no order: the server puts it last, under the branch lock.
+      const saved =
+        editing.mode === 'create'
+          ? await createItem.mutateAsync({
+              ...fields,
+              categoryId: editing.categoryId,
+              prepMinutes: draft.prepMinutes && draft.prepMinutes > 0 ? draft.prepMinutes : null,
+              photoId: draft.photoId,
+            })
+          : await updateItem.mutateAsync({
+              itemId: editing.item.id,
+              patch: {
+                ...fields,
+                // Not sent rather than sent empty: the server keeps what it had.
+                ...(draft.prepMinutes && draft.prepMinutes > 0
+                  ? { prepMinutes: draft.prepMinutes }
+                  : {}),
+                ...(draft.photoId ? { photoId: draft.photoId } : {}),
+              },
+            });
+      // What the server says is still missing, not what this form thought.
+      const missing = storedGaps(saved).length;
       setEditing(null);
       toast.say(
         missing > 0
@@ -269,7 +272,11 @@ export function MenuEditorScreen() {
   }
 
   function toggleAvailable(item: AdminMenuItem): void {
+    // One change at a time: a second press before the answer would be sent
+    // from the row as it was, and undo the first.
+    if (availabilityFor !== null) return;
     const isAvailable = !item.isAvailable;
+    setAvailabilityFor(item.id);
     setAvailability.mutate(
       { itemId: item.id, isAvailable },
       {
@@ -280,8 +287,53 @@ export function MenuEditorScreen() {
               : t('menu.dish.soldOutNow', { name: item.name }),
           ),
         onError: () => failed(t('menu.dish.availabilityFailed')),
+        onSettled: () => setAvailabilityFor(null),
       },
     );
+  }
+
+  /**
+   * A saved dish's photo, taken off at once (`DELETE …/photo`): the PATCH
+   * cannot clear one. The dish leaves the guests' menu until it has a photo
+   * again; the picture is kept a while, so Undo sets it back.
+   */
+  async function removeSavedPhoto(item: AdminMenuItem): Promise<void> {
+    const photo = item.photo;
+    try {
+      const updated = await removePhoto.mutateAsync({ itemId: item.id });
+      setEditing((current) =>
+        current?.mode === 'edit' && current.item.id === item.id
+          ? {
+              ...current,
+              item: updated,
+              photo: null,
+              draft: { ...current.draft, photoId: null },
+            }
+          : current,
+      );
+      toast.say(t('menu.dish.photoRemoved', { name: item.name }), {
+        undo: () =>
+          updateItem.mutate(
+            { itemId: item.id, patch: { photoId: photo.photoId } },
+            {
+              onSuccess: (back) =>
+                setEditing((current) =>
+                  current?.mode === 'edit' && current.item.id === item.id
+                    ? {
+                        ...current,
+                        item: back,
+                        photo: back.photo,
+                        draft: { ...current.draft, photoId: back.photo.photoId },
+                      }
+                    : current,
+                ),
+              onError: () => failed(t('menu.undoFailed')),
+            },
+          ),
+      });
+    } catch {
+      failed(t('menu.dish.photoRemoveFailed'));
+    }
   }
 
   /** The same dish again, named as a copy; the photo is not shared. */
@@ -300,7 +352,6 @@ export function MenuEditorScreen() {
         spiceLevel: copy.spiceLevel,
         prepMinutes: copy.prepMinutes && copy.prepMinutes > 0 ? copy.prepMinutes : null,
         photoId: null,
-        displayOrder: categories.find((c) => c.id === item.categoryId)?.items.length ?? 0,
       });
       setEditing(null);
       toast.say(t('menu.dish.duplicated', { name }));
@@ -373,14 +424,21 @@ export function MenuEditorScreen() {
       const result = await deleteItem.mutateAsync({ itemId: item.id });
       setDeleting(null);
       if (!result.deleted) {
-        // On an order already: kept, and marked sold out instead.
-        toast.say(t('menu.dish.deactivatedInstead', { name: item.name }), {
-          undo: () =>
-            setAvailability.mutate(
-              { itemId: item.id, isAvailable: true },
-              { onError: () => failed(t('menu.undoFailed')) },
-            ),
-        });
+        // On an order already: kept, and marked sold out instead. Undo puts
+        // it back in stock only when it was in stock: a dish already sold out
+        // has nothing to undo.
+        toast.say(
+          t('menu.dish.deactivatedInstead', { name: item.name }),
+          item.isAvailable
+            ? {
+                undo: () =>
+                  setAvailability.mutate(
+                    { itemId: item.id, isAvailable: true },
+                    { onError: () => failed(t('menu.undoFailed')) },
+                  ),
+              }
+            : {},
+        );
         return;
       }
       toast.say(t('menu.dish.deleted', { name: item.name }), {
@@ -717,6 +775,7 @@ export function MenuEditorScreen() {
                               role="switch"
                               aria-checked={item.isAvailable}
                               aria-label={t('menu.dish.availableAria', { name: item.name })}
+                              aria-disabled={availabilityFor !== null}
                               onClick={() => toggleAvailable(item)}
                             />
                             {item.isAvailable ? t('menu.available') : t('menu.soldOut')}
@@ -779,12 +838,15 @@ export function MenuEditorScreen() {
           savedName={editing.mode === 'edit' ? editing.item.name : ''}
           draft={editing.draft}
           photo={editing.photo}
-          savedPhotoId={editing.mode === 'edit' ? editing.item.photo.photoId || null : null}
+          savedPhoto={
+            editing.mode === 'edit' && editing.item.photo.photoId ? editing.item.photo : null
+          }
           knownIngredients={known.ingredients}
           knownPortionSizes={known.portionSizes}
           busy={createItem.isPending || updateItem.isPending}
           onChange={(draft) => setEditing((current) => (current ? { ...current, draft } : null))}
           onPhoto={(photo) => setEditing((current) => (current ? { ...current, photo } : null))}
+          onRemoveSavedPhoto={() => editing.mode === 'edit' && void removeSavedPhoto(editing.item)}
           onSubmit={() => void saveDraft()}
           onCancel={() => setEditing(null)}
           onDuplicate={() => editing.mode === 'edit' && void duplicate(editing.item)}
@@ -871,7 +933,7 @@ export function MenuEditorScreen() {
           onSubmit={(name) => {
             if (naming.mode === 'add') {
               createCategory.mutate(
-                { name, displayOrder: categories.length },
+                { name },
                 {
                   onSuccess: (created) => {
                     setNaming(null);

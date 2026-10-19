@@ -53,6 +53,7 @@ describe('the open state on the public branch page', () => {
       { day: 5, opensAt: '09:00:00', closesAt: '01:00:00', closesNextDay: true },
     ],
     isOpenNow: false,
+    specialDays: [],
     freeTableCount: 8,
     tableCount: 8,
     floorPlan: { areas: [], tables: [] },
@@ -97,7 +98,7 @@ describe('the open state on the public branch page', () => {
             blocks: [{ opensAt: '18:00:00', closesAt: '23:00:00', closesNextDay: false }],
           },
         ],
-      } as Page,
+      },
       BASE,
       () => new Date('2026-10-16T08:00:00Z'),
     );
@@ -145,6 +146,7 @@ describe('the rooms on the public branch page', () => {
     timeZoneId: 'Asia/Yerevan',
     openingHours: [],
     isOpenNow: true,
+    specialDays: [],
     freeTableCount: 2,
     tableCount: 3,
     floorPlan: {

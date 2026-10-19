@@ -10,6 +10,7 @@ import {
 } from '@yalla/api';
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { useState } from 'react';
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { ToastProvider } from '../../ui/toast';
 import { createConsoleHarness, initConsoleTestI18n } from '../reports/testHarness';
@@ -916,5 +917,82 @@ describe('room photos in the 4:3 frame (VC3 wire §3)', () => {
     fireEvent.pointerDown(picture, { clientX: 100, clientY: 50, pointerId: 1 });
     const pin = screen.getByRole('button', { name: /· not saved yet$/i });
     expect([pin.style.left, pin.style.top]).toEqual(['50%', '50%']);
+  });
+});
+
+describe("a table delete's undo, review round 2", () => {
+  it('does not claim to put the table back once the editor is gone', async () => {
+    const { gateway } = await seededGateway();
+    const harness = createConsoleHarness({ gateway });
+    function Host() {
+      const [shown, setShown] = useState(true);
+      return (
+        <>
+          <button type="button" onClick={() => setShown(false)}>
+            Leave the rooms
+          </button>
+          {shown ? <RoomsEditor branchId={BRANCH} /> : null}
+        </>
+      );
+    }
+    render(
+      harness.wrap(
+        <ToastProvider>
+          <Host />
+        </ToastProvider>,
+        '/venue/floorplan',
+      ),
+    );
+    const user = userEvent.setup();
+
+    await user.click(await screen.findByRole('button', { name: /^table 2 · bookable$/i }));
+    await user.click(screen.getByRole('button', { name: /delete the table/i }));
+    await user.click(
+      within(screen.getByRole('alertdialog')).getByRole('button', { name: /^delete$/i }),
+    );
+    await screen.findByText('Table 2 was removed');
+    await user.click(screen.getByRole('button', { name: 'Leave the rooms' }));
+    await user.click(screen.getByRole('button', { name: /undo/i }));
+
+    expect(
+      await screen.findByText(
+        'Table 2 can no longer be put back from here. Add it again on the Rooms page.',
+      ),
+    ).toBeTruthy();
+    expect(screen.queryByText('Table 2 comes back when you save the rooms')).toBeNull();
+  });
+
+  it('does not put the table back into a save already on its way', async () => {
+    const { gateway } = await seededGateway();
+    const real = gateway.replaceFloorPlan.bind(gateway);
+    let release: () => void = () => undefined;
+    vi.spyOn(gateway, 'replaceFloorPlan').mockImplementation(async (input) => {
+      await new Promise<void>((resolve) => {
+        release = resolve;
+      });
+      return real(input);
+    });
+    const user = userEvent.setup();
+    renderEditor(gateway);
+
+    await user.click(await screen.findByRole('button', { name: /^table 2 · bookable$/i }));
+    await user.click(screen.getByRole('button', { name: /delete the table/i }));
+    await user.click(
+      within(screen.getByRole('alertdialog')).getByRole('button', { name: /^delete$/i }),
+    );
+    await screen.findByText('Table 2 was removed');
+    await addRoom(user, 'Garden');
+    await user.click(saveButton());
+    await screen.findByRole('button', { name: /saving/i });
+    await user.click(screen.getByRole('button', { name: /undo/i }));
+
+    expect(
+      await screen.findByText(
+        'Table 2 can no longer be put back from here. Add it again on the Rooms page.',
+      ),
+    ).toBeTruthy();
+    release();
+    await screen.findByText('Rooms saved');
+    expect(screen.queryByRole('button', { name: /^table 2 · not saved yet$/i })).toBeNull();
   });
 });

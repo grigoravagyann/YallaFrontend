@@ -31,6 +31,7 @@ import type {
   PolicyChangeResult,
   ReservationPolicy,
   SpecialDay,
+  SpecialDaysList,
   SpecialDaysSaved,
   WeeklyHours,
 } from './contracts/branchSettings';
@@ -356,10 +357,11 @@ export interface ConsoleGateway {
    */
   getAdminMenu(branchId: string): Promise<readonly AdminMenuCategory[]>;
 
+  /** `displayOrder` absent: last (VC3 wire §2, "create lands last"). */
   createCategory(input: {
     branchId: string;
     name: string;
-    displayOrder: number;
+    displayOrder?: number | undefined;
   }): Promise<AdminMenuCategory>;
 
   updateCategory(input: {
@@ -404,6 +406,14 @@ export interface ConsoleGateway {
    * and the screen shows the server's own sentence rather than a success.
    */
   deleteMenuItem(input: { branchId: string; itemId: string }): Promise<MenuItemDeletion>;
+
+  /**
+   * `DELETE …/menu/items/{id}/photo`: the one field the PATCH cannot clear.
+   * The dish comes back without a photo, unfinished and off the diner's menu
+   * until it has one again; the picture itself is kept for a while (it may be
+   * used elsewhere), so setting its id again undoes this.
+   */
+  removeMenuItemPhoto(input: { branchId: string; itemId: string }): Promise<AdminMenuItem>;
 
   /**
    * `PUT …/menu/categories/order`: **every** category of the branch, each
@@ -474,24 +484,30 @@ export interface ConsoleGateway {
 
   /**
    * `GET …/opening-hours/exceptions`: the special days — holidays, closures,
-   * different hours on one date — from the branch's own today on, earliest
-   * first. Each replaces that date's weekly blocks entirely.
+   * different hours on one date — from the branch's service date on, earliest
+   * first, with the list's version. Each replaces that date's weekly blocks
+   * entirely; an entry before today is last night's, still running, and
+   * read-only.
    */
-  getSpecialDays(branchId: string): Promise<readonly SpecialDay[]>;
+  getSpecialDays(branchId: string): Promise<SpecialDaysList>;
 
   /**
    * `PUT …/opening-hours/exceptions`: the **whole** list from the branch's
-   * today on, atomically; days before today are history and are kept. The
-   * console adds or removes one day at a time by sending the list with that
-   * change, and takes the answer as the new list.
+   * today on, against the version it was read at; entries before today are
+   * history and are ignored. The console adds or removes one day at a time by
+   * sending the list with that change, and takes the answer as the new list.
    *
-   * @throws {ValidationError} 422 `validation-failed`, naming `[i].date`
-   * (`min` a past date, `max` past the horizon, `conflict` a date twice),
-   * `[i].note` (`max` 60), `[i].blocks` (`max` 4) or a block that overlaps
-   * another or has no length. Nothing is saved.
+   * @throws {ConcurrencyConflictError} 409 `concurrent-update`: saved by
+   * somebody else since `expectedVersion` (or the branch lock timed out).
+   * Nothing was written; read the list again and re-apply the change.
+   * @throws {ValidationError} 422 `validation-failed`, naming `days[i].date`
+   * (`max` past the horizon, `conflict` a date twice), `days[i].note` (`max`
+   * 60), `days[i].blocks` (`max` 4) or a block that overlaps another or has no
+   * length. Nothing is saved.
    */
   replaceSpecialDays(input: {
     branchId: string;
+    expectedVersion: string;
     days: readonly SpecialDay[];
   }): Promise<SpecialDaysSaved>;
 

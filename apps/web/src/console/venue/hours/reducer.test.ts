@@ -262,12 +262,23 @@ describe('a break in the day', () => {
     expect(hoursProblems(next.draft)).toEqual([]);
   });
 
-  it('finds the middle of a span that crosses midnight', () => {
+  it('keeps both halves of a late span on the day it opens: the break ends before midnight', () => {
+    // A second span opening at 00:00 would be the next day's, not this one's.
     const next = hoursReducer(open(SAT, '18:00', '04:00'), { type: 'splitDay', day: SAT });
     expect(dayIn(next.draft, SAT).blocks).toEqual([
-      { opensAt: '18:00', closesAt: '22:00' },
-      { opensAt: '00:00', closesAt: '04:00' },
+      { opensAt: '18:00', closesAt: '21:30' },
+      { opensAt: '23:30', closesAt: '04:00' },
     ]);
+    expect(hoursProblems(next.draft)).toEqual([]);
+  });
+
+  it('adds a span instead when no break fits before midnight', () => {
+    // Friday 21:00–03:00: the middle is midnight, and pulling the break back
+    // would leave less than an hour before it.
+    const next = hoursReducer(open(5, '21:00', '03:00'), { type: 'splitDay', day: 5 });
+    const blocks = dayIn(next.draft, 5).blocks;
+    expect(blocks[0]).toEqual({ opensAt: '21:00', closesAt: '03:00' });
+    expect(blocks).toHaveLength(2);
     expect(hoursProblems(next.draft)).toEqual([]);
   });
 

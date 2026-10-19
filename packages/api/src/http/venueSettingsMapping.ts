@@ -3,6 +3,7 @@ import type {
   PolicyChangeResult,
   ReservationPolicy,
   SpecialDay,
+  SpecialDaysList,
   SpecialDaysSaved,
   WeekdayIndex,
   WeeklyHours,
@@ -131,11 +132,11 @@ const MISSING_FIELD: Readonly<Record<string, MenuItemField>> = {
 };
 
 /**
- * `missingFields`, read by name until the schema is regenerated; absent from
- * a server that predates it, when the client derives the same list.
+ * `missingFields`: the server's own list, in the client's names. A server from
+ * before it sends none, and the client derives the same list from the same rule.
  */
 function missingFieldsOf(view: WireItem): { missingFields?: readonly MenuItemField[] } {
-  const wire = (view as { readonly missingFields?: readonly string[] }).missingFields;
+  const wire = view.missingFields as WireItem['missingFields'] | undefined;
   if (!wire) return {};
   return {
     missingFields: wire
@@ -234,43 +235,19 @@ export function hoursBlocks(
 
 // --- Special days ----------------------------------------------------------------
 
-/**
- * `SpecialOpeningDayView`, hand-written until `generated/schema.ts` is
- * regenerated against the backend that serves `…/opening-hours/exceptions`.
- * `note` is absent when there is none (WhenWritingNull), and `closed` says
- * what an empty `blocks` already says.
- */
-export interface WireSpecialDay {
-  readonly date: string;
-  readonly note?: string | null;
-  readonly closed?: boolean;
-  readonly blocks?: readonly {
-    readonly opensAt: string;
-    readonly closesAt: string;
-    readonly closesNextDay?: boolean;
-  }[];
-}
+export type WireSpecialDay = Schemas['Yalla.Application.BranchSettings.SpecialOpeningDayView'];
+type WireSpecialDays = Schemas['Yalla.Application.BranchSettings.SpecialOpeningDaysView'];
+type WireSpecialDaysResult =
+  Schemas['Yalla.Application.BranchSettings.SpecialOpeningDaysChangeResult'];
+type WireSpecialDayInput = Schemas['Yalla.Application.BranchSettings.SpecialOpeningDayInput'];
 
-/** `SpecialOpeningDaysChangeResult`. */
-export interface WireSpecialDaysResult {
-  readonly days?: readonly WireSpecialDay[];
-  readonly affectedExistingReservations?: number;
-  readonly affectedReservationIds?: readonly string[];
-}
-
-/** `SpecialOpeningDayInput`: what the PUT takes for one date. */
-export interface WireSpecialDayInput {
-  readonly date: string;
-  readonly note: string | null;
-  readonly blocks: readonly { readonly opensAt: string; readonly closesAt: string }[];
-}
-
+/** One day: `note` absent when none (WhenWritingNull); `closed` says what empty `blocks` says. */
 export function specialDayFromWire(view: WireSpecialDay): SpecialDay {
   const note = view.note?.trim();
   return {
     date: view.date.slice(0, 10),
     note: note ? note : null,
-    blocks: [...(view.blocks ?? [])]
+    blocks: [...view.blocks]
       .map((block) => ({
         opensAt: toClientTime(block.opensAt),
         closesAt: toClientTime(block.closesAt),
@@ -279,8 +256,12 @@ export function specialDayFromWire(view: WireSpecialDay): SpecialDay {
   };
 }
 
-export function specialDaysFromWire(views: readonly WireSpecialDay[] | undefined): SpecialDay[] {
-  return (views ?? []).map(specialDayFromWire).sort((a, b) => a.date.localeCompare(b.date));
+export function specialDaysFromWire(views: readonly WireSpecialDay[]): SpecialDay[] {
+  return views.map(specialDayFromWire).sort((a, b) => a.date.localeCompare(b.date));
+}
+
+export function specialDaysListFromWire(wire: WireSpecialDays): SpecialDaysList {
+  return { version: wire.version, days: specialDaysFromWire(wire.days) };
 }
 
 export function specialDaysToWire(days: readonly SpecialDay[]): WireSpecialDayInput[] {
@@ -296,9 +277,10 @@ export function specialDaysToWire(days: readonly SpecialDay[]): WireSpecialDayIn
 
 export function specialDaysSavedFromWire(wire: WireSpecialDaysResult): SpecialDaysSaved {
   return {
+    version: wire.version,
     days: specialDaysFromWire(wire.days),
-    affectedExistingReservations: wire.affectedExistingReservations ?? 0,
-    affectedReservationIds: wire.affectedReservationIds ?? [],
+    affectedExistingReservations: wire.affectedExistingReservations,
+    affectedReservationIds: wire.affectedReservationIds,
   };
 }
 

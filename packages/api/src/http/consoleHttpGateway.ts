@@ -122,13 +122,11 @@ import {
   policyCommand,
   policyFieldFromMessage,
   reservationPolicy,
-  specialDaysFromWire,
+  specialDaysListFromWire,
   specialDaysSavedFromWire,
   specialDaysToWire,
   spiceCode,
   weeklyHours,
-  type WireSpecialDay,
-  type WireSpecialDaysResult,
 } from './venueSettingsMapping';
 import { venueTypeCode } from './venueTypeMapping';
 
@@ -137,6 +135,9 @@ type WireDetail = Schemas['Yalla.Application.Platform.VenueDetail'];
 type WireCategory = Schemas['Yalla.Application.Menus.MenuCategoryView'];
 type WireItem = Schemas['Yalla.Application.Menus.MenuItemView'];
 type WireHours = Schemas['Yalla.Application.BranchSettings.OpeningHoursView'];
+type WireSpecialDays = Schemas['Yalla.Application.BranchSettings.SpecialOpeningDaysView'];
+type WireSpecialDaysResult =
+  Schemas['Yalla.Application.BranchSettings.SpecialOpeningDaysChangeResult'];
 type WirePublicProfile = Schemas['Yalla.Application.BranchSettings.PublicProfileView'];
 
 /**
@@ -880,7 +881,7 @@ export function createConsoleHttpGateway(
     async createCategory({ branchId, name, displayOrder }): Promise<AdminMenuCategory> {
       const { data } = await client.post<WireCategory>(`${BRANCHES}/${branchId}/menu/categories`, {
         name,
-        displayOrder,
+        ...(displayOrder !== undefined ? { displayOrder } : {}),
       } satisfies Schemas['Yalla.Application.Menus.CreateMenuCategoryCommand']);
       return absoluteCategory(adminCategory(data));
     },
@@ -925,7 +926,7 @@ export function createConsoleHttpGateway(
           // A draft without them: absent, never an empty id or a zero.
           ...(item.prepMinutes !== null ? { prepMinutes: item.prepMinutes } : {}),
           ...(item.photoId ? { photoId: item.photoId } : {}),
-          displayOrder: item.displayOrder,
+          ...(item.displayOrder !== undefined ? { displayOrder: item.displayOrder } : {}),
         } satisfies Schemas['Yalla.Application.Menus.CreateMenuItemCommand'],
       );
       return absoluteItem(adminItem(data));
@@ -961,9 +962,6 @@ export function createConsoleHttpGateway(
     },
 
     async reorderMenuCategories({ branchId, categoryIds }) {
-      // VC3 wire §2, not in the generated schema yet: the checker reads `order`
-      // as the `{categoryId}` of the PATCH route, so it cannot carry the
-      // awaiting-route marker. Regenerate the schema when the backend ships.
       const { data } = await client.put<WireCategory[]>(
         `${BRANCHES}/${branchId}/menu/categories/order`,
         { categoryIds },
@@ -972,12 +970,18 @@ export function createConsoleHttpGateway(
     },
 
     async reorderMenuItems({ branchId, categoryId, itemIds }) {
-      // gateway-schema: awaiting-route — menu reorder (VC3 wire §2); regenerate the schema
       const { data } = await client.put<WireCategory>(
         `${BRANCHES}/${branchId}/menu/categories/${categoryId}/items/order`,
         { itemIds },
       );
       return absoluteCategory(adminCategory(data));
+    },
+
+    async removeMenuItemPhoto({ branchId, itemId }) {
+      const { data } = await client.delete<WireItem>(
+        `${BRANCHES}/${branchId}/menu/items/${itemId}/photo`,
+      );
+      return absoluteItem(adminItem(data));
     },
 
     async deleteMenuItem({ branchId, itemId }): Promise<MenuItemDeletion> {
@@ -1083,21 +1087,23 @@ export function createConsoleHttpGateway(
     },
 
     async getSpecialDays(branchId: string) {
-      // gateway-schema: awaiting-route — special days (VC3 wire §1); regenerate the schema
-      const { data } = await client.get<WireSpecialDay[]>(
+      const { data } = await client.get<WireSpecialDays>(
         `${BRANCHES}/${branchId}/opening-hours/exceptions`,
       );
-      return specialDaysFromWire(data ?? []);
+      return specialDaysListFromWire(data);
     },
 
-    async replaceSpecialDays({ branchId, days }) {
-      // A 422 `validation-failed` is the client's ValidationError already.
-      // gateway-schema: awaiting-route — special days (VC3 wire §1); regenerate the schema
+    async replaceSpecialDays({ branchId, expectedVersion, days }) {
+      // A 409 `concurrent-update` is the client's ConcurrencyConflictError
+      // and a 422 `validation-failed` its ValidationError, already.
       const { data } = await client.put<WireSpecialDaysResult>(
         `${BRANCHES}/${branchId}/opening-hours/exceptions`,
-        specialDaysToWire(days),
+        {
+          expectedVersion,
+          days: specialDaysToWire(days),
+        } satisfies Schemas['Yalla.Application.BranchSettings.ReplaceSpecialOpeningDaysCommand'],
       );
-      return specialDaysSavedFromWire(data ?? {});
+      return specialDaysSavedFromWire(data);
     },
 
     // --- The reservation policy ---------------------------------------------------

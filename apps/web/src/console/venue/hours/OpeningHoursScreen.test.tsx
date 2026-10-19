@@ -201,7 +201,7 @@ describe('special days', () => {
     expect(screen.getByText('Choose the date')).toBeTruthy();
     expect(document.activeElement).toBe(screen.getByLabelText('Date'));
 
-    const newYear = (await gateway.getSpecialDays('b-lumen-cascade')).find(
+    const newYear = (await gateway.getSpecialDays('b-lumen-cascade')).days.find(
       (day) => day.note === 'New Year',
     )!.date;
     fireEvent.change(screen.getByLabelText('Date'), { target: { value: newYear } });
@@ -226,21 +226,51 @@ describe('special days', () => {
     expect(await screen.findByText('Christmas', { selector: 'small' })).toBeTruthy();
   });
 
-  it('never overwrites a list somebody else saved meanwhile: says so, and reads theirs', async () => {
+  it('sends the version it read, and re-applies the one change once on a version moved meanwhile', async () => {
     const gateway = createConsoleMockGateway({ latencyMs: 0, role: 'owner' });
-    vi.spyOn(gateway, 'replaceSpecialDays').mockRejectedValue(
-      new ConcurrencyConflictError({
-        url: '/opening-hours/exceptions',
-        problem: {
-          type: 'about:blank',
-          title: 'Conflict',
-          status: 409,
-          detail: 'x',
-          code: 'concurrent-update',
-          traceId: 't',
-        },
-      }),
-    );
+    const replace = vi.spyOn(gateway, 'replaceSpecialDays');
+    const user = userEvent.setup();
+    renderHours(gateway);
+    await waitForWeek();
+    await screen.findByText('New Year');
+
+    // Another console adds a day after this one read the list.
+    const read = await gateway.getSpecialDays('b-lumen-cascade');
+    await gateway.replaceSpecialDays({
+      branchId: 'b-lumen-cascade',
+      expectedVersion: read.version,
+      days: [...read.days, { date: dateIn(20), note: 'Theirs', blocks: [] }],
+    });
+
+    fireEvent.change(screen.getByLabelText('Date'), { target: { value: dateIn(7) } });
+    await user.type(screen.getByLabelText('Name'), 'Mine');
+    await user.click(screen.getByRole('button', { name: 'Add' }));
+
+    await waitFor(() => expect(replace).toHaveBeenCalledTimes(3));
+    // The first try against the version it had, refused; the second against
+    // the newer one, with their day kept and this one added.
+    expect(replace.mock.calls[1]![0].expectedVersion).toBe(read.version);
+    const second = replace.mock.calls[2]![0];
+    expect(second.expectedVersion).not.toBe(read.version);
+    expect(second.days.map((day) => day.note)).toEqual(expect.arrayContaining(['Theirs', 'Mine']));
+    expect(await screen.findByText(/Mine added/)).toBeTruthy();
+    expect(screen.getByText('Theirs', { selector: 'small' })).toBeTruthy();
+  });
+
+  it('says so, and keeps theirs, when the list moves again while re-applying', async () => {
+    const gateway = createConsoleMockGateway({ latencyMs: 0, role: 'owner' });
+    const conflict = new ConcurrencyConflictError({
+      url: '/opening-hours/exceptions',
+      problem: {
+        type: 'about:blank',
+        title: 'Conflict',
+        status: 409,
+        detail: 'x',
+        code: 'concurrent-update',
+        traceId: 't',
+      },
+    });
+    const replace = vi.spyOn(gateway, 'replaceSpecialDays').mockRejectedValue(conflict);
     const read = vi.spyOn(gateway, 'getSpecialDays');
     const user = userEvent.setup();
     renderHours(gateway);
@@ -256,6 +286,69 @@ describe('special days', () => {
         'Someone else changed the special days. The newer list is loaded; try again.',
       ),
     ).toBeTruthy();
-    await waitFor(() => expect(read.mock.calls.length).toBeGreaterThan(reads));
+    expect(replace).toHaveBeenCalledTimes(2);
+    expect(read.mock.calls.length).toBeGreaterThan(reads);
+  });
+
+  it('offers no add or remove until the list has loaded, so a part list never replaces it', async () => {
+    const gateway = createConsoleMockGateway({ latencyMs: 0, role: 'owner' });
+    const replace = vi.spyOn(gateway, 'replaceSpecialDays');
+    vi.spyOn(gateway, 'getSpecialDays').mockRejectedValue(new Error('down'));
+    const user = userEvent.setup();
+    renderHours(gateway);
+    await waitForWeek();
+
+    const add = screen.getByRole('button', { name: 'Add' });
+    await waitFor(() => expect(add.getAttribute('aria-disabled')).toBe('true'));
+    fireEvent.change(screen.getByLabelText('Date'), { target: { value: dateIn(7) } });
+    await user.click(add);
+    expect(replace).not.toHaveBeenCalled();
+  });
+
+  it('undoes a removal onto the list as it is now, keeping a day added since', async () => {
+    const gateway = createConsoleMockGateway({ latencyMs: 0, role: 'owner' });
+    const replace = vi.spyOn(gateway, 'replaceSpecialDays');
+    const user = userEvent.setup();
+    renderHours(gateway);
+    await waitForWeek();
+
+    await user.click(await screen.findByRole('button', { name: 'Remove Christmas' }));
+    await screen.findByText('“Christmas” removed from the special days');
+    // Another console adds a day before the undo is pressed.
+    const now = await gateway.getSpecialDays('b-lumen-cascade');
+    await gateway.replaceSpecialDays({
+      branchId: 'b-lumen-cascade',
+      expectedVersion: now.version,
+      days: [...now.days, { date: dateIn(9), note: 'Theirs', blocks: [] }],
+    });
+
+    await user.click(screen.getByRole('button', { name: /undo/i }));
+
+    expect(await screen.findByText('“Christmas” is back')).toBeTruthy();
+    const last = replace.mock.calls.at(-1)![0].days.map((day) => day.note);
+    expect(last).toEqual(expect.arrayContaining(['Christmas', 'Theirs', 'New Year']));
+  });
+
+  it("shows last night's special day, still running, without a way to remove it", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true, now: new Date('2026-10-19T08:00:00Z') });
+    try {
+      let clock = new Date('2026-10-19T08:00:00Z');
+      const gateway = createConsoleMockGateway({ latencyMs: 0, role: 'owner', now: () => clock });
+      await gateway.getSpecialDays('b-lumen-cascade');
+      // 01:00 on 1 January in Yerevan, inside the 31st's 18:00–03:00.
+      clock = new Date('2026-12-31T21:00:00Z');
+      vi.setSystemTime(clock);
+      renderHours(gateway);
+      await waitForWeek();
+
+      const night = await screen.findByText('New Year’s Eve', { selector: 'small' });
+      const row = night.closest('li')!;
+      expect(within(row).queryByRole('button')).toBeNull();
+      expect(within(row).getByText('Now')).toBeTruthy();
+      // What a guest sees: still open, on last night's hours.
+      expect(screen.getByText('Open', { selector: '.yc-now-s' })).toBeTruthy();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

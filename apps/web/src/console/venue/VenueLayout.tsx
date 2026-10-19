@@ -25,7 +25,7 @@ import {
   TabIcon,
 } from '../ui/icons';
 import { useBranchScope } from './useBranchScope';
-import { hasUnsavedChanges } from './useUnsavedChangesGuard';
+import { UnsavedChangesHost, hasUnsavedChanges } from './useUnsavedChangesGuard';
 import { useVenueNavCounts, type VenueNavCounts } from './useVenueNavCounts';
 
 export interface VenueLayoutProps {
@@ -218,6 +218,7 @@ export function VenueLayout({ user }: VenueLayoutProps) {
           outlet
         )}
       </div>
+      <UnsavedChangesHost />
       {leavingFor ? (
         <Dialog
           alert

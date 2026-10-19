@@ -88,7 +88,11 @@ export interface CreateMenuItemInput {
    * keeps it, hidden from diners until it is finished (`docs/menu-completeness.md`).
    */
   readonly photoId: string | null;
-  readonly displayOrder: number;
+  /**
+   * Absent: last, as the server places it under the branch lock (VC3 wire
+   * §2). Sent only to put a dish back where it was — an undone delete.
+   */
+  readonly displayOrder?: number | undefined;
 }
 
 /** A patch. Only what is supplied changes, and a supplied field must be non-blank. */

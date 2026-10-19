@@ -28,7 +28,7 @@ import {
 } from './approvalMapping';
 import { instantOrNull, type WirePublicBookingTimes } from './bookingTimesWire';
 import { absolutePhotoUrl } from './photoUrl';
-import { specialDaysFromWire, type WireSpecialDay } from './venueSettingsMapping';
+import { specialDaysFromWire } from './venueSettingsMapping';
 import { venueTypeFromCode } from './venueTypeMapping';
 
 type Schemas = components['schemas'];
@@ -206,10 +206,7 @@ export function publicBranchFromWire(
   now: () => Date = () => new Date(),
 ): PublicBranch {
   const weeklyHours = weeklyHoursFromWire(wire.openingHours);
-  // Not in the generated schema yet (VC3 wire §1): read by name until it is regenerated.
-  const specialDays = specialDaysFromWire(
-    (wire as { readonly specialDays?: readonly WireSpecialDay[] }).specialDays,
-  );
+  const specialDays = specialDaysFromWire(wire.specialDays ?? []);
   return {
     venue: venueHeaderFromWire(wire, baseUrl),
 

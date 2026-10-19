@@ -44,18 +44,16 @@ export interface DishDrawerProps {
   readonly savedName: string;
   readonly draft: MenuItemDraft;
   readonly photo: Photo | null;
-  /**
-   * The photo the dish has on the server. "Remove" is offered only for one
-   * chosen since: a saved dish's photo can be replaced, not taken away — the
-   * server keeps a photo once it has one.
-   */
-  readonly savedPhotoId: string | null;
+  /** The photo the dish has on the server: what "Remove" on a replacement goes back to. */
+  readonly savedPhoto: Photo | null;
   /** What this branch has typed before, for the two autocompletes. */
   readonly knownIngredients: readonly string[];
   readonly knownPortionSizes: readonly string[];
   readonly busy: boolean;
   readonly onChange: (draft: MenuItemDraft) => void;
   readonly onPhoto: (photo: Photo | null) => void;
+  /** "Remove" on the saved photo itself: taken off at once, with an undo. */
+  readonly onRemoveSavedPhoto: () => void;
   readonly onSubmit: () => void;
   readonly onCancel: () => void;
   readonly onDuplicate: () => void;
@@ -146,7 +144,10 @@ export function DishDrawer(props: DishDrawerProps) {
     props.onSubmit();
   }
 
-  const photoChosenNow = Boolean(props.photo && props.photo.photoId !== props.savedPhotoId);
+  /** A photo chosen in this drawer, not saved yet: "Remove" goes back to the saved one. */
+  const photoChosenNow = Boolean(
+    props.photo && props.photo.photoId !== (props.savedPhoto?.photoId ?? null),
+  );
 
   return createPortal(
     <div
@@ -208,11 +209,13 @@ export function DishDrawer(props: DishDrawerProps) {
               {...(photoChosenNow
                 ? {
                     onRemove: () => {
-                      props.onPhoto(null);
-                      set('photoId', props.savedPhotoId);
+                      props.onPhoto(props.savedPhoto);
+                      set('photoId', props.savedPhoto?.photoId ?? null);
                     },
                   }
-                : {})}
+                : props.photo
+                  ? { onRemove: props.onRemoveSavedPhoto }
+                  : {})}
             />
           </div>
 

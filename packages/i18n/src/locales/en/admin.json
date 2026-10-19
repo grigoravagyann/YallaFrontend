@@ -637,7 +637,8 @@
       "confirmDeactivate": "Take out of service",
       "undone": "Table {{label}} comes back when you save the rooms",
       "seatedTitle": "Table {{label}} is occupied now",
-      "understood": "Got it"
+      "understood": "Got it",
+      "undoGone": "Table {{label}} can no longer be put back from here. Add it again on the Rooms page."
     },
     "warning": {
       "unpinned_one": "Table {{labels}} can be booked but is on no photo, so guests can neither see nor book it.",
@@ -880,7 +881,9 @@
       "deleted": "“{{name}}” deleted",
       "restored": "“{{name}}” is back",
       "deactivatedInstead": "“{{name}}” has been ordered, so it was kept and marked sold out instead",
-      "deleteFailed": "Could not delete the dish. Try again."
+      "deleteFailed": "Could not delete the dish. Try again.",
+      "photoRemoved": "“{{name}}” has no photo now, so guests do not see it",
+      "photoRemoveFailed": "Could not remove the photo. Try again."
     }
   },
   "hours": {
@@ -954,7 +957,6 @@
       "add": "Add",
       "pickDate": "Choose the date",
       "taken": "That day is on the list already",
-      "past": "That day has passed",
       "tooFar": "That day is more than a year ahead",
       "noteTooLong": "The name can be at most {{max}} characters",
       "badHours": "The opening and closing times are the same",
@@ -965,7 +967,9 @@
       "remove": "Remove {{name}}",
       "affected_one": "{{count}} booking on those days no longer fits the hours. It was not changed: call the guest.",
       "affected_other": "{{count}} bookings on those days no longer fit the hours. They were not changed: call the guests.",
-      "superseded": "Someone else changed the special days. The newer list is loaded; try again."
+      "superseded": "Someone else changed the special days. The newer list is loaded; try again.",
+      "now": "Now",
+      "past": "That day has passed"
     },
     "now": {
       "title": "A guest sees right now",
@@ -1501,7 +1505,9 @@
     "switchTitle": "Switch to {{branch}} without saving?",
     "switchBody": "{{branch}} has unsaved changes. If you switch, they will be lost.",
     "stay": "Stay",
-    "switch": "Switch without saving"
+    "switch": "Switch without saving",
+    "leaveTitle": "Leave without saving?",
+    "leaveConfirm": "Leave without saving"
   },
   "toast": {
     "undo": "Undo"

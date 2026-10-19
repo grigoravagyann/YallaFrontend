@@ -200,6 +200,23 @@ export function RoomsEditor({ branchId, branchName = null, layout = 'console' }:
     apply({ type: 'loaded', plan: query.data });
   }, [query.data, query.isFetching]);
 
+  /**
+   * Whether a delete's undo can still land here: the editor is on screen, and
+   * no save is on its way that the restored table would miss. A toast
+   * outlives the screen, so its Undo asks.
+   */
+  const undoable = useRef(true);
+  useEffect(() => {
+    undoable.current = true;
+    return () => {
+      undoable.current = false;
+    };
+  }, []);
+  const savingRef = useRef(false);
+  useEffect(() => {
+    savingRef.current = save.isPending;
+  }, [save.isPending]);
+
   const loaded = state.version !== '';
   // Inert while a save is in flight: the save sends the draft as it was, and
   // its answer replaces the draft, so an edit made meanwhile would be lost.
@@ -379,6 +396,10 @@ export function RoomsEditor({ branchId, branchName = null, layout = 'console' }:
           // Back as an unsaved change: kept tables come back into service,
           // removed ones as new tables with the same number, room and pin.
           undo: () => {
+            if (!undoable.current || savingRef.current) {
+              toast.say(t('rooms.delete.undoGone', { label: table.label }), { tone: 'error' });
+              return;
+            }
             if (result.deleted) {
               dispatch({
                 type: 'reAddTable',
