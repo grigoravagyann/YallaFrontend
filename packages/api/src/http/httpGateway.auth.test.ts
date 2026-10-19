@@ -76,6 +76,38 @@ describe('asking for a code', () => {
     expect(error.name).toBe('RateLimitedError');
     expect(error['retryAtUtc']).toBeNull();
   });
+
+  it('says SMS is unavailable when the backend has no provider to send with', async () => {
+    const { gateway } = gatewayOver({
+      'POST /api/auth/diner/request-code': problemReply(503, 'sms-unavailable'),
+    });
+
+    const error = await caught(gateway.requestPhoneCode('+37477123456'));
+
+    expect(error.name).toBe('SmsUnavailableError');
+    expect(error['status']).toBe(503);
+  });
+
+  it('leaves any other 503 as it was: an outage is not a missing provider', async () => {
+    const { gateway } = gatewayOver({
+      'POST /api/auth/diner/request-code': problemReply(503, 'service-unavailable'),
+    });
+
+    const error = await caught(gateway.requestPhoneCode('+37477123456'));
+
+    expect(error.name).not.toBe('SmsUnavailableError');
+  });
+});
+
+describe('which ways of proving a phone are on', () => {
+  it('reads both channels, with no bearer', async () => {
+    const { gateway, backend } = gatewayOver({
+      'GET /api/auth/diner/phone-proof': { body: { sms: false, telegram: true } },
+    });
+
+    await expect(gateway.getPhoneProofChannels()).resolves.toEqual({ sms: false, telegram: true });
+    expect(backend.requests[0]?.headers.get('authorization')).toBeNull();
+  });
 });
 
 describe('entering the code', () => {

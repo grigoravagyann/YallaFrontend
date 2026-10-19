@@ -210,6 +210,11 @@
       "sendCode": "Get a code",
       "codeSent": "A code for {{phone}} was requested. Enter it below.",
       "noCodeHint": "No code arriving? Set a password in Edit profile, then delete your account with it.",
+      "telegramBody": "Before deleting, confirm your number with Telegram.",
+      "telegramConfirmed": "Number confirmed. You can delete your account now.",
+      "proofExpired": "That confirmation has expired. Confirm with Telegram again. Nothing was deleted.",
+      "otherNumber": "Telegram confirmed a different number, not this account's. Nothing was deleted.",
+      "noProofHint": "Confirming your number is not available right now. Set a password in Edit profile, then delete your account with it.",
       "confirm": "Delete my account",
       "cancel": "Keep my account",
       "done": "Your account is deleted.",
@@ -290,6 +295,8 @@
     "telegramExpired": "The Telegram link has expired. Start again to get a new one.",
     "telegramTryAgain": "Try again",
     "telegramUnavailable": "Verifying through Telegram is not available right now.",
+    "smsUnavailable": "Codes by SMS are not available right now. Verify with Telegram instead.",
+    "unavailable": "Confirming a phone number is not available right now. Try again later.",
     "beforeBooking": "The last step before your booking",
     "telegramHint": "The Yalla bot opens in Telegram by itself: just press Start and share your number.",
     "why": "Why verify?",
@@ -318,11 +325,15 @@
       "forgot": "Forgot your password?",
       "forgotBody": "Log in with a code sent to the number on your account.",
       "confirmTitle": "Confirm your number",
-      "confirmBody": "We'll text a code to the number on your account."
+      "confirmBody": "We'll text a code to the number on your account.",
+      "bodyTelegram": "We'll confirm your number through Telegram. No password to remember.",
+      "forgotBodyTelegram": "Log in by confirming the number on your account through Telegram.",
+      "confirmBodyTelegram": "Confirm the number on your account through Telegram."
     },
     "signup": {
       "title": "Create account",
       "body": "Your name is what the venue asks for at the door. We'll text you a code to confirm your number.",
+      "bodyTelegram": "Your name is what the venue asks for at the door. We'll confirm your number through Telegram.",
       "haveAccount": "Already have an account?"
     },
     "nameLabel": "Your name",

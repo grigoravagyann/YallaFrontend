@@ -311,6 +311,24 @@ export class TelegramUnavailableError extends ApiError {
   }
 }
 
+/**
+ * The backend has no SMS provider to send a code with: `request-code` answered
+ * 503 `sms-unavailable`. It used to answer 200 and send nothing, which left the
+ * diner waiting on a code that would never come. Telegram is the way to prove
+ * the number then; `getPhoneProofChannels` says so before anything is pressed,
+ * and this is the same answer for a screen that asked anyway.
+ */
+export class SmsUnavailableError extends ApiError {
+  constructor(options: { url: string; requestId?: string | undefined }) {
+    super('Codes by SMS are not available.', {
+      status: 503,
+      url: options.url,
+      requestId: options.requestId,
+    });
+    this.name = 'SmsUnavailableError';
+  }
+}
+
 /** Too many codes requested for one number. Distinct from too many attempts. */
 export class RateLimitedError extends ApiError {
   /**

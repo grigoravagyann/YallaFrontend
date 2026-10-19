@@ -1,7 +1,7 @@
 /**
  * GENERATED FILE — do not edit.
  *
- * Source: http://127.0.0.1:5199/swagger/v1/swagger.json
+ * Source: http://localhost:5197/swagger/v1/swagger.json
  * Regenerate with: pnpm api:generate
  */
 
@@ -27,6 +27,26 @@ export interface paths {
          *     The response is exactly what `verify-code` returns, with `isNewAccount` false.
          */
         post: operations["loginDiner"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/auth/diner/phone-proof": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Which ways of proving a phone number are on
+         * @description Read before offering a choice, so a guest is never handed a button that cannot work. `sms` is false when no SMS provider is configured outside Development - then `request-code` answers 503 `sms-unavailable`. `telegram` is false when the bot is off - then the Telegram routes are not mapped. The same for every caller; nothing here reads a number or an account.
+         */
+        get: operations["getPhoneProofChannels"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -97,6 +117,8 @@ export interface paths {
          *     Rate limited per address by the pipeline and per phone number by the service. Codes cost money to send, so an unlimited request endpoint is an invoice generator.
          *
          *     In Development the code comes back in `developmentCode`, so the flow works with no SMS provider wired up. That field is always null anywhere else.
+         *
+         *     **No SMS provider, no code.** Outside Development with no sender configured this answers **503 `sms-unavailable`** instead of accepting a request it cannot deliver: prove the number with Telegram. `GET /api/auth/diner/phone-proof` says so in advance.
          */
         post: operations["requestDinerCode"];
         delete?: never;
@@ -1816,7 +1838,7 @@ export interface paths {
         post?: never;
         /**
          * Delete the signed-in diner's account
-         * @description Proof first: `password` when the account has one (`hasPassword`), otherwise `code` - a one-time code from `POST /api/auth/diner/request-code` for the account's own number.
+         * @description Proof first: `password` when the account has one (`hasPassword`), otherwise `code` - a one-time code from `POST /api/auth/diner/request-code` for the account's own number - or **nothing, from a session that proved the phone in the last ten minutes** (a Telegram or code sign-in; the token's `phone_proved_at`). That last door is what keeps deletion possible where codes by SMS are off and Telegram is the only proof.
          *
          *     **In one transaction**: the account becomes a tombstone - number, username, email, name, password and verification stamp cleared, so all three can register again; every session ends (access and refresh tokens); push devices, every review by the account and its pictures (files included) are deleted. The venue keeps its records with the link to the person removed: bookings keep the guest name and number typed into them, places at a table become `Guest`, orders stay. An audit row `diner.delete` is written.
          *
@@ -5538,6 +5560,16 @@ export interface components {
             lastSeenAtUtc?: string | null;
             /** @description The venue, for a chain where two branches share a name. */
             venueName: string;
+        };
+        /** @description Which ways of proving a phone number this deployment offers. */
+        "Yalla.Application.Auth.PhoneProofChannels": {
+            /**
+             * @description A one-time code by SMS can be sent: a provider is configured, or this is Development, where the
+             *     code goes to the log. False means `request-code` answers `sms-unavailable`.
+             */
+            sms: boolean;
+            /** @description The Telegram bot is on, so `/api/auth/diner/telegram` is mapped. */
+            telegram: boolean;
         };
         /** @description A refreshed access token and the refresh token that replaces the one just spent. */
         "Yalla.Application.Auth.RefreshResult": {
@@ -11206,6 +11238,71 @@ export interface operations {
             };
         };
     };
+    getPhoneProofChannels: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Yalla.Application.Auth.PhoneProofChannels"];
+                };
+            };
+            /** @description The request violated a domain rule or arrived malformed. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description No usable token was presented, or the one presented was rejected. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description The caller is authenticated but not allowed to perform this action. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description Too many requests in the window, or a one-time credential is out of attempts. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description Unexpected failure. Quote the traceId from the body. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+        };
+    };
     refreshDinerToken: {
         parameters: {
             query?: never;
@@ -11413,6 +11510,15 @@ export interface operations {
             };
             /** @description Unexpected failure. Quote the traceId from the body. */
             500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description `sms-unavailable`: no SMS provider is configured. Use Telegram. */
+            503: {
                 headers: {
                     [name: string]: unknown;
                 };

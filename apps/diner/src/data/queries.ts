@@ -210,6 +210,13 @@ export function useVerifyPhoneCode() {
  */
 export { useTelegramVerification } from '@yalla/api/react';
 
+/**
+ * Which of the two doors — an SMS code, the Telegram bot — this backend has
+ * open. Read before either is offered: production has Telegram only until an
+ * SMS provider is chosen.
+ */
+export { usePhoneProofChannels } from '@yalla/api/react';
+
 // ---------------------------------------------------------------------------
 // Scanning in and the shared tab
 // ---------------------------------------------------------------------------

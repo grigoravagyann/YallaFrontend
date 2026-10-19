@@ -67,24 +67,25 @@ describe('the code screen', () => {
     expect(screen.getByRole('button', { name: 'auth.login.createOne' })).toBeTruthy();
   });
 
-  it('confirms the number, and offers no new account, while signed in', () => {
+  it('confirms the number, and offers no new account, while signed in', async () => {
     useSession.setState({ signedIn: true, phoneE164: '+37477123456' });
 
     renderWith(<PhoneAuthFlow mode="login" params={{}} />);
 
     expect(screen.getByText('auth.login.confirmTitle')).toBeTruthy();
-    expect(screen.getByText('auth.login.confirmBody')).toBeTruthy();
+    // The body names the door, so it waits for the backend to say which.
+    expect(await screen.findByText('auth.login.confirmBody')).toBeTruthy();
     expect(screen.queryByText('auth.login.title')).toBeNull();
     expect(screen.queryByRole('button', { name: 'auth.login.createOne' })).toBeNull();
   });
 
-  it('says what it is for when a password was forgotten', () => {
+  it('says what it is for when a password was forgotten', async () => {
     const params: AuthRouteParams = { reason: 'forgotPassword' };
 
     renderWith(<PhoneAuthFlow mode="login" params={params} />);
 
     expect(screen.getByText('auth.login.forgot')).toBeTruthy();
-    expect(screen.getByText('auth.login.forgotBody')).toBeTruthy();
+    expect(await screen.findByText('auth.login.forgotBody')).toBeTruthy();
   });
 });
 
