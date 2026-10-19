@@ -305,3 +305,73 @@ export function branchBindingFor(role: StaffRole): BranchBinding {
       return 'either';
   }
 }
+
+// ---------------------------------------------------------------------------
+// Shifts
+// ---------------------------------------------------------------------------
+
+/**
+ * One person's shift at one branch, or their day off (HANDOFF section 6: the
+ * minimal shift model).
+ *
+ * A shift is a **date** — the branch's local date it starts on — with a start
+ * and an end time in the branch's zone. An end at or before the start runs
+ * past midnight: `endsNextDay`. A person may work two shifts on one date (a
+ * split shift) as long as they do not overlap; a day off excludes any shift
+ * on that date. The server checks overlaps across every branch of the venue.
+ */
+export interface StaffShift {
+  readonly id: string;
+  readonly staffMemberId: string;
+  readonly branchId: string;
+  /** `YYYY-MM-DD`, the branch-local date the shift starts on. */
+  readonly date: string;
+  /** "Day off": no times. */
+  readonly dayOff: boolean;
+  /** `HH:mm` in the branch's zone; null on a day off. */
+  readonly startsAt: string | null;
+  readonly endsAt: string | null;
+  /**
+   * Ends on the next date. True for an end of exactly 00:00 as well, which is
+   * drawn "16:00–00:00" without "(next day)", as the opening hours draw it.
+   */
+  readonly endsNextDay: boolean;
+  /**
+   * When it ends, as an instant; null on a day off. A shift dated before the
+   * service day is history once this has passed, and the server refuses to
+   * change or remove it — one still running (last night's 18:00–02:00 at
+   * 00:30) may still be corrected.
+   */
+  readonly endsAtUtc: string | null;
+}
+
+/** A branch's shifts over a window, with the counts the Staff page heads with. */
+export interface BranchShifts {
+  readonly branchId: string;
+  /**
+   * The branch's "today": its local date, or yesterday while last night's
+   * opening still runs past midnight — the Overview's service day.
+   */
+  readonly serviceDate: string;
+  readonly from: string;
+  readonly to: string;
+  /** Distinct active people with a working shift at this branch on `serviceDate`. */
+  readonly onShiftToday: number;
+  /** Active people only, by date, then start (days off first). */
+  readonly shifts: readonly StaffShift[];
+}
+
+/** A shift as the editor writes it: the whole shift; the person never changes. */
+export interface ShiftInput {
+  readonly date: string;
+  readonly dayOff: boolean;
+  /** `HH:mm`; null on a day off. */
+  readonly startsAt: string | null;
+  readonly endsAt: string | null;
+}
+
+/** The longest shift the server takes, in minutes (16 hours). */
+export const SHIFT_MAX_MINUTES = 960;
+
+/** How far ahead a shift may be planned, in days after the service date. */
+export const SHIFT_HORIZON_DAYS = 92;

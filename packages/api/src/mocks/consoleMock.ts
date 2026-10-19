@@ -58,7 +58,7 @@ const BRANCH_MANAGER_NEEDS_BRANCH = 'A branch manager works at one branch. Choos
 /** `StaffMember.GeneralManagerHasNoBranch`, word for word. */
 const GENERAL_MANAGER_HAS_NO_BRANCH =
   'A general manager runs every branch, so leave the branch empty.';
-import type { StaffDevice, StaffMember, StaffSignInLink } from '../contracts/staff';
+import type { StaffDevice, StaffMember, StaffShift, StaffSignInLink } from '../contracts/staff';
 import type { BranchPublicProfile } from '../contracts/publicProfile';
 import type { BranchReadiness } from '../contracts/readiness';
 import {
@@ -74,6 +74,7 @@ import {
 } from '../contracts/reviews';
 import { createMockReviewStore, type MockReviewStore, type StoredReview } from './reviewStore';
 import { invalidRequest, validationFailed, type MockViolation } from './problems';
+import { addDayKeys, createMockShiftStore } from './shiftStore';
 import { approvalExpiryFor, localDateAndTime } from './approvalWindow';
 import {
   STATUS_AFTER,
@@ -919,6 +920,116 @@ export function createConsoleMockGateway(options: ConsoleMockOptions = {}): Cons
 
     staffByVenue.set(venueId, seeded);
     return seeded;
+  }
+
+  // --- Shifts -----------------------------------------------------------------
+
+  /** The branch's "today" for its shift lines: its local date. */
+  function shiftServiceDate(branchId: string): string {
+    return branchDayKey(now(), branchTimeZone(branchId) as TimeZone);
+  }
+
+  /** Who works at a branch for the shift model: its people, and the venue-wide ones. */
+  function worksAt(member: StaffMember, branchId: string): boolean {
+    return member.branchId === branchId || member.branchId === null;
+  }
+
+  /**
+   * Today and tomorrow for some of a fixture branch's people, so the shift
+   * line and the head count have something to say on a first visit: a day
+   * shift, an evening one that ends at midnight, tomorrow's, and a day off.
+   */
+  const shiftStore = createMockShiftStore({
+    url: `${URL_TAG}/shifts`,
+    nextId: () => nextId('shift'),
+    now,
+    history: () => conflict('That shift is over: past shifts are kept as they were.'),
+    // A shift counts while its person is active and still works at its branch.
+    counts: (shift) => {
+      const venueId = venueOfBranch(shift.branchId);
+      const member = venueId
+        ? staffFor(venueId).find((candidate) => candidate.id === shift.staffMemberId)
+        : undefined;
+      return Boolean(member?.isActive && worksAt(member, shift.branchId));
+    },
+    endsAtUtc: (shift) => {
+      if (!shift.endsAt) return null;
+      const [year, month, day] = addDayKeys(shift.date, shift.endsNextDay ? 1 : 0)
+        .split('-')
+        .map(Number);
+      const [hour, minute] = shift.endsAt.split(':').map(Number);
+      return instantFromZonedClock(
+        {
+          year: year ?? 1970,
+          month: month ?? 1,
+          day: day ?? 1,
+          hour: hour ?? 0,
+          minute: minute ?? 0,
+        },
+        branchTimeZone(shift.branchId) as TimeZone,
+      ).toISOString();
+    },
+    seed: (branchId, today) => {
+      const venueId = venueOfBranch(branchId);
+      if (!venueId) return [];
+      const people = staffFor(venueId).filter(
+        (member) => member.isActive && member.branchId === branchId,
+      );
+      const plans: readonly (Omit<
+        StaffShift,
+        'id' | 'staffMemberId' | 'branchId' | 'endsAtUtc'
+      > | null)[] = [
+        { date: today, dayOff: false, startsAt: '10:00', endsAt: '19:00', endsNextDay: false },
+        { date: today, dayOff: false, startsAt: '16:00', endsAt: '00:00', endsNextDay: true },
+        {
+          date: addDayKeys(today, 1),
+          dayOff: false,
+          startsAt: '11:00',
+          endsAt: '19:00',
+          endsNextDay: false,
+        },
+        { date: today, dayOff: true, startsAt: null, endsAt: null, endsNextDay: false },
+        null,
+      ];
+      return people.flatMap((member, index) => {
+        const plan = plans[index % plans.length];
+        return plan ? [{ ...plan, id: nextId('shift'), staffMemberId: member.id, branchId }] : [];
+      });
+    },
+  });
+
+  /**
+   * The shift routes' guard: a console caller at this branch, a person who
+   * works here and is active, and either the person themselves or somebody
+   * the staff rank rule lets manage them (a branch manager at their own
+   * branch only).
+   */
+  function shiftSubject(branchId: string, staffMemberId: string): StaffMember {
+    const url = `${URL_TAG}/branches/${branchId}/shifts`;
+    requireManagerAtBranch(branchId, url);
+    const venueId = venueOfBranch(branchId);
+    const subject = venueId
+      ? staffFor(venueId).find((member) => member.id === staffMemberId)
+      : undefined;
+    if (!venueId || !subject || !worksAt(subject, branchId)) throw new NotFoundError({ url });
+    const actor = actingStaff(venueId);
+    // A branch manager plans their own branch's people: not another branch,
+    // and not a venue-wide waiter, who is further than they reach.
+    if (
+      actor.role === 'manager' &&
+      (actor.branchId !== branchId || (actor.id !== subject.id && subject.branchId !== branchId))
+    ) {
+      throw staffPermission('Planning shifts at another branch', 'generalManager');
+    }
+    if (actor.id !== subject.id && !assignableRoles(actor.role).includes(subject.role)) {
+      throw new StaffPermissionError({
+        url,
+        detail: `A ${actor.role} cannot plan a ${subject.role}'s shifts.`,
+      });
+    }
+    if (!subject.isActive)
+      throw conflict('Reactivate them first: a deactivated person has no shifts.');
+    return subject;
   }
 
   /** A branch's tablets, including one already killed. */
@@ -4489,6 +4600,46 @@ export function createConsoleMockGateway(options: ConsoleMockOptions = {}): Cons
       );
       if (index < 0) throw new NotFoundError({ url: URL_TAG });
       list[index] = { ...list[index]!, isPinLocked: false };
+    },
+
+    // --- Shifts ---------------------------------------------------------------
+
+    async listBranchShifts({ branchId, from, to }) {
+      await wait();
+      requireManagerAtBranch(branchId, `${URL_TAG}/branches/${branchId}/shifts`);
+      return shiftStore.list({ branchId, serviceDate: shiftServiceDate(branchId), from, to });
+    },
+
+    async createShift({ branchId, staffMemberId, shift }) {
+      await wait();
+      const member = shiftSubject(branchId, staffMemberId);
+      return shiftStore.create({
+        branchId,
+        serviceDate: shiftServiceDate(branchId),
+        member,
+        shift,
+      });
+    },
+
+    async updateShift({ branchId, shiftId, shift }) {
+      await wait();
+      const current = shiftStore.find(branchId, shiftId);
+      if (!current) throw new NotFoundError({ url: `${URL_TAG}/branches/${branchId}/shifts` });
+      shiftSubject(branchId, current.staffMemberId);
+      return shiftStore.update({
+        branchId,
+        serviceDate: shiftServiceDate(branchId),
+        shiftId,
+        shift,
+      });
+    },
+
+    async deleteShift({ branchId, shiftId }) {
+      await wait();
+      const current = shiftStore.find(branchId, shiftId);
+      if (!current) throw new NotFoundError({ url: `${URL_TAG}/branches/${branchId}/shifts` });
+      shiftSubject(branchId, current.staffMemberId);
+      shiftStore.remove({ branchId, serviceDate: shiftServiceDate(branchId), shiftId });
     },
 
     // --- Devices --------------------------------------------------------------

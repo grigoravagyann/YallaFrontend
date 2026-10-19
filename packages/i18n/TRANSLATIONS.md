@@ -772,6 +772,47 @@ review every string in `src/locales/hy` and `src/locales/ru`.**
   name that looks like contact details), and `reviews.reply.hidden` reworded
   to fit a review hidden by the venue **or** by Yalla.
 
+- `admin` — the venue console redesign, phase 5 (2026-10-19): Staff and
+  Reports. The `hy` copy is the approved artboards' (`docs/design/venue-console`,
+  Staff and Reports) where they have it, with a glued suffix rephrased after a
+  colon (`Ավելացվեց՝ {{name}}`, `PIN-ը ապակողպվեց՝ {{name}}`); `ru` and `en`
+  were written from it and are **not** reviewed. Formal `Դուք` throughout.
+  - Staff (`staff.*`, `devices.*`, `venuePage.wizard.branchFixed`): the
+    header's `onShift_*`, the row's words (`action.notYours` is now "above
+    your role", `action.unlock`, `.reactivate`, `.issueSignIn`, `.sendNewLink`,
+    `status.pinLocked`), `empty.noMatch*`, `once.*`, `toast.*` (deactivated —
+    the toast carries an Undo), `ownPin.changedToast`, and the tablets'
+    `code.title`, `.lead` (must keep saying the code works **once** and until
+    when), `.label`, `revokeNamed`, `revokedToast`, `confirm.*` (must keep
+    saying a revoke is **permanent**). Not in the artboard, so **not** read by
+    the user even in `hy`: the shift editor (`staff.shift.*`, `action.shift`),
+    which HANDOFF section 6 asked for as "a small editor" without drawing it —
+    `shift.error.overlap` must keep saying the overlap is checked at **any
+    branch**, `shift.lead` names the branch the shifts are planned at;
+    `devices.codeFailed`, `revokeFailed`.
+  - Reports (`reports.*`): every section's title and caption, the range line
+    (`range.line_*`, `incomplete`, `chooseValid`), the deltas (`delta.change`
+    with `upWord` / `downWord` for a screen reader — the arrow is not read),
+    the summary's six numbers, the revenue line and its table (`revenue.*`),
+    the funnel and lead-time buckets (`reservations.*`, `lead.*`), turn time
+    and the walk-in split (`occupancy.*`), the menu rankings and voids
+    (`menu.*`), and the CSV toasts (`export.*`). `occupancy.overPolicy` /
+    `.withinPolicy` keep their meaning; only the wording moved to the
+    artboard's. Removed with the old screens: `staff.signIn.*` (but
+    `tooManyRequests`, `emailTooLong`, `copied`, `selectAndCopy`),
+    `staff.wizard.*` (but `branchLabel`, `coOwnerNote`), `staff.field.*` (but
+    `name`, `phone`, `branchFixed`, `branchVenueWide`), `staff.form.title` /
+    `.create`, `staff.status.*` (but `pinLocked`), `staff.pin.help` /
+    `.shownOnceBody` / `.neverShared`, `devices.regenerate`, `.neverSeen`,
+    `.code.instructions`, `.code.expires`, and the old reports' `intro`,
+    `comparedWith`, `chart.*`, `range.showing`, `export.failed`,
+    `summary.covers` / `.tablesTurned` and the section blurbs.
+  - Review round 1 (2026-10-19), **not** in an artboard: `reports.export.readyAll`
+    is one sentence now ("Export everything" writes **one** file), and
+    `venues.once.pinNag` warns once before "Try again" closes a dialog that
+    shows a PIN (it must keep saying the PIN will **not** be seen again).
+    Removed: `reports.occupancy.sittings_*`.
+
 The Russian bundle carries four plural categories (`one`/`few`/`many`/`other`)
 where Armenian and English carry two. That is correct CLDR, not duplication, and
 `pnpm i18n:check` verifies each language has exactly the categories

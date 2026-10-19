@@ -15,6 +15,11 @@ import type {
 import type { components } from '../generated/schema';
 
 type Schemas = components['schemas'];
+type WireDaily = Schemas['Yalla.Application.Reports.DailyRevenue'];
+
+function daily(wire: WireDaily) {
+  return { localDate: wire.localDate, revenueAmd: wire.revenueAmd, tabs: wire.tabs };
+}
 
 /**
  * Report wire shapes to screen shapes.
@@ -89,6 +94,10 @@ export function occupancyReport(
     seatsAvailable: wire.seatsAvailable,
     walkIns: compared(wire.walkIns),
     fromReservations: compared(wire.fromReservations),
+    walkInGuests: compared(wire.walkInGuests),
+    reservationGuests: compared(wire.reservationGuests),
+    turnsPerTable: compared(wire.turnsPerTable),
+    activeTables: wire.activeTables,
   };
 }
 
@@ -132,11 +141,9 @@ export function revenueReport(
     serviceChargeAmd: compared(wire.serviceChargeAmd),
     averageTabAmd: compared(wire.averageTabAmd),
     averagePerHeadAmd: compared(wire.averagePerHeadAmd),
-    byDay: wire.byDay.map((day) => ({
-      localDate: day.localDate,
-      revenueAmd: day.revenueAmd,
-      tabs: day.tabs,
-    })),
+    byDay: wire.byDay.map(daily),
+    previousByDay: wire.previousByDay.map(daily),
+    tabs: compared(wire.tabs),
     byHour: wire.byHour.map((hour) => ({ hour: hour.hour, revenueAmd: hour.revenueAmd })),
     cashAmd: compared(wire.cashAmd),
     inAppAmd: compared(wire.inAppAmd),

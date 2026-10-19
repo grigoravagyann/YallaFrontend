@@ -56,6 +56,9 @@ function redesignFiles(): string[] {
     ...inFolder(join(SRC, 'console', 'venue', 'public')),
     ...inFolder(join(SRC, 'console', 'venue', 'reviews')),
     ...inFolder(join(SRC, 'console', 'reviews')),
+    // Staff and Reports, with the add-staff wizard both consoles share (phase 5).
+    ...inFolder(join(SRC, 'console', 'venue', 'staff')),
+    ...inFolder(join(SRC, 'console', 'venue', 'reports')),
     join(SRC, 'auth', 'AuthLayout.tsx'),
     join(SRC, 'auth', 'SignInRoute.tsx'),
     join(SRC, 'auth', 'ResetPasswordRoute.tsx'),
@@ -85,6 +88,8 @@ describe('the console redesign', () => {
     expect(files.some((file) => file.endsWith('ReservationPolicyScreen.tsx'))).toBe(true);
     expect(files.some((file) => file.endsWith('AppCardPreview.tsx'))).toBe(true);
     expect(files.some((file) => file.endsWith('ReviewCard.tsx'))).toBe(true);
+    expect(files.some((file) => file.endsWith('ShiftDialog.tsx'))).toBe(true);
+    expect(files.some((file) => file.endsWith('RevenueLine.tsx'))).toBe(true);
 
     const found: string[] = [];
     for (const file of files) {

@@ -17,14 +17,24 @@ export interface OnceLinkDialogProps {
   readonly pin?: string | null;
   /** The sentence under the title; the venue list's by default. */
   readonly body?: string;
+  /** The label over the PIN: "Tablet PIN" by default; "Code" for a tablet's enrolment code. */
+  readonly pinLabel?: string;
   /** The line under the PIN. */
   readonly pinHelp?: string;
+  /** The closing button: "Done" by default; "Written down" for a PIN alone. */
+  readonly doneLabel?: string;
   /** The line under the link, given when it stops working; the owner's by default. */
   readonly linkHelp?: (when: string) => string;
   /** Why no link was made, when the person exists but the server refused it. */
   readonly failure?: string | null;
-  /** Offered with `failure`: closes this and asks for the address again. */
+  /** Offered with `failure`: asks for the address again. */
   readonly onRetry?: (() => void) | null;
+  /**
+   * "Try again" closes this dialog (it opens the address form instead), so a
+   * PIN on screen goes with it: the first press warns once, like closing
+   * before a link is copied.
+   */
+  readonly retryClosesPin?: boolean;
   /** "Open the venue page", when there is one to open. */
   readonly venueHref?: string;
   readonly timeZoneId: string;
@@ -50,10 +60,13 @@ export function OnceLinkDialog({
   link,
   pin = null,
   body,
+  pinLabel,
   pinHelp,
+  doneLabel,
   linkHelp,
   failure = null,
   onRetry = null,
+  retryClosesPin = false,
   venueHref,
   timeZoneId,
   onDone,
@@ -64,6 +77,8 @@ export function OnceLinkDialog({
   const inputRef = useRef<HTMLInputElement>(null);
   const [copied, setCopied] = useState(false);
   const [nag, setNag] = useState(false);
+  /** "Try again" closes this and with it the PIN: warned once, like an uncopied link. */
+  const [pinNag, setPinNag] = useState(false);
   const linkId = useId();
   const bodyId = useId();
 
@@ -107,7 +122,7 @@ export function OnceLinkDialog({
       <p id={bodyId}>{body ?? t('venues.once.body')}</p>
       {pin ? (
         <div className="yc-once">
-          <span className="yc-help yc-strong">{t('venues.once.pin')}</span>
+          <span className="yc-help yc-strong">{pinLabel ?? t('venues.once.pin')}</span>
           {/* Spelled out for a screen reader: "7 3 1 5", not "seven thousand…". */}
           <span className="yc-pin" aria-label={pin.split('').join(' ')}>
             {pin}
@@ -151,6 +166,11 @@ export function OnceLinkDialog({
           {failure}
         </p>
       ) : null}
+      {pinNag ? (
+        <p className="yc-err" role="alert">
+          {t('venues.once.pinNag')}
+        </p>
+      ) : null}
       {nag ? (
         <p className="yc-err" role="alert">
           {t('venues.once.nag')}
@@ -173,7 +193,17 @@ export function OnceLinkDialog({
           </Link>
         ) : null}
         {failure && onRetry ? (
-          <button type="button" className="yc-btn yc-btn-sec" onClick={onRetry}>
+          <button
+            type="button"
+            className="yc-btn yc-btn-sec"
+            onClick={() => {
+              if (retryClosesPin && pin && !pinNag) {
+                setPinNag(true);
+                return;
+              }
+              onRetry();
+            }}
+          >
             {t('venuePage.once.retry')}
           </button>
         ) : null}
@@ -183,7 +213,7 @@ export function OnceLinkDialog({
           {...(link ? {} : { 'data-autofocus': '' })}
           onClick={done}
         >
-          {t('venues.once.done')}
+          {doneLabel ?? t('venues.once.done')}
         </button>
       </div>
     </Dialog>

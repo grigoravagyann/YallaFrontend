@@ -214,7 +214,7 @@ export type {
 
 export { isKnownUnavailableReason, KNOWN_UNAVAILABLE_REASONS } from './contracts/booking';
 
-export { REPORT_MAX_DAYS, REPORT_SECTIONS } from './contracts/reports';
+export { OPEN_ENDED_BUCKET, REPORT_MAX_DAYS, REPORT_SECTIONS } from './contracts/reports';
 
 export {
   assignableRoles,
@@ -225,14 +225,19 @@ export {
   canIssueSignIn,
   isAdminRole,
   outranks,
+  SHIFT_HORIZON_DAYS,
+  SHIFT_MAX_MINUTES,
 } from './contracts/staff';
 export type {
   BranchBinding,
+  BranchShifts,
   CreateStaffInput,
   EnrolmentCode,
+  ShiftInput,
   StaffDevice,
   StaffMember,
   StaffActorRef,
+  StaffShift,
   StaffSignInLink,
   UpdateStaffInput,
 } from './contracts/staff';

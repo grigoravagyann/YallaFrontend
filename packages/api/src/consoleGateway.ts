@@ -49,10 +49,13 @@ import type {
 } from './contracts/platformHome';
 import type { OtherSessionsEnded, VenueSession, VenueStaffProfile } from './contracts/venueAccount';
 import type {
+  BranchShifts,
   CreateStaffInput,
   EnrolmentCode,
+  ShiftInput,
   StaffDevice,
   StaffMember,
+  StaffShift,
   StaffSignInLink,
   UpdateStaffInput,
 } from './contracts/staff';
@@ -824,6 +827,47 @@ export interface ConsoleGateway {
    * a PIN during a rush cannot be made to wait out a timer.
    */
   clearPinLockout(input: { branchId: string; staffMemberId: string }): Promise<void>;
+
+  // --- Shifts ---------------------------------------------------------------
+
+  /**
+   * A branch's shifts and days off over a window, with today's head count —
+   * `GET /api/branches/{branchId}/shifts?from&to`. Both dates optional: the
+   * server answers from the branch's service day for two weeks. Active people
+   * only; a window over 92 days is a 422 on `to`.
+   */
+  listBranchShifts(input: {
+    branchId: string;
+    from?: string | undefined;
+    to?: string | undefined;
+  }): Promise<BranchShifts>;
+
+  /**
+   * Plan a shift or a day off for somebody at this branch.
+   *
+   * Written by whoever may manage that person (the staff rank rule; a branch
+   * manager at their own branch only), or by the person themselves.
+   *
+   * @throws {ValidationError} a date before the service day or past 92 days,
+   *   no times on a working shift, an end equal to the start or over 16 hours,
+   *   an overlap with another of their shifts at any branch (`startsAt`), or a
+   *   day off on a date that has a shift (`date`) — each in `violations`.
+   * @throws {StaffPermissionError} the person is not the caller's to plan.
+   * @throws {ConcurrencyConflictError} the person is deactivated. Two writes
+   *   for one person wait for each other on the server, so of two overlapping
+   *   shifts saved at once the second is the 422 on `startsAt`.
+   */
+  createShift(input: {
+    branchId: string;
+    staffMemberId: string;
+    shift: ShiftInput;
+  }): Promise<StaffShift>;
+
+  /** The whole shift again; the person does not change. Same refusals as create. */
+  updateShift(input: { branchId: string; shiftId: string; shift: ShiftInput }): Promise<StaffShift>;
+
+  /** Gone. The undo is a create with the same values (a new id). */
+  deleteShift(input: { branchId: string; shiftId: string }): Promise<void>;
 
   // --- Devices --------------------------------------------------------------
 

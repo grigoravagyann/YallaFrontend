@@ -236,6 +236,15 @@ describe("the venue console's sidebar (docs/design/venue-console)", () => {
     );
   });
 
+  it("draws the reports' bars and the previous period's line at 3:1 on a card", () => {
+    // WCAG 1.4.11: a bar or a line is the chart's whole message. The
+    // artboards' #B89B7E and #B8A28A are 2.62:1 and 2.45:1 on white.
+    for (const mark of [consoleColor.reportBar, consoleColor.reportPreviousLine]) {
+      expect(ratio(mark, consoleColor.surface)).toBeGreaterThanOrEqual(3);
+      expect(ratio(mark, consoleColor.surfaceMuted)).toBeGreaterThanOrEqual(3);
+    }
+  });
+
   it('shows a badge on the current link as well as on a resting one', () => {
     expect(ratio(consoleColor.navBadge, consoleColor.sidebar)).toBeGreaterThanOrEqual(3);
     expect(ratio(consoleColor.navBadge, consoleColor.sidebarActive)).toBeGreaterThanOrEqual(3);

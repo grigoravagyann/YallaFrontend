@@ -1,152 +1,164 @@
-import type { ReportQuery } from '@yalla/api';
+import { OPEN_ENDED_BUCKET, type Compared, type ReportQuery } from '@yalla/api';
 import { useReservationReport } from '@yalla/api/react';
 import type { Locale } from '@yalla/format';
 import { useTranslation } from '@yalla/i18n';
-import { useMemo } from 'react';
 import { Link } from 'react-router-dom';
-import { Bars, ChartFrame, type ChartDatum } from './Chart';
-import { ReportSectionFrame } from './ReportSection';
-import { Stat } from './Stat';
-import { daysInRange } from './range';
+import { PhoneIcon } from '../../ui/icons';
+import { BarChart, type Bar } from './BarChart';
+import { reservationsCsv } from './csv';
+import { CsvButton, ReportCard } from './ReportCard';
 
 export interface ReservationsSectionProps {
   readonly query: ReportQuery | null;
   readonly locale: Locale;
-}
-
-/** A rate arrives as a fraction and is read as a percentage. */
-function percent(fraction: number, locale: Locale): string {
-  return new Intl.NumberFormat(locale, {
-    style: 'percent',
-    maximumFractionDigits: 1,
-  }).format(fraction);
+  readonly onCsv: (title: string, fileSection: 'reservations', text: string) => void;
 }
 
 /**
- * Bookings, and what became of them.
- *
- * Two blocks here earn their place by pointing somewhere rather than by being
- * numbers: lead time links to the reservation policy screen because it is what
- * `bookingWindowDays` should be set from, and web-bookings-without-an-app is
- * labelled as the commercial question it is rather than left as a curiosity.
+ * "<2 h", "<1 day", "≥7 days": a lead-time bucket by its top, in the unit a
+ * person counts it in. The open-ended last one says "at least" the one before.
  */
-export function ReservationsSection({ query, locale }: ReservationsSectionProps) {
+export function useLeadLabel() {
+  const { t } = useTranslation(['admin', 'common']);
+  const under = (hours: number) =>
+    hours % 24 === 0
+      ? t('reports.reservations.lead.underDays', { count: hours / 24 })
+      : t('reports.reservations.lead.underHours', { hours });
+  return (tops: readonly number[], index: number) => {
+    const top = tops[index] ?? 0;
+    if (top !== OPEN_ENDED_BUCKET) return under(top);
+    const below = tops[index - 1] ?? 0;
+    return below % 24 === 0
+      ? t('reports.reservations.lead.atLeastDays', { count: below / 24 })
+      : t('reports.reservations.lead.atLeastHours', { hours: below });
+  };
+}
+
+/**
+ * Bookings, and what became of them (Reports artboard, "Reservations"): the
+ * funnel from booked to seated, cancelled, cancelled late and not come; the
+ * web bookings no reminder can reach; and how far ahead people book, which is
+ * what the booking window is worth setting from — so the policy is a link
+ * away.
+ */
+export function ReservationsSection({ query, locale, onCsv }: ReservationsSectionProps) {
   const { t } = useTranslation(['admin', 'common']);
   const report = useReservationReport(query);
   const data = report.data;
+  const leadLabel = useLeadLabel();
+  const percent = new Intl.NumberFormat(locale, { style: 'percent', maximumFractionDigits: 0 });
+  const number = new Intl.NumberFormat(locale);
+  const title = t('reports.reservations.title');
+  const empty = Boolean(data) && data!.booked.value === 0;
 
-  const comparedDays = query ? daysInRange({ from: query.from, to: query.to }) : 0;
+  const booked = data?.booked.value ?? 0;
+  const share = (value: Compared) => (booked === 0 ? 0 : value.value / booked);
+  const funnel = data
+    ? [
+        { key: 'booked', label: t('reports.reservations.booked'), value: data.booked, tone: '' },
+        {
+          key: 'seated',
+          label: t('reports.reservations.seated'),
+          value: data.seated,
+          tone: 'is-ok',
+        },
+        {
+          key: 'cancelled',
+          label: t('reports.reservations.cancelled'),
+          value: data.cancelled,
+          tone: 'is-cancel',
+        },
+        {
+          key: 'late',
+          label: t('reports.reservations.late'),
+          value: data.lateCancellations,
+          tone: 'is-late',
+        },
+        {
+          key: 'noShow',
+          label: t('reports.reservations.noShow'),
+          value: data.noShow,
+          tone: 'is-noshow',
+        },
+      ]
+    : [];
 
-  const leadTime: ChartDatum[] = useMemo(
-    () =>
-      (data?.leadTime ?? []).map((bucket) => ({
-        label: t('reports.reservations.leadTime.bucket', { hours: bucket.upToHours }),
-        value: bucket.bookings,
-      })),
-    [data, t],
-  );
+  const totalLead = data?.leadTime.reduce((sum, bucket) => sum + bucket.bookings, 0) ?? 0;
+  const tops = data?.leadTime.map((bucket) => bucket.upToHours) ?? [];
+  const lead: Bar[] = (data?.leadTime ?? []).map((bucket, index) => ({
+    key: String(bucket.upToHours),
+    label: leadLabel(tops, index),
+    share: totalLead === 0 ? 0 : bucket.bookings / totalLead,
+  }));
 
   return (
-    <ReportSectionFrame
-      section="reservations"
-      titleKey="reports.reservations.title"
-      blurbKey="reports.reservations.blurb"
-      query={query}
+    <ReportCard
+      title={title}
+      cap={t('reports.reservations.cap')}
       isLoading={report.isLoading}
       error={report.error}
       onRetry={() => void report.refetch()}
-      isEmpty={Boolean(data) && data!.booked.value === 0}
+      isEmpty={empty}
+      actions={
+        <CsvButton
+          label={title}
+          disabled={!data || empty}
+          onClick={() => data && onCsv(title, 'reservations', reservationsCsv(data))}
+        />
+      }
     >
       {data ? (
-        <>
-          <div className="report-stats">
-            <Stat
-              labelKey="reports.reservations.booked"
-              value={data.booked.value.toLocaleString(locale)}
-              compared={data.booked}
-              comparedDays={comparedDays}
-            />
-            <Stat
-              labelKey="reports.reservations.seated"
-              value={data.seated.value.toLocaleString(locale)}
-              compared={data.seated}
-              comparedDays={comparedDays}
-            />
-            <Stat
-              labelKey="reports.reservations.cancelled"
-              value={t('reports.reservations.countWithRate', {
-                value: data.cancelled.value,
-                rate: percent(data.cancellationRate.value, locale),
-              })}
-              compared={data.cancelled}
-              comparedDays={comparedDays}
-            />
-            <Stat
-              labelKey="reports.reservations.noShow"
-              value={t('reports.reservations.countWithRate', {
-                value: data.noShow.value,
-                rate: percent(data.noShowRate.value, locale),
-              })}
-              compared={data.noShow}
-              comparedDays={comparedDays}
-            />
-            <Stat
-              labelKey="reports.reservations.lateCancellations"
-              value={data.lateCancellations.value.toLocaleString(locale)}
-              compared={data.lateCancellations}
-              comparedDays={comparedDays}
-            />
-          </div>
-
-          {/*
-            The number that decides whether an SMS channel is worth paying for.
-
-            Somebody who booked from the public page and has no app cannot be
-            reached by the reminder, the late nudge or one-tap cancel — the
-            whole no-show story. Labelled as that question rather than as a
-            statistic, because as a statistic nobody would know what to do with
-            it.
-          */}
-          <div className="report-block report-highlight">
-            <h4 className="report-chart-title">{t('reports.reservations.noApp.title')}</h4>
-            <p className="muted">{t('reports.reservations.noApp.blurb')}</p>
-            <div className="report-stats">
-              <Stat
-                large
-                labelKey="reports.reservations.noApp.label"
-                value={t('reports.reservations.noApp.value', {
-                  value: data.webBookingsWithoutAnApp.value,
-                  percent:
-                    data.booked.value === 0
-                      ? 0
-                      : Math.round((data.webBookingsWithoutAnApp.value / data.booked.value) * 100),
-                })}
-                compared={data.webBookingsWithoutAnApp}
-                comparedDays={comparedDays}
-              />
-            </div>
-          </div>
-
-          <div className="report-block">
-            <ChartFrame
-              titleKey="reports.reservations.leadTime.title"
-              labelHeaderKey="reports.reservations.leadTime.header"
-              valueHeaderKey="reports.reservations.bookings"
-              data={leadTime}
-              reading={
-                <>
-                  {t('reports.reservations.leadTime.reading')}{' '}
-                  {/* The point of the block: this is the number the setting
-                      should come from, so the setting is one tap away. */}
-                  <Link to="/venue/policy">{t('reports.reservations.leadTime.policyLink')}</Link>
-                </>
-              }
-            >
-              <Bars data={leadTime} />
-            </ChartFrame>
-          </div>
-        </>
+        <div className="yc-rp-body">
+          <dl className="yc-rp-funnel">
+            {funnel.map((row) => (
+              <div key={row.key} className="yc-rp-fr">
+                <dt>{row.label}</dt>
+                <dd className="yc-track" aria-hidden="true">
+                  <span
+                    className={row.tone ? `yc-fill ${row.tone}` : 'yc-fill'}
+                    style={{ width: `${Math.max(2, share(row.value) * 100).toFixed(0)}%` }}
+                  />
+                </dd>
+                <dd className="yc-num">
+                  {row.key === 'booked'
+                    ? number.format(row.value.value)
+                    : t('reports.countShare', {
+                        count: number.format(row.value.value),
+                        percent: percent.format(share(row.value)),
+                      })}
+                </dd>
+              </div>
+            ))}
+          </dl>
+          {data.webBookingsWithoutAnApp.value > 0 ? (
+            <p className="yc-rp-callout">
+              <PhoneIcon />
+              <span>
+                <b>
+                  {t('reports.reservations.noApp', {
+                    count: data.webBookingsWithoutAnApp.value,
+                    percent: percent.format(share(data.webBookingsWithoutAnApp)),
+                  })}
+                </b>{' '}
+                {t('reports.reservations.noAppBody')}
+              </span>
+            </p>
+          ) : null}
+          <h3 className="yc-h3">{t('reports.reservations.leadTitle')}</h3>
+          <BarChart
+            size="short"
+            showValues
+            bars={lead}
+            description={t('reports.reservations.leadAria', {
+              buckets: lead.map((bar) => `${bar.label} ${percent.format(bar.share)}`).join(', '),
+            })}
+          />
+          <p className="yc-help">
+            {t('reports.reservations.leadHelp')}{' '}
+            <Link to="/venue/policy">{t('reports.reservations.policyLink')}</Link>
+          </p>
+        </div>
       ) : null}
-    </ReportSectionFrame>
+    </ReportCard>
   );
 }

@@ -1,4 +1,3 @@
-import { REPORT_MAX_DAYS } from '@yalla/api';
 import { branchDayKey, type TimeZone } from '@yalla/format';
 
 /**
@@ -13,10 +12,9 @@ import { branchDayKey, type TimeZone } from '@yalla/format';
  * second interpretation of what a day is.
  *
  * The presets are the questions an owner actually asks, in the order they ask
- * them, and the default is **last week** rather than yesterday or this month.
- * Yesterday is one service and too noisy to conclude anything from; this month
- * is incomplete and always looks like a decline against a full previous one.
- * Last week is the shortest range that is both finished and representative.
+ * them, and the page opens on **this week** (the Reports artboard): the week
+ * so far, Monday to today, against the same days of the week before — so a
+ * part-week is never set against a whole one.
  */
 export type RangePreset =
   'yesterday' | 'thisWeek' | 'lastWeek' | 'thisMonth' | 'lastMonth' | 'custom';
@@ -30,8 +28,8 @@ export const RANGE_PRESETS: readonly RangePreset[] = [
   'custom',
 ];
 
-/** The preset the screen opens on. See above for why it is not "yesterday". */
-export const DEFAULT_PRESET: RangePreset = 'lastWeek';
+/** The preset the screen opens on (the artboard's). */
+export const DEFAULT_PRESET: RangePreset = 'thisWeek';
 
 export interface DateRange {
   /** Inclusive `YYYY-MM-DD` in the branch's zone. */
@@ -144,7 +142,15 @@ export function previousRange(range: DateRange): DateRange {
   return { from: addDays(range.from, -days), to: addDays(range.from, -1) };
 }
 
-export type RangeProblem = 'backwards' | 'tooLong' | null;
+/**
+ * The longest range the console asks for (Reports artboard: "at most 92
+ * days"). The server's own cap is wider (`REPORT_MAX_DAYS`, 366) and stays for
+ * API users; the console keeps a report to a quarter, which is what a chart
+ * of days can still be read at.
+ */
+export const CONSOLE_REPORT_MAX_DAYS = 92;
+
+export type RangeProblem = 'incomplete' | 'backwards' | 'tooLong' | null;
 
 /**
  * Whether a range can be asked for at all.
@@ -153,11 +159,13 @@ export type RangeProblem = 'backwards' | 'tooLong' | null;
  * failures have different fixes and both are the owner's to make: a backwards
  * range is a typo in a date input, and an over-long one needs narrowing. The
  * server enforces the same cap — this only saves a round trip and says so in
- * the owner's own language.
+ * the owner's own language. A custom range with a date not chosen yet asks
+ * for nothing at all.
  */
 export function problemWith(range: DateRange): RangeProblem {
+  if (!range.from || !range.to) return 'incomplete';
   if (range.to < range.from) return 'backwards';
-  if (daysInRange(range) > REPORT_MAX_DAYS) return 'tooLong';
+  if (daysInRange(range) > CONSOLE_REPORT_MAX_DAYS) return 'tooLong';
   return null;
 }
 

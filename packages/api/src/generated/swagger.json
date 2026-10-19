@@ -4990,6 +4990,491 @@
         }
       }
     },
+    "/api/branches/{branchId}/shifts": {
+      "get": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "The branch's shifts over a window, and how many people are on shift today",
+        "description": "The minimal shift model: one person, one branch, one `date` (the branch's local date it starts on) with `startsAt` and `endsAt`, or `dayOff` with no times. `endsNextDay` when the end is at or before the start - overnight, including an end at exactly 00:00.\n\n`serviceDate` is today at the branch, as on the Overview: its own date, or yesterday while last night's opening block still runs past midnight. `from` defaults to it and `to` to two weeks from `from`; at most 92 days (`to` `min` / `max` otherwise). `onShiftToday` counts the active people with a working shift here dated `serviceDate`. Only the shifts of active people who still work at this branch (theirs, or the whole venue) are listed, by date, then start (days off first).\n\nAn owner or general manager at any branch of their venue, a branch manager at their own, a platform admin anywhere.",
+        "operationId": "listBranchShifts",
+        "parameters": [
+          {
+            "name": "branchId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "from",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Application.Staff.BranchShiftsView"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request violated a domain rule or arrived malformed.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No usable token was presented, or the one presented was rejected.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller is authenticated but not allowed to perform this action.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such branch.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "`to` before `from` (`min`), or more than 92 days (`max`).",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.ValidationFailedProblem"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests in the window, or a one-time credential is out of attempts.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected failure. Quote the traceId from the body.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Plan a shift, or a day off, for one person",
+        "description": "`staffMemberId` must work at this branch (its own people, or an owner or general manager of the venue) and be active. The caller must be able to manage them - the staff edit's rank check: an owner anyone including a co-owner, a general manager branch managers, waiters and kitchen, a branch manager waiters and kitchen of their own branch only (not one who works the whole venue) - or be them. Times are whole minutes; seconds are dropped.\n\n**Every refusal names its field**: `staffMemberId` `required`; `date` `required`, `min` (before the service date), `max` (more than 92 days after it) or `conflict` (a day off and anything else on one date for the person); `startsAt`/`endsAt` `required` for a working shift; `startsAt` `conflict` for times on a day off, or when it overlaps another of the person's shifts at any branch of the venue, compared as instants in each branch's zone (touching is fine); `endsAt` `conflict` (no length) or `max` (longer than 16 hours, `max` 960 minutes).\n\nWrites for one person queue on their staff row, so two overlapping shifts saved at once cannot both land.",
+        "operationId": "createShift",
+        "parameters": [
+          {
+            "name": "branchId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "allOf": [
+                  {
+                    "$ref": "#/components/schemas/Yalla.Api.Endpoints.VenueAdminEndpoints.CreateShiftRequest"
+                  }
+                ],
+                "description": "Body of `POST /api/branches/{branchId}/shifts`."
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Application.Staff.StaffShiftView"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request violated a domain rule or arrived malformed.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No usable token was presented, or the one presented was rejected.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller may not manage this person.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such branch, or the person does not work here.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "`conflicting-state`: the person is deactivated.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "A field breaks a rule; `context.fields` names each.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.ValidationFailedProblem"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests in the window, or a one-time credential is out of attempts.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected failure. Quote the traceId from the body.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/branches/{branchId}/shifts/{shiftId}": {
+      "put": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Move or retime a shift",
+        "description": "The whole shift again - `date`, and `startsAt` and `endsAt` or `dayOff` - with the same rules and refusals as planning one; the person does not change. Last write wins.\n\nA shift dated before the service date is history: 409 `conflicting-state` - unless it is still running (its end is after now at the branch), when its times may be corrected on its own date (`date` `min` is then that date).",
+        "operationId": "updateShift",
+        "parameters": [
+          {
+            "name": "branchId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "shiftId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "allOf": [
+                  {
+                    "$ref": "#/components/schemas/Yalla.Api.Endpoints.VenueAdminEndpoints.UpdateShiftRequest"
+                  }
+                ],
+                "description": "Body of `PUT /api/branches/{branchId}/shifts/{shiftId}`: the whole shift again."
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Application.Staff.StaffShiftView"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request violated a domain rule or arrived malformed.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No usable token was presented, or the one presented was rejected.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller may not manage this person.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such shift at this branch.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "`conflicting-state`: the person is deactivated, or the shift is past and over.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "A field breaks a rule; `context.fields` names each.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.ValidationFailedProblem"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests in the window, or a one-time credential is out of attempts.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected failure. Quote the traceId from the body.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Remove a shift",
+        "description": "Gone, not hidden. To undo, plan it again. A second delete of the same shift is 404. A past shift that has ended is history (409 `conflicting-state`). A shift left at a branch its person no longer works at may be removed by anybody of the venue who outranks them.",
+        "operationId": "deleteShift",
+        "parameters": [
+          {
+            "name": "branchId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "shiftId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "400": {
+            "description": "The request violated a domain rule or arrived malformed.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No usable token was presented, or the one presented was rejected.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller may not manage this person.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such shift at this branch.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "`conflicting-state`: a past shift that has ended.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests in the window, or a one-time credential is out of attempts.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected failure. Quote the traceId from the body.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/branches/{branchId}/reviews": {
       "get": {
         "tags": [
@@ -5478,7 +5963,7 @@
           "admin"
         ],
         "summary": "How full the room was, and how long people actually stayed",
-        "description": "Tables occupied by hour of day and by weekday, seats filled against capacity, and walk-ins against bookings.\n\n**`turnTime` is a distribution, not an average, and it is the most useful number in the whole set.** A cafe whose policy says 120 minutes and whose real median is 165 is refusing a 20:00 sitting because it believes the 18:00 one ends at 20:00 - and half the time it does not. It is losing bookings it has no other way to see. An average hides exactly that: a fast lunch and a slow dinner average to something plausible and describe neither service. Read `medianMinutes`, `p90Minutes` and `overPolicyFraction` together.\n\nA sitting is counted in **every hour it spans**, not only the one it started in: \"how busy is the room at eight\" is a question about occupancy, and counting arrivals makes a restaurant look empty at its busiest hour.",
+        "description": "Tables occupied by hour of day and by weekday, seats filled against capacity, and walk-ins against bookings.\n\n**`turnTime` is a distribution, not an average, and it is the most useful number in the whole set.** A cafe whose policy says 120 minutes and whose real median is 165 is refusing a 20:00 sitting because it believes the 18:00 one ends at 20:00 - and half the time it does not. It is losing bookings it has no other way to see. An average hides exactly that: a fast lunch and a slow dinner average to something plausible and describe neither service. Read `medianMinutes`, `p90Minutes` and `overPolicyFraction` together.\n\nA sitting is counted in **every hour it spans**, not only the one it started in: \"how busy is the room at eight\" is a question about occupancy, and counting arrivals makes a restaurant look empty at its busiest hour.\n\n`turnTime.buckets` are half-hour bars, `upToMinutes` 60 to 240 (each up to and including) and an open-ended last one. `walkInGuests` and `reservationGuests` split the people, not the sittings; `turnsPerTable` is sittings per active table per day (`activeTables`), two decimals, both periods over today's tables.",
         "operationId": "getOccupancyReport",
         "parameters": [
           {
@@ -5594,7 +6079,7 @@
           "admin"
         ],
         "summary": "Bookings, and what became of them",
-        "description": "Booked, seated, cancelled and no-show with their rates, late cancellations against the branch's own deadline, and how far ahead people book.\n\n`leadTime` is what `bookingWindowDays` should be set from - a venue taking bookings 30 days out when nobody books more than 5 days ahead is holding tables against demand that does not exist.\n\n**`webBookingsWithoutAnApp` is the number that decides a commercial question.** Somebody who booked from the public page and has no registered device cannot be reached by the reminder, the late nudge or one-tap cancel - the entire no-show story. If that number is large, an SMS or Telegram channel is worth paying for; if it is small, the install prompt on the confirmation screen is enough. See `docs/reports.md`.",
+        "description": "Booked, seated, cancelled and no-show with their rates, late cancellations against the branch's own deadline, and how far ahead people book.\n\n`leadTime` is what `bookingWindowDays` should be set from - a venue taking bookings 30 days out when nobody books more than 5 days ahead is holding tables against demand that does not exist. Its buckets are `upToHours` 2, 6, 24, 72, 168 and an open-ended last one, each **strictly less than** - a booking made exactly two hours ahead is in the 6.\n\n**`webBookingsWithoutAnApp` is the number that decides a commercial question.** Somebody who booked from the public page and has no registered device cannot be reached by the reminder, the late nudge or one-tap cancel - the entire no-show story. If that number is large, an SMS or Telegram channel is worth paying for; if it is small, the install prompt on the confirmation screen is enough. See `docs/reports.md`.",
         "operationId": "getReservationReport",
         "parameters": [
           {
@@ -5710,7 +6195,7 @@
           "admin"
         ],
         "summary": "What was taken, by day and by hour",
-        "description": "Total, average tab and **average per head** - a different question from average tab, and the one a menu is priced against. Service charge collected, cash against in-app, and comps and discounts as their own line **with who authorised them**.\n\nThat last part is why adjustments are manager-only: an owner asking \"what did we give away last month, and who decided\" is asking both halves.\n\nRevenue is counted on the tab **closing**, so a sitting that starts at 23:30 and settles at 00:40 belongs to the night it was taken - which is the day the venue counted its drawer.",
+        "description": "Total, average tab and **average per head** - a different question from average tab, and the one a menu is priced against. Service charge collected, cash against in-app, and comps and discounts as their own line **with who authorised them**.\n\nThat last part is why adjustments are manager-only: an owner asking \"what did we give away last month, and who decided\" is asking both halves.\n\nRevenue is counted on the tab **closing**, so a sitting that starts at 23:30 and settles at 00:40 belongs to the night it was taken - which is the day the venue counted its drawer.\n\n`byDay` has one entry for every local date of the range, zero days included, and `previousByDay` the same for the previous equivalent period, so the two pair by index. `tabs` is the closed tabs with their comparison.",
         "operationId": "getRevenueReport",
         "parameters": [
           {
@@ -20357,6 +20842,44 @@
         "additionalProperties": false,
         "description": "Body of `PATCH /api/venue/me`."
       },
+      "Yalla.Api.Endpoints.VenueAdminEndpoints.CreateShiftRequest": {
+        "required": [
+          "date",
+          "dayOff",
+          "staffMemberId"
+        ],
+        "type": "object",
+        "properties": {
+          "staffMemberId": {
+            "type": "string",
+            "description": "Whose shift. <b>Required.</b>",
+            "format": "uuid"
+          },
+          "date": {
+            "type": "string",
+            "description": "The branch's local date it starts on. <b>Required.</b>",
+            "format": "date"
+          },
+          "startsAt": {
+            "type": "string",
+            "description": "Wall clock, `HH:mm`. Required unless DayOff.",
+            "format": "time",
+            "nullable": true
+          },
+          "endsAt": {
+            "type": "string",
+            "description": "Wall clock; at or before StartsAt means after midnight. Required unless DayOff.",
+            "format": "time",
+            "nullable": true
+          },
+          "dayOff": {
+            "type": "boolean",
+            "description": "A day off on the date: send no times."
+          }
+        },
+        "additionalProperties": false,
+        "description": "Body of `POST /api/branches/{branchId}/shifts`."
+      },
       "Yalla.Api.Endpoints.VenueAdminEndpoints.IssueSignInRequest": {
         "required": [
           "email"
@@ -20396,6 +20919,38 @@
         },
         "additionalProperties": false,
         "description": "Body of the PIN reset."
+      },
+      "Yalla.Api.Endpoints.VenueAdminEndpoints.UpdateShiftRequest": {
+        "required": [
+          "date",
+          "dayOff"
+        ],
+        "type": "object",
+        "properties": {
+          "date": {
+            "type": "string",
+            "description": "The branch's local date it starts on. <b>Required.</b>",
+            "format": "date"
+          },
+          "startsAt": {
+            "type": "string",
+            "description": "Wall clock. Required unless DayOff.",
+            "format": "time",
+            "nullable": true
+          },
+          "endsAt": {
+            "type": "string",
+            "description": "Wall clock. Required unless DayOff.",
+            "format": "time",
+            "nullable": true
+          },
+          "dayOff": {
+            "type": "boolean",
+            "description": "A day off on the date: send no times."
+          }
+        },
+        "additionalProperties": false,
+        "description": "Body of `PUT /api/branches/{branchId}/shifts/{shiftId}`: the whole shift again."
       },
       "Yalla.Api.Endpoints.VenueUserSignInRequest": {
         "required": [
@@ -28987,14 +29542,18 @@
       },
       "Yalla.Application.Reports.OccupancyReport": {
         "required": [
+          "activeTables",
           "byHour",
           "byWeekday",
           "fromReservations",
+          "reservationGuests",
           "scope",
           "seatsAvailable",
           "seatsFilled",
           "sessions",
+          "turnsPerTable",
           "turnTime",
+          "walkInGuests",
           "walkIns"
         ],
         "type": "object",
@@ -29065,6 +29624,35 @@
               }
             ],
             "description": "Sittings seated against a booking."
+          },
+          "walkInGuests": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Yalla.Application.Reports.Compared"
+              }
+            ],
+            "description": "People at the sittings with no booking behind them - the walk-in half of the console's people split, which is\nabout guests, not tables: a walk-in couple and a booked party of eight are one sitting each."
+          },
+          "reservationGuests": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Yalla.Application.Reports.Compared"
+              }
+            ],
+            "description": "People at the sittings seated against a booking."
+          },
+          "turnsPerTable": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Yalla.Application.Reports.Compared"
+              }
+            ],
+            "description": "Sittings per active table per day, to two decimals - the \"table turnover\" card. The previous period is divided\nby today's table count too: the tables a branch had last month are not kept, and the card compares use, not\nfurniture."
+          },
+          "activeTables": {
+            "type": "integer",
+            "description": "The active tables now, which TurnsPerTable divides by.",
+            "format": "int32"
           }
         },
         "additionalProperties": false
@@ -29236,8 +29824,10 @@
           "byHour",
           "cashAmd",
           "inAppAmd",
+          "previousByDay",
           "scope",
           "serviceChargeAmd",
+          "tabs",
           "totalAmd"
         ],
         "type": "object",
@@ -29287,7 +29877,7 @@
             "items": {
               "$ref": "#/components/schemas/Yalla.Application.Reports.DailyRevenue"
             },
-            "description": "Day by day, in local dates."
+            "description": "Day by day, in local dates: every date of the range, zero days included."
           },
           "byHour": {
             "type": "array",
@@ -29326,6 +29916,21 @@
               }
             ],
             "description": "What they came to altogether."
+          },
+          "tabs": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Yalla.Application.Reports.Compared"
+              }
+            ],
+            "description": "Tabs closed - the \"closed bills\" card."
+          },
+          "previousByDay": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Yalla.Application.Reports.DailyRevenue"
+            },
+            "description": "The previous equivalent period, day by day - the chart's dashed line. Like ByDay it has one entry\nfor every local date of its period, zero days included, so the two have the same length and pair by index."
           }
         },
         "additionalProperties": false
@@ -30741,6 +31346,53 @@
         "additionalProperties": false,
         "description": "One row of Yalla.Application.Reviews.ModeratedReviewSummary.Distribution."
       },
+      "Yalla.Application.Staff.BranchShiftsView": {
+        "required": [
+          "branchId",
+          "from",
+          "onShiftToday",
+          "serviceDate",
+          "shifts",
+          "to"
+        ],
+        "type": "object",
+        "properties": {
+          "branchId": {
+            "type": "string",
+            "description": "The branch.",
+            "format": "uuid"
+          },
+          "serviceDate": {
+            "type": "string",
+            "description": "\"Today\" at the branch: its own date, or yesterday while last night's opening block still runs past midnight - the\nOverview's service day. The shift line reads the shifts dated this.",
+            "format": "date"
+          },
+          "from": {
+            "type": "string",
+            "description": "First date answered.",
+            "format": "date"
+          },
+          "to": {
+            "type": "string",
+            "description": "Last date answered.",
+            "format": "date"
+          },
+          "onShiftToday": {
+            "type": "integer",
+            "description": "\"On shift today: N people\" - the active people with a working shift (not a day off) at this branch dated\nServiceDate.",
+            "format": "int32"
+          },
+          "shifts": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Yalla.Application.Staff.StaffShiftView"
+            },
+            "description": "This branch's shifts dated From to To, active people only, by date, then\nstart (days off first), then person."
+          }
+        },
+        "additionalProperties": false,
+        "description": "A branch's shifts over a window, with what the Staff screen's header counts."
+      },
       "Yalla.Application.Staff.CreateStaffCommand": {
         "required": [
           "fullName",
@@ -30839,6 +31491,73 @@
           }
         },
         "additionalProperties": false
+      },
+      "Yalla.Application.Staff.StaffShiftView": {
+        "required": [
+          "branchId",
+          "date",
+          "dayOff",
+          "endsNextDay",
+          "id",
+          "staffMemberId"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "The shift.",
+            "format": "uuid"
+          },
+          "staffMemberId": {
+            "type": "string",
+            "description": "Whose.",
+            "format": "uuid"
+          },
+          "branchId": {
+            "type": "string",
+            "description": "Where.",
+            "format": "uuid"
+          },
+          "date": {
+            "type": "string",
+            "description": "The branch's local date it starts on.",
+            "format": "date"
+          },
+          "dayOff": {
+            "type": "boolean",
+            "description": "A day off on the date; no times then."
+          },
+          "startsAt": {
+            "type": "string",
+            "description": "Wall clock; absent on a day off.",
+            "format": "time",
+            "nullable": true
+          },
+          "endsAt": {
+            "type": "string",
+            "description": "Wall clock, on the next date when EndsNextDay; absent on a day off.",
+            "format": "time",
+            "nullable": true
+          },
+          "endsNextDay": {
+            "type": "boolean",
+            "description": "Ends after midnight - including at exactly 00:00. False on a day off."
+          },
+          "startsAtUtc": {
+            "type": "string",
+            "description": "The start as an instant; absent on a day off.",
+            "format": "date-time",
+            "nullable": true
+          },
+          "endsAtUtc": {
+            "type": "string",
+            "description": "The end as an instant; absent on a day off.",
+            "format": "date-time",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false,
+        "description": "One shift as every read returns it."
       },
       "Yalla.Application.Staff.StaffSignInLink": {
         "required": [

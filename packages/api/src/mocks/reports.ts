@@ -16,7 +16,7 @@ import type {
   VoidLine,
 } from '../contracts/reports';
 import { ReportRangeTooLongError } from '../contracts/errors';
-import { REPORT_MAX_DAYS } from '../contracts/reports';
+import { OPEN_ENDED_BUCKET, REPORT_MAX_DAYS } from '../contracts/reports';
 
 /**
  * A venue's trading history, invented deterministically.
@@ -212,15 +212,19 @@ function daysFor(branchIds: readonly string[], from: string, to: string): Tradin
 const sum = (days: readonly TradingDay[], of: (day: TradingDay) => number): number =>
   days.reduce((total, day) => total + of(day), 0);
 
+/** The tables a fixture branch seats at: the turnover's denominator. */
+const TABLES_PER_BRANCH = 9;
+
 // --- Comparisons -------------------------------------------------------------
 
 /**
  * A measure beside the previous equivalent period.
  *
- * `previous` is **null, not zero**, when the prior period has no trading in it
- * at all. That is the rule the whole comparison story rests on: a venue's first
- * week has no previous week, and rendering "down 100%" against a period that
- * did not exist is a lie the screen would state confidently.
+ * When the prior period has no trading in it at all, the server sums it to
+ * **0** and sends no `changeFraction` — growth from nothing has no percentage.
+ * The mock does the same, so the console's "a previous total of 0 is no
+ * previous period" rule is tested against what it will meet: a venue's first
+ * week has no previous week, and "down 100%" against it would be a lie.
  */
 function compare(
   current: readonly TradingDay[],
@@ -229,13 +233,38 @@ function compare(
 ): Compared {
   const value = sum(current, of);
   const hadTrading = prior.some((day) => day.sessions > 0);
-  if (!hadTrading) return { value, previous: null, changeFraction: null };
+  if (!hadTrading) return { value, previous: 0, changeFraction: null };
 
   const previous = sum(prior, of);
   return {
     value,
     previous,
     // Null rather than infinity: growth from nothing has no percentage.
+    changeFraction: previous === 0 ? null : (value - previous) / previous,
+  };
+}
+
+/**
+ * Sittings per table per day, to two decimals, as the server writes it. The
+ * previous period divides by today's table count too.
+ */
+function turns(
+  current: readonly TradingDay[],
+  prior: readonly TradingDay[],
+  tables: number,
+): Compared {
+  const rate = (days: readonly TradingDay[]) =>
+    tables === 0 || days.length === 0
+      ? 0
+      : Math.round((sum(days, (day) => day.sessions) / (tables * days.length)) * 100) / 100;
+  const value = rate(current);
+  if (!prior.some((day) => day.sessions > 0)) {
+    return { value, previous: 0, changeFraction: null };
+  }
+  const previous = rate(prior);
+  return {
+    value,
+    previous,
     changeFraction: previous === 0 ? null : (value - previous) / previous,
   };
 }
@@ -254,7 +283,7 @@ function compareRate(
 
   const value = rate(current);
   if (!prior.some((day) => day.sessions > 0)) {
-    return { value, previous: null, changeFraction: null };
+    return { value, previous: 0, changeFraction: null };
   }
   const previous = rate(prior);
   return {
@@ -344,15 +373,16 @@ export function createMockReports(world: MockReportWorld): MockReports {
    * median landed neatly on the policy would render the finding never.
    */
   function turnTimeBuckets(sessions: number): DurationBucket[] {
+    // The server's buckets (VC5): 60 … 240 by half hours, then open-ended.
     const shape: readonly [number, number][] = [
-      [30, 2],
-      [60, 6],
+      [60, 8],
       [90, 14],
       [120, 21],
       [150, 24],
       [180, 17],
-      [240, 11],
-      [480, 5],
+      [210, 7],
+      [240, 4],
+      [OPEN_ENDED_BUCKET, 5],
     ];
     const total = shape.reduce((a, [, weight]) => a + weight, 0);
     return shape.map(([upToMinutes, weight]) => ({
@@ -375,15 +405,14 @@ export function createMockReports(world: MockReportWorld): MockReports {
   }
 
   function leadTimeBuckets(booked: number): LeadTimeBucket[] {
+    // The server's buckets (VC5): < 2 h, < 6 h, < 1 day, < 3 days, < 7 days, more.
     const shape: readonly [number, number][] = [
-      [2, 18],
+      [2, 14],
       [6, 22],
-      [12, 16],
-      [24, 20],
-      [48, 12],
-      [72, 7],
-      [168, 4],
-      [720, 1],
+      [24, 31],
+      [72, 19],
+      [168, 9],
+      [OPEN_ENDED_BUCKET, 5],
     ];
     const total = shape.reduce((a, [, weight]) => a + weight, 0);
     return shape.map(([upToHours, weight]) => ({
@@ -424,6 +453,17 @@ export function createMockReports(world: MockReportWorld): MockReports {
         seatsAvailable: scope.branchIds.length * 22 * current.length,
         walkIns: compare(current, prior, (day) => day.walkIns),
         fromReservations: compare(current, prior, (day) => day.booked),
+        // People, not sittings: each sitting's share of the day's covers.
+        walkInGuests: compare(current, prior, (day) =>
+          day.sessions === 0 ? 0 : Math.round((day.covers * day.walkIns) / day.sessions),
+        ),
+        reservationGuests: compare(current, prior, (day) =>
+          day.sessions === 0
+            ? 0
+            : day.covers - Math.round((day.covers * day.walkIns) / day.sessions),
+        ),
+        turnsPerTable: turns(current, prior, scope.branchIds.length * TABLES_PER_BRANCH),
+        activeTables: scope.branchIds.length * TABLES_PER_BRANCH,
       };
     },
 
@@ -467,7 +507,7 @@ export function createMockReports(world: MockReportWorld): MockReports {
       /** An average is a ratio of two sums, never a mean of daily averages. */
       const average = (top: number, bottom: number, priorTop: number, priorBottom: number) => {
         const value = bottom === 0 ? 0 : Math.round(top / bottom);
-        if (!hadPrior) return { value, previous: null, changeFraction: null };
+        if (!hadPrior) return { value, previous: 0, changeFraction: null };
         const previous = priorBottom === 0 ? 0 : Math.round(priorTop / priorBottom);
         return {
           value,
@@ -490,22 +530,21 @@ export function createMockReports(world: MockReportWorld): MockReports {
         averageTabAmd: average(revenue, tabs, priorRevenue, priorTabs),
         averagePerHeadAmd: average(revenue, covers, priorRevenue, priorCovers),
         /*
-         * Sparse, as the server's is.
-         *
-         * `ByDay` on the backend groups the tabs that actually closed, so a day
-         * with no takings produces no row. The mock used to emit a row per day
-         * in the range — which made the reports screen's assumption that every
-         * day is present look correct, right up until it met a real backend.
-         * Same failure mode as the availability bug: the double agreeing with
-         * the client instead of with the server.
+         * Dense, as the server's is since VC5: one entry per local date of the
+         * range, zero days included, and the previous period the same length
+         * so `previousByDay[i]` pairs with `byDay[i]`.
          */
-        byDay: current
-          .filter((day) => day.tabs > 0)
-          .map((day) => ({
-            localDate: day.date,
-            revenueAmd: day.revenueAmd,
-            tabs: day.tabs,
-          })),
+        byDay: current.map((day) => ({
+          localDate: day.date,
+          revenueAmd: day.revenueAmd,
+          tabs: day.tabs,
+        })),
+        previousByDay: prior.map((day) => ({
+          localDate: day.date,
+          revenueAmd: day.revenueAmd,
+          tabs: day.tabs,
+        })),
+        tabs: compare(current, prior, (day) => day.tabs),
         byHour: hourShape.map((weight, hour) => ({
           hour,
           revenueAmd: Math.round((revenue * weight) / hourTotal),

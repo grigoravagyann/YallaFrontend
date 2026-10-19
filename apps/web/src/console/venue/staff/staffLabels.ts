@@ -1,9 +1,9 @@
 import type { StaffMember, StaffRole } from '@yalla/api';
 import { useTranslation } from '@yalla/i18n';
-import type { StaffAction } from './staffActions';
+import type { StaffAction, StaffStatus } from './staffActions';
 
 /**
- * The staff screen's per-role and per-action words, as literal keys.
+ * The staff screen's per-role, per-state and per-action words, as literal keys.
  *
  * Literal on purpose: `pnpm i18n:check` reads `t('…')` calls and cannot see a
  * key built from a template, so `t(\`staff.group.${role}\`)` with a typo would
@@ -42,6 +42,21 @@ export function useStaffLabels() {
     }
   }
 
+  function status(state: StaffStatus): string {
+    switch (state) {
+      case 'active':
+        return t('venuePage.staff.active');
+      case 'awaiting':
+        return t('venuePage.staff.awaiting');
+      case 'noSignIn':
+        return t('venuePage.staff.noSignIn');
+      case 'pinLocked':
+        return t('staff.status.pinLocked');
+      case 'inactive':
+        return t('venuePage.staff.inactive');
+    }
+  }
+
   function action(kind: StaffAction, member: StaffMember): string {
     switch (kind) {
       case 'unlock':
@@ -52,6 +67,8 @@ export function useStaffLabels() {
         return t('staff.action.issueSignIn');
       case 'edit':
         return t('common:action.edit');
+      case 'shift':
+        return t('staff.action.shift');
       case 'resetPin':
         return t('staff.action.resetPin');
       case 'sendNewLink':
@@ -63,5 +80,5 @@ export function useStaffLabels() {
     }
   }
 
-  return { group, roleInfo, action };
+  return { group, roleInfo, status, action };
 }

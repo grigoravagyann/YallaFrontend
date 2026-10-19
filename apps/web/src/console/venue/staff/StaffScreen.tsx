@@ -1,65 +1,76 @@
 import {
   StaffPinTakenError,
+  assignableRoles,
   canChooseBranch,
   type StaffMember,
   type StaffRole,
   type StaffSignInLink,
 } from '@yalla/api';
 import {
+  useBranchShifts,
   useClearPinLockout,
-  useCreateStaff,
-  useIssueStaffSignIn,
   useManagedVenue,
   useSetStaffPin,
   useStaff,
   useUpdateStaff,
 } from '@yalla/api/react';
 import { useLocale, useTranslation } from '@yalla/i18n';
-import { useCallback, useId, useMemo, useState } from 'react';
-import { QueryFailureNotice } from '../../../components/QueryFailureNotice';
+import { useCallback, useMemo, useState, type ReactNode } from 'react';
 import { useCurrentUser } from '../../../auth/useCurrentUser';
+import { QueryFailureNotice } from '../../../components/QueryFailureNotice';
+import { initialsOf } from '../../ui/ConsoleShell';
+import {
+  ClockIcon,
+  LockIcon,
+  PadlockIcon,
+  PauseIcon,
+  PlusIcon,
+  RestoreIcon,
+  SearchIcon,
+  SendIcon,
+  UserIcon,
+} from '../../ui/icons';
+import { OnceLinkDialog } from '../../ui/OnceLinkDialog';
+import { PageHeader } from '../../ui/PageHeader';
+import { RowMenu, type RowMenuItem } from '../../ui/RowMenu';
+import { useToast } from '../../ui/toast';
 import { useVenueOutlet } from '../VenueLayout';
-import { AddStaffDialog } from './AddStaffDialog';
-import { DeactivateDialog } from './DeactivateDialog';
+import { AddStaffWizard, type Hired } from './AddStaffWizard';
 import { ChangeOwnPinDialog } from './ChangeOwnPinDialog';
+import { DeactivateDialog } from './DeactivateDialog';
 import { DevicesPanel } from './DevicesPanel';
 import { EditStaffDialog } from './EditStaffDialog';
-import { PinDialog } from './PinDialog';
-import { SignInLinkDialog } from './SignInLinkDialog';
-import { SignInPrompt } from './SignInPrompt';
-import { StaffCard } from './StaffCard';
-import { ROLE_ORDER, StaffFilters, type RoleFilter } from './StaffFilters';
-import { issueFailureText } from './signInIssue';
-import { actionsFor, type StaffAction } from './staffActions';
+import { IssueSignInDialog } from './IssueSignInDialog';
+import { ShiftDialog } from './ShiftDialog';
+import {
+  canChangeOwnPin,
+  rowActionsFor,
+  staffStatusOf,
+  type StaffAction,
+  type StaffStatus,
+} from './staffActions';
 import { asStaffRefusal, type StaffRefusal } from './staffRefusal';
+import { shiftLineOf, type ShiftLine } from './staffShifts';
 import { useStaffLabels } from './staffLabels';
 
-/**
- * The one thing on screen that must exist exactly once: a credential.
- *
- * A single state rather than one per kind, so there is never a PIN dialog and
- * a link dialog open at the same time — and so that a hire which made a
- * person but not their link still shows the PIN, which otherwise dies with
- * the form.
- */
-export type ShownCredentials =
-  | { readonly kind: 'pin'; readonly name: string; readonly pin: string }
-  | {
-      readonly kind: 'signIn';
-      readonly name: string;
-      readonly pin: string | null;
-      readonly link: StaffSignInLink | null;
-      readonly failure: string | null;
-      /** Where "try again" goes: the card's prompt, with the address to fix. */
-      readonly retry: { readonly staffMemberId: string; readonly email: string } | null;
-    };
+/** The groups' order, most senior first (Staff artboard). */
+const ROLE_ORDER: readonly StaffRole[] = [
+  'owner',
+  'generalManager',
+  'manager',
+  'waiter',
+  'kitchen',
+];
 
-/** The card whose address prompt is open, and what the last attempt said. */
-export interface SignInPromptState {
-  readonly staffMemberId: string;
-  readonly email: string;
-  readonly failure: string | null;
-}
+type RoleFilter = StaffRole | 'all';
+
+const PILL: Readonly<Record<StaffStatus, string>> = {
+  active: 'yc-pill yc-pill-green',
+  awaiting: 'yc-pill yc-pill-amber',
+  noSignIn: 'yc-pill yc-pill-grey',
+  pinLocked: 'yc-pill yc-pill-red',
+  inactive: 'yc-pill yc-pill-grey',
+};
 
 /** How many PINs "New PIN" draws before it gives up on finding a free one. */
 const RESET_PIN_ATTEMPTS = 5;
@@ -70,104 +81,82 @@ function randomPin(): string {
   return String(1000 + ((value ?? 0) % 9000));
 }
 
+/** The one dialog open on the page; a credential lives in it and nowhere else. */
+type Open =
+  | { readonly kind: 'add' }
+  | { readonly kind: 'edit'; readonly member: StaffMember }
+  | { readonly kind: 'deactivate'; readonly member: StaffMember }
+  | { readonly kind: 'ownPin'; readonly member: StaffMember }
+  | { readonly kind: 'shift'; readonly member: StaffMember }
+  | {
+      readonly kind: 'issue';
+      readonly member: StaffMember;
+      readonly email: string;
+      readonly failure: string | null;
+    }
+  | {
+      readonly kind: 'once';
+      readonly title: string;
+      readonly pin: string | null;
+      readonly link: StaffSignInLink | null;
+      readonly failure: string | null;
+      /** Where "try again" goes: the address, with the person it is for. */
+      readonly retry: { readonly member: StaffMember; readonly email: string } | null;
+      /** Said when it closes: "added", "saved", or nothing for a new PIN. */
+      readonly toast: string | null;
+      readonly returnTo: string;
+    };
+
 /**
- * Staff accounts and the tablets they sign in on.
+ * Who works at this branch, today's shift of each, and the tablets they sign
+ * in on (Staff artboard).
  *
- * Two scopes on one page, because that is what the API has: **staff belong to
- * a venue** (an owner works everywhere) and **a device belongs to a branch**.
+ * People are rows grouped by role, each with the one thing that needs doing
+ * now as a button — unlock a PIN, give a sign-in, a new link — and the rest in
+ * a ⋮ menu: New PIN, Edit, Shift, the sign-in, Deactivate. Somebody above the
+ * actor's role says so and offers nothing (`rowActionsFor`). A PIN, a sign-in
+ * link and a tablet's enrolment code are shown once, in a dialog that warns
+ * once before closing on a link not yet copied (`OnceLinkDialog`).
  *
- * People are cards grouped by role, each with the one action that fits their
- * state and the rest behind "More"; adding somebody is a short step-by-step
- * dialog and editing is a one-page dialog. The rules behind every action are
- * the ones the table had — see `actionsFor`.
+ * Staff belong to the venue and a tablet to a branch; the page shows the
+ * people who work at the branch in the sidebar — its own and the venue-wide
+ * owners and general managers — as the artboard does.
  */
 export function StaffScreen() {
   const { t } = useTranslation(['admin', 'common']);
   const labels = useStaffLabels();
   const { locale } = useLocale();
-  const { branchId, timeZoneId, branchCount } = useVenueOutlet();
+  const toast = useToast();
+  const { branchId, branchName, timeZoneId } = useVenueOutlet();
   const { user } = useCurrentUser();
-  const headingPrefix = useId();
 
   const venueId = user?.scope.venueId ?? undefined;
-  // The read a venue user may make. The platform one answers them 403, which
-  // left every branch name on the cards below as a dash.
+  // The read a venue user may make. The platform one answers them 403.
   const venue = useManagedVenue(venueId);
   const staff = useStaff(venueId);
+  const shifts = useBranchShifts(branchId);
 
-  const createStaff = useCreateStaff(venueId);
   const updateStaff = useUpdateStaff(venueId);
   const setPin = useSetStaffPin(venueId);
   const clearLockout = useClearPinLockout(venueId);
-  const issueSignIn = useIssueStaffSignIn(venueId);
 
   const [search, setSearch] = useState('');
   const [roleFilter, setRoleFilter] = useState<RoleFilter>('all');
   const [showInactive, setShowInactive] = useState(false);
-  const [editing, setEditing] = useState<StaffMember | null>(null);
-  const [creating, setCreating] = useState(false);
-  const [deactivating, setDeactivating] = useState<StaffMember | null>(null);
+  const [menuFor, setMenuFor] = useState<string | null>(null);
+  const [open, setOpen] = useState<Open | null>(null);
   const [refusal, setRefusal] = useState<StaffRefusal | null>(null);
-  /**
-   * The one moment a PIN or a sign-in link exists on screen. Cleared when the
-   * dialog closes; there is nowhere else either lives.
-   */
-  const [shown, setShown] = useState<ShownCredentials | null>(null);
-  const [prompt, setPrompt] = useState<SignInPromptState | null>(null);
-  /** Your own card, while you type yourself a new PIN. The PIN is never here. */
-  const [changingOwnPin, setChangingOwnPin] = useState<StaffMember | null>(null);
 
-  const failureText = (error: unknown) =>
-    issueFailureText(error, {
-      offline: t('state.offline'),
-      generic: t('state.error'),
-      badEmail: t('staff.signIn.emailRequired'),
-      tooManyRequests: t('staff.signIn.tooManyRequests'),
-    });
-
-  async function sendSignIn(member: StaffMember, email: string) {
-    try {
-      const link = await issueSignIn.mutateAsync({ staffMemberId: member.id, email });
-      setPrompt(null);
-      setShown({
-        kind: 'signIn',
-        name: member.fullName,
-        pin: null,
-        link,
-        failure: null,
-        retry: null,
-      });
-    } catch (error) {
-      // Under the field, where the address can be corrected and sent again.
-      setPrompt((current) => (current ? { ...current, failure: failureText(error) } : null));
-    } finally {
-      // The hook keeps the result as its own `data`. That is a second copy of
-      // the link, and the dialog's state is the only one wanted.
-      issueSignIn.reset();
-    }
-  }
-
-  // From the dialog to the card: the address is corrected there, and the
-  // reason it was refused goes with it — the dialog's alert unmounts with the
-  // dialog, and the sentence to act on belongs beside the field.
-  const retryFrom = (
-    retry: { staffMemberId: string; email: string } | null,
-    failure: string | null,
-  ) =>
-    retry
-      ? () => {
-          setShown(null);
-          setPrompt({ staffMemberId: retry.staffMemberId, email: retry.email, failure });
-        }
-      : null;
+  const branches = venue.data?.branches ?? [];
+  const here = branchName ?? branches.find((branch) => branch.id === branchId)?.name ?? '';
 
   const actorRole: StaffRole | 'platformAdmin' =
     user?.role === 'platformAdmin' ? 'platformAdmin' : ((user?.role ?? 'manager') as StaffRole);
 
-  // The actor's own staff row, so "you cannot edit yourself" and the "You"
-  // marker point at the right person. The console user's id is that row's id
-  // against the real API; the first row with the actor's role at this branch
-  // is the fallback for a session whose id matches nothing (the mock).
+  // The actor's own staff row, so "You" and "Change my PIN" point at the right
+  // person. The console user's id is that row's id against the real API; the
+  // first row with the actor's role at this branch is the fallback for a
+  // session whose id matches nothing (the mock's development role switch).
   const actorId = useMemo(() => {
     const list = staff.data ?? [];
     if (user && list.some((member) => member.id === user.id)) return user.id;
@@ -179,376 +168,597 @@ export function StaffScreen() {
   }, [staff.data, actorRole, branchId, user]);
 
   // Where the actor works, for the one rule that needs it: a branch manager
-  // touches their own branch's people only. Their stored row says; the
-  // token's branch claim stands in until the list arrives.
+  // touches their own branch's people only.
   const actorBranchId =
     staff.data?.find((member) => member.id === actorId)?.branchId ??
     user?.scope.branchIds[0] ??
     null;
+  const actor = { id: actorId, role: actorRole, branchId: actorBranchId };
+  const self = staff.data?.find((member) => member.id === actorId) ?? null;
 
-  // Search and the switch first: the chips count what those leave, so each
-  // chip says how many cards it would show.
-  const matching = useMemo(() => {
+  /** The people of this branch, and the venue-wide ones. */
+  const atBranch = useMemo(
+    () =>
+      (staff.data ?? []).filter(
+        (member) => !branchId || member.branchId === null || member.branchId === branchId,
+      ),
+    [staff.data, branchId],
+  );
+
+  const groups = useMemo(() => {
     const needle = search.trim().toLocaleLowerCase();
     const digits = needle.replace(/\s/gu, '');
-    return (staff.data ?? [])
-      .filter((member) => (showInactive ? !member.isActive : member.isActive))
+    const visible = atBranch
+      .filter((member) => showInactive || member.isActive)
+      .filter((member) => roleFilter === 'all' || member.role === roleFilter)
       .filter(
         (member) =>
           !needle ||
           member.fullName.toLocaleLowerCase().includes(needle) ||
+          (member.email ?? '').toLocaleLowerCase().includes(needle) ||
           (digits !== '' && member.phone.replace(/\s/gu, '').includes(digits)),
-      );
-  }, [staff.data, search, showInactive]);
-
-  const counts = useMemo(() => {
-    const byRole: Record<RoleFilter, number> = {
-      all: matching.length,
-      owner: 0,
-      generalManager: 0,
-      manager: 0,
-      waiter: 0,
-      kitchen: 0,
-    };
-    for (const member of matching) byRole[member.role] += 1;
-    return byRole;
-  }, [matching]);
-
-  const groups = useMemo(() => {
-    const visible = matching
-      .filter((member) => roleFilter === 'all' || member.role === roleFilter)
+      )
       .sort((a, b) => a.fullName.localeCompare(b.fullName, locale));
     return ROLE_ORDER.map((role) => ({
       role,
       members: visible.filter((member) => member.role === role),
     })).filter((group) => group.members.length > 0);
-  }, [matching, roleFilter, locale]);
+  }, [atBranch, search, showInactive, roleFilter, locale]);
 
-  const branches = venue.data?.branches ?? [];
-  // The branch on each card only where the actor covers more than one: a
-  // manager with one branch does not need its name on every card.
-  const showBranch = canChooseBranch(actorRole) && branchCount > 1;
+  const branchLabel = (member: StaffMember) =>
+    member.branchId === null
+      ? t('staff.allBranches')
+      : (branches.find((branch) => branch.id === member.branchId)?.name ?? '—');
 
-  function branchNameOf(member: StaffMember): string {
-    if (member.branchId === null) return t('staff.allBranches');
-    return branches.find((branch) => branch.id === member.branchId)?.name ?? '—';
-  }
+  const kebab = (id: string) => () =>
+    document.querySelector<HTMLElement>(`[data-kebab="${CSS.escape(id)}"]`);
+
+  const failureToast = useCallback(
+    (error: unknown) => {
+      const refused = asStaffRefusal(error);
+      toast.say(refused?.message ?? t('state.error'), { tone: 'error' });
+    },
+    [t, toast],
+  );
 
   /**
    * A generated PIN, set and shown once.
    *
-   * PINs are unique per tablet roster, so a random one can be somebody
-   * else's on the same keypad: the server says `pin-taken` and another is
-   * drawn. Nothing is shown until one is accepted, so the PIN on screen is
-   * always the one that works. Anything else is the mutation's to report.
+   * PINs are unique per tablet roster, so a random one can be somebody else's
+   * on the same keypad: the server says `pin-taken` and another is drawn.
+   * Nothing is shown until one is accepted, so the PIN on screen is the one
+   * that works.
    */
   async function resetPin(member: StaffMember) {
     for (let attempt = 0; attempt < RESET_PIN_ATTEMPTS; attempt += 1) {
       const pin = randomPin();
       try {
         await setPin.mutateAsync({ staffMemberId: member.id, pin });
-        setShown({ kind: 'pin', name: member.fullName, pin });
+        setOpen({
+          kind: 'once',
+          title: t('staff.pin.shownOnceTitle', { name: member.fullName }),
+          pin,
+          link: null,
+          failure: null,
+          retry: null,
+          toast: null,
+          returnTo: `[data-kebab="${member.id}"]`,
+        });
         return;
       } catch (error) {
-        if (!(error instanceof StaffPinTakenError)) return;
+        if (!(error instanceof StaffPinTakenError)) {
+          failureToast(error);
+          return;
+        }
       } finally {
         // The mutation keeps its variables, which hold the PIN.
         setPin.reset();
       }
     }
+    toast.say(t('state.error'), { tone: 'error' });
   }
 
-  const closeForms = useCallback(() => {
-    setCreating(false);
-    setEditing(null);
-    setRefusal(null);
-  }, []);
+  function reactivate(member: StaffMember) {
+    updateStaff.mutate(
+      { staffMemberId: member.id, patch: { isActive: true } },
+      {
+        onSuccess: () => toast.say(t('staff.toast.reactivated', { name: member.fullName })),
+        onError: failureToast,
+      },
+    );
+  }
 
-  function onAction(member: StaffMember, action: StaffAction) {
+  function act(member: StaffMember, action: StaffAction) {
+    setRefusal(null);
     switch (action) {
       case 'unlock':
         // The most time-critical control on the screen: a waiter locked out
         // mid-rush cannot wait out a timer.
-        if (branchId) clearLockout.mutate({ branchId, staffMemberId: member.id });
-        return;
-      case 'edit':
-        setRefusal(null);
-        setCreating(false);
-        setEditing(member);
+        if (!branchId) return;
+        clearLockout.mutate(
+          { branchId, staffMemberId: member.id },
+          {
+            onSuccess: () => toast.say(t('staff.toast.unlocked', { name: member.fullName })),
+            onError: failureToast,
+          },
+        );
         return;
       case 'resetPin':
         void resetPin(member);
         return;
+      case 'edit':
+        setOpen({ kind: 'edit', member });
+        return;
+      case 'shift':
+        setOpen({ kind: 'shift', member });
+        return;
       case 'changeOwnPin':
-        setChangingOwnPin(member);
+        setOpen({ kind: 'ownPin', member });
         return;
       case 'issueSignIn':
       case 'sendNewLink':
-        setPrompt({ staffMemberId: member.id, email: member.email ?? '', failure: null });
+        setOpen({ kind: 'issue', member, email: member.email ?? '', failure: null });
         return;
       case 'deactivate':
-        // Asked first: the card vanishes on confirmation, and the way back
-        // (Show deactivated, Reactivate) should not have to be the undo.
-        setDeactivating(member);
+        setOpen({ kind: 'deactivate', member });
         return;
       case 'reactivate':
         // Deactivate, never delete — the API offers no delete. Somebody who
         // left in March and returns in June is a reactivation.
-        updateStaff.mutate({ staffMemberId: member.id, patch: { isActive: true } });
+        reactivate(member);
         return;
     }
   }
 
+  const menuIcon: Readonly<Record<StaffAction, ReactNode>> = {
+    unlock: <PadlockIcon />,
+    resetPin: <LockIcon />,
+    edit: <UserIcon />,
+    shift: <ClockIcon />,
+    issueSignIn: <SendIcon />,
+    sendNewLink: <SendIcon />,
+    deactivate: <PauseIcon />,
+    reactivate: <RestoreIcon />,
+    changeOwnPin: <LockIcon />,
+  };
+
+  function afterHire(hired: Hired) {
+    setOpen({
+      kind: 'once',
+      title: t('staff.once.added', { name: hired.member.fullName }),
+      pin: hired.pin,
+      link: hired.link,
+      failure: hired.linkFailure?.text ?? null,
+      retry: hired.linkFailure ? { member: hired.member, email: hired.linkFailure.email } : null,
+      toast: hired.link ? t('venuePage.once.savedLink') : t('venuePage.once.added'),
+      returnTo: '[data-add]',
+    });
+  }
+
   if (!venueId) {
     return (
-      <section className="page">
-        <h1>{t('nav.staff')}</h1>
-        <p className="muted">{t('staff.noVenue')}</p>
-      </section>
+      <div className="yc-page">
+        <PageHeader title={t('nav.staff')} />
+        <p className="yc-card yc-empty-line">{t('staff.noVenue')}</p>
+      </div>
     );
   }
 
-  const actor = { id: actorId, role: actorRole, branchId: actorBranchId };
-  // The issue call counts: the dialog stays in "Saving…" until the next one
-  // is ready, so there is never a moment with the person made and nothing on
-  // screen about it.
-  const isSaving = createStaff.isPending || updateStaff.isPending || issueSignIn.isPending;
+  const canAdd = assignableRoles(actorRole).length > 0;
+  const ownPin = self && canChangeOwnPin(self, actor) ? self : null;
+  const onShift = shifts.data ? t('staff.onShift', { count: shifts.data.onShiftToday }) : null;
+  const nextDay = t('hours.nextDay');
+
+  const shiftText = (line: ShiftLine) => {
+    switch (line.kind) {
+      case 'none':
+        return t('staff.shift.notSet');
+      case 'off':
+        return t('staff.shift.todayOff');
+      case 'today':
+        return t('staff.shift.todayAt', { times: line.times });
+      case 'later':
+        return line.day === 'tomorrow'
+          ? t('staff.shift.tomorrowAt', { times: line.times })
+          : t('staff.shift.dateAt', {
+              date: new Intl.DateTimeFormat(locale, {
+                day: 'numeric',
+                month: 'short',
+                timeZone: 'UTC',
+              }).format(new Date(`${line.date}T12:00:00Z`)),
+              times: line.times,
+            });
+    }
+  };
+
+  const primaryLabel = (action: 'unlock' | 'issueSignIn' | 'sendNewLink') =>
+    action === 'unlock'
+      ? t('staff.action.unlock')
+      : action === 'issueSignIn'
+        ? t('venuePage.staff.giveSignIn')
+        : t('venuePage.staff.newLink');
 
   return (
-    <section className="page staff-page">
-      <header className="section-head">
-        <div>
-          <h1>{t('nav.staff')}</h1>
-          <p className="muted">{t('staff.intro')}</p>
-        </div>
-        <button
-          type="button"
-          className="button button-primary"
-          onClick={() => {
-            setRefusal(null);
-            setEditing(null);
-            setCreating(true);
-          }}
-        >
-          {t('staff.add')}
-        </button>
-      </header>
-
-      <StaffFilters
-        search={search}
-        onSearch={setSearch}
-        roleFilter={roleFilter}
-        onRoleFilter={setRoleFilter}
-        counts={counts}
-        showInactive={showInactive}
-        onShowInactive={setShowInactive}
-      />
-
-      {staff.isError ? (
-        <QueryFailureNotice error={staff.error} onRetry={() => void staff.refetch()} />
-      ) : staff.isLoading ? (
-        <p className="muted">{t('loading')}</p>
-      ) : groups.length === 0 ? (
-        /* The common state during onboarding, so it routes straight into
-           hiring somebody rather than saying "no staff" and stopping. */
-        <div className="empty-state">
-          <p className="empty-title">
-            {showInactive ? t('staff.empty.noneInactive') : t('staff.empty.title')}
-          </p>
-          {showInactive ? null : (
-            <>
-              <p className="muted">{t('staff.empty.body')}</p>
+    <div className="yc-page">
+      <PageHeader
+        title={t('nav.staff')}
+        sub={[here, t('staff.intro'), onShift].filter(Boolean).join(' · ')}
+        actions={
+          <div className="yc-ph-acts">
+            {ownPin ? (
               <button
                 type="button"
-                className="button button-primary"
-                onClick={() => {
-                  setRefusal(null);
-                  setEditing(null);
-                  setCreating(true);
-                }}
+                className="yc-btn yc-btn-sec"
+                data-ownpin=""
+                onClick={() => setOpen({ kind: 'ownPin', member: ownPin })}
               >
-                {t('staff.empty.action')}
+                {t('staff.action.changeOwnPin')}
               </button>
-            </>
-          )}
+            ) : null}
+            {canAdd ? (
+              <button
+                type="button"
+                className="yc-btn yc-btn-pri"
+                data-add=""
+                onClick={() => setOpen({ kind: 'add' })}
+              >
+                <PlusIcon />
+                {t('venuePage.staff.add')}
+              </button>
+            ) : null}
+          </div>
+        }
+      />
+
+      <div className="yc-tools">
+        <div className="yc-fld yc-search yc-st-search">
+          <label htmlFor="st-q">{t('staff.filter.search')}</label>
+          <SearchIcon />
+          <input
+            id="st-q"
+            className="yc-ctl"
+            type="search"
+            placeholder={t('staff.filter.searchPlaceholder')}
+            value={search}
+            onChange={(event) => setSearch(event.currentTarget.value)}
+          />
         </div>
-      ) : (
-        <div className="roster-groups">
-          {groups.map((group) => {
-            const headingId = `${headingPrefix}-${group.role}`;
-            return (
-              <section key={group.role} className="roster-group" aria-labelledby={headingId}>
-                <h3 id={headingId} className="roster-group-head">
-                  {labels.group(group.role)}{' '}
-                  <span className="badge badge-count">{group.members.length}</span>
-                </h3>
-                <ul className="roster-grid">
-                  {group.members.map((member) => (
-                    <StaffCard
-                      key={member.id}
-                      member={member}
-                      branchLabel={showBranch ? branchNameOf(member) : null}
-                      actions={actionsFor(member, actor, { canUnlock: branchId !== null })}
-                      onAction={(action) => onAction(member, action)}
-                    >
-                      {prompt?.staffMemberId === member.id ? (
-                        <SignInPrompt
-                          key={prompt.email}
-                          member={member}
-                          initialEmail={prompt.email}
-                          failure={prompt.failure}
-                          isPending={issueSignIn.isPending}
-                          onSend={(email) => void sendSignIn(member, email)}
-                          onCancel={() => setPrompt(null)}
-                        />
-                      ) : null}
-                    </StaffCard>
-                  ))}
+        <div className="yc-fld">
+          <label htmlFor="st-role">{t('staff.filter.role')}</label>
+          <select
+            id="st-role"
+            className="yc-ctl"
+            value={roleFilter}
+            onChange={(event) => setRoleFilter(event.currentTarget.value as RoleFilter)}
+          >
+            <option value="all">{t('staff.filter.all')}</option>
+            {ROLE_ORDER.map((role) => (
+              <option key={role} value={role}>
+                {t(`role.${role}`)}
+              </option>
+            ))}
+          </select>
+        </div>
+        <label className="yc-check-line">
+          <input
+            type="checkbox"
+            checked={showInactive}
+            onChange={(event) => setShowInactive(event.currentTarget.checked)}
+          />
+          {t('staff.filter.inactive')}
+        </label>
+      </div>
+
+      <div className="yc-st-layout">
+        <div className="yc-st-groups">
+          {staff.isError ? (
+            <div className="yc-card yc-ov-pad">
+              <QueryFailureNotice error={staff.error} onRetry={() => void staff.refetch()} />
+            </div>
+          ) : staff.isLoading ? (
+            <p className="yc-card yc-empty-line" role="status">
+              {t('loading')}
+            </p>
+          ) : atBranch.length === 0 ? (
+            /* The common state during onboarding, so it routes straight into
+               hiring somebody rather than saying "no staff" and stopping. */
+            <div className="yc-card yc-empty">
+              <h2 className="yc-h2">{t('staff.empty.title')}</h2>
+              <p className="yc-muted">{t('staff.empty.body')}</p>
+              {canAdd ? (
+                <button
+                  type="button"
+                  className="yc-btn yc-btn-pri"
+                  onClick={() => setOpen({ kind: 'add' })}
+                >
+                  {t('staff.empty.action')}
+                </button>
+              ) : null}
+            </div>
+          ) : groups.length === 0 ? (
+            <div className="yc-card yc-empty">
+              <h2 className="yc-h2">{t('staff.empty.noMatch')}</h2>
+              <p className="yc-muted">{t('staff.empty.noMatchBody')}</p>
+            </div>
+          ) : (
+            groups.map((group) => (
+              <section key={group.role} className="yc-card" aria-labelledby={`grp-${group.role}`}>
+                <div className="yc-card-h">
+                  <div>
+                    <h2 className="yc-h2" id={`grp-${group.role}`}>
+                      {labels.group(group.role)}{' '}
+                      <span className="yc-st-count">{group.members.length}</span>
+                    </h2>
+                    <p className="yc-cap">{labels.roleInfo(group.role)}</p>
+                  </div>
+                </div>
+                <ul className="yc-people">
+                  {group.members.map((member) => {
+                    const actions = rowActionsFor(member, actor, { canUnlock: branchId !== null });
+                    const status = staffStatusOf(member);
+                    const line = shiftLineOf(member.id, member.isActive, shifts.data, nextDay);
+                    const items: RowMenuItem[] = actions.menu.map((action) => ({
+                      key: action,
+                      label: labels.action(action, member),
+                      icon: menuIcon[action],
+                      ...(action === 'deactivate' ? { danger: true } : {}),
+                      onSelect: () => act(member, action),
+                    }));
+                    return (
+                      <li
+                        key={member.id}
+                        className={member.isActive ? 'yc-st-row' : 'yc-st-row is-off'}
+                      >
+                        <div className="yc-person">
+                          <span className="yc-av" aria-hidden="true">
+                            {initialsOf(member.fullName)}
+                          </span>
+                          <div className="yc-st-who">
+                            <div className="yc-pn">
+                              {member.fullName}
+                              {actions.isSelf ? (
+                                <span className="yc-you">{t('staff.card.you')}</span>
+                              ) : null}
+                            </div>
+                            <div className="yc-pe">{member.email ?? member.phone}</div>
+                          </div>
+                        </div>
+                        <span className="yc-st-branch">{branchLabel(member)}</span>
+                        <span
+                          className={
+                            line?.kind === 'today' ? 'yc-st-shift' : 'yc-st-shift is-quiet'
+                          }
+                        >
+                          {line ? (
+                            <>
+                              <i className={`yc-st-dot is-${line.kind}`} aria-hidden="true" />
+                              {shiftText(line)}
+                            </>
+                          ) : null}
+                        </span>
+                        <span className="yc-st-status">
+                          <span className={PILL[status]}>
+                            <span className="yc-dot" aria-hidden="true" />
+                            {labels.status(status)}
+                          </span>
+                        </span>
+                        <div className="yc-st-acts">
+                          {actions.locked ? (
+                            <span className="yc-above">
+                              <LockIcon />
+                              {t('staff.action.notYours')}
+                            </span>
+                          ) : null}
+                          {actions.primary ? (
+                            <button
+                              type="button"
+                              className="yc-btn yc-btn-sec yc-btn-sm"
+                              data-prim={member.id}
+                              aria-label={t('venuePage.staff.actionFor', {
+                                action: primaryLabel(actions.primary),
+                                name: member.fullName,
+                              })}
+                              onClick={() => act(member, actions.primary!)}
+                            >
+                              {primaryLabel(actions.primary)}
+                            </button>
+                          ) : null}
+                          {items.length > 0 ? (
+                            <RowMenu
+                              id={member.id}
+                              label={t('staff.action.moreFor', { name: member.fullName })}
+                              items={items}
+                              open={menuFor === member.id}
+                              onOpenChange={(next) => setMenuFor(next ? member.id : null)}
+                            />
+                          ) : null}
+                        </div>
+                      </li>
+                    );
+                  })}
                 </ul>
               </section>
-            );
-          })}
+            ))
+          )}
         </div>
-      )}
 
-      {/* Keyed by branch: a code or an open revoke confirmation belongs to the
-          branch it was made for, not the one switched to. */}
-      {branchId ? (
-        <DevicesPanel key={branchId} branchId={branchId} timeZoneId={timeZoneId} locale={locale} />
-      ) : null}
+        <aside className="yc-st-side">
+          {/* Keyed by branch: a code or an open revoke confirmation belongs to
+              the branch it was made for, not the one switched to. */}
+          {branchId ? (
+            <DevicesPanel
+              key={branchId}
+              branchId={branchId}
+              branchName={here}
+              timeZoneId={timeZoneId}
+              locale={locale}
+            />
+          ) : null}
+        </aside>
+      </div>
 
-      {deactivating ? (
-        <DeactivateDialog
-          member={deactivating}
-          isSaving={updateStaff.isPending}
-          onConfirm={() =>
-            updateStaff.mutate(
-              { staffMemberId: deactivating.id, patch: { isActive: false } },
-              { onSuccess: () => setDeactivating(null) },
-            )
-          }
-          onCancel={() => setDeactivating(null)}
-        />
-      ) : null}
-
-      {creating ? (
-        <AddStaffDialog
-          actorRole={actorRole}
-          fixedBranchId={branchId}
+      {open?.kind === 'add' ? (
+        <AddStaffWizard
+          venueId={venueId}
           branches={branches}
-          refusal={refusal}
-          isSaving={isSaving}
-          onCancel={closeForms}
-          onCreate={async (input, signIn) => {
-            setRefusal(null);
-            try {
-              // `input` carries no email: the address goes on the second call,
-              // after the person exists, because the server refuses an email
-              // without a password on create and nobody types one here.
-              const created = await createStaff.mutateAsync(input);
-              // The single moment the PIN is on a screen. It came from the
-              // dialog and goes no further than the next one.
-              if (!signIn) {
-                setShown({ kind: 'pin', name: created.fullName, pin: input.pin });
-                setCreating(false);
-                return null;
-              }
-              // The dialog opens whatever the second call says: the person
-              // exists now and their PIN must be shown or it is gone. The add
-              // dialog closes only once the next is set, in the same render.
-              try {
-                const link = await issueSignIn.mutateAsync({
-                  staffMemberId: created.id,
-                  email: signIn.email,
-                });
-                setShown({
-                  kind: 'signIn',
-                  name: created.fullName,
-                  pin: input.pin,
-                  link,
-                  failure: null,
-                  retry: null,
-                });
-              } catch (error) {
-                setShown({
-                  kind: 'signIn',
-                  name: created.fullName,
-                  pin: input.pin,
-                  link: null,
-                  failure: failureText(error),
-                  retry: { staffMemberId: created.id, email: signIn.email },
-                });
-              } finally {
-                // Same as the card path: the dialog holds the only copy.
-                issueSignIn.reset();
-                setCreating(false);
-              }
-              return null;
-            } catch (error) {
-              const refused = asStaffRefusal(error);
-              if (refused) {
-                setRefusal(refused);
-                return refused;
-              }
-              throw error;
-            }
-          }}
+          actorRole={actorRole}
+          fixedBranchId={canChooseBranch(actorRole) ? null : (actorBranchId ?? branchId)}
+          initialBranchId={branchId}
+          onClose={() => setOpen(null)}
+          onHired={afterHire}
         />
       ) : null}
 
-      {editing ? (
+      {open?.kind === 'edit' ? (
         <EditStaffDialog
-          key={editing.id}
-          member={editing}
+          key={open.member.id}
+          member={open.member}
           actorRole={actorRole}
-          fixedBranchId={branchId}
+          fixedBranchId={canChooseBranch(actorRole) ? null : (actorBranchId ?? branchId)}
           branches={branches}
           refusal={refusal}
-          isSaving={isSaving}
-          onCancel={closeForms}
+          isSaving={updateStaff.isPending}
+          returnFocusTo={kebab(open.member.id)}
+          onCancel={() => {
+            setRefusal(null);
+            setOpen(null);
+          }}
           onUpdate={async (patch) => {
             setRefusal(null);
             try {
-              await updateStaff.mutateAsync({ staffMemberId: editing.id, patch });
-              setEditing(null);
+              await updateStaff.mutateAsync({ staffMemberId: open.member.id, patch });
+              setOpen(null);
+              toast.say(t('staff.toast.saved', { name: patch.fullName ?? open.member.fullName }));
             } catch (error) {
               const refused = asStaffRefusal(error);
               if (refused) setRefusal(refused);
-              else throw error;
+              else failureToast(error);
             }
           }}
         />
       ) : null}
 
-      {changingOwnPin ? (
-        <ChangeOwnPinDialog
-          onSubmit={async (pin) => {
-            await setPin.mutateAsync({ staffMemberId: changingOwnPin.id, pin });
-          }}
-          onClose={() => {
-            // Drops the mutation's copy of the typed PIN along with the dialog.
-            setPin.reset();
-            setChangingOwnPin(null);
+      {open?.kind === 'deactivate' ? (
+        <DeactivateDialog
+          member={open.member}
+          isSaving={updateStaff.isPending}
+          returnFocusTo={kebab(open.member.id)}
+          onCancel={() => setOpen(null)}
+          onConfirm={() => {
+            const member = open.member;
+            updateStaff.mutate(
+              { staffMemberId: member.id, patch: { isActive: false } },
+              {
+                onSuccess: () => {
+                  setOpen(null);
+                  toast.say(t('staff.toast.deactivated', { name: member.fullName }), {
+                    undo: () => reactivate(member),
+                    focusUndo: true,
+                    fallbackFocus: () => document.querySelector<HTMLElement>('[data-add]'),
+                  });
+                },
+                onError: (error) => {
+                  setOpen(null);
+                  failureToast(error);
+                },
+              },
+            );
           }}
         />
       ) : null}
 
-      {/* Dropped from state entirely on close. There is nowhere else either
-          credential lives. */}
-      {shown?.kind === 'pin' ? (
-        <PinDialog name={shown.name} pin={shown.pin} onClose={() => setShown(null)} />
-      ) : shown ? (
-        <SignInLinkDialog
-          name={shown.name}
-          pin={shown.pin}
-          link={shown.link}
-          failure={shown.failure}
-          timeZoneId={timeZoneId}
-          locale={locale}
-          onRetry={retryFrom(shown.retry, shown.failure)}
-          onClose={() => setShown(null)}
+      {open?.kind === 'ownPin' ? (
+        <ChangeOwnPinDialog
+          onSubmit={async (pin) => {
+            try {
+              await setPin.mutateAsync({ staffMemberId: open.member.id, pin });
+            } finally {
+              // Drops the mutation's copy of the typed PIN.
+              setPin.reset();
+            }
+          }}
+          onChanged={() => {
+            setOpen(null);
+            toast.say(t('staff.ownPin.changedToast'));
+          }}
+          onClose={() => setOpen(null)}
         />
       ) : null}
-    </section>
+
+      {open?.kind === 'shift' && branchId ? (
+        <ShiftDialog
+          member={open.member}
+          branchId={branchId}
+          branchName={here}
+          serviceDate={shifts.data?.serviceDate ?? null}
+          timeZoneId={timeZoneId}
+          returnFocusTo={kebab(open.member.id)}
+          onClose={() => setOpen(null)}
+        />
+      ) : null}
+
+      {open?.kind === 'issue' ? (
+        <IssueSignInDialog
+          venueId={venueId}
+          member={open.member}
+          initialEmail={open.email}
+          initialFailure={open.failure}
+          onClose={() => setOpen(null)}
+          onIssued={(link) =>
+            setOpen({
+              kind: 'once',
+              title: t('venuePage.once.title', { name: open.member.fullName }),
+              pin: null,
+              link,
+              failure: null,
+              retry: null,
+              toast: t('venuePage.once.savedLink'),
+              returnTo: `[data-kebab="${open.member.id}"]`,
+            })
+          }
+        />
+      ) : null}
+
+      {/* Dropped from state entirely on close: there is nowhere else a PIN or
+          a link lives. */}
+      {open?.kind === 'once' ? (
+        <OnceLinkDialog
+          title={open.title}
+          link={open.link}
+          pin={open.pin}
+          body={t('venuePage.once.body')}
+          pinHelp={t('venuePage.once.pinHelp')}
+          linkHelp={(when) => t('venuePage.once.help', { when })}
+          // A PIN alone has nothing to copy: it is read out, then "Written down".
+          {...(open.link
+            ? {}
+            : { pinLabel: t('staff.once.pinLabel'), doneLabel: t('staff.pin.written') })}
+          failure={open.failure}
+          retryClosesPin
+          onRetry={
+            open.retry
+              ? () => {
+                  const retry = open.retry;
+                  if (!retry) return;
+                  setOpen({
+                    kind: 'issue',
+                    member: retry.member,
+                    email: retry.email,
+                    failure: open.failure,
+                  });
+                }
+              : null
+          }
+          timeZoneId={timeZoneId}
+          onDone={() => {
+            const said = open.toast;
+            const returnTo = open.returnTo;
+            setOpen(null);
+            document.querySelector<HTMLElement>(returnTo)?.focus();
+            if (said) toast.say(said);
+          }}
+        />
+      ) : null}
+    </div>
   );
 }

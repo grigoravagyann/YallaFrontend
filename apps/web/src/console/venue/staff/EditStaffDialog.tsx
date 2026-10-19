@@ -8,16 +8,18 @@ import {
   type UpdateStaffInput,
 } from '@yalla/api';
 import { useTranslation } from '@yalla/i18n';
-import { useCallback, useId, useRef, useState, type FormEvent } from 'react';
+import { useRef, useState, type FormEvent } from 'react';
+import { Dialog } from '../../ui/Dialog';
+import { ALL_BRANCHES, branchChoiceFor, branchIdFor } from './StaffFields';
+import { refusalIsFormLevel, refusalText, type StaffRefusal } from './staffRefusal';
+import { useStaffLabels } from './staffLabels';
 
 /**
  * The person's staff id, read-only, with a Copy button.
  *
- * Here and not on the card: the id is needed rarely — a tablet that cannot
- * load its roster — and the card is for the one thing that needs doing. The
- * edit dialog is already "the whole record at once", so the id belongs with
- * it. Copy and its status line are the sign-in link dialog's: the clipboard,
- * or select the text and say so where the clipboard is out of reach.
+ * Here and not on the row: the id is needed rarely — a tablet that cannot
+ * load its roster — and the row is for the one thing that needs doing. Copy
+ * falls back to selecting the text where the clipboard is out of reach.
  */
 function StaffIdRow({ staffMemberId }: { readonly staffMemberId: string }) {
   const { t } = useTranslation(['admin', 'common']);
@@ -42,29 +44,25 @@ function StaffIdRow({ staffMemberId }: { readonly staffMemberId: string }) {
   }
 
   return (
-    <div className="labelled">
-      <span>{t('staff.staffId.label')}</span>
-      <code ref={valueRef} className="sign-in-link-value">
-        {staffMemberId}
-      </code>
-      <div className="actions">
-        <button type="button" className="button button-small" onClick={() => void copy()}>
+    <div className="yc-once">
+      <span className="yc-help yc-strong">{t('staff.staffId.label')}</span>
+      <div className="yc-linkrow">
+        <code ref={valueRef} className="yc-mono yc-st-id">
+          {staffMemberId}
+        </code>
+        <button type="button" className="yc-btn yc-btn-sec yc-btn-sm" onClick={() => void copy()}>
           {t('staff.staffId.copy')}
         </button>
-        {copied !== 'idle' ? (
-          <span className="muted small" role="status">
-            {copied === 'copied' ? t('staff.signIn.copied') : t('staff.signIn.selectAndCopy')}
-          </span>
-        ) : null}
       </div>
-      <span className="muted small">{t('staff.staffId.help')}</span>
+      {copied !== 'idle' ? (
+        <span className="yc-help" role="status">
+          {copied === 'copied' ? t('staff.signIn.copied') : t('staff.signIn.selectAndCopy')}
+        </span>
+      ) : null}
+      <span className="yc-help">{t('staff.staffId.help')}</span>
     </div>
   );
 }
-import { useDialogFocus } from '../../../components/useDialogFocus';
-import { BranchField, RoleChoices, branchChoiceFor, branchIdFor } from './StaffFields';
-import { ALL_BRANCHES } from './StaffForm';
-import { refusalIsFormLevel, refusalText, type StaffRefusal } from './staffRefusal';
 
 export interface EditStaffDialogProps {
   readonly member: StaffMember;
@@ -75,20 +73,22 @@ export interface EditStaffDialogProps {
   readonly onCancel: () => void;
   readonly refusal: StaffRefusal | null;
   readonly isSaving: boolean;
+  /** The row's ⋮ button: the menu item that opened this is gone. */
+  readonly returnFocusTo?: () => HTMLElement | null;
 }
 
 /**
- * Editing somebody, as one page in the same dialog shell as "Add someone" —
- * not the steps again.
+ * Editing somebody, as one page in a dialog — not the add steps again.
  *
  * An edit is a correction to one field, usually a phone number, and seeing the
  * whole record at once is the check. There is no PIN and no address here:
- * both have their own actions on the card (New PIN, Send new link), because
- * changing either replaces a working credential and deserves its own
- * confirmation rather than a field among five.
+ * both have their own items in the row's menu (New PIN, the sign-in link),
+ * because changing either replaces a working credential.
  *
- * Mounted per person (keyed by id), so editing somebody never starts from the
- * last person's values.
+ * The role and the branch travel together, as the server checks the pair: a
+ * branch manager needs a branch (no "All branches"), a general manager has
+ * none, and promoting a waiter who works everywhere to branch manager puts
+ * them at the branch on screen. Mounted per person (keyed by id).
  */
 export function EditStaffDialog({
   member,
@@ -99,10 +99,10 @@ export function EditStaffDialog({
   onCancel,
   refusal,
   isSaving,
+  returnFocusTo,
 }: EditStaffDialogProps) {
   const { t } = useTranslation(['admin', 'common']);
-  const titleId = useId();
-  const dialogRef = useRef<HTMLDivElement>(null);
+  const labels = useStaffLabels();
 
   const roles = assignableRoles(actorRole);
   const chooseBranch = canChooseBranch(actorRole);
@@ -111,111 +111,150 @@ export function EditStaffDialog({
   const [phone, setPhone] = useState(member.phone);
   const [role, setRole] = useState<StaffRole>(member.role);
   const [branchChoice, setBranchChoice] = useState<string>(member.branchId ?? ALL_BRANCHES);
-  // A real branch whenever the role needs one: promoting a waiter who works
-  // everywhere to branch manager puts them at the branch on screen.
   const shownBranch = branchChoiceFor(role, branchChoice, fixedBranchId, branches);
   const binding = branchBindingFor(role);
 
-  const cancel = useCallback(() => onCancel(), [onCancel]);
-  useDialogFocus(dialogRef, { onEscape: cancel, escapeEnabled: !isSaving });
-
   async function submit(event: FormEvent) {
     event.preventDefault();
+    if (isSaving) return;
     const branchId = branchIdFor(role, shownBranch);
     await onUpdate({
       fullName,
       phone,
       role,
       // Always sent when the actor may choose, because `null` is a real
-      // assignment and the flag is what tells it from "leave it alone". The
-      // role and the branch travel together, so promoting a branch manager to
-      // general manager clears the branch in the same save, as the server
-      // checks the pair.
+      // assignment and the flag is what tells it from "leave it alone".
       ...(chooseBranch ? { setBranch: true, branchId } : {}),
     });
   }
 
-  const refusalFor = (field: string) => refusalText(refusal, field);
+  const roleError = refusalText(refusal, 'role');
+  const branchError = refusalText(refusal, 'branchId');
+  const fixedName = branches.find((branch) => branch.id === fixedBranchId)?.name ?? '';
 
   return (
-    <div className="scrim" role="presentation">
-      <div
-        ref={dialogRef}
-        className="card wizard"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby={titleId}
-      >
-        <header className="wizard-head">
-          <h2 id={titleId}>{t('staff.form.editTitle', { name: member.fullName })}</h2>
-        </header>
-
-        <form
-          className="wizard-form"
-          aria-labelledby={titleId}
-          onSubmit={(event) => void submit(event)}
-        >
-          <div className="wizard-body">
-            <h3 className="wizard-step-title">{t('staff.wizard.step.person')}</h3>
-            <label className="labelled">
-              <span>{t('staff.field.name')}</span>
-              <input
-                className="field"
-                value={fullName}
-                required
-                autoComplete="off"
-                onChange={(event) => setFullName(event.currentTarget.value)}
-              />
-            </label>
-            <label className="labelled">
-              <span>{t('staff.field.phone')}</span>
-              <input
-                className="field"
-                type="tel"
-                value={phone}
-                required
-                autoComplete="off"
-                onChange={(event) => setPhone(event.currentTarget.value)}
-              />
-            </label>
-
-            <h3 className="wizard-step-title">{t('staff.wizard.step.roleBranch')}</h3>
-            <RoleChoices roles={roles} value={role} onChange={setRole} error={refusalFor('role')} />
-            <BranchField
-              chooseBranch={chooseBranch}
-              binding={binding}
-              branches={branches}
-              value={shownBranch}
-              onChange={setBranchChoice}
-              fixedBranchId={fixedBranchId}
-              error={refusalFor('branchId')}
+    <Dialog
+      wide
+      title={t('staff.form.editTitle', { name: member.fullName })}
+      onClose={isSaving ? () => undefined : onCancel}
+      dismissible={!isSaving}
+      {...(returnFocusTo ? { returnFocusTo } : {})}
+    >
+      <form className="yc-form" noValidate onSubmit={(event) => void submit(event)}>
+        <div className="yc-row2">
+          <div className="yc-fld">
+            <label htmlFor="se-name">{t('staff.field.name')}</label>
+            <input
+              id="se-name"
+              className="yc-ctl"
+              data-autofocus=""
+              autoComplete="off"
+              required
+              value={fullName}
+              onChange={(event) => setFullName(event.currentTarget.value)}
             />
-
-            <StaffIdRow staffMemberId={member.id} />
-
-            {/* Anything without a control in this dialog, at the foot. */}
-            {refusal && refusalIsFormLevel(refusal, ['role', 'branchId']) ? (
-              <p className="field-error" role="alert">
-                {refusal.message}
-              </p>
-            ) : null}
           </div>
+          <div className="yc-fld">
+            <label htmlFor="se-phone">{t('staff.field.phone')}</label>
+            <input
+              id="se-phone"
+              className="yc-ctl"
+              type="tel"
+              inputMode="tel"
+              autoComplete="off"
+              required
+              value={phone}
+              onChange={(event) => setPhone(event.currentTarget.value)}
+            />
+          </div>
+        </div>
 
-          <footer className="wizard-foot">
-            <button
-              type="button"
-              className="button button-ghost"
-              disabled={isSaving}
-              onClick={onCancel}
+        <fieldset
+          className="yc-roles"
+          {...(roleError ? { 'aria-describedby': 'se-role-err' } : {})}
+        >
+          <legend>
+            {t('venuePage.wizard.roleLegend')}{' '}
+            <span className="yc-help">{t('venuePage.wizard.roleHelp')}</span>
+          </legend>
+          {roles.map((value) => (
+            <label key={value} className={value === role ? 'yc-rc is-on' : 'yc-rc'}>
+              <input
+                type="radio"
+                name="staff-edit-role"
+                value={value}
+                checked={value === role}
+                onChange={() => setRole(value)}
+              />
+              <b>{t(`role.${value}`)}</b>
+              <span>{labels.roleInfo(value)}</span>
+            </label>
+          ))}
+        </fieldset>
+        {roleError ? (
+          <span className="yc-err" id="se-role-err" role="alert">
+            {roleError}
+          </span>
+        ) : null}
+
+        {binding === 'venueWide' ? (
+          <p className="yc-help">{t('staff.field.branchVenueWide')}</p>
+        ) : !chooseBranch ? (
+          <p className="yc-help">{t('staff.field.branchFixed', { name: fixedName })}</p>
+        ) : (
+          <div className="yc-fld">
+            <label htmlFor="se-branch">{t('staff.wizard.branchLabel')}</label>
+            <select
+              id="se-branch"
+              className="yc-ctl"
+              value={shownBranch}
+              aria-invalid={Boolean(branchError)}
+              {...(branchError ? { 'aria-describedby': 'se-branch-err' } : {})}
+              onChange={(event) => setBranchChoice(event.currentTarget.value)}
             >
-              {t('common:action.cancel')}
-            </button>
-            <button type="submit" className="button button-primary" disabled={isSaving}>
-              {isSaving ? t('saving') : t('common:action.save')}
-            </button>
-          </footer>
-        </form>
-      </div>
-    </div>
+              {/* An owner or a waiter who works every branch. Never a branch
+                  manager: they run one, and the server refuses one with none. */}
+              {binding === 'either' ? (
+                <option value={ALL_BRANCHES}>{t('staff.allBranches')}</option>
+              ) : null}
+              {branches.map((branch) => (
+                <option key={branch.id} value={branch.id}>
+                  {branch.name}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
+        {branchError ? (
+          <span className="yc-err" id="se-branch-err" role="alert">
+            {branchError}
+          </span>
+        ) : null}
+
+        <StaffIdRow staffMemberId={member.id} />
+
+        {/* Anything without a control in this dialog, at the foot. */}
+        {refusal && refusalIsFormLevel(refusal, ['role', 'branchId']) ? (
+          <p className="yc-alert" role="alert">
+            {refusal.message}
+          </p>
+        ) : null}
+
+        <div className="yc-acts">
+          <button
+            type="button"
+            className="yc-btn yc-btn-sec"
+            disabled={isSaving}
+            onClick={onCancel}
+          >
+            {t('common:action.cancel')}
+          </button>
+          <button type="submit" className="yc-btn yc-btn-pri" aria-busy={isSaving}>
+            {isSaving ? <span className="yc-spin" aria-hidden="true" /> : null}
+            {isSaving ? t('saving') : t('common:action.save')}
+          </button>
+        </div>
+      </form>
+    </Dialog>
   );
 }

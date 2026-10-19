@@ -411,7 +411,8 @@
       "pinHelp": "For signing in on a tablet. This too is shown only now.",
       "nag": "Copy the link first: once this closes you will not see it again. Press Done again to close anyway.",
       "openVenue": "Open the venue page",
-      "done": "Done"
+      "done": "Done",
+      "pinNag": "Write the PIN down first: once you try again you will not see it any more. Press again to go on anyway."
     }
   },
   "status": {
@@ -1161,20 +1162,19 @@
     "todo": "not done yet"
   },
   "reports": {
-    "intro": "How the week went, and what is worth changing.",
     "loading": "Working it out…",
     "rangeTooLong": "A report covers at most {{max}} days. Narrow the range.",
     "partialRange": "Nothing was recorded before {{date}} in this range.",
-    "comparedWith": "Compared with {{from}} – {{to}}.",
     "minutes_one": "{{count}} minute",
     "minutes_other": "{{count}} minutes",
     "delta": {
-      "up": "up {{percent}}% on the {{days}} days before",
-      "down": "down {{percent}}% on the {{days}} days before",
-      "flat": "level with the {{days}} days before"
+      "flat": "Level with the previous period",
+      "change": "{{percent}}% on the previous period",
+      "upWord": "up",
+      "downWord": "down"
     },
     "range": {
-      "legend": "Date range",
+      "legend": "Period",
       "yesterday": "Yesterday",
       "thisWeek": "This week",
       "lastWeek": "Last week",
@@ -1184,7 +1184,10 @@
       "from": "From",
       "to": "To",
       "backwards": "The end date is before the start date.",
-      "showing": "{{days}} days: {{from}} – {{to}}"
+      "line_one": "{{range}} · {{count}} day · Compared with {{previous}}",
+      "line_other": "{{range}} · {{count}} days · Compared with {{previous}}",
+      "incomplete": "Choose both dates",
+      "chooseValid": "Choose a valid period"
     },
     "scope": {
       "label": "Covering",
@@ -1193,132 +1196,118 @@
     },
     "export": {
       "csv": "CSV",
-      "all": "Export everything",
+      "all": "Export everything (CSV)",
       "working": "Preparing…",
-      "failed": "That file could not be downloaded. Try again."
+      "csvFor": "CSV: {{section}}",
+      "ready": "{{section}} · {{period}}: the CSV is ready",
+      "readyAll": "The CSV file is ready for {{scope}}"
     },
     "empty": {
       "title": "No data in this range",
       "body": "Try a wider range. This does not mean the venue took nothing — there is simply nothing recorded on these days."
     },
-    "chart": {
-      "showTable": "Show table",
-      "hideTable": "Hide table"
-    },
     "summary": {
-      "customTitle": "Selected range",
-      "covers": "Covers",
+      "customTitle": "Selected period",
       "revenue": "Revenue",
-      "tabsClosed": "Tabs closed",
-      "averageTab": "Average tab",
-      "averagePerHead": "Average per head",
-      "tablesTurned": "Tables turned"
+      "tabsClosed": "Bills closed",
+      "averageTab": "Average bill",
+      "averagePerHead": "Per head",
+      "guests": "Guests",
+      "turnover": "Table turnover"
     },
-    "occupancy": {
-      "title": "Occupancy",
-      "blurb": "When the room fills, and how long people actually stay.",
-      "byHour": "By hour of day",
-      "hour": "Hour",
-      "sittings": "Sittings",
-      "byWeekday": "By day of week",
-      "weekday": "Day",
-      "mix": {
-        "title": "Walk-ins against reservations",
-        "walkIns": "Walk-ins",
-        "fromReservations": "From reservations",
-        "share": "{{value}} ({{percent}}%)"
-      },
-      "turnTime": {
-        "title": "Actual turn time against policy",
-        "blurb": "A distribution, not an average. A fast lunch and a slow dinner average to a number that describes neither.",
-        "chartTitle": "How long sittings ran",
-        "bucket": "to {{minutes}} min",
-        "bucketHeader": "Duration",
-        "policyMarker": "Policy: {{minutes}} min",
-        "median": "Median",
-        "p90": "90th percentile",
-        "policy": "Policy says",
-        "noSittings": "No sittings closed in this range.",
-        "overPolicy": "The middle sitting runs {{median}} minutes against a policy of {{policy}} — {{overBy}} minutes longer. {{percent}}% of sittings run past the policy, so the system is refusing bookings the table could actually have taken.",
-        "withinPolicy": "The middle sitting runs {{median}} minutes, inside the {{policy}}-minute policy. {{percent}}% of sittings run past it."
-      }
+    "revenue": {
+      "aria_one": "Revenue by day, {{count}} day, {{total}} in all",
+      "aria_other": "Revenue by day, {{count}} days, {{total}} in all",
+      "title": "Revenue",
+      "cap": "What was taken, by day and by hour",
+      "previous": "Previous period",
+      "showTable": "Show table",
+      "hideTable": "Hide table",
+      "day": "Day",
+      "taken": "Taken",
+      "previousColumn": "Previous",
+      "point": "{{day}}: {{value}}, previous {{previous}}",
+      "pointNoPrevious": "{{day}}: {{value}}",
+      "oneDay": "A single day has no daily chart. See the hours beside it.",
+      "byHour": "By hour",
+      "byHourAria": "Share of revenue by hour: {{hours}}",
+      "howPaid": "Cash and in-app",
+      "cash": "Cash",
+      "inApp": "In-app",
+      "serviceCharge": "Service charge",
+      "payAria": "Cash {{cash}}, in-app {{app}}"
     },
     "reservations": {
+      "noApp_one": "{{count}} booking ({{percent}}) came from the web, without the app.",
+      "noApp_other": "{{count}} bookings ({{percent}}) came from the web, without the app.",
+      "lead": {
+        "underDays_one": "<{{count}} day",
+        "underDays_other": "<{{count}} days",
+        "atLeastDays_one": "≥{{count}} day",
+        "atLeastDays_other": "≥{{count}} days",
+        "underHours": "<{{hours}} h",
+        "atLeastHours": "≥{{hours}} h"
+      },
       "title": "Reservations",
-      "blurb": "How many were booked, and what became of them.",
+      "cap": "How many were booked, and what became of them",
       "booked": "Booked",
       "seated": "Seated",
       "cancelled": "Cancelled",
+      "late": "Cancelled late",
       "noShow": "No-shows",
-      "lateCancellations": "Late cancellations",
-      "countWithRate": "{{value}} ({{rate}})",
-      "bookings": "Bookings",
-      "noApp": {
-        "title": "Web bookings without an app",
-        "blurb": "These guests cannot be reminded. No app means no push channel, so the reminder, the late nudge and one-tap cancel never reach them. This is the number that decides whether SMS is worth paying for.",
-        "label": "No way to reach them",
-        "value": "{{value}} bookings ({{percent}}%)"
-      },
-      "leadTime": {
-        "title": "How far ahead people book",
-        "header": "Ahead by",
-        "bucket": "to {{hours}} h",
-        "reading": "This is the distribution the booking window should be set from.",
-        "policyLink": "Open the reservation policy"
-      }
+      "noAppBody": "Without the app the guest gets no reminder, no “running late?” and no one-tap cancel.",
+      "leadTitle": "How far ahead people book",
+      "leadAria": "How far ahead people book: {{buckets}}",
+      "leadHelp": "This is what the booking window is worth setting from.",
+      "policyLink": "Open the reservation policy"
+    },
+    "occupancy": {
+      "people_one": "{{formatted}} person",
+      "people_other": "{{formatted}} people",
+      "title": "Occupancy",
+      "cap": "When the room fills, and how long people really stay",
+      "turnTitle": "How long sittings lasted",
+      "upTo": "≤{{minutes}}",
+      "over": ">{{minutes}}",
+      "turnAria": "Sitting length in minutes: {{buckets}}. Policy: {{policy}} minutes",
+      "policyMarker": "Policy: {{minutes}} min",
+      "median": "Median",
+      "p90": "90th percentile",
+      "policy": "Policy says",
+      "noSittings": "No sittings closed in this range.",
+      "overPolicy": "The middle sitting runs {{median}} minutes against a policy of {{policy}} — {{overBy}} minutes longer. {{percent}}% of sittings run past the policy, so the system is refusing bookings the table could actually have taken.",
+      "withinPolicy": "The middle sitting runs {{median}} minutes, inside the {{policy}}-minute policy. {{percent}}% of sittings run past it.",
+      "mixTitle": "Walk-ins and bookings",
+      "walkIns": "Walk-ins",
+      "fromBookings": "From bookings",
+      "mixAria": "Walk-ins {{walkIns}}, from bookings {{booked}}"
     },
     "menu": {
-      "title": "Menu",
-      "blurb": "What sold, what did not, and what got sent back.",
-      "item": "Item",
-      "category": "Section",
-      "value": "Value",
-      "noneSold": "Nothing was ordered in this range.",
-      "topByCount": "Most ordered",
-      "topByRevenue": "Most valuable",
+      "times_one": "{{formatted}} time",
+      "times_other": "{{formatted}} times",
       "neverOrdered": {
         "title_one": "{{count}} dish nobody ordered",
         "title_other": "{{count}} dishes nobody ordered",
-        "blurb": "A dish nobody orders is inventory, prep time and menu space. Tap a name to open it in the editor.",
+        "blurb": "A dish nobody orders is stock, prep time and menu space. Tap one to open it.",
         "none": "Everything on the menu sold in this range."
       },
+      "title": "Menu",
+      "cap": "What sold, what did not, and what was sent back",
+      "topByCount": "Most ordered",
+      "topByRevenue": "Brought in the most",
+      "noneSold": "Nothing was ordered in this range.",
       "voids": {
         "title": "Voided lines",
-        "blurb": "A dish voided often is either mis-described on the menu or badly made.",
-        "none": "Nothing was voided.",
+        "item": "Dish",
         "reason": "Reason",
-        "count": "Times"
+        "count": "Times",
+        "none": "Nothing was voided.",
+        "help": "A dish voided often is either described wrong or made badly."
       }
     },
-    "revenue": {
-      "title": "Revenue",
-      "blurb": "What was taken, by day and by hour.",
-      "total": "Total",
-      "serviceCharge": "Service charge",
-      "byDay": "By day",
-      "day": "Day",
-      "taken": "Taken",
-      "byHour": "By hour",
-      "hour": "Hour",
-      "howPaid": {
-        "title": "Cash against in-app",
-        "cash": "Cash",
-        "inApp": "In-app",
-        "value": "{{amount}} ({{percent}}%)"
-      },
-      "adjustments": {
-        "title": "Comps and discounts",
-        "total": "Given away",
-        "none": "Nothing was comped or discounted in this range.",
-        "reason": "Reason",
-        "kind": "Kind",
-        "authorisedBy": "Authorised by",
-        "count": "Count",
-        "amount": "Amount",
-        "discount": "Discount",
-        "comp": "Comp"
-      }
-    }
+    "sub": "How the period went, and what is worth changing",
+    "share": "{{value}} ({{percent}})",
+    "countShare": "{{count}} ({{percent}})"
   },
   "staff": {
     "deactivate": {
@@ -1327,7 +1316,6 @@
       "confirm": "Deactivate"
     },
     "intro": "Who works here, and which devices they sign in on.",
-    "add": "Add someone",
     "noVenue": "This account is not attached to a venue.",
     "allBranches": "All branches",
     "filter": {
@@ -1338,10 +1326,7 @@
       "searchPlaceholder": "Name or phone"
     },
     "status": {
-      "inactive": "Deactivated",
-      "pinLocked": "PIN locked",
-      "noSignIn": "No sign-in",
-      "awaitingPassword": "Awaiting password"
+      "pinLocked": "PIN locked"
     },
     "action": {
       "unlock": "Unlock PIN",
@@ -1352,31 +1337,24 @@
       "notYours": "Above your role",
       "issueSignIn": "Issue sign-in",
       "sendNewLink": "Send new link",
-      "more": "More",
-      "moreFor": "More actions for {{name}}"
+      "moreFor": "More actions for {{name}}",
+      "shift": "Shifts"
     },
     "empty": {
       "title": "Nobody here yet",
       "body": "Without staff, nobody can sign in to the counter screen.",
       "action": "Add the first person",
-      "noneInactive": "Nobody has been deactivated."
+      "noMatch": "Nobody found",
+      "noMatchBody": "Try another name or role."
     },
     "field": {
       "name": "Full name",
       "phone": "Phone",
-      "role": "Role",
-      "branch": "Branch",
       "branchFixed": "Works at {{name}}.",
-      "branchVenueWide": "A general manager works at every branch of the venue.",
-      "pin": "PIN (4 digits)",
-      "email": "Email",
-      "emailHelp": "They open a link and choose their own password. Nobody types one for them.",
-      "emailLater": "Leave it empty to issue the sign-in later, from their row."
+      "branchVenueWide": "A general manager works at every branch of the venue."
     },
     "form": {
-      "title": "New staff member",
-      "editTitle": "Edit {{name}}",
-      "create": "Add"
+      "editTitle": "Edit {{name}}"
     },
     "ownPin": {
       "title": "Change my PIN",
@@ -1385,40 +1363,18 @@
       "again": "New PIN again",
       "mismatch": "The two PINs do not match.",
       "submit": "Change PIN",
-      "changed": "Your PIN is changed",
-      "changedBody": "Use it the next time you sign in on a tablet.",
-      "done": "Done"
+      "changedToast": "Your PIN is changed: use it the next time you sign in on a tablet"
     },
     "pin": {
       "fourDigits": "A PIN is exactly 4 digits.",
-      "help": "Personal. There are no shared PINs — a shared one makes \"who gave away my table\" unanswerable.",
       "shownOnceTitle": "PIN for {{name}}",
-      "shownOnceBody": "Shown now and never again. After this it can only be replaced, not looked up.",
-      "neverShared": "Everyone has their own. Do not write it on the till.",
       "written": "Written down"
     },
     "signIn": {
-      "emailRequired": "Enter the address they will sign in with.",
       "emailTooLong": "An email address is at most 320 characters.",
-      "send": "Send link",
-      "sending": "Sending…",
-      "confirmSend": "Yes, send it",
-      "previousStops": "The previous link stops working.",
-      "addressChanges": "From the moment you send this they sign in with {{email}} instead of {{old}}; their password stays the same.",
       "tooManyRequests": "Too many links issued in the last minute. Wait a moment, then try again.",
-      "dialogTitle": "Sign-in for {{name}}",
-      "pinLabel": "PIN",
-      "linkLabel": "Sign-in link",
-      "linkBody": "Paste it to them in a chat. They open it and choose their own password — nobody types one for them.",
-      "expires": "Good until {{when}}. Send it now.",
-      "onceOnly": "Shown now and never again. If it is lost, send a new one — the old one stops working.",
-      "keepsPassword": "Their current password keeps working until they open this.",
-      "copy": "Copy link",
-      "copyFirst": "Copy the link first, or press Done.",
       "copied": "Copied",
-      "selectAndCopy": "Select and copy",
-      "notIssued": "Added, but without a sign-in link:",
-      "done": "Done"
+      "selectAndCopy": "Select and copy"
     },
     "group": {
       "owner": "Owners",
@@ -1438,46 +1394,84 @@
       "kitchen": "Sees and updates orders on the kitchen screen, with a PIN."
     },
     "wizard": {
-      "progress": "Progress",
-      "stepOf": "Step {{current}} of {{total}}: {{label}}",
-      "stepDone": "{{label}}, done",
-      "stepCurrent": "{{label}}, current step",
-      "step": {
-        "person": "Person",
-        "roleBranch": "Role and branch",
-        "pin": "Tablet PIN",
-        "signIn": "Console sign-in"
-      },
-      "next": "Next",
-      "back": "Back",
-      "personTitle": "Who are you adding?",
-      "roleLegend": "What is their role?",
-      "roleHelp": "This decides what they can see and do.",
       "branchLabel": "Which branch?",
-      "coOwnerNote": "A co-owner is added with a PIN. Their console sign-in is issued by the Yalla team.",
-      "pinShownAgain": "You'll see it once more after adding, to read out to them.",
-      "signInAfter": "After you press Add, the link appears once, for you to paste to them."
+      "coOwnerNote": "A co-owner is added with a PIN. Their console sign-in is issued by the Yalla team."
     },
     "staffId": {
       "label": "Staff ID",
       "help": "Needed only to sign in on a tablet that cannot load the staff list. Copy it and send it to them.",
       "copy": "Copy staff ID"
+    },
+    "onShift_one": "on shift today: {{count}} person",
+    "onShift_other": "on shift today: {{count}} people",
+    "once": {
+      "added": "{{name}} was added",
+      "pinLabel": "Tablet PIN"
+    },
+    "toast": {
+      "unlocked": "PIN unlocked: {{name}}",
+      "deactivated": "{{name}} was deactivated",
+      "reactivated": "{{name}} is active again",
+      "saved": "Saved: {{name}}"
+    },
+    "shift": {
+      "title": "Shifts: {{name}}",
+      "lead": "At {{branch}}. Today’s shift shows on the staff list.",
+      "none": "No shifts planned yet.",
+      "listLabel": "Shifts for {{name}}",
+      "today": "Today",
+      "tomorrow": "Tomorrow",
+      "dayOff": "Day off",
+      "works": "Works",
+      "kind": "The day",
+      "change": "Change",
+      "changeNamed": "Change {{day}}",
+      "remove": "Remove",
+      "removeNamed": "Remove {{day}}",
+      "addTitle": "New shift",
+      "editTitle": "Change the shift",
+      "date": "Date",
+      "from": "From",
+      "to": "To",
+      "add": "Add",
+      "saveChange": "Save",
+      "cancelEdit": "Cancel",
+      "done": "Done",
+      "added": "Shift added",
+      "changed": "Shift changed",
+      "removed": "Removed: {{day}}",
+      "restored": "The shift is back",
+      "restoreFailed": "The shift could not be put back",
+      "notSet": "No shift set",
+      "todayOff": "Today: day off",
+      "todayAt": "Today {{times}}",
+      "tomorrowAt": "Tomorrow {{times}}",
+      "dateAt": "{{date}} {{times}}",
+      "error": {
+        "dateRequired": "Choose a date",
+        "past": "Choose today or a later day",
+        "tooFar": "A shift can be planned up to {{days}} days ahead",
+        "timeRequired": "Set the time",
+        "noLength": "The end has to differ from the start",
+        "tooLong": "A shift is at most {{hours}} hours",
+        "overlap": "It overlaps another of their shifts, at any branch",
+        "dayOffClash": "A day cannot be both a day off and a working day"
+      }
     }
   },
   "devices": {
     "title": "Tablets",
     "blurb": "The tablets the counter screen runs on.",
     "generate": "Generate a code",
-    "regenerate": "Generate a new one",
     "empty": "No devices enrolled at this branch.",
     "revoked": "Revoked",
     "revoke": "Revoke",
-    "neverSeen": "Never connected",
     "grantsNothing": "A device grants nothing on its own — every action still needs a PIN on top. A stolen tablet is not a stolen till.",
     "code": {
-      "instructions": "Type this code on the tablet to enrol it.",
-      "expires": "Good until {{when}}.",
-      "onceOnly": "One use only. Lose it and generate another — the old one cannot be looked up."
+      "onceOnly": "One use only. Lose it and generate another — the old one cannot be looked up.",
+      "title": "Tablet enrolment code",
+      "lead": "Type this code on the tablet to connect it to {{branch}}. It works until {{when}}, once: if it is lost, make a new one.",
+      "label": "Code"
     },
     "confirm": {
       "title": "Revoke {{name}}?",
@@ -1486,7 +1480,11 @@
       "revoke": "Yes, revoke it"
     },
     "seen": "Seen {{when}}",
-    "enrolledOn": "Enrolled {{when}}"
+    "enrolledOn": "Enrolled {{when}}",
+    "codeFailed": "The code could not be made. Try again.",
+    "revokeNamed": "Revoke {{name}}",
+    "revokedToast": "{{name}} was revoked",
+    "revokeFailed": "It could not be revoked. Try again."
   },
   "approvals": {
     "title": "Waiting for your decision",
@@ -1825,7 +1823,8 @@
         "phone": "Write their phone number",
         "pin": "A PIN is exactly 4 digits",
         "email": "That is not an email address"
-      }
+      },
+      "branchFixed": "{{branch}} · a branch manager adds people at their own branch only"
     },
     "issue": {
       "title": "Sign-in link: {{name}}",

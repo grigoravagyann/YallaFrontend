@@ -1,6 +1,8 @@
 import {
   assignableRoles,
+  canChooseBranch,
   isAdminRole,
+  outranks,
   type ConsoleBranch,
   type StaffMember,
   type StaffRole,
@@ -10,13 +12,20 @@ import { useCreateStaff, useIssueStaffSignIn } from '@yalla/api/react';
 import { useTranslation } from '@yalla/i18n';
 import { useState, type FormEvent } from 'react';
 import { Dialog } from '../../ui/Dialog';
-import { issueFailureText } from '../../venue/staff/signInIssue';
-import { asStaffRefusal, refusalIsFormLevel, refusalText } from '../../venue/staff/staffRefusal';
-import { useStaffLabels } from '../../venue/staff/staffLabels';
-import { Required, usePendingFocus } from './venueFields';
+import { Required, usePendingFocus } from '../../platform/venue/venueFields';
+import { issueFailureText } from './signInIssue';
+import { asStaffRefusal, refusalIsFormLevel, refusalText } from './staffRefusal';
+import { useStaffLabels } from './staffLabels';
 
 /** The artboard's check: something, an @, something, a dot, something. */
 const EMAIL_SHAPE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/u;
+
+/**
+ * Mirrors `FieldLengths.Email` on the server: the most an address may be. On
+ * the input as `maxLength`, and checked on submit too, because `maxLength`
+ * binds typing and not a value an autofill set.
+ */
+export const EMAIL_MAX_LENGTH = 320;
 
 type Step = 1 | 2 | 3 | 4;
 
@@ -33,57 +42,91 @@ export interface Hired {
 export interface AddStaffWizardProps {
   readonly venueId: string;
   readonly branches: readonly ConsoleBranch[];
+  /**
+   * Who is adding: the roles offered are theirs to give (`assignableRoles`).
+   * The platform admin by default — the venue page's Staff tab.
+   */
+  readonly actorRole?: StaffRole | 'platformAdmin';
+  /**
+   * The branch a branch manager adds people at. They hold one, so it is said
+   * rather than offered (`canChooseBranch`).
+   */
+  readonly fixedBranchId?: string | null;
+  /** The branch the picker opens on: the one on screen. */
+  readonly initialBranchId?: string | null;
   readonly onClose: () => void;
   readonly onHired: (hired: Hired) => void;
 }
 
-/** Owner and general manager work at every branch (the artboard's rule). */
+/** Owner and general manager work at every branch (the artboards' rule). */
 const venueWide = (role: StaffRole) => role === 'owner' || role === 'generalManager';
 
 /**
- * Add somebody to the venue in four steps (VenueDetail artboard): the person,
- * their role and branch, their tablet PIN, and — for an owner or a manager —
- * an email for the console.
+ * Add somebody to the venue in four steps (Staff and VenueDetail artboards):
+ * the person, their role and branch, their tablet PIN, and — for an owner or a
+ * manager — an email for the console.
  *
- * The rules are the venue staff screen's, from `@yalla/api`: a platform admin
- * may give every role (`assignableRoles`), and only an owner or a manager
- * signs in to the console (`isAdminRole`). The person is created without an
- * email — the server refuses one without a password — and the sign-in is
- * issued for them right after, so the link and the PIN are shown once,
- * together. If the link is refused, the person exists all the same: their PIN
- * is shown, with the reason and a way to try the address again.
+ * One wizard for both consoles. The rules are `@yalla/api`'s: the roles
+ * offered are the actor's to give (`assignableRoles`), a branch manager adds
+ * at their own branch only, and a console sign-in is asked for only where the
+ * actor outranks the role (`outranks`) — an owner adding a co-owner is told
+ * the Yalla team issues it, because the server refuses a sign-in for a peer.
+ * The person is created without an email — the server refuses one without a
+ * password — and the sign-in is issued right after, so the link and the PIN
+ * are shown once, together. If the link is refused, the person exists all
+ * the same: their PIN is shown, with the reason and a way to try again.
  *
  * A refusal from the server goes under the field it names, on the step that
  * has it: a PIN somebody on the same tablet uses goes back to the PIN.
  */
-export function AddStaffWizard({ venueId, branches, onClose, onHired }: AddStaffWizardProps) {
+export function AddStaffWizard({
+  venueId,
+  branches,
+  actorRole = 'platformAdmin',
+  fixedBranchId = null,
+  initialBranchId = null,
+  onClose,
+  onHired,
+}: AddStaffWizardProps) {
   const { t } = useTranslation(['admin', 'common']);
   const labels = useStaffLabels();
   const create = useCreateStaff(venueId);
   const issue = useIssueStaffSignIn(venueId);
   const focusLater = usePendingFocus();
 
+  const roles = assignableRoles(actorRole);
+  const chooseBranch = canChooseBranch(actorRole);
+
   const [step, setStep] = useState<Step>(1);
   const [tried, setTried] = useState<ReadonlySet<Step>>(new Set());
   const [busy, setBusy] = useState(false);
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
-  const [role, setRole] = useState<StaffRole>('waiter');
-  const [branchId, setBranchId] = useState(branches[0]?.id ?? '');
+  const [role, setRole] = useState<StaffRole>(roles.includes('waiter') ? 'waiter' : roles[0]!);
+  const [branchId, setBranchId] = useState(
+    fixedBranchId ??
+      branches.find((branch) => branch.id === initialBranchId)?.id ??
+      branches[0]?.id ??
+      '',
+  );
   const [pin, setPin] = useState('');
   const [email, setEmail] = useState('');
   /** The server's refusal, by the field it named; `form` for one it did not. */
   const [refused, setRefused] = useState<{ field: string; text: string } | null>(null);
 
-  const signsIn = isAdminRole(role);
+  const signsIn = isAdminRole(role) && outranks(actorRole, role);
+  const trimmedEmail = email.trim();
   const errors = {
     name: name.trim() ? null : t('venuePage.wizard.error.name'),
     phone: phone.trim() ? null : t('venuePage.wizard.error.phone'),
     pin: /^\d{4}$/u.test(pin) ? null : t('venuePage.wizard.error.pin'),
-    email:
-      signsIn && email.trim() && !EMAIL_SHAPE.test(email.trim())
-        ? t('venuePage.wizard.error.email')
-        : null,
+    email: !signsIn
+      ? null
+      : trimmedEmail.length > EMAIL_MAX_LENGTH
+        ? t('staff.signIn.emailTooLong')
+        : trimmedEmail && !EMAIL_SHAPE.test(trimmedEmail)
+          ? t('venuePage.wizard.error.email')
+          : null,
   };
   const serverError = (field: string) => (refused?.field === field ? refused.text : null);
   const shown = (field: keyof typeof errors, onStep: Step) =>
@@ -91,6 +134,7 @@ export function AddStaffWizard({ venueId, branches, onClose, onHired }: AddStaff
     serverError(field === 'name' ? 'fullName' : field);
 
   const roleLabel = (value: StaffRole) => t(`role.${value}`);
+  const fixedBranchName = branches.find((branch) => branch.id === fixedBranchId)?.name ?? '';
 
   function goTo(next: Step, focus: string) {
     setStep(next);
@@ -100,7 +144,7 @@ export function AddStaffWizard({ venueId, branches, onClose, onHired }: AddStaff
   async function finish() {
     setBusy(true);
     setRefused(null);
-    const staffBranch = venueWide(role) ? null : branchId || null;
+    const staffBranch = venueWide(role) ? null : chooseBranch ? branchId || null : fixedBranchId;
     let member: StaffMember;
     try {
       member = await create.mutateAsync({
@@ -125,12 +169,12 @@ export function AddStaffWizard({ venueId, branches, onClose, onHired }: AddStaff
       }
       setRefused({ field, text });
       if (field === 'pin') goTo(3, 'sw-pin');
-      else if (field === 'branchId') goTo(2, 'sw-branch');
+      else if (field === 'branchId') goTo(2, chooseBranch ? 'sw-branch' : `sw-role-${role}`);
       else goTo(1, field === 'phone' ? 'sw-phone' : 'sw-name');
       return;
     }
 
-    const address = signsIn ? email.trim() : '';
+    const address = signsIn ? trimmedEmail : '';
     if (!address) {
       onHired({ member, pin, link: null, linkFailure: null });
       return;
@@ -177,7 +221,10 @@ export function AddStaffWizard({ venueId, branches, onClose, onHired }: AddStaff
       return;
     }
     if (step < 4) {
-      goTo((step + 1) as Step, step === 1 ? `sw-role-${role}` : step === 2 ? 'sw-pin' : 'sw-email');
+      goTo(
+        (step + 1) as Step,
+        step === 1 ? `sw-role-${role}` : step === 2 ? 'sw-pin' : signsIn ? 'sw-email' : 'sw-next',
+      );
       return;
     }
     void finish();
@@ -215,7 +262,9 @@ export function AddStaffWizard({ venueId, branches, onClose, onHired }: AddStaff
   ];
   const branchName = venueWide(role)
     ? t('venuePage.wizard.allBranches')
-    : (branches.find((branch) => branch.id === branchId)?.name ?? '');
+    : chooseBranch
+      ? (branches.find((branch) => branch.id === branchId)?.name ?? '')
+      : fixedBranchName;
 
   return (
     <Dialog
@@ -299,7 +348,7 @@ export function AddStaffWizard({ venueId, branches, onClose, onHired }: AddStaff
                 {t('venuePage.wizard.roleLegend')}{' '}
                 <span className="yc-help">{t('venuePage.wizard.roleHelp')}</span>
               </legend>
-              {assignableRoles('platformAdmin').map((value) => (
+              {roles.map((value) => (
                 <label key={value} className={value === role ? 'yc-rc is-on' : 'yc-rc'}>
                   <input
                     id={`sw-role-${value}`}
@@ -323,7 +372,7 @@ export function AddStaffWizard({ venueId, branches, onClose, onHired }: AddStaff
                   ? t('venuePage.wizard.venueWideOwner')
                   : t('venuePage.wizard.venueWideGm')}
               </p>
-            ) : (
+            ) : chooseBranch ? (
               <div className="yc-fld">
                 <label htmlFor="sw-branch">{t('venuePage.wizard.branch')}</label>
                 <select
@@ -345,6 +394,14 @@ export function AddStaffWizard({ venueId, branches, onClose, onHired }: AddStaff
                     {branchError}
                   </span>
                 ) : null}
+              </div>
+            ) : (
+              <div className="yc-fld">
+                <span className="yc-lbl">{t('venuePage.wizard.branch')}</span>
+                <span className="yc-muted">
+                  {t('venuePage.wizard.branchFixed', { branch: fixedBranchName })}
+                </span>
+                {branchError ? <span className="yc-err">{branchError}</span> : null}
               </div>
             )}
           </>
@@ -407,6 +464,7 @@ export function AddStaffWizard({ venueId, branches, onClose, onHired }: AddStaff
                     inputMode="email"
                     autoComplete="off"
                     spellCheck={false}
+                    maxLength={EMAIL_MAX_LENGTH}
                     aria-invalid={Boolean(emailError)}
                     aria-describedby={describe('sw-email-help', emailError && 'sw-email-err')}
                     value={email}
@@ -423,6 +481,9 @@ export function AddStaffWizard({ venueId, branches, onClose, onHired }: AddStaff
                 </div>
                 <p className="yc-help">{t('venuePage.wizard.linkNote')}</p>
               </>
+            ) : isAdminRole(role) ? (
+              // A co-owner: the server refuses a sign-in for a peer.
+              <p>{t('staff.wizard.coOwnerNote')}</p>
             ) : (
               <p>{t('venuePage.wizard.tabletOnly', { role: roleLabel(role) })}</p>
             )}
@@ -447,7 +508,7 @@ export function AddStaffWizard({ venueId, branches, onClose, onHired }: AddStaff
           <button type="button" className="yc-btn yc-btn-sec" onClick={back} disabled={busy}>
             {step === 1 ? t('venuePage.wizard.cancel') : t('venuePage.wizard.back')}
           </button>
-          <button type="submit" className="yc-btn yc-btn-pri" aria-busy={busy}>
+          <button id="sw-next" type="submit" className="yc-btn yc-btn-pri" aria-busy={busy}>
             {busy ? <span className="yc-spin" aria-hidden="true" /> : null}
             {busy
               ? t('venuePage.wizard.adding')

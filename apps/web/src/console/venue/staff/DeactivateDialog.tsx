@@ -1,64 +1,63 @@
 import type { StaffMember } from '@yalla/api';
 import { useTranslation } from '@yalla/i18n';
-import { useCallback, useId, useRef } from 'react';
-import { useDialogFocus } from '../../../components/useDialogFocus';
+import { Dialog } from '../../ui/Dialog';
 
 export interface DeactivateDialogProps {
   readonly member: StaffMember;
   readonly isSaving: boolean;
   readonly onConfirm: () => void;
   readonly onCancel: () => void;
+  /** The row's ⋮ button: the menu item that opened this is gone. */
+  readonly returnFocusTo?: () => HTMLElement | null;
 }
 
 /**
- * "Deactivate Ani?", asked before it happens.
+ * "Deactivate Ani?", asked before it happens (Staff artboard).
  *
- * Deactivating was one tap in an overflow menu, immediate, and the card was
- * gone with nothing said. The way back exists — Show deactivated, Reactivate —
- * but it is a recovery, not an undo, and the item next to Deactivate in that
- * menu is Reset PIN. Cancel is first, so the dialog opens on the safe choice.
+ * The way back exists — Show deactivated, Reactivate, and the toast's Undo —
+ * but the item next to Deactivate in that menu is New PIN, so it is asked.
+ * Cancel is first and has the focus, so the dialog opens on the safe choice.
  */
-export function DeactivateDialog({ member, isSaving, onConfirm, onCancel }: DeactivateDialogProps) {
+export function DeactivateDialog({
+  member,
+  isSaving,
+  onConfirm,
+  onCancel,
+  returnFocusTo,
+}: DeactivateDialogProps) {
   const { t } = useTranslation(['admin', 'common']);
-  const titleId = useId();
-  const bodyId = useId();
-  const dialogRef = useRef<HTMLDivElement>(null);
-  const cancel = useCallback(() => onCancel(), [onCancel]);
-  useDialogFocus(dialogRef, { onEscape: cancel, escapeEnabled: !isSaving });
 
   return (
-    <div className="scrim" role="presentation">
-      <div
-        ref={dialogRef}
-        className="card dialog-form"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby={titleId}
-        aria-describedby={bodyId}
-      >
-        <h3 id={titleId}>{t('staff.deactivate.title', { name: member.fullName })}</h3>
-        <p id={bodyId} className="muted">
-          {t('staff.deactivate.body')}
-        </p>
-        <div className="actions">
-          <button
-            type="button"
-            className="button button-ghost"
-            disabled={isSaving}
-            onClick={onCancel}
-          >
-            {t('common:action.cancel')}
-          </button>
-          <button
-            type="button"
-            className="button button-danger"
-            disabled={isSaving}
-            onClick={onConfirm}
-          >
-            {isSaving ? t('saving') : t('staff.deactivate.confirm')}
-          </button>
-        </div>
+    <Dialog
+      alert
+      title={t('staff.deactivate.title', { name: member.fullName })}
+      description={t('staff.deactivate.body')}
+      onClose={isSaving ? () => undefined : onCancel}
+      dismissible={!isSaving}
+      {...(returnFocusTo ? { returnFocusTo } : {})}
+    >
+      <div className="yc-acts">
+        <button
+          type="button"
+          className="yc-btn yc-btn-sec"
+          data-autofocus=""
+          disabled={isSaving}
+          onClick={onCancel}
+        >
+          {t('common:action.cancel')}
+        </button>
+        <button
+          type="button"
+          className="yc-btn yc-btn-danger"
+          aria-busy={isSaving}
+          onClick={() => {
+            if (!isSaving) onConfirm();
+          }}
+        >
+          {isSaving ? <span className="yc-spin" aria-hidden="true" /> : null}
+          {t('staff.deactivate.confirm')}
+        </button>
       </div>
-    </div>
+    </Dialog>
   );
 }

@@ -662,6 +662,10 @@ describe('adding staff', () => {
     const once = await screen.findByRole('dialog', { name: 'PIN: Hasmik Sargsyan' });
     expect(within(once).getByText('7315')).toBeTruthy();
     expect(within(once).getByRole('alert').textContent).toMatch(/already has an account/u);
+    // The PIN goes with this dialog: the first press warns, the second goes on.
+    await user.click(within(once).getByRole('button', { name: 'Try again' }));
+    expect(within(once).getByText(/Write the PIN down first/u)).toBeTruthy();
+    expect(screen.queryByRole('dialog', { name: 'Sign-in link: Hasmik Sargsyan' })).toBeNull();
     await user.click(within(once).getByRole('button', { name: 'Try again' }));
 
     const issue = await screen.findByRole('dialog', { name: 'Sign-in link: Hasmik Sargsyan' });
