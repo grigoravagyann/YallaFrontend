@@ -81,6 +81,9 @@ export function OpeningHours({
   const todayKey = branchDayKey(new Date(), branch.timeZoneId);
   const [year, month, dayOfMonth] = todayKey.split('-').map(Number) as [number, number, number];
   const today = new Date(Date.UTC(year, month - 1, dayOfMonth)).getUTCDay() as WeekdayIndex;
+  // The read also carries yesterday's special day when its night runs into
+  // today: it counts for "open now", and is not listed as a day ahead.
+  const upcoming = branch.specialDays.filter((day) => day.date >= todayKey);
 
   return (
     <section className="pub-section" aria-labelledby={headingId}>
@@ -109,6 +112,38 @@ export function OpeningHours({
           </tbody>
         </table>
       </details>
+      {upcoming.length > 0 ? (
+        // Holidays and closures replace the week's hours on their date, so
+        // they are said outside the folded week, where nobody misses them.
+        <table className="pub-hours-table pub-special-days">
+          <caption>{t('hours.special')}</caption>
+          <tbody>
+            {upcoming.map((day) => (
+              <tr key={day.date} aria-current={day.date === todayKey ? 'date' : undefined}>
+                <th scope="row" lang={locale}>
+                  {specialDate(day.date, locale)}
+                  {day.note ? <span className="pub-special-note"> · {day.note}</span> : null}
+                </th>
+                <td>
+                  {day.blocks.length === 0
+                    ? t('hours.closed')
+                    : day.blocks.map((block) => `${block.opensAt}–${block.closesAt}`).join(', ')}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      ) : null}
     </section>
   );
+}
+
+/** "Thu 31 December": a calendar date, with no zone to move it. */
+function specialDate(dateKey: string, locale: Locale): string {
+  return new Intl.DateTimeFormat(locale, {
+    weekday: 'short',
+    day: 'numeric',
+    month: 'long',
+    timeZone: 'UTC',
+  }).format(new Date(`${dateKey}T12:00:00Z`));
 }

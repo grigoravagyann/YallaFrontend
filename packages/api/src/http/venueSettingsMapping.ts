@@ -2,6 +2,9 @@ import type {
   HoursBlock,
   PolicyChangeResult,
   ReservationPolicy,
+  SpecialDay,
+  SpecialDaysList,
+  SpecialDaysSaved,
   WeekdayIndex,
   WeeklyHours,
 } from '../contracts/branchSettings';
@@ -10,6 +13,7 @@ import type {
   AdminMenuCategory,
   AdminMenuItem,
   MenuItemDeletion,
+  MenuItemField,
   Photo,
 } from '../contracts/menuAdmin';
 import type { SpiceLevel } from '../contracts/ordering';
@@ -113,6 +117,31 @@ export function adminItem(view: WireItem): AdminMenuItem {
     photo: view.photo ? photo(view.photo) : NO_PHOTO,
     isAvailable: view.isAvailable,
     displayOrder: view.displayOrder,
+    ...missingFieldsOf(view),
+  };
+}
+
+/** The server's names (VC3 wire §2) to the client's fields. */
+const MISSING_FIELD: Readonly<Record<string, MenuItemField>> = {
+  photo: 'photoId',
+  description: 'description',
+  ingredients: 'ingredients',
+  allergens: 'allergens',
+  portionSize: 'portionSize',
+  prepMinutes: 'prepMinutes',
+};
+
+/**
+ * `missingFields`: the server's own list, in the client's names. A server from
+ * before it sends none, and the client derives the same list from the same rule.
+ */
+function missingFieldsOf(view: WireItem): { missingFields?: readonly MenuItemField[] } {
+  const wire = view.missingFields as WireItem['missingFields'] | undefined;
+  if (!wire) return {};
+  return {
+    missingFields: wire
+      .map((name) => MISSING_FIELD[name])
+      .filter((field): field is MenuItemField => field !== undefined),
   };
 }
 
@@ -202,6 +231,57 @@ export function hoursBlocks(
       closesAt: toWireTime(block.closesAt),
     })),
   );
+}
+
+// --- Special days ----------------------------------------------------------------
+
+export type WireSpecialDay = Schemas['Yalla.Application.BranchSettings.SpecialOpeningDayView'];
+type WireSpecialDays = Schemas['Yalla.Application.BranchSettings.SpecialOpeningDaysView'];
+type WireSpecialDaysResult =
+  Schemas['Yalla.Application.BranchSettings.SpecialOpeningDaysChangeResult'];
+type WireSpecialDayInput = Schemas['Yalla.Application.BranchSettings.SpecialOpeningDayInput'];
+
+/** One day: `note` absent when none (WhenWritingNull); `closed` says what empty `blocks` says. */
+export function specialDayFromWire(view: WireSpecialDay): SpecialDay {
+  const note = view.note?.trim();
+  return {
+    date: view.date.slice(0, 10),
+    note: note ? note : null,
+    blocks: [...view.blocks]
+      .map((block) => ({
+        opensAt: toClientTime(block.opensAt),
+        closesAt: toClientTime(block.closesAt),
+      }))
+      .sort((a, b) => a.opensAt.localeCompare(b.opensAt)),
+  };
+}
+
+export function specialDaysFromWire(views: readonly WireSpecialDay[]): SpecialDay[] {
+  return views.map(specialDayFromWire).sort((a, b) => a.date.localeCompare(b.date));
+}
+
+export function specialDaysListFromWire(wire: WireSpecialDays): SpecialDaysList {
+  return { version: wire.version, days: specialDaysFromWire(wire.days) };
+}
+
+export function specialDaysToWire(days: readonly SpecialDay[]): WireSpecialDayInput[] {
+  return days.map((day) => ({
+    date: day.date,
+    note: day.note?.trim() ? day.note.trim() : null,
+    blocks: day.blocks.map((block) => ({
+      opensAt: toWireTime(block.opensAt),
+      closesAt: toWireTime(block.closesAt),
+    })),
+  }));
+}
+
+export function specialDaysSavedFromWire(wire: WireSpecialDaysResult): SpecialDaysSaved {
+  return {
+    version: wire.version,
+    days: specialDaysFromWire(wire.days),
+    affectedExistingReservations: wire.affectedExistingReservations,
+    affectedReservationIds: wire.affectedReservationIds,
+  };
 }
 
 // --- The reservation policy --------------------------------------------------------

@@ -69,6 +69,7 @@ const DETAIL: BranchDetail = {
   phoneE164: null,
   amenities: [],
   openingHours: [],
+  specialDays: [],
   gallery: [],
   tableCount: 2,
   acceptsWebBookings: true,

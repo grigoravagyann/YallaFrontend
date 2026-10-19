@@ -1,7 +1,7 @@
 import type { ConsoleUser, ManagedBranch } from '@yalla/api';
 import { useVenueProfile } from '@yalla/api/react';
 import { useTranslation } from '@yalla/i18n';
-import { useId } from 'react';
+import { useId, useState } from 'react';
 import { Outlet, useMatch, useOutletContext } from 'react-router-dom';
 import { signOut } from '../../auth/authSession';
 import { FLOOR_ROLES } from '../../auth/useCurrentUser';
@@ -9,6 +9,7 @@ import { QueryFailureNotice } from '../../components/QueryFailureNotice';
 import { usingMockData } from '../../data/gateway';
 import { useManagedVenue } from '../../data/queries';
 import { ConsoleShell, initialsOf, type ShellGroup } from '../ui/ConsoleShell';
+import { Dialog } from '../ui/Dialog';
 import {
   ClockIcon,
   MapPinIcon,
@@ -24,7 +25,7 @@ import {
   TabIcon,
 } from '../ui/icons';
 import { useBranchScope } from './useBranchScope';
-import { confirmLeave } from './useUnsavedChangesGuard';
+import { UnsavedChangesHost, hasUnsavedChanges } from './useUnsavedChangesGuard';
 import { useVenueNavCounts, type VenueNavCounts } from './useVenueNavCounts';
 
 export interface VenueLayoutProps {
@@ -140,6 +141,8 @@ export function VenueLayout({ user }: VenueLayoutProps) {
   const profile = useVenueProfile().data;
 
   const current = branches.find((branch) => branch.id === branchId);
+  /** A switch asked for over unsaved work: the branch it would go to, until answered. */
+  const [leavingFor, setLeavingFor] = useState<ManagedBranch | null>(null);
   const name = profile?.fullName || user.displayName || t(`role.${user.role}`);
   // My account needs nothing from the venue read, and holds the sign-out: it
   // opens whatever that read answered, so nobody is left with no way out.
@@ -180,8 +183,13 @@ export function VenueLayout({ user }: VenueLayoutProps) {
           branches={branches}
           current={current}
           onSwitch={(next) => {
-            // Another branch is another screen: unsaved work here would be thrown away.
-            if (confirmLeave()) setBranchId(next);
+            // Another branch is another screen: unsaved work here would be
+            // thrown away, so it is asked first, in the console's own dialog.
+            if (!hasUnsavedChanges()) {
+              setBranchId(next);
+              return;
+            }
+            setLeavingFor(branches.find((branch) => branch.id === next) ?? null);
           }}
         />
       }
@@ -210,6 +218,36 @@ export function VenueLayout({ user }: VenueLayoutProps) {
           outlet
         )}
       </div>
+      <UnsavedChangesHost />
+      {leavingFor ? (
+        <Dialog
+          alert
+          title={t('unsavedChanges.switchTitle', { branch: leavingFor.name })}
+          description={t('unsavedChanges.switchBody', { branch: current?.name ?? '' })}
+          onClose={() => setLeavingFor(null)}
+        >
+          <div className="yc-acts">
+            <button
+              type="button"
+              className="yc-btn yc-btn-sec"
+              data-autofocus=""
+              onClick={() => setLeavingFor(null)}
+            >
+              {t('unsavedChanges.stay')}
+            </button>
+            <button
+              type="button"
+              className="yc-btn yc-btn-pri"
+              onClick={() => {
+                setBranchId(leavingFor.id);
+                setLeavingFor(null);
+              }}
+            >
+              {t('unsavedChanges.switch')}
+            </button>
+          </div>
+        </Dialog>
+      ) : null}
     </ConsoleShell>
   );
 }

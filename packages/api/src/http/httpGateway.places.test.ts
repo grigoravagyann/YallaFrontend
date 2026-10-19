@@ -101,6 +101,7 @@ describe('places over /api/public/branches', () => {
       listing: { ...LISTING, rating: 4.5, reviewCount: 2 } as Listing,
       amenities: ['wifi'],
       openingHours: [{ day: 1, opensAt: '18:00:00', closesAt: '02:00:00', closesNextDay: true }],
+      specialDays: [],
       gallery: [],
       tableCount: 2,
       acceptsWebBookings: false,

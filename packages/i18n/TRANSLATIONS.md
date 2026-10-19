@@ -644,6 +644,70 @@ review every string in `src/locales/hy` and `src/locales/ru`.**
     sentence for the server's `invalid-table-transition` on a seat. `hy` names
     the table without a glued case ending ("Սեղան 1 հիմա զբաղված է").
 
+- `admin` and `public` — the venue console redesign, phase 3 (2026-10-19):
+  Menu, Rooms and Hours with special days. The `hy` copy is the approved
+  artboards' (`docs/design/venue-console`, Menu, Rooms and Hours), except where
+  marked; `ru` and `en` were written from it and are **not** reviewed. Formal
+  `Դուք` throughout. Where an artboard glued a case ending onto a name
+  ("{name}-ը պահպանվեց", "Սեղան {n}-ը"), the `hy` puts the name in «» or after
+  a colon instead (`i18n:check` refuses a glued suffix).
+  - Menu (`menu.*`): the header line (`sub`, `dishCount_*`, `inCategories_*`),
+    the banners (`incomplete.title_*` / `.body`, `allReady.*`), the category
+    card (`category.cap`, `.missingAria_*`, `.rename`, `.delete`,
+    `.deleteBody_*`, `.deleteEmpty`, `.orderSaved`, `.added`, `.renamed`,
+    `.deleted`), the search (`search.*`), the table (`column.dish` /
+    `.status`, `gap.*` — the six fields a guest would otherwise ask, in the
+    drawer's order — `dish.availableAria`, `.noDescription`), the drawer
+    (`dish.*`: titles, the to-do box, `nameRequired`, `priceInvalid`,
+    `noAllergens`, `saveDraft`, the save and delete toasts) and bulk photos
+    (`bulk.*`). Not in the artboard, so **not** read by the user even in `hy`:
+    `category.restored`, `.saveFailed`, `dish.restored`, `.deleteFailed`,
+    `.saveFailed`, `.availabilityFailed`, `.deactivatedInstead` (a dish on an
+    order is kept and marked sold out — must keep saying it was **not
+    deleted**), `orderFailed`, `undoFailed`, `empty.noCategoryBody`,
+    `bulk.chooseFor`, `bulk.attachOne`, `bulk.done_*`, `photo.alt`,
+    `photo.remove`, `field.allergensOther` (now "Other allergens", shown only
+    for text typed before the boxes existed). `photo.accepted` now ends with
+    the 4:3 sentence, as the drawer's help does. "No allergens" is stored as
+    `none`, so `diner` reads it with its own `menu.noAllergens`.
+  - Rooms (`rooms.*`): nearly every key, rewritten from the Rooms artboard
+    (`intro`, `stage.*`, `pin.*` — now how a table is booked, not its live
+    state — `field.*`, `table.*`, `unpinned.*`, `inactive.*`, `delete.*`,
+    `qr.*`, `saveBar.*`, `conflict.*`). Not in the artboard, so **not** read by
+    the user even in `hy`: `room.menu`, `.rename`, `.renameTitle`, `.renamed`
+    (the artboard has no rename; it moved to a ⋮ menu on the room),
+    `photos.menu`, `.addTitle`, `.addBody`, `.moveEarlier`, `.moveLater`,
+    `delete.undone` (a delete's undo puts the table back **as an unsaved
+    change**), `conflict.reloadFailed`, `list.duplicate` (from the artboard's
+    logic, not its markup). Removed, nothing renders them: `rooms.newTable.*`,
+    `table.inRoom`, `.notPinned`, `unpinned.noRoom`, `.hint`, `inactive.body`,
+    `photos.title`, `.add`, `.full`, `rooms.unsaved`.
+  - Hours (`hours.*`): the week (`sub`, `week`, `zone`, `today`, `openAria`,
+    `split` — "+ Ընդմիջում" — `copy*`, `fromAria` / `toAria`, `removeSpan`),
+    the save bar and its toasts, "what a guest sees now" (`now.*`), the page
+    summary (`summaryTitle`) and special days (`special.*`). Not in the
+    artboard, so **not** read by the user even in `hy`: `special.past`,
+    `.tooFar`, `.noteTooLong`, `.badHours`, `.failed`, `.restored`,
+    `.affected_*` (bookings on a saved date that no longer fit its hours —
+    must keep saying they were **not changed**). `special.closedDay` and
+    `.otherHours` name a day with no note; the note itself is shown to
+    diners. `public` `hours.special` heads the list on the public page.
+  - The branch switcher's question over unsaved work (`unsavedChanges.switch*`,
+    `.stay`), from the Hours artboard, now asked in the console's dialog
+    rather than the browser's.
+
+- `admin` — the venue console phase 3 review round (2026-10-19), **not** in an
+  artboard, so not read by the user even in `hy`: `hours.special.now` (last
+  night's special day, still running past midnight, read-only),
+  `hours.special.superseded` (the list moved twice while one change was
+  re-applied — must keep saying the **newer list is loaded** and nothing of
+  theirs was overwritten), `menu.dish.photoRemoved` (must keep saying guests
+  **do not see** the dish without a photo), `menu.dish.photoRemoveFailed`,
+  `rooms.delete.undoGone` (a delete's undo pressed after leaving Rooms or
+  during a save — must keep saying the table was **not** put back), and
+  `unsavedChanges.leaveTitle` / `.leaveConfirm`: the console's own dialog for
+  a link clicked over unsaved work, which replaced the browser's confirm.
+
 The Russian bundle carries four plural categories (`one`/`few`/`many`/`other`)
 where Armenian and English carry two. That is correct CLDR, not duplication, and
 `pnpm i18n:check` verifies each language has exactly the categories

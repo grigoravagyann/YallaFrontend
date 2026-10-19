@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import type { MenuItemDetail } from '@yalla/api';
-import { isOffline } from '@yalla/api';
+import { isOffline, listsNoAllergens } from '@yalla/api';
 import { formatDram } from '@yalla/format';
 import { useLocale, useTranslation } from '@yalla/i18n';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
@@ -347,7 +347,8 @@ function ItemRow({
                 {item.ingredients}
               </Text>
             ) : null}
-            {item.allergens ? (
+            {/* "none" is the venue's answer "no allergens", said in the reader's language. */}
+            {item.allergens && !listsNoAllergens(item.allergens) ? (
               <Text style={styles.detailLine}>
                 <Text style={styles.detailLabel}>{t('menu.allergens')}: </Text>
                 {item.allergens}

@@ -10,6 +10,6 @@ import { RoomsEditor } from './RoomsEditor';
  * admin edits a branch they do not hold a scope claim for.
  */
 export function RoomsEditorScreen() {
-  const { branchId } = useVenueOutlet();
-  return <RoomsEditor branchId={branchId ?? undefined} />;
+  const { branchId, branchName } = useVenueOutlet();
+  return <RoomsEditor branchId={branchId ?? undefined} branchName={branchName ?? null} />;
 }

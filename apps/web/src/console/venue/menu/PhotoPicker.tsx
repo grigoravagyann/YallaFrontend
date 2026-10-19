@@ -2,6 +2,7 @@ import { isUnsupportedImage, type Photo } from '@yalla/api';
 import { useUploadPhoto } from '@yalla/api/react';
 import { useTranslation } from '@yalla/i18n';
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { PlusIcon } from '../../ui/icons';
 
 /**
  * Attaching a photo to one dish: drop, crop, upload, see what a diner sees.
@@ -13,28 +14,26 @@ import { useCallback, useEffect, useRef, useState } from 'react';
  * aspect ratio, is the only place that is visible before it is a diner's
  * problem.
  *
- * The preview is shown at **diner card size**, not at whatever the form has
- * room for. A photo that reads perfectly at 400px and is an unidentifiable
- * brown rectangle at 120 is worth catching in an afternoon of onboarding rather
- * than in the app.
+ * The preview is the card variant in the same 4:3 frame a guest sees it in
+ * (Menu artboard), with "Change" — and "Remove", when the caller can take the
+ * photo back — beside it. Used for dishes, room photos and the cover.
  */
 
 export interface PhotoPickerProps {
   readonly branchId: string;
   readonly photo: Photo | null;
   readonly onChange: (photo: Photo) => void;
+  /** Offers "Remove" beside "Change", for a photo the caller can take back. */
+  readonly onRemove?: () => void;
 }
 
 /** The card variant's shape, from `PhotoRules`: 640 on the longest edge, 4:3. */
 const CARD_ASPECT = 4 / 3;
 
-/** What a diner's card is actually drawn at. The preview matches it exactly. */
-const DINER_CARD_WIDTH = 160;
-
 /** What the server takes; the same list as the file input's `accept`. */
 const ACCEPTED = new Set(['image/jpeg', 'image/png', 'image/webp']);
 
-export function PhotoPicker({ branchId, photo, onChange }: PhotoPickerProps) {
+export function PhotoPicker({ branchId, photo, onChange, onRemove }: PhotoPickerProps) {
   const { t } = useTranslation(['admin', 'common']);
   const upload = useUploadPhoto(branchId);
 
@@ -104,87 +103,94 @@ export function PhotoPicker({ branchId, photo, onChange }: PhotoPickerProps) {
   }
 
   return (
-    <div className="photo-picker">
-      <div
-        className="photo-drop"
-        onDragOver={(event) => event.preventDefault()}
-        onDrop={(event) => {
-          event.preventDefault();
-          choose(event.dataTransfer.files[0]);
-        }}
-      >
-        {pending ? (
-          <CropPane
-            source={pending.url}
-            busy={progress !== null}
-            onCancel={() => {
-              URL.revokeObjectURL(pending.url);
-              setPending(null);
-            }}
-            onCrop={(blob) => void send(blob, pending.file.name)}
-            onUnreadable={() => {
-              URL.revokeObjectURL(pending.url);
-              setPending(null);
-              setFailure(t('menu.photo.unreadable'));
-            }}
-          />
-        ) : photo?.cardUrl ? (
-          <div className="photo-current">
-            {/* At the size a diner sees, and labelled as such. The variant is
-                named because "which of the three am I looking at" is the
-                question this panel exists to answer. */}
-            <img
-              src={photo.cardUrl}
-              alt=""
-              width={DINER_CARD_WIDTH}
-              height={Math.round(DINER_CARD_WIDTH / CARD_ASPECT)}
-              className="photo-card-preview"
-            />
-            <div>
-              <p className="small muted">{t('menu.photo.variantCard')}</p>
-              <p className="small muted">
-                {t('menu.photo.dinerSize', { width: DINER_CARD_WIDTH })}
-              </p>
-              <button type="button" className="button" onClick={() => inputRef.current?.click()}>
-                {t('menu.photo.replace')}
-              </button>
-            </div>
-          </div>
-        ) : (
-          <button type="button" className="photo-empty" onClick={() => inputRef.current?.click()}>
-            <span>{t('menu.photo.dropHere')}</span>
-            <span className="small muted">{t('menu.photo.accepted')}</span>
-          </button>
-        )}
-
-        <input
-          ref={inputRef}
-          type="file"
-          accept="image/jpeg,image/png,image/webp"
-          hidden
-          onChange={(event) => choose(event.target.files?.[0])}
+    <div
+      className="yc-photo"
+      onDragOver={(event) => event.preventDefault()}
+      onDrop={(event) => {
+        event.preventDefault();
+        choose(event.dataTransfer.files[0]);
+      }}
+    >
+      {pending ? (
+        <CropPane
+          source={pending.url}
+          busy={progress !== null}
+          onCancel={() => {
+            URL.revokeObjectURL(pending.url);
+            setPending(null);
+          }}
+          onCrop={(blob) => void send(blob, pending.file.name)}
+          onUnreadable={() => {
+            URL.revokeObjectURL(pending.url);
+            setPending(null);
+            setFailure(t('menu.photo.unreadable'));
+          }}
         />
-      </div>
+      ) : (
+        <>
+          {photo?.cardUrl ? (
+            // The card variant, in the 4:3 frame a guest sees it in.
+            <img src={photo.cardUrl} alt={t('menu.photo.alt')} className="yc-photo-img" />
+          ) : (
+            <button type="button" className="yc-drop" onClick={() => inputRef.current?.click()}>
+              <PlusIcon />
+              {t('menu.photo.dropHere')}
+            </button>
+          )}
+          <div className="yc-photo-side">
+            <span className="yc-help">{t('menu.photo.accepted')}</span>
+            {photo?.cardUrl ? (
+              <div className="yc-photo-acts">
+                <button
+                  type="button"
+                  className="yc-btn yc-btn-sec yc-btn-sm"
+                  onClick={() => inputRef.current?.click()}
+                >
+                  {t('menu.photo.replace')}
+                </button>
+                {onRemove ? (
+                  <button
+                    type="button"
+                    className="yc-btn yc-btn-ghost yc-btn-sm"
+                    onClick={onRemove}
+                  >
+                    {t('menu.photo.remove')}
+                  </button>
+                ) : null}
+              </div>
+            ) : null}
+          </div>
+        </>
+      )}
 
       {progress !== null ? (
         // A real bar, not a spinner: these are eight-megabyte phone photos on a
         // cafe's wifi, and the difference between waiting and reloading is
         // knowing something is happening.
-        <div className="upload-progress">
+        <div className="yc-upload">
           <progress value={progress} max={1} />
-          <span className="small muted">
-            {t('menu.photo.uploading', {
-              percent: Math.round(progress * 100),
-            })}
+          <span className="yc-help">
+            {t('menu.photo.uploading', { percent: Math.round(progress * 100) })}
           </span>
         </div>
       ) : null}
-
       {failure ? (
-        <p className="error" role="alert">
+        <p className="yc-err yc-photo-err" role="alert">
           {failure}
         </p>
       ) : null}
+
+      <input
+        ref={inputRef}
+        type="file"
+        accept="image/jpeg,image/png,image/webp"
+        hidden
+        onChange={(event) => {
+          choose(event.target.files?.[0]);
+          // The same file again, after a cancel, is a change too.
+          event.target.value = '';
+        }}
+      />
     </div>
   );
 }
@@ -257,8 +263,8 @@ function CropPane({
   }
 
   return (
-    <div className="photo-crop">
-      <div className="photo-crop-frame" style={{ aspectRatio: String(CARD_ASPECT) }}>
+    <div className="yc-crop photo-crop">
+      <div className="yc-crop-frame" style={{ aspectRatio: String(CARD_ASPECT) }}>
         <img
           ref={imageRef}
           src={source}
@@ -272,30 +278,38 @@ function CropPane({
         />
       </div>
 
-      <label className="labelled small">
-        {t('menu.photo.framing')}
-        <input
-          type="range"
-          min={0}
-          max={1}
-          step={0.01}
-          value={offset}
-          onChange={(event) => setOffset(Number(event.target.value))}
-        />
-      </label>
-
-      <div className="actions">
-        <button
-          type="button"
-          className="button button-primary"
-          disabled={busy || !decoded}
-          onClick={crop}
-        >
-          {busy ? t('menu.photo.uploadingShort') : t('menu.photo.useThis')}
-        </button>
-        <button type="button" className="button" disabled={busy} onClick={onCancel}>
-          {t('common:action.cancel')}
-        </button>
+      <div className="yc-crop-side">
+        <label className="yc-fld">
+          <span className="yc-lbl">{t('menu.photo.framing')}</span>
+          <input
+            type="range"
+            className="yc-crop-range"
+            min={0}
+            max={1}
+            step={0.01}
+            value={offset}
+            onChange={(event) => setOffset(Number(event.target.value))}
+          />
+        </label>
+        <div className="yc-photo-acts">
+          <button
+            type="button"
+            className="yc-btn yc-btn-pri yc-btn-sm"
+            disabled={busy || !decoded}
+            aria-busy={busy}
+            onClick={crop}
+          >
+            {busy ? t('menu.photo.uploadingShort') : t('menu.photo.useThis')}
+          </button>
+          <button
+            type="button"
+            className="yc-btn yc-btn-sec yc-btn-sm"
+            disabled={busy}
+            onClick={onCancel}
+          >
+            {t('common:action.cancel')}
+          </button>
+        </div>
       </div>
     </div>
   );

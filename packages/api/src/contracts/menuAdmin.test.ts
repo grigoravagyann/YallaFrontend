@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest';
 import {
   ALLERGEN_PRESETS,
   EMPTY_DRAFT,
+  NO_ALLERGENS,
+  listsNoAllergens,
   REQUIRED_MENU_ITEM_FIELDS,
   allergenText,
   duplicateDraft,
@@ -238,6 +240,26 @@ describe('allergen chips', () => {
     expect(allergenText({ allergens: parsed.presets, allergensOther: parsed.other })).toBe(
       'gluten, dairy, sesame, celery',
     );
+  });
+
+  it('stores "no allergens" as an answer, so a dish without any can be finished', () => {
+    // The dish drawer's "No allergens" box. An empty string is a question not
+    // yet answered and keeps the dish hidden; this is the answer "none".
+    const none = draft({ allergens: [], allergensOther: '', noAllergens: true });
+    expect(menuItemGaps(none)).not.toContain('allergens');
+    expect(allergenText(none)).toBe(NO_ALLERGENS);
+
+    const back = itemToDraft(item({ allergens: NO_ALLERGENS }));
+    expect(back.noAllergens).toBe(true);
+    expect(back.allergens).toEqual([]);
+    expect(back.allergensOther).toBe('');
+    expect(listsNoAllergens(NO_ALLERGENS)).toBe(true);
+    expect(listsNoAllergens(' None ')).toBe(true);
+    expect(listsNoAllergens('gluten')).toBe(false);
+
+    // Ticking an allergen wins over the box: the two are never stored together.
+    expect(allergenText(draft({ allergens: ['egg'], noAllergens: true }))).toBe('egg');
+    expect(draft().noAllergens).toBe(false);
   });
 
   it('offers the nine the product ships', () => {

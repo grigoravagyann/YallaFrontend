@@ -1,6 +1,6 @@
 import type { ApprovalTrigger, DeclineReason } from './approvals';
 import type { VenueType } from './booking';
-import type { WeeklyHours } from './branchSettings';
+import type { SpecialDay, WeeklyHours } from './branchSettings';
 
 /**
  * What a stranger with a link can see, and nothing more.
@@ -148,6 +148,12 @@ export interface PublicBranch {
   readonly timeZoneId: string;
   readonly openState: OpenState;
   readonly weeklyHours: WeeklyHours;
+  /**
+   * The special days from the branch's today through the next sixty days,
+   * earliest first: each replaces its date's weekly hours. Empty from a server
+   * that does not send them yet.
+   */
+  readonly specialDays: readonly SpecialDay[];
 
   /**
    * The number the whole page is for.

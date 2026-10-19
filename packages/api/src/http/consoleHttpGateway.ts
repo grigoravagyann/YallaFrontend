@@ -122,6 +122,9 @@ import {
   policyCommand,
   policyFieldFromMessage,
   reservationPolicy,
+  specialDaysListFromWire,
+  specialDaysSavedFromWire,
+  specialDaysToWire,
   spiceCode,
   weeklyHours,
 } from './venueSettingsMapping';
@@ -132,6 +135,9 @@ type WireDetail = Schemas['Yalla.Application.Platform.VenueDetail'];
 type WireCategory = Schemas['Yalla.Application.Menus.MenuCategoryView'];
 type WireItem = Schemas['Yalla.Application.Menus.MenuItemView'];
 type WireHours = Schemas['Yalla.Application.BranchSettings.OpeningHoursView'];
+type WireSpecialDays = Schemas['Yalla.Application.BranchSettings.SpecialOpeningDaysView'];
+type WireSpecialDaysResult =
+  Schemas['Yalla.Application.BranchSettings.SpecialOpeningDaysChangeResult'];
 type WirePublicProfile = Schemas['Yalla.Application.BranchSettings.PublicProfileView'];
 
 /**
@@ -875,7 +881,7 @@ export function createConsoleHttpGateway(
     async createCategory({ branchId, name, displayOrder }): Promise<AdminMenuCategory> {
       const { data } = await client.post<WireCategory>(`${BRANCHES}/${branchId}/menu/categories`, {
         name,
-        displayOrder,
+        ...(displayOrder !== undefined ? { displayOrder } : {}),
       } satisfies Schemas['Yalla.Application.Menus.CreateMenuCategoryCommand']);
       return absoluteCategory(adminCategory(data));
     },
@@ -917,9 +923,10 @@ export function createConsoleHttpGateway(
           allergens: item.allergens,
           portionSize: item.portionSize,
           spiceLevel: spiceCode(item.spiceLevel),
-          prepMinutes: item.prepMinutes,
-          photoId: item.photoId,
-          displayOrder: item.displayOrder,
+          // A draft without them: absent, never an empty id or a zero.
+          ...(item.prepMinutes !== null ? { prepMinutes: item.prepMinutes } : {}),
+          ...(item.photoId ? { photoId: item.photoId } : {}),
+          ...(item.displayOrder !== undefined ? { displayOrder: item.displayOrder } : {}),
         } satisfies Schemas['Yalla.Application.Menus.CreateMenuItemCommand'],
       );
       return absoluteItem(adminItem(data));
@@ -950,6 +957,29 @@ export function createConsoleHttpGateway(
         {
           isAvailable,
         } satisfies Schemas['Yalla.Api.Endpoints.VenueAdminEndpoints.SetAvailabilityRequest'],
+      );
+      return absoluteItem(adminItem(data));
+    },
+
+    async reorderMenuCategories({ branchId, categoryIds }) {
+      const { data } = await client.put<WireCategory[]>(
+        `${BRANCHES}/${branchId}/menu/categories/order`,
+        { categoryIds },
+      );
+      return adminMenu(data ?? []).map(absoluteCategory);
+    },
+
+    async reorderMenuItems({ branchId, categoryId, itemIds }) {
+      const { data } = await client.put<WireCategory>(
+        `${BRANCHES}/${branchId}/menu/categories/${categoryId}/items/order`,
+        { itemIds },
+      );
+      return absoluteCategory(adminCategory(data));
+    },
+
+    async removeMenuItemPhoto({ branchId, itemId }) {
+      const { data } = await client.delete<WireItem>(
+        `${BRANCHES}/${branchId}/menu/items/${itemId}/photo`,
       );
       return absoluteItem(adminItem(data));
     },
@@ -1054,6 +1084,26 @@ export function createConsoleHttpGateway(
         }
         throw error;
       }
+    },
+
+    async getSpecialDays(branchId: string) {
+      const { data } = await client.get<WireSpecialDays>(
+        `${BRANCHES}/${branchId}/opening-hours/exceptions`,
+      );
+      return specialDaysListFromWire(data);
+    },
+
+    async replaceSpecialDays({ branchId, expectedVersion, days }) {
+      // A 409 `concurrent-update` is the client's ConcurrencyConflictError
+      // and a 422 `validation-failed` its ValidationError, already.
+      const { data } = await client.put<WireSpecialDaysResult>(
+        `${BRANCHES}/${branchId}/opening-hours/exceptions`,
+        {
+          expectedVersion,
+          days: specialDaysToWire(days),
+        } satisfies Schemas['Yalla.Application.BranchSettings.ReplaceSpecialOpeningDaysCommand'],
+      );
+      return specialDaysSavedFromWire(data);
     },
 
     // --- The reservation policy ---------------------------------------------------

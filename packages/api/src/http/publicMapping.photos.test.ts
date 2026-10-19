@@ -20,6 +20,7 @@ const PAGE: Page = {
   timeZoneId: 'Asia/Yerevan',
   openingHours: [],
   isOpenNow: true,
+  specialDays: [],
   freeTableCount: 2,
   tableCount: 8,
   floorPlan: { areas: [], tables: [] },

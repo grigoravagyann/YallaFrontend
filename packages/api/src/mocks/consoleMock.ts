@@ -115,10 +115,15 @@ import type {
   HoursBlock,
   PolicyChangeResult,
   ReservationPolicy,
+  SpecialDay,
+  SpecialDaysList,
+  SpecialDaysSaved,
   WeeklyHours,
 } from '../contracts/branchSettings';
 import {
   POLICY_BOUNDS,
+  SPECIAL_DAY_HORIZON_DAYS,
+  SPECIAL_DAY_NOTE_MAX,
   WEEK_ORDER,
   defaultPolicyFor,
   toMinutes,
@@ -396,6 +401,8 @@ export function createConsoleMockGateway(options: ConsoleMockOptions = {}): Cons
 
   const menus = new Map<string, MockCategory[]>();
   const hours = new Map<string, WeeklyHours>();
+  /** Special days per branch, history included, earliest first. */
+  const specialDays = new Map<string, SpecialDay[]>();
   const policies = new Map<string, ReservationPolicy>();
   const profiles = new Map<string, BranchPublicProfile>();
   const photosById = new Map<string, Photo>();
@@ -531,6 +538,15 @@ export function createConsoleMockGateway(options: ConsoleMockOptions = {}): Cons
     };
   }
 
+  /** The same ids, each once, in any order. */
+  function isPermutation(ids: readonly string[], all: readonly string[]): boolean {
+    return (
+      ids.length === all.length &&
+      new Set(ids).size === ids.length &&
+      all.every((id) => ids.includes(id))
+    );
+  }
+
   function requireCategory(branchId: string, categoryId: string): MockCategory {
     const category = menuFor(branchId).find((candidate) => candidate.id === categoryId);
     if (!category) throw new NotFoundError({ url: `${URL_TAG}/menu/${categoryId}` });
@@ -555,6 +571,67 @@ export function createConsoleMockGateway(options: ConsoleMockOptions = {}): Cons
       if (item) return item;
     }
     throw new NotFoundError({ url: `${URL_TAG}/menu/items/${itemId}` });
+  }
+
+  /**
+   * The coming New Year, as the Hours artboard draws it: the eve open late
+   * into the 1st, the 1st and Christmas (the 6th) closed. Dated from the
+   * mock's own clock, so the list is never history.
+   */
+  function specialDaysFor(branchId: string): SpecialDay[] {
+    const existing = specialDays.get(branchId);
+    if (existing) return existing;
+    const today = branchDayKey(now(), branchTimeZone(branchId) as TimeZone);
+    const year = Number(today.slice(0, 4));
+    const horizon = shiftDate(today, SPECIAL_DAY_HORIZON_DAYS);
+    const seeded: SpecialDay[] = [
+      {
+        date: `${year}-12-31`,
+        note: 'New Year’s Eve',
+        blocks: [{ opensAt: '18:00', closesAt: '03:00' }],
+      },
+      { date: `${year + 1}-01-01`, note: 'New Year', blocks: [] },
+      { date: `${year + 1}-01-06`, note: 'Christmas', blocks: [] },
+    ].filter((day) => day.date <= horizon);
+    specialDays.set(branchId, seeded);
+    return seeded;
+  }
+
+  /** Each branch's special-days revision: a counter, as the server's is today. */
+  const specialVersions = new Map<string, number>();
+  function specialVersionFor(branchId: string): number {
+    return specialVersions.get(branchId) ?? 0;
+  }
+
+  /**
+   * The list from the branch's service date on: today's on, and — while last
+   * night's special block is still running past midnight — yesterday's first.
+   */
+  function specialDaysFromServiceDate(branchId: string): SpecialDay[] {
+    const zone = branchTimeZone(branchId) as TimeZone;
+    const today = branchDayKey(now(), zone);
+    const yesterday = shiftDate(today, -1);
+    return specialDaysFor(branchId).filter((day) => {
+      if (day.date >= today) return true;
+      if (day.date !== yesterday) return false;
+      return day.blocks.some((block) => {
+        if (toMinutes(block.closesAt) > toMinutes(block.opensAt)) return false;
+        const [year, month, dayOfMonth] = today.split('-').map(Number) as [number, number, number];
+        const minutes = toMinutes(block.closesAt);
+        const closes = instantFromZonedClock(
+          { year, month, day: dayOfMonth, hour: Math.floor(minutes / 60), minute: minutes % 60 },
+          zone,
+        );
+        return now().getTime() < closes.getTime();
+      });
+    });
+  }
+
+  /** `YYYY-MM-DD` moved by whole days. */
+  function shiftDate(dateKey: string, days: number): string {
+    return new Date(Date.parse(`${dateKey}T12:00:00Z`) + days * 86_400_000)
+      .toISOString()
+      .slice(0, 10);
   }
 
   /** A plausible week: open every day, one late night at the weekend. */
@@ -3136,8 +3213,12 @@ export function createConsoleMockGateway(options: ConsoleMockOptions = {}): Cons
 
     async createCategory({ branchId, name, displayOrder }): Promise<AdminMenuCategory> {
       await wait();
-      const category: MockCategory = { id: nextId('cat'), name, displayOrder, items: [] };
-      menuFor(branchId).push(category);
+      const categories = menuFor(branchId);
+      // Absent: last, as the server places it.
+      const order =
+        displayOrder ?? Math.max(-1, ...categories.map((candidate) => candidate.displayOrder)) + 1;
+      const category: MockCategory = { id: nextId('cat'), name, displayOrder: order, items: [] };
+      categories.push(category);
       return toCategory(category);
     },
 
@@ -3182,10 +3263,12 @@ export function createConsoleMockGateway(options: ConsoleMockOptions = {}): Cons
         allergens: item.allergens,
         portionSize: item.portionSize,
         spiceLevel: item.spiceLevel,
-        prepMinutes: item.prepMinutes,
+        prepMinutes: item.prepMinutes ?? 0,
         photoId: item.photoId,
         isAvailable: true,
-        displayOrder: item.displayOrder,
+        displayOrder:
+          item.displayOrder ??
+          Math.max(-1, ...category.items.map((candidate) => candidate.displayOrder)) + 1,
       };
       category.items.push(created);
       return toItem(created);
@@ -3211,6 +3294,62 @@ export function createConsoleMockGateway(options: ConsoleMockOptions = {}): Cons
       await wait();
       const item = requireItem(branchId, itemId);
       item.isAvailable = isAvailable;
+      return toItem(item);
+    },
+
+    async reorderMenuCategories({ branchId, categoryIds }) {
+      await wait();
+      requireBranchInVenue(branchId);
+      const categories = menuFor(branchId);
+      // The whole list, each once: anything else is a stale menu, refused whole.
+      if (
+        !isPermutation(
+          categoryIds,
+          categories.map((category) => category.id),
+        )
+      ) {
+        throw validationFailed(`${URL_TAG}/menu/categories/order`, [
+          {
+            field: 'categoryIds',
+            message: 'The list must name every category of the branch exactly once.',
+            bound: 'conflict',
+          },
+        ]);
+      }
+      categoryIds.forEach((id, index) => {
+        categories.find((category) => category.id === id)!.displayOrder = index;
+      });
+      return sortedMenu(categories);
+    },
+
+    async reorderMenuItems({ branchId, categoryId, itemIds }) {
+      await wait();
+      requireBranchInVenue(branchId);
+      const category = requireCategory(branchId, categoryId);
+      if (
+        !isPermutation(
+          itemIds,
+          category.items.map((item) => item.id),
+        )
+      ) {
+        throw validationFailed(`${URL_TAG}/menu/categories/${categoryId}/items/order`, [
+          {
+            field: 'itemIds',
+            message: 'The list must name every item of the category exactly once.',
+            bound: 'conflict',
+          },
+        ]);
+      }
+      itemIds.forEach((id, index) => {
+        category.items.find((item) => item.id === id)!.displayOrder = index;
+      });
+      return toCategory(category);
+    },
+
+    async removeMenuItemPhoto({ branchId, itemId }) {
+      await wait();
+      const item = requireItem(branchId, itemId);
+      item.photoId = null;
       return toItem(item);
     },
 
@@ -3348,6 +3487,127 @@ export function createConsoleMockGateway(options: ConsoleMockOptions = {}): Cons
       }));
       hours.set(branchId, stored);
       return stored;
+    },
+
+    async getSpecialDays(branchId): Promise<SpecialDaysList> {
+      await wait();
+      requireBranchInVenue(branchId);
+      return {
+        version: String(specialVersionFor(branchId)),
+        days: specialDaysFromServiceDate(branchId),
+      };
+    },
+
+    async replaceSpecialDays({ branchId, expectedVersion, days }): Promise<SpecialDaysSaved> {
+      await wait();
+      requireBranchInVenue(branchId);
+      const url = `${URL_TAG}/branches/${branchId}/opening-hours/exceptions`;
+      const current = String(specialVersionFor(branchId));
+      // Saved by somebody else since this editor read it: nothing written.
+      if (expectedVersion !== current) {
+        throw new ConcurrencyConflictError({
+          url,
+          problem: {
+            type: 'about:blank',
+            title: 'Conflict',
+            status: 409,
+            detail: 'The special days were changed since they were loaded.',
+            code: 'concurrent-update',
+            traceId: 'mock',
+            context: { currentVersion: current },
+          },
+        });
+      }
+      const today = branchDayKey(now(), branchTimeZone(branchId) as TimeZone);
+      const horizon = shiftDate(today, SPECIAL_DAY_HORIZON_DAYS);
+
+      // `SpecialOpeningDaysRules`, as the wire lists them: every problem at
+      // once, under `days[i]`, nothing saved. An entry before today is history
+      // and is skipped, fields and all — a console left open past midnight
+      // still saves the rest.
+      const problems: MockViolation[] = [];
+      const upcoming = days
+        .map((day, i) => ({ day, i }))
+        .filter(({ day }) => !/^\d{4}-\d{2}-\d{2}$/u.test(day.date) || day.date >= today);
+      if (upcoming.length > 100) {
+        problems.push({ field: 'days[100]', message: 'At most 100 special days.', bound: 'max' });
+      }
+      const seen = new Set<string>();
+      for (const { day, i } of upcoming) {
+        if (!/^\d{4}-\d{2}-\d{2}$/u.test(day.date)) {
+          problems.push({
+            field: `days[${i}].date`,
+            message: 'A date is required.',
+            bound: 'required',
+          });
+        } else if (day.date > horizon) {
+          problems.push({
+            field: `days[${i}].date`,
+            message: `${day.date} is more than a year ahead.`,
+            bound: 'max',
+          });
+        } else if (seen.has(day.date)) {
+          problems.push({
+            field: `days[${i}].date`,
+            message: `${day.date} is in the list twice.`,
+            bound: 'conflict',
+          });
+        }
+        seen.add(day.date);
+        if ((day.note ?? '').trim().length > SPECIAL_DAY_NOTE_MAX) {
+          problems.push({
+            field: `days[${i}].note`,
+            message: `A note is at most ${SPECIAL_DAY_NOTE_MAX} characters.`,
+            bound: 'max',
+          });
+        }
+        if (day.blocks.length > 4) {
+          problems.push({ field: `days[${i}].blocks`, message: 'At most 4 blocks.', bound: 'max' });
+        }
+        const spans: { start: number; end: number }[] = [];
+        day.blocks.forEach((block, j) => {
+          const opens = toMinutes(block.opensAt);
+          const closes = toMinutes(block.closesAt);
+          if (opens === closes) {
+            problems.push({
+              field: `days[${i}].blocks[${j}].closesAt`,
+              message: 'A block must have a length.',
+              bound: 'conflict',
+            });
+            return;
+          }
+          const end = closes < opens ? closes + 1440 : closes;
+          if (spans.some((span) => opens < span.end && span.start < end)) {
+            problems.push({
+              field: `days[${i}].blocks[${j}].opensAt`,
+              message: 'Two blocks on the same date overlap.',
+              bound: 'conflict',
+            });
+          }
+          spans.push({ start: opens, end });
+        });
+      }
+      if (problems.length > 0) throw validationFailed(url, problems);
+
+      // History stays as it was; the list from today on is replaced whole.
+      const kept = specialDaysFor(branchId).filter((day) => day.date < today);
+      const saved: SpecialDay[] = upcoming
+        .map(({ day }) => ({
+          date: day.date,
+          note: day.note?.trim() ? day.note.trim() : null,
+          blocks: [...day.blocks]
+            .map((block) => ({ ...block }))
+            .sort((a, b) => a.opensAt.localeCompare(b.opensAt)),
+        }))
+        .sort((a, b) => a.date.localeCompare(b.date));
+      specialDays.set(branchId, [...kept, ...saved]);
+      specialVersions.set(branchId, specialVersionFor(branchId) + 1);
+      return {
+        version: String(specialVersionFor(branchId)),
+        days: specialDaysFromServiceDate(branchId),
+        affectedExistingReservations: 0,
+        affectedReservationIds: [],
+      };
     },
 
     // --- The reservation policy ---------------------------------------------------
@@ -3661,6 +3921,7 @@ export function createConsoleMockGateway(options: ConsoleMockOptions = {}): Cons
         timeZoneId: branchTimeZone(branchId),
         now: now(),
         weeklyHours: hoursFor(branchId),
+        specialDays: specialDaysFor(branchId),
         tables: overviewTables(branchId),
         bookings: [...todayRowsFor(branchId), ...approvalRowsFor(branchId)],
         graceMinutes: policyFor(branchId).graceMinutes,

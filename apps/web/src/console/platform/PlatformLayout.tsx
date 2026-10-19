@@ -6,6 +6,7 @@ import { signOut } from '../../auth/authSession';
 import { usingMockData } from '../../data/gateway';
 import { ConsoleShell, type ShellLink } from '../ui/ConsoleShell';
 import { HomeIcon, SettingsIcon, VenuesIcon } from '../ui/icons';
+import { UnsavedChangesHost } from '../venue/useUnsavedChangesGuard';
 
 /**
  * Exactly three destinations (HANDOFF section 2). Home is `/platform`, which
@@ -46,6 +47,8 @@ export function PlatformLayout({ user }: PlatformLayoutProps) {
       onSignOut={usingMockData ? undefined : () => void signOut()}
     >
       <Outlet />
+      {/* The branch pages' rooms and public page keep unsaved work. */}
+      <UnsavedChangesHost />
     </ConsoleShell>
   );
 }

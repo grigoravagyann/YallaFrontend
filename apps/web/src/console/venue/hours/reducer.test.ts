@@ -247,3 +247,44 @@ describe('the unsaved-changes guard', () => {
     expect(isDirty(saved)).toBe(false);
   });
 });
+
+// ---------------------------------------------------------------------------
+// The break (Hours artboard: "+ Break")
+// ---------------------------------------------------------------------------
+
+describe('a break in the day', () => {
+  it('cuts two hours out of the middle of the one span: 09:00–23:00 becomes 09:00–15:00, 17:00–23:00', () => {
+    const next = hoursReducer(open(MON, '09:00', '23:00'), { type: 'splitDay', day: MON });
+    expect(dayIn(next.draft, MON).blocks).toEqual([
+      { opensAt: '09:00', closesAt: '15:00' },
+      { opensAt: '17:00', closesAt: '23:00' },
+    ]);
+    expect(hoursProblems(next.draft)).toEqual([]);
+  });
+
+  it('keeps both halves of a late span on the day it opens: the break ends before midnight', () => {
+    // A second span opening at 00:00 would be the next day's, not this one's.
+    const next = hoursReducer(open(SAT, '18:00', '04:00'), { type: 'splitDay', day: SAT });
+    expect(dayIn(next.draft, SAT).blocks).toEqual([
+      { opensAt: '18:00', closesAt: '21:30' },
+      { opensAt: '23:30', closesAt: '04:00' },
+    ]);
+    expect(hoursProblems(next.draft)).toEqual([]);
+  });
+
+  it('adds a span instead when no break fits before midnight', () => {
+    // Friday 21:00–03:00: the middle is midnight, and pulling the break back
+    // would leave less than an hour before it.
+    const next = hoursReducer(open(5, '21:00', '03:00'), { type: 'splitDay', day: 5 });
+    const blocks = dayIn(next.draft, 5).blocks;
+    expect(blocks[0]).toEqual({ opensAt: '21:00', closesAt: '03:00' });
+    expect(blocks).toHaveLength(2);
+    expect(hoursProblems(next.draft)).toEqual([]);
+  });
+
+  it('adds a second span after a short one, never one that clashes', () => {
+    const next = hoursReducer(open(TUE, '12:00', '14:00'), { type: 'splitDay', day: TUE });
+    expect(dayIn(next.draft, TUE).blocks).toHaveLength(2);
+    expect(hoursProblems(next.draft)).toEqual([]);
+  });
+});

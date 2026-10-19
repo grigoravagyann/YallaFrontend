@@ -30,6 +30,9 @@ import type {
 import type {
   PolicyChangeResult,
   ReservationPolicy,
+  SpecialDay,
+  SpecialDaysList,
+  SpecialDaysSaved,
   WeeklyHours,
 } from './contracts/branchSettings';
 import type { BranchPublicProfile, BranchPublicProfileInput } from './contracts/publicProfile';
@@ -354,10 +357,11 @@ export interface ConsoleGateway {
    */
   getAdminMenu(branchId: string): Promise<readonly AdminMenuCategory[]>;
 
+  /** `displayOrder` absent: last (VC3 wire §2, "create lands last"). */
   createCategory(input: {
     branchId: string;
     name: string;
-    displayOrder: number;
+    displayOrder?: number | undefined;
   }): Promise<AdminMenuCategory>;
 
   updateCategory(input: {
@@ -403,6 +407,41 @@ export interface ConsoleGateway {
    */
   deleteMenuItem(input: { branchId: string; itemId: string }): Promise<MenuItemDeletion>;
 
+  /**
+   * `DELETE …/menu/items/{id}/photo`: the one field the PATCH cannot clear.
+   * The dish comes back without a photo, unfinished and off the diner's menu
+   * until it has one again; the picture itself is kept for a while (it may be
+   * used elsewhere), so setting its id again undoes this.
+   */
+  removeMenuItemPhoto(input: { branchId: string; itemId: string }): Promise<AdminMenuItem>;
+
+  /**
+   * `PUT …/menu/categories/order`: **every** category of the branch, each
+   * once, first to last; the answer is the whole menu with display orders
+   * 0..n-1. One transaction under the branch lock, so two consoles reordering
+   * at once get one whole order, never a mix (VC3 wire §2).
+   *
+   * @throws {ValidationError} 422 on `categoryIds` (`conflict`): the list
+   * misses one, repeats one or names another branch's — a stale menu, so
+   * reload and retry.
+   */
+  reorderMenuCategories(input: {
+    branchId: string;
+    categoryIds: readonly string[];
+  }): Promise<readonly AdminMenuCategory[]>;
+
+  /**
+   * `PUT …/menu/categories/{id}/items/order`: every item of that category,
+   * each once, first to last; the answer is that category in its new order.
+   *
+   * @throws {ValidationError} 422 on `itemIds` (`conflict`), as above.
+   */
+  reorderMenuItems(input: {
+    branchId: string;
+    categoryId: string;
+    itemIds: readonly string[];
+  }): Promise<AdminMenuCategory>;
+
   // --- Photos ------------------------------------------------------------------
 
   /**
@@ -442,6 +481,35 @@ export interface ConsoleGateway {
    * names the days.
    */
   replaceOpeningHours(input: { branchId: string; week: WeeklyHours }): Promise<WeeklyHours>;
+
+  /**
+   * `GET …/opening-hours/exceptions`: the special days — holidays, closures,
+   * different hours on one date — from the branch's service date on, earliest
+   * first, with the list's version. Each replaces that date's weekly blocks
+   * entirely; an entry before today is last night's, still running, and
+   * read-only.
+   */
+  getSpecialDays(branchId: string): Promise<SpecialDaysList>;
+
+  /**
+   * `PUT …/opening-hours/exceptions`: the **whole** list from the branch's
+   * today on, against the version it was read at; entries before today are
+   * history and are ignored. The console adds or removes one day at a time by
+   * sending the list with that change, and takes the answer as the new list.
+   *
+   * @throws {ConcurrencyConflictError} 409 `concurrent-update`: saved by
+   * somebody else since `expectedVersion` (or the branch lock timed out).
+   * Nothing was written; read the list again and re-apply the change.
+   * @throws {ValidationError} 422 `validation-failed`, naming `days[i].date`
+   * (`max` past the horizon, `conflict` a date twice), `days[i].note` (`max`
+   * 60), `days[i].blocks` (`max` 4) or a block that overlaps another or has no
+   * length. Nothing is saved.
+   */
+  replaceSpecialDays(input: {
+    branchId: string;
+    expectedVersion: string;
+    days: readonly SpecialDay[];
+  }): Promise<SpecialDaysSaved>;
 
   // --- The public page ------------------------------------------------------------
 

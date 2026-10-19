@@ -17,6 +17,7 @@ import type {
 import type { FavoriteBranch } from '../contracts/favorites';
 import type { DinerNotification, DinerNotificationPage } from '../contracts/notifications';
 import type { components } from '../generated/schema';
+import { specialDaysFromWire } from './venueSettingsMapping';
 import { absolutePhoto } from './photoUrl';
 import { photo } from './venueSettingsMapping';
 import { venueTypeFromCode } from './venueTypeMapping';
@@ -222,6 +223,7 @@ export function branchDetailFromWire(wire: WireBranchDetail, baseUrl: string): B
       closesAt: clockFromTimeOnly(block.closesAt),
       closesNextDay: Boolean(block.closesNextDay),
     })),
+    specialDays: specialDaysFromWire(wire.specialDays ?? []),
     gallery: (wire.gallery ?? []).map((view) => absolutePhoto(baseUrl, photo(view))),
     tableCount: wire.tableCount ?? 0,
     acceptsWebBookings: Boolean(wire.acceptsWebBookings),

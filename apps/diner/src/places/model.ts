@@ -33,6 +33,19 @@ export interface OpeningHours {
   readonly close: ClockTime;
 }
 
+/**
+ * One date that does not follow the week — a holiday, a closure, different
+ * hours. It replaces that date's weekly blocks entirely; no blocks is closed
+ * all day. A date's blocks are the ones that open on it, as with the week.
+ */
+export interface PlaceSpecialDay {
+  /** `YYYY-MM-DD` in the place's zone. */
+  readonly date: string;
+  /** The venue's word for it ("New Year"), or null. */
+  readonly note: string | null;
+  readonly blocks: readonly { readonly open: ClockTime; readonly close: ClockTime }[];
+}
+
 export interface OpenState {
   readonly isOpen: boolean;
   /**
@@ -46,6 +59,8 @@ export interface OpenState {
    * 18:00 – 23:00" for a split service — or '' when shut all day.
    */
   readonly todayLabel: string;
+  /** Today is a special day: its note, said beside the hours ("New Year"). */
+  readonly todayNote?: string;
 }
 
 export interface Coordinates {
@@ -191,6 +206,11 @@ export interface Place {
   /** IANA zone every one of its hours is read in. */
   readonly timeZoneId: string;
   readonly hours: readonly OpeningHours[];
+  /**
+   * The special days ahead, each replacing its date's weekly hours. Absent on
+   * a list card and from a server that does not send them.
+   */
+  readonly specialDays?: readonly PlaceSpecialDay[];
   /** Keys under `place.amenity.*` — `outdoorSeating`, `wifi`, `parking`, `cardPayment`, `vegan`. */
   readonly amenities: readonly string[];
   readonly about: string;
@@ -259,11 +279,23 @@ export function weekdayOf(dateKey: string): Weekday {
 }
 
 /**
- * Every opening block on that date's weekday, earliest first. A split service —
- * lunch 12:00–15:00, dinner 18:00–23:00 — is two blocks on one day.
+ * Every opening block on that date, earliest first: its special day's when it
+ * is one, else its weekday's. A split service — lunch 12:00–15:00, dinner
+ * 18:00–23:00 — is two blocks on one day.
  */
-export function hoursBlocksOn(hours: readonly OpeningHours[], dateKey: string): OpeningHours[] {
+export function hoursBlocksOn(
+  hours: readonly OpeningHours[],
+  dateKey: string,
+  specialDays: readonly PlaceSpecialDay[] = [],
+): OpeningHours[] {
   const weekday = weekdayOf(dateKey);
+  // A special day replaces the week's blocks for its date, closed included.
+  const special = specialDays.find((day) => day.date === dateKey);
+  if (special) {
+    return special.blocks
+      .map((block) => ({ day: weekday, open: block.open, close: block.close }))
+      .sort((a, b) => a.open.localeCompare(b.open));
+  }
   return hours
     .filter((entry) => entry.day === weekday)
     .sort((a, b) => a.open.localeCompare(b.open));
@@ -324,12 +356,15 @@ export function openStateFor(
   now: Date,
   timeZoneId: string,
   locale: Locale = 'en',
+  specialDays: readonly PlaceSpecialDay[] = [],
 ): OpenState {
   const today = branchDayKey(now, timeZoneId);
   const t = now.getTime();
+  const note = specialDays.find((day) => day.date === today)?.note ?? null;
+  const noted = note ? { todayNote: note } : {};
 
   const windowsOn = (dateKey: string) =>
-    hoursBlocksOn(hours, dateKey).map((block) => ({
+    hoursBlocksOn(hours, dateKey, specialDays).map((block) => ({
       block,
       ...serviceWindow(block, dateKey, timeZoneId),
     }));
@@ -338,7 +373,7 @@ export function openStateFor(
   const isOpen = [...todays, ...windowsOn(shiftDateKey(today, -1))].some(
     ({ opens, closes }) => t >= opens.getTime() && t < closes.getTime(),
   );
-  if (todays.length === 0) return { isOpen, todayLabel: '' };
+  if (todays.length === 0) return { isOpen, todayLabel: '', ...noted };
 
   // The block serving now, else the next one today, else the day's last: at
   // 16:00 a place open 12:00–15:00 and 18:00–23:00 says when dinner starts.
@@ -353,6 +388,7 @@ export function openStateFor(
         ({ block }) => `${formatClock(block.open, locale)} – ${formatClock(block.close, locale)}`,
       )
       .join(', '),
+    ...noted,
   };
 }
 
@@ -360,7 +396,7 @@ export function openStateFor(
 export function minutesUntilOpen(place: Place, now: Date): number | null {
   const today = branchDayKey(now, place.timeZoneId);
   const t = now.getTime();
-  const windows = hoursBlocksOn(place.hours, today).map((block) =>
+  const windows = hoursBlocksOn(place.hours, today, place.specialDays).map((block) =>
     serviceWindow(block, today, place.timeZoneId),
   );
   if (windows.some(({ opens, closes }) => t >= opens.getTime() && t < closes.getTime())) {

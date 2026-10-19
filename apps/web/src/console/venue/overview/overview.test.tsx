@@ -90,6 +90,26 @@ describe('the overview', () => {
     expect(screen.getByText(/^(Open until \d\d:\d\d|Closed)/u)).toBeTruthy();
   });
 
+  it('says the special day the service day is, beside the hours (VC3)', async () => {
+    const gateway = mockGateway();
+    const real = gateway.getBranchOverview.bind(gateway);
+    vi.spyOn(gateway, 'getBranchOverview').mockImplementation(async (branchId) => {
+      const overview = await real(branchId);
+      return {
+        ...overview,
+        hours: {
+          isOpen: false,
+          closesAt: null,
+          closesNextDay: false,
+          opensAt: null,
+          specialDay: { date: overview.serviceDate, note: 'New Year', blocks: [] },
+        },
+      };
+    });
+    renderOverview(gateway);
+    expect(await screen.findByText(/ · New Year$/u)).toBeTruthy();
+  });
+
   it("shows today's four numbers from the overview read", async () => {
     const gateway = mockGateway();
     renderOverview(gateway);

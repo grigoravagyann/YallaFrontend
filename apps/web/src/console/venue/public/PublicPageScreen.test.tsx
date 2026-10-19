@@ -105,8 +105,8 @@ describe('the public page screen', () => {
     renderScreen(gateway);
 
     // The picker is the menu editor's, reused: a photo present shows the card
-    // preview with a Replace action rather than the empty drop zone.
-    await screen.findByRole('button', { name: /replace/i });
+    // photo with a Change action rather than the empty drop zone.
+    await screen.findByRole('button', { name: /^change$/i });
     expect(document.querySelector('input[type="file"]')).toBeTruthy();
 
     await user.click(screen.getByLabelText(/take bookings/i));

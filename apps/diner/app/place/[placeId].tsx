@@ -483,9 +483,10 @@ function PlaceDetails({
     });
   }, [locale, place.rating, place.ratingCount, t]);
 
-  const { isOpen, opensAt, closesAt } = place.openState;
-  // Open: until when. Shut: today's hours, if it opens today at all.
-  const hoursNote =
+  const { isOpen, opensAt, closesAt, todayNote } = place.openState;
+  // Open: until when. Shut: today's hours, if it opens today at all. A special
+  // day says what it is beside them ("New Year"), closed all day included.
+  const hoursLine =
     isOpen && closesAt
       ? t('place.until', { time: formatClock(closesAt, locale) })
       : !isOpen && opensAt && closesAt
@@ -494,6 +495,7 @@ function PlaceDetails({
             close: formatClock(closesAt, locale),
           })
         : null;
+  const hoursNote = [hoursLine, todayNote].filter(Boolean).join(' · ') || null;
   const website = place.website?.trim() ?? '';
   // Known from the place's own page (K9). Book is not offered where the app
   // cannot book, and the page says why instead.
@@ -751,8 +753,11 @@ function PlaceDetails({
               <AmenityChips amenities={place.amenities} />
               <View style={styles.facts}>
                 {place.address ? <Fact icon={actionIcon.location} text={place.address} /> : null}
-                {place.openState.todayLabel ? (
-                  <Fact icon={actionIcon.time} text={place.openState.todayLabel} />
+                {place.openState.todayLabel || todayNote ? (
+                  <Fact
+                    icon={actionIcon.time}
+                    text={[place.openState.todayLabel, todayNote].filter(Boolean).join(' · ')}
+                  />
                 ) : null}
                 {website ? (
                   <Fact

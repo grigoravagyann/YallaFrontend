@@ -17,6 +17,7 @@ import {
   type OpeningHours,
   type Place,
   type PlaceRoom,
+  type PlaceSpecialDay,
   type Review,
   type ReviewPage,
   type TablePhotoMarker,
@@ -145,6 +146,18 @@ export function hoursFromApi(detail: BranchDetail): OpeningHours[] {
   }));
 }
 
+/** The special days ahead (VC3), each replacing its date's weekly hours. */
+export function specialDaysFromApi(detail: BranchDetail): PlaceSpecialDay[] {
+  return (detail.specialDays ?? []).map((day) => ({
+    date: day.date,
+    note: day.note,
+    blocks: day.blocks.map((block) => ({
+      open: block.opensAt.slice(0, 5),
+      close: block.closesAt.slice(0, 5),
+    })),
+  }));
+}
+
 export function menuFromApi(menu: BranchMenu | null): MenuSection[] {
   if (!menu) return [];
   return [...menu.categories]
@@ -199,6 +212,7 @@ export function placeFromListing(listing: BranchListing, context: PlaceMappingCo
 export function placeFromDetail(detail: BranchDetail, context: PlaceMappingContext): Place {
   const base = placeFromListing(detail.listing, context);
   const hours = hoursFromApi(detail);
+  const specialDays = specialDaysFromApi(detail);
   const cover = coverUrl(detail.listing.coverPhoto);
   return {
     ...base,
@@ -206,12 +220,18 @@ export function placeFromDetail(detail: BranchDetail, context: PlaceMappingConte
     // none published, the server's flag stands.
     openState:
       hours.length > 0
-        ? openStateFor(hours, context.now, base.timeZoneId, context.locale)
+        ? {
+            ...openStateFor(hours, context.now, base.timeZoneId, context.locale, specialDays),
+            // The server's "open now" is the truth (it knows the special days
+            // and the clock); the hours only say until or from when.
+            isOpen: base.openState.isOpen,
+          }
         : base.openState,
     photos: [...(cover ? [cover] : []), ...detail.gallery.map((photo) => photo.fullUrl)],
     ...(detail.phoneE164 ? { phone: detail.phoneE164 } : {}),
     ...(detail.websiteUrl ? { website: detail.websiteUrl } : {}),
     hours,
+    specialDays,
     amenities: detail.amenities,
     about: detail.about ?? '',
     acceptsAppBookings: detail.acceptsAppBookings,

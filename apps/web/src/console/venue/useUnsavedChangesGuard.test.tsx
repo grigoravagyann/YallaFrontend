@@ -1,10 +1,14 @@
 // @vitest-environment jsdom
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { Link, Route, Routes } from 'react-router-dom';
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { createConsoleHarness, initConsoleTestI18n } from './reports/testHarness';
-import { confirmLeave, useUnsavedChangesGuard } from './useUnsavedChangesGuard';
+import {
+  UnsavedChangesHost,
+  hasUnsavedChanges,
+  useUnsavedChangesGuard,
+} from './useUnsavedChangesGuard';
 
 /**
  * QA 2026-10-16 (C-M2): a link inside the app threw unsaved rooms away with no
@@ -32,6 +36,7 @@ function open(dirty: boolean) {
     harness.wrap(
       <>
         <Link to="/venue/menu">Menu</Link>
+        <UnsavedChangesHost />
         <Routes>
           <Route path="/venue/hours" element={<Editing dirty={dirty} />} />
           <Route path="/venue/menu" element={<p>The menu</p>} />
@@ -43,45 +48,45 @@ function open(dirty: boolean) {
 }
 
 describe('the unsaved changes guard', () => {
-  it('asks before a link inside the app leaves unsaved work, and stays when told to', async () => {
-    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false);
+  it("asks in the console's own dialog before a link leaves unsaved work, and stays when told to", async () => {
+    const confirm = vi.spyOn(window, 'confirm');
     const user = userEvent.setup();
     open(true);
 
     await user.click(screen.getByRole('link', { name: 'Menu' }));
 
-    expect(confirm).toHaveBeenCalledWith('You have unsaved changes. Leave without saving them?');
+    const ask = screen.getByRole('alertdialog', { name: 'Leave without saving?' });
+    expect(ask.textContent).toContain('You have unsaved changes. Leave without saving them?');
+    await user.click(within(ask).getByRole('button', { name: 'Stay' }));
+    expect(screen.queryByRole('alertdialog')).toBeNull();
     expect(screen.getByText('Editing the hours')).toBeTruthy();
     expect(screen.queryByText('The menu')).toBeNull();
+    expect(confirm).not.toHaveBeenCalled();
   });
 
   it('leaves when the person says so', async () => {
-    vi.spyOn(window, 'confirm').mockReturnValue(true);
     const user = userEvent.setup();
     open(true);
 
     await user.click(screen.getByRole('link', { name: 'Menu' }));
+    await user.click(screen.getByRole('button', { name: 'Leave without saving' }));
 
     expect(screen.getByText('The menu')).toBeTruthy();
   });
 
   it('asks nothing when nothing is unsaved', async () => {
-    const confirm = vi.spyOn(window, 'confirm');
     const user = userEvent.setup();
     open(false);
 
-    expect(confirmLeave()).toBe(true);
+    expect(hasUnsavedChanges()).toBe(false);
     await user.click(screen.getByRole('link', { name: 'Menu' }));
 
-    expect(confirm).not.toHaveBeenCalled();
+    expect(screen.queryByRole('alertdialog')).toBeNull();
     expect(screen.getByText('The menu')).toBeTruthy();
   });
 
-  it('answers the branch switcher with the same question', () => {
-    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false);
+  it('tells the branch switcher there is unsaved work', () => {
     open(true);
-
-    expect(confirmLeave()).toBe(false);
-    expect(confirm).toHaveBeenCalledTimes(1);
+    expect(hasUnsavedChanges()).toBe(true);
   });
 });

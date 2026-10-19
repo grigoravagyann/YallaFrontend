@@ -1,24 +1,25 @@
 import { useTranslation } from '@yalla/i18n';
-import { useEffect } from 'react';
+import { useEffect, useSyncExternalStore } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { Dialog } from '../ui/Dialog';
 
 /**
  * A "leave without saving?" question, while there is unsaved work.
  *
  * Every explicit-save screen in the venue section uses it, and they are all
  * explicit-save for the same reason: their endpoints replace the whole thing at
- * once. Extracted from the floor plan editor when the hours and policy screens
- * needed the same three lines — a fourth copy would have been the one that
- * forgot the cleanup and left the prompt firing on a clean page.
+ * once.
  *
  * It covers three ways out:
  * - closing or reloading the tab, through the browser's own `beforeunload`
- *   prompt;
- * - a link inside the app (the section nav, a breadcrumb, a checklist item),
- *   by asking before the router sees the click. The app runs on a
- *   `BrowserRouter` (see `bootstrap.tsx`), which has no `useBlocker`, so the
- *   click is stopped on its way down instead;
+ *   prompt — the one question a page cannot ask in its own words;
+ * - a link inside the app (the section nav, a breadcrumb, a checklist item):
+ *   the click is stopped on its way down, before the router sees it, and the
+ *   question is asked in the console's own dialog ({@link UnsavedChangesHost},
+ *   rendered by the layouts). The app runs on a `BrowserRouter` (see
+ *   `bootstrap.tsx`), which has no `useBlocker`, hence the capture listener;
  * - anything else that would throw the screen away, such as the branch
- *   switcher, by calling {@link confirmLeave} first.
+ *   switcher, by asking {@link hasUnsavedChanges} and putting its own dialog up.
  *
  * A navigation guard rather than persistence, deliberately. Nothing here
  * touches web storage: a half-edited week kept across a reload is a week
@@ -40,19 +41,66 @@ export function useUnsavedChangesGuard(dirty: boolean): void {
   }, [dirty, message]);
 }
 
+/** Whether any screen holds unsaved work right now. */
+export function hasUnsavedChanges(): boolean {
+  return guards.size > 0;
+}
+
 /**
- * Whether it is fine to throw the current screen away: `true` straight away
- * when nothing is unsaved, otherwise the person's answer to "leave without
- * saving?".
+ * The console's "Leave without saving?" for a link click over unsaved work.
+ * Rendered once by each layout; it shows only while a click is waiting for
+ * an answer.
  */
-export function confirmLeave(): boolean {
-  const message = guards.values().next().value;
-  if (message === undefined) return true;
-  return window.confirm(message);
+export function UnsavedChangesHost() {
+  const { t } = useTranslation(['admin', 'common']);
+  const navigate = useNavigate();
+  const waiting = useSyncExternalStore(subscribe, () => pending);
+  if (!waiting) return null;
+  const message = guards.values().next().value ?? t('unsavedChanges.leave');
+  return (
+    <Dialog alert title={t('unsavedChanges.leaveTitle')} description={message} onClose={stay}>
+      <div className="yc-acts">
+        <button type="button" className="yc-btn yc-btn-sec" data-autofocus="" onClick={stay}>
+          {t('unsavedChanges.stay')}
+        </button>
+        <button
+          type="button"
+          className="yc-btn yc-btn-pri"
+          onClick={() => {
+            const to = waiting.to;
+            setPending(null);
+            void navigate(to);
+          }}
+        >
+          {t('unsavedChanges.leaveConfirm')}
+        </button>
+      </div>
+    </Dialog>
+  );
 }
 
 /** The screens with unsaved work right now, each with the question in the reader's language. */
 const guards = new Map<symbol, string>();
+
+/** A link click waiting for "stay" or "leave". */
+let pending: { readonly to: string } | null = null;
+const listeners = new Set<() => void>();
+
+function setPending(next: { readonly to: string } | null) {
+  pending = next;
+  for (const listener of listeners) listener();
+}
+
+function stay() {
+  setPending(null);
+}
+
+function subscribe(listener: () => void) {
+  listeners.add(listener);
+  return () => {
+    listeners.delete(listener);
+  };
+}
 
 function warnOnUnload(event: BeforeUnloadEvent) {
   event.preventDefault();
@@ -63,8 +111,8 @@ function warnOnUnload(event: BeforeUnloadEvent) {
 
 /**
  * A click on a link to another page of this app. Caught on the document in the
- * capture phase, before React's own listener on the root, so a "stay" stops the
- * router from ever seeing it.
+ * capture phase, before React's own listener on the root, so the router never
+ * sees it; the dialog navigates if the person chooses to leave.
  */
 function askOnLinkClick(event: MouseEvent) {
   if (event.defaultPrevented || event.button !== 0) return;
@@ -77,9 +125,10 @@ function askOnLinkClick(event: MouseEvent) {
   // Another site is a page unload, which `beforeunload` already covers.
   if (url.origin !== window.location.origin) return;
   if (url.pathname === window.location.pathname && url.search === window.location.search) return;
-  if (confirmLeave()) return;
+  if (guards.size === 0) return;
   event.preventDefault();
   event.stopPropagation();
+  setPending({ to: `${url.pathname}${url.search}${url.hash}` });
 }
 
 function install() {
@@ -90,4 +139,5 @@ function install() {
 function uninstall() {
   window.removeEventListener('beforeunload', warnOnUnload);
   document.removeEventListener('click', askOnLinkClick, true);
+  setPending(null);
 }

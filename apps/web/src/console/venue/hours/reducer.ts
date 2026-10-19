@@ -50,6 +50,8 @@ export type HoursAction =
   | { readonly type: 'setClosed'; readonly day: WeekdayIndex; readonly closed: boolean }
   /** A second span, for a venue that shuts between lunch and dinner. */
   | { readonly type: 'addBlock'; readonly day: WeekdayIndex }
+  /** "+ Break": two hours out of the middle of the day's one span. */
+  | { readonly type: 'splitDay'; readonly day: WeekdayIndex }
   | { readonly type: 'removeBlock'; readonly day: WeekdayIndex; readonly index: number }
   /** One day's spans onto others. Most venues have two patterns, not seven. */
   | { readonly type: 'copyDay'; readonly from: WeekdayIndex; readonly to: readonly WeekdayIndex[] }
@@ -106,6 +108,18 @@ export function hoursReducer(state: HoursState, action: HoursAction): HoursState
         })),
       };
 
+    case 'splitDay':
+      return {
+        ...state,
+        draft: mapDay(state.draft, action.day, (day) => ({
+          ...day,
+          blocks:
+            day.blocks.length === 1 && day.blocks[0]
+              ? splitBlock(day.blocks[0])
+              : [...day.blocks, nextBlockAfter(day.blocks)],
+        })),
+      };
+
     case 'removeBlock':
       return {
         ...state,
@@ -155,6 +169,43 @@ function nextBlockAfter(blocks: readonly HoursBlock[]): HoursBlock {
   if (closes < 0) return DEFAULT_BLOCK;
   const start = (closes + 60) % 1440;
   return { opensAt: clock(start), closesAt: clock((start + 240) % 1440) };
+}
+
+/** The break the artboard draws: two hours, centred on the span, on the half hour. */
+const BREAK_MINUTES = 120;
+
+/** The least either half of a split day keeps. */
+const MIN_HALF_MINUTES = 60;
+
+/**
+ * One span as two, with a break in the middle: 09:00–23:00 becomes 09:00–15:00
+ * and 17:00–23:00.
+ *
+ * Both halves stay on the day the span opens: a second span that opened at or
+ * after midnight would be the next day's (a block belongs to the date it opens
+ * on), so the break is pulled back to end by 23:30. A span with no room for an
+ * hour either side of such a break gets a second span after it instead, as
+ * "add a span" always did.
+ */
+function splitBlock(block: HoursBlock): readonly HoursBlock[] {
+  const fallback = [block, nextBlockAfter([block])];
+  const opens = toMinutes(block.opensAt);
+  const closes = toMinutes(block.closesAt);
+  if (opens < 0 || closes < 0) return fallback;
+  const end = closes <= opens ? closes + 1440 : closes;
+  const half = BREAK_MINUTES / 2;
+  const middle = Math.min(
+    opens + Math.round((end - opens) / 2 / 30) * 30,
+    // The second half opens by 23:30.
+    1440 - 30 - half,
+  );
+  if (middle - half - opens < MIN_HALF_MINUTES || end - (middle + half) < MIN_HALF_MINUTES) {
+    return fallback;
+  }
+  return [
+    { opensAt: block.opensAt, closesAt: clock(middle - half) },
+    { opensAt: clock(middle + half), closesAt: block.closesAt },
+  ];
 }
 
 function clock(minutes: number): string {

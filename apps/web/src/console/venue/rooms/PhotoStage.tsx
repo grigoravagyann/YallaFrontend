@@ -1,6 +1,6 @@
 import type { EditorTablePin, Photo } from '@yalla/api';
 import { useTranslation } from '@yalla/i18n';
-import { useEffect, useRef, type KeyboardEvent, type PointerEvent } from 'react';
+import { useEffect, useRef, useState, type KeyboardEvent, type PointerEvent } from 'react';
 import { nudge, type DraftTable } from './roomsModel';
 
 export interface PhotoStageProps {
@@ -26,19 +26,26 @@ export interface PhotoStageProps {
   readonly readOnly?: boolean;
 }
 
+/** Room photos are shown in the 4:3 frame of dish and cover photos (venue HANDOFF §3). */
+const FRAME = 4 / 3;
+
 /**
- * One room photo with its table pins on it.
+ * One room photo with its table pins on it, in a 4:3 frame (Rooms artboard).
  *
- * Positions are fractions of the picture, 0–1 from the left and the top, so a
- * pin stays on its table at whatever size the photo is drawn. A click on the
- * picture adds a table there (or places the selected unpinned one); a pin is
- * dragged with the pointer, or moved with the arrow keys once focused — shift
- * for bigger steps — and Delete takes it off the photo.
+ * The photo is stored whole, at its own shape, and a pin is a fraction of
+ * **that whole picture**, 0–1 from the left and the top (VC3 wire §3). So the
+ * frame letterboxes rather than crops: the picture is drawn contained in it,
+ * and the pins sit on the contained picture, never on the frame — a crop
+ * would draw every pin of a photo that is not 4:3 in the wrong place, and
+ * save it there. A 4:3 photo, the one the photo framer makes, fills the frame.
  *
- * Pin colours are the live palette the staff floor and the diner app use, by
- * the table's state when the plan was read: free green, held orange, occupied
- * red, out of service grey. A table not saved yet has no state, and no colour
- * of the palette.
+ * A click on the picture adds a table there (or places the selected unpinned
+ * one); a click on the bars beside it does nothing. A pin is dragged with the
+ * pointer, or moved with the arrow keys once focused — Shift for steps of
+ * five — and Delete takes it off the photo.
+ *
+ * Pins say how a table is booked: brand for a bookable one, muted for
+ * walk-ins only, amber and dashed for one not saved yet.
  */
 export function PhotoStage({
   photo,
@@ -55,13 +62,30 @@ export function PhotoStage({
   readOnly = false,
 }: PhotoStageProps) {
   const { t } = useTranslation(['admin', 'common']);
-  const stageRef = useRef<HTMLDivElement>(null);
+  const pictureRef = useRef<HTMLDivElement>(null);
   const dragging = useRef<string | null>(null);
+  /** The picture's own shape, when the photo record does not carry it (a migrated one). */
+  const [natural, setNatural] = useState<{
+    readonly photoId: string;
+    readonly ratio: number;
+  } | null>(null);
+
+  const ratio =
+    photo.width && photo.height
+      ? photo.width / photo.height
+      : natural?.photoId === photo.photoId
+        ? natural.ratio
+        : FRAME;
+  // The contained picture's box, as a share of the frame.
+  const box =
+    ratio >= FRAME
+      ? { width: '100%', height: `${(FRAME / ratio) * 100}%` }
+      : { width: `${(ratio / FRAME) * 100}%`, height: '100%' };
 
   useEffect(() => {
     if (!focusTableId) return;
     const pin = Array.from(
-      stageRef.current?.querySelectorAll<HTMLButtonElement>('button[data-table-id]') ?? [],
+      pictureRef.current?.querySelectorAll<HTMLButtonElement>('button[data-table-id]') ?? [],
     ).find((button) => button.dataset['tableId'] === focusTableId);
     if (!pin) return;
     pin.focus();
@@ -69,7 +93,7 @@ export function PhotoStage({
   });
 
   function pinAt(event: PointerEvent): EditorTablePin | null {
-    const rect = stageRef.current?.getBoundingClientRect();
+    const rect = pictureRef.current?.getBoundingClientRect();
     if (!rect || rect.width <= 0 || rect.height <= 0) return null;
     return {
       photoId: photo.photoId,
@@ -78,10 +102,10 @@ export function PhotoStage({
     };
   }
 
-  function onStagePointerDown(event: PointerEvent<HTMLDivElement>) {
+  function onPicturePointerDown(event: PointerEvent<HTMLDivElement>) {
     if (readOnly || event.target !== event.currentTarget) return;
-    // Keeps the press from moving focus to the page after the new-table form
-    // has put it on the label.
+    // Keeps the press from moving focus to the page after the table's label
+    // field has taken it.
     event.preventDefault();
     const pin = pinAt(event);
     if (pin) onClickAt(pin);
@@ -121,46 +145,64 @@ export function PhotoStage({
 
   return (
     <div
-      ref={stageRef}
-      className={`room-stage${placing && !readOnly ? ' is-placing' : ''}`}
+      className={`yc-stage${placing && !readOnly ? ' is-placing' : ''}`}
       role="group"
       aria-label={label}
-      data-testid="room-stage"
-      onPointerDown={onStagePointerDown}
     >
-      <img src={photo.fullUrl || photo.cardUrl} alt="" draggable={false} />
-      {tables.map((table) => {
-        if (!table.pin) return null;
-        // A free table diners cannot book is not "free" to anyone reading the
-        // photo: it takes walk-ins only, and is drawn and named so.
-        const walkIn = !table.isBookable && (table.status === 'free' || table.status === null);
-        const state = walkIn
-          ? t('rooms.pin.walkInOnly')
-          : table.status
-            ? t(`common:tableStatus.${table.status}`)
-            : t('rooms.pin.unsaved');
-        return (
-          <button
-            key={table.id}
-            type="button"
-            data-table-id={table.id}
-            className={`room-pin is-${table.status ?? 'new'}${walkIn ? ' is-walk-in' : ''}${
-              table.id === selectedTableId ? ' is-selected' : ''
-            }`}
-            style={{ left: `${table.pin.x * 100}%`, top: `${table.pin.y * 100}%` }}
-            aria-label={t('rooms.pin.label', { label: table.label, state })}
-            aria-pressed={table.id === selectedTableId}
-            onPointerDown={(event) => onPinPointerDown(event, table.id)}
-            onPointerMove={onPinPointerMove}
-            onPointerUp={onPinPointerUp}
-            onPointerCancel={onPinPointerUp}
-            onKeyDown={(event) => onPinKeyDown(event, table)}
-            onClick={() => onSelect(table.id)}
-          >
-            {table.label}
-          </button>
-        );
-      })}
+      <div
+        ref={pictureRef}
+        className="yc-stage-pic"
+        style={box}
+        data-testid="room-stage"
+        onPointerDown={onPicturePointerDown}
+      >
+        <img
+          src={photo.fullUrl || photo.cardUrl}
+          alt=""
+          draggable={false}
+          onLoad={(event) => {
+            const { naturalWidth, naturalHeight } = event.currentTarget;
+            if (naturalWidth > 0 && naturalHeight > 0) {
+              setNatural({ photoId: photo.photoId, ratio: naturalWidth / naturalHeight });
+            }
+          }}
+        />
+        {tables.map((table) => {
+          if (!table.pin) return null;
+          const unsaved = table.status === null;
+          const state = unsaved
+            ? t('rooms.pin.unsaved')
+            : table.isBookable
+              ? t('rooms.pin.bookable')
+              : t('rooms.pin.walkInOnly');
+          return (
+            <button
+              key={table.id}
+              type="button"
+              data-table-id={table.id}
+              className={[
+                'yc-tpin',
+                table.isBookable ? '' : 'is-walk',
+                unsaved ? 'is-new' : '',
+                table.id === selectedTableId ? 'is-sel' : '',
+              ]
+                .filter(Boolean)
+                .join(' ')}
+              style={{ left: `${table.pin.x * 100}%`, top: `${table.pin.y * 100}%` }}
+              aria-label={t('rooms.pin.label', { label: table.label, state })}
+              aria-pressed={table.id === selectedTableId}
+              onPointerDown={(event) => onPinPointerDown(event, table.id)}
+              onPointerMove={onPinPointerMove}
+              onPointerUp={onPinPointerUp}
+              onPointerCancel={onPinPointerUp}
+              onKeyDown={(event) => onPinKeyDown(event, table)}
+              onClick={() => onSelect(table.id)}
+            >
+              {table.label}
+            </button>
+          );
+        })}
+      </div>
     </div>
   );
 }

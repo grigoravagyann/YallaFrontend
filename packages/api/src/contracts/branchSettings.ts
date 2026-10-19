@@ -99,6 +99,91 @@ export function blockMinutes(block: HoursBlock): number {
 }
 
 // ---------------------------------------------------------------------------
+// Special days
+// ---------------------------------------------------------------------------
+
+/**
+ * One date that does not follow the week: a holiday, a closure, different
+ * hours (`SpecialOpeningDayView`).
+ *
+ * It **replaces** that date's weekly blocks entirely, and like the week a
+ * date's blocks are the ones that *open* on it: New Year's Eve 18:00–03:00
+ * runs into the 1st even when the 1st is a closed special day. Closed all day
+ * is no blocks, the same rule as a closed weekday.
+ */
+export interface SpecialDay {
+  /** `YYYY-MM-DD`, a calendar date in the branch's zone. */
+  readonly date: string;
+  /** Shown to diners beside the hours ("New Year"). At most 60 characters; null when none. */
+  readonly note: string | null;
+  /** Earliest first; empty is closed all day. At most four. */
+  readonly blocks: readonly HoursBlock[];
+}
+
+/** The longest note the server keeps (`SpecialOpeningDayInput.note`). */
+export const SPECIAL_DAY_NOTE_MAX = 60;
+
+/** How far ahead a special day may be set: a year and a day from the branch's today. */
+export const SPECIAL_DAY_HORIZON_DAYS = 366;
+
+/**
+ * The special days as the console edits them (`SpecialOpeningDaysView`): the
+ * list from the branch's **service date** on, with the revision it is.
+ *
+ * While last night's special block is still running past midnight, the list
+ * starts with **yesterday's** entry. That one is read-only — a save replaces
+ * today on, so the server keeps it whatever is sent — and is what makes "open
+ * until 03:00" true at 01:00 on the 1st.
+ */
+export interface SpecialDaysList {
+  /** Opaque; sent back as `expectedVersion`, never parsed. */
+  readonly version: string;
+  readonly days: readonly SpecialDay[];
+}
+
+/** What saving the list did (`SpecialOpeningDaysChangeResult`). */
+export interface SpecialDaysSaved {
+  /** The next save's `expectedVersion`. */
+  readonly version: string;
+  /** The list as saved, from the service date on, earliest first. */
+  readonly days: readonly SpecialDay[];
+  /**
+   * Live bookings this save put outside the hours — on a date it added,
+   * removed or changed, that fitted before and do not now. **They are not
+   * changed or cancelled** — the same rule as a policy save — so somebody has
+   * to call those guests.
+   */
+  readonly affectedExistingReservations: number;
+  readonly affectedReservationIds: readonly string[];
+}
+
+/**
+ * The blocks that open on one date: the special day's when it is one, else
+ * that weekday's. The one "hours on this date" question every reader of the
+ * hours asks, so a special day cannot be honoured in one place and not in
+ * another.
+ */
+export function blocksOnDate(
+  dateKey: string,
+  weeklyHours: WeeklyHours,
+  specialDays: readonly SpecialDay[] = [],
+): readonly HoursBlock[] {
+  const special = specialDays.find((day) => day.date === dateKey);
+  if (special) return special.blocks;
+  const [year, month, day] = dateKey.split('-').map(Number) as [number, number, number];
+  const weekday = new Date(Date.UTC(year, month - 1, day)).getUTCDay() as WeekdayIndex;
+  return weeklyHours.find((entry) => entry.day === weekday)?.blocks ?? [];
+}
+
+/** The special day on that date, if it is one. */
+export function specialDayOn(
+  dateKey: string,
+  specialDays: readonly SpecialDay[],
+): SpecialDay | null {
+  return specialDays.find((day) => day.date === dateKey) ?? null;
+}
+
+// ---------------------------------------------------------------------------
 // The reservation policy
 // ---------------------------------------------------------------------------
 

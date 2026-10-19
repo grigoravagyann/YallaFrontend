@@ -1,25 +1,21 @@
 import { useTranslation } from '@yalla/i18n';
 import QRCode from 'qrcode';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { useToast } from '../../ui/toast';
 
 /**
- * The QR token: shown, copyable, printable — and never editable.
+ * The QR token: shown, copyable, printable — and never editable (Rooms
+ * artboard, the table panel).
  *
  * The code on this square of paper is stuck to a physical table. An edit that
  * changed it would silently break the sticker, so the token is not a form
  * field, is not sent in the save payload, and changes only through the
- * explicit regenerate action.
+ * explicit regenerate action, below this block.
  */
-export function TableQr({
-  label,
-  qrToken,
-  onRegenerate,
-}: {
-  readonly label: string;
-  readonly qrToken: string;
-  readonly onRegenerate: () => void;
-}) {
+export function TableQr({ label, qrToken }: { readonly label: string; readonly qrToken: string }) {
   const { t } = useTranslation(['admin', 'common']);
+  const toast = useToast();
+  const codeRef = useRef<HTMLElement>(null);
 
   /*
    * Both pieces of state are keyed by the token they belong to, and read back
@@ -44,58 +40,97 @@ export function TableQr({
     };
   }, [qrToken]);
 
-  if (!qrToken) {
-    return (
-      <section className="editor-qr">
-        <h3>{t('rooms.qr.title')}</h3>
-        {/* A table the editor has only ever held locally has no token yet, and
-            inventing one would put a meaningless string under a copy button. */}
-        <p className="muted small">{t('rooms.qr.pending')}</p>
-      </section>
-    );
+  /** The copy failed or there is no clipboard: the code selected, to copy by hand. */
+  function selectByHand() {
+    const code = codeRef.current;
+    const selection = window.getSelection();
+    if (code && selection) {
+      const range = document.createRange();
+      range.selectNodeContents(code);
+      selection.removeAllRanges();
+      selection.addRange(range);
+    }
+    toast.say(t('rooms.qr.copyFailed'), { tone: 'error' });
   }
 
   const print = () => {
     const frame = window.open('', '_blank', 'width=420,height=560');
     if (!frame || !image) return;
-    frame.document.write(
-      `<!doctype html><title>${label}</title>` +
-        `<body style="font-family:system-ui;text-align:center;padding:32px">` +
-        `<h1 style="font-size:72px;margin:0 0 16px">${label}</h1>` +
-        `<img src="${image}" alt="" style="width:240px;height:240px">` +
-        `<p style="color:#555;font-size:12px;word-break:break-all">${qrToken}</p></body>`,
-    );
+    frame.document.write(printablePage(label, image, qrToken));
     frame.document.close();
     frame.focus();
     frame.print();
   };
 
   return (
-    <section className="editor-qr">
-      <h3>{t('rooms.qr.title')}</h3>
+    <div className="yc-qr">
       {image ? (
-        <img className="editor-qr-code" src={image} alt="" width={104} height={104} />
-      ) : null}
-      <code className="editor-qr-token" data-testid="qr-token">
-        {qrToken}
-      </code>
-      <div className="actions">
-        <button
-          type="button"
-          className="button button-small"
-          onClick={() => {
-            void navigator.clipboard?.writeText(qrToken).then(() => setCopiedToken(qrToken));
-          }}
-        >
-          {copied ? t('rooms.qr.copied') : t('rooms.qr.copy')}
-        </button>
-        <button type="button" className="button button-small" disabled={!image} onClick={print}>
-          {t('rooms.qr.print')}
-        </button>
+        <img className="yc-qr-img" src={image} alt="" width={84} height={84} />
+      ) : (
+        <span className="yc-qr-img" aria-hidden="true" />
+      )}
+      <div className="yc-qr-t">
+        <b>{t('rooms.qr.title')}</b>
+        {qrToken ? (
+          <>
+            <code ref={codeRef} className="yc-code-t" data-testid="qr-token">
+              {qrToken}
+            </code>
+            <div className="yc-photo-acts">
+              <button
+                type="button"
+                className="yc-btn yc-btn-sec yc-btn-sm"
+                onClick={() => {
+                  if (!navigator.clipboard) {
+                    selectByHand();
+                    return;
+                  }
+                  navigator.clipboard.writeText(qrToken).then(
+                    () => setCopiedToken(qrToken),
+                    () => selectByHand(),
+                  );
+                }}
+              >
+                {copied ? t('rooms.qr.copied') : t('rooms.qr.copy')}
+              </button>
+              <button
+                type="button"
+                className="yc-btn yc-btn-sec yc-btn-sm"
+                aria-disabled={!image}
+                onClick={() => image && print()}
+              >
+                {t('rooms.qr.print')}
+              </button>
+            </div>
+          </>
+        ) : (
+          // A table only ever held here has no token yet, and inventing one
+          // would put a meaningless string under a copy button.
+          <span className="yc-help">{t('rooms.qr.pending')}</span>
+        )}
       </div>
-      <button type="button" className="button button-small button-danger" onClick={onRegenerate}>
-        {t('rooms.qr.regenerate')}
-      </button>
-    </section>
+    </div>
+  );
+}
+
+/** Text as HTML: the print page is written as markup, and a table's number is not. */
+function escapeHtml(text: string): string {
+  return text
+    .replace(/&/gu, '&amp;')
+    .replace(/</gu, '&lt;')
+    .replace(/>/gu, '&gt;')
+    .replace(/"/gu, '&quot;')
+    .replace(/'/gu, '&#39;');
+}
+
+/** The page the print window shows: the table's number, its QR and the code under it. */
+export function printablePage(label: string, image: string, qrToken: string): string {
+  const name = escapeHtml(label);
+  return (
+    `<!doctype html><title>${name}</title>` +
+    `<body style="font-family:system-ui;text-align:center;padding:32px">` +
+    `<h1 style="font-size:72px;margin:0 0 16px">${name}</h1>` +
+    `<img src="${escapeHtml(image)}" alt="" style="width:240px;height:240px">` +
+    `<p style="font-size:12px;word-break:break-all">${escapeHtml(qrToken)}</p></body>`
   );
 }

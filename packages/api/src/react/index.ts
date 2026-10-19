@@ -36,8 +36,17 @@ import type {
   VoidLineCommand,
 } from '../contracts/ordering';
 import type { Menu } from '../contracts/menu';
-import type { CreateMenuItemInput, UpdateMenuItemInput } from '../contracts/menuAdmin';
-import type { ReservationPolicy, WeeklyHours } from '../contracts/branchSettings';
+import type {
+  AdminMenuCategory,
+  CreateMenuItemInput,
+  UpdateMenuItemInput,
+} from '../contracts/menuAdmin';
+import type {
+  ReservationPolicy,
+  SpecialDay,
+  SpecialDaysList,
+  WeeklyHours,
+} from '../contracts/branchSettings';
 import type { BranchPublicProfileInput } from '../contracts/publicProfile';
 import type { VenueListingInput } from '../contracts/listing';
 import {
@@ -288,6 +297,7 @@ export const queryKeys = {
   publicMenu: (branchId: string) => ['public', 'menu', branchId] as const,
   managedBooking: (token: string) => ['public', 'booking', token] as const,
   openingHours: (branchId: string) => ['console', 'hours', branchId] as const,
+  specialDays: (branchId: string) => ['console', 'specialDays', branchId] as const,
   reservationPolicy: (branchId: string) => ['console', 'policy', branchId] as const,
   publicProfile: (branchId: string) => ['console', 'publicProfile', branchId] as const,
   branchListing: (branchId: string) => ['console', 'listing', branchId] as const,
@@ -1508,7 +1518,7 @@ function useMenuMutation<TInput, TResult>(
 
 export function useCreateCategory(branchId: string | undefined) {
   const gateway = useConsoleGateway();
-  return useMenuMutation(branchId, (input: { name: string; displayOrder: number }) =>
+  return useMenuMutation(branchId, (input: { name: string; displayOrder?: number | undefined }) =>
     gateway.createCategory({ branchId: branchId!, ...input }),
   );
 }
@@ -1543,11 +1553,82 @@ export function useUpdateMenuItem(branchId: string | undefined) {
   );
 }
 
+/**
+ * The sold-out switch. Its answer is written into the cached menu at once, so
+ * the row says what the server now holds before the read that follows.
+ */
 export function useSetMenuItemAvailability(branchId: string | undefined) {
   const gateway = useConsoleGateway();
-  return useMenuMutation(branchId, (input: { itemId: string; isAvailable: boolean }) =>
-    gateway.setMenuItemAvailability({ branchId: branchId!, ...input }),
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: { itemId: string; isAvailable: boolean }) =>
+      gateway.setMenuItemAvailability({ branchId: branchId!, ...input }),
+    retry: false,
+    onSuccess: (item) => {
+      queryClient.setQueryData<readonly AdminMenuCategory[]>(
+        queryKeys.adminMenu(branchId ?? ''),
+        (menu) =>
+          menu?.map((category) => ({
+            ...category,
+            items: category.items.map((entry) => (entry.id === item.id ? item : entry)),
+          })),
+      );
+      void queryClient.invalidateQueries({ queryKey: queryKeys.adminMenu(branchId ?? '') });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.readiness(branchId ?? '') });
+      refreshVenueViews(queryClient);
+      refreshPlatformViews(queryClient);
+    },
+  });
+}
+
+/** A dish's photo taken off (`DELETE …/photo`): the one field the PATCH cannot clear. */
+export function useRemoveMenuItemPhoto(branchId: string | undefined) {
+  const gateway = useConsoleGateway();
+  return useMenuMutation(branchId, (input: { itemId: string }) =>
+    gateway.removeMenuItemPhoto({ branchId: branchId!, ...input }),
   );
+}
+
+/**
+ * The whole order of the branch's categories, in one call (VC3 wire §2). The
+ * answer is the whole menu, cached at once so the list does not jump back
+ * before the read that follows.
+ */
+export function useReorderMenuCategories(branchId: string | undefined) {
+  const gateway = useConsoleGateway();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (categoryIds: readonly string[]) =>
+      gateway.reorderMenuCategories({ branchId: branchId!, categoryIds }),
+    retry: false,
+    onSuccess: (menu) => {
+      queryClient.setQueryData(queryKeys.adminMenu(branchId ?? ''), menu);
+    },
+    // A refusal is a stale menu: read it again, whichever way it went.
+    onSettled: () => {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.adminMenu(branchId ?? '') });
+    },
+  });
+}
+
+/** The whole order of one category's dishes, in one call; its answer replaces that category. */
+export function useReorderMenuItems(branchId: string | undefined) {
+  const gateway = useConsoleGateway();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: { categoryId: string; itemIds: readonly string[] }) =>
+      gateway.reorderMenuItems({ branchId: branchId!, ...input }),
+    retry: false,
+    onSuccess: (category) => {
+      queryClient.setQueryData<readonly AdminMenuCategory[]>(
+        queryKeys.adminMenu(branchId ?? ''),
+        (menu) => menu?.map((candidate) => (candidate.id === category.id ? category : candidate)),
+      );
+    },
+    onSettled: () => {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.adminMenu(branchId ?? '') });
+    },
+  });
 }
 
 export function useDeleteMenuItem(branchId: string | undefined) {
@@ -1599,6 +1680,48 @@ export function useSaveOpeningHours(branchId: string | undefined) {
     onSuccess: (saved) => {
       queryClient.setQueryData(queryKeys.openingHours(branchId ?? ''), saved);
       void queryClient.invalidateQueries({ queryKey: queryKeys.readiness(branchId ?? '') });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.branchOverview(branchId ?? '') });
+      refreshVenueViews(queryClient);
+      refreshPlatformViews(queryClient);
+    },
+  });
+}
+
+/**
+ * The branch's special days from its service date on, with the list's
+ * version: the one a save is sent against.
+ */
+export function useSpecialDays(branchId: string | undefined) {
+  const gateway = useConsoleGateway();
+  return useQuery({
+    queryKey: queryKeys.specialDays(branchId ?? ''),
+    queryFn: () => gateway.getSpecialDays(branchId!),
+    enabled: Boolean(branchId),
+    staleTime: staleTime.reference,
+    refetchOnWindowFocus: false,
+  });
+}
+
+/**
+ * The whole list, replaced against the version it was read at. The answer —
+ * the list and its new version — becomes the cached one at once, so the next
+ * add or remove starts from it.
+ */
+export function useSaveSpecialDays(branchId: string | undefined) {
+  const gateway = useConsoleGateway();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: { expectedVersion: string; days: readonly SpecialDay[] }) =>
+      gateway.replaceSpecialDays({ branchId: branchId!, ...input }),
+    retry: false,
+    onSuccess: (saved) => {
+      queryClient.setQueryData<SpecialDaysList>(queryKeys.specialDays(branchId ?? ''), {
+        version: saved.version,
+        days: saved.days,
+      });
+      // Overview's hours pill and its service day follow a special day, and
+      // so does every list that says "open now", like the weekly save.
+      void queryClient.invalidateQueries({ queryKey: queryKeys.branchOverview(branchId ?? '') });
       refreshVenueViews(queryClient);
       refreshPlatformViews(queryClient);
     },

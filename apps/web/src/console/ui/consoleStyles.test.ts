@@ -47,6 +47,10 @@ function redesignFiles(): string[] {
     join(SRC, 'console', 'venue', 'VenueOverviewScreen.tsx'),
     join(SRC, 'console', 'venue', 'OnboardingChecklist.tsx'),
     ...inFolder(join(SRC, 'console', 'venue', 'overview')),
+    // Menu, Rooms and Hours (venue-console redesign phase 3).
+    ...inFolder(join(SRC, 'console', 'venue', 'menu')),
+    ...inFolder(join(SRC, 'console', 'venue', 'rooms')),
+    ...inFolder(join(SRC, 'console', 'venue', 'hours')),
     join(SRC, 'auth', 'AuthLayout.tsx'),
     join(SRC, 'auth', 'SignInRoute.tsx'),
     join(SRC, 'auth', 'ResetPasswordRoute.tsx'),
@@ -70,6 +74,9 @@ describe('the console redesign', () => {
     expect(files.some((file) => file.endsWith('BranchReviewsRoute.tsx'))).toBe(true);
     expect(files.some((file) => file.endsWith('AccountScreen.tsx'))).toBe(true);
     expect(files.some((file) => file.endsWith('ConsoleShell.tsx'))).toBe(true);
+    expect(files.some((file) => file.endsWith('RoomsEditor.tsx'))).toBe(true);
+    expect(files.some((file) => file.endsWith('DishDrawer.tsx'))).toBe(true);
+    expect(files.some((file) => file.endsWith('OpeningHoursScreen.tsx'))).toBe(true);
 
     const found: string[] = [];
     for (const file of files) {

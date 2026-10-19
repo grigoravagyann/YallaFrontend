@@ -2079,6 +2079,225 @@
         }
       }
     },
+    "/api/branches/{branchId}/opening-hours/exceptions": {
+      "get": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "The special opening days from the service date on",
+        "description": "Holidays, closures and different hours on one date, earliest first, from the branch's service date in its own zone - today, or yesterday while last night's special block still runs past midnight, which is then listed first and is read-only (a save never changes a day before today) - with the list's `version`: send it back as `expectedVersion` when saving. A special day **replaces** that date's weekly blocks; `closed` (no `blocks`) is shut all day. A date's blocks are the ones that open on it, so 31 December 18:00-03:00 runs into 1 January whatever 1 January says. Availability, the day's slots, booking, the Overview and every \"open now\" read them.",
+        "operationId": "getOpeningHoursExceptions",
+        "parameters": [
+          {
+            "name": "branchId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Application.BranchSettings.SpecialOpeningDaysView"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request violated a domain rule or arrived malformed.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No usable token was presented, or the one presented was rejected.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller is authenticated but not allowed to perform this action.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such branch.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests in the window, or a one-time credential is out of attempts.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected failure. Quote the traceId from the body.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Replace the special opening days from today on",
+        "description": "`days` is the whole list from today at the branch on (`[]` clears it), and `expectedVersion` the `version` the editor loaded (required). Days before today are kept as they were; an entry dated before today is **ignored**, so a console left open past midnight still saves. Each day is a `date`, an optional `note` a diner is shown (at most 60 characters) and its `blocks` - `[]` for closed all day, at most 4. `closesNextDay` is derived as in the weekly hours. Saved atomically under the branch lock.\n\n**A list saved since `expectedVersion` is refused** with 409 `concurrent-update` and `context.currentVersion`: reload, then make the change again. Nothing is written.\n\n**Every refusal names its field**: `expectedVersion` `required`; `days[1].date` `max` (more than 366 days ahead) or `conflict` (the same date twice); `days[0].note` `max`; `days[0].blocks` `required` or `max`; `days[0].blocks[1].opensAt` `conflict` (overlaps an earlier block); `days[0].blocks[0].closesAt` `conflict` (no length); `days[100]` `max` (more than 100 days).\n\n**Existing bookings are never touched.** `affectedReservationIds` are the live ones this save put outside the hours: on a date whose special day was added, removed or given other blocks, or just after midnight following one, that fitted before and do not now.",
+        "operationId": "putOpeningHoursExceptions",
+        "parameters": [
+          {
+            "name": "branchId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "allOf": [
+                  {
+                    "$ref": "#/components/schemas/Yalla.Application.BranchSettings.ReplaceSpecialOpeningDaysCommand"
+                  }
+                ],
+                "description": "The console's save of the special days: the whole list from today on, against the revision it loaded."
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Application.BranchSettings.SpecialOpeningDaysChangeResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request violated a domain rule or arrived malformed.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No usable token was presented, or the one presented was rejected.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller is authenticated but not allowed to perform this action.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such branch.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "`concurrent-update`: saved by somebody else since `expectedVersion` (`context.currentVersion`), or another save held the branch; reload and try again.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "A day or a block breaks a rule; `context.fields` names each.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.ValidationFailedProblem"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests in the window, or a one-time credential is out of attempts.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected failure. Quote the traceId from the body.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/branches/{branchId}/readiness": {
       "get": {
         "tags": [
@@ -3025,7 +3244,8 @@
                   {
                     "$ref": "#/components/schemas/Yalla.Application.Menus.CreateMenuCategoryCommand"
                   }
-                ]
+                ],
+                "description": "A new category."
               }
             }
           },
@@ -3276,6 +3496,274 @@
               "application/problem+json": {
                 "schema": {
                   "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests in the window, or a one-time credential is out of attempts.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected failure. Quote the traceId from the body.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/branches/{branchId}/menu/categories/order": {
+      "put": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Put every category in a new order, atomically",
+        "description": "`categoryIds` is **every category of the branch, each exactly once**, first to last; they get display orders 0, 1, 2... in one transaction under the branch lock, so a move up or down is one request and two saves at once never leave two categories on one position. Returns the menu as `GET .../menu/manage` does.\n\nA list that misses one, repeats one or names another branch's is refused whole with `context.field` `categoryIds` (`conflict`): the console is showing a stale menu - reload it.",
+        "operationId": "reorderMenuCategories",
+        "parameters": [
+          {
+            "name": "branchId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "allOf": [
+                  {
+                    "$ref": "#/components/schemas/Yalla.Application.Menus.ReorderMenuCategoriesCommand"
+                  }
+                ],
+                "description": "A new order for every category of a branch."
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Yalla.Application.Menus.MenuCategoryView"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request violated a domain rule or arrived malformed.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No usable token was presented, or the one presented was rejected.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller is authenticated but not allowed to perform this action.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such branch.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "`concurrent-update`: another save held the branch; try again.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "`categoryIds` is not every category exactly once.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.ValidationFailedProblem"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests in the window, or a one-time credential is out of attempts.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected failure. Quote the traceId from the body.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/branches/{branchId}/menu/categories/{categoryId}/items/order": {
+      "put": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Put every item of a category in a new order, atomically",
+        "description": "`itemIds` is **every item of the category, each exactly once**, first to last - display orders 0, 1, 2... in one transaction under the branch lock. Returns the category. A list that is not every item exactly once is refused whole with `context.field` `itemIds` (`conflict`).",
+        "operationId": "reorderMenuItems",
+        "parameters": [
+          {
+            "name": "branchId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "categoryId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "allOf": [
+                  {
+                    "$ref": "#/components/schemas/Yalla.Application.Menus.ReorderMenuItemsCommand"
+                  }
+                ],
+                "description": "A new order for every item of one category."
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Application.Menus.MenuCategoryView"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request violated a domain rule or arrived malformed.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No usable token was presented, or the one presented was rejected.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller is authenticated but not allowed to perform this action.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such category at this branch.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "`concurrent-update`: another save held the branch; try again.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "`itemIds` is not every item of the category exactly once.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.ValidationFailedProblem"
                 }
               }
             }
@@ -3570,6 +4058,108 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Yalla.Application.Menus.MenuItemDeletionResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request violated a domain rule or arrived malformed.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No usable token was presented, or the one presented was rejected.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller is authenticated but not allowed to perform this action.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such item at this branch.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests in the window, or a one-time credential is out of attempts.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected failure. Quote the traceId from the body.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/branches/{branchId}/menu/items/{itemId}/photo": {
+      "delete": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Take the photo off a dish",
+        "description": "The one field `PATCH .../items/{itemId}` cannot clear - null there means \"not supplied\". The dish comes back with `isComplete: false` and `missingFields` naming `photo`, and the diner's menu leaves it out until it has a photo again. The picture itself is not deleted here: it may be used elsewhere, and once nothing uses it the orphan sweep removes it with its files. A dish with no photo answers the same, unchanged.",
+        "operationId": "removeMenuItemPhoto",
+        "parameters": [
+          {
+            "name": "branchId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "itemId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Application.Menus.MenuItemView"
                 }
               }
             }
@@ -22202,6 +22792,51 @@
         "additionalProperties": false,
         "description": "A table as the editor reads it."
       },
+      "Yalla.Application.BranchSettings.OpeningBlockInput": {
+        "required": [
+          "closesAt",
+          "opensAt"
+        ],
+        "type": "object",
+        "properties": {
+          "opensAt": {
+            "type": "string",
+            "format": "time"
+          },
+          "closesAt": {
+            "type": "string",
+            "format": "time"
+          }
+        },
+        "additionalProperties": false,
+        "description": "One opening block as the client sends it. `closesNextDay` is derived, not sent."
+      },
+      "Yalla.Application.BranchSettings.OpeningBlockView": {
+        "required": [
+          "closesAt",
+          "closesNextDay",
+          "opensAt"
+        ],
+        "type": "object",
+        "properties": {
+          "opensAt": {
+            "type": "string",
+            "description": "Wall clock.",
+            "format": "time"
+          },
+          "closesAt": {
+            "type": "string",
+            "description": "Wall clock; on the next date when ClosesNextDay.",
+            "format": "time"
+          },
+          "closesNextDay": {
+            "type": "boolean",
+            "description": "Closes after midnight - \"(next day)\"."
+          }
+        },
+        "additionalProperties": false,
+        "description": "One block of a special day."
+      },
       "Yalla.Application.BranchSettings.OpeningHoursBlock": {
         "required": [
           "closesAt",
@@ -22361,6 +22996,28 @@
         },
         "additionalProperties": false,
         "description": "The whole plan - rooms, their photos and every table's pin - replaced in one atomic call."
+      },
+      "Yalla.Application.BranchSettings.ReplaceSpecialOpeningDaysCommand": {
+        "required": [
+          "days"
+        ],
+        "type": "object",
+        "properties": {
+          "days": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Yalla.Application.BranchSettings.SpecialOpeningDayInput"
+            },
+            "description": "Every special day from today at the branch on - `[]` clears them. An entry dated before today is history\nand is <b>ignored</b>, not refused: a console left open past midnight still saves the rest."
+          },
+          "expectedVersion": {
+            "type": "string",
+            "description": "<b>Required.</b> The `version` the editor loaded. A list saved since then is refused with\n            `409 concurrent-update` and `context.currentVersion`, and nothing is written.",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false,
+        "description": "The console's save of the special days: the whole list from today on, against the revision it loaded."
       },
       "Yalla.Application.BranchSettings.ReservationPolicyChangeResult": {
         "required": [
@@ -22548,6 +23205,126 @@
         },
         "additionalProperties": false,
         "description": "Every field of the owned Yalla.Domain.Venues.ReservationPolicy, as read."
+      },
+      "Yalla.Application.BranchSettings.SpecialOpeningDayInput": {
+        "required": [
+          "blocks",
+          "date"
+        ],
+        "type": "object",
+        "properties": {
+          "date": {
+            "type": "string",
+            "description": "The branch's local date, `YYYY-MM-DD`. At most a year and a day out; an entry before today at the branch is history and is ignored.",
+            "format": "date"
+          },
+          "note": {
+            "type": "string",
+            "description": "What a diner is told - \"New Year\". Optional; trimmed, blank is none, at most 60 characters.",
+            "nullable": true
+          },
+          "blocks": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Yalla.Application.BranchSettings.OpeningBlockInput"
+            },
+            "description": "The opening blocks that open on the date. <b>Empty is closed all day.</b> At most four; they may touch but\nnot overlap. A closing time at or before the opening time means after midnight, as in the weekly hours."
+          }
+        },
+        "additionalProperties": false,
+        "description": "One special day as the console sends it."
+      },
+      "Yalla.Application.BranchSettings.SpecialOpeningDayView": {
+        "required": [
+          "blocks",
+          "closed",
+          "date"
+        ],
+        "type": "object",
+        "properties": {
+          "date": {
+            "type": "string",
+            "description": "The branch's local date.",
+            "format": "date"
+          },
+          "note": {
+            "type": "string",
+            "description": "What a diner is told; absent when there is none.",
+            "nullable": true
+          },
+          "closed": {
+            "type": "boolean",
+            "description": "Closed all day: Blocks is empty."
+          },
+          "blocks": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Yalla.Application.BranchSettings.OpeningBlockView"
+            },
+            "description": "The blocks that open on the date, earliest first. They replace the weekday's hours."
+          }
+        },
+        "additionalProperties": false,
+        "description": "One special day as every read returns it - the console's list, the public pages, the day's slots."
+      },
+      "Yalla.Application.BranchSettings.SpecialOpeningDaysChangeResult": {
+        "required": [
+          "affectedExistingReservations",
+          "affectedReservationIds",
+          "days",
+          "version"
+        ],
+        "type": "object",
+        "properties": {
+          "version": {
+            "type": "string",
+            "description": "The list's revision now; the next save sends it as `expectedVersion`."
+          },
+          "days": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Yalla.Application.BranchSettings.SpecialOpeningDayView"
+            },
+            "description": "The special days as saved, from the service date on as Yalla.Application.BranchSettings.SpecialOpeningDaysView.Days."
+          },
+          "affectedExistingReservations": {
+            "type": "integer",
+            "description": "How many live future bookings - confirmed, or waiting for approval - this save put outside the hours: on a date\nwhose special day was added, removed or given other blocks, or just after midnight following one, that fitted\nthe hours before the save and do not now. They were <b>not</b> changed or cancelled: a settings edit never\ntouches a booking. Somebody has to call those guests.",
+            "format": "int32"
+          },
+          "affectedReservationIds": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "Which ones, earliest first."
+          }
+        },
+        "additionalProperties": false,
+        "description": "What saving the special days did."
+      },
+      "Yalla.Application.BranchSettings.SpecialOpeningDaysView": {
+        "required": [
+          "days",
+          "version"
+        ],
+        "type": "object",
+        "properties": {
+          "version": {
+            "type": "string",
+            "description": "The list's revision. Opaque: send it back as `expectedVersion` with the next save, which is refused with\n`409 concurrent-update` if somebody saved in between."
+          },
+          "days": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Yalla.Application.BranchSettings.SpecialOpeningDayView"
+            },
+            "description": "The special days from the branch's service date on, earliest first: today's on - and, while last night's special block\nis still running past midnight, yesterday's first. That one is read-only: a save replaces today on, so it is kept."
+          }
+        },
+        "additionalProperties": false,
+        "description": "The branch's special days as the console edits them, with the revision it is editing."
       },
       "Yalla.Application.BranchSettings.TableDeletionResult": {
         "required": [
@@ -23515,24 +24292,26 @@
       },
       "Yalla.Application.Menus.CreateMenuCategoryCommand": {
         "required": [
-          "displayOrder",
           "name"
         ],
         "type": "object",
         "properties": {
           "name": {
-            "type": "string"
+            "type": "string",
+            "description": "What the diner reads."
           },
           "displayOrder": {
             "type": "integer",
-            "format": "int32"
+            "description": "Where it goes; <b>absent puts it last</b>, after every category the branch has.",
+            "format": "int32",
+            "nullable": true
           }
         },
-        "additionalProperties": false
+        "additionalProperties": false,
+        "description": "A new category."
       },
       "Yalla.Application.Menus.CreateMenuItemCommand": {
         "required": [
-          "displayOrder",
           "name",
           "priceAmd",
           "spiceLevel"
@@ -23582,7 +24361,8 @@
           },
           "displayOrder": {
             "type": "integer",
-            "format": "int32"
+            "format": "int32",
+            "nullable": true
           }
         },
         "additionalProperties": false,
@@ -23650,6 +24430,7 @@
           "id",
           "isAvailable",
           "isComplete",
+          "missingFields",
           "name",
           "priceAmd",
           "spiceLevel"
@@ -23718,10 +24499,52 @@
           },
           "isComplete": {
             "type": "boolean"
+          },
+          "missingFields": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
           }
         },
         "additionalProperties": false,
         "description": "One menu item as a client reads it."
+      },
+      "Yalla.Application.Menus.ReorderMenuCategoriesCommand": {
+        "required": [
+          "categoryIds"
+        ],
+        "type": "object",
+        "properties": {
+          "categoryIds": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "Every category of the branch, <b>each exactly once</b>, first to last. A list that leaves one out, names one\ntwice or names another branch's is refused whole (422 `categoryIds``conflict`) - the console is\nlooking at a stale menu and should reload it."
+          }
+        },
+        "additionalProperties": false,
+        "description": "A new order for every category of a branch."
+      },
+      "Yalla.Application.Menus.ReorderMenuItemsCommand": {
+        "required": [
+          "itemIds"
+        ],
+        "type": "object",
+        "properties": {
+          "itemIds": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "Every item of the category, each exactly once, first to last; refused whole otherwise."
+          }
+        },
+        "additionalProperties": false,
+        "description": "A new order for every item of one category."
       },
       "Yalla.Application.Menus.UpdateMenuCategoryCommand": {
         "type": "object",
@@ -24948,6 +25771,15 @@
             "type": "string",
             "description": "While shut: the next opening later today. Absent when open, or when nothing opens later today.",
             "format": "time",
+            "nullable": true
+          },
+          "specialDay": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Yalla.Application.BranchSettings.SpecialOpeningDayView"
+              }
+            ],
+            "description": "The service date's special opening day - a holiday, a closure, different hours - when it has one; absent on an\nordinary day. Everything above already reads it.",
             "nullable": true
           }
         },
@@ -26600,6 +27432,7 @@
           "openingHours",
           "recentReviews",
           "rooms",
+          "specialDays",
           "tableCount"
         ],
         "type": "object",
@@ -26640,6 +27473,13 @@
               "$ref": "#/components/schemas/Yalla.Application.BranchSettings.OpeningHoursView"
             },
             "description": "Weekly wall-clock hours; `day` 0 = Sunday."
+          },
+          "specialDays": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Yalla.Application.BranchSettings.SpecialOpeningDayView"
+            },
+            "description": "Special opening days from the branch's service date (yesterday while last night's block still runs past\nmidnight) through 60 days after today, earliest first - each replaces that date's weekly hours. Always present,\noften empty. The card's `isOpenNow` already reads them."
           },
           "gallery": {
             "type": "array",
@@ -26869,6 +27709,7 @@
           "longitude",
           "openingHours",
           "policy",
+          "specialDays",
           "tableCount",
           "timeZoneId",
           "venueName",
@@ -26930,6 +27771,13 @@
               "$ref": "#/components/schemas/Yalla.Application.BranchSettings.OpeningHoursView"
             },
             "description": "The weekly hours."
+          },
+          "specialDays": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Yalla.Application.BranchSettings.SpecialOpeningDayView"
+            },
+            "description": "The special opening days from the branch's service date through 60 days after today, earliest first: holidays,\nclosures and different hours on one date, each replacing that date's weekly hours. Always present, often empty.\nThe service date is today - or yesterday while last night's block still runs past midnight, so at 01:00 on New\nYear's Day the list starts with the Eve the branch is still open in. Today's hours are today's special day when\nthere is one, else the weekday's; IsOpenNow already reads them."
           },
           "isOpenNow": {
             "type": "boolean",
@@ -28436,6 +29284,15 @@
               }
             ],
             "description": "Why the whole day is refused, when it is: the branch is shut all day\n(`OutsideOpeningHours`, and no slots), the day is past or every time left today is too\nsoon (`LeadTimeTooShort`), or it is further out than the branch books\n(`OutsideBookingWindow`). Null when at least one time could be judged on its tables.",
+            "nullable": true
+          },
+          "specialDay": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Yalla.Application.BranchSettings.SpecialOpeningDayView"
+              }
+            ],
+            "description": "The date's special opening day - a holiday, a closure, different hours - when it is one; absent on an\nordinary day. The slots already follow it: a closed one lists no times of its own.",
             "nullable": true
           },
           "slots": {

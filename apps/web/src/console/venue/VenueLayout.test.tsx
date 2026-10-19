@@ -11,7 +11,7 @@ import { GatewayProvider } from '@yalla/api/react';
 import { I18nextProvider, NAMESPACES, i18next, initI18n } from '@yalla/i18n';
 import { resources } from '@yalla/i18n/resources';
 import { QueryClientProvider, type QueryClient } from '@tanstack/react-query';
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { StrictMode, type ReactNode } from 'react';
 import { BrowserRouter, MemoryRouter, Outlet, Route, Routes } from 'react-router-dom';
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -19,6 +19,7 @@ import type { App as AppComponent } from '../../App';
 import type * as AuthSessionModule from '../../auth/authSession';
 import type * as GatewayModule from '../../data/gateway';
 import type { RoomsEditorScreen as RoomsEditorScreenComponent } from './rooms/RoomsEditorScreen';
+import { ToastProvider } from '../ui/toast';
 import type * as VenueLayoutModule from './VenueLayout';
 import { useUnsavedChangesGuard } from './useUnsavedChangesGuard';
 
@@ -632,7 +633,7 @@ function inProviders(
             consoleGateway={consoleGateway ?? gateways.consoleGatewayFor('owner')}
             staffGateway={gateways.staffDataGateway}
           >
-            {children}
+            <ToastProvider>{children}</ToastProvider>
           </GatewayProvider>
         </QueryClientProvider>
       </I18nextProvider>
@@ -724,7 +725,7 @@ function openTheFloorPlanScreenWith(branchId: string | null) {
 /** The floor plan screen's words for a user with no branch, from the en locale. */
 const NO_BRANCH = 'This account has no branch to set up rooms for.';
 /** The editor's header once a plan with nothing on it has loaded. */
-const EMPTY_PLAN_LOADED = /^Rooms: 0 · Tables: 0/u;
+const EMPTY_PLAN_LOADED = /Rooms: 0 · Tables: 0/u;
 /** The notice for a read the server refused, from the en locale. */
 const FORBIDDEN = 'Your account cannot see this.';
 /** Long enough for every stubbed answer to land, so a failure below is the settled state. */
@@ -1017,9 +1018,10 @@ ${backend.log()}`,
 describe('the branch switcher and unsaved work', () => {
   it('asks before switching away from unsaved work, and stays on the branch when told to', async () => {
     // QA 2026-10-16 (C-M2): the switch reloaded the screen and the draft was gone.
+    // Asked in the console's own dialog (Hours artboard), not the browser's.
     await signInAs('owner');
     const user = await gateways.consoleGatewayFor('owner').getCurrentUser();
-    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false);
+    const confirm = vi.spyOn(window, 'confirm');
     try {
       openTheLayoutWithAProbe(user, undefined, { unsaved: true });
       const before = (await outletContext())['branchId'];
@@ -1027,12 +1029,16 @@ describe('the branch switcher and unsaved work', () => {
       const switcher = screen.getByRole('combobox');
 
       fireEvent.change(switcher, { target: { value: other } });
-      expect(confirm).toHaveBeenCalledTimes(1);
+      const ask = await screen.findByRole('alertdialog', { name: /without saving/i });
+      fireEvent.click(within(ask).getByRole('button', { name: 'Stay' }));
+      expect(screen.queryByRole('alertdialog')).toBeNull();
       expect((await outletContext())['branchId']).toBe(before);
 
-      confirm.mockReturnValue(true);
       fireEvent.change(switcher, { target: { value: other } });
+      const again = await screen.findByRole('alertdialog', { name: /without saving/i });
+      fireEvent.click(within(again).getByRole('button', { name: 'Switch without saving' }));
       await waitFor(async () => expect((await outletContext())['branchId']).toBe(other), SETTLE);
+      expect(confirm).not.toHaveBeenCalled();
     } finally {
       confirm.mockRestore();
     }

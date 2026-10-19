@@ -1,3 +1,4 @@
+import { specialDayFromWire } from './venueSettingsMapping';
 import type {
   BranchOverview,
   OverviewBooking,
@@ -65,6 +66,7 @@ export function branchOverviewFromWire(wire: WireBranchOverview): BranchOverview
       closesAt: wire.hours.closesAt ?? null,
       closesNextDay: wire.hours.closesNextDay,
       opensAt: wire.hours.opensAt ?? null,
+      specialDay: wire.hours.specialDay ? specialDayFromWire(wire.hours.specialDay) : null,
     },
     bookings: { ...wire.bookings },
     inRoom: { ...wire.inRoom },

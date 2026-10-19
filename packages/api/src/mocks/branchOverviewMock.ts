@@ -1,5 +1,10 @@
 import { branchDayKey, instantFromZonedClock, zonedParts, type TimeZone } from '@yalla/format';
-import type { WeeklyHours } from '../contracts/branchSettings';
+import {
+  blocksOnDate,
+  specialDayOn,
+  type SpecialDay,
+  type WeeklyHours,
+} from '../contracts/branchSettings';
 import type {
   BranchOverview,
   OverviewBooking,
@@ -171,6 +176,8 @@ export function branchOverviewFrom(input: {
   readonly timeZoneId: string;
   readonly now: Date;
   readonly weeklyHours: WeeklyHours;
+  /** The branch's special days: each replaces its date's weekly blocks. */
+  readonly specialDays?: readonly SpecialDay[];
   readonly tables: readonly OverviewTable[];
   readonly bookings: readonly OverviewBooking[];
   readonly graceMinutes: number;
@@ -220,7 +227,8 @@ export function branchOverviewFrom(input: {
     .toISOString()
     .slice(0, 10);
 
-  const open = openStateFrom(input.weeklyHours, now, zone);
+  const specialDays = input.specialDays ?? [];
+  const open = openStateFrom(input.weeklyHours, now, zone, specialDays);
   const closesAt = open.closesAtUtc ? clockOf(open.closesAtUtc, zone) : null;
   const opensLaterToday =
     open.opensAtUtc && branchDayKey(open.opensAtUtc, zone) === today ? open.opensAtUtc : null;
@@ -264,6 +272,7 @@ export function branchOverviewFrom(input: {
       closesAt,
       closesNextDay: open.closesAtUtc ? branchDayKey(open.closesAtUtc, zone) !== today : false,
       opensAt: opensLaterToday ? clockOf(opensLaterToday, zone) : null,
+      specialDay: specialDayOn(today, specialDays),
     },
     bookings: {
       total: holding.length + count('noShow'),
@@ -292,7 +301,7 @@ export function branchOverviewFrom(input: {
       lastWeekDate,
       changePercent:
         lastWeekAmd > 0 ? Math.round(((todayAmd - lastWeekAmd) / lastWeekAmd) * 1000) / 10 : null,
-      sinceUtc: firstOpening(input.weeklyHours, today, zone),
+      sinceUtc: firstOpening(input.weeklyHours, specialDays, today, zone),
     },
     load: {
       capacity: active
@@ -307,9 +316,13 @@ export function branchOverviewFrom(input: {
 }
 
 /** The service day's first opening, or its midnight when it has no hours. */
-function firstOpening(weeklyHours: WeeklyHours, today: string, zone: TimeZone): string {
-  const weekday = new Date(`${today}T12:00:00Z`).getUTCDay();
-  const opens = (weeklyHours.find((entry) => entry.day === weekday)?.blocks ?? [])
+function firstOpening(
+  weeklyHours: WeeklyHours,
+  specialDays: readonly SpecialDay[],
+  today: string,
+  zone: TimeZone,
+): string {
+  const opens = blocksOnDate(today, weeklyHours, specialDays)
     .map((block) => block.opensAt)
     .sort()[0];
   const [hour, minute] = (opens ?? '00:00').split(':').map(Number) as [number, number];

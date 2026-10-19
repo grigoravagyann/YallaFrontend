@@ -507,12 +507,11 @@
   },
   "rooms": {
     "noBranch": "This account has no branch to set up rooms for.",
-    "intro": "Diners pick a room, swipe through its photos and tap a table to book it. Add your rooms and a few photos of each, then click a photo where each table stands.",
+    "intro": "A guest picks a room, swipes through its photos and taps a table to book it. Click the spot on the photo where a table stands.",
     "summary": "Rooms: {{rooms}} · Tables: {{tables}}",
-    "unsaved": "Unsaved changes",
     "save": "Save rooms",
     "saving": "Saving…",
-    "saved": "Rooms saved.",
+    "saved": "Rooms saved",
     "legend": "Pin colours",
     "result": {
       "deactivated": "Taken out of service because they have history: {{labels}}.",
@@ -521,10 +520,11 @@
       "unpinnedByMove": "Tables {{labels}} were on a photo that moved to another room, so they are off it now."
     },
     "conflict": {
-      "title": "Someone else changed the rooms",
-      "body": "A newer version was saved while you were editing, so your changes were not saved. Reload to see it; your unsaved changes here will be lost.",
-      "reload": "Reload the rooms",
-      "reloadFailed": "The newer rooms could not be loaded. Your changes are still here; try again."
+      "title": "Someone else changed the rooms.",
+      "body": "A newer version was saved while you were editing, so your changes were not saved.",
+      "reload": "Load the newer version",
+      "reloadFailed": "The newer version could not be loaded. Your changes are still here; try again.",
+      "reloaded": "The newest version is loaded"
     },
     "list": {
       "title": "Rooms",
@@ -535,8 +535,14 @@
       "moveUp": "Move up",
       "moveDown": "Move down",
       "newName": "New room",
-      "newPlaceholder": "Terrace",
-      "add": "Add the room"
+      "newPlaceholder": "e.g. Summer yard",
+      "add": "Add the room",
+      "tableCount_one": "{{count}} table",
+      "tableCount_other": "{{count}} tables",
+      "meta": "{{photos}} · {{tables}}",
+      "moveUpAria": "{{name}}: up",
+      "moveDownAria": "{{name}}: down",
+      "duplicate": "A room with that name exists already"
     },
     "room": {
       "name": "Room name",
@@ -550,82 +556,96 @@
       "removeNoPhotos": "It has no photos.",
       "removeTables_one": "Its table stays, with no room and no pin, until you place it again.",
       "removeTables_other": "Its {{count}} tables stay, with no room and no pin, until you place them again.",
-      "removeNoTables": "It has no tables."
+      "removeNoTables": "It has no tables.",
+      "menu": "Actions for {{name}}",
+      "rename": "Rename",
+      "renameTitle": "Rename {{name}}",
+      "renamed": "Room renamed to {{name}}"
     },
     "photos": {
-      "title": "Photos",
-      "summary": "{{used}} of {{max}} photos",
+      "summary": "{{used}} / {{max}} photos",
       "empty": "No photos of this room yet. Add one to start placing tables.",
-      "add": "Add a photo",
-      "full": "This room has {{max}} photos, the most it can hold.",
       "show": "Show photo {{position}}",
       "moveEarlier": "Move earlier",
       "moveLater": "Move later",
-      "remove": "Remove",
+      "remove": "Remove the photo",
       "removeTitle": "Remove photo {{position}}?",
       "removeBody_one": "Table {{labels}} is pinned on it. It comes off the photo and waits under “Not on a photo” until you place it again.",
       "removeBody_other": "Tables {{labels}} are pinned on it. They come off the photo and wait under “Not on a photo” until you place them again.",
-      "removeConfirm": "Remove it"
+      "removeConfirm": "Remove it",
+      "menu": "Actions for photo {{position}}",
+      "strip": "The room's photos",
+      "addShort": "Photo",
+      "addTitle": "A photo of the room",
+      "addBody": "Guests see it in a 4:3 frame. Choose which part of the photo to show."
     },
     "stage": {
-      "title": "Photo {{position}} · {{name}}",
+      "title": "{{name}} · photo {{position}}",
       "label": "Photo {{position}} of {{name}}. Click where a table stands to add it.",
-      "hint": "Click where a table stands to add it. Drag a pin, or select it and use the arrow keys, to move it.",
-      "placing": "Click where table {{label}} stands to place it.",
-      "addInMiddle": "Add a table in the middle of the photo",
-      "placeInMiddle": "Place table {{label}} in the middle of the photo"
+      "hint": "Click the photo to add a table. Move a pin by dragging it, or select it and use the arrow keys (Shift for bigger steps).",
+      "placing": "Click where table {{label}} stands to place it. Esc to stop.",
+      "addInMiddle": "Add a table in the middle",
+      "placeInMiddle": "Put table {{label}} in the middle"
     },
     "pin": {
       "label": "Table {{label}} · {{state}}",
       "unsaved": "Not saved yet",
-      "walkInOnly": "Walk-ins only"
+      "walkInOnly": "Walk-ins only",
+      "bookable": "Bookable"
     },
     "field": {
-      "label": "Label",
+      "label": "Number",
       "seats": "Seats",
-      "bookable": "Diners can book it"
-    },
-    "newTable": {
-      "title": "New table",
-      "add": "Add the table"
+      "bookable": "Guests can book it"
     },
     "table": {
       "panelTitle": "Table",
-      "none": "Select a pin to edit its table.",
+      "none": "Select a pin to edit its table, or click the photo to add a new one.",
       "title": "Table {{label}}",
-      "inRoom": "In {{name}}",
-      "noRoom": "In no room",
-      "notPinned": "Not on a photo yet. Click where it stands on one of its room's photos.",
+      "noRoom": "No room",
       "unpin": "Take it off the photo",
       "delete": "Delete the table",
-      "duplicateLabel": "Another table already uses this label.",
-      "noLabel": "Every table needs the label printed on it."
+      "duplicateLabel": "Another table already uses this number",
+      "noLabel": "Every table needs the number printed on it",
+      "notOnPhoto": "not on a photo",
+      "unpinned": "Table {{label}} is off the photo"
     },
     "unpinned": {
       "title": "Not on a photo",
-      "noRoom": "Tables in no room",
-      "hint": "Select one, then click where it stands on a photo."
+      "none": "Every table is on a photo.",
+      "place": "Place",
+      "placeAria": "Place table {{label}}"
     },
     "inactive": {
       "title": "Out of service",
-      "body": "Kept for their history. They are not in any room and take no bookings. Putting one back takes effect when you save the rooms.",
-      "restore": "Put it back in service",
-      "restored": "Table {{label}} goes back into service when you save the rooms."
+      "restore": "Put back",
+      "restored": "Table {{label}} goes back into service when you save the rooms",
+      "cap": "Kept for their history; they take no bookings",
+      "none": "None.",
+      "seats_one": "{{count}} seat",
+      "seats_other": "{{count}} seats",
+      "restoreAria": "Put table {{label}} back in service"
     },
     "delete": {
       "title": "Delete table {{label}}?",
       "removeBody": "It has never been used, so it is removed for good.",
-      "deactivateBody": "It has bookings, seatings or tabs in its history, so it is kept for the records and taken out of service instead: it leaves the rooms and takes no more bookings.",
-      "confirm": "Delete it",
-      "removed": "Table {{label}} was removed.",
-      "deactivated": "Table {{label}} has history, so it was taken out of service instead of deleted.",
-      "seated": "Someone is seated at table {{label}}. Free the table first, then delete it."
+      "deactivateBody": "It has bookings and tabs in its history, so it is kept for the records and taken out of service instead: it leaves the rooms and takes no more bookings.",
+      "confirm": "Delete",
+      "removed": "Table {{label}} was removed",
+      "deactivated": "Table {{label}} has history, so it was taken out of service",
+      "seated": "Guests are seated at the table now. Free the table first, then delete it.",
+      "confirmDeactivate": "Take out of service",
+      "undone": "Table {{label}} comes back when you save the rooms",
+      "seatedTitle": "Table {{label}} is occupied now",
+      "understood": "Got it",
+      "undoGone": "Table {{label}} can no longer be put back from here. Add it again on the Rooms page."
     },
     "warning": {
-      "unpinned_one": "Table {{labels}} can be booked but is on no photo, so diners cannot see or book it.",
-      "unpinned_other": "Tables {{labels}} can be booked but are on no photo, so diners cannot see or book them.",
-      "duplicates": "These labels are used more than once: {{labels}}.",
-      "duplicateRooms": "More than one room is called {{names}}. Give each room its own name."
+      "unpinned_one": "Table {{labels}} can be booked but is on no photo, so guests can neither see nor book it.",
+      "unpinned_other": "Tables {{labels}} can be booked but are on no photo, so guests can neither see nor book them.",
+      "duplicates": "These numbers repeat: {{labels}}. Fix them before saving.",
+      "duplicateRooms": "More than one room is called {{names}}. Give each room its own name.",
+      "place": "Place table {{label}}"
     },
     "error": {
       "invalid": "These rooms could not be saved.",
@@ -640,26 +660,31 @@
       "copy": "Copy the code",
       "copied": "Copied",
       "print": "Print",
-      "pending": "This table gets its code when the plan is saved.",
+      "pending": "The table gets its code when you save the rooms.",
       "regenerate": "Regenerate the QR",
-      "regenerateWarning": "The code printed and stuck to table {{label}} stops working the moment this lands. Somebody has to go and replace it.",
+      "regenerateWarning": "The code stuck to table {{label}} stops working the moment this lands. Somebody has to go and replace the sticker.",
       "typeLabel": "Type {{label}} to confirm",
       "regenerateConfirm": "Regenerate it",
-      "regenerated": "Table {{label}} has a new QR code. Print it and replace the old sticker."
+      "regenerated": "Table {{label}} has a new QR code. Print it and replace the old sticker",
+      "copyFailed": "Could not copy: the code is selected, copy it by hand",
+      "regenerateTitle": "Regenerate table {{label}}'s QR?"
     },
     "saveBar": {
       "label": "Saving",
       "clean": "Everything is saved",
       "discard": "Discard changes",
-      "discarded": "Changes discarded."
-    }
+      "discarded": "Changes discarded",
+      "dirty": "Unsaved changes · {{summary}}",
+      "duplicates": "Some numbers repeat: fix them, then save"
+    },
+    "noChanges": "No changes"
   },
   "saving": "Saving…",
   "menu": {
     "noBranch": "Your account is not attached to a branch.",
     "available": "In",
     "soldOut": "Sold out",
-    "complete": "Done",
+    "complete": "Ready",
     "category": {
       "title": "Categories",
       "empty": "No categories yet.",
@@ -669,42 +694,46 @@
       "addTitle": "New category",
       "renameTitle": "Rename “{{name}}”",
       "addConfirm": "Add",
-      "nameRequired": "Give the category a name.",
-      "itemCount_one": "{{count}} dish",
-      "itemCount_other": "{{count}} dishes",
-      "confirmEmpty": "Delete “{{name}}”?",
-      "confirmWithItems_one": "Delete “{{name}}”? Its one dish goes with it — it is not moved to another category.",
-      "confirmWithItems_other": "Delete “{{name}}”? Its {{count}} dishes go with it — they are not moved to another category.",
+      "nameRequired": "Give the category a name",
       "inUse": "One of this category's dishes is already on an order, so nothing was deleted. Mark those dishes sold out instead.",
-      "deleteFailed": "Could not delete that category."
+      "deleteFailed": "Could not delete that category.",
+      "cap": "Guests see them in this order",
+      "placeholder": "e.g. Coffee or Hot dishes",
+      "rename": "Rename",
+      "delete": "Delete category",
+      "missingAria_one": "{{count}} unfinished",
+      "missingAria_other": "{{count}} unfinished",
+      "orderSaved": "Category order saved",
+      "added": "“{{name}}” added",
+      "renamed": "Category renamed",
+      "saveFailed": "Could not save the category. Try again.",
+      "deleteBody_one": "Its {{count}} dish goes with it and is not moved to another category. If it has been ordered already, nothing is deleted: mark it sold out instead.",
+      "deleteBody_other": "Its {{count}} dishes go with it and are not moved to another category. If any of them has been ordered already, nothing is deleted: mark them sold out instead.",
+      "deleteEmpty": "The category is empty.",
+      "deleted": "“{{name}}” deleted",
+      "restored": "“{{name}}” is back"
     },
     "item": {
       "title": "Dishes",
       "add": "Add a dish",
-      "addTitle": "New dish",
-      "editTitle": "Edit dish",
-      "empty": "Nothing in this category yet.",
-      "search": "Search by name or ingredient",
+      "empty": "No dishes in this category yet",
+      "search": "Name or ingredient",
       "duplicate": "Duplicate",
-      "confirmDelete": "Delete “{{name}}”?",
-      "missingTitle_one": "{{count}} field still to fill in:",
-      "missingTitle_other": "{{count}} fields still to fill in:",
-      "dinerAsksTitle": "What a diner would otherwise ask a waiter",
-      "dinerAsksBody": "These are required. They are the reason a diner stops having to ask — without them the ordering feature is not worth much."
+      "capOnlyIncomplete_one": "{{count}} dish · showing only the unfinished",
+      "capOnlyIncomplete_other": "{{count}} dishes · showing only the unfinished"
     },
     "field": {
       "name": "Name",
       "description": "Description",
       "priceDram": "Price",
-      "priceHint": "Whole dram. Changing a price never affects lines already ordered.",
+      "priceHint": "Whole dram. A new price does not change what was ordered already.",
       "ingredients": "Ingredients",
       "ingredientsPlaceholder": "Flour, sulguni… Enter to add",
       "allergens": "Allergens",
-      "allergensOther": "Anything else, comma separated",
-      "allergensNone": "No allergens listed",
-      "portionSize": "Portion size",
-      "prepMinutes": "Prep minutes",
-      "prepHint": "The diner sees this as an estimate at order time.",
+      "allergensOther": "Other allergens",
+      "portionSize": "Portion",
+      "prepMinutes": "Prep time",
+      "prepHint": "Guests see it as an estimate when they order",
       "spiceLevel": "Spice",
       "photoId": "Photo"
     },
@@ -726,29 +755,26 @@
       "hot": "Hot"
     },
     "column": {
-      "photo": "Photo",
-      "name": "Name",
       "price": "Price",
-      "available": "In",
-      "complete": "Done",
-      "actions": "Actions"
+      "available": "In stock",
+      "actions": "Actions",
+      "dish": "Dish",
+      "status": "Status"
     },
     "incomplete": {
-      "label": "Not finished yet",
-      "body_one": "{{count}} dish is not ready to show a diner. Ordering cannot be switched on until it is.",
-      "body_other": "{{count}} dishes are not ready to show a diner. Ordering cannot be switched on until they are.",
       "showOnly": "Show only these",
       "showAll": "Show everything",
-      "badge_one": "{{count}} missing",
-      "badge_other": "{{count}} missing",
-      "noneHere": "Everything in this category is finished."
+      "badge_one": "{{count}} field missing",
+      "badge_other": "{{count}} fields missing",
+      "noneHere": "Everything in this category is filled in",
+      "title_one": "{{count}} dish is not ready to show guests yet.",
+      "title_other": "{{count}} dishes are not ready to show guests yet.",
+      "body": "They are hidden from guests, and ordering from the phone cannot be switched on until you fill them in."
     },
     "photo": {
       "dropHere": "Drop a photo here, or click to choose one",
-      "accepted": "JPEG, PNG or WebP, up to 8 MB",
-      "replace": "Replace",
-      "variantCard": "Card size — this is what a diner looks at",
-      "dinerSize": "Shown at {{width}} pixels wide",
+      "accepted": "JPEG, PNG or WebP, up to 8 MB. Guests see it in the card's 4:3 frame.",
+      "replace": "Change",
       "uploading": "Uploading… {{percent}}%",
       "uploadingShort": "Uploading…",
       "useThis": "Use this",
@@ -758,22 +784,22 @@
       "wrongFormat": "That file is not a JPEG, PNG or WebP.",
       "wrongFormatDetected": "The file name says one thing and the bytes say another: this is really a {{format}}. Export it as a JPEG and try again.",
       "failed": "Could not upload that photo.",
-      "unreadable": "This file could not be opened as a picture. Choose a JPEG, PNG or WebP photo."
+      "unreadable": "This file could not be opened as a picture. Choose a JPEG, PNG or WebP photo.",
+      "alt": "The chosen photo",
+      "remove": "Remove"
     },
     "bulk": {
-      "open": "Upload many photos",
+      "open": "Photos in bulk",
       "title": "Photos in bulk",
-      "body": "Drop the whole set. Names are matched against dishes, and nothing is attached until you confirm it.",
+      "body": "File names are matched against dishes. Nothing is attached until you confirm.",
       "dropHere": "Drop photos here",
-      "matchedTitle_one": "{{count}} match to confirm",
-      "matchedTitle_other": "{{count}} matches to confirm",
+      "matchedTitle_one": "Matches found · {{count}}",
+      "matchedTitle_other": "Matches found · {{count}}",
       "noneMatched": "Nothing matched by name. Place them by hand below.",
-      "trayTitle_one": "{{count}} waiting to be placed",
-      "trayTitle_other": "{{count}} waiting to be placed",
-      "trayBody": "Camera filenames match nothing. Pick a dish for each.",
+      "trayTitle_one": "Waiting to be placed · {{count}}",
+      "trayTitle_other": "Waiting to be placed · {{count}}",
       "chooseDish": "Pick a dish",
-      "hasPhoto": "already has a photo",
-      "leaveInTray": "Leave unattached",
+      "hasPhoto": "{{name}} · has one already",
       "attach_one": "Attach {{count}} photo",
       "attach_other": "Attach {{count}} photos",
       "attaching": "Attaching…",
@@ -782,12 +808,85 @@
       "confidence": {
         "exact": "exact",
         "normalised": "match",
-        "near": "close — check"
-      }
+        "near": "close · check"
+      },
+      "chooseFor": "Pick a dish for {{file}}",
+      "attachOne": "Attach {{file}}",
+      "done_one": "{{count}} photo attached",
+      "done_other": "{{count}} photos attached"
+    },
+    "sub": "{{branch}} · {{dishes}} {{categories}}",
+    "dishCount_one": "{{count}} dish",
+    "dishCount_other": "{{count}} dishes",
+    "inCategories_one": "in {{count}} category",
+    "inCategories_other": "in {{count}} categories",
+    "moveUp": "{{name}}: up",
+    "moveDown": "{{name}}: down",
+    "orderFailed": "Could not save the order. Try again.",
+    "undoFailed": "Could not undo that. Check the menu and add it back by hand.",
+    "allReady": {
+      "title": "Every dish is ready.",
+      "body": "Guests see the whole menu."
+    },
+    "delete": {
+      "title": "Delete “{{name}}”?"
+    },
+    "search": {
+      "title": "Search results",
+      "cap_one": "{{count}} dish from every category",
+      "cap_other": "{{count}} dishes from every category",
+      "label": "Search dishes"
+    },
+    "empty": {
+      "searchTitle": "Nothing found",
+      "searchBody": "Try another name or ingredient.",
+      "incompleteBody": "Pick another category, or show everything.",
+      "categoryBody": "Add the first dish with the button above.",
+      "noCategoryBody": "Start with a category, with the button on the left."
+    },
+    "gap": {
+      "photoId": "Photo",
+      "description": "Description",
+      "ingredients": "Ingredients",
+      "allergens": "Allergens",
+      "portionSize": "Portion",
+      "prepMinutes": "Prep time"
+    },
+    "dish": {
+      "noDescription": "No description",
+      "availableAria": "{{name}}: in stock",
+      "backIn": "“{{name}}” is back in",
+      "soldOutNow": "“{{name}}” marked sold out: guests cannot order it",
+      "availabilityFailed": "Could not change that. Try again.",
+      "newTitle": "New dish",
+      "editTitle": "Edit: {{name}}",
+      "todoTitle_one": "Fill in {{count}} field so guests can see the dish:",
+      "todoTitle_other": "Fill in {{count}} fields so guests can see the dish:",
+      "todoBody": "These are the questions a guest would otherwise ask a waiter. Without them the dish is not shown.",
+      "nameRequired": "Write the dish's name",
+      "priceInvalid": "The price must be a whole number above 0",
+      "removeIngredient": "Remove {{name}}",
+      "ingredientsHelp": "Enter or a comma to add",
+      "noAllergens": "No allergens",
+      "portionPlaceholder": "e.g. 250 ml or 320 g",
+      "minutes": "min",
+      "saveDraft": "Save draft",
+      "savedShown": "“{{name}}” saved, and guests can see it",
+      "savedHidden_one": "“{{name}}” saved, but hidden from guests until you fill in {{count}} field",
+      "savedHidden_other": "“{{name}}” saved, but hidden from guests until you fill in {{count}} fields",
+      "saveFailed": "Could not save the dish. Try again.",
+      "copyName": "{{name}} (copy)",
+      "duplicated": "“{{name}}” created",
+      "deleteBody": "If the dish has been ordered already, it is not deleted: mark it sold out instead.",
+      "deleted": "“{{name}}” deleted",
+      "restored": "“{{name}}” is back",
+      "deactivatedInstead": "“{{name}}” has been ordered, so it was kept and marked sold out instead",
+      "deleteFailed": "Could not delete the dish. Try again.",
+      "photoRemoved": "“{{name}}” has no photo now, so guests do not see it",
+      "photoRemoveFailed": "Could not remove the photo. Try again."
     }
   },
   "hours": {
-    "body": "The whole week saves at once. Crossing midnight is worked out for you — a closing time before the opening time means the next day.",
     "unsaved": "Unsaved changes",
     "saved": "Saved",
     "save": "Save the week",
@@ -795,13 +894,11 @@
     "discard": "Discard changes",
     "open": "Open",
     "closed": "Closed",
-    "closedAllDay": "Closed all day.",
-    "split": "Split the day (a lunch break, say)",
-    "copyTo": "Copy to other days",
+    "closedAllDay": "Closed all day",
+    "split": "+ Break",
+    "copyTo": "Copy…",
     "copy": "Copy",
     "sameEveryDay": "Same every day",
-    "sameEveryDayHint": "Copies Monday onto every other day.",
-    "previewClosed": "A diner sees “closed”",
     "nextDay": "(next day)",
     "overlapWarning": "Two spans on the same day overlap. Fix the marked rows before saving.",
     "day": {
@@ -821,6 +918,65 @@
       "4": "Thu",
       "5": "Fri",
       "6": "Sat"
+    },
+    "sub": "{{branch}} · The whole week is saved at once. A closing time before the opening time means the next day.",
+    "sameEveryDayDone": "Monday copied onto every day",
+    "week": "Week",
+    "zone": "Time zone: {{zone}}",
+    "today": "today",
+    "openAria": "{{day}}: open",
+    "copyAria": "Copy {{day}} onto other days",
+    "copyLead": "Copy {{day}} onto",
+    "copyNone": "Pick at least one day",
+    "copyCount_one": "Copy ({{count}})",
+    "copyCount_other": "Copy ({{count}})",
+    "copied_one": "{{day}}'s hours copied onto {{count}} day",
+    "copied_other": "{{day}}'s hours copied onto {{count}} days",
+    "fromAria": "{{day}}, span {{n}}, opens",
+    "toAria": "{{day}}, span {{n}}, closes",
+    "removeSpan": "Remove the span after the break",
+    "summaryTitle": "How the page will show it",
+    "saveBar": "Saving",
+    "overlapBar": "Some hours overlap: fix them, then save",
+    "discarded": "Changes discarded",
+    "savedToast": "Opening hours saved",
+    "noChanges": "No changes",
+    "fixOverlapFirst": "Fix the overlapping hours first",
+    "special": {
+      "title": "Special days",
+      "cap": "Holidays, time off, a day's closure. They win over the week's hours.",
+      "empty": "No special days. The 1st of January is usually the first.",
+      "date": "Date",
+      "name": "Name",
+      "namePlaceholder": "New Year",
+      "kind": "How",
+      "otherHours": "Other hours",
+      "closedDay": "Closed day",
+      "from": "From",
+      "to": "Until",
+      "add": "Add",
+      "pickDate": "Choose the date",
+      "taken": "That day is on the list already",
+      "tooFar": "That day is more than a year ahead",
+      "noteTooLong": "The name can be at most {{max}} characters",
+      "badHours": "The opening and closing times are the same",
+      "failed": "Could not save the special days. Try again.",
+      "added": "{{date}} · {{name}} added.",
+      "removed": "“{{name}}” removed from the special days.",
+      "restored": "“{{name}}” is back",
+      "remove": "Remove {{name}}",
+      "affected_one": "{{count}} booking on those days no longer fits the hours. It was not changed: call the guest.",
+      "affected_other": "{{count}} bookings on those days no longer fit the hours. They were not changed: call the guests.",
+      "superseded": "Someone else changed the special days. The newer list is loaded; try again.",
+      "now": "Now",
+      "past": "That day has passed"
+    },
+    "now": {
+      "title": "A guest sees right now",
+      "closes": "{{day}} · closes at {{time}}",
+      "closesNextDay": "{{day}} · closes at {{time}} (next day)",
+      "opensToday": "Opens today at {{time}}",
+      "notToday": "Not opening again today"
     }
   },
   "policy": {
@@ -1345,7 +1501,13 @@
     "failed": "That did not go through. Nothing changed — try again."
   },
   "unsavedChanges": {
-    "leave": "You have unsaved changes. Leave without saving them?"
+    "leave": "You have unsaved changes. Leave without saving them?",
+    "switchTitle": "Switch to {{branch}} without saving?",
+    "switchBody": "{{branch}} has unsaved changes. If you switch, they will be lost.",
+    "stay": "Stay",
+    "switch": "Switch without saving",
+    "leaveTitle": "Leave without saving?",
+    "leaveConfirm": "Leave without saving"
   },
   "toast": {
     "undo": "Undo"

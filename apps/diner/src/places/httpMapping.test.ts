@@ -164,6 +164,9 @@ describe('placeFromDetail', () => {
     phoneE164: null,
     amenities: ['wifi'],
     openingHours: [{ day: 1, opensAt: '09:00', closesAt: '23:00', closesNextDay: false }],
+    specialDays: [
+      { date: '2026-12-31', note: 'Ամանոր', blocks: [{ opensAt: '18:00', closesAt: '03:00' }] },
+    ],
     gallery: [],
     tableCount: 1,
     acceptsWebBookings: false,
@@ -188,6 +191,9 @@ describe('placeFromDetail', () => {
     const place = placeFromDetail(detail, CONTEXT);
 
     expect(place.hours).toEqual([{ day: 1, open: '09:00', close: '23:00' }]);
+    expect(place.specialDays).toEqual([
+      { date: '2026-12-31', note: 'Ամանոր', blocks: [{ open: '18:00', close: '03:00' }] },
+    ]);
     expect(place.openState.isOpen).toBe(true);
     expect(place.photos).toEqual(['https://api/p/f']);
     expect(place.website).toBe('https://lumen.am');
@@ -294,13 +300,21 @@ describe('placeFromDetail', () => {
     });
 
     it('is closed between the two, and says when dinner opens', () => {
-      // Monday 16:00 in Yerevan.
+      // Monday 16:00 in Yerevan; the server says shut too.
       const at = { ...CONTEXT, now: new Date('2026-09-14T12:00:00Z') };
-      expect(placeFromDetail(split, at).openState).toMatchObject({
+      const shut = { ...split, listing: { ...split.listing, isOpenNow: false } };
+      expect(placeFromDetail(shut, at).openState).toMatchObject({
         isOpen: false,
         opensAt: '18:00',
         closesAt: '23:00',
       });
+    });
+
+    it("keeps the server's open-now, which knows what the hours do not", () => {
+      // Monday 16:00, between the blocks, but the server says open: the
+      // hours only say until or from when, never whether (VC3 wire §1).
+      const at = { ...CONTEXT, now: new Date('2026-09-14T12:00:00Z') };
+      expect(placeFromDetail(split, at).openState.isOpen).toBe(true);
     });
   });
 });
