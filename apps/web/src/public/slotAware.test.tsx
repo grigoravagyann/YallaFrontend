@@ -4,6 +4,7 @@ import { useSlotFloor } from '@yalla/api/react';
 import { cleanup, fireEvent, render, renderHook, screen, waitFor } from '@testing-library/react';
 import { useState, type ReactNode } from 'react';
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { BookingCard } from './BookingCard';
 import { RoomSection } from './RoomSection';
 import { addDays, branchToday, defaultSelection, slotInstant, type SlotSelection } from './slots';
 import { createHarness, initTestI18n, stubIntersectionObserverAsNeverVisible } from './testHarness';
@@ -141,22 +142,33 @@ describe('the room refetches for every control', () => {
   });
 });
 
-/** Drives `RoomSection` the way `BranchRoute` does, so the controls are live. */
+/**
+ * Drives the booking card and `RoomSection` the way `BranchRoute` does, so the
+ * controls are live: the card sets the slot, the room answers for it.
+ */
 function LiveRoom({ branch, initial }: { branch: PublicBranch; initial: SlotSelection }) {
   const [selection, setSelection] = useState(initial);
   // Same fallback `BranchRoute` uses: the page must never reach a render it
   // cannot complete, because there is no error boundary above it.
   const instant = slotInstant(selection, branch.timeZoneId) ?? nextHalfHour(new Date());
   return (
-    <RoomSection
-      branch={branch}
-      selection={selection}
-      onSelectionChange={setSelection}
-      slotUtc={instant.toISOString()}
-      selectedTableId={null}
-      onTableTap={() => {}}
-      takenTableLabel={null}
-    />
+    <>
+      <BookingCard
+        branch={branch}
+        selection={selection}
+        onSelectionChange={setSelection}
+        slotUtc={instant.toISOString()}
+        headingId="book"
+      />
+      <RoomSection
+        branch={branch}
+        selection={selection}
+        slotUtc={instant.toISOString()}
+        selectedTableId={null}
+        onTableTap={() => {}}
+        takenTableLabel={null}
+      />
+    </>
   );
 }
 

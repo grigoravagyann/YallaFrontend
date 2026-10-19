@@ -6,18 +6,14 @@ import {
   promisedFreeByCopy,
   venueAnswerCopy,
 } from '@yalla/api';
-import {
-  isOfflinePaused,
-  useCancelManagedBooking,
-  useManagedBooking,
-  useNow,
-} from '@yalla/api/react';
+import { useCancelManagedBooking, useManagedBooking, useNow } from '@yalla/api/react';
 import { formatDate, formatTime } from '@yalla/format';
 import { useLocale, useTranslation } from '@yalla/i18n';
 import { useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
+import { useLangPath } from './language';
 import { usePageTitle } from './meta';
-import { FailedPage, LoadingPage } from './PageStates';
+import { FailedPage, LoadingPage, pageState, StaleNotice } from './PageStates';
 
 /**
  * `/{venueSlug}/{branchSlug}/booking/{token}` — the way out, without an account.
@@ -47,6 +43,7 @@ export function ManageBookingRoute() {
   const { t } = useTranslation('public');
   const { t: td } = useTranslation('diner');
   const { locale } = useLocale();
+  const langPath = useLangPath();
 
   // The slugs travel from this URL: the endpoint does not send them back, and
   // the page links home with them.
@@ -71,11 +68,12 @@ export function ManageBookingRoute() {
     t('appName', { ns: 'common' }),
   );
 
-  if (bookingQuery.isLoading) return <LoadingPage />;
-  if (bookingQuery.isError || isOfflinePaused(bookingQuery)) {
+  const state = pageState(bookingQuery);
+  if (state === 'loading') return <LoadingPage shape="single" />;
+  if (state) {
     return (
       <FailedPage
-        offline={isOfflinePaused(bookingQuery)}
+        offline={state === 'offline'}
         error={bookingQuery.error}
         onRetry={() => void bookingQuery.refetch()}
       />
@@ -95,7 +93,7 @@ export function ManageBookingRoute() {
       <main className="pub-state">
         <h1 className="display">{t('manage.gone.title')}</h1>
         <p>{t('manage.gone.body')}</p>
-        <Link className="pub-button" to={`/${venueSlug}/${branchSlug}`}>
+        <Link className="pub-button" to={langPath(`/${venueSlug}/${branchSlug}`)}>
           {t('manage.seeVenue')}
         </Link>
       </main>
@@ -125,7 +123,7 @@ export function ManageBookingRoute() {
       <main className="pub-state">
         <h1 className="display">{td(declinedTitle.key, declinedTitle.params)}</h1>
         {declinedBody ? <p>{td(declinedBody.key, declinedBody.params)}</p> : null}
-        <Link className="pub-button" to={`/${booking.venueSlug}/${booking.branchSlug}`}>
+        <Link className="pub-button" to={langPath(`/${booking.venueSlug}/${booking.branchSlug}`)}>
           {t('manage.seeVenue')}
         </Link>
       </main>
@@ -137,7 +135,7 @@ export function ManageBookingRoute() {
       <main className="pub-state">
         <h1 className="display">{t('manage.cancelled')}</h1>
         <p>{t('manage.cancelledBody')}</p>
-        <Link className="pub-button" to={`/${booking.venueSlug}/${booking.branchSlug}`}>
+        <Link className="pub-button" to={langPath(`/${booking.venueSlug}/${booking.branchSlug}`)}>
           {t('manage.seeVenue')}
         </Link>
       </main>
@@ -148,6 +146,7 @@ export function ManageBookingRoute() {
     <main className="pub-page">
       <header className="pub-head">
         <h1 className="display">{t('manage.title')}</h1>
+        <StaleNotice query={bookingQuery} />
       </header>
 
       <section className="pub-section">
@@ -261,7 +260,7 @@ export function ManageBookingRoute() {
         <address className="pub-address">{booking.addressLine}</address>
         <Link
           className="pub-button pub-button-quiet"
-          to={`/${booking.venueSlug}/${booking.branchSlug}`}
+          to={langPath(`/${booking.venueSlug}/${booking.branchSlug}`)}
         >
           {t('manage.seeVenue')}
         </Link>

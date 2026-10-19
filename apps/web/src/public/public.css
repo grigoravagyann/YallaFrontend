@@ -1,224 +1,389 @@
 /*
- * The public branch page.
+ * The public page: yalla.am/{venue}/{branch}, the branch chooser and the
+ * manage-booking link (docs/design/public-page, approved 2026-10-20).
  *
- * Designed at 380pt and let out from there, which is the reverse of everything
- * else in this app. The overwhelming majority of visits are a phone, opened
- * from a link in a chat, quite possibly on mobile data standing outside the
- * venue. Desktop is the adaptation: one `min-width` block at the bottom widens
- * the column and puts the room and the menu side by side, and that is the whole
- * of it.
+ * Mobile first, designed at 390px and let out from there. The overwhelming
+ * majority of visits are a phone, opened from a link in a chat, quite possibly
+ * on mobile data standing outside the venue. From 960px the branch page turns
+ * two columns — the content on the left, the booking column sticky on the
+ * right — and that one `min-width` block is the whole of the desktop.
  *
- * Every value comes from `tokens.generated.css` via `base.css`. Nothing here
- * names a colour, a radius or a size directly.
+ * The page shares the console's colour and type tokens (`--console-*`, from
+ * `@yalla/tokens` `console.ts`, where the contrast tests see them) but not its
+ * shell: its own top bar, no sidebar. Nothing here names a colour directly;
+ * `publicStyles.test.ts` fails on one.
  */
 @import '../base.css';
 
-.pub {
-  min-height: 100%;
-  /* One column, thumb-width, centred. A public page has no navigation rail. */
-  max-width: 34rem;
-  margin: 0 auto;
-  padding: 0 var(--space-lg) var(--space-xxl);
-}
-
 /* --------------------------------------------------------------------------
- * The language bar
+ * The surface
  * -------------------------------------------------------------------------- */
 
 /*
- * Top of the page, in the flow, never a footer and never behind a globe.
- * A visitor who cannot read the page cannot be expected to scroll to the
- * bottom of it looking for the control that fixes that.
+ * The page reads the console's tokens directly and never the product
+ * palette (`--color-*`); `publicStyles.test.ts` holds it to that.
  */
-.pub-top {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-md);
-  padding: var(--space-md) 0;
+.pub {
+  min-height: 100%;
+  background: var(--console-canvas);
+  color: var(--console-ink);
+  font-size: var(--console-text-public-body);
+  line-height: 1.5;
 }
 
-.pub-wordmark {
+/* The page's own ground under and around it, and no paper grain: the cream is
+   the texture. */
+body:has(.pub) {
+  background: var(--console-canvas);
+}
+
+body:has(.pub)::before {
+  display: none;
+}
+
+.pub h1,
+.pub h2 {
   font-family: var(--font-family-display);
-  font-weight: var(--font-weight-semibold);
-  color: var(--color-muted-foreground);
-  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-bold);
+  text-wrap: balance;
+  color: var(--console-ink);
 }
 
-.lang {
-  display: flex;
-  gap: var(--space-xs);
+/* A visible ring on every ground: 3px of the brand on cream, cream on the bar. */
+.pub :focus-visible {
+  outline: 3px solid var(--console-focus);
+  outline-offset: 2px;
 }
 
-/* Each language in its own name — never a flag, which is a country, and never
-   a two-letter code, which means nothing to the person who needs it most. */
-.lang-option {
-  min-height: var(--touch-minimum);
-  padding: 0 var(--space-md);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-pill);
-  background: var(--color-surface);
-  color: var(--color-muted-foreground);
-  font: inherit;
-  font-size: var(--font-size-sm);
-  cursor: pointer;
+.pub a {
+  color: var(--console-brand);
 }
 
-.lang-option[aria-current='true'] {
-  border-color: var(--color-primary);
-  background: var(--color-primary);
-  color: var(--color-primary-foreground);
+/* Prose links only: a component link (the wordmark, a button, a branch card)
+   keeps its own colour under the pointer — a generic rule here turned the
+   cream wordmark brown on the brown bar. */
+.pub a:not([class]):hover {
+  color: var(--console-link-hover);
 }
 
 /* --------------------------------------------------------------------------
- * Head: cover, name, open state, the count
+ * The top bar: the wordmark and the language switch, sticky
  * -------------------------------------------------------------------------- */
 
+.pub-bar {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-sm);
+  height: var(--console-size-public-bar);
+  padding: 0 max(var(--space-lg), env(safe-area-inset-right, 0px)) 0
+    max(var(--space-lg), env(safe-area-inset-left, 0px));
+  background: var(--console-sidebar);
+}
+
+.pub-bar :focus-visible {
+  outline-color: var(--console-sidebar-focus);
+}
+
+.pub .pub-wordmark,
+.pub .pub-wordmark:hover {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--touch-minimum);
+  font-family: var(--font-family-display);
+  font-weight: var(--font-weight-bold);
+  font-size: var(--console-text-public-brand);
+  line-height: 1;
+  color: var(--console-sidebar-text-strong);
+  text-decoration: none;
+}
+
+/*
+ * Each language by its own short name — Հայ, Рус, Eng — read out in full, never
+ * a flag. On the tray the bar carries, the current one filled cream.
+ */
+.pub-lang {
+  display: flex;
+  gap: 2px;
+  padding: 3px;
+  border-radius: var(--console-radius-pill);
+  background: var(--console-floor-bar-tabs);
+}
+
+.pub-lang button {
+  min-width: var(--console-size-public-lang);
+  height: var(--touch-minimum);
+  padding: 0 var(--space-sm);
+  border: 0;
+  border-radius: var(--console-radius-pill);
+  background: none;
+  color: var(--console-floor-bar-text);
+  font: inherit;
+  font-size: var(--console-text-public-label);
+  font-weight: var(--font-weight-semibold);
+  cursor: pointer;
+}
+
+.pub-lang button[aria-pressed='true'] {
+  background: var(--console-brand-foreground);
+  color: var(--console-brand);
+}
+
+/* --------------------------------------------------------------------------
+ * The branch page's layout: three slots
+ *
+ * `.pub-col-top` (photos, name, open state), `.pub-aside` (the booking
+ * column) and `.pub-col-rest` (room, menu, address, hours) — in that order on
+ * a phone; from 960px the booking column moves to the right of both and stays
+ * as the page scrolls.
+ * -------------------------------------------------------------------------- */
+
+.pub-layout {
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+  max-width: var(--console-size-public-wrap);
+  margin: 0 auto;
+  padding: var(--space-lg) var(--space-lg) 40px;
+}
+
+.pub-col {
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+  min-width: 0;
+}
+
+.pub-col-top {
+  gap: var(--space-lg);
+}
+
+.pub-aside {
+  min-width: 0;
+  /* Anchored to from the header's "Book" link once it exists; clear of the bar. */
+  scroll-margin-top: calc(var(--console-size-public-bar) + var(--space-lg));
+}
+
+.pub-col > .pub-section {
+  margin-top: 0;
+  scroll-margin-top: calc(var(--console-size-public-bar) + var(--space-lg));
+}
+
+/* Single-column pages: the branch chooser and the manage link. */
+.pub-page {
+  max-width: var(--console-size-public-narrow);
+  margin: 0 auto;
+  padding: var(--space-lg) var(--space-lg) 40px;
+}
+
+/* --------------------------------------------------------------------------
+ * Head: cover, name, the open-state card
+ * -------------------------------------------------------------------------- */
+
+/* Edge to edge on a phone, flush under the bar. */
 .pub-cover {
-  margin: 0 calc(-1 * var(--space-lg)) var(--space-lg);
+  margin: calc(-1 * var(--space-lg)) calc(-1 * var(--space-lg)) 0;
   overflow: hidden;
-  border-radius: 0 0 var(--radius-card) var(--radius-card);
+  background: var(--console-public-photo-ground);
 }
 
 .pub-cover img {
   display: block;
   width: 100%;
+  height: auto;
   /* The ratio is fixed here and the intrinsic size is on the element, so the
      space is reserved before a byte of the photo arrives. */
-  aspect-ratio: 16 / 9;
+  aspect-ratio: 4 / 3;
   object-fit: cover;
+}
+
+.pub-head {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
 }
 
 .pub-head h1 {
   margin: 0;
-  font-size: var(--font-size-xxl);
-  line-height: var(--line-height-xxl);
+  font-size: var(--console-text-public-title);
+  line-height: 1.15;
+}
+
+.pub-page .pub-head h1 {
+  font-size: var(--console-text-public-title);
 }
 
 .pub-branch-name {
-  margin: var(--space-xs) 0 0;
-  font-size: var(--font-size-lg);
-  color: var(--color-foreground);
+  margin: 0;
+  font-size: 17px;
+  font-weight: var(--font-weight-semibold);
+  color: var(--console-ink);
 }
 
 .pub-muted {
   margin: var(--space-xs) 0 0;
-  color: var(--color-muted-foreground);
-  font-size: var(--font-size-sm);
-  line-height: var(--line-height-sm);
+  color: var(--console-muted);
+  font-size: var(--console-text-public-meta);
+  line-height: 1.45;
+}
+
+.pub-head .pub-muted {
+  margin: 0;
+}
+
+/* The open state and the tables free now, as one card (Main artboard). */
+.pub-now {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-height: 72px;
+  margin-top: var(--space-sm);
+  padding: var(--space-md) 14px;
+  border: 1px solid var(--console-line);
+  border-radius: var(--console-radius-public-status);
+  background: var(--console-surface);
 }
 
 .pub-open {
-  margin: var(--space-md) 0 0;
-  font-size: var(--font-size-md);
-  font-weight: var(--font-weight-medium);
+  margin: 0;
+  font-weight: var(--font-weight-bold);
+  color: var(--console-ink);
 }
 
-/*
- * Ink, not green. `--color-success` is `#35B37E`, which is the same hex as
- * `--table-free-fill` — so "Open until 01:00" was rendering in the exact colour
- * a free table is drawn in, about twelve pixels above a legend that says green
- * means free. On the one page that shows the floor plan to a stranger, that
- * teaches green means nothing in particular, which DESIGN.md gives as the
- * reason the accent is not green in the first place.
- *
- * Open against closed survives as ink against grey, which is the value contrast
- * the rest of the page already runs on.
- */
-.pub-open-yes {
-  color: var(--color-foreground);
+/* The dot says open or shut at a glance; the words say it for everyone. */
+.pub-now .pub-open {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
 }
 
-.pub-open-no {
-  color: var(--color-muted-foreground);
+.pub-now .pub-open::before,
+.pub-branch-card .pub-open::before {
+  content: '';
+  flex: none;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
 }
 
-/*
- * The free-table count.
- *
- * `min-height` on the container, not on the number, and set to the height the
- * number will occupy. This is the largest element on the page and it arrives
- * last; without the reserved box everything below it — the room, the menu, the
- * address — jumps down when it lands, on exactly the slow connection where the
- * jump lasts longest and is most disorienting.
- */
+.pub-now .pub-open-yes::before,
+.pub-branch-card .pub-open-yes::before {
+  background: var(--console-public-open-dot);
+}
+
+.pub-now .pub-open-no::before,
+.pub-branch-card .pub-open-no::before {
+  background: var(--console-public-closed-dot);
+}
+
 .pub-count {
-  min-height: 4.5rem;
-  margin: var(--space-sm) 0 var(--space-lg);
+  margin: 0;
 }
 
-/*
- * The loudest thing on the page, and deliberately not the accent.
- *
- * DESIGN.md spends the accent on "the primary button and the active navigation
- * item, and nowhere else". A free-table count is neither: it is the answer to
- * the question the page exists to answer, not a thing to press. It was also the
- * largest accent colour on a page whose legend, a few hundred pixels below, says green
- * means free — two hues for one idea, on the one screen where a colour has to
- * mean exactly one thing.
- *
- * It stays the loudest element by being the biggest, in the display face, at
- * semibold. It never needed the hue to do that.
- */
 .pub-count-value {
   margin: 0;
-  font-family: var(--font-family-display);
-  font-weight: var(--font-weight-semibold);
-  font-size: var(--font-size-xxl);
-  line-height: 1.15;
-  color: var(--color-foreground);
-  letter-spacing: -0.02em;
+  color: var(--console-muted);
+  font-size: var(--console-text-public-meta);
 }
 
+/* No table free right now: said in the needs-attention amber and weight, so
+   it never reads as one more line of the same muted count. Never red — a full
+   room is not a failure. */
 .pub-count-none {
-  color: var(--color-muted-foreground);
+  color: var(--console-amber);
+  font-weight: var(--font-weight-semibold);
 }
 
 .pub-count-age {
-  margin: var(--space-xs) 0 0;
-  font-size: var(--font-size-xs);
-  color: var(--color-muted-foreground);
+  margin: 0;
+  font-size: var(--console-text-caption);
+  color: var(--console-muted);
+}
+
+.pub-now .pub-muted {
+  margin: 0;
 }
 
 /* --------------------------------------------------------------------------
- * Sections
+ * Cards, sections and notices
  * -------------------------------------------------------------------------- */
+
+.pub-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-lg);
+  padding: 18px var(--space-lg);
+  border: 1px solid var(--console-line);
+  border-radius: var(--console-radius-public-card);
+  background: var(--console-surface);
+}
+
+.pub-card h2,
+.pub-section > h2 {
+  margin: 0;
+  font-size: var(--console-text-public-section);
+  line-height: 1.2;
+}
+
+.pub-section > h2 {
+  margin-bottom: var(--space-md);
+}
+
+.pub-card-text,
+.pub-card .pub-muted {
+  margin: 0;
+}
+
+.pub-card .pub-button-primary {
+  margin-top: 0;
+}
 
 .pub-section {
   margin-top: var(--space-xxl);
 }
 
-.pub-section > h2 {
-  margin: 0 0 var(--space-md);
-  font-size: var(--font-size-lg);
-  font-weight: var(--font-weight-semibold);
-}
-
 .pub-notice {
   margin: var(--space-md) 0 0;
-  padding: var(--space-sm) var(--space-md);
-  border: 1px solid var(--color-border-strong);
-  border-radius: var(--radius-soft);
-  background: var(--color-surface);
-  font-size: var(--font-size-sm);
-  line-height: var(--line-height-sm);
+  padding: 10px var(--space-md);
+  border: 1px solid var(--console-line);
+  border-radius: var(--console-radius-public-control);
+  background: var(--console-surface);
+  font-size: var(--console-text-public-label);
+  line-height: 1.45;
 }
 
+/* A page on screen whose data may be old (`StaleNotice`): amber, a state and
+   not a failure, under the open-state card. */
+.pub-stale {
+  border-color: var(--console-amber-line);
+  background: var(--console-amber-bg);
+  color: var(--console-amber);
+}
+
+.pub-head .pub-stale {
+  margin: var(--space-xs) 0 0;
+}
+
+/* Needs attention: amber, never red (HANDOFF §3). */
 .pub-notice-alert {
-  border-color: var(--color-warning);
+  border-color: var(--console-amber-line);
+  background: var(--console-amber-bg);
+  color: var(--console-amber);
 }
 
 .pub-error {
   margin: var(--space-md) 0 0;
-  color: var(--color-danger);
-  font-size: var(--font-size-sm);
-  line-height: var(--line-height-sm);
+  color: var(--console-red);
+  font-size: var(--console-text-public-label);
 }
 
 .pub-warn {
   margin: var(--space-xs) 0 0;
-  color: var(--color-warning);
-  font-size: var(--font-size-sm);
+  color: var(--console-amber);
+  font-size: var(--console-text-public-label);
 }
 
 /* The promise to free the table by a time, when a booking follows (booking times). */
@@ -228,12 +393,13 @@
   gap: var(--space-sm);
   min-height: var(--touch-minimum);
   margin: var(--space-md) 0 0;
-  padding: var(--space-sm) var(--space-md);
-  border: 1px solid var(--color-warning);
-  border-radius: var(--radius-soft);
-  background: var(--color-surface);
-  font-size: var(--font-size-sm);
-  line-height: var(--line-height-sm);
+  padding: 10px var(--space-md);
+  border: 1px solid var(--console-amber-line);
+  border-radius: var(--console-radius-public-control);
+  background: var(--console-amber-bg);
+  color: var(--console-ink);
+  font-size: var(--console-text-public-label);
+  line-height: 1.45;
   cursor: pointer;
 }
 
@@ -242,36 +408,54 @@
   width: 20px;
   height: 20px;
   margin: 0;
-  accent-color: var(--color-warning);
+  accent-color: var(--console-brand);
 }
 
 /* --------------------------------------------------------------------------
- * Controls
+ * Controls: 48px buttons, 16px inputs, every target past 44px
  * -------------------------------------------------------------------------- */
 
 .pub-button {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-height: calc(var(--touch-minimum) + 6px);
-  padding: 0 var(--space-lg);
-  border: 1px solid transparent;
-  border-radius: var(--radius-pill);
-  background: var(--color-surface);
-  border-color: var(--color-border-strong);
-  color: var(--color-foreground);
+  gap: var(--space-sm);
+  min-height: var(--console-size-public-button);
+  padding: 0 18px;
+  border: 1.5px solid var(--console-button-edge);
+  border-radius: var(--console-radius-pill);
+  background: var(--console-surface);
+  color: var(--console-brand);
   font: inherit;
-  font-weight: var(--font-weight-medium);
+  font-size: var(--console-text-public-body);
+  font-weight: var(--font-weight-bold);
   text-decoration: none;
   cursor: pointer;
+}
+
+.pub .pub-button {
+  color: var(--console-brand);
+}
+
+.pub-button:hover {
+  background: var(--console-hover);
 }
 
 .pub-button-primary {
   width: 100%;
   margin-top: var(--space-md);
-  background: var(--color-primary);
-  border-color: var(--color-primary);
-  color: var(--color-primary-foreground);
+  border-color: var(--console-brand);
+  background: var(--console-brand);
+}
+
+.pub .pub-button-primary,
+.pub .pub-button-primary:hover {
+  color: var(--console-brand-foreground);
+}
+
+.pub-button-primary:hover {
+  border-color: var(--console-brand-hover);
+  background: var(--console-brand-hover);
 }
 
 .pub-button-primary:disabled {
@@ -281,20 +465,38 @@
 
 .pub-button-quiet {
   background: transparent;
-  border-color: var(--color-border);
-  color: var(--color-primary-ink);
 }
 
 .pub-button-danger {
-  background: var(--color-danger);
-  border-color: var(--color-danger);
-  color: var(--color-danger-foreground);
+  border-color: var(--console-red);
+  background: var(--console-red);
+}
+
+.pub .pub-button-danger,
+.pub .pub-button-danger:hover {
+  color: var(--console-red-foreground);
+}
+
+.pub-button-danger:hover {
+  border-color: var(--console-red-hover);
+  background: var(--console-red-hover);
 }
 
 .pub-button-small {
   min-height: var(--touch-minimum);
   padding: 0 var(--space-md);
-  font-size: var(--font-size-sm);
+  font-size: var(--console-text-public-label);
+}
+
+.pub-button-tall {
+  min-height: var(--console-size-public-button-tall);
+  padding: 0 22px;
+}
+
+.pub-button-icon {
+  flex: none;
+  width: 20px;
+  height: 20px;
 }
 
 .pub-actions {
@@ -304,59 +506,60 @@
   margin-top: var(--space-md);
 }
 
-/* Date, time and party size. Three across at 380pt, which is exactly what a
-   thumb can reach without the row wrapping into two lines of controls. */
+/* Date over the time and the party: the date clipped to "10/18/20" when three
+   shared a row at 375, and the booking column is no wider on a desktop. */
 .pub-slot {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: var(--space-sm);
-  margin-bottom: var(--space-md);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-md);
+}
+
+.pub-slot .pub-field:first-child {
+  grid-column: 1 / -1;
 }
 
 .pub-field {
   display: flex;
   flex-direction: column;
-  gap: var(--space-xs);
-  font-size: var(--font-size-xs);
-  color: var(--color-muted-foreground);
+  gap: 6px;
+  min-width: 0;
+  font-size: var(--console-text-public-label);
+  font-weight: var(--font-weight-bold);
+  color: var(--console-muted);
 }
 
-/* At phone widths the date gets its own row: three across clipped it to
-   "10/18/20" at 375 and the guests to "2 guest" at 320. */
-@media (max-width: 26rem) {
-  .pub-slot {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  .pub-slot .pub-field:first-child {
-    grid-column: 1 / -1;
-  }
-}
-
+/* 16px minimum on every form control, or iOS Safari zooms the whole page on
+   focus and the visitor is left panned halfway off a form. */
 .pub-field input,
 .pub-field select {
-  min-height: var(--touch-minimum);
-  padding: 0 var(--space-sm);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-pill);
-  background: var(--color-surface);
-  color: var(--color-foreground);
+  min-width: 0;
+  min-height: var(--console-size-public-control);
+  padding: 0 var(--space-md);
+  border: 1.5px solid var(--console-control);
+  border-radius: var(--console-radius-public-control);
+  background: var(--console-surface);
+  color: var(--console-ink);
   font: inherit;
-  font-size: var(--font-size-md);
+  font-size: max(16px, var(--console-text-public-input));
+  font-weight: var(--font-weight-regular);
 }
 
 .pub-input {
-  min-height: calc(var(--touch-minimum) + 4px);
   width: 100%;
+  min-height: var(--console-size-public-control);
   padding: 0 var(--space-md);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-pill);
-  background: var(--color-surface);
-  color: var(--color-foreground);
+  border: 1.5px solid var(--console-control);
+  border-radius: var(--console-radius-public-control);
+  background: var(--console-surface);
+  color: var(--console-ink);
   font: inherit;
-  /* 16px minimum, or iOS Safari zooms the whole page on focus and the visitor
-     is left panned halfway off a form they were halfway through. */
-  font-size: max(16px, var(--font-size-md));
+  font-size: max(16px, var(--console-text-public-input));
+}
+
+.pub-field input:hover,
+.pub-field select:hover,
+.pub-input:hover {
+  border-color: var(--console-control-hover);
 }
 
 .pub-phone-row {
@@ -372,16 +575,16 @@
 .pub-input-code {
   letter-spacing: 0.4em;
   text-align: center;
-  font-size: var(--font-size-xl);
+  font-size: max(16px, var(--font-size-xl));
 }
 
 .pub-dev-code {
   margin: var(--space-sm) 0 0;
   padding: var(--space-sm);
-  border: 1px dashed var(--color-warning);
-  border-radius: var(--radius-soft);
-  color: var(--color-warning);
-  font-size: var(--font-size-sm);
+  border: 1px dashed var(--console-amber);
+  border-radius: var(--console-radius-public-control);
+  color: var(--console-amber);
+  font-size: var(--console-text-public-label);
 }
 
 /* --------------------------------------------------------------------------
@@ -392,6 +595,11 @@
  * The room picker: one pill per room, the picked one filled. Only drawn when
  * the venue has more than one room with a photo.
  */
+/* The room's picker, legend, hint and photos, never wider than the column. */
+.pub-rooms {
+  min-width: 0;
+}
+
 .pub-room-picker {
   display: flex;
   flex-wrap: wrap;
@@ -401,35 +609,38 @@
 
 .pub-room-picker button {
   min-height: var(--touch-minimum);
-  padding: 0 var(--space-lg);
-  border: 1px solid var(--color-border-strong);
-  border-radius: var(--radius-pill);
-  background: var(--color-surface);
-  color: var(--color-foreground);
+  padding: 0 14px;
+  border: 1.5px solid var(--console-button-edge);
+  border-radius: var(--console-radius-pill);
+  background: var(--console-surface);
+  color: var(--console-ink);
   font: inherit;
+  font-size: var(--console-text-public-meta);
+  font-weight: var(--font-weight-semibold);
   cursor: pointer;
 }
 
 .pub-room-picker button[aria-pressed='true'] {
-  border-color: var(--color-primary-ink);
-  background: var(--color-primary-ink);
-  color: var(--color-surface);
+  border-color: var(--console-brand);
+  background: var(--console-brand);
+  color: var(--console-brand-foreground);
 }
 
 .pub-legend {
   display: flex;
   flex-wrap: wrap;
-  gap: var(--space-md);
+  gap: 6px 14px;
   margin: 0 0 var(--space-sm);
   padding: 0;
   list-style: none;
-  font-size: var(--font-size-sm);
+  font-size: 13px;
+  color: var(--console-muted);
 }
 
 .pub-legend li {
   display: flex;
   align-items: center;
-  gap: var(--space-xs);
+  gap: 6px;
 }
 
 .pub-room-hint {
@@ -446,16 +657,10 @@
   /* Pins size themselves to the photo's width (cqi), so neighbours on a
      crowded photo do not overlap on a phone. */
   container-type: inline-size;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-card);
-  background: var(--color-paper);
+  border-radius: var(--console-radius-public-status);
+  background: var(--console-public-photo-ground);
   touch-action: pan-y;
   user-select: none;
-}
-
-.pub-stage:focus-visible {
-  outline: 3px solid var(--color-foreground);
-  outline-offset: 2px;
 }
 
 .pub-stage img {
@@ -485,7 +690,7 @@
   height: clamp(1.75rem, 8.5cqi, 2.75rem);
   padding: 0 clamp(0.125rem, 1cqi, var(--space-xs));
   transform: translate(-50%, -50%);
-  border: 2px solid var(--color-surface);
+  border: 2px solid var(--console-surface);
   border-radius: var(--radius-pill);
   font: inherit;
   font-size: clamp(0.75rem, 3.4cqi, 1rem);
@@ -499,7 +704,7 @@
 }
 
 .pub-pin:focus-visible {
-  outline: 3px solid var(--color-foreground);
+  outline: 3px solid var(--console-surface);
   outline-offset: 2px;
 }
 
@@ -535,9 +740,9 @@
 /* Free at the slot, but not for this party or time: never the bookable green. */
 .pub-pin.tone-unavailable,
 .pub-pin-dot.tone-unavailable {
-  border: 2px dashed var(--color-muted-foreground);
-  background: var(--color-surface);
-  color: var(--color-muted-foreground);
+  border: 2px dashed var(--console-grey);
+  background: var(--console-surface);
+  color: var(--console-grey);
 }
 
 .pub-pin-dot {
@@ -557,12 +762,12 @@
 }
 
 .pub-photo-step {
-  width: 2.75rem;
-  height: 2.75rem;
-  border: 1px solid var(--color-border-strong);
+  width: var(--console-size-public-button);
+  height: var(--console-size-public-button);
+  border: 1.5px solid var(--console-button-edge);
   border-radius: var(--radius-pill);
-  background: var(--color-surface);
-  color: var(--color-foreground);
+  background: var(--console-surface);
+  color: var(--console-brand);
   font: inherit;
   font-size: var(--font-size-xl);
   cursor: pointer;
@@ -577,9 +782,8 @@
    already there. */
 .pub-plan.is-placeholder {
   height: clamp(14rem, 40vh, 22rem);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-card);
-  background: var(--color-paper);
+  border-radius: var(--console-radius-public-status);
+  background: var(--console-public-skeleton);
 }
 
 /* --------------------------------------------------------------------------
@@ -587,25 +791,33 @@
  * -------------------------------------------------------------------------- */
 
 /*
- * Sticky to the bottom of the viewport rather than a modal over the room.
- *
- * The visitor is choosing *between* tables and needs to keep seeing the room
- * while they read the window — covering the plan turns a comparison into a
- * memory test. Same reasoning as the phone app's bottom sheet, different
- * mechanics.
+ * On a phone, sticky to the bottom of the viewport under the room rather than a
+ * modal over it: the visitor is choosing *between* tables and needs to keep
+ * seeing the room while they read the window. On a wide screen it opens in the
+ * booking column instead, which is already sticky.
  */
 .pub-sheet {
   position: sticky;
   bottom: 0;
   z-index: 2;
-  margin: var(--space-md) calc(-1 * var(--space-lg)) 0;
-  padding: var(--space-md) var(--space-lg) var(--space-lg);
-  border-top: 1px solid var(--color-border-strong);
-  border-radius: var(--radius-sheet) var(--radius-sheet) 0 0;
-  background: var(--color-surface);
+  margin: 0 calc(-1 * var(--space-lg));
+  padding: var(--space-lg) var(--space-lg) var(--space-xl);
+  border-top: 1px solid var(--console-line);
+  border-radius: 24px 24px 0 0;
+  background: var(--console-surface);
   box-shadow: var(--shadow-sheet);
   max-height: 80vh;
   overflow-y: auto;
+}
+
+.pub-aside .pub-sheet {
+  position: static;
+  margin: var(--space-lg) 0 0;
+  border: 1px solid var(--console-line);
+  border-radius: var(--console-radius-public-card);
+  box-shadow: none;
+  max-height: none;
+  overflow: visible;
 }
 
 .pub-sheet.is-loading {
@@ -623,17 +835,22 @@
   gap: var(--space-md);
 }
 
+.pub-sheet-body {
+  margin-top: var(--space-xs);
+}
+
 .pub-sheet-title {
   margin: 0;
+  font-family: var(--font-family-display);
   font-size: var(--font-size-lg);
-  font-weight: var(--font-weight-semibold);
+  font-weight: var(--font-weight-bold);
 }
 
 .pub-window {
   margin-top: var(--space-md);
-  padding: var(--space-md);
-  border-radius: var(--radius-card);
-  background: var(--color-paper);
+  padding: var(--space-md) 14px;
+  border-radius: var(--console-radius-public-status);
+  background: var(--console-canvas);
 }
 
 .pub-window-main {
@@ -644,7 +861,7 @@
 
 /* Not a null state — an advantage, and a reason to pick this table. */
 .pub-window-main.is-open-ended {
-  color: var(--color-success);
+  color: var(--console-green);
 }
 
 .pub-form h3 {
@@ -653,11 +870,12 @@
 }
 
 /* --------------------------------------------------------------------------
- * The confirmation
+ * The confirmation, and the manage link's code
  * -------------------------------------------------------------------------- */
 
 .pub-done h3 {
   margin: 0;
+  font-family: var(--font-family-display);
   font-size: var(--font-size-xl);
 }
 
@@ -667,37 +885,41 @@
   margin: var(--space-lg) 0;
   padding: var(--space-lg);
   text-align: center;
-  border: 2px solid var(--color-success);
-  border-radius: var(--radius-card);
-  background: var(--color-surface);
+  border: 2px solid var(--console-green);
+  border-radius: var(--console-radius-public-status);
+  background: var(--console-surface);
 }
 
-/* Pending must never look confirmed. */
+/* Pending must never look confirmed: waiting is blue (HANDOFF §3). */
 .pub-code.is-pending {
   border-style: dashed;
-  border-color: var(--color-info);
+  border-color: var(--console-blue);
 }
 
 /* The minutes the venue has left to answer a booking for tonight. */
 .pub-answer {
   margin: var(--space-sm) 0 0;
   padding: var(--space-sm) var(--space-md);
-  border: 1px dashed var(--color-info);
-  border-radius: var(--radius-soft);
+  border: 1px dashed var(--console-blue);
+  border-radius: var(--console-radius-public-control);
+  background: var(--console-blue-bg);
+  color: var(--console-blue);
   font-weight: var(--font-weight-semibold);
   font-variant-numeric: tabular-nums;
 }
 
 .pub-answer.is-urgent {
   border-style: solid;
-  border-color: var(--color-warning);
+  border-color: var(--console-amber);
+  background: var(--console-amber-bg);
+  color: var(--console-amber);
 }
 
 .pub-code-label,
 .pub-code-hint {
   margin: 0;
-  font-size: var(--font-size-sm);
-  color: var(--color-muted-foreground);
+  font-size: var(--console-text-public-label);
+  color: var(--console-muted);
 }
 
 .pub-code-value {
@@ -717,12 +939,12 @@
   justify-content: space-between;
   gap: var(--space-lg);
   padding: var(--space-sm) 0;
-  border-bottom: 1px solid var(--color-border);
+  border-bottom: 1px solid var(--console-line);
 }
 
 .pub-summary dt {
-  color: var(--color-muted-foreground);
-  font-size: var(--font-size-sm);
+  color: var(--console-muted);
+  font-size: var(--console-text-public-label);
 }
 
 .pub-summary dd {
@@ -734,12 +956,12 @@
 .pub-offer {
   margin-top: var(--space-xl);
   padding-top: var(--space-lg);
-  border-top: 1px solid var(--color-border);
+  border-top: 1px solid var(--console-line);
 }
 
 .pub-offer h4 {
   margin: 0;
-  font-size: var(--font-size-md);
+  font-size: var(--console-text-public-body);
   font-weight: var(--font-weight-semibold);
 }
 
@@ -749,11 +971,12 @@
 
 /* Shown in full and selectable: somebody will copy it by hand onto paper. */
 .pub-manage-link {
-  display: block;
+  display: flex;
+  align-items: center;
+  min-height: var(--touch-minimum);
   margin-top: var(--space-sm);
   overflow-wrap: anywhere;
-  font-size: var(--font-size-sm);
-  color: var(--color-primary-ink);
+  font-size: var(--console-text-public-label);
 }
 
 .pub-confirm p {
@@ -770,10 +993,9 @@
 
 .pub-menu-group h3 {
   margin: var(--space-lg) 0 var(--space-sm);
-  font-size: var(--font-size-md);
-  font-weight: var(--font-weight-semibold);
-  color: var(--color-muted-foreground);
-  text-transform: none;
+  font-size: var(--console-text-public-body);
+  font-weight: var(--font-weight-bold);
+  color: var(--console-muted);
 }
 
 .pub-menu-list {
@@ -787,12 +1009,12 @@
   grid-template-columns: auto 1fr auto;
   align-items: start;
   gap: var(--space-md);
-  padding: var(--space-sm) 0;
-  border-bottom: 1px solid var(--color-border);
+  padding: var(--space-md) 0;
+  border-bottom: 1px solid var(--console-line);
 }
 
 .pub-menu-item.is-sold-out {
-  opacity: 0.55;
+  opacity: 0.62;
 }
 
 /* Fixed size, so the row keeps its shape whether the photo has loaded, has
@@ -800,36 +1022,45 @@
 .pub-menu-photo {
   width: 72px;
   height: 72px;
-  border-radius: var(--radius-soft);
+  border-radius: 10px;
   object-fit: cover;
-  background: var(--color-paper);
+  background: var(--console-line-soft);
 }
 
 .pub-menu-photo.is-missing {
   display: block;
 }
 
+/* The name and description column: allowed to shrink, and a long unbroken
+   name wraps rather than pushing the price off the row. */
+.pub-menu-text {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
 .pub-menu-name {
   margin: 0;
-  font-weight: var(--font-weight-medium);
+  font-weight: var(--font-weight-bold);
 }
 
 .pub-menu-desc {
-  margin: var(--space-xs) 0 0;
-  font-size: var(--font-size-sm);
-  color: var(--color-muted-foreground);
+  margin: 2px 0 0;
+  font-size: var(--console-text-public-label);
+  color: var(--console-muted);
 }
 
 .pub-menu-soldout {
   margin: var(--space-xs) 0 0;
-  font-size: var(--font-size-xs);
-  color: var(--color-warning);
+  font-size: 13px;
+  font-weight: var(--font-weight-bold);
+  color: var(--console-amber);
 }
 
 .pub-menu-price {
   margin: 0;
   white-space: nowrap;
-  font-weight: var(--font-weight-medium);
+  font-weight: var(--font-weight-bold);
+  font-variant-numeric: tabular-nums;
 }
 
 /* --------------------------------------------------------------------------
@@ -839,7 +1070,8 @@
 .pub-address {
   margin: 0;
   font-style: normal;
-  line-height: var(--line-height-md);
+  font-size: 17px;
+  font-weight: var(--font-weight-semibold);
 }
 
 .pub-hours summary {
@@ -847,49 +1079,53 @@
   display: flex;
   align-items: center;
   cursor: pointer;
-  color: var(--color-primary-ink);
-  font-size: var(--font-size-sm);
+  color: var(--console-brand);
+  font-size: var(--console-text-public-meta);
+  font-weight: var(--font-weight-semibold);
 }
 
 .pub-hours-table {
   width: 100%;
   border-collapse: collapse;
-  font-size: var(--font-size-sm);
+  font-size: var(--console-text-public-meta);
 }
 
 .pub-hours-table th {
   text-align: start;
   font-weight: var(--font-weight-regular);
-  color: var(--color-muted-foreground);
-  padding: var(--space-xs) 0;
+  color: var(--console-muted);
+  padding: var(--space-sm) var(--space-xs);
+  border-bottom: 1px solid var(--console-line);
 }
 
 .pub-hours-table td {
   text-align: end;
-  padding: var(--space-xs) 0;
+  padding: var(--space-sm) var(--space-xs);
+  border-bottom: 1px solid var(--console-line);
   font-variant-numeric: tabular-nums;
 }
 
 .pub-hours-table tr[aria-current='date'] th,
 .pub-hours-table tr[aria-current='date'] td {
-  color: var(--color-foreground);
-  font-weight: var(--font-weight-medium);
+  color: var(--console-ink);
+  font-weight: var(--font-weight-bold);
 }
 
 /* Holidays and closures, under the folded week. */
 .pub-special-days {
-  margin-top: var(--space-sm);
+  margin-top: var(--space-md);
 }
 
 .pub-special-days caption {
   padding: var(--space-xs) 0;
-  color: var(--color-foreground);
-  font-weight: var(--font-weight-medium);
+  color: var(--console-amber);
+  font-family: var(--font-family-display);
+  font-weight: var(--font-weight-bold);
   text-align: start;
 }
 
 .pub-special-note {
-  color: var(--color-foreground);
+  color: var(--console-ink);
 }
 
 /* --------------------------------------------------------------------------
@@ -901,78 +1137,176 @@
   padding: 0;
   list-style: none;
   display: grid;
-  gap: var(--space-md);
+  gap: 10px;
 }
 
 .pub-branch-card {
   display: grid;
-  gap: var(--space-xs);
-  padding: var(--space-md);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-card);
-  background: var(--color-surface);
-  color: inherit;
+  gap: 2px;
+  min-height: 96px;
+  padding: var(--space-md) 14px;
+  border: 1px solid var(--console-line);
+  border-radius: 18px;
+  background: var(--console-surface);
   text-decoration: none;
 }
 
+.pub .pub-branch-card {
+  color: var(--console-ink);
+}
+
+a.pub-branch-card:hover {
+  border-color: var(--console-card-hover-edge);
+}
+
 .pub-branch-card.is-unavailable {
-  background: var(--color-paper);
+  border-style: dashed;
+  background: var(--console-line-soft);
 }
 
 .pub-branch-card-name {
-  font-weight: var(--font-weight-semibold);
-  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-bold);
+  font-size: 17px;
 }
 
-/* The same count as `.pub-count-value`, one screen earlier, and the same rule:
-   it reads as free rather than as pressable, so it carries weight, not hue. */
+.pub-branch-card .pub-open {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--console-text-public-label);
+  font-weight: var(--font-weight-semibold);
+}
+
+.pub-branch-card .pub-open::before {
+  width: 8px;
+  height: 8px;
+}
+
+/* The same count the branch page shows, one screen earlier. */
 .pub-branch-card-free {
-  font-weight: var(--font-weight-medium);
-  color: var(--color-foreground);
+  font-size: var(--console-text-public-label);
+  font-weight: var(--font-weight-semibold);
+  color: var(--console-ink);
 }
 
 /* --------------------------------------------------------------------------
- * Whole-page states
+ * Whole-page states (States artboard)
  * -------------------------------------------------------------------------- */
 
 .pub-state {
-  padding: var(--space-xxl) 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-md);
+  min-height: calc(100dvh - var(--console-size-public-bar));
+  max-width: var(--console-size-public-narrow);
+  margin: 0 auto;
+  padding: var(--space-xl) 28px 80px;
+  text-align: center;
+}
+
+.pub-state-message {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-md);
+}
+
+.pub-state-icon {
+  display: grid;
+  place-items: center;
+  width: var(--console-size-public-state-icon);
+  height: var(--console-size-public-state-icon);
+  margin-bottom: var(--space-xs);
+  border-radius: 50%;
+  background: var(--console-line-soft);
+  color: var(--console-public-state-icon);
+}
+
+.pub-state-icon svg {
+  width: 40px;
+  height: 40px;
 }
 
 .pub-state h1 {
-  margin: 0 0 var(--space-md);
-  font-size: var(--font-size-xl);
+  margin: 0;
+  font-size: var(--console-text-public-state-title);
+  line-height: 1.2;
+}
+
+.pub-state-body,
+.pub-state > p {
+  max-width: 32ch;
+  margin: 0;
+  color: var(--console-muted);
 }
 
 .pub-state-venue {
   margin: 0;
-  color: var(--color-muted-foreground);
+  font-weight: var(--font-weight-bold);
+  color: var(--console-ink);
+}
+
+.pub-state .pub-button {
+  width: auto;
+  margin-top: var(--space-sm);
 }
 
 /*
- * The skeleton is shaped like the page it becomes — cover, name, and a box the
- * exact height of the free-table count — so the first paint and the loaded page
- * have the same geometry and nothing moves between them.
+ * The first load, shaped like the page it becomes — cover, name, branch line,
+ * the open-state card, a button, the booking card — so the page lands into the
+ * shapes already drawn rather than pushing everything down.
  */
-.skeleton {
-  border-radius: var(--radius-card);
-  background: var(--color-border);
-  opacity: 0.4;
+.pub-skeleton {
+  display: block;
+  border-radius: 10px;
+  background: var(--console-public-skeleton);
+  animation: pub-pulse 1.4s ease-in-out infinite;
 }
 
-.skeleton-cover {
-  aspect-ratio: 16 / 9;
-  margin-bottom: var(--space-lg);
+.pub-skeleton-cover {
+  aspect-ratio: 4 / 3;
+  margin: calc(-1 * var(--space-lg)) calc(-1 * var(--space-lg)) 0;
+  border-radius: 0;
 }
 
-.skeleton-title {
-  height: 2rem;
+.pub-skeleton-lines {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.pub-skeleton-title {
   width: 70%;
-  margin-bottom: var(--space-md);
+  height: 34px;
 }
 
-.skeleton-count {
-  height: 4.5rem;
+.pub-skeleton-line {
+  width: 45%;
+  height: 18px;
+}
+
+.pub-skeleton-status {
+  height: 72px;
+  border-radius: var(--console-radius-public-status);
+}
+
+.pub-skeleton-button {
+  width: 60%;
+  height: var(--console-size-public-button);
+  border-radius: var(--console-radius-pill);
+}
+
+.pub-skeleton-card {
+  height: 220px;
+  border-radius: var(--console-radius-public-card);
+}
+
+@keyframes pub-pulse {
+  50% {
+    opacity: 0.55;
+  }
 }
 
 .visually-hidden {
@@ -985,38 +1319,93 @@
 }
 
 /* --------------------------------------------------------------------------
- * Desktop, as the adaptation
+ * From 960px: two columns, the booking column sticky on the right
+ *
+ * The same query as `layout.ts` `WIDE_QUERY`; `publicStyles.test.ts` holds the
+ * two together. The column turns sticky in the block after this one.
  * -------------------------------------------------------------------------- */
 
 @media (min-width: 60rem) {
-  .pub {
-    max-width: 64rem;
-  }
-
-  /* Two columns: the rooms beside the menu. */
-  .pub-page {
+  .pub-layout {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    grid-template-columns: minmax(0, 1fr) var(--console-size-public-aside);
+    grid-template-rows: auto 1fr;
     grid-template-areas:
-      'head head'
-      'room menu'
-      'find hours';
-    column-gap: var(--space-xxl);
-    align-items: start;
+      'top aside'
+      'rest aside';
+    column-gap: 40px;
+    row-gap: 36px;
+    padding: var(--space-xl) var(--space-xxl) 56px;
   }
 
-  .pub-cover,
-  .pub-head {
-    grid-area: head;
+  .pub-col {
+    gap: 36px;
   }
 
-  .pub-sheet {
-    grid-column: 1 / -1;
+  .pub-col-top {
+    grid-area: top;
+    gap: var(--space-lg);
+  }
+
+  .pub-col-rest {
+    grid-area: rest;
+  }
+
+  .pub-aside {
+    grid-area: aside;
+    align-self: start;
+  }
+
+  .pub-cover {
+    margin: 0;
+    border-radius: var(--console-radius-public-card);
+  }
+
+  .pub-cover img {
+    aspect-ratio: 16 / 10;
+  }
+
+  .pub-head h1 {
+    font-size: var(--console-text-public-title-wide);
+  }
+
+  .pub-card {
+    padding: 22px;
+  }
+
+  .pub-skeleton-cover {
+    aspect-ratio: 16 / 10;
+    margin: 0;
+    border-radius: var(--console-radius-public-card);
+  }
+
+  .pub-skeleton-card {
+    height: 420px;
+  }
+}
+
+/*
+ * Sticky under the bar only when the window is tall enough to hold the column
+ * (the same query as `layout.ts` `STICKY_QUERY`). On a short wide window a
+ * sticky column capped at the window's height became a box scrolling inside
+ * the page, with the date and time scrolled out of sight; there it flows with
+ * the page, and the booking panel opens under the room instead. Capped all the
+ * same, so a long panel never hides its own foot; the padding keeps focus
+ * rings inside the scroll box.
+ */
+@media (min-width: 60rem) and (min-height: 44rem) {
+  .pub-aside {
+    position: sticky;
+    top: calc(var(--console-size-public-bar) + var(--space-xl));
+    max-height: calc(100dvh - var(--console-size-public-bar) - 2 * var(--space-xl));
+    overflow-y: auto;
+    margin: -4px;
+    padding: 4px;
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .skeleton {
+  .pub-skeleton {
     animation: none;
   }
 }

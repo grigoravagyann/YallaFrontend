@@ -381,6 +381,42 @@ describe('the floor tablet', () => {
   });
 });
 
+describe('the public page (docs/design/public-page)', () => {
+  it('keeps its top bar readable: the wordmark, the languages and the current one', () => {
+    expect(ratio(consoleColor.sidebarTextStrong, consoleColor.sidebar)).toBeGreaterThanOrEqual(
+      AA_BODY,
+    );
+    expect(ratio(consoleColor.floorBarText, consoleColor.sidebar)).toBeGreaterThanOrEqual(AA_BODY);
+    expect(ratio(consoleColor.brand, consoleColor.brandForeground)).toBeGreaterThanOrEqual(AA_BODY);
+    // The focus ring on the bar's dark ground.
+    expect(ratio(consoleColor.sidebarFocus, consoleColor.sidebar)).toBeGreaterThanOrEqual(3);
+  });
+
+  it("draws a page state's icon and the open dot at 3:1, as graphics", () => {
+    expect(ratio(consoleColor.publicStateIcon, consoleColor.lineSoft)).toBeGreaterThanOrEqual(3);
+    expect(ratio(consoleColor.publicOpenDot, consoleColor.surface)).toBeGreaterThanOrEqual(3);
+  });
+
+  it('keeps its type at 12px and up, with inputs at 16 so iOS does not zoom', () => {
+    const publicSteps = Object.entries(consoleText).filter(([name]) => name.startsWith('public'));
+    expect(publicSteps.length).toBeGreaterThan(0);
+    for (const [, size] of publicSteps) expect(size).toBeGreaterThanOrEqual(12);
+    expect(consoleText.publicInput).toBeGreaterThanOrEqual(16);
+    expect(consoleText.publicBody).toBeGreaterThanOrEqual(16);
+  });
+
+  it('makes every control at least the 44px target', () => {
+    for (const size of [
+      consoleSize.publicButton,
+      consoleSize.publicButtonTall,
+      consoleSize.publicControl,
+      consoleSize.publicLang,
+    ]) {
+      expect(size).toBeGreaterThanOrEqual(44);
+    }
+  });
+});
+
 describe('the console tokens reach the stylesheet', () => {
   const css = renderTokenCss();
 

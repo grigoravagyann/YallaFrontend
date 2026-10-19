@@ -547,9 +547,21 @@ instead of as a block of redacted text.
 
 Same phone rules as the diner app. One difference that matters: this page is
 often the first thing anyone sees of the product, and it is the surface where the
-thesis has to land in three seconds. The room, with its colours, sits above the
-fold. Everything else on the page is ink on near-white, with the accent on the
-single "Book a table" button and nowhere else.
+thesis has to land in three seconds.
+
+**On 2026-10-20 the user approved its redesign onto the console palette**
+(`docs/design/public-page`): cream canvas, white cards, the brown primary
+button, serif titles — but its own dark-brown top bar (wordmark and language
+switch, sticky) instead of a sidebar, and mobile first at 390px with two
+columns from 960px (the booking column sticky on the right). It reads the
+`--console-*` tokens like the consoles, plus a few of its own in `console.ts`:
+`publicSkeleton`, `publicStateIcon`, `publicPhotoGround`, the open and closed
+dots, `public*` sizes (60px bar, 1180px page, 400px booking column, 48px
+buttons and controls, 52px on a page state's action) and `public*` type (body
+16, the venue's name 30/40, a section 22, a state 26, inputs never under 16).
+`public.css` remaps the product palette onto these for the sections not yet
+redesigned, and `publicStyles.test.ts` fails on a colour typed into it. Red is
+only for real failures; waiting is blue, needs-attention amber.
 
 ---
 

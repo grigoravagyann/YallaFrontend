@@ -288,6 +288,25 @@ export const consoleColor = {
   floorOutStripe: 'rgba(139, 149, 161, 0.25)',
   /** A rail item whose clock is nearly out. */
   floorUrgent: '#FFF6F4',
+
+  // --- The public page (docs/design/public-page) ----------------------------------
+  /*
+   * The diner-facing page at yalla.am/{venue}/{branch} wears this palette with
+   * its own top bar (the `sidebar` brown, the wordmark `sidebarTextStrong`, the
+   * language buttons `floorBarText` on the `floorBarTabs` tray, the current one
+   * `brandForeground` with `brand` on it, focus `sidebarFocus`) and the values
+   * below on top.
+   */
+  /** A loading placeholder's block on the cream page (States artboard). */
+  publicSkeleton: '#EADFD2',
+  /** The icon in a page state's circle, on `lineSoft`. 3.56:1, a graphic. */
+  publicStateIcon: '#8C7666',
+  /** Behind a cover or room photo until it loads, and when there is none. */
+  publicPhotoGround: '#3A2A1E',
+  /** The dot before "Open until …". 3.41:1 on white; the words carry the state. */
+  publicOpenDot: '#2E9E5B',
+  /** The dot before "Closed · opens …": quiet on purpose, the words carry it. */
+  publicClosedDot: '#A39383',
 } as const;
 
 export type ConsoleColorToken = keyof typeof consoleColor;
@@ -362,6 +381,23 @@ export const consoleSize = {
   floorConflictSide: 400,
   /** The table's mark on a conflict card. */
   floorConflictMark: 52,
+  /**
+   * The public page (docs/design/public-page): its top bar, the page's widest
+   * column, the booking column beside it from 960px, a page state's icon
+   * circle, and its buttons and form controls — 48px, past the 44px target,
+   * 52px on a page state's one action.
+   */
+  publicBar: 60,
+  publicWrap: 1180,
+  publicAside: 400,
+  /** A single-column page (the branch chooser, the manage link) on a desktop. */
+  publicNarrow: 600,
+  publicStateIcon: 80,
+  publicButton: 48,
+  publicButtonTall: 52,
+  publicControl: 48,
+  /** A language button's least width in the top bar. */
+  publicLang: 48,
 } as const;
 
 export const consoleRadius = {
@@ -383,6 +419,11 @@ export const consoleRadius = {
   floorButton: 12,
   /** A tab inside that tray. */
   floorTab: 9,
+  /** The public page's cards (the booking card, the open-state card's 16). */
+  publicCard: 20,
+  publicStatus: 16,
+  /** Its inputs and selects. */
+  publicControl: 12,
 } as const;
 
 /**
@@ -414,6 +455,23 @@ export const consoleText = {
   kpi: 26,
   /** A waiting booking's start on Overview: the first thing read on its row. */
   bookingTime: 20,
+  /*
+   * The public page, read at arm's length on a phone: body 16, never under 12.
+   * Titles in the serif — the venue's name at 30 (40 from 960px), a section at
+   * 22, a page state at 26 — and "Yalla" in the top bar at 22.
+   */
+  publicTitle: 30,
+  publicTitleWide: 40,
+  publicSection: 22,
+  publicStateTitle: 26,
+  publicBrand: 22,
+  publicBody: 16,
+  /** Type · cuisine, the free-table line, a card's sub-line. */
+  publicMeta: 15,
+  /** A field's label and the language buttons. */
+  publicLabel: 14,
+  /** Inputs and selects: 16, or iOS zooms the page on focus. */
+  publicInput: 16,
 } as const;
 
 export const consoleShadow = {
