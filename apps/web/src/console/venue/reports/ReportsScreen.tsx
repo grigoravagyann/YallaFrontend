@@ -151,8 +151,11 @@ export function ReportsScreen() {
   function exportEverything() {
     if (!everything || exporting || !query) return;
     setExporting(true);
-    // A frame for the busy state to show before the file is written.
-    requestAnimationFrame(() => {
+    // A turn for the busy state to show before the file is written. Not
+    // requestAnimationFrame: a frame never comes while the tab is in the
+    // background (or in an embedded view that does not paint), and the button
+    // would stay on "Preparing…" with no file.
+    setTimeout(() => {
       const text = allCsv([
         ['summary', summaryCsv(everything.occupancy, everything.revenue)],
         ['revenue', revenueCsv(everything.revenue)],
@@ -163,7 +166,7 @@ export function ReportsScreen() {
       saveFile(csvFileName('report', query), csvBlob(text));
       setExporting(false);
       toast.say(t('reports.export.readyAll', { scope: scopeLine }));
-    });
+    }, 0);
   }
 
   if (!branchId) {

@@ -382,6 +382,23 @@ describe('the CSV', () => {
     }
     expect(await screen.findByText('The CSV file is ready for Northern Avenue')).toBeTruthy();
   });
+
+  // QA: in a view that never paints (a background tab, the app's embedded
+  // browser) no animation frame comes, and the button stayed on "Preparing…".
+  it('writes "Export everything" even when no frame is ever painted', async () => {
+    const raf = vi.spyOn(window, 'requestAnimationFrame').mockImplementation(() => 0);
+    try {
+      renderReports();
+      const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+      await waitForSummary();
+      const all = screen.getByRole('button', { name: 'Export everything (CSV)' });
+      await waitFor(() => expect((all as HTMLButtonElement).disabled).toBe(false));
+      await user.click(all);
+      await waitFor(() => expect(saved).toHaveLength(1));
+    } finally {
+      raf.mockRestore();
+    }
+  });
 });
 
 describe('a section that fails', () => {
