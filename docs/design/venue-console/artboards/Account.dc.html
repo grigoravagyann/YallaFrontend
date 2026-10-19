@@ -1,0 +1,250 @@
+<!doctype html>
+<html lang="hy">
+<head>
+<meta charset="utf-8">
+<title>Իմ հաշիվը — Yalla</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+Armenian:wght@400;500;600;700&amp;family=Noto+Serif+Armenian:wght@600;700&amp;display=swap">
+<style>
+body{margin:0}
+a{color:#3A1D0C}a:hover{color:#5A2E14}
+.y{--bg:#F7F1E8;--paper:#FFFFFF;--side:#2B1608;--brand:#3A1D0C;--brand-ink:#FFF3E4;--ink:#2A1A10;--muted:#6B5A4F;--line:#E8DDD0;--line-2:#F1E9DF;--hover:#FBF6EF;--amber:#8A4B08;--amber-bg:#FDF1DE;--red:#A8261B;--red-bg:#FCEAE7;--green:#0F6A4B;--green-bg:#E4F2EA;--grey:#57534E;--grey-bg:#EEE8E1;font-family:'Noto Sans Armenian','Noto Sans',system-ui,-apple-system,'Segoe UI',sans-serif;font-size:14px;line-height:1.5;color:var(--ink);background:var(--bg)}
+.y *{box-sizing:border-box}
+.app{display:flex;flex-wrap:wrap;min-height:100vh}
+.side{flex:1 0 248px;background:var(--side);color:#E9D9C6;display:flex;flex-direction:column;gap:16px;padding:20px 14px}
+.brand{display:flex;align-items:baseline;gap:8px;padding:0 10px;font-family:'Noto Serif Armenian',Georgia,serif;font-size:22px;font-weight:700;color:#FFF3E4;line-height:1}
+.brand small{font-family:'Noto Sans Armenian',system-ui,sans-serif;font-size:11px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:#BFA88F}
+.venue{display:flex;flex-direction:column;gap:10px;padding:12px;border-radius:12px;background:rgba(255,243,228,.06)}
+.venue-t{display:flex;align-items:center;gap:10px;min-width:0}
+.venue-t img{width:44px;height:44px;border-radius:10px;object-fit:cover;flex:none}
+.venue-t b{display:block;color:#FFF3E4;font-family:'Noto Serif Armenian',Georgia,serif;font-size:15px;line-height:1.25}
+.venue-t span{font-size:12px;color:#BFA88F}
+.bsw{display:flex;flex-direction:column;gap:6px}
+.bsw label{font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:#BFA88F}
+.bsw select{width:100%;height:40px;border-radius:9px;border:1px solid #4E2D1B;background:#351B0D;color:#F3E6D6;font:inherit;font-size:14px;padding:0 10px}
+.bfix{display:flex;align-items:center;gap:8px;min-height:40px;padding:8px 10px;border-radius:9px;background:#351B0D;color:#F3E6D6;font-size:13px}
+.bfix svg{width:14px;height:14px;color:#BFA88F;flex:none}
+.nav{display:flex;flex-direction:column;gap:2px}
+.ngroup{font-size:11px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:#A8907A;padding:12px 12px 4px}
+.nav a{display:flex;align-items:center;gap:12px;height:40px;padding:0 12px;border-radius:9px;color:#D9C5B0;text-decoration:none;font-weight:500;font-size:14px;white-space:nowrap}
+.nav a:hover{background:rgba(255,243,228,.07);color:#FFF3E4}
+.nav svg{width:18px;height:18px;flex:none}
+.nbadge{margin-left:auto;min-width:22px;height:20px;padding:0 6px;border-radius:999px;font-size:11px;font-weight:700;display:grid;place-items:center;background:#E2B77A;color:#2B1608}
+.side-foot{margin-top:auto}
+.me{display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:10px;background:#4A2817;text-decoration:none;color:inherit}
+.avatar{width:32px;height:32px;border-radius:50%;background:#C3B59F;color:#2B1608;display:grid;place-items:center;font-weight:700;font-size:12px;flex:none}
+.me-t{display:flex;flex-direction:column;min-width:0;flex:1}
+.me-n{color:#FFF3E4;font-weight:600;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.me-r{color:#BFA88F;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.side :focus-visible{outline-color:#F3D9B8}
+.main{flex:999 1 560px;min-width:0;padding:28px 36px 48px;display:flex;flex-direction:column;gap:20px}
+.ph{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:16px}
+.h1{font-family:'Noto Serif Armenian',Georgia,serif;font-size:28px;line-height:1.2;font-weight:700;margin:0}
+.sub{margin:4px 0 0;color:var(--muted);font-size:14px}
+.card{background:var(--paper);border:1px solid var(--line);border-radius:12px}
+.card-h{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:12px;padding:14px 20px;border-bottom:1px solid var(--line-2)}
+.h2{font-family:'Noto Serif Armenian',Georgia,serif;font-size:17px;font-weight:700;margin:0;line-height:1.3}
+.cap{font-size:13px;color:var(--muted);margin:2px 0 0}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;height:40px;padding:0 16px;border-radius:10px;font:inherit;font-weight:600;font-size:14px;cursor:pointer;text-decoration:none;white-space:nowrap;border:1px solid transparent;transition:background .15s}
+.btn-pri{background:var(--brand);color:var(--brand-ink)}.btn-pri:hover{background:#4E2815;color:var(--brand-ink)}
+.btn-sec{background:var(--paper);color:var(--brand);border-color:#D8C8B6}.btn-sec:hover{background:var(--hover)}
+.btn-danger{background:var(--red);color:#FFF}.btn-danger:hover{background:#8C1F16;color:#FFF}
+.btn-sm{height:32px;padding:0 12px;font-size:13px;border-radius:8px}
+.pill{display:inline-flex;align-items:center;gap:6px;height:24px;padding:0 10px;border-radius:999px;font-size:12px;font-weight:600;white-space:nowrap}
+.p-green{background:var(--green-bg);color:var(--green)}
+.muted{color:var(--muted)}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+.fld{display:flex;flex-direction:column;gap:6px;min-width:0}
+.fld > label{font-size:13px;font-weight:600;color:var(--ink)}
+.ctl{height:40px;border-radius:10px;border:1px solid #D8C8B6;background:var(--paper);font:inherit;font-size:14px;color:var(--ink);padding:0 12px;width:100%}
+.ctl:hover{border-color:#C8B39C}
+.ctl.bad{border-color:var(--red)}
+.ctl[readonly]{background:#FAF6F0;color:var(--muted)}
+.help{font-size:12px;color:var(--muted)}
+.err{font-size:12px;color:var(--red);font-weight:600}
+.req{color:var(--red);margin-left:2px}
+.row2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
+.overlay{position:fixed;inset:0;z-index:30;background:rgba(42,26,16,.45);display:grid;place-items:center;padding:16px}
+.dialog{width:460px;max-width:100%;background:var(--paper);border-radius:14px;padding:24px;display:flex;flex-direction:column;gap:14px;box-shadow:0 24px 60px rgba(42,26,16,.3)}
+.dialog p{margin:0;color:var(--muted)}
+.acts{display:flex;flex-wrap:wrap;justify-content:flex-end;gap:8px}
+.toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);z-index:60;display:flex;align-items:center;gap:12px;background:var(--ink);color:#FFF3E4;border-radius:10px;padding:10px 16px;font-size:14px;box-shadow:0 10px 30px rgba(42,26,16,.25);max-width:calc(100% - 32px)}
+.toast svg{color:#9FD9BD}
+:focus-visible{outline:2px solid var(--brand);outline-offset:2px}
+svg.i{width:18px;height:18px;flex:none}
+/* page */
+.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;align-items:start}
+.form{display:flex;flex-direction:column;gap:16px;padding:20px}
+.foot{display:flex;flex-wrap:wrap;align-items:center;gap:12px}
+.saved{font-size:13px;color:var(--green);font-weight:600}
+.dirty{font-size:13px;color:var(--amber);font-weight:600}
+.radios{display:flex;flex-direction:column;gap:8px;padding:20px;border:0;margin:0}
+.radio{display:flex;align-items:center;gap:12px;height:46px;padding:0 14px;border:1px solid var(--line);border-radius:10px;cursor:pointer}
+.radio:hover{background:var(--hover)}
+.radio.on{border-color:var(--brand);background:#FCF9F5}
+.radio input{accent-color:#3A1D0C;width:18px;height:18px}
+.sess{list-style:none;margin:0;padding:4px 0}
+.sess li{display:flex;align-items:center;gap:12px;padding:12px 20px;border-bottom:1px solid var(--line-2)}
+.sess li:last-child{border-bottom:0}
+.sess .ic{width:36px;height:36px;border-radius:9px;display:grid;place-items:center;background:#F4ECE2;color:var(--brand);flex:none}
+.sess b{display:block;font-weight:600;font-size:14px}
+.sess small{font-size:12px;color:var(--muted)}
+.sess .t{flex:1;min-width:0}
+.pinwrap input{max-width:120px;font-size:18px;letter-spacing:.3em}
+@media (max-width:1100px){.grid{grid-template-columns:minmax(0,1fr)}}
+@media (max-width:560px){.main{padding:20px 16px 40px}.row2{grid-template-columns:minmax(0,1fr)}}
+@media (prefers-reduced-motion:reduce){.y *{transition:none!important;animation:none!important}}
+</style>
+</helmet>
+<div class="y">
+<div class="app">
+
+<aside class="side" aria-label="Վահանակի նավիգացիա">
+<div class="brand">Yalla <small>վահանակ</small></div>
+<div class="venue">
+<div class="venue-t"><img src="/_blob/6c604900fafe4c60510223e5fdec12de" alt=""><div><b>Cascade Cafe</b><span>{{ sbRole }}</span></div></div>
+<sc-if value="{{ sbMulti }}" hint-placeholder-val="{{ true }}"><div class="bsw"><label for="sb-branch">Մասնաճյուղ</label><select id="sb-branch" value="{{ sbBranch }}" onChange="{{ onBranch }}"><option>Կասկադ</option><option>Արաբկիր</option></select></div></sc-if>
+<sc-if value="{{ sbFixed }}" hint-placeholder-val="{{ false }}"><div class="bfix"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"></path><circle cx="12" cy="10" r="3"></circle></svg>Կասկադ մասնաճյուղ</div></sc-if>
+</div>
+<nav class="nav" aria-label="Բաժիններ">
+<span class="ngroup">Այսօր</span>
+<a href="Main.dc.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="7" height="9" x="3" y="3" rx="1"></rect><rect width="7" height="5" x="14" y="3" rx="1"></rect><rect width="7" height="9" x="14" y="12" rx="1"></rect><rect width="7" height="5" x="3" y="16" rx="1"></rect></svg>Ամփոփում<span class="nbadge" aria-label="3 ամրագրում սպասում է որոշման">3</span></a>
+<span class="ngroup">Վայրը</span>
+<a href="Menu.dc.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 2v7c0 1.1.9 2 2 2h4a2 2 0 0 0 2-2V2"></path><path d="M7 2v20"></path><path d="M21 15V2a5 5 0 0 0-5 5v6c0 1.1.9 2 2 2h3Zm0 0v7"></path></svg>Ճաշացանկ<span class="nbadge" aria-label="4 անավարտ ուտեստ">4</span></a>
+<a href="Rooms.dc.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="18" height="18" x="3" y="3" rx="2"></rect><path d="M3 9h18M9 21V9"></path></svg>Սրահներ և սեղաններ</a>
+<a href="Hours.dc.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><path d="M12 6v6l4 2"></path></svg>Աշխատաժամեր</a>
+<a href="Policy.dc.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="18" height="18" x="3" y="4" rx="2"></rect><path d="M16 2v4M8 2v4M3 10h18M9 16l2 2 4-4"></path></svg>Ամրագրման կանոններ</a>
+<a href="Public.dc.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><path d="M2 12h20M12 2a15 15 0 0 1 0 20M12 2a15 15 0 0 0 0 20"></path></svg>Հանրային էջ</a>
+<span class="ngroup">Թիմ</span>
+<a href="Staff.dc.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M22 21v-2a4 4 0 0 0-3-3.9M16 3.1a4 4 0 0 1 0 7.8"></path></svg>Աշխատողներ</a>
+<span class="ngroup">Արդյունքներ</span>
+<a href="Reviews.dc.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11.5 2.3a.5.5 0 0 1 1 0l2.3 4.7 5.2.8a.5.5 0 0 1 .3.9l-3.8 3.6.9 5.2a.5.5 0 0 1-.8.6L12 15.6l-4.6 2.5a.5.5 0 0 1-.8-.6l.9-5.2L3.7 8.7a.5.5 0 0 1 .3-.9l5.2-.8z"></path></svg>Կարծիքներ<span class="nbadge" aria-label="2 բողոքարկված">2</span></a>
+<a href="Reports.dc.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 3v18h18"></path><path d="m19 9-5 5-4-4-3 3"></path></svg>Հաշվետվություններ</a>
+</nav>
+<div class="side-foot"><a class="me" href="Account.dc.html" aria-current="page" aria-label="Իմ հաշիվը"><span class="avatar" aria-hidden="true">{{ sbInit }}</span><span class="me-t"><span class="me-n">{{ myName }}</span><span class="me-r">Իմ հաշիվը</span></span></a></div>
+</aside>
+
+<main class="main" id="main">
+<div class="ph"><div><h1 class="h1">Իմ հաշիվը</h1><p class="sub">{{ sbRole }} · Cascade Cafe</p></div><button type="button" class="btn btn-sec" data-out="" onClick="{{ openOut }}"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"></path></svg>Դուրս գալ</button></div>
+
+<div class="grid">
+<div style="display: flex; flex-direction: column; gap: 16px">
+<section class="card" aria-labelledby="pd-h">
+<div class="card-h"><div><h2 class="h2" id="pd-h">Անձնական տվյալներ</h2><p class="cap">{{ emailNote }}</p></div></div>
+<form class="form" onSubmit="{{ saveName }}" novalidate="">
+<div class="row2"><div class="fld"><label for="me-name">Անուն ազգանուն<span class="req" aria-hidden="true">*</span></label><input id="me-name" class="{{ nameCls }}" value="{{ nameDraft }}" onInput="{{ onName }}" autocomplete="name" aria-invalid="{{ nameInv }}" aria-describedby="me-name-err"><sc-if value="{{ showNameErr }}" hint-placeholder-val="{{ false }}"><span class="err" id="me-name-err">Անունը չի կարող դատարկ լինել</span></sc-if></div><div class="fld"><label for="me-email">Էլ. փոստ</label><input id="me-email" class="ctl" value="{{ email }}" readonly=""></div></div>
+<div class="foot"><button type="submit" class="btn btn-pri">Պահպանել անունը</button><sc-if value="{{ nameDirty }}" hint-placeholder-val="{{ false }}"><span class="dirty">Կա չպահպանված փոփոխություն</span></sc-if><sc-if value="{{ nameSaved }}" hint-placeholder-val="{{ false }}"><span class="saved" role="status">Պահպանված է</span></sc-if></div>
+</form>
+</section>
+
+<section class="card" aria-labelledby="pw-h">
+<div class="card-h"><div><h2 class="h2" id="pw-h">Վահանակի գաղտնաբառ</h2><p class="cap">Փոխելուց հետո մյուս սարքերում կպահանջվի կրկին մուտք</p></div></div>
+<form class="form" onSubmit="{{ savePw }}" novalidate="">
+<div class="fld"><label for="pw-cur">Ընթացիկ գաղտնաբառ<span class="req" aria-hidden="true">*</span></label><input id="pw-cur" type="password" class="{{ curCls }}" autocomplete="current-password" value="{{ pwCur }}" onInput="{{ onPwCur }}" aria-invalid="{{ curInv }}" aria-describedby="pw-cur-err"><sc-if value="{{ showCurErr }}" hint-placeholder-val="{{ false }}"><span class="err" id="pw-cur-err">Գրեք ընթացիկ գաղտնաբառը</span></sc-if></div>
+<div class="row2"><div class="fld"><label for="pw-new">Նոր գաղտնաբառ<span class="req" aria-hidden="true">*</span></label><input id="pw-new" type="password" class="{{ newCls }}" autocomplete="new-password" value="{{ pwNew }}" onInput="{{ onPwNew }}" aria-invalid="{{ newInv }}" aria-describedby="pw-hint pw-new-err"><span class="help" id="pw-hint">Առնվազն 12 նիշ</span><sc-if value="{{ showNewErr }}" hint-placeholder-val="{{ false }}"><span class="err" id="pw-new-err">Կարճ է՝ առնվազն 12 նիշ</span></sc-if></div><div class="fld"><label for="pw-rep">Կրկնեք<span class="req" aria-hidden="true">*</span></label><input id="pw-rep" type="password" class="{{ repCls }}" autocomplete="new-password" value="{{ pwRep }}" onInput="{{ onPwRep }}" aria-invalid="{{ repInv }}" aria-describedby="pw-rep-err"><sc-if value="{{ showRepErr }}" hint-placeholder-val="{{ false }}"><span class="err" id="pw-rep-err">Գաղտնաբառերը չեն համընկնում</span></sc-if></div></div>
+<div class="foot"><button type="submit" class="btn btn-pri">Փոխել գաղտնաբառը</button></div>
+</form>
+</section>
+</div>
+
+<div style="display: flex; flex-direction: column; gap: 16px">
+<section class="card" aria-labelledby="pin-h">
+<div class="card-h"><div><h2 class="h2" id="pin-h">Պլանշետի PIN</h2><p class="cap">Սրահի էկրանին մտնելու համար։ Այն ոչ մի տեղ չի ցուցադրվում։</p></div></div>
+<form class="form" onSubmit="{{ savePin }}" novalidate="">
+<div class="row2 pinwrap"><div class="fld"><label for="pin-a">Նոր PIN</label><input id="pin-a" type="password" class="ctl" inputmode="numeric" maxlength="4" autocomplete="off" value="{{ pinA }}" onInput="{{ onPinA }}"></div><div class="fld"><label for="pin-b">Կրկնեք</label><input id="pin-b" type="password" class="{{ pinCls }}" inputmode="numeric" maxlength="4" autocomplete="off" value="{{ pinB }}" onInput="{{ onPinB }}" aria-invalid="{{ pinInv }}" aria-describedby="pin-err"></div></div>
+<sc-if value="{{ showPinErr }}" hint-placeholder-val="{{ false }}"><span class="err" id="pin-err">{{ pinErr }}</span></sc-if>
+<div class="foot"><button type="submit" class="btn btn-pri">Փոխել PIN-ը</button></div>
+</form>
+</section>
+
+<section class="card" aria-labelledby="lg-h">
+<div class="card-h"><div><h2 class="h2" id="lg-h">Վահանակի լեզուն</h2><p class="cap">Միայն ձեզ համար. հյուրերի հավելվածի լեզուն չի փոխվում</p></div></div>
+<fieldset class="radios"><legend class="sr">Լեզու</legend><sc-for list="{{ langs }}" as="l" hint-placeholder-count="3"><label class="{{ l.cls }}"><sc-if value="{{ l.on }}" hint-placeholder-val="{{ false }}"><input type="radio" name="ui-lang" checked="" onChange="{{ l.pick }}"></sc-if><sc-if value="{{ l.off }}" hint-placeholder-val="{{ true }}"><input type="radio" name="ui-lang" onChange="{{ l.pick }}"></sc-if>{{ l.label }}</label></sc-for></fieldset>
+</section>
+
+<section class="card" aria-labelledby="ss-h">
+<div class="card-h"><div><h2 class="h2" id="ss-h">Որտեղ եք մուտք գործած</h2></div><sc-if value="{{ hasOthers }}" hint-placeholder-val="{{ true }}"><button type="button" class="btn btn-sec btn-sm" onClick="{{ outOthers }}">Դուրս գալ մյուսներից</button></sc-if></div>
+<ul class="sess"><sc-for list="{{ sessions }}" as="x" hint-placeholder-count="2"><li><span class="ic" aria-hidden="true"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="{{ x.icon }}"></path></svg></span><span class="t"><b>{{ x.name }}</b><small>{{ x.when }}</small></span><sc-if value="{{ x.here }}" hint-placeholder-val="{{ false }}"><span class="pill p-green">Այս սարքը</span></sc-if></li></sc-for></ul>
+</section>
+</div>
+</div>
+</main>
+</div>
+
+<sc-if value="{{ outOpen }}" hint-placeholder-val="{{ false }}">
+<div class="overlay" onClick="{{ overlayClick }}" onKeyDown="{{ dlgKey }}">
+<div class="dialog" role="alertdialog" aria-modal="true" aria-labelledby="out-h" aria-describedby="out-p">
+<h2 class="h2" id="out-h">Դուրս գա՞լ վահանակից</h2>
+<p id="out-p">Չպահպանված փոփոխությունները կկորչեն։ Պլանշետի PIN-ը չի փոխվում։</p>
+<div class="acts"><button type="button" class="btn btn-sec" data-af="" onClick="{{ closeOut }}">Մնալ</button><button type="button" class="btn btn-danger" onClick="{{ doOut }}">Դուրս գալ</button></div>
+</div>
+</div>
+</sc-if>
+
+<sc-if value="{{ hasToast }}" hint-placeholder-val="{{ false }}">
+<div class="toast" role="status"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"></path></svg><span>{{ toast }}</span></div>
+</sc-if>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"role":{"editor":"enum","options":["owner","generalManager","manager"],"default":"owner","section":"Դեր"},"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    this.state = { branch: null, myName: null, nameDraft: null, nameTried: false, nameSaved: false, pwCur: '', pwNew: '', pwRep: '', pwTried: false, pinA: '', pinB: '', pinTried: false, lang: 'hy', out: false, others: true, toast: null };
+  }
+  componentWillUnmount() { clearTimeout(this._t); }
+  focusLater(sel) { setTimeout(() => { const el = sel && document.querySelector(sel); if (el) el.focus(); }, 30); }
+  say(msg) { this.setState({ toast: msg }); clearTimeout(this._t); this._t = setTimeout(() => this.setState({ toast: null }), 3500); }
+  shell() {
+    const r = this.props.role ?? 'owner';
+    const u = { owner: ['Aram Hakobyan', 'AH', 'Սեփականատեր'], generalManager: ['Lilit Sargsyan', 'LS', 'Գլխավոր մենեջեր'], manager: ['Davit Grigoryan', 'DG', 'Մասնաճյուղի մենեջեր'] }[r] || ['Aram Hakobyan', 'AH', 'Սեփականատեր'];
+    return { sbName: u[0], sbInit: u[1], sbRole: u[2], sbMulti: r !== 'manager', sbFixed: r === 'manager', sbBranch: r === 'manager' ? 'Կասկադ' : (this.state.branch || 'Կասկադ'), onBranch: (e) => this.setState({ branch: e.target.value }) };
+  }
+  renderVals() {
+    const s = this.state;
+    const sh = this.shell();
+    const role = this.props.role ?? 'owner';
+    const myName = s.myName ?? sh.sbName;
+    const draft = s.nameDraft ?? myName;
+    const email = { owner: 'aram@cascade.am', generalManager: 'lilit@cascade.am', manager: 'davit@cascade.am' }[role] || 'aram@cascade.am';
+    const nameErr = !draft.trim();
+    const curErr = !s.pwCur, newErr = s.pwNew.length < 12, repErr = !newErr && s.pwNew !== s.pwRep;
+    const pt = s.pwTried;
+    const pinErr = !/^\d{4}$/.test(s.pinA) ? 'PIN-ը ճիշտ 4 թիվ է' : s.pinA !== s.pinB ? 'Երկու PIN-ը չեն համընկնում' : '';
+    const sessions = [['Chrome · Windows', 'Երևան · հիմա', 'M2 3h20v14H2zM8 21h8M12 17v4', true]].concat(s.others ? [['Safari · iPhone', 'Երևան · երեկ, 22:14', 'M7 2h10a2 2 0 0 1 2 2v16a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2zM12 18h.01', false], ['Chrome · macOS', 'Երևան · Հոկտ 14', 'M2 3h20v14H2zM8 21h8M12 17v4', false]] : []);
+    return Object.assign(sh, {
+      myName: myName, email: email,
+      emailNote: role === 'owner' ? 'Էլ. փոստը փոխում է Yalla-ի թիմը' : 'Էլ. փոստը փոխում է սեփականատերը՝ նոր մուտքի հղումով',
+      nameDraft: draft, onName: (e) => this.setState({ nameDraft: e.target.value, nameSaved: false }),
+      nameDirty: draft !== myName && !s.nameSaved, nameSaved: s.nameSaved,
+      showNameErr: s.nameTried && nameErr, nameInv: s.nameTried && nameErr ? 'true' : 'false', nameCls: 'ctl' + (s.nameTried && nameErr ? ' bad' : ''),
+      saveName: (e) => { e.preventDefault(); if (nameErr) { this.setState({ nameTried: true }); this.focusLater('#me-name'); return; } this.setState({ myName: draft.trim(), nameDraft: draft.trim(), nameTried: false, nameSaved: true }); },
+      pwCur: s.pwCur, pwNew: s.pwNew, pwRep: s.pwRep,
+      onPwCur: (e) => this.setState({ pwCur: e.target.value }), onPwNew: (e) => this.setState({ pwNew: e.target.value }), onPwRep: (e) => this.setState({ pwRep: e.target.value }),
+      showCurErr: pt && curErr, showNewErr: pt && newErr, showRepErr: pt && repErr,
+      curInv: pt && curErr ? 'true' : 'false', newInv: pt && newErr ? 'true' : 'false', repInv: pt && repErr ? 'true' : 'false',
+      curCls: 'ctl' + (pt && curErr ? ' bad' : ''), newCls: 'ctl' + (pt && newErr ? ' bad' : ''), repCls: 'ctl' + (pt && repErr ? ' bad' : ''),
+      savePw: (e) => { e.preventDefault(); const bad = curErr ? '#pw-cur' : newErr ? '#pw-new' : repErr ? '#pw-rep' : null; if (bad) { this.setState({ pwTried: true }); this.focusLater(bad); return; } this.setState({ pwCur: '', pwNew: '', pwRep: '', pwTried: false, others: false }); this.say('Գաղտնաբառը փոխվեց · մյուս սարքերից դուրս եկաք'); },
+      pinA: s.pinA, pinB: s.pinB,
+      onPinA: (e) => this.setState({ pinA: e.target.value.replace(/\D/g, '').slice(0, 4) }), onPinB: (e) => this.setState({ pinB: e.target.value.replace(/\D/g, '').slice(0, 4) }),
+      showPinErr: s.pinTried && !!pinErr, pinErr: pinErr, pinInv: s.pinTried && pinErr ? 'true' : 'false', pinCls: 'ctl' + (s.pinTried && pinErr ? ' bad' : ''),
+      savePin: (e) => { e.preventDefault(); if (pinErr) { this.setState({ pinTried: true }); this.focusLater(/^\d{4}$/.test(s.pinA) ? '#pin-b' : '#pin-a'); return; } this.setState({ pinA: '', pinB: '', pinTried: false }); this.say('PIN-ը փոխվեց · օգտագործեք այն պլանշետի հաջորդ մուտքի ժամանակ'); },
+      langs: [['hy', 'Հայերեն', 'Վահանակը հիմա հայերեն է'], ['ru', 'Русский', 'Панель теперь на русском'], ['en', 'English', 'The console is now in English']].map((x) => ({ label: x[1], on: s.lang === x[0], off: s.lang !== x[0], cls: 'radio' + (s.lang === x[0] ? ' on' : ''), pick: () => { this.setState({ lang: x[0] }); this.say(x[2]); } })),
+      sessions: sessions.map((x) => ({ name: x[0], when: x[1], icon: x[2], here: x[3] })),
+      hasOthers: s.others, outOthers: () => { this.setState({ others: false }); this.say('Մյուս 2 սարքերից դուրս եկաք'); },
+      outOpen: s.out, openOut: () => { this.setState({ out: true }); this.focusLater('.dialog [data-af]'); },
+      closeOut: () => { this.setState({ out: false }); this.focusLater('[data-out]'); },
+      doOut: () => { this.setState({ out: false }); this.say('Դուրս եկաք · կբացվի մուտքի էջը'); },
+      overlayClick: (e) => { if (e.target === e.currentTarget) { this.setState({ out: false }); this.focusLater('[data-out]'); } },
+      dlgKey: (e) => { if (e.key === 'Escape') { e.preventDefault(); this.setState({ out: false }); this.focusLater('[data-out]'); return; } if (e.key === 'Tab') { const b = Array.from(e.currentTarget.querySelectorAll('button')); const at = document.activeElement; if (e.shiftKey && at === b[0]) { e.preventDefault(); b[b.length - 1].focus(); } else if (!e.shiftKey && at === b[b.length - 1]) { e.preventDefault(); b[0].focus(); } } },
+      hasToast: !!s.toast, toast: s.toast || ''
+    });
+  }
+}
+</script>
+</body>
+</html>

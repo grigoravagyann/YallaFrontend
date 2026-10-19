@@ -1,0 +1,25 @@
+{
+  "v": 3,
+  "createdOnFiles": { "v": 1, "at": "2026-10-18T09:30:00Z" },
+  "title": "Yalla Venue Console",
+  "launch": { "view": "canvas" },
+  "pages": [],
+  "boards": {
+    "Main.dc.html": { "x": 0, "y": 0, "w": 1440, "h": 1300, "title": "Ամփոփում", "expand": "fill", "is_interactive": true },
+    "Menu.dc.html": { "x": 1520, "y": 0, "w": 1440, "h": 1200, "title": "Ճաշացանկ", "expand": "fill", "is_interactive": true },
+    "Rooms.dc.html": { "x": 3040, "y": 0, "w": 1440, "h": 1150, "title": "Սրահներ և սեղաններ", "expand": "fill", "is_interactive": true },
+    "Hours.dc.html": { "x": 4560, "y": 0, "w": 1440, "h": 1000, "title": "Աշխատաժամեր", "expand": "fill", "is_interactive": true },
+    "Policy.dc.html": { "x": 6080, "y": 0, "w": 1440, "h": 1500, "title": "Ամրագրման կանոններ", "expand": "fill", "is_interactive": true },
+    "Public.dc.html": { "x": 0, "y": 1920, "w": 1440, "h": 1700, "title": "Հանրային էջ", "expand": "fill", "is_interactive": true },
+    "Reviews.dc.html": { "x": 1520, "y": 1920, "w": 1440, "h": 1100, "title": "Կարծիքներ", "expand": "fill", "is_interactive": true },
+    "Staff.dc.html": { "x": 3040, "y": 1920, "w": 1440, "h": 1300, "title": "Աշխատողներ", "expand": "fill", "is_interactive": true },
+    "Reports.dc.html": { "x": 4560, "y": 1920, "w": 1440, "h": 2000, "title": "Հաշվետվություններ", "expand": "fill", "is_interactive": true },
+    "Account.dc.html": { "x": 6080, "y": 1920, "w": 1440, "h": 900, "title": "Իմ հաշիվը", "expand": "fill", "is_interactive": true }
+  },
+  "order": ["Main.dc.html", "Menu.dc.html", "Rooms.dc.html", "Hours.dc.html", "Policy.dc.html", "Public.dc.html", "Reviews.dc.html", "Staff.dc.html", "Reports.dc.html", "Account.dc.html"],
+  "notes": {
+    "row1": { "x": 0, "y": -300, "text": "Վայրի վահանակ · Այսօր և վայրը", "kind": "title1", "maxW": 7520 },
+    "row2": { "x": 0, "y": 1620, "text": "Էջ, թիմ և արդյունքներ", "kind": "title1", "maxW": 7520 }
+  },
+  "designSystems": []
+}

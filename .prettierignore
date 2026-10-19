@@ -30,3 +30,4 @@ apps/web/src/tokens.generated.css
 # The approved console design (artboards, checks, handoff), kept byte for byte as
 # exported so it can be diffed against the live design.
 docs/design/console/
+docs/design/venue-console/
