@@ -10,6 +10,7 @@ import {
   initialCommandState,
   isQueueable,
   isTableAction,
+  type CommandAuthor,
   type CommandState,
   type ConflictEntry,
   type NewCommand,
@@ -60,6 +61,8 @@ export type CommandAction =
       readonly atMs: number;
       /** The browser said there was no connection when the waiter tapped. */
       readonly takenOffline: boolean;
+      /** Who is signed in. Kept with the command; see `conflictPolicy.ts`. */
+      readonly by?: CommandAuthor | null | undefined;
     }
   | { readonly type: 'syncStarted' }
   | { readonly type: 'syncFinished' }
@@ -78,8 +81,27 @@ export type CommandAction =
       readonly refusal?: ConflictEntry['refusal'];
     }
   | { readonly type: 'discardConflict'; readonly id: string }
-  /** "Apply anyway": back to the queue with no precondition. */
-  | { readonly type: 'retryConflict'; readonly id: string; readonly atMs: number };
+  /**
+   * "Apply anyway": back to the queue with no precondition, under the name of
+   * the person who chose it.
+   */
+  | {
+      readonly type: 'retryConflict';
+      readonly id: string;
+      readonly atMs: number;
+      readonly by?: CommandAuthor | null | undefined;
+    }
+  /**
+   * "Send it under my name": somebody else's queued command, taken on by the
+   * person signed in now. Same command, same id — only whose it is changes.
+   */
+  | { readonly type: 'claimed'; readonly id: string; readonly by: CommandAuthor }
+  /**
+   * A person chose to drop somebody else's queued command, from the conflicts
+   * screen. The one way out of the queue that is neither sent nor refused, and
+   * it is a person's choice, never the device's.
+   */
+  | { readonly type: 'dropped'; readonly id: string };
 
 export function commandReducer(state: CommandState, action: CommandAction): CommandState {
   switch (action.type) {
@@ -134,6 +156,7 @@ export function commandReducer(state: CommandState, action: CommandAction): Comm
         precondition: action.command.precondition,
         subject: action.command.subject,
         body: action.command.body,
+        ...(action.by ? { by: action.by } : {}),
       };
 
       return { ...state, queue: [...state.queue, queued], nextSeq: state.nextSeq + 1 };
@@ -207,11 +230,39 @@ export function commandReducer(state: CommandState, action: CommandAction): Comm
             // pretending otherwise would replay it into the wrong past.
             seq: state.nextSeq,
             attempts: 0,
+            // A decision made now, looking at the table as it is: not a command
+            // that waited. Left `takenOffline`, it went out `queued` with no
+            // precondition, which the server refuses with a 400 (FT4 review B1).
+            takenOffline: false,
+            // Whoever chose to send it is who sends it.
+            ...(action.by ? { by: action.by } : {}),
           },
         ],
         nextSeq: state.nextSeq + 1,
       };
     }
+
+    case 'claimed': {
+      // The tapped command, and every command of somebody else's ahead of it
+      // on the same table or tab: it cannot go before them, and claiming only
+      // it would leave it waiting while the card said it was on its way.
+      const target = state.queue.find((command) => command.id === action.id);
+      if (!target) return state;
+      return {
+        ...state,
+        queue: state.queue.map((command) =>
+          command.scope === target.scope &&
+          command.seq <= target.seq &&
+          command.by &&
+          command.by.staffMemberId !== action.by.staffMemberId
+            ? { ...command, by: action.by }
+            : command,
+        ),
+      };
+    }
+
+    case 'dropped':
+      return { ...state, queue: state.queue.filter((command) => command.id !== action.id) };
 
     default:
       return state;

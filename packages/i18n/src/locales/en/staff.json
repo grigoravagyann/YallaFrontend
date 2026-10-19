@@ -135,10 +135,66 @@
       "party_one": "{{count}} guest",
       "party_other": "{{count}} guests",
       "late": "Late · booked {{time}}"
-    }
+    },
+    "heldMark": "waiting for {{name}}"
   },
   "kitchen": {
-    "title": "Kitchen"
+    "title": "Kitchen",
+    "board": "Orders in the kitchen",
+    "counts": {
+      "label": "Orders by wait",
+      "fresh_one": "{{count}} new",
+      "fresh_other": "{{count}} new",
+      "waiting_one": "{{count}} waiting",
+      "waiting_other": "{{count}} waiting",
+      "late_one": "{{count}} running late",
+      "late_other": "{{count}} running late"
+    },
+    "hint": {
+      "lateAfter_one": "Late after {{count}} minute.",
+      "lateAfter_other": "Late after {{count}} minutes.",
+      "oldestLeft": "Oldest on the left,",
+      "byTable": "In table order,",
+      "more_one": "{{count}} more to the right — swipe.",
+      "more_other": "{{count}} more to the right — swipe.",
+      "all": "all of them are showing."
+    },
+    "sort": {
+      "label": "Order",
+      "age": "By wait",
+      "table": "By table"
+    },
+    "band": {
+      "fresh": "new",
+      "waiting": "waiting",
+      "late": "running late",
+      "ready": "ready",
+      "unsent": "not sent yet"
+    },
+    "ticket": {
+      "name": "Table {{label}}, {{minutes}}, {{band}}, {{items}}",
+      "minutes_one": "{{count}} minute",
+      "minutes_other": "{{count}} minutes",
+      "age_one": "{{count}} min",
+      "age_other": "{{count}} min",
+      "late": "{{age}} · late",
+      "sent": "{{time}} · {{name}}"
+    },
+    "fromApp": "From the app",
+    "allergens": "Allergens: {{list}}",
+    "ready": "Ready",
+    "readyName": "Ready · table {{label}}",
+    "sendName": "Send to the kitchen · table {{label}}",
+    "readyWaiting": "Ready · waiting for the waiter",
+    "servedByWaiter": "The waiter marks it served",
+    "servedFromRail": "Mark it served from the floor's Now list",
+    "newHint": "Not sent to the kitchen yet: waiting for its waiter",
+    "empty": "No orders. New ones will appear here with a sound.",
+    "emptyQuiet": "No orders.",
+    "readyNotice": "Table {{label}} · ready, the waiter can see it",
+    "readyQueued": "Table {{label}} · ready · it will be sent when the connection is back",
+    "arrived": "New in the kitchen at {{time}}: table {{labels}}",
+    "allergensUnknown": "Allergens: check before plating"
   },
   "notice": {
     "race": "Table {{label}} was taken by someone else just now.",
@@ -162,7 +218,8 @@
       "freed": "Table {{label}} is free",
       "queued": "{{text}} · sent when the connection returns"
     },
-    "releaseNotDue": "Table {{label}} · not due until {{time}}. Nothing was released."
+    "releaseNotDue": "Table {{label}} · not due until {{time}}. Nothing was released.",
+    "behindHeld": "Table {{label}} · waits for an action of {{name}}’s first · decide on “Needs a decision”"
   },
   "unresolved": {
     "title": "Needs resolving",
@@ -263,9 +320,8 @@
   },
   "conflicts": {
     "title": "Needs a decision",
-    "subtitle": "These could not be applied. Nothing here resolves on its own.",
-    "empty": "Nothing is waiting on you.",
-    "discard": "Discard this action",
+    "empty": "Nothing is waiting on you",
+    "discard": "Discard the action",
     "applyAnyway": {
       "seatWalkIn": "Seat them anyway",
       "seatReservation": "Seat them anyway",
@@ -274,13 +330,9 @@
       "releaseHold": "Release it anyway",
       "freeTable": "Free it anyway",
       "outOfService": "Mark it out of service anyway",
-      "returnToService": "Return it anyway",
-      "placeOrder_one": "Send the order anyway",
-      "placeOrder_other": "Send the order anyway",
-      "setOrderStatus": "Move it along anyway",
-      "acknowledgeServiceRequest": "Pick it up anyway"
+      "returnToService": "Return it anyway"
     },
-    "applyAnywayNote": "“Send it anyway” resends without checking the table's state.",
+    "applyAnywayNote": "“{{label}}” sends it again without checking the table.",
     "reason": {
       "refused": "The server would not accept it from the table's current state."
     },
@@ -293,9 +345,13 @@
     "head": {
       "state": "Table {{label}} is {{state}}",
       "changedBack": "Table {{label}} is {{state}} again, but it has been used since",
-      "unknown": "Table {{label}}'s state could not be read"
+      "unknown": "Table {{label}}'s state could not be read",
+      "order": "Table {{label}} · the order was not accepted",
+      "orderMoved": "Table {{label}} · the order had moved on",
+      "call": "Table {{label}} · the call was already answered",
+      "gone": "Table {{label}} · it is no longer there",
+      "forbidden": "Table {{label}} · not allowed under this sign-in"
     },
-    "by": " — {{name}}",
     "notApplied": "Your “{{action}}” from {{time}} was not applied.",
     "action": {
       "seatWalkIn": "seat a walk-in",
@@ -312,7 +368,98 @@
       "acknowledgeServiceRequest": "pick up the call",
       "recordCashPayment": "record a cash payment"
     },
-    "applyAnywayGeneric": "Send it anyway"
+    "sub": "Actions that wait for a decision",
+    "mainLabel": "What needs a decision",
+    "intro": "While the connection was down the tablet kept these actions. The server did not apply them. Nothing here resolves on its own.",
+    "emptyAll": "Every action has been applied.",
+    "emptyWaiting_one": "{{count}} action is waiting to be sent.",
+    "emptyWaiting_other": "{{count}} actions are waiting to be sent.",
+    "backName": {
+      "floor": "Back to the floor",
+      "kitchen": "Back to the kitchen"
+    },
+    "notAppliedBy": "{{name}}’s “{{action}}” from {{time}} was not applied.",
+    "aGuest": "A guest",
+    "held": {
+      "head": "Waiting for {{name}}",
+      "what": "{{name}}’s “{{action}}” from {{time}} has not been sent: it was taken under {{name}}’s sign-in.",
+      "why": "It goes by itself when {{name}} signs in again. Or send it now under your name, or discard it.",
+      "claim": "Send under my name",
+      "orderNote": "It goes under your name, unless its first try already reached the kitchen.",
+      "notForRole": "Your role cannot send this. {{name}} can, or a waiter or a manager."
+    },
+    "why": {
+      "statusChanged": "Somebody else changed the table while your action waited.",
+      "changedBack": "Another party sat here and left after the tap. Sending it now would act on the table as it is now.",
+      "gone": {
+        "table": "The table is no longer on the floor plan.",
+        "order": "The order is no longer on the queue: it may have been voided.",
+        "call": "The call is no longer there."
+      },
+      "forbidden": "This sign-in may not do it. Somebody whose role allows it can.",
+      "orderMoved": "Somebody else had already moved this order on.",
+      "call": "Somebody else had already answered this call.",
+      "other": "The server did not accept it."
+    },
+    "noAnyway": {
+      "money": "Not sent again from here: an order changes a bill. If it is still wanted, take it again at the table.",
+      "otherParty": "Not sent again from here: it would act on whoever is at the table now.",
+      "notFromHere": "It cannot be sent again: the table is {{state}} now.",
+      "sameAnswer": "Sending it again would get the same answer."
+    },
+    "result": {
+      "discarded": "Discarded. Nothing was sent.",
+      "discardedTable": "Discarded. The table stays as the server has it.",
+      "sent": "Sent without the check. Look at the table on the floor.",
+      "claimed": "Under your name; on its way.",
+      "claimedQueued": "Under your name now; it goes when the connection is back."
+    },
+    "toast": {
+      "discarded": "Table {{label}} · action discarded",
+      "sent": "Table {{label}} · sent anyway",
+      "claimed": "Table {{label}} · under your name"
+    },
+    "queue": {
+      "title": "The queue",
+      "summary": "{{waiting}} waiting · {{refused}} refused · {{sent}} sent",
+      "empty": "Nothing in the queue.",
+      "state": {
+        "waiting": "waiting",
+        "held": "waiting for {{name}}",
+        "sent": "sent",
+        "refused": "refused · needs a decision"
+      },
+      "what": {
+        "seatWalkIn": "Seat · table {{label}}",
+        "seatWalkInParty_one": "Seat · table {{label}} · {{count}} guest",
+        "seatWalkInParty_other": "Seat · table {{label}} · {{count}} guests",
+        "seatReservation": "Seat the booking · table {{label}}",
+        "seatHeldParty": "Seat the held party · table {{label}}",
+        "seatHeldPartyParty_one": "Seat the held party · table {{label}} · {{count}} guest",
+        "seatHeldPartyParty_other": "Seat the held party · table {{label}} · {{count}} guests",
+        "hold": "Hold · table {{label}}",
+        "releaseHold": "Release the hold · table {{label}}",
+        "freeTable": "Free · table {{label}}",
+        "outOfService": "Out of service · table {{label}}",
+        "returnToService": "Back in service · table {{label}}",
+        "placeOrder_one": "Order · table {{label}} · {{count}} dish",
+        "placeOrder_other": "Order · table {{label}} · {{count}} dishes",
+        "acknowledgeServiceRequest": "On my way · table {{label}}",
+        "recordCashPayment": "Cash · table {{label}}",
+        "status": {
+          "new": "Order back to new · table {{label}}",
+          "inKitchen": "To the kitchen · table {{label}}",
+          "ready": "Ready · table {{label}}",
+          "served": "Served · table {{label}}",
+          "voided": "Order voided · table {{label}}"
+        }
+      }
+    },
+    "offlineLead": "Offline.",
+    "offlineBody": "Seating, orders and freeing a table are kept. Cash, booking answers and sign-in wait for the connection.",
+    "queueHint": "The queue goes by itself when the connection returns. No need to try again.",
+    "introHeld": "These were taken under somebody else’s sign-in. Each goes by itself when its person signs in again, or when you decide here.",
+    "someone": "somebody"
   },
   "order": {
     "title": "Order · table {{label}}",

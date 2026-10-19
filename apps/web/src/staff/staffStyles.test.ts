@@ -30,6 +30,9 @@ const REDESIGNED = [
   'TabPanel.tsx',
   'CashKeypad.tsx',
   'OverlayBar.tsx',
+  'OrderQueuePanel.tsx',
+  'KitchenRoute.tsx',
+  'ConflictList.tsx',
 ];
 
 /** Comments may quote a value; only code is checked. */

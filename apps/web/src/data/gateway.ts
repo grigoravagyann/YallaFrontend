@@ -95,6 +95,8 @@ export const staffDataGateway: StaffGateway = resolveStaffGateway({
   // Mock only: an earlier-guest request and a promised free-by on the floor,
   // so booking times can be walked. Never in tests, which read the plain room.
   mockBookingTimes: import.meta.env.MODE !== 'test',
+  // Mock only: a busy kitchen pass — late tickets, notes, one from the app.
+  mockKitchen: import.meta.env.MODE !== 'test',
   persist: mockPersistence('staff'),
 });
 

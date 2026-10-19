@@ -31,6 +31,8 @@ export interface ResolveStaffGatewayOptions {
    * floor, so booking times can be walked. See `StaffMockOptions.seedBookingTimes`.
    */
   readonly mockBookingTimes?: boolean | undefined;
+  /** Mock only: a busy kitchen pass. See `StaffMockOptions.seedKitchen`. */
+  readonly mockKitchen?: boolean | undefined;
 }
 
 /**
@@ -51,6 +53,7 @@ export function resolveStaffGateway(options: ResolveStaffGatewayOptions): StaffG
       ...(options.mockRaceOnTables ? { raceOnTables: options.mockRaceOnTables } : {}),
       ...(options.mockChurnOnTables ? { churnOnTables: options.mockChurnOnTables } : {}),
       ...(options.mockBookingTimes ? { seedBookingTimes: true } : {}),
+      ...(options.mockKitchen ? { seedKitchen: true } : {}),
     };
     if (options.persist) {
       return persistMockGateway<StaffGateway>({

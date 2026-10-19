@@ -189,9 +189,19 @@ export interface SetOrderStatusCommand {
 
 export interface OrderQueueLine {
   readonly lineId: string;
+  /**
+   * The dish, so the kitchen board can warn about its allergens from the menu.
+   * Optional because a queue read before this was mapped has none.
+   */
+  readonly menuItemId?: string | undefined;
   readonly name: string;
   readonly quantity: number;
   readonly note: string | null;
+  /**
+   * The guest the line is for, or null on a shared or table-attributed line.
+   * An id only: the kitchen reads no names, so the board does not show it.
+   */
+  readonly onBehalfOfParticipantId?: string | null | undefined;
 }
 
 /** One order as the counter panel lists it. `Yalla.Application.Ordering.KitchenOrderView`. */
@@ -213,6 +223,13 @@ export interface OrderQueueEntry {
   /** How long it has been waiting, computed by the server at read time. */
   readonly waitingMinutes: number;
   readonly lines: readonly OrderQueueLine[];
+  /**
+   * Who sent it: the waiter's full name as the PIN roster shows it, or `null`
+   * when a diner ordered from the app (absent on the wire; floor tablet gap 2).
+   * Read as the person is now, so a rename shows. Optional for the mocks and
+   * fixtures written before it existed.
+   */
+  readonly placedByName?: string | null | undefined;
 }
 
 // ---------------------------------------------------------------------------

@@ -50,12 +50,15 @@ import { branchToday, decidedNotice } from './approvalRequests';
 import { primeChime } from './chime';
 import { ConflictList } from './ConflictList';
 import { useCommandQueue } from './commands/useCommandQueue';
-import type { NewCommand, QueuedCommand } from './commands/types';
+import type { CommandRefusal, NewCommand, OrderRefusal, QueuedCommand } from './commands/types';
 import { applyFloorChanges } from './live/sequence';
 import { createPollingLiveStream } from './live/stream';
 import { FloorRail, type UnresolvedTab } from './FloorRail';
 import type { CashOutcome } from './CashKeypad';
 import { OrderEntry, type OrderSent } from './OrderEntry';
+import { ageOrders, projectOrders } from './kitchenBoard';
+import { useMinuteClock } from './useMinuteClock';
+import { useBehindHeldNotice, useCancelReadsWhileLocked, useHeldMarks } from './useHandover';
 import { kitchenWaiting, OrderQueuePanel } from './OrderQueuePanel';
 import { StaffHeader, type StaffView } from './StaffHeader';
 import { TableActionPanel } from './TableActionPanel';
@@ -114,6 +117,16 @@ interface Notice {
   readonly text: string;
   /** What a table action was sent to do — not yet what the server did. */
   readonly acted?: boolean;
+}
+
+/**
+ * An order's refusal as the order screen words it. A queued order is only
+ * ever refused with its own reasons (`sync.ts`); anything else reads "other".
+ */
+function orderRefusalOf(refusal: CommandRefusal | undefined): OrderRefusal {
+  return refusal && refusal.kind !== 'notFound' && refusal.kind !== 'forbidden'
+    ? refusal
+    : { kind: 'other' };
 }
 
 /** The minute an instant falls in, so a poll every few seconds re-renders once a minute. */
@@ -293,6 +306,12 @@ export function FloorRoute({ identity, device = null, paused }: FloorRouteProps)
     [branchId, queryClient],
   );
 
+  // Who is signed in: stamped on every command, and the person whose queued
+  // commands are sent (`commands/conflictPolicy.ts`).
+  const actor = useMemo(
+    () => ({ staffMemberId: identity.staffMemberId, name: identity.fullName }),
+    [identity.staffMemberId, identity.fullName],
+  );
   const queue = useCommandQueue({
     gateway,
     floor,
@@ -300,7 +319,16 @@ export function FloorRoute({ identity, device = null, paused }: FloorRouteProps)
     onLiveRace,
     onSettled,
     enabled: active,
+    actor,
   });
+  const heldMarks = useHeldMarks(queue);
+  useBehindHeldNotice(queue, identity.staffMemberId, (command, name) =>
+    setNotice({
+      kind: 'warning',
+      text: t('notice.behindHeld', { label: command.subject.tableLabel ?? '', name }),
+    }),
+  );
+  useCancelReadsWhileLocked(paused, branchId);
 
   // --- Live updates ---------------------------------------------------------
 
@@ -450,6 +478,7 @@ export function FloorRoute({ identity, device = null, paused }: FloorRouteProps)
    * rebooted offline there would be nothing in memory to fall back to either.
    */
   const menu = useCachedMenu(branchId, active);
+  const minute = useMinuteClock();
 
   const ordersQuery = useOrderQueue(branchId, active);
   const requestsQuery = useServiceRequests(branchId, active);
@@ -675,6 +704,14 @@ export function FloorRoute({ identity, device = null, paused }: FloorRouteProps)
           text: t('rail.ready.servedNotice', { label: order.tableLabel }),
         });
       }
+      if (next === 'ready') {
+        setNotice({
+          kind: 'info',
+          text: t(queue.online ? 'kitchen.readyNotice' : 'kitchen.readyQueued', {
+            label: order.tableLabel,
+          }),
+        });
+      }
     },
     [branchId, queryClient, queue, t],
   );
@@ -761,7 +798,7 @@ export function FloorRoute({ identity, device = null, paused }: FloorRouteProps)
       count: orderSend.count,
       atUtc: orderSend.atUtc,
       state: conflict ? 'refused' : waiting ? (queue.online ? 'sending' : 'saved') : 'sent',
-      refusal: conflict ? (conflict.refusal ?? { kind: 'other' }) : null,
+      refusal: conflict ? orderRefusalOf(conflict.refusal) : null,
     };
   }, [orderSend, queue.state, queue.online]);
 
@@ -858,6 +895,13 @@ export function FloorRoute({ identity, device = null, paused }: FloorRouteProps)
     .filter(Boolean)
     .join(' · ');
 
+  // The board with this tablet's unsent moves applied and marked, as the
+  // kitchen's own screen draws it.
+  // Offline the last read's minutes would freeze; they carry on from it.
+  const sinceRead = ordersQuery.dataUpdatedAt
+    ? Math.max(0, Math.floor((minute.getTime() - ordersQuery.dataUpdatedAt) / 60_000))
+    : 0;
+  const board = projectOrders(ageOrders(ordersQuery.data ?? [], sinceRead), queue.state.queue);
   const orders = ordersQuery.data ?? [];
   const ordersLoading = ordersQuery.isLoading && !isOfflinePaused(ordersQuery);
   const ordersFailed = ordersQuery.isError || (isOfflinePaused(ordersQuery) && !ordersQuery.data);
@@ -877,8 +921,11 @@ export function FloorRoute({ identity, device = null, paused }: FloorRouteProps)
             floorQuery.dataUpdatedAt,
           ) || null
         }
-        pending={queue.pending}
-        conflicts={queue.conflicts}
+        // A command waiting for its person is not waiting to sync: it is on
+        // the conflicts chip, and counted there alone.
+        pending={queue.pending - queue.held.length}
+        // Held commands need a decision too: whose name they go under.
+        conflicts={queue.conflicts + queue.held.length}
         online={queue.online}
         onOpenConflicts={() => setOverlay('conflicts')}
         onRefresh={() => void floorQuery.refetch()}
@@ -894,7 +941,10 @@ export function FloorRoute({ identity, device = null, paused }: FloorRouteProps)
       {/* Never over the PIN gate: a notice that lands as the tablet locks is
           somebody else's news, and the next person should not read it. */}
       {notice && !paused ? (
-        <p className={`floor-notice notice-${notice.kind}`} role="status">
+        <p
+          className={`floor-notice notice-${notice.kind}${view === 'kitchen' ? ' is-wide' : ''}`}
+          role="status"
+        >
           {notice.text}
         </p>
       ) : null}
@@ -908,10 +958,14 @@ export function FloorRoute({ identity, device = null, paused }: FloorRouteProps)
 
       {view === 'kitchen' ? (
         // The kitchen board as the kitchen sees it, from the floor's own queue
-        // and orders.
-        <div className="floor-body kitchen-body">
+        // and orders. Quiet: the floor's chime is for bookings.
+        <div className="kitchen-body">
           <OrderQueuePanel
-            orders={orders}
+            orders={board.orders}
+            pendingOrderIds={board.pendingOrderIds}
+            heldOrders={heldMarks.orders}
+            onUnknownDish={menu.refetch}
+            menu={menu.data}
             timeZoneId={timeZoneId}
             role={identity.role}
             onAdvance={advanceOrder}
@@ -934,6 +988,7 @@ export function FloorRoute({ identity, device = null, paused }: FloorRouteProps)
                 tables={plan.tables}
                 selectedTableId={selection?.tableId ?? null}
                 pendingTableIds={pendingTableIds}
+                heldTables={heldMarks.tables}
                 onSelect={(tableId) => setSelection({ tableId })}
                 room={room}
                 onRoom={setRoom}
@@ -1077,12 +1132,24 @@ export function FloorRoute({ identity, device = null, paused }: FloorRouteProps)
       {overlay === 'conflicts' ? (
         <ConflictList
           conflicts={queue.state.conflicts}
+          held={queue.held}
+          queue={queue.state.queue}
+          recent={queue.recent}
+          online={queue.online}
+          actorId={identity.staffMemberId}
+          role={identity.role}
           timeZoneId={timeZoneId}
+          backTo="floor"
           onDiscard={queue.discard}
           onApplyAnyway={(id) => {
             queue.applyAnyway(id);
             queue.sync();
           }}
+          onClaim={(id) => {
+            queue.claim(id);
+            queue.sync();
+          }}
+          onDrop={queue.drop}
           onClose={() => setOverlay('none')}
         />
       ) : null}

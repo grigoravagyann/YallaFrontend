@@ -100,6 +100,18 @@ export interface CommandSubject {
   readonly itemCount?: number | undefined;
 }
 
+/**
+ * Who took a command: the person signed in when it was tapped.
+ *
+ * A tablet is shared, and a command queued offline can outlive a sign-in. It is
+ * sent under its own person's sign-in, or under somebody else's only when that
+ * somebody says so on the conflicts screen (`conflictPolicy.ts`).
+ */
+export interface CommandAuthor {
+  readonly staffMemberId: string;
+  readonly name: string;
+}
+
 export interface QueuedCommand {
   /** The `clientCommandId`. Generated once per tap and reused on every retry. */
   readonly id: string;
@@ -135,6 +147,11 @@ export interface QueuedCommand {
   readonly takenOffline: boolean;
   readonly subject: CommandSubject;
   readonly body: StaffCommandBody;
+  /**
+   * Who took it. Absent on a command a build from before this was kept queued
+   * — sent as it always was — and when nobody is signed in (the mock).
+   */
+  readonly by?: CommandAuthor | null | undefined;
 }
 
 /** A command whose precondition no longer holds. Never resolved automatically. */
@@ -165,12 +182,17 @@ export interface ConflictEntry {
    */
   readonly reason: 'precondition' | 'conflict' | 'refused';
   /**
-   * For a refused order, what the server said was wrong with it, so the order
-   * screen can say it in words. Absent on everything else, and on entries a
-   * build from before this field stored.
+   * What the server said was wrong, so the order screen and the conflicts
+   * screen can say it in words: an order's own reason, or that the thing acted
+   * on is gone (404) or that this sign-in may not do it (403). Absent where the
+   * server gave nothing more, and on entries a build from before this stored.
    */
-  readonly refusal?: OrderRefusal | undefined;
+  readonly refusal?: CommandRefusal | undefined;
 }
+
+/** Why the server refused a command, beyond its status. */
+export type CommandRefusal =
+  OrderRefusal | { readonly kind: 'notFound' } | { readonly kind: 'forbidden' };
 
 /** Why the server would not take an order. The whole send was refused; nothing was placed. */
 export type OrderRefusal =

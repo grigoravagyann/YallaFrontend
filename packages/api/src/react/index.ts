@@ -1309,6 +1309,12 @@ export function useFloorRejectReservation(branchId: string | undefined) {
 
 export interface UseStaffMenuOptions {
   /**
+   * Re-read on a timer, foreground only. The kitchen board warns about each
+   * dish's allergens from this menu, and a pass tablet on a stand never gets
+   * a window focus to refresh it by (FT4 review S4).
+   */
+  readonly refetchIntervalMs?: number | undefined;
+  /**
    * A menu this device already has, from durable storage.
    *
    * The reason order entry works with the wifi off. TanStack Query does not
@@ -1337,6 +1343,9 @@ export function useStaffMenu(branchId: string | undefined, options: UseStaffMenu
     queryFn: () => gateway.getMenu(branchId!),
     enabled: Boolean(branchId),
     staleTime: staleTime.reference,
+    ...(options.refetchIntervalMs
+      ? { refetchInterval: options.refetchIntervalMs, refetchIntervalInBackground: false }
+      : {}),
     ...(seed
       ? {
           initialData: seed,

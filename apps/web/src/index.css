@@ -514,17 +514,6 @@ select {
   box-shadow: var(--shadow-lift);
 }
 
-/* Landscape-first, but a plain wrapping flex row: in portrait the panel stacks
-   under the floor rather than squeezing it into an unusable column. */
-.floor-body {
-  display: flex;
-  flex: 1;
-  gap: var(--space-lg);
-  padding: var(--space-lg);
-  min-height: 0;
-  flex-wrap: wrap;
-}
-
 .floor-note {
   display: flex;
   flex-direction: column;
@@ -535,26 +524,6 @@ select {
   font-size: var(--font-size-lg);
   line-height: var(--line-height-lg);
   color: var(--color-muted-foreground);
-}
-
-.floor-panel {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-lg);
-  flex: 1 1 300px;
-  min-width: 280px;
-}
-
-/* The kitchen screen is the queue alone: the panel takes the whole row, and the
-   cards tile across it so a landscape tablet on the pass shows a service's worth
-   at once. */
-.kitchen-body .floor-panel {
-  flex: 1 1 100%;
-}
-
-.kitchen-body .queue-list {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
 }
 
 .floor-todo {
@@ -1119,15 +1088,6 @@ fieldset.editor-body:disabled {
   width: 100%;
 }
 
-/* Destructive actions get a gap above them rather than a place in the row.
-   A waiter's thumb travelling to "take an order" must not be able to overshoot
-   into "free the table". */
-.danger-spaced {
-  margin-top: var(--space-lg);
-  border-color: var(--color-danger);
-  color: var(--color-danger);
-}
-
 .icon-button {
   min-width: var(--touch-staff);
   min-height: var(--touch-staff);
@@ -1160,132 +1120,6 @@ fieldset.editor-body:disabled {
   line-height: var(--line-height-sm);
 }
 
-/* --- The order and calls panel -------------------------------------------- */
-
-.queue-block {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-md);
-  padding: var(--space-lg);
-  border: 1px solid var(--color-border-strong);
-  border-radius: var(--radius-card);
-  background: var(--color-surface);
-  min-height: 0;
-  overflow-y: auto;
-}
-
-.queue-block h2 {
-  margin: 0;
-  font-size: var(--font-size-lg);
-  line-height: var(--line-height-lg);
-  font-weight: var(--font-weight-bold);
-}
-
-.queue-list {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-md);
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.queue-card,
-.call-card {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-sm);
-  padding: var(--space-md);
-  border: 1px solid var(--color-border);
-  border-left-width: 8px;
-  border-radius: var(--radius-soft);
-  background: var(--color-paper);
-}
-
-/* Ageing. Three bands, and each differs in border weight and left rule as well
-   as hue — the whole job of this panel is being readable at a glance from
-   across the counter, where hue is the first thing that stops working. */
-.age-fresh {
-  border-left-color: var(--color-success);
-}
-
-.age-waiting {
-  border-left-color: var(--color-warning);
-  border-color: var(--color-warning);
-}
-
-.age-late {
-  border-left-color: var(--color-danger);
-  border-color: var(--color-danger);
-  border-width: 2px;
-  border-left-width: 10px;
-}
-
-.queue-card-head {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: var(--space-md);
-}
-
-.queue-table {
-  font-size: var(--font-size-lg);
-  font-weight: var(--font-weight-bold);
-}
-
-/* The age is a number in words, sized so it is the second thing read. */
-.queue-age {
-  font-size: var(--font-size-lg);
-  font-weight: var(--font-weight-bold);
-  font-variant-numeric: var(--font-feature-tabular);
-}
-
-.queue-age.age-waiting {
-  color: var(--color-warning);
-}
-
-.queue-age.age-late {
-  color: var(--color-danger);
-}
-
-.queue-items {
-  margin: 0;
-  padding: 0;
-  list-style: none;
-  font-size: var(--font-size-md);
-  line-height: var(--line-height-md);
-}
-
-.queue-qty {
-  font-weight: var(--font-weight-bold);
-  font-variant-numeric: var(--font-feature-tabular);
-}
-
-.queue-note {
-  color: var(--color-muted-foreground);
-}
-
-.queue-meta {
-  margin: 0;
-  color: var(--color-muted-foreground);
-  font-size: var(--font-size-sm);
-}
-
-.call-line {
-  margin: 0;
-  font-size: var(--font-size-lg);
-  line-height: var(--line-height-lg);
-  font-weight: var(--font-weight-medium);
-}
-
-/* How much, and the tip, on a bill request from the app's pay sheet. */
-.call-bill {
-  margin: 0;
-  font-size: var(--font-size-md);
-  line-height: var(--line-height-md);
-  font-variant-numeric: var(--font-feature-tabular);
-}
-
 /* --- Overlays ------------------------------------------------------------- */
 
 /* Over the floor, never a route. A waiter closes this and is back where they
@@ -1299,83 +1133,10 @@ fieldset.editor-body:disabled {
   background: var(--color-paper);
 }
 
-.staff-overlay-head {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: var(--space-lg);
-  padding: var(--space-lg) var(--space-xl);
-  border-bottom: 1px solid var(--color-border-strong);
-  background: var(--color-surface);
-}
-
-.staff-overlay-head h1 {
-  margin: 0;
-  font-size: var(--font-size-xl);
-  line-height: var(--line-height-xl);
-}
-
-.staff-overlay-head p {
-  margin: 0;
-  color: var(--color-muted-foreground);
-  font-size: var(--font-size-md);
-}
-
 .staff-overlay-body {
   flex: 1;
   padding: var(--space-xl);
   overflow-y: auto;
-}
-
-/* --- The conflict list ---------------------------------------------------- */
-
-.conflict-list {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-lg);
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.conflict-card {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-sm);
-  padding: var(--space-lg);
-  border: 2px solid var(--color-border-strong);
-  border-radius: var(--radius-card);
-  background: var(--color-surface);
-}
-
-/* What the waiter did, second. It used to be the headline; the table's state
-   is, because that is the line that decides which button they press. */
-.conflict-what {
-  margin: 0;
-  font-size: var(--font-size-md);
-  line-height: var(--line-height-md);
-}
-
-.conflict-why {
-  margin: 0;
-  color: var(--color-muted-foreground);
-  font-size: var(--font-size-sm);
-}
-
-.conflict-actions {
-  display: flex;
-  gap: var(--space-md);
-  margin-top: var(--space-sm);
-}
-
-.conflict-actions > * {
-  flex: 1;
-}
-
-/* Apply anyway sits in the row but carries the danger treatment: it is the
-   answer that overwrites somebody else's decision. */
-.conflict-actions .danger-spaced {
-  margin-top: 0;
 }
 
 .order-line-note {
@@ -1427,23 +1188,6 @@ fieldset.editor-body:disabled {
   letter-spacing: 0.12em;
   font-variant-numeric: var(--font-feature-tabular);
   text-transform: uppercase;
-}
-
-/* --- The conflict list, state first ------------------------------------------ */
-
-/*
-  The line that carries the decision, and the one some people will be the only
-  one they read. Largest thing on the card.
-*/
-.conflict-state {
-  margin: 0;
-  font-size: var(--font-size-lg);
-  line-height: var(--line-height-lg);
-}
-
-.conflict-by {
-  color: var(--color-muted-foreground);
-  font-weight: var(--font-weight-regular);
 }
 
 /* --- The menu editor ---------------------------------------------------------- */

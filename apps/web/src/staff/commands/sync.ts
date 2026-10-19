@@ -3,10 +3,13 @@ import {
   isOffline,
   tableConflictFrom,
   ApiError,
+  ForbiddenError,
   InvalidTransitionError,
+  NotFoundError,
   MenuItemUnavailableError,
   OrderGuestUnavailableError,
   TabNotAcceptingOrdersError,
+  UnauthorizedError,
   type ConcurrencyConflictError,
   type StaffFloor,
   type StaffGateway,
@@ -14,7 +17,7 @@ import {
   type TableActionResult,
 } from '@yalla/api';
 import { localConflict, preconditionHolds } from './reducer';
-import { isTableAction, type OrderRefusal, type QueuedCommand } from './types';
+import { isTableAction, type CommandRefusal, type OrderRefusal, type QueuedCommand } from './types';
 import type { CommandAction } from './reducer';
 
 /**
@@ -102,7 +105,16 @@ export async function sendCommand(
     // Offline, a timeout, a server fault, or anything that is not an answer
     // from the server at all: nothing has been decided, so nothing changes
     // except the attempt count.
-    if (isOffline(error) || isServerFault(error) || !isServerAnswer(error)) {
+    //
+    // A 401 too: the tablet locked, or its sign-in ran out, while the command
+    // was on its way. It is not a verdict on the command, and the next person
+    // signed in decides whose it is (FT4 review B2).
+    if (
+      isOffline(error) ||
+      isServerFault(error) ||
+      !isServerAnswer(error) ||
+      error instanceof UnauthorizedError
+    ) {
       return { type: 'deferred', id: command.id };
     }
 
@@ -146,15 +158,24 @@ export async function sendCommand(
       };
     }
 
-    // Anything else — a 400, a 403, a bad payload. Also a conflict entry rather
-    // than a retry loop: retrying a request the server has refused on its
-    // merits is how a queue jams and stops delivering everything behind it.
+    // Anything else — a 400, a 403, a 404, a bad payload. Also a conflict
+    // entry rather than a retry loop: retrying a request the server has refused
+    // on its merits is how a queue jams and stops delivering everything behind
+    // it. A 404 and a 403 are named, so the card can say the thing is gone or
+    // that this sign-in may not do it.
+    const refusal: CommandRefusal | null =
+      error instanceof NotFoundError
+        ? { kind: 'notFound' }
+        : error instanceof ForbiddenError
+          ? { kind: 'forbidden' }
+          : null;
     return {
       type: 'conflicted',
       id: command.id,
       observed: null,
       reason: 'refused',
       atMs: nowMs(),
+      ...(refusal ? { refusal } : {}),
     };
   }
 }
@@ -169,7 +190,7 @@ export async function sendCommand(
  * count alone would report it as a live tap on reconnect — which is exactly the
  * case the flag exists for.
  */
-function withPrecondition(command: QueuedCommand): TableActionCommand {
+export function withPrecondition(command: QueuedCommand): TableActionCommand {
   const body = command.body;
   if (!isTableAction(body.kind)) throw new Error('Not a table action.');
   return {

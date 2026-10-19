@@ -945,6 +945,53 @@ review every string in `src/locales/hy` and `src/locales/ru`.**
     general `order.refused.notAccepting`. hy `tab.whoShared` is now «Սեղանը ·
     կիսվող» like the Order screen, and hy `tab.adjustmentKind.comp` «Նվեր
     ռեստորանից» like the line menu. Removed: `tab.linesLoading`.
+- `staff` — the floor tablet redesign, phase 4 (2026-10-19): the kitchen board
+  and the conflicts screen. The `hy` copy is the approved Kitchen and Conflicts
+  artboards' where they have it; `ru` and `en` were written from it and are
+  **not** reviewed. From the artboards: `kitchen.counts.*` (late says
+  «ուշանում է» in words), `kitchen.hint.lateAfter_*` / `.oldestLeft` /
+  `.more_*` / `.all`, `kitchen.sort.*`, `kitchen.board`, `kitchen.ticket.late`
+  (the badge must keep the word «ուշ», not colour alone), `kitchen.ready`,
+  `kitchen.readyWaiting`, `kitchen.servedByWaiter`, `kitchen.newHint`,
+  `kitchen.empty` (says new ones come **with a sound** — true only on the
+  kitchen's own screen; the waiter's tab uses `kitchen.emptyQuiet`),
+  `kitchen.readyNotice`; `conflicts.title` (hy now «Պետք է որոշում»), `.sub`,
+  `.intro`, `.discard` (hy «Հրաժարվել գործողությունից»), hy `.applyAnyway.*`
+  (now «… այնուամենայնիվ»), `.applyAnywayNote`, `.empty`, `.emptyAll`,
+  `.result.discardedTable` / `.sent`, `.toast.discarded` / `.sent`,
+  `.queue.title` / `.summary` / `.state.*`, `.queue.what.*` where the artboard
+  has a line, `.why.changedBack`, `.offlineLead` / `.offlineBody` (must keep
+  saying cash, booking answers and sign-in **wait for the connection**),
+  `.queueHint`. Not in an artboard, so **not** read by the user even in `hy`:
+  `kitchen.band.*`, `kitchen.ticket.name` / `.minutes_*` / `.age_*` / `.sent`,
+  `kitchen.fromApp` («Հավելվածից», HANDOFF §5.2), `kitchen.allergens`,
+  `kitchen.readyName` / `.sendName`, `kitchen.servedFromRail`,
+  `kitchen.readyQueued` (must keep saying it is **not sent yet**),
+  `kitchen.arrived`, `kitchen.hint.byTable`; `conflicts.mainLabel`,
+  `.backName.*`, `.notAppliedBy`, `.aGuest`, `.held.*` (a command another
+  person took before the tablet changed hands: it must keep saying it goes
+  **by itself** when they sign in again, and `.orderNote` that the ticket will
+  **name you**), `.head.order` / `.orderMoved` / `.call` / `.gone` / `.forbidden`,
+  `.why.*` except `.changedBack`, `.noAnyway.*` (why "send anyway" is not
+  offered; `.money` must keep saying an order **changes a bill**),
+  `.result.discarded` / `.claimed` / `.claimedQueued`, `.toast.claimed`,
+  `.emptyWaiting_*`, `.queue.empty`. Removed: `conflicts.subtitle`, `.by`,
+  `.applyAnywayGeneric`, `.applyAnyway.placeOrder_*` / `.setOrderStatus` /
+  `.acknowledgeServiceRequest` (never offered now). Allergen names on tickets
+  reuse `admin` `menu.allergen.*`.
+  - Review and live QA (2026-10-19), **not** in an artboard: `floor.heldMark`,
+    `notice.behindHeld`, `kitchen.band.unsent`, `kitchen.allergensUnknown`
+    (must keep saying to **check**, never read as "no allergens"),
+    `conflicts.introHeld`, `conflicts.someone`, `conflicts.held.notForRole`.
+    Reworded: `kitchen.newHint` («Դեռ չի ուղարկվել…», so «նոր» means one thing
+    on the board), `kitchen.arrived` (carries the time), `conflicts.sub` and
+    `.intro` (no "because things changed"), `conflicts.held.orderNote` and
+    `conflicts.result.claimed` (no promise the ticket names you, nor that it was
+    sent), ru `kitchen.ticket.late`. hy: no article or case ending on an
+    interpolated person's name any more — `notice.raceNamed`,
+    `conflicts.notAppliedBy`, `conflicts.held.*`, `conflicts.queue.state.held`,
+    `order.soldOutNotice`, `order.refused.soldOut`, `order.refused.guest.*`,
+    `order.guestGone`, `cash.takenBy` put the name after «՝» or in brackets.
 
 The Russian bundle carries four plural categories (`one`/`few`/`many`/`other`)
 where Armenian and English carry two. That is correct CLDR, not duplication, and

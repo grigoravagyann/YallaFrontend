@@ -27,6 +27,12 @@ export interface MenuItem {
    * first letter then, as it does when a photo fails to load.
    */
   readonly photo?: Photo | null | undefined;
+  /**
+   * What the venue wrote under allergens: preset ids and its own words,
+   * comma-separated, or `none`. Null when it wrote nothing. The kitchen board
+   * warns with it; absent on a menu cached before it was mapped.
+   */
+  readonly allergens?: string | null | undefined;
 }
 
 export interface MenuSection {
