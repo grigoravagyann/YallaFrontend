@@ -8,9 +8,18 @@ import {
   type EditorFloorPlan,
   type Photo,
 } from '@yalla/api';
-import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { queryKeys, useEditorFloorPlan } from '@yalla/api/react';
+import {
+  cleanup,
+  createEvent,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { useState } from 'react';
+import { useLayoutEffect, useState } from 'react';
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { ToastProvider } from '../../ui/toast';
 import { createConsoleHarness, initConsoleTestI18n } from '../reports/testHarness';
@@ -94,6 +103,38 @@ async function seededGateway() {
     },
   });
   return { gateway, photo, room };
+}
+
+/** One action, waiting for the next commit that re-reads the plan. */
+class NextCommit {
+  private action: (() => void) | null = null;
+
+  arm(action: () => void) {
+    this.action = action;
+  }
+
+  /** The armed action, handed over once. */
+  take(): (() => void) | null {
+    const action = this.action;
+    this.action = null;
+    return action;
+  }
+
+  get armed(): boolean {
+    return this.action !== null;
+  }
+}
+
+/**
+ * Runs the armed action in the layout phase of the next commit that re-reads
+ * the plan: after that commit is on screen, before its effects have run.
+ */
+function BetweenCommitAndEffects({ next }: { next: NextCommit }) {
+  useEditorFloorPlan(BRANCH);
+  useLayoutEffect(() => {
+    next.take()?.();
+  });
+  return null;
 }
 
 function renderEditor(gateway: ConsoleGateway) {
@@ -792,6 +833,42 @@ describe('the rooms editor, from QA 2026-10-16', () => {
 
     await addRoom(user, 'Cellar');
     expect(screen.queryByText(/has more than 10 photos/i)).toBeNull();
+  });
+
+  it('focuses a new table’s number when the click lands before the last render’s effects ran', async () => {
+    // A click handled between a commit and that commit's effects — what a
+    // busy machine does, made certain: a background read re-renders the
+    // editor, and the click arrives while that render's effects still wait.
+    const { gateway } = await seededGateway();
+    const harness = createConsoleHarness({ gateway });
+    const clickBetween = new NextCommit();
+    render(
+      harness.wrap(
+        <ToastProvider>
+          <RoomsEditor branchId={BRANCH} branchName="Cascade" />
+          <BetweenCommitAndEffects next={clickBetween} />
+        </ToastProvider>,
+        '/venue/floorplan',
+      ),
+    );
+    const picture = await stage();
+
+    clickBetween.arm(() =>
+      picture.dispatchEvent(
+        createEvent.pointerDown(picture, { clientX: 20, clientY: 80, pointerId: 1 }),
+      ),
+    );
+    const actEnvironment = globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean };
+    actEnvironment.IS_REACT_ACT_ENVIRONMENT = false;
+    try {
+      void harness.queryClient.invalidateQueries({ queryKey: queryKeys.editorFloorPlan(BRANCH) });
+      // The new table's panel comes up, and its number takes the focus.
+      await waitFor(() => expect(document.activeElement).toBe(screen.getByLabelText(/^number/i)));
+    } finally {
+      actEnvironment.IS_REACT_ACT_ENVIRONMENT = true;
+    }
+    expect(clickBetween.armed).toBe(false);
+    expect(document.activeElement).toBe(screen.getByLabelText(/^number/i));
   });
 
   it('puts a second table added in the middle beside the first, not on top of it', async () => {

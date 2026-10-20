@@ -170,9 +170,9 @@ describe('the manage page, as the Manage artboard draws it', () => {
   it('a declined request: red badge, why, and a way to book again', async () => {
     const harness = createHarness({ approvalWindowMs: 5 });
     const { token } = await tokenOf(harness);
-    // Past the 5 ms answer window by the pinned clock too, which moves on in
-    // 20 ms steps (`shouldAdvanceTime`).
-    await new Promise((resolve) => setTimeout(resolve, 60));
+    // Past the 5 ms answer window by the pinned clock — set, not waited for:
+    // the clock's own 20 ms steps fall behind a busy machine's wall clock.
+    vi.setSystemTime(Date.now() + 1_000);
     render(harness.wrap(<PublicApp />, `/booking/${token}`));
 
     expect(
