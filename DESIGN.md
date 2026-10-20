@@ -587,6 +587,16 @@ the booking panel is open in it. The new CSS sizes read the console tokens
 where one exists (`text-label`, `text-caption`, `text-booking-time`,
 `radius-control`, `radius-public-status`, the public control size).
 
+Phase 4 added the Book sheet and one token set, `publicTelegram` (Telegram's
+blue, a shade deeper, with `publicTelegramForeground` white on it at body
+contrast, and a deeper hover; checked in `console.test.ts`): the "Confirm
+with Telegram" button and the waiting ring. The sheet is the cream ground with
+white cards (the summary, the promise, the free tables), a progress line of
+three 4px bars, notes with an icon — green for the held window, amber for
+needs-attention, red only for the table just taken, blue for Telegram and
+waiting — and errors under the field they are about. The confirmation's code
+sits in a brown frame, dashed blue while the venue decides.
+
 Phase 5 added the manage link and the branch chooser, with no new tokens. The
 manage page's status is a pill badge: green for confirmed, blue for waiting
 (the code box dashed blue with it, never green), red for declined, the soft

@@ -149,6 +149,15 @@
       "5": "Fri",
       "6": "Sat"
     },
+    "weekdayInSentence": {
+      "0": "Sun",
+      "1": "Mon",
+      "2": "Tue",
+      "3": "Wed",
+      "4": "Thu",
+      "5": "Fri",
+      "6": "Sat"
+    },
     "month": {
       "1": "January",
       "2": "February",
@@ -332,6 +341,87 @@
       "months_other": "{{count}} months ago",
       "years_one": "{{count}} year ago",
       "years_other": "{{count}} years ago"
+    }
+  },
+  "sheet": {
+    "progress": {
+      "label": "Step {{step}} of 3",
+      "table": "Table",
+      "phone": "Phone",
+      "name": "Name"
+    },
+    "back": "Back",
+    "close": "Close",
+    "title": {
+      "taken": "This table is no longer free",
+      "phone": "Your phone",
+      "telegram": "Confirm with Telegram",
+      "code": "Enter the code",
+      "name": "Last step",
+      "done": "All set",
+      "pending": "Your request",
+      "declined": "It did not work out"
+    },
+    "table": {
+      "value": "{{label}} · {{seats}} · {{room}}",
+      "valueNoRoom": "{{label}} · {{seats}}",
+      "continue": "Continue",
+      "agree": "I will free the table by {{time}}, so the next guests do not have to wait.",
+      "agreeFirst": "Tick the promise above to continue",
+      "lateOk": "Cancelling later is possible too; the venue simply sees it."
+    },
+    "freeCancellationTomorrow": "Free cancellation until {{time}} tomorrow",
+    "freeCancellationOn": "Free cancellation until {{time}} on {{date}}",
+    "taken": {
+      "body": "Table {{label}} was just booked by someone else. Your day, time and guests are kept: choose another table.",
+      "free": "Free at the same time",
+      "alt": "Table {{label}} · {{seats}}",
+      "none_one": "No other table is free for {{count}} guest at this time. Look at the room, or choose another time.",
+      "none_other": "No other table is free for {{count}} guests at this time. Look at the room, or choose another time.",
+      "seeRoom": "See the room"
+    },
+    "phone": {
+      "body": "The number is only needed to hold the table, so the venue can reach you. It is not published.",
+      "telegramNote": "Fastest with Telegram: one tap, no code to type.",
+      "telegramOnly": "Confirm with Telegram: one tap, no code to type.",
+      "telegram": "Confirm with Telegram",
+      "sms": "Get a code by SMS",
+      "short": "Write the whole number, for example 77 123456",
+      "smsOff": "Codes by SMS are not available right now. Confirm with Telegram instead.",
+      "noDoors": "Confirming a phone number is not available right now. Try again later.",
+      "loading": "Checking how we can confirm your number…"
+    },
+    "telegram": {
+      "body": "In Telegram, press Start, then share your number. This page carries on by itself once the number is confirmed.",
+      "left": "The link works for another {{time}}",
+      "checkNow": "Check now",
+      "useCode": "Get a code instead"
+    },
+    "code": {
+      "label": "Code",
+      "check": "Confirm the code"
+    },
+    "name": {
+      "verified": "{{phone}} is confirmed.",
+      "label": "Name for the booking",
+      "hint": "The venue will ask for this name at the door.",
+      "missing": "Write the name",
+      "note": "Note to the venue",
+      "optional": "(optional)",
+      "notePlaceholder": "For example: a birthday, a high chair, an allergy",
+      "noteHint": "{{length}} / {{max}} · only the venue sees it",
+      "freeBy": "Free the table by"
+    },
+    "done": {
+      "table": "{{label}} · {{guests}}",
+      "link": "Your booking link",
+      "linkHint": "Keep it to change the time or cancel. We do not send emails.",
+      "copy": "Copy",
+      "copied": "Copied",
+      "openManage": "Open the booking page",
+      "back": "Back to the venue page",
+      "auto": "This page updates by itself.",
+      "again": "Choose another time"
     }
   }
 }

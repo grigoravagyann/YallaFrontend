@@ -73,6 +73,26 @@ export function largestOfferedTable(
 const byLabel = (a: FloorTable, b: FloorTable) =>
   a.label.localeCompare(b.label, undefined, { numeric: true });
 
+/** A seat for everyone before a squeeze, then the fewest seats, then the label. */
+const byFit = (partySize: number) => (a: FloorTable, b: FloorTable) =>
+  Number(a.seats < partySize) - Number(b.seats < partySize) || a.seats - b.seats || byLabel(a, b);
+
+/**
+ * Every table the visitor could take at the slot, the best fit first — what
+ * the Book sheet offers when the one being booked was just taken (Book
+ * artboard, taken). The same pickable rule and order as "Choose for me",
+ * across all rooms at once.
+ */
+export function freeTablesInOrder(
+  tables: readonly FloorTable[],
+  rooms: readonly PublicRoom[],
+  partySize: number,
+): FloorTable[] {
+  return tables
+    .filter((table) => isPickable(table) && roomOf(table, rooms) !== null)
+    .sort(byFit(partySize));
+}
+
 /**
  * "Choose for me": the smallest free table that fits the party, in the room
  * on screen first, then the other rooms in the venue's order. `null` when no
@@ -97,12 +117,7 @@ export function pickTableFor(input: {
   for (const room of order) {
     const candidates = tables
       .filter((table) => isPickable(table) && roomOf(table, rooms) === room)
-      .sort(
-        (a, b) =>
-          Number(a.seats < partySize) - Number(b.seats < partySize) ||
-          a.seats - b.seats ||
-          byLabel(a, b),
-      );
+      .sort(byFit(partySize));
     if (candidates[0]) return candidates[0];
   }
   return null;

@@ -3,7 +3,6 @@ import {
   NetworkError,
   TelegramUnavailableError,
   availabilityWindowCopy,
-  freeCancellationCopy,
   type Booking,
   type PublicBranch,
   type TableAvailability,
@@ -15,6 +14,7 @@ import userEvent from '@testing-library/user-event';
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import BookingSheet from './BookingSheet';
 import { bookingIcs, icsDescription } from './calendarFile';
+import { freeCancellationWords } from './dayNames';
 import { RoomSection } from './RoomSection';
 import { defaultSelection, slotInstant } from './slots';
 import { createHarness, initTestI18n, stubIntersectionObserverAsNeverVisible } from './testHarness';
@@ -123,7 +123,9 @@ describe('the booking flow', () => {
         : `Held for you ${String(expected.primary.params['range'])}`;
 
     const rendered = await screen.findByText(windowText);
-    const reserve = screen.getByRole('button', { name: /^Reserve table/u });
+    // The sheet's first step ends in Continue (Book artboard): every button
+    // that leads to a booking comes after the window.
+    const reserve = screen.getByRole('button', { name: 'Continue' });
 
     // Before, in document order. A confirm above the window makes the limit a
     // disclosure rather than a choice.
@@ -131,17 +133,19 @@ describe('the booking flow', () => {
       rendered.compareDocumentPosition(reserve) & Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
 
-    // And the deadline, from the same shared rule.
-    // The server's own deadline, carried on the offer. Rendered through the
-    // same copy the page uses: late in the branch's evening a slot two hours
-    // out crosses midnight, and the rule then says "on <date> at 00:00" rather
-    // than "until 00:00" — a literal here failed every night after ten.
+    // And the deadline, from the same rule as the shared `freeCancellationCopy`
+    // (the server's own deadline, with its date when it is not today), the
+    // date in the page's own words (public-page phase 4): late in the branch's
+    // evening a slot two hours out crosses midnight, and the rule then says
+    // "tomorrow" — a literal here failed every night after ten.
     expect(table.freeCancellationUntilUtc).not.toBeNull();
-    const deadline = freeCancellationCopy(table.freeCancellationUntilUtc!, branch.timeZoneId, 'en');
-    // The sheet renders these keys with its `diner` translator.
-    expect(
-      screen.getByText(i18next.t(deadline.key, { ...deadline.params, ns: 'diner' })),
-    ).toBeDefined();
+    const deadline = freeCancellationWords(
+      table.freeCancellationUntilUtc!,
+      branch.timeZoneId,
+      'en',
+      i18next.getFixedT('en'),
+    );
+    expect(screen.getByText(deadline)).toBeDefined();
   });
 
   it('reaches a confirmed reservation through phone verification', async () => {
@@ -161,24 +165,27 @@ describe('the booking flow', () => {
       ),
     );
 
-    await user.click(await screen.findByRole('button', { name: /^Reserve table/u }));
+    await user.click(await screen.findByRole('button', { name: 'Continue' }));
 
-    // Phone step. The prefix defaults to +374 and stays editable, because the
-    // tourist is the reason this page exists.
+    // Phone step: Telegram first, the SMS code second. The prefix defaults to
+    // +374 and stays editable, because the tourist is the reason this page
+    // exists.
     const number = await screen.findByLabelText('Phone number');
     expect((screen.getByLabelText('Country code') as HTMLInputElement).value).toBe('+374');
     await user.type(number, '77123456');
-    await user.click(screen.getByRole('button', { name: 'Send code' }));
+    await user.click(screen.getByRole('button', { name: 'Get a code by SMS' }));
 
     // Code step. The mock's code is the one it printed in its own dev banner,
     // which is what the real backend does outside production.
-    const code = await screen.findByLabelText('Enter the code');
+    const code = await screen.findByLabelText('Code');
     await user.type(code, '123456');
 
-    // Confirm step: the window again, at the moment of commitment — and the
-    // name the venue will ask for at the door, which the server requires.
+    // Name step: the name the venue will ask for at the door, which the
+    // server requires — asked for, not booked without (Book artboard).
     const confirm = await screen.findByRole('button', { name: 'Confirm booking' });
-    expect((confirm as HTMLButtonElement).disabled, 'no name, no booking').toBe(true);
+    await user.click(confirm);
+    expect(screen.getByText('Write the name'), 'no name, no booking').toBeDefined();
+    expect((await harness.gateway.listBookings()).upcoming).toHaveLength(0);
     await user.type(screen.getByLabelText('Name for the booking'), 'Ani');
     await user.click(confirm);
 
@@ -208,21 +215,21 @@ describe('the booking flow', () => {
       ),
     );
 
-    await user.click(await screen.findByRole('button', { name: /^Reserve table/u }));
+    await user.click(await screen.findByRole('button', { name: 'Continue' }));
     await user.type(await screen.findByLabelText('Phone number'), '77123456');
-    await user.click(screen.getByRole('button', { name: 'Send code' }));
-    await user.type(await screen.findByLabelText('Enter the code'), '123456');
+    await user.click(screen.getByRole('button', { name: 'Get a code by SMS' }));
+    await user.type(await screen.findByLabelText('Code'), '123456');
     await user.type(await screen.findByLabelText('Name for the booking'), 'Ani');
     await user.click(await screen.findByRole('button', { name: 'Confirm booking' }));
     await screen.findByText('Table booked');
 
-    // First, because it is the only one of the three that fully replaces the
-    // push reminder this visitor will never get.
+    // The sheet's main button, because it is the only one of the three that
+    // fully replaces the push reminder this visitor will never get. The
+    // manage link sits above it with its copy button (Book artboard).
     const calendar = screen.getByRole('button', { name: 'Add to my calendar' });
-    const manage = screen.getByText(/\/booking\//u);
-    expect(
-      calendar.compareDocumentPosition(manage) & Node.DOCUMENT_POSITION_FOLLOWING,
-    ).toBeTruthy();
+    expect(calendar.classList.contains('pub-button-primary')).toBe(true);
+    expect(screen.getByText(/\/booking\//u)).toBeDefined();
+    expect(screen.getByRole('button', { name: 'Copy' })).toBeDefined();
 
     // The app is not published in this configuration, so it is not mentioned.
     // A store badge for an app that does not exist is a dead end with a logo.
@@ -266,10 +273,10 @@ describe('another table tapped while the panel is open', () => {
       );
     const view = render(sheet(table));
 
-    await user.click(await screen.findByRole('button', { name: /^Reserve table/u }));
+    await user.click(await screen.findByRole('button', { name: 'Continue' }));
     await user.type(await screen.findByLabelText('Phone number'), '77123456');
-    await user.click(screen.getByRole('button', { name: 'Send code' }));
-    await user.type(await screen.findByLabelText('Enter the code'), '123456');
+    await user.click(screen.getByRole('button', { name: 'Get a code by SMS' }));
+    await user.type(await screen.findByLabelText('Code'), '123456');
     await user.type(await screen.findByLabelText('Name for the booking'), 'Ani');
     await user.click(screen.getByRole('button', { name: /^(Confirm booking|Request table)$/u }));
     // The outcome is unknown, so the button checks rather than books.
@@ -278,12 +285,14 @@ describe('another table tapped while the panel is open', () => {
 
     view.rerender(sheet(other));
 
-    // Still verified, so still on the name step — and a fresh attempt, not a check.
+    // The new table's window first, then — still verified — straight to the
+    // name, and a fresh attempt, not a check.
+    if ((other.mustFreeByUtc ?? null) !== null) await user.click(screen.getByRole('checkbox'));
+    await user.click(await screen.findByRole('button', { name: 'Continue' }));
     const submit = await screen.findByRole('button', {
       name: /^(Confirm booking|Request table)$/u,
     });
     expect(screen.queryByLabelText('Phone number')).toBeNull();
-    if ((other.mustFreeByUtc ?? null) !== null) await user.click(screen.getByRole('checkbox'));
     await user.click(submit);
 
     await waitFor(() => expect(create).toHaveBeenCalledTimes(2));
@@ -355,7 +364,7 @@ describe('the calendar file the confirmation hands over', () => {
 });
 
 describe('losing the table while confirming', () => {
-  it('refreshes the room, says which table went, and does not retry', async () => {
+  it('refreshes the room, says which table went, stays open, and does not retry', async () => {
     const { harness, branch, slotUtc, selection, table } = await setUp({
       simulateTableTaken: true,
     });
@@ -388,17 +397,20 @@ describe('losing the table while confirming', () => {
       ),
     );
 
-    await user.click(await screen.findByRole('button', { name: /^Reserve table/u }));
+    await user.click(await screen.findByRole('button', { name: 'Continue' }));
     await user.type(await screen.findByLabelText('Phone number'), '77123456');
-    await user.click(screen.getByRole('button', { name: 'Send code' }));
-    await user.type(await screen.findByLabelText('Enter the code'), '123456');
+    await user.click(screen.getByRole('button', { name: 'Get a code by SMS' }));
+    await user.type(await screen.findByLabelText('Code'), '123456');
     await user.type(await screen.findByLabelText('Name for the booking'), 'Ani');
     await user.click(await screen.findByRole('button', { name: 'Confirm booking' }));
 
-    // The panel hands the visitor back to the room, naming the table, because
-    // the next thing to do is pick another one and that happens in the room.
+    // The page is told which table went; the sheet stays open on its taken
+    // step, where the other tables free then are offered (public-page phase 4).
     await waitFor(() => expect(onTableTaken).toHaveBeenCalledWith(table.tableLabel));
-    expect(onClose).toHaveBeenCalled();
+    expect(
+      await screen.findByRole('heading', { level: 2, name: 'This table is no longer free' }),
+    ).toBeDefined();
+    expect(onClose).not.toHaveBeenCalled();
 
     // The room the page is drawing was told to refetch — not a floor key no
     // surface reads — and the refetch finds the table gone.
@@ -469,7 +481,7 @@ describe('verifying through Telegram', () => {
         />,
       ),
     );
-    return screen.findByRole('button', { name: /^Reserve table/u });
+    return screen.findByRole('button', { name: 'Continue' });
   }
 
   afterEach(() => {
@@ -484,7 +496,7 @@ describe('verifying through Telegram', () => {
     const user = userEvent.setup();
 
     await user.click(await reachPhoneStep(world));
-    await user.click(await screen.findByRole('button', { name: 'Verify with Telegram' }));
+    await user.click(await screen.findByRole('button', { name: 'Confirm with Telegram' }));
 
     // Opened in the click, blank, then pointed at the bot once the server answered.
     expect(open).toHaveBeenCalledTimes(1);
@@ -522,7 +534,7 @@ describe('verifying through Telegram', () => {
       const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
 
       await user.click(await reachPhoneStep(world));
-      await user.click(await screen.findByRole('button', { name: 'Verify with Telegram' }));
+      await user.click(await screen.findByRole('button', { name: 'Confirm with Telegram' }));
       const first = (await screen.findByRole('link', {
         name: 'Open Telegram again',
       })) as HTMLAnchorElement;
@@ -555,14 +567,14 @@ describe('verifying through Telegram', () => {
     const user = userEvent.setup();
 
     await user.click(await reachPhoneStep(world));
-    await user.click(await screen.findByRole('button', { name: 'Verify with Telegram' }));
+    await user.click(await screen.findByRole('button', { name: 'Confirm with Telegram' }));
 
     expect(
       await screen.findByText('Verifying through Telegram is not available right now.'),
     ).toBeDefined();
-    expect(screen.queryByRole('button', { name: 'Verify with Telegram' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Confirm with Telegram' })).toBeNull();
     // The SMS code remains the way in.
-    expect(screen.getByRole('button', { name: 'Send code' })).toBeDefined();
+    expect(screen.getByRole('button', { name: 'Get a code by SMS' })).toBeDefined();
   });
 
   it('offers the code instead from the waiting screen', async () => {
@@ -571,10 +583,10 @@ describe('verifying through Telegram', () => {
     const user = userEvent.setup();
 
     await user.click(await reachPhoneStep(world));
-    await user.click(await screen.findByRole('button', { name: 'Verify with Telegram' }));
+    await user.click(await screen.findByRole('button', { name: 'Confirm with Telegram' }));
     await screen.findByText('Waiting for Telegram…');
 
-    await user.click(screen.getByRole('button', { name: 'Use the code instead' }));
+    await user.click(screen.getByRole('button', { name: 'Get a code instead' }));
 
     expect(await screen.findByLabelText('Phone number')).toBeDefined();
   });

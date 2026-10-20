@@ -1,6 +1,5 @@
 import {
   isShortNotice,
-  tableCopy,
   unavailableCopy,
   type PublicBranch,
   type SlotFloor,
@@ -10,7 +9,7 @@ import { useDaySlots, useNow } from '@yalla/api/react';
 import { formatTime } from '@yalla/format';
 import { useLocale, useTranslation } from '@yalla/i18n';
 import { useEffect, useId, useMemo, useRef, useState, type KeyboardEvent } from 'react';
-import { dayWords } from './dayNames';
+import { dayWords, freeCancellationWords } from './dayNames';
 import { formatPhone } from './phone';
 import {
   addDays,
@@ -872,12 +871,13 @@ function TablePart({
   const { t } = useTranslation('public');
   const { locale } = useLocale();
 
-  const freeCancellation = table?.availability
-    ? tableCopy(table.availability, {
-        partySize: selection.partySize,
-        timeZoneId: branch.timeZoneId,
-        locale,
-      }).freeCancellation
+  // The server's deadline in our own words for the date: `Intl` writes hy
+  // dates in English where the browser has no Armenian data (phase 4).
+  const until = table?.availability?.isBookable
+    ? table.availability.freeCancellationUntilUtc
+    : null;
+  const freeCancellation = until
+    ? freeCancellationWords(until, branch.timeZoneId, locale, t)
     : null;
 
   return (
@@ -907,11 +907,7 @@ function TablePart({
           {t('booking.table.forMe')}
         </button>
       ) : null}
-      {freeCancellation ? (
-        <p className="pub-muted">
-          {t(freeCancellation.key, { ns: 'diner', ...freeCancellation.params })}
-        </p>
-      ) : null}
+      {freeCancellation ? <p className="pub-muted">{freeCancellation}</p> : null}
       {/* Always mounted, so what "Choose for me" did is heard when it happens;
           read but not shown once the badge above says the same (QA 3). */}
       <p className={table ? 'pub-pick-note visually-hidden' : 'pub-pick-note'} role="status">
