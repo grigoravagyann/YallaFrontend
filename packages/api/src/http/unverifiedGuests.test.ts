@@ -55,6 +55,7 @@ const VIEW: ReservationViewWire = {
   awaitsEarlierGuestAnswer: false,
   awaitingApprovalBecause: 6,
   phoneUnverified: true,
+  madeWithYourNumber: false,
   manageToken: 'manage-once',
 };
 
@@ -218,6 +219,19 @@ describe('the floor: tables waiting to be let in', () => {
     const error = await caught(gateway.admitTab({ tabId: TAB, clientCommandId: COMMAND }));
 
     expect(error).toBeInstanceOf(TabAdmissionDecidedError);
+    expect(error).toMatchObject({ tabId: TAB, admission: 'rejected' });
+  });
+
+  it('reads what was decided from the admission view too', async () => {
+    const { gateway } = staffOver({
+      [`POST /api/tabs/${TAB}/admit`]: problemReply(409, 'tab-admission-decided', {
+        tabId: TAB,
+        admission: { status: 3, tableFreed: true },
+      }),
+    });
+
+    const error = await caught(gateway.admitTab({ tabId: TAB, clientCommandId: COMMAND }));
+
     expect(error).toMatchObject({ tabId: TAB, admission: 'rejected' });
   });
 

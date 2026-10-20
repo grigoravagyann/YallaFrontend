@@ -3,6 +3,7 @@ import {
   ValidationError,
   isOffline,
   isTabAccessEnded,
+  isTabAwaitingAdmission,
   type BillScope,
   type ParticipantShare,
   type TabShares,
@@ -217,6 +218,7 @@ export function payPreview(
 /** Why a bill request did not go through, as the key of its sentence. */
 export type BillRequestFailure =
   | { readonly key: 'tab.pay.nothingLeft' }
+  | { readonly key: 'tab.pay.awaitingAdmission' }
   | { readonly key: 'waiter.rateLimited'; readonly count: number }
   | { readonly key: 'waiter.rateLimitedNoWindow' }
   | { readonly key: 'tab.accessEnded.body' }
@@ -231,6 +233,8 @@ export type BillRequestFailure =
  * already knows the table wants somebody; it is said, not apologised for.
  */
 export function billRequestFailure(error: unknown): BillRequestFailure {
+  // A waiter has not let the table in yet: the bill waits with the ordering.
+  if (isTabAwaitingAdmission(error)) return { key: 'tab.pay.awaitingAdmission' };
   if (error instanceof ValidationError && error.field === 'billScope') {
     return { key: 'tab.pay.nothingLeft' };
   }

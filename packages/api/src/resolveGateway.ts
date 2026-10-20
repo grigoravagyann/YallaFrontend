@@ -65,6 +65,8 @@ export interface ResolveGatewayOptions {
    * absent, so the waiting state can be seen and then left in mock mode.
    */
   readonly mockAdmissionAfterMs?: number | undefined;
+  /** Mock only: what that waiter decides — admit (absent) or turn the tab away. */
+  readonly mockAdmissionOutcome?: 'admit' | 'reject' | undefined;
   /** Mock only: keep the world across a reload (QA F2). */
   readonly persist?: MockPersistence | undefined;
   /** Where tab participant tokens are kept between launches. Real only. */
@@ -97,6 +99,7 @@ export function resolveGateway(options: ResolveGatewayOptions): YallaGateway {
       simulateEarlierGuestAnswerAfterMs: options.mockEarlierGuestAnswersAfterMs,
       phoneProofChannels: options.mockPhoneProofChannels,
       simulateAdmissionAfterMs: options.mockAdmissionAfterMs ?? 8_000,
+      simulateAdmissionOutcome: options.mockAdmissionOutcome,
     };
     if (options.persist) {
       return persistMockGateway<YallaGateway>({

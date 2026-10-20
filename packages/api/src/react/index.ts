@@ -2782,14 +2782,6 @@ export function useCancelManagedBooking(
 }
 
 /**
- * Changing the booking from its signed link (public page phase 5).
- *
- * Retry is off: the command id makes a *deliberate* retry safe, and the page
- * says what happened in between. The answer replaces the cached booking — its
- * status is the server's fresh decision — and the room and the branch's counts
- * are read again, since a table moved.
- */
-/**
  * Booking from the public page without proving the number (2026-10-20).
  *
  * Retry is off: a retry with the same command id answers the booking but not
@@ -2810,6 +2802,14 @@ export function useCreateUnverifiedBooking() {
   });
 }
 
+/**
+ * Changing the booking from its signed link (public page phase 5).
+ *
+ * Retry is off: the command id makes a *deliberate* retry safe, and the page
+ * says what happened in between. The answer replaces the cached booking — its
+ * status is the server's fresh decision — and the room and the branch's counts
+ * are read again, since a table moved.
+ */
 export function useRescheduleManagedBooking(token: string | undefined) {
   const gateway = usePublicGateway();
   const queryClient = useQueryClient();

@@ -2836,6 +2836,19 @@ a.pub-branch-card:hover {
   color: var(--console-red);
 }
 
+/* Needs attention, not a failure: a booking made without a verified number. */
+.pub-badge.is-amber {
+  background: var(--console-amber-bg);
+  color: var(--console-amber);
+}
+
+/* The status and what needs attention, side by side, wrapping on a phone. */
+.pub-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+}
+
 .pub-manage .pub-code {
   margin: 0;
   padding: var(--space-md);

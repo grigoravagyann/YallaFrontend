@@ -1,6 +1,8 @@
 import {
   BookingOverlapsOwnError,
   FreeByRequiredError,
+  PhoneHasActiveBookingError,
+  UnverifiedQueueFullError,
   createMockGateway,
   type Booking,
   type SlotFloor,
@@ -234,6 +236,82 @@ describe('the confirm screen, a booking that overlaps the diner’s own', () => 
     expect(
       await screen.findByText(
         'You already have a booking here at 19:30. Choose another time, or change that booking.',
+      ),
+    ).toBeTruthy();
+  });
+});
+
+/*
+ * An account that has not proved its number books all the same (unverified
+ * guests, 2026-10-20): the screen says the venue may confirm first and offers
+ * Telegram — and beside a refusal proving the number lifts.
+ */
+describe('the confirm screen, an account with no proved number', () => {
+  async function ready() {
+    const seven = await mock.getSlotFloor({
+      branchId: BRANCH,
+      slotUtc: at('19:00'),
+      partySize: 2,
+      timeZoneId: 'Asia/Yerevan',
+    });
+    const table = seven!.tables.find(
+      (candidate) => candidate.isBookable && !candidate.mustFreeByUtc,
+    )!;
+    params.current = {
+      branchId: BRANCH,
+      venueId: 'v-lumen',
+      tableId: table.tableId,
+      slotUtc: at('19:00'),
+      partySize: '2',
+    };
+    useSession.setState({
+      profile: { phoneVerified: false } as ReturnType<typeof useSession.getState>['profile'],
+    });
+    renderScreen();
+    const submit = await screen.findByRole('button', {
+      name: /^(Confirm booking|Request table)$/u,
+    });
+    await waitFor(() => expect(submit.getAttribute('aria-disabled')).not.toBe('true'));
+    return submit;
+  }
+
+  afterEach(() => useSession.setState({ profile: null }));
+
+  it('lets it book, saying the venue may confirm first and offering Telegram', async () => {
+    await ready();
+    expect(
+      screen.getByText(
+        'Your number is not verified yet, so the venue may confirm this booking first. Verify it with Telegram and bookings are confirmed at once.',
+      ),
+    ).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Verify my number' }));
+    expect(router.push).toHaveBeenCalledWith('/auth/code');
+  });
+
+  it('words a refusal proving the number lifts, with Verify beside it', async () => {
+    const submit = await ready();
+    vi.spyOn(mock, 'createBooking').mockRejectedValue(
+      new UnverifiedQueueFullError({ url: '/api/reservations' }),
+    );
+    fireEvent.click(submit);
+    expect(
+      await screen.findByText(
+        'This venue has too many unconfirmed bookings right now. Verify your number to book, or try again later.',
+      ),
+    ).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Verify my number' })).toBeTruthy();
+    expect(router.replace).not.toHaveBeenCalled();
+  });
+
+  it('offers proving the number when somebody else’s booking holds it', async () => {
+    const submit = await ready();
+    vi.spyOn(mock, 'createBooking').mockRejectedValue(
+      new PhoneHasActiveBookingError({ url: '/api/reservations' }),
+    );
+    fireEvent.click(submit);
+    expect(
+      await screen.findByText(
+        /^This phone number already has an active booking\. If you did not make it/u,
       ),
     ).toBeTruthy();
   });

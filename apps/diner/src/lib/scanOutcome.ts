@@ -8,6 +8,7 @@ import {
   InviteExpiredError,
   NetworkError,
   PhoneNotVerifiedError,
+  ScanTurnedAwayError,
   TabClosedError,
   TableOutOfServiceError,
   TabsNotEnabledError,
@@ -78,6 +79,9 @@ const NOT_ACTIVE_KEYS: Partial<Record<ReservationStatusCode, string>> = {
   noShow: 'scan.error.bookingNoShow',
 };
 
+/** A scan right after a waiter turned this phone or table away: "ask a waiter", not "scan again". */
+export const TURNED_AWAY_KEY = 'scan.error.turnedAway';
+
 /** The refusal an account whose number is not yet verified gets; the screen offers the code flow. */
 export const PHONE_NOT_VERIFIED_KEY = 'confirm.error.phoneNotVerified';
 
@@ -136,6 +140,11 @@ export function scanFailureFor(error: unknown, at?: BranchClock): ScanFailure {
   }
   if (error instanceof TabClosedError) {
     return { key: 'scan.error.tabClosed' };
+  }
+  // A waiter turned this phone (or this table, a moment ago) away: somebody
+  // really at the table asks a waiter, and scanning again will not help yet.
+  if (error instanceof ScanTurnedAwayError) {
+    return { key: TURNED_AWAY_KEY };
   }
   // A branch on a plan without tabs: the answer is a waiter, not another scan.
   if (error instanceof TabsNotEnabledError) {

@@ -426,6 +426,8 @@ export interface MockGatewayOptions {
    * comes — tests admit through {@link MockGateway.admitTabAsWaiter}.
    */
   readonly simulateAdmissionAfterMs?: number | undefined;
+  /** What that waiter decides: admit (the default) or turn the tab away. */
+  readonly simulateAdmissionOutcome?: 'admit' | 'reject' | undefined;
   /** The branch's cap on a party booked without a proved number. 6 when absent. */
   readonly unverifiedMaxPartySize?: number | undefined;
   /** Whether such bookings wait for the venue. True when absent, as the server's default. */
@@ -723,6 +725,29 @@ export function createMockGateway(options: MockGatewayOptions = {}): MockGateway
   }
 
   /** A waiter let the table order: the tab's stream says so, and ordering opens. */
+  /** A waiter's Reject: the tab closes, the people on it are told, the phone is turned away. */
+  function turnAway(tabId: string): void {
+    if (admissions.get(tabId)?.status !== 'awaiting') return;
+    const at = now().toISOString();
+    admissions.set(tabId, {
+      status: 'rejected',
+      admittedBecause: null,
+      decidedAtUtc: at,
+      decidedByStaffId: MOCK_WAITER_ID,
+      tableFreed: true,
+    });
+    const tab = world.get(tabId);
+    if (tab) {
+      orders.record(tab, 'tabAdmissionRejected', 'staff', {
+        byStaffId: MOCK_WAITER_ID,
+        atUtc: at,
+        tableFreed: true,
+      });
+    }
+    world.close(tabId);
+    turnedAwayAt = now().getTime();
+  }
+
   function admitTab(tabId: string, because: 'waiter' | 'booker'): void {
     const current = admissions.get(tabId);
     if (current?.status !== 'awaiting') return;
@@ -770,9 +795,16 @@ export function createMockGateway(options: MockGatewayOptions = {}): MockGateway
       decidedByStaffId: null,
       tableFreed: null,
     });
-    // Mock mode: a waiter comes over and lets the table in.
+    // Mock mode: a waiter comes over and lets the table in — or, to walk
+    // that screen, turns it away.
     if (options.simulateAdmissionAfterMs !== undefined) {
-      setTimeout(() => admitTab(tabId, 'waiter'), options.simulateAdmissionAfterMs);
+      setTimeout(
+        () =>
+          options.simulateAdmissionOutcome === 'reject'
+            ? turnAway(tabId)
+            : admitTab(tabId, 'waiter'),
+        options.simulateAdmissionAfterMs,
+      );
     }
   }
 
@@ -3115,25 +3147,7 @@ export function createMockGateway(options: MockGatewayOptions = {}): MockGateway
     },
 
     rejectTabAsWaiter(tabId) {
-      if (admissions.get(tabId)?.status !== 'awaiting') return;
-      const at = now().toISOString();
-      admissions.set(tabId, {
-        status: 'rejected',
-        admittedBecause: null,
-        decidedAtUtc: at,
-        decidedByStaffId: MOCK_WAITER_ID,
-        tableFreed: true,
-      });
-      const tab = world.get(tabId);
-      if (tab) {
-        orders.record(tab, 'tabAdmissionRejected', 'staff', {
-          byStaffId: MOCK_WAITER_ID,
-          atUtc: at,
-          tableFreed: true,
-        });
-      }
-      world.close(tabId);
-      turnedAwayAt = now().getTime();
+      turnAway(tabId);
     },
 
     confirmTelegramVerification(challengeId, phoneE164) {

@@ -17,13 +17,18 @@ const MINUTE_MS = 60_000;
  * booking screen, so Change closes at the same moment the time picker does:
  * `leadMinutes` is the branch's `minLeadMinutes`, or the booking screen's
  * stand-in while that is not known.
+ *
+ * Never for a booking made without a proved number — the server refuses to
+ * move it until the number is proved — nor for one somebody else made with
+ * this account's number, which is the account's to cancel, not to move.
  */
 export function canChangeBooking(
-  booking: Pick<Booking, 'status' | 'slotUtc'>,
+  booking: Pick<Booking, 'status' | 'slotUtc' | 'phoneUnverified' | 'madeWithYourNumber'>,
   now: Date,
   leadMinutes = 0,
 ): boolean {
   const start = Date.parse(booking.slotUtc);
+  if (booking.phoneUnverified === true || booking.madeWithYourNumber === true) return false;
   return (
     (booking.status === 'confirmed' || booking.status === 'pendingApproval') &&
     now.getTime() < start &&

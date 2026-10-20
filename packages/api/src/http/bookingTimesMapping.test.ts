@@ -50,6 +50,7 @@ const VIEW: Schemas['Yalla.Application.Reservations.ReservationView'] = {
   wasReplay: false,
   awaitsEarlierGuestAnswer: false,
   phoneUnverified: false,
+  madeWithYourNumber: false,
 };
 
 describe('the enums', () => {

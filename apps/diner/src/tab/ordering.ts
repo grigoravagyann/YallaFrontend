@@ -13,7 +13,8 @@ import {
  * Whether this person can order right now, and if not, why.
  */
 
-export type OrderingBlock = 'pending' | 'notAllowed' | 'closing' | 'closed' | 'removed';
+export type OrderingBlock =
+  'pending' | 'awaitingAdmission' | 'notAllowed' | 'closing' | 'closed' | 'removed';
 
 /**
  * `null` when the server says this participant may order now.
@@ -23,9 +24,15 @@ export type OrderingBlock = 'pending' | 'notAllowed' | 'closing' | 'closed' | 'r
  * everybody, and a pending joiner, a guest the host set to "cannot order", or
  * anyone after the bill was asked for built a tray and got an unexplained
  * failure. The reason is read from the other fields only to say *why*.
+ *
+ * A tab a waiter has not let in yet (a scan with no proved number) is its own
+ * reason: a waiter is coming, and the table can browse and call meanwhile.
  */
-export function orderingBlock(view: Pick<DinerTabView, 'status' | 'me'>): OrderingBlock | null {
+export function orderingBlock(
+  view: Pick<DinerTabView, 'status' | 'me'> & Partial<Pick<DinerTabView, 'admission'>>,
+): OrderingBlock | null {
   if (view.me.canOrderNow) return null;
+  if (view.admission?.status === 'awaiting' && view.status === 'open') return 'awaitingAdmission';
   if (view.status === 'closed' || view.status === 'abandoned') return 'closed';
   if (view.status === 'closing') return 'closing';
   if (view.me.status === 'removed') return 'removed';

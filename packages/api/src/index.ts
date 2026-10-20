@@ -347,6 +347,7 @@ export {
   tableRequestCopy,
   unavailableCopy,
   venueAnswerCopy,
+  pendingReasonCopy,
   verificationFailureCopy,
 } from './contracts/reservation';
 export type {

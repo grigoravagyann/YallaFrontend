@@ -2668,13 +2668,13 @@ export interface paths {
          *
          *     The app's booking body without `branchId` and `channel` (the route names the branch; the channel is the web's, so `acceptsWebBookings` gates it), plus **`deviceId`**: an id the page generates once and keeps (localStorage). `guestPhone` must be a real number in E.164 - spaces and dashes are dropped - and is what the venue calls.
          *
-         *     **What is different from a verified booking.** The booking says `phoneUnverified: true` everywhere staff read it. It is for at most `policy.unverifiedMaxPartySize` people (`422 reservation-unverified-party-too-large`, `context.maxPartySize` - offer to verify, which lifts it). When the branch approves such bookings first (`policy.unverifiedBookingsNeedApproval`, on by default) it lands `PendingApproval` with `awaitingApprovalBecause` **6** and no deadline: the venue confirms it. No reminder is sent. Its manage link reads and cancels it but never changes it (cancel and book again).
+         *     **What is different from a verified booking.** The booking says `phoneUnverified: true` everywhere staff read it. It is for at most `policy.unverifiedMaxPartySize` people (`422 reservation-unverified-party-too-large`, `context.maxPartySize` - offer to verify, which lifts it). When the branch approves such bookings first (`policy.unverifiedBookingsNeedApproval`, on by default) it lands `PendingApproval` with `awaitingApprovalBecause` **6** and an answer deadline (`approvalExpiresAtUtc`: a day at most, two hours before the start if that is sooner) - unanswered, it is declined for no answer. At most 20 wait at one branch at once (`409 branch-unverified-queue-full`). No reminder is sent. Its manage link reads and cancels it but never changes it (cancel and book again).
          *
          *     **One active booking per number - for everybody.** A number that already holds a pending or confirmed booking that is not over, at any venue, is `409 phone-has-active-booking` with **no context** here. One active unverified booking per browser too: `409 device-has-active-booking`. Cancelling the other booking frees the number at once.
          *
          *     **`manageToken` comes back once**, in the `201`. Store it before anything else: a retry with the same `clientCommandId` from the same `deviceId` answers `200` with the booking and **no token** (only its hash exists). The same id from another browser is `409 client-command-id-in-use`.
          *
-         *     Rate limited per address (10 an hour by default) on top of the branch ceiling.
+         *     Rate limited per network - the address, an IPv6 one by its /64, never a token - at 10 bookings without a verified number an hour, a budget shared with the app's door (`429 rate-limited`); on a branch ceiling of its own, apart from the page's.
          */
         post: operations["createPublicBookingWithoutAccount"];
         delete?: never;
@@ -2904,7 +2904,7 @@ export interface paths {
         put?: never;
         /**
          * Cancel a booking
-         * @description A diner may only cancel their own; anyone else's is 403. Free until the branch's cancellation deadline and still allowed after it - a late cancellation is far better than a no-show - with `cancelledAfterDeadline` recording which it was.
+         * @description A diner may only cancel their own - and one made with their proved number and no proof by somebody else (`madeWithYourNumber` on their list); anyone else's is 403. Free until the branch's cancellation deadline and still allowed after it - a late cancellation is far better than a no-show - with `cancelledAfterDeadline` recording which it was.
          */
         post: operations["cancelReservation"];
         delete?: never;
@@ -3082,6 +3082,8 @@ export interface paths {
         /**
          * The calling diner's own bookings, upcoming and past
          * @description Upcoming means still going to happen: not finished, and not already called off. A booking cancelled for tomorrow belongs in the history, not at the top of the screen.
+         *
+         *     **Made with your number, not by you.** For an account that proved its number, the list also carries the bookings somebody else made with that number and no proof of it - on the public page, or from an account that never proved it - with `madeWithYourNumber` true. They never stop this account booking; show them apart, with a cancel button (`POST /api/reservations/{id}/cancel`).
          */
         get: operations["getMyReservations"];
         put?: never;
@@ -3235,9 +3237,9 @@ export interface paths {
         put?: never;
         /**
          * Staff: let a table that scanned without a verified number order
-         * @description A tab opened by a QR scan whose host has no proved phone number waits for a waiter (`admission.status` 1): the phones can read the menu and the tab, approve joiners and call a waiter, but not order. A waiter who can see the party at the table taps Admit; from then on it is an ordinary tab (approved guests with `canOrder` order, a phone's order waits at New for a waiter). A tab whose host proved their number, one opened from a booking, and one staff opened are admitted on the spot; a waiter's own order on a waiting tab admits it too.
+         * @description A tab opened by a QR scan whose host has no proved phone number waits for a waiter (`admission.status` 1): the phones can read the menu and the tab, approve joiners and call a waiter, but not order. A waiter who can see the party at the table taps Admit; from then on it is an ordinary tab (approved guests with `canOrder` order, a phone's order waits at New for a waiter). A tab whose host proved their number, one opened from a booking, and one staff opened are admitted on the spot - and every scan is, at a branch whose policy has `unverifiedScansNeedAdmission` off. **A waiter's own order never admits a tab**: staff may order on a waiting tab, and it goes on waiting until this tap.
          *
-         *     Already admitted answers `200` as it is, writing nothing. Writes `TabAdmitted` (21) on the tab's stream and a signal entry (2) on the branch's change stream. Idempotent on `clientCommandId`. **Online only** - not one of the commands the tablet queues.
+         *     Already admitted answers `200` as it is, writing nothing. Two waiters tapping Admit and Reject on one card at once: one wins, the other gets `409 tab-admission-decided`. Writes `TabAdmitted` (21) on the tab's stream and a signal entry (2) on the branch's change stream. Idempotent on `clientCommandId`. **Online only** - not one of the commands the tablet queues.
          */
         post: operations["admitTab"];
         delete?: never;
@@ -3567,9 +3569,11 @@ export interface paths {
          * Staff: turn away a tab nobody is really sitting at
          * @description For a tab waiting for admission that the waiter cannot match to anybody at the table - a photographed QR code scanned from somewhere else. The tab closes (`status` 3, `admission.status` 3), its live invitation is revoked and its open calls are acknowledged by the rejecting waiter.
          *
-         *     **When the scan itself seated the table** (a walk-in sitting no waiter and no booking opened), the table is **freed** through the table state machine - an Occupied-to-Free audit row with the reason given - and `admission.tableFreed` is true. A table a waiter or a booking seated stays seated; only the tab goes, and the party really there can scan again for a new one.
+         *     **When the scan itself seated the table** (a walk-in sitting no waiter and no booking opened), the table is **freed** through the table state machine - an Occupied-to-Free audit row with the reason given - and `admission.tableFreed` is true. A table a waiter or a booking seated stays seated; only the tab goes, and the party really there can scan again for a new one. A scan that took a table **held** for a late booked party gives it back to Held, not Free.
          *
-         *     Already turned away answers `200` as it is. Writes `TabAdmissionRejected` (22) on the tab's stream and a signal entry (3) on the branch's change stream. Idempotent on `clientCommandId`. **Online only.**
+         *     **Afterwards, a pause:** the phone that opened the tab opens or joins no tab at the branch for 30 minutes, and the table opens no tab by an unverified scan for 2 (`409 scan-turned-away` on the scan, with `context.retryAfterUtc`); a waiter can open the tab for a party really there meanwhile. A tab a waiter has keyed orders on cannot be turned away (`409 conflicting-state`): move the host or remove the phone, then admit.
+         *
+         *     Already turned away answers `200` as it is; racing an Admit, the loser gets `409 tab-admission-decided`. Writes `TabAdmissionRejected` (22) on the tab's stream and a signal entry (3) on the branch's change stream. Idempotent on `clientCommandId`. **Online only.**
          */
         post: operations["rejectTab"];
         delete?: never;
@@ -3667,6 +3671,8 @@ export interface paths {
          *
          *     **Straight to the kitchen.** A waiter's order is answered with `status` `InKitchen`: the waiter who took it at the table is the check a phone's order waits at `New` for, so there is no second send. The tab's stream carries `OrderPlaced` and then `OrderStatusChanged` (New -> InKitchen) in the same commit.
          *
+         *     **On a tab waiting for admission too** - staff may always order - and it **never admits the tab**: the phones on it still wait for a waiter's Admit (`POST /api/tabs/{tabId}/admit`).
+         *
          *     `onBehalfOfParticipantId` is what keeps "everyone pays their own" working. Without it the line is **attributed to the table** and splits across everyone present - a real answer rather than a wrong one, and one whose cost the venue can see in its own numbers.
          *
          *     **Who, per line.** `items[i].participantId` names the guest one line is for and overrides `onBehalfOfParticipantId` for that line alone, so a round with the table's latte, Narine's steak and Aram's coffee is **one order and one kitchen ticket**, each dish on the person who ate it. Every line in the response carries `onBehalfOfParticipantId`: its own guest, else the order's, and absent on a shared line. `onBehalfOfParticipantId` on the order is a default for the lines that name nobody, not a claim on the order. Both fields are checked by one rule - an approved participant on this tab.
@@ -3722,6 +3728,10 @@ export interface paths {
          *     - **Out of service**: 409.
          *
          *     Two phones scanning a free table at the same moment produce exactly one tab; the loser lands pending on it. A double scan with the same `clientCommandId` returns the same tab with `wasReplay` set.
+         *
+         *     **Admission.** A tab this scan opens with no proved phone number behind it (no diner token, or one whose number was never proved) **waits for a waiter** - `tab.admission.status` 1, nobody orders until a waiter admits it - where the branch's `unverifiedScansNeedAdmission` is on, the default. Off, it is admitted at once (`admittedBecause` 5). A proved scanner's tab is admitted at once (2).
+         *
+         *     **After a waiter turned a scan away** the phone that opened it is refused at the branch for 30 minutes, and the table opens no tab by such a scan for 2 (joining a live tab there is not affected): `409 scan-turned-away`, `context.retryAfterUtc`. Say "ask a waiter".
          */
         post: operations["openTab"];
         delete?: never;
@@ -6639,6 +6649,7 @@ export interface components {
             unverifiedBookingsNeedApproval?: boolean | null;
             /** Format: int32 */
             unverifiedMaxPartySize?: number | null;
+            unverifiedScansNeedAdmission?: boolean | null;
             /** Format: int32 */
             walkInHoldbackMinutes: number;
         };
@@ -6681,6 +6692,7 @@ export interface components {
             unverifiedBookingsNeedApproval: boolean;
             /** Format: int32 */
             unverifiedMaxPartySize: number;
+            unverifiedScansNeedAdmission: boolean;
             /** Format: int32 */
             walkInHoldbackMinutes: number;
         };
@@ -10335,6 +10347,12 @@ export interface components {
             /** Format: time */
             localStartTime: string;
             /**
+             * @description On the reader's own list only: true for a booking somebody else made with the reader's (proved) phone
+             *     number and no proof of it. Show it as "made with your number, not by you"; the reader may cancel it
+             *     with the usual cancel. False for the reader's own bookings and on every other read.
+             */
+            madeWithYourNumber: boolean;
+            /**
              * @description The plaintext manage token, <b>returned exactly once</b> - in the response to the request
              *     that created this booking - and null on every later read.
              */
@@ -10987,7 +11005,8 @@ export interface components {
         "Yalla.Application.Tabs.TabAdmissionView": {
             /**
              * @description 1 a waiter admitted it, 2 the host's number is proved, 3 staff opened it, 4 the booker opened or joined it,
-             *     5 a waiter's order admitted it. Absent while waiting, once rejected, and on tabs from before admission.
+             *     5 not required - the branch lets unverified scans order at once. Absent while waiting, once rejected, and
+             *     on tabs from before admission.
              */
             admittedBecause?: components["schemas"]["Yalla.Domain.Enums.TabAdmissionReason"] | null;
             /**
@@ -11574,7 +11593,7 @@ export interface components {
          * Format: int32
          * @description Why a tab was admitted. Persisted as its number.
          *
-         *     Values: 1 Waiter, 2 VerifiedHost, 3 OpenedByStaff, 4 Booker, 5 WaiterOrder.
+         *     Values: 1 Waiter, 2 VerifiedHost, 3 OpenedByStaff, 4 Booker, 5 NotRequired.
          * @enum {integer}
          */
         "Yalla.Domain.Enums.TabAdmissionReason": 1 | 2 | 3 | 4 | 5;
@@ -26197,7 +26216,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
                 };
             };
-            /** @description The table is out of service, or the tab there is being settled and takes no new people. Also returned when this `clientCommandId` was used by a different device. */
+            /** @description The table is out of service, or the tab there is being settled and takes no new people. Also returned when this `clientCommandId` was used by a different device. `scan-turned-away`: a waiter just turned a scan away (`context.retryAfterUtc`). */
             409: {
                 headers: {
                     [name: string]: unknown;

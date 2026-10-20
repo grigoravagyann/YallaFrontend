@@ -1158,6 +1158,32 @@ review every string in `src/locales/hy` and `src/locales/ru`.**
   switch `policy.field.unverifiedScansNeedAdmission.*` (its why must keep
   saying it is switched off only while the tablets cannot admit yet) and its
   guest's view `policy.example.unverifiedScanWaits` / `unverifiedScanOrders`.
+- `public` and `diner` — unverified guests, part B (2026-10-20), **not** in an
+  artboard and **not** reviewed. `public`: the Book sheet's way without proof —
+  `sheet.phone.withoutProof` «Շարունակել առանց հաստատելու», the line before it
+  `sheet.unverified.offer` / `.offerNoApproval` (must keep all three facts: the
+  venue may confirm first — or, where it does not, that the booking cannot be
+  changed online — Telegram is instant, and the party cap `{{max}}`, said as
+  "parties of up to" / «մինչև … հոգու» / «до … человек» so no plural is
+  needed), `.tooMany` (over the cap: no button, Telegram for more), the name
+  step's `.note` / `.noteNoApproval`, `.phoneHint`, `.badPhone`,
+  `.verifyInstead` (beside a refusal proving the number lifts);
+  `sheet.done.unverifiedLinkHint` (must keep saying no reminders are sent and
+  that the link is how to cancel) and `.unverifiedNoLink`; the manage link's
+  `manage.badge.unverified`, `manage.changeUnverified` (cancel and book again,
+  or call) and `manage.noReminders`. `diner` (also read by the web page through
+  `bookingFailure`): `confirm.error.phoneHasBookingHeld` (names the caller's own
+  booking only), `.phoneHasBooking` (names nothing), `.phoneHasBookingVerify`
+  (an unproved account: proving the number lifts a stranger's booking),
+  `.deviceHasBooking`, `.unverifiedPartyTooLarge`, `.unverifiedQueueFull`,
+  `.rateLimited`; `confirm.unverifiedNote`; `booking.approval.unverifiedWhy`;
+  `success.unverifiedNudge`; `bookings.madeWithYourNumber.*` (made with the
+  account's number, not by it — the cancel body must say the venue will see the
+  owner disowned it); the scanned tab waiting for a waiter
+  `order.blocked.awaitingAdmission` (hy «Մատուցողը շուտով կհաստատի Ձեր սեղանը…»:
+  must keep that the menu and calling a waiter work meanwhile),
+  `tab.admission.*` (waiting title, the let-in notice, the turned-away screen and
+  its way home), `tab.pay.awaitingAdmission`, `scan.error.turnedAway`.
 
 The Russian bundle carries four plural categories (`one`/`few`/`many`/`other`)
 where Armenian and English carry two. That is correct CLDR, not duplication, and

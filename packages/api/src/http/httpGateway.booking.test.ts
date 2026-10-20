@@ -43,6 +43,7 @@ const VIEW: ReservationViewWire = {
   wasReplay: false,
   awaitsEarlierGuestAnswer: false,
   phoneUnverified: false,
+  madeWithYourNumber: false,
   manageToken: 'mt-1',
 };
 

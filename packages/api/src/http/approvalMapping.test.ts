@@ -47,6 +47,7 @@ const VIEW: WireReservationWithApproval = {
   wasReplay: false,
   awaitsEarlierGuestAnswer: false,
   phoneUnverified: false,
+  madeWithYourNumber: false,
   awaitingApprovalBecause: 4,
   approvalExpiresAtUtc: EXPIRES,
 };

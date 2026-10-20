@@ -306,8 +306,8 @@ export function reservationPolicy(view: WirePolicy): ReservationPolicy {
     // Absent from a server before unverified bookings: the shipped defaults.
     unverifiedBookingsNeedApproval: view.unverifiedBookingsNeedApproval ?? true,
     unverifiedMaxPartySize: view.unverifiedMaxPartySize ?? 6,
-    unverifiedScansNeedAdmission:
-      (view as WirePolicy & WireAdmissionSetting).unverifiedScansNeedAdmission ?? true,
+    // Absent from an older server: the default, on.
+    unverifiedScansNeedAdmission: view.unverifiedScansNeedAdmission ?? true,
   };
 }
 
@@ -326,18 +326,9 @@ export function policyDefaults(view: WirePolicyDefaults): ReservationPolicyDefau
   };
 }
 
-/**
- * `unverifiedScansNeedAdmission` (UG wire §0 item 3), ahead of the generated
- * schema: whether a scan with no proved number waits for a waiter. Absent from
- * an older server, which reads as the default, on.
- */
-interface WireAdmissionSetting {
-  readonly unverifiedScansNeedAdmission?: boolean | null;
-}
-
 export function policyCommand(
   policy: ReservationPolicy,
-): Schemas['Yalla.Application.BranchSettings.ReservationPolicyCommand'] & WireAdmissionSetting {
+): Schemas['Yalla.Application.BranchSettings.ReservationPolicyCommand'] {
   return {
     turnTimeMinutes: policy.turnTimeMinutes,
     bufferMinutes: policy.bufferMinutes,

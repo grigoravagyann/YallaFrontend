@@ -241,7 +241,8 @@
       "pending": "Waiting for confirmation",
       "cancelled": "Cancelled",
       "declined": "Declined",
-      "past": "Past"
+      "past": "Past",
+      "unverified": "Number not verified"
     },
     "codeHint": "Show it at the door",
     "updatesItself": "This page updates by itself.",
@@ -284,7 +285,9 @@
       "body": "The booking may already be over, or the link was copied wrong. If you are not sure, call the venue."
     },
     "seeVenue": "See the venue",
-    "cancelledByVenueBody": "The venue cancelled this booking. Call them if you have a question."
+    "cancelledByVenueBody": "The venue cancelled this booking. Call them if you have a question.",
+    "changeUnverified": "A booking made without a verified phone number cannot be changed online. Cancel it and book again, or call the venue.",
+    "noReminders": "No reminders are sent for this booking. Keep this link."
   },
   "header": {
     "allBranches_one": "All {{count}} branch",
@@ -390,7 +393,8 @@
       "short": "Write the whole number, for example 77 123456",
       "smsOff": "Codes by SMS are not available right now. Confirm with Telegram instead.",
       "noDoors": "Confirming a phone number is not available right now. Try again later.",
-      "loading": "Checking how we can confirm your number…"
+      "loading": "Checking how we can confirm your number…",
+      "withoutProof": "Continue without verifying"
     },
     "telegram": {
       "body": "In Telegram, press Start, then share your number. This page carries on by itself once the number is confirmed.",
@@ -422,7 +426,19 @@
       "openManage": "Open the booking page",
       "back": "Back to the venue page",
       "auto": "This page updates by itself.",
-      "again": "Choose another time"
+      "again": "Choose another time",
+      "unverifiedLinkHint": "We send no reminders for a booking made without a verified number. Keep this link: it shows the venue's answer, and it is how you cancel.",
+      "unverifiedNoLink": "We could not show this booking's link. Note the code; to cancel, call the venue."
+    },
+    "unverified": {
+      "offer": "No Telegram? You can book without verifying your number, for parties of up to {{max}}. The venue then confirms the booking itself first; with Telegram it is confirmed at once.",
+      "offerNoApproval": "No Telegram? You can book without verifying your number, for parties of up to {{max}}. Such a booking cannot be changed online later, only cancelled; with Telegram you can change it too.",
+      "tooMany": "Without a verified number this venue takes bookings for parties of up to {{max}}. Confirm your number with Telegram to book for more.",
+      "note": "Your number will not be verified, so the venue confirms this booking itself first. This page shows its answer.",
+      "noteNoApproval": "Your number will not be verified, so this booking cannot be changed online later — only cancelled.",
+      "phoneHint": "The venue calls this number if it needs to. It is not published.",
+      "verifyInstead": "Confirm with Telegram instead",
+      "badPhone": "That does not look like a phone number. Write it with the country code, for example +374 77 123456."
     }
   }
 }

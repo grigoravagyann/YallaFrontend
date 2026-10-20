@@ -341,6 +341,23 @@ describe('a tab a scan opened without a proved number', () => {
       lines: [{ menuItemId: 'cappuccino', quantity: 1, isShared: false, participantId }],
     });
 
+  it('lets mock mode play a waiter who admits, or one who turns the table away', async () => {
+    const admits = world({ simulateAdmissionAfterMs: 5 });
+    const admitted = await scanned(admits);
+    const turnsAway = world({ simulateAdmissionAfterMs: 5, simulateAdmissionOutcome: 'reject' });
+    const rejected = await scanned(turnsAway);
+    await new Promise((resolve) => setTimeout(resolve, 30));
+
+    expect((await admits.getDinerTab(admitted.tabId))?.admission).toMatchObject({
+      status: 'admitted',
+      admittedBecause: 'waiter',
+    });
+    expect((await turnsAway.getDinerTab(rejected.tabId))?.admission).toMatchObject({
+      status: 'rejected',
+      tableFreed: true,
+    });
+  });
+
   it('waits for a waiter: no order, no bill, but water', async () => {
     const gateway = world();
     const tab = await scanned(gateway);

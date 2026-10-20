@@ -43,6 +43,11 @@ export const gateway: YallaGateway = resolveGateway({
   mockEarlierGuestAnswersAfterMs: seconds(
     process.env['EXPO_PUBLIC_MOCK_EARLIER_GUEST_ANSWERS_AFTER_SECONDS'],
   ),
+  // A scan with no proved number waits for a waiter; in mock mode one comes
+  // after EXPO_PUBLIC_MOCK_ADMISSION_AFTER_SECONDS (eight when unset) and lets
+  // the table in — or turns it away with EXPO_PUBLIC_MOCK_ADMISSION=reject.
+  mockAdmissionAfterMs: seconds(process.env['EXPO_PUBLIC_MOCK_ADMISSION_AFTER_SECONDS']),
+  mockAdmissionOutcome: process.env['EXPO_PUBLIC_MOCK_ADMISSION'] === 'reject' ? 'reject' : 'admit',
   // On the web build the mock world survives a full page load (QA F2); a
   // phone keeps the app alive between screens and has no localStorage.
   persist:

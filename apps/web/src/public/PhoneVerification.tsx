@@ -13,6 +13,7 @@ import { Icon } from './icons';
 import { formatPhone } from './phone';
 import { isSmsUnavailable, usePhoneProofDoors } from './phoneProof';
 import { SheetNote } from './SheetParts';
+import type { WithoutProofDoor } from './unverifiedBooking';
 
 /**
  * Phone verification, asked for at the point of reserving and nowhere earlier.
@@ -32,6 +33,12 @@ import { SheetNote } from './SheetParts';
  *
  * The step is the Book sheet's to hold (its head shows the step's title and
  * Back), and so is the number, so going back to the table keeps it.
+ *
+ * **Or no proof at all** (unverified guests, 2026-10-20): where the sheet
+ * passes `withoutProof`, a third way under the two doors books with a typed
+ * number nobody proves — said before it is taken: the venue may confirm such a
+ * booking first, Telegram confirms at once, and only up to the branch's party
+ * cap. Over the cap the way is not offered, and the line says why.
  *
  * Nothing is stored. The token the exchange returns lives in memory for as long
  * as the tab is open; see `gateways.ts`.
@@ -69,6 +76,10 @@ export interface PhoneVerificationProps {
    */
   readonly closedDoors: ClosedDoors;
   readonly onDoorClosed: (door: keyof ClosedDoors) => void;
+  /** Booking without proving the number, at this branch for this party; absent, not offered. */
+  readonly withoutProof?: WithoutProofDoor | null | undefined;
+  /** The visitor goes on without proving: the sheet asks for the number and the name. */
+  readonly onWithoutProof?: (() => void) | undefined;
 }
 
 /** An error said under its field, on the step it belongs to. */
@@ -91,6 +102,8 @@ export function PhoneVerification({
   onVerified,
   closedDoors,
   onDoorClosed,
+  withoutProof = null,
+  onWithoutProof,
 }: PhoneVerificationProps) {
   const { t } = useTranslation('diner');
   const { t: tp } = useTranslation('public');
@@ -101,6 +114,7 @@ export function PhoneVerification({
   const numberId = useId();
   const codeId = useId();
   const errorId = useId();
+  const withoutProofId = useId();
 
   const [challenge, setChallenge] = useState<PhoneChallenge | null>(null);
   const [code, setCode] = useState('');
@@ -437,6 +451,9 @@ export function PhoneVerification({
   }
 
   const noDoor = doors.known && !sms && !telegram;
+  /** The way without proof: said whenever the sheet offers it, a button only within the cap. */
+  const unproved = withoutProof && onWithoutProof ? withoutProof : null;
+  const unprovedOpen = unproved?.open === true;
   return (
     <form
       className="pub-sheet-step"
@@ -526,9 +543,23 @@ export function PhoneVerification({
             {tp('sheet.phone.noDoors')}
           </p>
         ) : null}
+
+        {/* Before the button, what booking without proof means here. */}
+        {unproved ? (
+          <p className="pub-muted" id={withoutProofId}>
+            {unproved.open
+              ? tp(
+                  unproved.needsApproval
+                    ? 'sheet.unverified.offer'
+                    : 'sheet.unverified.offerNoApproval',
+                  { max: unproved.max },
+                )
+              : tp('sheet.unverified.tooMany', { max: unproved.max })}
+          </p>
+        ) : null}
       </div>
 
-      {sms || telegram ? (
+      {sms || telegram || unprovedOpen ? (
         <div className="pub-sheet-foot">
           {/* First: no number to type, no code to wait for. */}
           {telegram ? (
@@ -546,6 +577,18 @@ export function PhoneVerification({
           {sms ? (
             <button type="submit" className="pub-button" disabled={busy}>
               {requestCode.isPending ? t('net.loading') : tp('sheet.phone.sms')}
+            </button>
+          ) : null}
+          {/* Last: the slower way, for whoever has no Telegram. */}
+          {unprovedOpen && onWithoutProof ? (
+            <button
+              type="button"
+              className="pub-button pub-button-ghost"
+              aria-describedby={withoutProofId}
+              disabled={busy}
+              onClick={onWithoutProof}
+            >
+              {tp('sheet.phone.withoutProof')}
             </button>
           ) : null}
         </div>

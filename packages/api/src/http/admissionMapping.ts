@@ -178,13 +178,25 @@ export function admissionRefusal(error: unknown, tabId: string): ApiError | null
       return new TabAdmissionDecidedError({
         ...base,
         tabId: text(context['tabId']) ?? tabId,
-        admission: admissionStatus(
-          typeof context['admission'] === 'number' ? context['admission'] : undefined,
-        ),
+        admission: admissionStatus(decidedStatus(context['admission'])),
       });
     default:
       return null;
   }
+}
+
+/**
+ * The status a `tab-admission-decided` names: the bare number, or the tab's
+ * admission view (`{ status, … }`) — read either way, so the wording does not
+ * hang on which the server sends.
+ */
+function decidedStatus(value: unknown): number | undefined {
+  if (typeof value === 'number') return value;
+  if (value && typeof value === 'object') {
+    const status = (value as { readonly status?: unknown }).status;
+    if (typeof status === 'number') return status;
+  }
+  return undefined;
 }
 
 /** A scan refused because a waiter just turned this phone or table away; null for anything else. */

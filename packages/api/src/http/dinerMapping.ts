@@ -272,14 +272,7 @@ export function dinerTab(view: TabView, fetchedAtUtc: string, baseUrl: string): 
 /** With the booking-approval and booking-times fields the generated schema does not have yet. */
 type ReservationViewWire = Schemas['Yalla.Application.Reservations.ReservationView'] &
   WireApprovalFields &
-  WireReservationTimes & {
-    /**
-     * Unverified guests' review round (UG wire §0 item 5), ahead of the
-     * generated schema: somebody else booked without a proved number using
-     * this account's number. Absent from an older server.
-     */
-    readonly madeWithYourNumber?: boolean | null;
-  };
+  WireReservationTimes;
 
 /**
  * `ReservationStatus`: 1 PendingApproval, 2 Confirmed, 4 Seated, 5 Completed,

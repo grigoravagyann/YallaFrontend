@@ -2,6 +2,7 @@ import {
   approvalCountdown,
   awaitsVenueAnswer,
   declinedCopy,
+  pendingReasonCopy,
   venueAnswerCopy,
   type Booking,
   type PublicBranch,
@@ -48,6 +49,12 @@ import { SheetHead } from './SheetParts';
  * artboard: done, pending, declined). Waiting, the calendar waits too and the
  * booking page is offered; declined, there is nothing to remember or manage,
  * and another time is.
+ *
+ * A booking made **without a verified number** (2026-10-20) gets no reminder
+ * at all, not even by app, and its link is the only way back to it — to the
+ * venue's answer, which can take hours, and to cancelling. So its link is
+ * shown whether it waits or not, and says so; if the link was lost on the way
+ * (a replay carries none) the sheet says that too, with the venue's number.
  */
 export interface BookingDoneProps {
   readonly booking: Booking;
@@ -102,7 +109,9 @@ export function BookingDone({ booking, branch, onClose, onChooseAnotherTime }: B
   const countdown = approvalCountdown(answerState.approvalExpiresAtUtc, now, locale);
   const declinedTitle = declinedCopy(answerState.declinedBecause, 'title');
   const declinedBody = declinedCopy(answerState.declinedBecause, 'body');
+  const why = pendingReasonCopy(answerState);
 
+  const unproved = booking.phoneUnverified === true;
   const kind = declinedTitle
     ? 'declined'
     : answerState.status === 'pendingApproval'
@@ -199,6 +208,44 @@ export function BookingDone({ booking, branch, onClose, onChooseAnotherTime }: B
     </dl>
   );
 
+  /*
+   * The way out. Not optional — see the module comment.
+   *
+   * When the server issued no token there is genuinely nothing to link to,
+   * and a link that goes nowhere is worse than none. Then the venue's own
+   * number is offered instead, because *some* way to cancel has to exist.
+   */
+  const linkSection = manageUrl ? (
+    <section className="pub-sheet-field" aria-labelledby={linkId}>
+      <h4 className="pub-field-label" id={linkId}>
+        {t('sheet.done.link')}
+      </h4>
+      <div className="pub-link-row">
+        <a href={manageUrl}>{manageUrl}</a>
+        <button
+          type="button"
+          className="pub-button pub-button-small"
+          onClick={() => void copyLink()}
+        >
+          {copied ? t('sheet.done.copied') : t('sheet.done.copy')}
+        </button>
+      </div>
+      {/* No reminder will come for a booking without a verified number. */}
+      <p className="pub-muted">
+        {unproved ? t('sheet.done.unverifiedLinkHint') : t('sheet.done.linkHint')}
+      </p>
+    </section>
+  ) : (
+    <>
+      {unproved ? <p className="pub-muted">{t('sheet.done.unverifiedNoLink')}</p> : null}
+      {branch.phoneE164 ? (
+        <a className="pub-button" href={`tel:${branch.phoneE164}`}>
+          {t('findUs.call')}
+        </a>
+      ) : null}
+    </>
+  );
+
   const backToPage = onClose ? (
     <button type="button" className="pub-button pub-button-ghost" onClick={onClose}>
       {t('sheet.done.back')}
@@ -227,18 +274,8 @@ export function BookingDone({ booking, branch, onClose, onChooseAnotherTime }: B
           ) : null
         ) : kind === 'pending' ? (
           <>
-            <p className="pub-done-body">
-              {answerState.awaitingApprovalBecause === 'earlierGuestConsent'
-                ? // The venue rings a guest before who cannot answer in the app.
-                  td(
-                    answerState.awaitsEarlierGuestAnswer === false
-                      ? 'booking.approval.venueAsksEarlierGuest'
-                      : 'table.requestable.earlierGuest',
-                  )
-                : answerState.approvalExpiresAtUtc
-                  ? td('booking.approval.why')
-                  : td('success.pendingBody')}
-            </p>
+            {/* Why it waits: short notice, the guest before, no verified number. */}
+            <p className="pub-done-body">{td(why.key, why.params)}</p>
             {/* While the venue decides: the minutes it has left to answer. A
                 timer, so a screen reader reads it when asked rather than every
                 second. */}
@@ -274,6 +311,9 @@ export function BookingDone({ booking, branch, onClose, onChooseAnotherTime }: B
 
         {summary}
 
+        {/* Hours to answer, not minutes, and no reminder: the link is the way back. */}
+        {kind === 'pending' && unproved ? linkSection : null}
+
         {kind === 'done' ? (
           <>
             {booking.promisedFreeByUtc ? (
@@ -284,36 +324,7 @@ export function BookingDone({ booking, branch, onClose, onChooseAnotherTime }: B
               </p>
             ) : null}
 
-            {/*
-              The way out. Not optional — see the module comment.
-
-              When the server issued no token there is genuinely nothing to
-              link to, and a link that goes nowhere is worse than none. Then
-              the venue's own number is offered instead, because *some* way to
-              cancel has to exist.
-            */}
-            {manageUrl ? (
-              <section className="pub-sheet-field" aria-labelledby={linkId}>
-                <h4 className="pub-field-label" id={linkId}>
-                  {t('sheet.done.link')}
-                </h4>
-                <div className="pub-link-row">
-                  <a href={manageUrl}>{manageUrl}</a>
-                  <button
-                    type="button"
-                    className="pub-button pub-button-small"
-                    onClick={() => void copyLink()}
-                  >
-                    {copied ? t('sheet.done.copied') : t('sheet.done.copy')}
-                  </button>
-                </div>
-                <p className="pub-muted">{t('sheet.done.linkHint')}</p>
-              </section>
-            ) : branch.phoneE164 ? (
-              <a className="pub-button" href={`tel:${branch.phoneE164}`}>
-                {t('findUs.call')}
-              </a>
-            ) : null}
+            {linkSection}
 
             {/*
               What happens after the free-cancellation time, which the deadline
