@@ -10,7 +10,10 @@ import type {
   PublicVenueHeader,
 } from '../contracts/publicBranch';
 import type { Booking } from '../contracts/booking';
+import type { SpecialDay } from '../contracts/branchSettings';
 import { openStateFrom } from '../contracts/openState';
+import { NotFoundError } from '../errors';
+import { BookingLinkAccountUnavailableError, PhoneNotVerifiedError } from '../contracts/errors';
 import {
   publicBranchFixtures,
   publicVenueFixtures,
@@ -36,6 +39,13 @@ export interface PublicMockOptions {
   readonly gateway: YallaGateway;
   readonly now?: (() => Date) | undefined;
   readonly latencyMs?: number | undefined;
+  /**
+   * Northern Avenue closed for a day five days out and open late for a wine
+   * night nine days out, so the hours' special days show in mock mode. Off
+   * unless asked: the public fixtures keep to their week in tests, and the
+   * console mock owns special days.
+   */
+  readonly showcaseSpecialDays?: boolean | undefined;
 }
 
 /**
@@ -47,6 +57,8 @@ export interface PublicMockOptions {
  * credential, so nobody mistakes the mock for a security model.
  */
 const TOKEN_PREFIX = 'mbk_';
+
+const URL_TAG = 'mock://yalla';
 
 export function manageTokenFor(bookingId: string): string {
   return `${TOKEN_PREFIX}${bookingId}`;
@@ -103,6 +115,24 @@ function findBranchBySlug(
     if (fixture && fixture.slug === branchSlug) return { branch, fixture };
   }
   return null;
+}
+
+/** The branch the mock's showcase data sits on. */
+const SHOWCASE_BRANCH = 'b-lumen-north';
+
+/** Two special days ahead of `now`, as calendar dates in the branch's zone. */
+function showcaseSpecialDays(now: Date, timeZoneId: string): SpecialDay[] {
+  const dateIn = (days: number) =>
+    new Intl.DateTimeFormat('en-CA', {
+      timeZone: timeZoneId,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    }).format(new Date(now.getTime() + days * 86_400_000));
+  return [
+    { date: dateIn(5), note: 'Staff training', blocks: [] },
+    { date: dateIn(9), note: 'Wine night', blocks: [{ opensAt: '09:00', closesAt: '02:00' }] },
+  ];
 }
 
 export function createPublicMockGateway(options: PublicMockOptions): PublicGateway {
@@ -170,6 +200,7 @@ export function createPublicMockGateway(options: PublicMockOptions): PublicGatew
     const floor = await gateway.getFloorPlan(booking.branchId);
 
     return {
+      reservationId: booking.id,
       code: booking.code,
       status: managedStatus(booking.status),
       venueName: booking.venueName ?? venue?.name ?? '',
@@ -178,6 +209,7 @@ export function createPublicMockGateway(options: PublicMockOptions): PublicGatew
       branchSlug: fixture?.slug ?? '',
       addressLine: fixture?.addressLine ?? '',
       timeZoneId: booking.timeZoneId,
+      tableId: booking.tableId,
       tableLabel: booking.tableLabel,
       // The booking's own room, as `PublicBookingView.roomName` carries it; the
       // floor's for a booking made before bookings knew their room.
@@ -192,6 +224,7 @@ export function createPublicMockGateway(options: PublicMockOptions): PublicGatew
       approvalExpiresAtUtc:
         booking.status === 'pendingApproval' ? (booking.approvalExpiresAtUtc ?? null) : null,
       declinedBecause: booking.declinedBecause ?? null,
+      cancelledByVenue: booking.status === 'cancelledByVenue' && !booking.declinedBecause,
       // Booking times: why it waits, while it does, and the promise to free it.
       awaitingApprovalBecause:
         booking.status === 'pendingApproval' ? (booking.awaitingApprovalBecause ?? null) : null,
@@ -200,6 +233,24 @@ export function createPublicMockGateway(options: PublicMockOptions): PublicGatew
       // or already cancelled has nothing left to cancel.
       canCancel: booking.status === 'confirmed' || booking.status === 'pendingApproval',
     };
+  }
+
+  /*
+   * The diner gateway's own change, with its session's phone check read as
+   * the server reads it on the link: the booking's account cannot take a
+   * change (403), never "verify your phone", which this visitor cannot do.
+   */
+  async function moveByLink(
+    command: Parameters<YallaGateway['rescheduleBooking']>[0],
+  ): Promise<Booking> {
+    try {
+      return await gateway.rescheduleBooking(command);
+    } catch (error) {
+      if (error instanceof PhoneNotVerifiedError) {
+        throw new BookingLinkAccountUnavailableError({ url: error.url });
+      }
+      throw error;
+    }
   }
 
   return {
@@ -242,7 +293,10 @@ export function createPublicMockGateway(options: PublicMockOptions): PublicGatew
         openState: openStateFrom(fixture.weeklyHours, now(), branch.timeZoneId),
         weeklyHours: fixture.weeklyHours,
         // The public fixtures keep to their week; the console mock owns special days.
-        specialDays: [],
+        specialDays:
+          options.showcaseSpecialDays && branch.id === SHOWCASE_BRANCH
+            ? showcaseSpecialDays(now(), branch.timeZoneId)
+            : [],
         freeTables: counts.free,
         totalTables: counts.total,
         asOfUtc: now().toISOString(),
@@ -257,6 +311,13 @@ export function createPublicMockGateway(options: PublicMockOptions): PublicGatew
             displayOrder: room.displayOrder,
             photos: room.photos,
           })),
+        // What the chooser lists, as the server counts it: switched-on
+        // branches only, this one included.
+        venueBranchCount: Math.max(
+          1,
+          venue.branches.filter((entry) => publicBranchFixtures[entry.id]?.status === 'live')
+            .length,
+        ),
       };
     },
 
@@ -313,6 +374,42 @@ export function createPublicMockGateway(options: PublicMockOptions): PublicGatew
       }
 
       return managedFrom(await gateway.cancelBooking(bookingId));
+    },
+
+    /*
+     * The link is the credential, as on the server: the move is the diner
+     * gateway's own change of that booking, under the same rules, so the
+     * status after it is decided there rather than guessed here.
+     */
+    async rescheduleManagedBooking(command): Promise<ManagedBooking> {
+      await wait();
+      const bookingId = bookingIdFromToken(command.token);
+      const existing = bookingId ? await gateway.getBooking(bookingId) : null;
+      if (!bookingId || !existing) {
+        // A real answer, with its code, as the server's constant 404 is.
+        throw new NotFoundError({
+          url: `${URL_TAG}/api/public/bookings/reschedule`,
+          problem: {
+            type: 'about:blank',
+            title: 'Not found',
+            status: 404,
+            detail: 'This booking link is not valid.',
+            code: 'not-found',
+            traceId: 'mock',
+          },
+        });
+      }
+      return managedFrom(
+        await moveByLink({
+          bookingId,
+          commandId: command.commandId,
+          tableId: command.tableId,
+          slotUtc: command.slotUtc,
+          timeZoneId: command.timeZoneId,
+          partySize: command.partySize,
+          acceptsFreeByUtc: command.acceptsFreeByUtc,
+        }),
+      );
     },
   };
 }

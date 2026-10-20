@@ -40,6 +40,13 @@ export interface ResolveGatewayOptions {
    */
   readonly mockNeighbourBookings?: boolean | undefined;
   /**
+   * Mock only: Northern Avenue's finished listing (cuisine, price, about,
+   * website, amenities, gallery) and two dozen published reviews, so the
+   * public page's header, gallery and reviews can be walked. See
+   * `MockGatewayOptions.showcase`.
+   */
+  readonly mockShowcase?: boolean | undefined;
+  /**
    * Mock only: another guest who booked in the app says yes to a request for
    * their table this long after it is made. Absent, nobody answers.
    */
@@ -74,6 +81,7 @@ export function resolveGateway(options: ResolveGatewayOptions): YallaGateway {
       approvalWindowMs: options.mockApprovalWindowMs,
       simulateVenueApprovalAfterMs: options.mockVenueApprovesAfterMs,
       seedNeighbourBookings: options.mockNeighbourBookings ?? false,
+      showcase: options.mockShowcase ?? false,
       simulateEarlierGuestAnswerAfterMs: options.mockEarlierGuestAnswersAfterMs,
     };
     if (options.persist) {

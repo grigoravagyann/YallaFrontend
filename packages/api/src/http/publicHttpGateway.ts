@@ -5,6 +5,9 @@ import type {
   PublicPageMeta,
   PublicVenue,
 } from '../contracts/publicBranch';
+import type { components } from '../generated/schema';
+import { rethrowBookingRefusal } from './bookingRefusal';
+import { localDateTime } from './mapping';
 import {
   managedBookingFromWire,
   publicBranchFromWire,
@@ -15,8 +18,12 @@ import {
   type WirePublicBranchMeta,
   type WirePublicVenueCard,
 } from './publicMapping';
-import { EndpointNotWiredError } from '../contracts/errors';
-import { NotFoundError } from '../errors';
+import {
+  BookingLinkAccountUnavailableError,
+  BookingsNotAcceptedError,
+  EndpointNotWiredError,
+} from '../contracts/errors';
+import { ApiError, NotFoundError } from '../errors';
 import type { PublicGateway } from '../publicGateway';
 
 /**
@@ -40,6 +47,13 @@ import type { PublicGateway } from '../publicGateway';
  * and the two are indistinguishable on purpose. A 404 with no body means this
  * build is talking to a backend without the routes, and says so with
  * {@link EndpointNotWiredError}.
+ *
+ * Changing the booking from the link is `POST /api/public/bookings/{token}/reschedule`
+ * (public page phase 5): the app's change body, the app's refusals — read by the
+ * same {@link rethrowBookingRefusal} the diner's own routes use — and two of its
+ * own: a 403 `phone-not-verified` is the booking's *account* being unable to take
+ * a change, never a phone this visitor could verify, and overlaps-own arrives
+ * with no context, naming nothing about the other booking.
  *
  * `resolveVenue` has no by-slug route either, so it filters the list route. That
  * is a real limitation rather than a guess, and it is written down where it
@@ -157,5 +171,52 @@ export function createPublicHttpGateway(client: ApiClient): PublicGateway {
         throw error;
       }
     },
+
+    async rescheduleManagedBooking(command): Promise<ManagedBooking> {
+      const { date, time } = localDateTime(command.slotUtc, command.timeZoneId);
+      // The whole new slot, as the app's change sends it — never only what moved.
+      const body: Schemas['Yalla.Api.Endpoints.RescheduleReservationRequest'] = {
+        date,
+        time,
+        partySize: command.partySize,
+        diningTableId: command.tableId,
+        clientCommandId: command.commandId,
+        ...(command.acceptsFreeByUtc ? { acceptsFreeByUtc: command.acceptsFreeByUtc } : {}),
+      };
+      try {
+        const { data } = await client.post<WirePublicBooking>(
+          `/api/public/bookings/${encodeURIComponent(command.token)}/reschedule`,
+          body,
+          anonymous,
+        );
+        return managedBookingFromWire(data);
+      } catch (error) {
+        if (error instanceof NotFoundError && !error.code) {
+          throw new EndpointNotWiredError({
+            url: error.url,
+            endpoint: 'rescheduleManagedBooking',
+          });
+        }
+        if (error instanceof ApiError) {
+          const base = { url: error.url, requestId: error.requestId };
+          // Not this visitor's number: the booking's account can no longer
+          // take a change. There is no session here to send to a code flow.
+          if (error.status === 403 && error.code === 'phone-not-verified') {
+            throw new BookingLinkAccountUnavailableError(base);
+          }
+          // The web channel switched off, said like any branch not taking bookings.
+          if (error.code === 'web-bookings-not-accepted') {
+            throw new BookingsNotAcceptedError(base);
+          }
+        }
+        rethrowBookingRefusal(error, {
+          branchId: null,
+          tableId: command.tableId,
+          partySize: command.partySize,
+        });
+      }
+    },
   };
 }
+
+type Schemas = components['schemas'];

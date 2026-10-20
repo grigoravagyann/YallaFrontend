@@ -63,6 +63,7 @@ describe('the open state on the public branch page', () => {
     policy: { turnTimeMinutes: 120, minLeadMinutes: 30, cancellationDeadlineMinutes: 120 },
     asOfUtc: '2026-10-15T21:21:00Z',
     coverPhoto: null,
+    venueBranchCount: 1,
   };
 
   // 01:21 on Friday 16 October in Yerevan (UTC+4).
@@ -163,6 +164,7 @@ describe('the rooms on the public branch page', () => {
     policy: { turnTimeMinutes: 120, minLeadMinutes: 30, cancellationDeadlineMinutes: 120 },
     asOfUtc: '2026-10-15T21:21:00Z',
     coverPhoto: null,
+    venueBranchCount: 1,
   };
 
   it('lists the rooms that have a photo, in display order, with absolute photo links', () => {

@@ -26,13 +26,35 @@ export function languageFromUrl(search: string): string | null {
 }
 
 /**
- * The switcher.
+ * A path inside the public page that keeps the reader's `?lang=`.
  *
- * Three plain buttons in their own names — Հայերեն, Русский, English — never a
- * flag and never a two-letter code. A flag is a country and not a language, and
- * "HY" means nothing to the person who needs it most. Rendered at the top of
- * the page rather than in a footer for the same reason: someone who cannot read
- * the page cannot be expected to scroll to the bottom of it.
+ * The language lives in the URL and nowhere else, so a link that dropped it
+ * would open the next page in the browser's language again — and a link copied
+ * from there would send a friend the wrong one. With no `?lang=` on this page
+ * the path is returned as it is: the browser is still deciding.
+ */
+export function useLangPath(): (path: string) => string {
+  const [params] = useSearchParams();
+  const lang = params.get(PARAM);
+  return (path) => (lang && isLocale(lang) ? `${path}?${PARAM}=${lang}` : path);
+}
+
+/**
+ * Each language's own short name, the same in every language — they are names,
+ * not translations — beside the full name a screen reader says (Public page
+ * artboards: «Հայ», «Рус», «Eng» on the top bar).
+ */
+const SHORT_NAME: Readonly<Record<Locale, string>> = { hy: 'Հայ', ru: 'Рус', en: 'Eng' };
+
+/**
+ * The switcher, on the top bar.
+ *
+ * Three buttons, each showing its language's own short name and named in full —
+ * Հայերեն, Русский, English — never a flag, which is a country and not a
+ * language. The full name contains the short one, so what a voice-control user
+ * reads is what they can say (WCAG 2.5.3). At the top of the page rather than
+ * in a footer: someone who cannot read the page cannot be expected to scroll
+ * to the bottom of it.
  */
 export function LanguageSwitcher() {
   const { t } = useTranslation('public');
@@ -51,19 +73,19 @@ export function LanguageSwitcher() {
   };
 
   return (
-    <nav className="lang" aria-label={t('language.change')}>
+    <div className="pub-lang" role="group" aria-label={t('language.change')}>
       {LOCALES.map((code) => (
         <button
           key={code}
           type="button"
-          className="lang-option"
           lang={code}
-          aria-current={code === locale ? 'true' : undefined}
+          aria-label={t(`language.${code}`, { ns: 'common' })}
+          aria-pressed={code === locale}
           onClick={() => choose(code)}
         >
-          {t(`language.${code}`, { ns: 'common' })}
+          {SHORT_NAME[code]}
         </button>
       ))}
-    </nav>
+    </div>
   );
 }

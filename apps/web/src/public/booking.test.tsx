@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import {
+  NetworkError,
   TelegramUnavailableError,
   availabilityWindowCopy,
   freeCancellationCopy,
@@ -229,6 +230,69 @@ describe('the booking flow', () => {
   });
 });
 
+describe('another table tapped while the panel is open', () => {
+  it('is a new attempt: a new command id, its own free-by, the phone proof kept', async () => {
+    /*
+     * HANDOFF §3: one client command id per booking attempt. The panel stays
+     * mounted when the visitor taps another table — the room sits beside it on
+     * a desktop — so table B must not be sent under table A's id: after an
+     * attempt on A whose outcome is unknown, the server would replay A's
+     * booking or answer `client-command-id-in-use`.
+     */
+    const { harness, branch, slotUtc, selection, table } = await setUp();
+    const other = (
+      await harness.gateway.getTableAvailability({
+        branchId: branch.id,
+        slotUtc,
+        partySize: selection.partySize,
+        timeZoneId: branch.timeZoneId,
+      })
+    ).find((entry) => entry.isBookable && entry.tableId !== table.tableId) as TableAvailability;
+    expect(other, 'the fixture needs a second bookable table').toBeDefined();
+
+    const create = vi.spyOn(harness.gateway, 'createBooking');
+    create.mockRejectedValueOnce(new NetworkError({ url: '/api/reservations' }));
+    const user = userEvent.setup();
+    const sheet = (availability: TableAvailability) =>
+      harness.wrap(
+        <BookingSheet
+          branch={branch}
+          availability={availability}
+          slotUtc={slotUtc}
+          partySize={selection.partySize}
+          onClose={() => {}}
+          onTableTaken={() => {}}
+        />,
+      );
+    const view = render(sheet(table));
+
+    await user.click(await screen.findByRole('button', { name: /^Reserve table/u }));
+    await user.type(await screen.findByLabelText('Phone number'), '77123456');
+    await user.click(screen.getByRole('button', { name: 'Send code' }));
+    await user.type(await screen.findByLabelText('Enter the code'), '123456');
+    await user.type(await screen.findByLabelText('Name for the booking'), 'Ani');
+    await user.click(screen.getByRole('button', { name: /^(Confirm booking|Request table)$/u }));
+    // The outcome is unknown, so the button checks rather than books.
+    await screen.findByRole('button', { name: 'Check again' });
+    const firstId = create.mock.calls[0]![0].commandId;
+
+    view.rerender(sheet(other));
+
+    // Still verified, so still on the name step — and a fresh attempt, not a check.
+    const submit = await screen.findByRole('button', {
+      name: /^(Confirm booking|Request table)$/u,
+    });
+    expect(screen.queryByLabelText('Phone number')).toBeNull();
+    if ((other.mustFreeByUtc ?? null) !== null) await user.click(screen.getByRole('checkbox'));
+    await user.click(submit);
+
+    await waitFor(() => expect(create).toHaveBeenCalledTimes(2));
+    const second = create.mock.calls[1]![0];
+    expect(second.tableId).toBe(other.tableId);
+    expect(second.commandId).not.toBe(firstId);
+  });
+});
+
 describe('the calendar file the confirmation hands over', () => {
   it("writes the branch's local time, not the device's", async () => {
     const { harness, branch, slotUtc, selection, table } = await setUp();
@@ -348,7 +412,7 @@ describe('losing the table while confirming', () => {
     expect((await harness.gateway.listBookings()).upcoming).toHaveLength(0);
   });
 
-  it('shows the taken-table message above the room', async () => {
+  it('says which table went, in red and focused, at the foot of the room where the panel was', async () => {
     const { harness, branch, selection, slotUtc, table } = await setUp();
 
     render(
@@ -356,7 +420,6 @@ describe('losing the table while confirming', () => {
         <RoomSection
           branch={branch}
           selection={selection}
-          onSelectionChange={() => {}}
           slotUtc={slotUtc}
           selectedTableId={null}
           onTableTap={() => {}}
@@ -365,11 +428,17 @@ describe('losing the table while confirming', () => {
       ),
     );
 
-    expect(
-      await screen.findByText(
-        `Table ${table.tableLabel} was just taken. Here is what is free now.`,
-      ),
-    ).toBeDefined();
+    const notice = await screen.findByText(
+      `Table ${table.tableLabel} was just taken. Here is what is free now.`,
+    );
+    // Focused, and not an alert as well: a focused alert is read twice (review S8).
+    expect(notice.getAttribute('role')).toBeNull();
+    expect(notice.textContent).toBe(
+      `Table ${table.tableLabel} was just taken. Here is what is free now.`,
+    );
+    // Red is for real failures (HANDOFF §3), and losing the table is one.
+    expect(notice.classList.contains('pub-notice-error')).toBe(true);
+    expect(document.activeElement).toBe(notice);
   });
 });
 

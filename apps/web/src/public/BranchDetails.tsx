@@ -1,7 +1,10 @@
-import { WEEK_ORDER, type PublicBranch, type WeekdayIndex } from '@yalla/api';
+import { WEEK_ORDER, type BranchDetail, type PublicBranch, type WeekdayIndex } from '@yalla/api';
+import { useNow } from '@yalla/api/react';
 import { branchDayKey, type Locale } from '@yalla/format';
 import { useTranslation } from '@yalla/i18n';
-import { useId, useState } from 'react';
+import { useId } from 'react';
+import { Icon } from './icons';
+import { formatPhone } from './phone';
 
 /**
  * Where the place is, and when it is open.
@@ -22,7 +25,9 @@ import { useId, useState } from 'react';
  * into a search box is not; the address as the label either way, so the person
  * can read where they are being sent before they tap.
  */
-function mapsHref(branch: PublicBranch): string {
+export function mapsHref(
+  branch: Pick<PublicBranch, 'latitude' | 'longitude' | 'addressLine'>,
+): string {
   const query =
     branch.latitude !== null && branch.longitude !== null
       ? `${branch.latitude},${branch.longitude}`
@@ -30,20 +35,61 @@ function mapsHref(branch: PublicBranch): string {
   return `https://maps.google.com/?q=${encodeURIComponent(query)}`;
 }
 
-export function FindUs({ branch }: { readonly branch: PublicBranch }) {
+/**
+ * The venue's website as a link, or nothing: only an `http(s)` address, shown
+ * as its host ("lumen.am") rather than the whole URL.
+ */
+function website(url: string | null | undefined): { href: string; host: string } | null {
+  if (!url) return null;
+  try {
+    const parsed = new URL(url);
+    if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:') return null;
+    return { href: url, host: parsed.hostname.replace(/^www\./u, '') };
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * "How to find" (Main artboard): the address, the district, and three ways
+ * out — the map, the phone with its number on the button, the venue's own
+ * website. The district and the website come with the listing and join when
+ * it does.
+ */
+export function FindUs({
+  branch,
+  detail,
+}: {
+  readonly branch: PublicBranch;
+  readonly detail: BranchDetail | null | undefined;
+}) {
   const { t } = useTranslation('public');
+  const headingId = useId();
+  const district = detail?.listing.district ?? null;
+  const site = website(detail?.websiteUrl);
 
   return (
-    <section className="pub-section" aria-labelledby="find-us">
-      <h2 id="find-us">{t('section.findUs')}</h2>
+    <section className="pub-section pub-find" id="find" aria-labelledby={headingId}>
+      <h2 id={headingId}>{t('section.findUs')}</h2>
       <address className="pub-address">{branch.addressLine}</address>
+      {district ? <p className="pub-muted pub-find-district">{district}</p> : null}
       <div className="pub-actions">
         <a className="pub-button" href={mapsHref(branch)} target="_blank" rel="noreferrer noopener">
           {t('findUs.openMap')}
+          <span aria-hidden="true"> ↗</span>
+          <span className="visually-hidden"> ({t('findUs.newTab')})</span>
         </a>
         {branch.phoneE164 ? (
-          <a className="pub-button pub-button-quiet" href={`tel:${branch.phoneE164}`}>
-            {t('findUs.call')}
+          <a className="pub-button pub-tel" href={`tel:${branch.phoneE164}`}>
+            <Icon name="phone" />
+            {formatPhone(branch.phoneE164)}
+          </a>
+        ) : null}
+        {site ? (
+          <a className="pub-button" href={site.href} target="_blank" rel="noreferrer noopener">
+            {site.host}
+            <span aria-hidden="true"> ↗</span>
+            <span className="visually-hidden"> ({t('findUs.newTab')})</span>
           </a>
         ) : null}
       </div>
@@ -52,15 +98,12 @@ export function FindUs({ branch }: { readonly branch: PublicBranch }) {
 }
 
 /**
- * The whole week, behind a tap.
+ * The week, today marked, and the special days ahead (Main artboard).
  *
- * Collapsed by default because the answer almost everybody wants — "can I come
- * now?" — is already at the top of the page, and seven rows of times between
- * the free-table count and the room would push both below the fold on a phone.
- *
- * A `<details>` element rather than a button and state: it is keyboard
- * accessible, screen-reader correct and findable by the browser's own in-page
- * search while collapsed, all of which a div would have to re-implement.
+ * Open now and until when is already at the top of the page; this is for
+ * planning, so the whole week is shown rather than folded — seven short rows —
+ * with a line saying whose clock the times are on. Holidays and closures
+ * replace the week's hours on their date and sit under it, in amber.
  */
 export function OpeningHours({
   branch,
@@ -70,7 +113,6 @@ export function OpeningHours({
   readonly locale: Locale;
 }) {
   const { t } = useTranslation('public');
-  const [open, setOpen] = useState(false);
   const headingId = useId();
 
   const byDay = new Map<WeekdayIndex, PublicBranch['weeklyHours'][number]>();
@@ -78,61 +120,76 @@ export function OpeningHours({
 
   // Which row to mark, read in the branch's zone: at 00:30 in Yerevan a phone
   // in London still thinks it is yesterday.
-  const todayKey = branchDayKey(new Date(), branch.timeZoneId);
+  // From the clock as state, so a page left open past midnight moves the mark.
+  const now = useNow(60_000);
+  const todayKey = branchDayKey(now, branch.timeZoneId);
   const [year, month, dayOfMonth] = todayKey.split('-').map(Number) as [number, number, number];
   const today = new Date(Date.UTC(year, month - 1, dayOfMonth)).getUTCDay() as WeekdayIndex;
   // The read also carries yesterday's special day when its night runs into
   // today: it counts for "open now", and is not listed as a day ahead.
   const upcoming = branch.specialDays.filter((day) => day.date >= todayKey);
+  // A special day today replaces the week's hours on today's row too, so the
+  // row the eye goes to first never says the venue keeps its usual hours.
+  const todaySpecial = branch.specialDays.find((day) => day.date === todayKey) ?? null;
 
   return (
     <section className="pub-section" aria-labelledby={headingId}>
       <h2 id={headingId}>{t('section.hours')}</h2>
-      <details className="pub-hours" open={open} onToggle={(e) => setOpen(e.currentTarget.open)}>
-        <summary>{open ? t('hours.hide') : t('hours.show')}</summary>
-        <table className="pub-hours-table">
-          <tbody>
-            {WEEK_ORDER.map((day) => {
-              const blocks = byDay.get(day)?.blocks ?? [];
-              return (
-                <tr key={day} aria-current={day === today ? 'date' : undefined}>
-                  <th scope="row" lang={locale}>
-                    {t(`hours.day.${day}`)}
-                  </th>
-                  <td>
-                    {blocks.length === 0
-                      ? t('hours.closed')
-                      : // Two blocks in a day is a real venue with a closed
-                        // kitchen between lunch and dinner, not an edge case.
-                        blocks.map((block) => `${block.opensAt}–${block.closesAt}`).join(', ')}
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </details>
-      {upcoming.length > 0 ? (
-        // Holidays and closures replace the week's hours on their date, so
-        // they are said outside the folded week, where nobody misses them.
-        <table className="pub-hours-table pub-special-days">
-          <caption>{t('hours.special')}</caption>
-          <tbody>
-            {upcoming.map((day) => (
-              <tr key={day.date} aria-current={day.date === todayKey ? 'date' : undefined}>
+      <p className="pub-muted pub-hours-zone">
+        {branch.timeZoneId === 'Asia/Yerevan'
+          ? t('hours.zoneYerevan')
+          : t('hours.zone', { zone: branch.timeZoneId })}
+      </p>
+      <table className="pub-hours-table">
+        <tbody>
+          {WEEK_ORDER.map((day) => {
+            const isToday = day === today;
+            const special = isToday ? todaySpecial : null;
+            const blocks = special ? special.blocks : (byDay.get(day)?.blocks ?? []);
+            return (
+              <tr key={day} aria-current={isToday ? 'date' : undefined}>
                 <th scope="row" lang={locale}>
-                  {specialDate(day.date, locale)}
-                  {day.note ? <span className="pub-special-note"> · {day.note}</span> : null}
+                  {t(`hours.day.${day}`)}
+                  {isToday ? (
+                    <span className="pub-hours-today"> · {t('hours.todayMark')}</span>
+                  ) : null}
+                  {special?.note ? (
+                    <span className="pub-hours-today pub-hours-special"> · {special.note}</span>
+                  ) : null}
                 </th>
                 <td>
-                  {day.blocks.length === 0
+                  {blocks.length === 0
                     ? t('hours.closed')
-                    : day.blocks.map((block) => `${block.opensAt}–${block.closesAt}`).join(', ')}
+                    : // Two blocks in a day is a real venue with a closed
+                      // kitchen between lunch and dinner, not an edge case.
+                      blocks.map((block) => `${block.opensAt}–${block.closesAt}`).join(', ')}
                 </td>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            );
+          })}
+        </tbody>
+      </table>
+      {upcoming.length > 0 ? (
+        <div className="pub-special">
+          <table className="pub-hours-table pub-special-days">
+            <caption>{t('hours.special')}</caption>
+            <tbody>
+              {upcoming.map((day) => (
+                <tr key={day.date} aria-current={day.date === todayKey ? 'date' : undefined}>
+                  <th scope="row" lang={locale}>
+                    {specialDate(day.date, locale)}
+                    {day.note ? <span className="pub-special-note"> · {day.note}</span> : null}
+                  </th>
+                  <td>
+                    {day.blocks.length === 0
+                      ? t('hours.closed')
+                      : day.blocks.map((block) => `${block.opensAt}–${block.closesAt}`).join(', ')}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       ) : null}
     </section>
   );

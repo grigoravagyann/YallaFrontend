@@ -10,29 +10,43 @@
     "updated": "Updated {{time}}",
     "loading": "Loading…",
     "notAvailable": {
-      "title": "Not available",
-      "body": "This place is not on Yalla at the moment. Its own phone number or door will still work."
+      "title": "Not on Yalla right now",
+      "body": "This place's page is closed for now. Their phone and door still work."
     },
     "notFound": {
       "title": "We could not find that place",
-      "body": "Check the link — it may have been mistyped or changed."
+      "body": "Check the link — it may have been mistyped, or the place may have changed it."
+    },
+    "offline": {
+      "title": "No connection",
+      "body": "Check your internet. The page will open as soon as the connection is back."
+    },
+    "error": {
+      "title": "Something went wrong on our side",
+      "body": "Nothing you entered is lost. Try again in a few seconds."
+    },
+    "retry": "Try again",
+    "call": "Call · {{phone}}",
+    "stale": {
+      "offline": "No connection — what you see may be out of date.",
+      "error": "Could not refresh — what you see may be out of date."
     }
   },
   "section": {
-    "room": "The room",
     "menu": "Menu",
     "findUs": "Find us",
-    "hours": "Opening hours"
+    "hours": "Opening hours",
+    "about": "About",
+    "reviews": "Reviews"
   },
   "room": {
     "empty": "This place has not mapped its tables yet.",
-    "pick": "Tap a free table to book it",
     "legendLabel": "What the colours mean",
     "rooms": "Rooms",
     "photoOf": "{{room}}, photo {{index}} of {{count}}",
     "previous": "Previous photo",
     "next": "Next photo",
-    "pin": "Table {{label}}, {{status}}",
+    "pin": "Table {{label}}, {{seats}}, {{status}}",
     "status": {
       "free": "free",
       "booked": "booked",
@@ -47,18 +61,37 @@
       "outOfService": "Out of service",
       "unavailable": "Not for this time or party"
     },
-    "pinUnavailable": "Table {{label}}, not available: {{reason}}",
-    "unavailableHint": "Table {{label}}: {{reason}}"
+    "pinUnavailable": "Table {{label}}, {{seats}}, not available: {{reason}}",
+    "unavailableHint": "Table {{label}}: {{reason}}",
+    "choose": "Choose your table",
+    "now": "The room now",
+    "liveSub": "Updates by itself",
+    "slot": "{{date}} · {{time}} · {{guests}}",
+    "freeIn_one": "{{count}} free",
+    "freeIn_other": "{{count}} free",
+    "view": {
+      "label": "Show as",
+      "group": "How to show the tables",
+      "photo": "Photo",
+      "list": "List"
+    },
+    "list": {
+      "label": "Tables in {{room}}",
+      "table_one": "Table {{label}} · {{count}} seat",
+      "table_other": "Table {{label}} · {{count}} seats"
+    },
+    "noneHere_one": "No free table for {{count}} guest in this room at this time. Look at the other rooms or pick another time.",
+    "noneHere_other": "No free table for {{count}} guests in this room at this time. Look at the other rooms or pick another time.",
+    "failed": "We could not load the room."
   },
   "menu": {
     "empty": "No menu published yet.",
     "ownLanguage": "The menu is written in the venue's own language.",
     "soldOut": "Sold out",
-    "loading": "Loading the menu…"
+    "loading": "Loading the menu…",
+    "sections": "Menu sections"
   },
   "hours": {
-    "show": "See the whole week",
-    "hide": "Hide the week",
     "closed": "Closed",
     "today": "Today",
     "day": {
@@ -70,22 +103,31 @@
       "5": "Friday",
       "6": "Saturday"
     },
-    "special": "Special days"
+    "special": "Special days",
+    "todayMark": "today",
+    "zone": "Times are in the {{zone}} time zone.",
+    "zoneYerevan": "Times are Yerevan time."
   },
   "findUs": {
     "openMap": "Open in maps",
-    "call": "Call"
+    "call": "Call",
+    "newTab": "opens in a new tab"
   },
   "language": {
     "change": "Language"
   },
   "branches": {
     "title": "Choose a branch",
-    "free": "{{free}} of {{total}} tables free",
     "notAvailable": "Not available",
-    "empty": "This place has no branches listed yet."
+    "freeCount_one": "{{count}} table free",
+    "freeCount_other": "{{count}} tables free",
+    "noneFree": "no table free right now",
+    "later": "Later times may still be free",
+    "addressDistrict": "{{address}} · {{district}}",
+    "empty": "This venue has not added a branch on Yalla yet. Try again a little later."
   },
   "booking": {
+    "offTitle": "Booking",
     "notOffered": "Booking through Yalla is not switched on for this venue. The room below is live, and the menu and hours are up to date.",
     "pick": "Book a table",
     "closedNotice": "You can still book ahead.",
@@ -94,7 +136,77 @@
     "overlapsOwn": "You already have a booking here at {{time}} (table {{table}}). Change or cancel that one first.",
     "overlapsOwnPlain": "You already have a booking here at {{time}}. Change or cancel that one first.",
     "overlapsOwnOn": "You already have a booking here on {{date}} at {{time}} (table {{table}}). Change or cancel that one first.",
-    "overlapsOwnOnPlain": "You already have a booking here on {{date}} at {{time}}. Change or cancel that one first."
+    "overlapsOwnOnPlain": "You already have a booking here on {{date}} at {{time}}. Change or cancel that one first.",
+    "day": "Day",
+    "today": "Today",
+    "tomorrow": "Tomorrow",
+    "weekday": {
+      "0": "Sun",
+      "1": "Mon",
+      "2": "Tue",
+      "3": "Wed",
+      "4": "Thu",
+      "5": "Fri",
+      "6": "Sat"
+    },
+    "month": {
+      "1": "January",
+      "2": "February",
+      "3": "March",
+      "4": "April",
+      "5": "May",
+      "6": "June",
+      "7": "July",
+      "8": "August",
+      "9": "September",
+      "10": "October",
+      "11": "November",
+      "12": "December"
+    },
+    "date": "{{weekday}} {{day}} {{month}}",
+    "dayNamed": "{{name}}, {{date}}",
+    "otherDay": "Other day…",
+    "otherDate_one": "Pick a date (up to {{count}} day ahead)",
+    "otherDate_other": "Pick a date (up to {{count}} days ahead)",
+    "fewer": "Fewer guests",
+    "more": "More guests",
+    "bigParty_one": "For more than {{count}} guest, call",
+    "bigParty_other": "For more than {{count}} guests, call",
+    "bigPartyAsk_one": "For more than {{count}} guest, ask the venue directly.",
+    "bigPartyAsk_other": "For more than {{count}} guests, ask the venue directly.",
+    "dayParts": "Part of the day",
+    "dayPart": {
+      "day": "Daytime",
+      "evening": "Evening"
+    },
+    "onRequest": "on request",
+    "noTimes": {
+      "dayToday": "Today's daytime times have passed. Pick the evening or another day.",
+      "day": "No daytime times on this day. Pick the evening or another day.",
+      "evening": "No evening times on this day. Pick the daytime or another day."
+    },
+    "seats_one": "{{count}} seat",
+    "seats_other": "{{count}} seats",
+    "table": {
+      "none": "No table chosen yet",
+      "prompt": "Tap a free table on the room photo, or let us choose.",
+      "table": "Table {{label}} · {{room}}",
+      "summary": "{{seats}} · {{date}}, {{time}} · {{guests}}",
+      "book": "Book table {{label}}",
+      "forMe": "Choose for me",
+      "chosen": "We chose table {{label}}: {{seats}}, {{room}}.",
+      "noneFits_one": "No free table for {{count}} guest at this time. Try another time.",
+      "noneFits_other": "No free table for {{count}} guests at this time. Try another time.",
+      "lost": "Table {{label}} is not free with these choices. Pick another.",
+      "summaryNoSeats": "{{date}}, {{time}} · {{guests}}",
+      "checking": "The room is still loading. Try again in a moment.",
+      "roomFailed": "We could not load the room, so we cannot choose a table for you yet.",
+      "tableOnly": "Table {{label}}"
+    },
+    "change": "Change",
+    "timesUnchecked": "We could not check which times are free. Pick a time, and the room will show what is free then.",
+    "otherDayChosen": "Other day: {{date}}",
+    "timeNotOffered": "Your current time is no longer offered. Pick another time to change the booking."
   },
   "done": {
     "addCalendar": "Add to my calendar",
@@ -109,15 +221,117 @@
   },
   "manage": {
     "title": "Your booking",
+    "heading": {
+      "pending": "Your request",
+      "cancelled": "Booking cancelled",
+      "past": "Your visit"
+    },
+    "badge": {
+      "confirmed": "Confirmed",
+      "pending": "Waiting for confirmation",
+      "cancelled": "Cancelled",
+      "declined": "Declined",
+      "past": "Past"
+    },
+    "codeHint": "Show it at the door",
+    "updatesItself": "This page updates by itself.",
+    "freeUntil": "Free cancellation until {{day}}, {{time}}. You can still cancel later — the venue will just see that it was late.",
+    "freePassed": "The free-cancellation time has passed. You can still cancel — the venue will see that it was late.",
     "cancel": "Cancel this booking",
     "cancelling": "Cancelling…",
     "cancelFailed": "We could not cancel that. Try again.",
-    "cancelled": "Cancelled",
+    "cancelYes": "Yes, cancel",
+    "cancelNo": "No, keep the booking",
     "cancelledBody": "The table has gone back to the venue. Thank you for telling them.",
+    "declinedBody": "The venue could not take you at that time.",
+    "pastBody": "This visit is over. Thank you for choosing {{venue}}.",
+    "calendar": "Calendar",
+    "map": "Map",
+    "change": "Change time or guests",
+    "call": "Call the venue · {{phone}}",
+    "rebook": "Book again",
+    "changing": {
+      "intro": "Pick another day, time, number of guests or table. The venue may need to confirm the change.",
+      "unchanged": "This is your booking as it stands. Change the day, the time, the guests or the table.",
+      "save": "Save the change",
+      "saving": "Saving…",
+      "close": "Keep it as it is",
+      "confirmed": "Changed. Your booking is confirmed.",
+      "pending": "Changed. The venue needs to confirm the new time — this page will show the answer.",
+      "error": {
+        "account": "This booking can no longer be changed online. Call the venue, or cancel it and book again.",
+        "overlapsOwn": "You already have a booking at this venue around then. Choose another time.",
+        "commandInUse": "That try could not be used. Press “Save the change” again.",
+        "busy": "Someone is booking that table this second. Press “Save the change” again.",
+        "rateLimited": "Too many tries with this link just now. Wait a minute, then try again.",
+        "notAccepted": "The venue is not taking bookings online right now. Your booking is unchanged.",
+        "tableGone": "That table is no longer available. Pick another."
+      },
+      "putBack": "The venue could not take the change. Your booking stays at {{when}}."
+    },
     "gone": {
       "title": "This link no longer works",
-      "body": "It may have expired, or the booking may already be over."
+      "body": "The booking may already be over, or the link was copied wrong. If you are not sure, call the venue."
     },
-    "seeVenue": "See the venue"
+    "seeVenue": "See the venue",
+    "cancelledByVenueBody": "The venue cancelled this booking. Call them if you have a question."
+  },
+  "header": {
+    "allBranches_one": "All {{count}} branch",
+    "allBranches_other": "All {{count}} branches",
+    "reviewCount_one": "{{count}} review",
+    "reviewCount_other": "{{count}} reviews",
+    "rating": "Rated {{rating}} out of 5",
+    "noReviews": "No reviews yet",
+    "priceLabel": "Price level: {{level}}",
+    "price": {
+      "1": "budget",
+      "2": "moderate",
+      "3": "pricey",
+      "4": "fine dining"
+    },
+    "call": "Call",
+    "address": "Address",
+    "share": "Share",
+    "copied": "Link copied",
+    "copyThis": "Copy this link:",
+    "actions": "Contact and share"
+  },
+  "gallery": {
+    "label": "Photos",
+    "photo": "Photo {{index}} of {{count}}",
+    "all": "All {{count}} photos",
+    "allShort": "All",
+    "title": "Photos · {{count}}",
+    "close": "Close"
+  },
+  "reviews": {
+    "outOf": "{{rating}} out of 5",
+    "count_one": "{{count}} review",
+    "count_other": "{{count}} reviews",
+    "stars_one": "{{count}} star",
+    "stars_other": "{{count}} stars",
+    "bar": "{{stars}}: {{count}}",
+    "distribution": "How guests rated it",
+    "seeAll_one": "See {{count}} review",
+    "seeAll_other": "See all {{count}} reviews",
+    "showFewer": "Show fewer",
+    "more": "Show more reviews",
+    "loading": "Loading reviews…",
+    "none": "No reviews yet.",
+    "who": "Only guests who came here through Yalla can leave a review.",
+    "failed": "We could not load the reviews.",
+    "edited": "edited",
+    "age": {
+      "today": "today",
+      "days_one": "{{count}} day ago",
+      "days_other": "{{count}} days ago",
+      "weeks_one": "{{count}} week ago",
+      "weeks_other": "{{count}} weeks ago",
+      "months_one": "{{count}} month ago",
+      "months_other": "{{count}} months ago",
+      "years_one": "{{count}} year ago",
+      "years_other": "{{count}} years ago"
+    }
   }
 }

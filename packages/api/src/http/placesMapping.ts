@@ -234,6 +234,7 @@ export function branchDetailFromWire(wire: WireBranchDetail, baseUrl: string): B
     // every place against that server.
     acceptsAppBookings: wire.acceptsAppBookings ?? true,
     recentReviews: (wire.recentReviews ?? []).map(branchReviewFromWire),
+    ratingCounts: ratingCountsFromWire(wire.ratingCounts),
     rooms: roomsFrom(wire.rooms, baseUrl),
     asOfUtc: wire.asOfUtc,
   };
@@ -247,7 +248,20 @@ export function reviewPageFromWire(wire: WireReviewPage): BranchReviewPage {
     page: wire.page,
     pageSize: wire.pageSize,
     reviews: (wire.reviews ?? []).map(branchReviewFromWire),
+    ratingCounts: ratingCountsFromWire(wire.ratingCounts),
   };
+}
+
+/**
+ * The stars per review, one star first, as exactly five whole counts. Missing
+ * places — an older server, a short list — are zero, and so is anything that
+ * is not a count: a bar must never be drawn from a negative or a fraction.
+ */
+export function ratingCountsFromWire(wire: readonly number[] | null | undefined): number[] {
+  return [0, 1, 2, 3, 4].map((index) => {
+    const value = wire?.[index];
+    return typeof value === 'number' && Number.isInteger(value) && value > 0 ? value : 0;
+  });
 }
 
 export function myReviewFromWire(wire: WireDinerReview): MyBranchReview {

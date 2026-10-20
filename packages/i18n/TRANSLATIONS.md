@@ -993,6 +993,112 @@ review every string in `src/locales/hy` and `src/locales/ru`.**
     `order.soldOutNotice`, `order.refused.soldOut`, `order.refused.guest.*`,
     `order.guestGone`, `cash.takenBy` put the name after «՝» or in brackets.
 
+- `public` — the public page redesign, phase 1 (2026-10-20): the page
+  states and the booking column. The `hy` copy is the approved States and
+  Main artboards'; `ru` and `en` were written from it and are **not**
+  reviewed. From the artboards: `page.notAvailable.title` / `.body` (must keep
+  saying the venue's phone and door **still work**), `page.notFound.body`,
+  `page.offline.*` (must keep saying the page opens **by itself** when the
+  connection is back — it does), `page.error.*` (must keep saying nothing the
+  visitor entered is lost), `page.retry`, `page.call` (the number follows
+  «·»), `booking.offTitle`. The language buttons show «Հայ», «Рус», «Eng» —
+  names, the same in every language, kept in `language.tsx`, not here.
+  - Review fixes (2026-10-20), **not** in an artboard, so **not** read by the
+    user even in `hy`: `page.stale.offline` / `.error`, the quiet line on a
+    page that stays on screen while it may be out of date (must keep saying
+    what is shown **may be out of date**, never that it is gone). ru
+    `page.notAvailable.title` now «Сейчас нет на Yalla» and `page.error.title`
+    «У нас что-то пошло не так» (was a calque).
+- `public` — the public page redesign, phase 2 (2026-10-20): the header and
+  the details. `hy` follows the Main artboard where it has the words; `ru` and
+  `en`, and every `hy` string the artboard does not show, are **not**
+  reviewed. From the artboard: `header.allBranches_*`, `header.reviewCount_*`
+  («{{count}} կարծիք»), `header.call`, `.address`, `.share`, `.copied`,
+  `gallery.allShort` («Բոլորը»), `gallery.title`, `gallery.close`,
+  `section.about`, `section.reviews`, `reviews.seeAll_*`, `.showFewer`,
+  `reviews.who` (must keep saying only guests who came **through Yalla** can
+  review), `hours.todayMark`, `hours.zoneYerevan`. Written for this phase:
+  `header.rating`, `.noReviews`, `.priceLabel`, `header.price.1`–`4` (the
+  admin `publicPage.listing.price.level*` names, lower case, read after
+  «֏֏ ·»), `header.copyThis`, `header.actions`, `details.failed`,
+  `gallery.label`, `gallery.photo` and `gallery.all` (hy writes
+  "{{index}} / {{count}}", no suffix on a number), `menu.sections`,
+  `reviews.outOf`, `.count_*`, `.stars_*`, `.bar`, `.distribution`, `.more`,
+  `.loading`, `.none`, `.failed`, `.edited`, `reviews.age.*` (ages in words
+  from our own plurals rather than `Intl.RelativeTimeFormat`, which falls back
+  to English where the browser has no Armenian data), `hours.zone`,
+  `findUs.newTab`, `findUs.website`. Removed with the folded week:
+  `hours.show`, `hours.hide`. Replies reuse `diner` `place.review.reply.*`
+  and amenities `diner` `place.amenity.*`.
+- `public` — the public page redesign, phase 3 (2026-10-20): the booking card
+  and the room. `hy` follows the Main artboard where it has the words; `ru`
+  and `en`, and every `hy` string the artboard does not show, are **not**
+  reviewed. From the artboard: `booking.day`, `.today`, `.tomorrow`,
+  `.otherDay`, `.otherDate_*` (must keep saying how many days ahead the
+  venue books), `.fewer`, `.more`, `.dayParts`, `.dayPart.*`, `.onRequest`,
+  `.noTimes.dayToday`, `booking.table.none`, `.prompt`, `.book`, `.forMe`,
+  `.chosen`, `.noneFits_*`, `room.choose`, `.now`, `.liveSub`, `room.view.*`,
+  `room.noneHere_*`. Written for this phase: `booking.weekday.*` and
+  `booking.month.*` (short weekdays and genitive month names — ours, not
+  `Intl`'s, which prints hy dates in English where the browser has no
+  Armenian data), `booking.date`, `.dayNamed`, `.bigParty_*` (followed by the
+  venue's number as a link), `.bigPartyAsk_*`, `.noTimes.day` / `.evening`,
+  `.seats_*`, `booking.table.table`, `.summary`, `.lost` (no suffix on the
+  table's label: «Սեղան {{label}} այս ընտրությամբ…»), `room.slot`,
+  `room.freeIn_*`, `room.list.*`. `booking.bigParty_*` replaces the
+  artboard's «10-ից ավելի…» with «Ավելի քան {{count}}…», which keeps the
+  number free of a suffix. Removed: `room.pick` (the card's prompt replaces
+  it) and `section.room` (the room's heading is now `room.choose` /
+  `room.now`).
+  - Review fixes (2026-10-20), **not** in an artboard and **not** reviewed:
+    `booking.change` (the artboard's «Փոխել»), `booking.timesUnchecked`
+    (must keep saying the times **could not be checked** — never that they
+    confirm), `booking.otherDayChosen`, `booking.table.tableOnly`,
+    `.summaryNoSeats`, `.checking`, `.roomFailed`, `room.failed`. `room.pin`
+    and `room.pinUnavailable` now carry `{{seats}}`, as the list rows do. hy
+    reworded: `booking.otherDate_*` «առաջիկա {{count}} օրվա ընթացքում» (was
+    «… օր առաջ», which reads as "ago"), `booking.fewer` / `.more` «Մեկ հյուր
+    պակաս» / «Մեկ հյուր ավելի», `booking.bigPartyAsk_*` «…կապվեք հաստատության
+    հետ։». A time that waits for a venue confirming itself (not short notice)
+    reuses `diner` `booking.approval.venueWillConfirm`.
+- `public` and `diner` — the public page redesign, phase 5 (2026-10-20): the
+  manage link and the branch chooser. `hy` follows the Manage and Venue
+  artboards where they have the words; `ru` and `en`, and every `hy` string
+  the artboards do not show, are **not** reviewed. From the artboards:
+  `manage.heading.*`, `manage.badge.*`, `manage.codeHint`,
+  `manage.updatesItself` (said only while the page really polls),
+  `manage.freeUntil` (must keep saying cancelling **later is still allowed**),
+  `manage.cancelYes` / `.cancelNo`, `manage.declinedBody`, `manage.calendar`,
+  `.map`, `.change`, `.call`, `.rebook`, `manage.gone.body` (now the
+  artboard's: the booking may be over or the link copied wrong; call the
+  venue), `branches.freeCount_*`, `.noneFree`, `.later`, `branches.empty`.
+  Written for this phase: `manage.freePassed`, `manage.pastBody` (hy writes
+  «ընտրեցիք {{venue}}» with no suffix on the name), `branches.addressDistrict`,
+  and the change flow `manage.changing.*` — `intro` must stay **neutral**
+  (the venue _may_ need to confirm; the server decides, the page never
+  predicts), `confirmed` / `pending` say what the answer carried, and
+  `error.account` is the backend's link-holder sentence (call the venue, or
+  cancel and book again). Removed: `manage.cancelled` (now
+  `manage.heading.cancelled` and `manage.badge.cancelled`) and `branches.free`
+  (the chooser no longer has a total). `diner`: the feed's
+  `notifications.kind.bookingChangedByLink*` and `bookingCancelledByLink*` —
+  a change or cancel made with the web link, which may be in a stranger's
+  hands, so each says where the booking stands and "if that wasn't you";
+  the day is `dd.MM` as the push says it, and hy keeps every interpolation
+  free of suffixes.
+  - Review fixes (2026-10-20), **not** in an artboard and **not** reviewed:
+    `manage.changing.putBack` (the venue said no to a change, or nobody
+    answered, and the booking stays where it was — must keep saying it
+    **stays**, with its time), `manage.cancelledByVenueBody` (a booking the
+    venue cancelled is not thanked), `booking.timeNotOffered` (the booking's
+    own time is no longer offered; nothing moved). Reworded:
+    `manage.changing.confirmed` ("Changed. Your booking is confirmed." — the
+    change may be the party or the table, not the time), `.error.busy` and
+    `.error.commandInUse` (name the real button, «Պահպանել փոփոխությունը» /
+    «Сохранить изменение»), hy `.error.overlapsOwn` («Այդ ժամի մոտ…»), and
+    `manage.declinedBody` drops "Nothing was charged" (nothing is ever
+    charged).
+
 The Russian bundle carries four plural categories (`one`/`few`/`many`/`other`)
 where Armenian and English carry two. That is correct CLDR, not duplication, and
 `pnpm i18n:check` verifies each language has exactly the categories

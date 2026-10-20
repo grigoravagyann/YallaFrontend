@@ -88,7 +88,9 @@ async function bookedLink(
 
 describe('the manage-booking link', () => {
   it('opens the booking without an authenticated session', async () => {
-    const harness = createHarness();
+    // Confirmed as it is made, so the page reads "Your booking" (a request
+    // still waiting reads "Your request": manageLink.test.tsx).
+    const harness = createHarness({ floorApprovesAtOnce: true });
     const { url, code } = await bookedLink(harness);
 
     render(harness.wrap(<PublicApp />, url));
@@ -101,7 +103,7 @@ describe('the manage-booking link', () => {
   });
 
   it('cancels, and says so, from that link alone', async () => {
-    const harness = createHarness();
+    const harness = createHarness({ floorApprovesAtOnce: true });
     const { url, code } = await bookedLink(harness);
     const user = userEvent.setup();
 
@@ -113,9 +115,11 @@ describe('the manage-booking link', () => {
     // Asked once, with the consequence spelled out — and never refused for
     // lateness, which is a sentence rather than a disabled button.
     expect(screen.getByText('Cancel the booking?')).toBeDefined();
-    await user.click(screen.getByRole('button', { name: 'Cancel booking' }));
+    await user.click(screen.getByRole('button', { name: 'Yes, cancel' }));
 
-    expect(await screen.findByText('Cancelled')).toBeDefined();
+    expect(
+      await screen.findByRole('heading', { level: 1, name: 'Booking cancelled' }),
+    ).toBeDefined();
     expect(screen.getByText(/table has gone back to the venue/u)).toBeDefined();
 
     // Cancelled in the world, not only on screen — the table really did go
@@ -152,7 +156,7 @@ describe('the manage-booking link', () => {
  */
 describe('the manage page in the browser chrome', () => {
   it('titles the tab after the booking and names the table in full, with its room', async () => {
-    const harness = createHarness();
+    const harness = createHarness({ floorApprovesAtOnce: true });
     const { url, tableLabel, roomName } = await bookedLink(harness);
     // Every Lumen table sits in a room, so the page has one to name.
     expect(roomName).toBeTruthy();
@@ -171,9 +175,9 @@ describe('the manage page in the browser chrome', () => {
 
     render(harness.wrap(<PublicApp />, url));
     await user.click(await screen.findByRole('button', { name: 'Cancel this booking' }));
-    await user.click(screen.getByRole('button', { name: 'Cancel booking' }));
+    await user.click(screen.getByRole('button', { name: 'Yes, cancel' }));
 
-    await waitFor(() => expect(document.title).toBe('Cancelled · Yalla'));
+    await waitFor(() => expect(document.title).toBe('Booking cancelled · Yalla'));
   });
 
   it('titles a dead link as one', async () => {

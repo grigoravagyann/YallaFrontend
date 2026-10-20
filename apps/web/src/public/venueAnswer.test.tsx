@@ -137,6 +137,38 @@ describe('the confirmation of a booking for tonight', () => {
   });
 });
 
+describe('the manage link on the confirmation', () => {
+  it('keeps the language the visitor chose, so the saved link opens in it', async () => {
+    const { harness, branch, booking } = await bookTonight({});
+    render(
+      harness.wrap(
+        <BookingDone booking={booking} branch={branch} />,
+        '/lumen-coffee/northern-avenue?lang=ru',
+      ),
+    );
+
+    const link = await screen.findByText(/\/booking\//u, { selector: 'a' });
+    // The short form the reminders carry too: the page finds the branch from
+    // the answer (public page phase 5).
+    expect(link.getAttribute('href')).toBe(
+      `${window.location.origin}/booking/${booking.manageToken}?lang=ru`,
+    );
+  });
+
+  it('adds no language when the browser chose it', async () => {
+    const { harness, branch, booking } = await bookTonight({});
+    render(
+      harness.wrap(
+        <BookingDone booking={booking} branch={branch} />,
+        '/lumen-coffee/northern-avenue',
+      ),
+    );
+
+    const link = await screen.findByText(/\/booking\//u, { selector: 'a' });
+    expect(link.getAttribute('href')).not.toContain('?');
+  });
+});
+
 describe('the manage link of a booking for tonight', () => {
   it('counts the answer down while the venue decides', async () => {
     const { harness, branch, booking } = await bookTonight({});

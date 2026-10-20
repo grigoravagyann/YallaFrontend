@@ -106,6 +106,7 @@ describe('places over /api/public/branches', () => {
       tableCount: 2,
       acceptsWebBookings: false,
       acceptsAppBookings: false,
+      ratingCounts: [0, 0, 0, 1, 1],
       recentReviews: [
         {
           reviewId: 'r1',

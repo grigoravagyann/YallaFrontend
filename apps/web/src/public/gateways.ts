@@ -90,9 +90,17 @@ function publicRuntime(): PublicRuntime {
     mockVenueApprovesAfterMs: mockSeconds(
       import.meta.env['VITE_MOCK_VENUE_APPROVES_AFTER_SECONDS'],
     ),
+    // Mock only: the first booking attempt loses the race, so the "table just
+    // taken" path can be walked without a second device — the diner app's
+    // `EXPO_PUBLIC_SIMULATE_TABLE_TAKEN`. Ignored against a real backend.
+    simulateTableTaken: import.meta.env['VITE_MOCK_SIMULATE_TABLE_TAKEN'] === '1',
     // Mock only: other guests' bookings tomorrow evening at Northern Avenue, so
     // struck, requestable and cut-short times show. Never in tests.
     mockNeighbourBookings: import.meta.env.MODE !== 'test',
+    // Mock only: Northern Avenue's finished listing and its reviews, for the
+    // header, the gallery and "see all". Never in tests, which read a bare,
+    // unreviewed branch unless they ask (the harness's `showcase`).
+    mockShowcase: import.meta.env.MODE !== 'test',
   });
 
   /** The unauthenticated half: slug resolution, the published profile, the manage link. */
@@ -101,6 +109,8 @@ function publicRuntime(): PublicRuntime {
     baseUrl: config.api?.baseUrl,
     gateway: diner,
     mockLatencyMs: 200,
+    // Mock only: two special days at Northern Avenue. Never in tests.
+    mockShowcaseSpecialDays: import.meta.env.MODE !== 'test',
   });
 
   runtime = {

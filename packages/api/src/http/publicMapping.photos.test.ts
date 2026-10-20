@@ -29,6 +29,7 @@ const PAGE: Page = {
   bookingWindowDays: 14,
   policy: { turnTimeMinutes: 90, minLeadMinutes: 30, cancellationDeadlineMinutes: 120 },
   asOfUtc: '2026-09-13T00:00:00Z',
+  venueBranchCount: 1,
   coverPhoto: {
     photoId: 'p1',
     thumbnailUrl: '/api/photos/p1/thumbnail',

@@ -41,9 +41,9 @@ describe('a suspended branch', () => {
   it('renders a plain not-available page, not an error', async () => {
     open('/dolmama/dalma-garden');
 
-    expect(await screen.findByText('Not available')).toBeDefined();
+    expect(await screen.findByText('Not on Yalla right now')).toBeDefined();
     expect(
-      screen.getByText(/not on Yalla at the moment/u),
+      screen.getByText(/page is closed for now/u),
       'the page should say what happened, in a sentence',
     ).toBeDefined();
 
@@ -54,7 +54,7 @@ describe('a suspended branch', () => {
 
   it('advertises nothing: no free-table count, no way to book', async () => {
     open('/dolmama/dalma-garden');
-    await screen.findByText('Not available');
+    await screen.findByText('Not on Yalla right now');
 
     expect(screen.queryByText(/tables? free right now/u)).toBeNull();
     expect(screen.queryByText('Book a table')).toBeNull();
@@ -93,7 +93,8 @@ describe('a live branch', () => {
     // Scoped to the badge: "Closed" also appears in the week's own table, and
     // a loose text query would match either and pass for the wrong reason.
     expect(container.querySelector('.pub-open')?.textContent).toMatch(/^(Open until|Closed)/u);
-    expect(screen.getByRole('heading', { name: 'The room' })).toBeDefined();
+    // The room asks the visitor to choose; the day, time and party sit on the card above it.
+    expect(screen.getByRole('heading', { name: 'Choose your table' })).toBeDefined();
     expect(screen.getByRole('heading', { name: 'Menu' })).toBeDefined();
     expect(screen.getByRole('heading', { name: 'Find us' })).toBeDefined();
     expect(screen.getByRole('heading', { name: 'Opening hours' })).toBeDefined();
@@ -146,23 +147,25 @@ describe('a bar', () => {
 });
 
 describe('the language switcher', () => {
-  it("is at the top of the page, in each language's own name", async () => {
+  it('is at the top of the page, each language named in full in its own words', async () => {
     open('/lumen-coffee/northern-avenue');
 
-    const nav = await screen.findByRole('navigation', { name: 'Language' });
-    const names = [...nav.querySelectorAll('button')].map((button) => button.textContent);
-    // Never a flag — a flag is a country — and never a two-letter code, which
-    // means nothing to the person who most needs the control.
+    const group = await screen.findByRole('group', { name: 'Language' });
+    const names = [...group.querySelectorAll('button')].map((button) =>
+      button.getAttribute('aria-label'),
+    );
+    // Never a flag — a flag is a country. The buttons show each language's own
+    // short name (Հայ, Рус, Eng) and are read out in full.
     expect(names).toEqual(['Հայերեն', 'Русский', 'English']);
   });
 
   it('marks the active language', async () => {
     open('/lumen-coffee/northern-avenue');
-    const nav = await screen.findByRole('navigation', { name: 'Language' });
-    const active = [...nav.querySelectorAll('button')].filter(
-      (button) => button.getAttribute('aria-current') === 'true',
+    const group = await screen.findByRole('group', { name: 'Language' });
+    const active = [...group.querySelectorAll('button')].filter(
+      (button) => button.getAttribute('aria-pressed') === 'true',
     );
-    expect(active.map((button) => button.textContent)).toEqual(['English']);
+    expect(active.map((button) => button.getAttribute('aria-label'))).toEqual(['English']);
   });
 });
 
@@ -200,8 +203,10 @@ describe('the slot the page opens on', () => {
     render(createHarness().wrap(<PublicApp />, '/lumen-coffee/northern-avenue'));
     await screen.findByRole('heading', { level: 1 });
 
-    const time = screen.getByLabelText('Time') as HTMLSelectElement;
-    expect(time.value).toBe('09:00');
+    // Every time today is short notice in the mock world, so 09:00 is on
+    // request — and still the default: nothing that day confirms at once.
+    const time = await screen.findByRole('button', { name: '09:00 · on request' });
+    await waitFor(() => expect(time.getAttribute('aria-pressed')).toBe('true'));
     expect(screen.queryByText('Too soon to book this table.')).toBeNull();
   });
 });
@@ -215,7 +220,7 @@ describe('the tab title of a page that is not a venue', () => {
 
   it('names a suspended branch', async () => {
     open('/dolmama/dalma-garden');
-    await screen.findByText('Not available');
-    await waitFor(() => expect(document.title).toBe('Not available · Yalla'));
+    await screen.findByText('Not on Yalla right now');
+    await waitFor(() => expect(document.title).toBe('Not on Yalla right now · Yalla'));
   });
 });

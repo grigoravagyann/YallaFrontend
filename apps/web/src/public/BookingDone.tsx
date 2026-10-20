@@ -14,6 +14,7 @@ import { useLocale, useTranslation } from '@yalla/i18n';
 import { useState } from 'react';
 import { appUrl } from './gateways';
 import { bookingIcs, downloadIcs, icsDescription } from './calendarFile';
+import { useLangPath } from './language';
 
 /**
  * The booking is made. Now the part that is specific to the web.
@@ -52,6 +53,7 @@ export function BookingDone({ booking, branch }: BookingDoneProps) {
   const { t } = useTranslation('public');
   const { t: td } = useTranslation('diner');
   const { locale } = useLocale();
+  const langPath = useLangPath();
   const [copied, setCopied] = useState(false);
 
   /* Resolved here rather than at import: see `gateways.ts`. */
@@ -99,7 +101,11 @@ export function BookingDone({ booking, branch }: BookingDoneProps) {
    */
   const manageUrl = booking.manageToken
     ? new URL(
-        `/${branch.venue.slug}/${branch.slug}/booking/${booking.manageToken}`,
+        // With the reader's `?lang=` when they chose one: the link they keep
+        // opens in the language they booked in, not whatever the next
+        // browser prefers. Without one, the browser was deciding, and still will.
+        // The short form the reminders carry: the page finds the branch from the answer.
+        langPath(`/booking/${booking.manageToken}`),
         window.location.origin,
       ).toString()
     : null;

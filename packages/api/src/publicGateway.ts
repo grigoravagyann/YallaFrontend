@@ -3,6 +3,7 @@ import type {
   PublicBranch,
   PublicPageMeta,
   PublicVenue,
+  RescheduleManagedBookingCommand,
 } from './contracts/publicBranch';
 
 /**
@@ -76,12 +77,13 @@ export interface PublicGateway {
   getManagedBooking(input: {
     readonly token: string;
     /**
-     * From the manage URL, which is `/{venueSlug}/{branchSlug}/booking/{token}`.
-     * The endpoint does not send them back and the page needs them to link home,
-     * so they travel from the address bar rather than being invented.
+     * From the long manage URL, `/{venueSlug}/{branchSlug}/booking/{token}`,
+     * when the page was opened on it. Only a stand-in: the endpoint names the
+     * booking's own branch (`venueSlug`, `branchSlug` on the view), which is
+     * what the short `/booking/{token}` link the reminders carry relies on.
      */
-    readonly venueSlug: string;
-    readonly branchSlug: string;
+    readonly venueSlug?: string | undefined;
+    readonly branchSlug?: string | undefined;
   }): Promise<ManagedBooking | null>;
 
   /**
@@ -100,9 +102,29 @@ export interface PublicGateway {
    */
   cancelManagedBooking(input: {
     readonly token: string;
-    readonly venueSlug: string;
-    readonly branchSlug: string;
+    readonly venueSlug?: string | undefined;
+    readonly branchSlug?: string | undefined;
     /** Why, if the diner said. Optional, and the only field the route accepts. */
     readonly reason?: string | undefined;
   }): Promise<ManagedBooking>;
+
+  /**
+   * Change the booking from that same link: another day, time, party or table
+   * (public page phase 5). No phone proof — the link proves the booking — and
+   * the code and the link stay the same.
+   *
+   * The answer is the booking as it now stands; its `status` is the server's
+   * fresh decision (a move into tonight, a branch that approves every booking
+   * and a growing party may all wait for the venue again), never predicted
+   * here. A retry with the same command id answers the booking as it stands.
+   *
+   * Refusals are the booking sheet's: `TableTakenError`, `FreeByRequiredError`,
+   * `BookingRejectedError`, `LeadTimeExceededError`, `BookingOverlapsOwnError`
+   * (naming nothing on this route), `BookingCommandInUseError`,
+   * `BookingBusyError`, `BookingsNotAcceptedError`, `BookingNotChangeableError`;
+   * plus `BookingLinkAccountUnavailableError` (403) when the booking's account
+   * can no longer take a change, and `NotFoundError` for a dead link — or a
+   * table that is gone, which a fresh read of the link tells apart.
+   */
+  rescheduleManagedBooking(command: RescheduleManagedBookingCommand): Promise<ManagedBooking>;
 }

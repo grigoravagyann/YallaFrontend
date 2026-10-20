@@ -547,9 +547,57 @@ instead of as a block of redacted text.
 
 Same phone rules as the diner app. One difference that matters: this page is
 often the first thing anyone sees of the product, and it is the surface where the
-thesis has to land in three seconds. The room, with its colours, sits above the
-fold. Everything else on the page is ink on near-white, with the accent on the
-single "Book a table" button and nowhere else.
+thesis has to land in three seconds.
+
+**On 2026-10-20 the user approved its redesign onto the console palette**
+(`docs/design/public-page`): cream canvas, white cards, the brown primary
+button, serif titles — but its own dark-brown top bar (wordmark and language
+switch, sticky) instead of a sidebar, and mobile first at 390px with two
+columns from 960px (the booking column sticky on the right). It reads the
+`--console-*` tokens like the consoles, plus a few of its own in `console.ts`:
+`publicSkeleton`, `publicStateIcon`, `publicPhotoGround`, the open and closed
+dots, `public*` sizes (60px bar, 1180px page, 400px booking column, 48px
+buttons and controls, 52px on a page state's action) and `public*` type (body
+16, the venue's name 30/40, a section 22, a state 26, inputs never under 16).
+`public.css` reads these directly and never the product palette
+(`--color-*`), and `publicStyles.test.ts` fails on a colour typed into it or a
+product-palette variable read. Red is
+only for real failures; waiting is blue, needs-attention amber.
+
+Phase 2 added the header and details: `publicPhotoScrim` (the "All 7" tile and
+the gallery dialog's backdrop) and `publicPhotoCount` (the cover's "2 / 7"),
+both checked for cream text over a white photo, and `publicStar` for the
+rating's stars. A sold-out dish is an amber pill, not the artboard's red.
+Money is `formatDram` everywhere: "1 400 ֏" in hy and ru whatever number data
+the browser ships, "1,400 ֏" in en.
+
+Phase 3 added the booking card and the room, with no new tokens. The card is
+chips: 64px day chips (the brown fill when chosen), a 48px round stepper, a
+segmented day/evening switch and a four-column grid of 48px time chips — a full
+time struck on the soft line colour, an on-request one with an amber
+"on request" under it. A table pin is a 44px target holding a 34px dot with a
+14px number; the chosen one is the brown with a ring. The list view's rows use
+the green and amber backgrounds for free and booked, grey for the rest. A table
+lost to somebody else is the page's one red notice.
+Review fixes: the time grid drops to three columns at 380px and under, so
+"on request" fits a chip at 360; pins pinned closer than a 44px target are
+drawn apart (`pinLayout.ts`); the booking column stops being sticky when its
+content is taller than the window, and folds to a summary with "Change" while
+the booking panel is open in it. The new CSS sizes read the console tokens
+where one exists (`text-label`, `text-caption`, `text-booking-time`,
+`radius-control`, `radius-public-status`, the public control size).
+
+Phase 5 added the manage link and the branch chooser, with no new tokens. The
+manage page's status is a pill badge: green for confirmed, blue for waiting
+(the code box dashed blue with it, never green), red for declined, the soft
+line grey for cancelled and past; a cancelled or declined booking's summary is
+struck through in the muted ink. Cancelling asks inline, in a card with the red
+line border, the "yes" button red and "no" plain; the page's own cancel button
+is red words in a quiet box. Changing the booking opens the branch page's own
+booking card and room in the page's column. The chooser's cards are a 96px
+photo, the name, "address · district", the open dot with the free count, and a
+chevron; a branch that is not available is a dashed card on the soft ground
+with a grey tag, not a link.
 
 ---
 
