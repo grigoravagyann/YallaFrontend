@@ -10,6 +10,7 @@ import type {
   DaySlots,
   MyBookings,
   PhoneChallenge,
+  PhoneProofChannels,
   RescheduleBookingCommand,
   SlotFloor,
   TableAvailability,
@@ -44,8 +45,10 @@ import {
   HoldNotActiveError,
   LeadTimeExceededError,
   RateLimitedError,
+  SmsUnavailableError,
   TableRequestClosedError,
   TableTakenError,
+  TelegramUnavailableError,
   TooManyAttemptsError,
   WrongCodeError,
 } from '../contracts/errors';
@@ -133,7 +136,7 @@ import {
 import { branchDayKey, instantFromZonedClock, type TimeZone } from '@yalla/format';
 import { localDateTime } from '../http/mapping';
 import type { YallaGateway } from '../gateway';
-import { SEEDED_ACCOUNT, createAccountStore } from './accounts';
+import { PHONE_PROOF_WINDOW_MS, SEEDED_ACCOUNT, createAccountStore } from './accounts';
 import { createTabWorld, type TableLocation } from './tabs';
 import { createTabOrders } from './tabOrders';
 import { mockBranchMenu, publishedBranchMenu, mockMenuItem, mockPhoto } from './menuDetail';
@@ -298,6 +301,15 @@ export interface MockGatewayOptions {
    * through {@link MockGateway.confirmTelegramVerification} instead.
    */
   readonly simulateTelegramConfirm?: boolean;
+  /**
+   * Which ways of proving a number this backend has on, as
+   * `GET /api/auth/diner/phone-proof` would say. Both when absent. A channel
+   * switched off refuses as the server does: `requestPhoneCode` with
+   * `SmsUnavailableError` (the 503 `sms-unavailable`), the Telegram start with
+   * `TelegramUnavailableError` (no route at all).
+   */
+  readonly phoneProofChannels?:
+    { readonly sms?: boolean | undefined; readonly telegram?: boolean | undefined } | undefined;
   /** Simulated latency in ms, so loading states are visible in the harness. */
   readonly latencyMs?: number;
   /**
@@ -443,6 +455,10 @@ export function createMockGateway(options: MockGatewayOptions = {}): MockGateway
   const options_ = options;
   const now = options.now ?? (() => new Date());
   const latency = options.latencyMs ?? 0;
+  const proofChannels: PhoneProofChannels = {
+    sms: options.phoneProofChannels?.sms ?? true,
+    telegram: options.phoneProofChannels?.telegram ?? true,
+  };
 
   // Mutable in-memory state. A real backend owns all of this.
   const floors = new Map<string, FloorPlanData>();
@@ -500,6 +516,12 @@ export function createMockGateway(options: MockGatewayOptions = {}): MockGateway
    * as `phone_proved_at`; the mock has no token, so the session keeps it.
    */
   let sessionPhoneProvedAt: number | null = null;
+  /** The server's rule for that proof: ten minutes, and not from the future. */
+  function phoneProvedRecently(): boolean {
+    const t = now().getTime();
+    const proved = sessionPhoneProvedAt;
+    return proved !== null && proved <= t + 60_000 && t - proved <= PHONE_PROOF_WINDOW_MS;
+  }
   /**
    * Accounts deleted on this device (K2). The mock has no token to revoke, so a
    * session still pointing at one of these answers as the server answers a
@@ -2700,8 +2722,16 @@ export function createMockGateway(options: MockGatewayOptions = {}): MockGateway
       return daySlotsFor(branchId, date, partySize, excludeBookingId);
     },
 
+    async getPhoneProofChannels() {
+      await wait();
+      return { ...proofChannels };
+    },
+
     async requestPhoneCode(phoneE164, _options) {
       await wait();
+      if (!proofChannels.sms) {
+        throw new SmsUnavailableError({ url: `${URL_TAG}/api/auth/diner/request-code` });
+      }
       const stamps = (codesPerNumber.get(phoneE164) ?? []).filter(
         (t) => now().getTime() - t < 60 * 60_000,
       );
@@ -2740,6 +2770,9 @@ export function createMockGateway(options: MockGatewayOptions = {}): MockGateway
 
     async startTelegramVerification(options) {
       await wait();
+      if (!proofChannels.telegram) {
+        throw new TelegramUnavailableError({ url: `${URL_TAG}/api/auth/diner/telegram/start` });
+      }
       const id = `tg_${sequence++}`;
       const expiresAt = now().getTime() + CODE_TTL_MS;
       telegramChallenges.set(id, { expiresAt, polls: 0, phoneE164: null });
@@ -2869,7 +2902,8 @@ export function createMockGateway(options: MockGatewayOptions = {}): MockGateway
     /**
      * K2, in the server's order: `VerifiedDiner` first, then the confirmation
      * the account needs (the password when it has one, otherwise a code for its
-     * own number), then everything erased at once. The bookings stay for the
+     * own number — or nothing, when this session proved the phone in the last
+     * ten minutes), then everything erased at once. The bookings stay for the
      * venue with nobody linked; the session answers `session-revoked` after.
      */
     async deleteDinerAccount({ password, code }) {
@@ -2889,16 +2923,20 @@ export function createMockGateway(options: MockGatewayOptions = {}): MockGateway
         if (!accounts.passwordMatches(accountId, password)) {
           throw new InvalidCredentialsError({ url });
         }
-      } else {
-        if (!code) {
+      } else if (!code) {
+        // A code or Telegram sign-in a moment ago is the proof a code here would
+        // be — and with SMS off, the only one an account with no password has.
+        if (!phoneProvedRecently()) {
           throw validationFailed(url, [
             {
               field: 'code',
-              message: 'Confirm with the code sent to your phone.',
+              message:
+                "Enter the code sent to the account's number, or prove the number with Telegram again, to delete it.",
               bound: 'required',
             },
           ]);
         }
+      } else {
         const t = now().getTime();
         const challenge = [...challenges.values()].find(
           (entry) => entry.phoneE164 === profile.phoneE164 && !entry.burned && t <= entry.expiresAt,

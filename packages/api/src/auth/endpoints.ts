@@ -18,6 +18,16 @@ const VENUE = '/api/auth/venue';
 
 export function createDinerAuth(client: ApiClient) {
   return {
+    /** `GET /api/auth/diner/phone-proof`: which ways of proving a number are on. */
+    async phoneProofChannels(): Promise<Schemas['Yalla.Application.Auth.PhoneProofChannels']> {
+      const { data } = await client.get<Schemas['Yalla.Application.Auth.PhoneProofChannels']>(
+        `${DINER}/phone-proof`,
+        { skipAuth: true },
+      );
+      return data;
+    },
+
+    /** 503 `sms-unavailable` means the backend has no SMS provider: Telegram is the way. */
     async requestCode(
       body: Schemas['Yalla.Api.Endpoints.RequestDinerCodeRequest'],
     ): Promise<Schemas['Yalla.Application.Auth.VerificationCodeRequestResult']> {

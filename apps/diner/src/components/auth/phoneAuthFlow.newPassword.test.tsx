@@ -65,7 +65,8 @@ function renderFlow(gateway: MockGateway, reason?: string) {
 }
 
 async function passTheCode() {
-  fireEvent.change(screen.getByLabelText('verify.phoneLabel'), {
+  // Once the backend has said which doors are open.
+  fireEvent.change(await screen.findByLabelText('verify.phoneLabel'), {
     target: { value: LOCAL_NUMBER },
   });
   fireEvent.click(screen.getByRole('button', { name: 'verify.sendCode' }));
@@ -154,7 +155,7 @@ describe('a forgotten password, after the code', () => {
     const open = vi.spyOn(Linking, 'openURL').mockResolvedValue(true);
     renderFlow(gateway, 'forgotPassword');
 
-    fireEvent.click(screen.getByRole('button', { name: 'verify.telegramButton' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'verify.telegramButton' }));
     await waitFor(() => expect(open).toHaveBeenCalledTimes(1));
     const challengeId = /start=(tg_\d+)/u.exec(String(open.mock.calls[0]?.[0]))?.[1];
     gateway.confirmTelegramVerification(challengeId!, ANI.phoneE164);

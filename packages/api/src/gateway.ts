@@ -7,6 +7,7 @@ import type {
   DaySlots,
   MyBookings,
   PhoneChallenge,
+  PhoneProofChannels,
   RescheduleBookingCommand,
   SlotFloor,
   TableAvailability,
@@ -320,11 +321,21 @@ export interface YallaGateway {
 
   // --- Phone verification -------------------------------------------------
   /**
+   * Which ways of proving a number this backend has on. Anonymous, and the
+   * same for everybody: a fact about the deployment, not about the diner. A
+   * screen reads it before offering a choice — with no SMS provider, Telegram
+   * is the only way (decided 2026-10-20, until one is chosen).
+   */
+  getPhoneProofChannels(): Promise<PhoneProofChannels>;
+
+  /**
    * Send a 6-digit code.
    *
    * `localeCode` is the diner's language, so the SMS arrives in it.
    *
    * @throws {RateLimitedError} when too many codes were requested for a number.
+   * @throws {SmsUnavailableError} the backend has no SMS provider; prove the
+   * number with Telegram instead.
    */
   requestPhoneCode(
     phoneE164: string,
@@ -443,13 +454,18 @@ export interface YallaGateway {
    * Delete the account, `DELETE /api/diner/me` (K2).
    *
    * An account with a password confirms with it; one without confirms with a
-   * code from {@link requestPhoneCode} for its own number. On success the
+   * code from {@link requestPhoneCode} for its own number — or with nothing at
+   * all when its session proved the phone in the last ten minutes (a code or a
+   * Telegram sign-in stamps the token with `phone_proved_at`), which is the
+   * only proof there is where SMS is off. A phone proof never replaces a
+   * password. On success the
    * server has already ended every session: the next diner call rejects with
    * `SessionRevokedError`, so the caller signs out locally straight after.
    * Reviews, the photo, favourites and notifications go; bookings and orders
    * stay with the venue, no longer linked to anybody.
    *
-   * @throws {ValidationError} the password (or the code) is missing; `field` names it.
+   * @throws {ValidationError} the password (or the code, with no fresh phone
+   * proof) is missing; `field` names it.
    * @throws {InvalidCredentialsError} the password or the code is wrong.
    * @throws {TooManyAttemptsError} too many wrong tries; wait.
    * @throws {PhoneNotVerifiedError} the number was never confirmed.

@@ -55,6 +55,11 @@ describe('a refused code', () => {
     const error = new RateLimitedError({ url: URL, retryAtUtc: null });
     expect(verificationFailureCopy(error, 'en').key).toBe('verify.error.rateLimitedNoTime');
   });
+
+  it('points to Telegram when the backend has no SMS to send the code with', () => {
+    const error = new errors.SmsUnavailableError({ url: URL });
+    expect(verificationFailureCopy(error, 'en').key).toBe('verify.smsUnavailable');
+  });
 });
 
 describe('a failed confirm', () => {

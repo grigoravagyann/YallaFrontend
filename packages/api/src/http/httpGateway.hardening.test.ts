@@ -492,6 +492,12 @@ describe('deleting the account (K2)', () => {
     expect(backend.requests[0]?.body).toEqual({ password: null, code: '123456' });
   });
 
+  it('sends neither when the token itself carries a fresh phone proof', async () => {
+    const { backend, gateway } = await signedIn({ 'DELETE /api/diner/me': { status: 204 } });
+    await gateway.deleteDinerAccount({});
+    expect(backend.requests[0]?.body).toEqual({ password: null, code: null });
+  });
+
   it.each<[string, FakeReply, abstract new (...args: never[]) => Error]>([
     ['a wrong password or code', problemReply(401, 'invalid-credentials'), InvalidCredentialsError],
     ['too many tries', problemReply(429, 'too-many-attempts'), TooManyAttemptsError],

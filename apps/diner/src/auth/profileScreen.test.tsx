@@ -1,4 +1,5 @@
-import type { DinerProfileView } from '@yalla/api';
+import type { DinerProfileView, YallaGateway } from '@yalla/api';
+import { GatewayProvider } from '@yalla/api/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -25,6 +26,7 @@ const router = vi.hoisted(() => ({
 const gateway = vi.hoisted(() => ({
   getDinerProfile: vi.fn(() => new Promise<never>(() => undefined)),
   getUnreadNotificationCount: vi.fn(() => Promise.resolve(3)),
+  getPhoneProofChannels: vi.fn(() => Promise.resolve({ sms: true, telegram: true })),
   requestPhoneCode: vi.fn(),
   deleteDinerAccount: vi.fn(),
 }));
@@ -72,7 +74,11 @@ function renderProfile() {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
     <QueryClientProvider client={client}>
-      <ProfileScreen />
+      {/* The hooks this package calls among themselves (the delete sheet's
+          channels read, the Telegram verification) find the gateway here. */}
+      <GatewayProvider gateway={gateway as unknown as YallaGateway}>
+        <ProfileScreen />
+      </GatewayProvider>
     </QueryClientProvider>,
   );
 }
