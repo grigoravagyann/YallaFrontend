@@ -215,7 +215,8 @@
     "change": "Change",
     "timesUnchecked": "We could not check which times are free. Pick a time, and the room will show what is free then.",
     "otherDayChosen": "Other day: {{date}}",
-    "timeNotOffered": "Your current time is no longer offered. Pick another time to change the booking."
+    "timeNotOffered": "Your current time is no longer offered. Pick another time to change the booking.",
+    "tonight": "Tonight"
   },
   "done": {
     "addCalendar": "Add to my calendar",

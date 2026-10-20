@@ -2,7 +2,7 @@
 import type { ManagedBooking } from '@yalla/api';
 import { cleanup, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { PublicApp } from './PublicApp';
 import { RESERVED_FIRST_SEGMENTS, isPublicPath } from '../publicRoutes';
 import { bookAtLumen, createHarness, initTestI18n, type Harness } from './testHarness';
@@ -19,6 +19,15 @@ import { bookAtLumen, createHarness, initTestI18n, type Harness } from './testHa
 
 beforeAll(async () => {
   await initTestI18n();
+});
+
+beforeEach(() => {
+  // Midday in Yerevan. These walk a booking made two hours out, which is short
+  // notice — waiting for the venue — only while today still has times; at
+  // 22:30 it rolled to tomorrow morning and confirmed at once, and the
+  // pending and declined endings were never reached. The clock is pinned.
+  vi.useFakeTimers({ toFake: ['Date'], shouldAdvanceTime: true });
+  vi.setSystemTime(new Date('2026-10-21T08:00:00Z'));
 });
 
 afterEach(() => {
@@ -161,7 +170,9 @@ describe('the manage page, as the Manage artboard draws it', () => {
   it('a declined request: red badge, why, and a way to book again', async () => {
     const harness = createHarness({ approvalWindowMs: 5 });
     const { token } = await tokenOf(harness);
-    await new Promise((resolve) => setTimeout(resolve, 15));
+    // Past the 5 ms answer window by the pinned clock too, which moves on in
+    // 20 ms steps (`shouldAdvanceTime`).
+    await new Promise((resolve) => setTimeout(resolve, 60));
     render(harness.wrap(<PublicApp />, `/booking/${token}`));
 
     expect(
