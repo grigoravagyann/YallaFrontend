@@ -1,5 +1,4 @@
 import type { BranchDetail, PublicBranch } from '@yalla/api';
-import { usePublicVenue } from '@yalla/api/react';
 import { formatRating, type Locale } from '@yalla/format';
 import { useTranslation } from '@yalla/i18n';
 import { useEffect, useState } from 'react';
@@ -18,9 +17,9 @@ import { useLangPath } from './language';
 export function BranchLine({ branch }: { readonly branch: PublicBranch }) {
   const { t } = useTranslation('public');
   const langPath = useLangPath();
-  // The chooser's own read, without its polling: only the number is shown here.
-  const venueQuery = usePublicVenue(branch.venue.slug, { live: false });
-  const count = venueQuery.data?.branches.length ?? 0;
+  // The branches the chooser lists, counted by the server with the page itself
+  // (`venueBranchCount`) — no read of the whole public venue list for a number.
+  const count = branch.venueBranchCount;
 
   return (
     <div className="pub-branch-row">

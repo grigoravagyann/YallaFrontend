@@ -2351,6 +2351,11 @@ export function createMockGateway(options: MockGatewayOptions = {}): MockGateway
       : found.sort((a, b) => (b.rating ?? 0) - (a.rating ?? 0));
   }
 
+  /** The shown reviews per star, one star first, as the server counts them. */
+  function starCounts(reviews: readonly { readonly rating: number }[]): number[] {
+    return [1, 2, 3, 4, 5].map((stars) => reviews.filter((r) => r.rating === stars).length);
+  }
+
   function reviewUrl(branchId: string): string {
     return `${URL_TAG}/api/diner/branches/${branchId}/review`;
   }
@@ -2394,6 +2399,7 @@ export function createMockGateway(options: MockGatewayOptions = {}): MockGateway
         acceptsAppBookings: acceptsAppBookings(branchId),
         // Newest first written, hidden reviews left out (K8).
         recentReviews: reviewStore.visible(branchId).slice(0, 3).map(toPublicReview),
+        ratingCounts: starCounts(reviewStore.visible(branchId)),
         // The same rooms `getBranchRooms` serves, with live pins.
         rooms: found ? publicRooms(found.branch.rooms, floors.get(branchId)?.tables ?? []) : [],
         asOfUtc: now().toISOString(),
@@ -2420,6 +2426,7 @@ export function createMockGateway(options: MockGatewayOptions = {}): MockGateway
         page,
         pageSize,
         reviews: visible.slice((page - 1) * pageSize, page * pageSize).map(toPublicReview),
+        ratingCounts: starCounts(visible),
       };
     },
 

@@ -36,6 +36,9 @@ const REDESIGNED = [
   'dayNames.ts',
   'pinLayout.ts',
   'useSettled.ts',
+  'ManageBookingRoute.tsx',
+  'ManageChange.tsx',
+  'VenueRoute.tsx',
 ];
 
 /** Comments may quote a value; only code is checked. */

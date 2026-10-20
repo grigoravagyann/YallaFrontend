@@ -57,7 +57,7 @@ import {
   type DecideReservationCommand,
 } from '../contracts/approvals';
 import type { BranchOverview, ConsoleBookingActionCommand } from '../contracts/branchOverview';
-import type { ManagedBooking } from '../contracts/publicBranch';
+import type { ManagedBooking, RescheduleManagedBookingCommand } from '../contracts/publicBranch';
 import type { ReportQuery, ReportSection } from '../contracts/reports';
 import type {
   ChangePlatformPasswordCommand,
@@ -293,6 +293,8 @@ export const queryKeys = {
   tabLines: (tabId: string) => ['staff', 'tabLines', tabId] as const,
   adminMenu: (branchId: string) => ['console', 'menu', branchId] as const,
   publicVenue: (venueSlug: string) => ['public', 'venue', venueSlug] as const,
+  /** The chooser's photos and districts, from the listing. */
+  publicVenueListings: (venueSlug: string) => ['public', 'venueListings', venueSlug] as const,
   publicBranch: (venueSlug: string, branchSlug: string) =>
     ['public', 'branch', venueSlug, branchSlug] as const,
   publicMenu: (branchId: string) => ['public', 'menu', branchId] as const,
@@ -2466,44 +2468,80 @@ export function useBookingAction(branchId: string | undefined) {
 export const PUBLIC_REFRESH_MS = 45_000;
 
 /**
- * How long the branch page trusts its count of a venue's branches. The read
- * is the whole public venue list (there is no by-slug route), on the city-wide
- * browse budget, so a link going round a group chat must not repeat it; a
- * branch count field on the branch page replaces it (public page phase 5).
+ * How often a manage link waiting on the venue's answer reads itself again.
+ *
+ * Slower than {@link APPROVAL_POLL_MS}, on purpose: the link's budget on the
+ * server is 20 requests a minute **per link**, shared by its read, its cancel
+ * and its change, and across every tab and person holding it — a link in a
+ * group chat open on four phones polling every ten seconds would leave no room
+ * for the change somebody is trying to make (PP5 wire, budget note). Fifteen
+ * seconds keeps the answer well inside a fifteen-minute window.
  */
-const PUBLIC_BRANCH_COUNT_STALE_MS = 30 * 60_000;
+export const MANAGE_LINK_POLL_MS = 15_000;
+
+/**
+ * How often a manage link reads itself while a request waits with **no** clock
+ * — a party grown past the venue's threshold, a branch that approves every
+ * booking: the venue may take hours, and the page still promises to show the
+ * answer. Once a minute, on a visible tab only, leaves the link's budget for
+ * the person actually changing or cancelling it (PP5-FE-REVIEW S2).
+ */
+export const MANAGE_LINK_SLOW_POLL_MS = 60_000;
+
+/** The manage link's poll for a booking as it stands: `false` once nothing waits. */
+export function manageLinkPollMs(
+  booking:
+    { readonly status: string; readonly approvalExpiresAtUtc: string | null } | null | undefined,
+): number | false {
+  if (!booking || booking.status !== 'pendingApproval') return false;
+  return awaitsVenueAnswer(booking) ? MANAGE_LINK_POLL_MS : MANAGE_LINK_SLOW_POLL_MS;
+}
 
 /**
  * The venue-level chooser.
  *
  * Reference data with a live number attached, so it takes the live cadence: the
  * per-branch free counts are the only reason this screen beats a phone call.
+ * The branch page no longer reads it: its "All N branches" is
+ * `PublicBranch.venueBranchCount`.
  */
-export function usePublicVenue(
-  venueSlug: string | undefined,
-  options: {
-    /**
-     * Refresh the per-branch counts on the live cadence. Off for a reader that
-     * only needs the branches themselves — the branch page's "all 3 branches"
-     * link — so it does not poll a list it never shows.
-     */
-    readonly live?: boolean;
-  } = {},
-) {
+export function usePublicVenue(venueSlug: string | undefined) {
   const gateway = usePublicGateway();
-  const live = options.live ?? true;
   return useQuery({
     queryKey: queryKeys.publicVenue(venueSlug ?? ''),
     queryFn: () => gateway.resolveVenue(venueSlug!),
     enabled: Boolean(venueSlug),
-    // Not live: the number of branches changes when a venue opens one, so it
-    // is read once for the visit and not again on focus.
-    staleTime: live ? staleTime.live : PUBLIC_BRANCH_COUNT_STALE_MS,
-    refetchInterval: live ? PUBLIC_REFRESH_MS : false,
-    refetchOnWindowFocus: live,
+    staleTime: staleTime.live,
+    refetchInterval: PUBLIC_REFRESH_MS,
     // A page in a background tab is a page nobody is reading. Refetching it
     // spends a stranger's mobile data on a number they cannot see.
     refetchIntervalInBackground: false,
+  });
+}
+
+/**
+ * The chooser's branch cards as the listing has them — the cover photo and the
+ * district — which the venue list does not carry (`GET /api/public/branches/search`,
+ * by the venue's name, kept to this venue's slug). Reference data: read once
+ * for the visit. The cards stand without it: a failed or slow read leaves them
+ * with no photo and no district, never with no card.
+ */
+export function usePublicVenueListings(
+  venue: {
+    readonly slug: string;
+    readonly name: string;
+  } | null,
+) {
+  const gateway = useGateway();
+  return useQuery({
+    queryKey: queryKeys.publicVenueListings(venue?.slug ?? ''),
+    queryFn: async () => {
+      const listings = await gateway.searchBranches({ query: venue!.name });
+      return listings.filter((listing) => listing.venueSlug === venue!.slug);
+    },
+    enabled: Boolean(venue?.slug && venue.name),
+    staleTime: staleTime.reference,
+    refetchOnWindowFocus: false,
   });
 }
 
@@ -2518,15 +2556,22 @@ export function usePublicVenue(
 export function usePublicBranch(input: {
   readonly venueSlug: string | undefined;
   readonly branchSlug: string | undefined;
+  /**
+   * Refresh on the live cadence — the branch page's free count. Off for a
+   * reader that only needs the branch itself (the manage link: its phone, its
+   * pin, its hours for changing the booking), so it does not poll.
+   */
+  readonly live?: boolean;
 }) {
   const gateway = usePublicGateway();
   const { venueSlug, branchSlug } = input;
+  const live = input.live ?? true;
   return useQuery({
     queryKey: queryKeys.publicBranch(venueSlug ?? '', branchSlug ?? ''),
     queryFn: () => gateway.resolveBranch({ venueSlug: venueSlug!, branchSlug: branchSlug! }),
     enabled: Boolean(venueSlug) && Boolean(branchSlug),
     staleTime: staleTime.live,
-    refetchInterval: PUBLIC_REFRESH_MS,
+    refetchInterval: live ? PUBLIC_REFRESH_MS : false,
     refetchIntervalInBackground: false,
   });
 }
@@ -2587,25 +2632,28 @@ export function usePublicReviews(branchId: string | undefined, enabled: boolean)
   });
 }
 
+/**
+ * One booking, from its manage link.
+ *
+ * `slugs` come from the long `/{venueSlug}/{branchSlug}/booking/{token}`
+ * address, as a stand-in only: the answer names the booking's own branch,
+ * which is how the short `/booking/{token}` link the reminders carry finds it.
+ */
 export function useManagedBooking(
   token: string | undefined,
-  slugs: { readonly venueSlug: string; readonly branchSlug: string },
+  slugs?: { readonly venueSlug?: string | undefined; readonly branchSlug?: string | undefined },
 ) {
   const gateway = usePublicGateway();
   return useQuery({
     queryKey: queryKeys.managedBooking(token ?? ''),
-    // The slugs come from the manage URL; the endpoint does not send them back
-    // and the page needs them to link home.
     queryFn: () => gateway.getManagedBooking({ token: token!, ...slugs }),
     enabled: Boolean(token),
     staleTime: staleTime.frequent,
     // While the venue decides — and only then — read again until it has: the
     // page has no push channel, and "answer within 12:40" is a promise to
-    // show the answer when it comes.
-    refetchInterval: (query) => {
-      const booking = query.state.data;
-      return booking && awaitsVenueAnswer(booking) ? APPROVAL_POLL_MS : false;
-    },
+    // show the answer when it comes. On the link's own budget: every 15 s
+    // with a clock, once a minute without one (`manageLinkPollMs`).
+    refetchInterval: (query) => manageLinkPollMs(query.state.data),
     refetchIntervalInBackground: false,
   });
 }
@@ -2622,7 +2670,7 @@ export function useManagedBooking(
  */
 export function useCancelManagedBooking(
   token: string | undefined,
-  slugs: { readonly venueSlug: string; readonly branchSlug: string },
+  slugs?: { readonly venueSlug?: string | undefined; readonly branchSlug?: string | undefined },
 ) {
   const gateway = usePublicGateway();
   const queryClient = useQueryClient();
@@ -2632,6 +2680,29 @@ export function useCancelManagedBooking(
     retry: false,
     onSuccess: (booking: ManagedBooking) => {
       queryClient.setQueryData(queryKeys.managedBooking(token ?? ''), booking);
+    },
+  });
+}
+
+/**
+ * Changing the booking from its signed link (public page phase 5).
+ *
+ * Retry is off: the command id makes a *deliberate* retry safe, and the page
+ * says what happened in between. The answer replaces the cached booking — its
+ * status is the server's fresh decision — and the room and the branch's counts
+ * are read again, since a table moved.
+ */
+export function useRescheduleManagedBooking(token: string | undefined) {
+  const gateway = usePublicGateway();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (command: Omit<RescheduleManagedBookingCommand, 'token'>) =>
+      gateway.rescheduleManagedBooking({ ...command, token: token! }),
+    retry: false,
+    onSuccess: (booking: ManagedBooking) => {
+      queryClient.setQueryData(queryKeys.managedBooking(token ?? ''), booking);
+      void queryClient.invalidateQueries({ queryKey: ['availability'] });
+      void queryClient.invalidateQueries({ queryKey: ['public', 'branch'] });
     },
   });
 }

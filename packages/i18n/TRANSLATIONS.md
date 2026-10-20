@@ -1061,6 +1061,43 @@ review every string in `src/locales/hy` and `src/locales/ru`.**
     պակաս» / «Մեկ հյուր ավելի», `booking.bigPartyAsk_*` «…կապվեք հաստատության
     հետ։». A time that waits for a venue confirming itself (not short notice)
     reuses `diner` `booking.approval.venueWillConfirm`.
+- `public` and `diner` — the public page redesign, phase 5 (2026-10-20): the
+  manage link and the branch chooser. `hy` follows the Manage and Venue
+  artboards where they have the words; `ru` and `en`, and every `hy` string
+  the artboards do not show, are **not** reviewed. From the artboards:
+  `manage.heading.*`, `manage.badge.*`, `manage.codeHint`,
+  `manage.updatesItself` (said only while the page really polls),
+  `manage.freeUntil` (must keep saying cancelling **later is still allowed**),
+  `manage.cancelYes` / `.cancelNo`, `manage.declinedBody`, `manage.calendar`,
+  `.map`, `.change`, `.call`, `.rebook`, `manage.gone.body` (now the
+  artboard's: the booking may be over or the link copied wrong; call the
+  venue), `branches.freeCount_*`, `.noneFree`, `.later`, `branches.empty`.
+  Written for this phase: `manage.freePassed`, `manage.pastBody` (hy writes
+  «ընտրեցիք {{venue}}» with no suffix on the name), `branches.addressDistrict`,
+  and the change flow `manage.changing.*` — `intro` must stay **neutral**
+  (the venue _may_ need to confirm; the server decides, the page never
+  predicts), `confirmed` / `pending` say what the answer carried, and
+  `error.account` is the backend's link-holder sentence (call the venue, or
+  cancel and book again). Removed: `manage.cancelled` (now
+  `manage.heading.cancelled` and `manage.badge.cancelled`) and `branches.free`
+  (the chooser no longer has a total). `diner`: the feed's
+  `notifications.kind.bookingChangedByLink*` and `bookingCancelledByLink*` —
+  a change or cancel made with the web link, which may be in a stranger's
+  hands, so each says where the booking stands and "if that wasn't you";
+  the day is `dd.MM` as the push says it, and hy keeps every interpolation
+  free of suffixes.
+  - Review fixes (2026-10-20), **not** in an artboard and **not** reviewed:
+    `manage.changing.putBack` (the venue said no to a change, or nobody
+    answered, and the booking stays where it was — must keep saying it
+    **stays**, with its time), `manage.cancelledByVenueBody` (a booking the
+    venue cancelled is not thanked), `booking.timeNotOffered` (the booking's
+    own time is no longer offered; nothing moved). Reworded:
+    `manage.changing.confirmed` ("Changed. Your booking is confirmed." — the
+    change may be the party or the table, not the time), `.error.busy` and
+    `.error.commandInUse` (name the real button, «Պահպանել փոփոխությունը» /
+    «Сохранить изменение»), hy `.error.overlapsOwn` («Այդ ժամի մոտ…»), and
+    `manage.declinedBody` drops "Nothing was charged" (nothing is ever
+    charged).
 
 The Russian bundle carries four plural categories (`one`/`few`/`many`/`other`)
 where Armenian and English carry two. That is correct CLDR, not duplication, and

@@ -192,6 +192,13 @@ export interface PublicBranch {
 
   /** The rooms with photos, lowest `displayOrder` first. */
   readonly rooms: readonly PublicRoom[];
+
+  /**
+   * How many branches the venue's chooser lists, this one included (at least
+   * 1): the switched-on ones, read live with the page. "All N branches" shows
+   * only above one — without reading the whole public venue list for a number.
+   */
+  readonly venueBranchCount: number;
 }
 
 /**
@@ -231,6 +238,12 @@ export interface PublicPageMeta {
  * printed it on a card.
  */
 export interface ManagedBooking {
+  /**
+   * The booking's id. It opens nothing anonymously; the change screen passes it
+   * as `excludeReservationId` on the day-of-slots and room reads, so the table
+   * this booking holds reads as free to the person holding the link.
+   */
+  readonly reservationId: string;
   readonly code: string;
   readonly status: 'confirmed' | 'pendingApproval' | 'cancelled' | 'completed' | 'noShow';
 
@@ -241,6 +254,8 @@ export interface ManagedBooking {
   readonly addressLine: string;
   readonly timeZoneId: string;
 
+  /** The booked table: the change screen starts on it, and sends it back when only the time or party moves. */
+  readonly tableId: string;
   readonly tableLabel: string;
   readonly floorAreaName: string | null;
   readonly partySize: number;
@@ -268,6 +283,12 @@ export interface ManagedBooking {
    */
   readonly declinedBecause: DeclineReason | null;
   /**
+   * Cancelled by the venue, not by the guest and not as a decline: the page
+   * then does not thank the guest for telling the venue. False for every
+   * other booking.
+   */
+  readonly cancelledByVenue: boolean;
+  /**
    * Why it waits, while it does: the guest before is being asked
    * (`earlierGuestConsent`) or the venue decides. Absent from an older server.
    */
@@ -292,4 +313,25 @@ export interface ManagedBooking {
    * so late cancellation is a sentence on the page, never a disabled button.
    */
   readonly canCancel: boolean;
+}
+
+/**
+ * Move a booking from its manage link (`POST /api/public/bookings/{token}/reschedule`):
+ * the whole new slot, as the app's change sends it — never only what changed.
+ */
+export interface RescheduleManagedBookingCommand {
+  readonly token: string;
+  /**
+   * One per change attempt, reused on every retry of it: a retry answers the
+   * booking as it stands, and the same id with a different change is a 409.
+   */
+  readonly commandId: string;
+  /** The current table or another one at the branch. */
+  readonly tableId: string;
+  readonly slotUtc: string;
+  /** The branch's zone: the server takes wall-clock date and time. */
+  readonly timeZoneId: string;
+  readonly partySize: number;
+  /** The new table's must-free-by time, agreed to — only when the slot asks for it. */
+  readonly acceptsFreeByUtc?: string | null | undefined;
 }

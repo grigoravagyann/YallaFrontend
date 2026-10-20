@@ -75,6 +75,7 @@ const DETAIL: BranchDetail = {
   acceptsWebBookings: true,
   acceptsAppBookings: true,
   recentReviews: [],
+  ratingCounts: [0, 0, 0, 0, 0],
   rooms: [],
   asOfUtc: '2026-09-14T10:00:00Z',
 };
@@ -238,6 +239,7 @@ describe('createHttpPlaceRepository', () => {
       reviewCount: 21,
       page: 2,
       pageSize: 20,
+      ratingCounts: [0, 0, 0, 21, 0],
       reviews: [
         {
           reviewId: 'r21',

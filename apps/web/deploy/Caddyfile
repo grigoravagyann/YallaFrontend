@@ -29,6 +29,15 @@
 		-Server
 	}
 
+	# A manage link — `/booking/{token}`, or the older
+	# `/{venue}/{branch}/booking/{token}` — is the credential to one booking,
+	# and people paste it in public chats. Kept out of search indexes for
+	# crawlers that never run the page (which also sets a robots <meta>). A
+	# `header` directive runs before the SPA rewrite below, so it sees the path
+	# as requested.
+	@manageLink path_regexp ^/(?:[^/]+/[^/]+/)?booking/
+	header @manageLink X-Robots-Tag "noindex, nofollow"
+
 	# Inside `route` the directives run in the order written, so the matchers
 	# below see the path AFTER the SPA rewrite: `/venue/floorplan` becomes
 	# `/index.html` and is no-cache like the shell, not uncached like nothing.

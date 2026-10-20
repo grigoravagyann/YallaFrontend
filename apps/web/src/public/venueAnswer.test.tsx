@@ -148,7 +148,11 @@ describe('the manage link on the confirmation', () => {
     );
 
     const link = await screen.findByText(/\/booking\//u, { selector: 'a' });
-    expect(link.getAttribute('href')).toMatch(/\/booking\/[^?]+\?lang=ru$/u);
+    // The short form the reminders carry too: the page finds the branch from
+    // the answer (public page phase 5).
+    expect(link.getAttribute('href')).toBe(
+      `${window.location.origin}/booking/${booking.manageToken}?lang=ru`,
+    );
   });
 
   it('adds no language when the browser chose it', async () => {

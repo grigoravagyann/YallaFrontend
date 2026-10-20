@@ -9,14 +9,12 @@ import { useId, useRef, useState } from 'react';
  * newest three with the venue's replies, and "see all" opening the rest in
  * place, twenty at a time (`GET /api/public/branches/{id}/reviews`).
  *
- * The spread is drawn only from every review: the server sends no per-star
- * counts, so it is shown when the newest three are all there are, or when the
- * first page holds them all — never from a sample dressed up as the whole.
+ * The spread is the server's own count per star (`ratingCounts`, the whole
+ * branch's, one star first), so it is drawn for any number of reviews without
+ * reading a single page of them — never from a sample dressed up as the whole.
  */
 
 const DAY_MS = 86_400_000;
-/** The server's page of reviews (`GET …/reviews`). */
-const PAGE_SIZE = 20;
 /** An average month, so 30 days is one month and 364 is eleven. */
 const MONTH_DAYS = 30.44;
 
@@ -60,22 +58,11 @@ export function ReviewsSection({
   const count = detail?.listing.reviewCount ?? 0;
   const rating = detail?.listing.rating ?? null;
   const hasMore = count > recent.length;
-  // The first page is read with the listing only when it holds every review —
-  // then it draws the spread and opens the list at once. Past one page the
-  // spread cannot be drawn from it, so it waits for "see all" rather than
-  // spending the branch's shared request budget on every view.
-  const pages = usePublicReviews(
-    branchId,
-    Boolean(detail) && hasMore && (count <= PAGE_SIZE || expanded),
-  );
+  // Read on "see all" only: the spread no longer needs a page in hand, so no
+  // view spends the branch's shared request budget on one it may never open.
+  const pages = usePublicReviews(branchId, Boolean(detail) && hasMore && expanded);
   const loaded = uniqueReviews((pages.data?.pages ?? []).flatMap((page) => page?.reviews ?? []));
-  const firstPage = pages.data?.pages[0] ?? null;
-
-  const everyReview: readonly BranchReview[] | null = !hasMore
-    ? recent
-    : firstPage && !pages.hasNextPage && firstPage.reviews.length === count
-      ? firstPage.reviews
-      : null;
+  const ratingCounts = detail?.ratingCounts ?? [];
 
   const shown = expanded && loaded.length > 0 ? loaded : recent;
 
@@ -121,7 +108,12 @@ export function ReviewsSection({
                 <span>{t('reviews.count', { count })}</span>
               </p>
             </div>
-            {everyReview && everyReview.length > 0 ? <Spread reviews={everyReview} /> : null}
+            {/* Only when the counts are the reviews counted: an older server
+                sends none, and five empty bars beside "24 reviews" would be a
+                spread made up (review N6). */}
+            {ratingCounts.reduce((sum, value) => sum + value, 0) === count ? (
+              <Spread counts={ratingCounts} total={count} />
+            ) : null}
           </div>
 
           <ul className="pub-review-list" id={listId}>
@@ -228,13 +220,14 @@ function Stars({ rating, label }: { readonly rating: number; readonly label: str
   );
 }
 
-/** How many reviews gave five stars, four, and so on: bars, read as one sentence. */
-function Spread({ reviews }: { readonly reviews: readonly BranchReview[] }) {
+/**
+ * How many reviews gave five stars, four, and so on: bars, read as one
+ * sentence. From the server's counts (one star first), each bar the share of
+ * every shown review.
+ */
+function Spread({ counts, total }: { readonly counts: readonly number[]; readonly total: number }) {
   const { t } = useTranslation('public');
-  const rows = [5, 4, 3, 2, 1].map((stars) => ({
-    stars,
-    count: reviews.filter((review) => review.rating === stars).length,
-  }));
+  const rows = [5, 4, 3, 2, 1].map((stars) => ({ stars, count: counts[stars - 1] ?? 0 }));
   const label = rows
     .map((row) =>
       t('reviews.bar', { stars: t('reviews.stars', { count: row.stars }), count: row.count }),
@@ -251,7 +244,7 @@ function Spread({ reviews }: { readonly reviews: readonly BranchReview[] }) {
         <div key={row.stars}>
           <span>{row.stars}★</span>
           <i>
-            <b style={{ width: `${Math.round((row.count / reviews.length) * 100)}%` }} />
+            <b style={{ width: `${total > 0 ? Math.round((row.count / total) * 100) : 0}%` }} />
           </i>
           <span>{row.count}</span>
         </div>

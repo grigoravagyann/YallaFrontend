@@ -21,6 +21,12 @@ export const DINER_NOTIFICATION_KINDS = [
   // what came of their answer (`accepted`, `requestedTime`, `freeByTime`).
   'table-request',
   'table-request-decided',
+  // Somebody changed or cancelled the booking with its web manage link — which
+  // may be in a stranger's hands, so the account holder is told (PP5 wire).
+  // `params`: venueName, branchName, date (yyyy-MM-dd), time (HH:mm),
+  // partySize, reservationCode, and on a change `status` ("1" waiting, "2" confirmed).
+  'booking-changed-by-link',
+  'booking-cancelled-by-link',
 ] as const;
 
 export type KnownDinerNotificationKind = (typeof DINER_NOTIFICATION_KINDS)[number];

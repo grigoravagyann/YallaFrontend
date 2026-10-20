@@ -171,6 +171,7 @@ describe('placeFromDetail', () => {
     tableCount: 1,
     acceptsWebBookings: false,
     acceptsAppBookings: false,
+    ratingCounts: [0, 0, 0, 1, 1],
     recentReviews: [
       {
         reviewId: 'r',
@@ -368,6 +369,7 @@ describe('review pages', () => {
     page: number,
     pageSize: 20,
     reviews: Array.from({ length: count }, (_, i) => review((number - 1) * 20 + i)),
+    ratingCounts: [0, 0, 0, total, 0],
   });
 
   it('asks for the next page only while the last was full and the total says there is more', () => {

@@ -67,6 +67,8 @@ export interface RoomSectionProps {
   readonly onRoomShown?: ((roomId: string) => void) | undefined;
   /** What closes the section: on a phone, the bar that books the chosen table. */
   readonly footer?: ReactNode;
+  /** The booking being changed from its manage link: left out, so its own table reads free. */
+  readonly excludeReservationId?: string | undefined;
 }
 
 export function RoomSection({
@@ -78,6 +80,7 @@ export function RoomSection({
   takenTableLabel,
   onRoomShown,
   footer,
+  excludeReservationId,
 }: RoomSectionProps) {
   const { t } = useTranslation('public');
   const holder = useRef<HTMLDivElement | null>(null);
@@ -106,6 +109,7 @@ export function RoomSection({
     // it is never inferred from whatever the visitor's phone is set to.
     timeZoneId: branch.timeZoneId,
     pollMs: PUBLIC_REFRESH_MS,
+    excludeBookingId: excludeReservationId,
   });
 
   const handleTap = (tableId: string) => {

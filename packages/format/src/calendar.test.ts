@@ -144,3 +144,20 @@ describe('the filename', () => {
     expect(icsFileName('Լումեն')).toBe('yalla-booking.ics');
   });
 });
+
+/**
+ * A booking moved from its manage link keeps its UID, so the file downloaded
+ * after the change has to say it is the newer version of the same event, or a
+ * calendar keeps the old time (public page phase 5 review, N7).
+ */
+describe('a file downloaded again after a change', () => {
+  it('replaces the event: same UID, a later SEQUENCE and LAST-MODIFIED', () => {
+    const first = event({ now: new Date('2026-09-06T12:00:00Z') });
+    const later = event({ now: new Date('2026-09-06T12:30:00Z') });
+    const sequence = (ics: string) => Number(/\r\nSEQUENCE:(\d+)\r\n/u.exec(ics)?.[1]);
+    expect(first).toContain('UID:yalla-bk-1@yalla.am');
+    expect(later).toContain('UID:yalla-bk-1@yalla.am');
+    expect(sequence(later)).toBeGreaterThan(sequence(first));
+    expect(later).toContain('LAST-MODIFIED:20260906T123000Z');
+  });
+});

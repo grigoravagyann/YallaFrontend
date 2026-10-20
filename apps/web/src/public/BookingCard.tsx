@@ -112,6 +112,18 @@ export interface BookingCardProps {
   readonly panelInColumn?: boolean | undefined;
   /** Moves nothing by itself — just after a booking, until the visitor changes something. */
   readonly holdTime?: boolean | undefined;
+  /**
+   * Changing a booking from its manage link: the booking being moved, left
+   * out of the day's times so its own slot and table read as free to it.
+   */
+  readonly excludeReservationId?: string | undefined;
+  /**
+   * The selection is a time already chosen — a booking's own, on its manage
+   * link — kept as a picked time rather than moved to the day's default.
+   */
+  readonly keepTime?: boolean | undefined;
+  /** The card's heading, when it is not "Book a table". */
+  readonly title?: string | undefined;
 }
 
 export function BookingCard(props: BookingCardProps) {
@@ -163,6 +175,9 @@ function SlotControls({
   panelOpen = false,
   panelInColumn = false,
   holdTime = false,
+  excludeReservationId,
+  keepTime = false,
+  title,
 }: BookingCardProps) {
   const { t } = useTranslation('public');
   const { locale } = useLocale();
@@ -175,8 +190,15 @@ function SlotControls({
     () => ({ weeklyHours, turnTimeMinutes, timeZoneId }),
     [weeklyHours, turnTimeMinutes, timeZoneId],
   );
-  /** Nothing moves by itself while a panel is open, or just after a booking. */
-  const hold = panelOpen || holdTime;
+  /**
+   * Changing a booking (`keepTime`): the card opens on the booking as it
+   * stands and moves nothing — no nearer time, no smaller party — until the
+   * visitor touches the day, the time or the party (PP5-FE-REVIEW S3). A
+   * change they never chose must not ride along with one they did.
+   */
+  const [touched, setTouched] = useState(!keepTime);
+  /** Nothing moves by itself while a panel is open, just after a booking, or before a change is touched. */
+  const hold = panelOpen || holdTime || !touched;
 
   // Short notice is the server's rule, by the instant: today, or under six hours.
   const now = useNow();
@@ -217,11 +239,13 @@ function SlotControls({
     branchId: branch.id,
     date: readDay,
     partySize: selection.partySize,
+    excludeBookingId: excludeReservationId,
   });
   const nextQuery = useDaySlots({
     branchId: branch.id,
     date: readNext,
     partySize: selection.partySize,
+    excludeBookingId: excludeReservationId,
     enabled: readNeedsNext,
   });
   const shownNeedsNext = useMemo(
@@ -271,7 +295,7 @@ function SlotControls({
    * it can no longer be had, and then to the nearest that can. Switching to
    * the day or the evening half counts as picking (review N11).
    */
-  const [pickedOn, setPickedOn] = useState<string | null>(null);
+  const [pickedOn, setPickedOn] = useState<string | null>(() => (keepTime ? serviceDate : null));
   const timePicked = pickedOn === serviceDate;
   /**
    * The half of the day the visitor is looking at: where a new day's default
@@ -378,7 +402,7 @@ function SlotControls({
     return (
       <div className="pub-card pub-book is-folded">
         <h2 id={headingId} tabIndex={-1}>
-          {t('booking.pick')}
+          {title ?? t('booking.pick')}
         </h2>
         <div className="pub-book-summary">
           <p>{t('room.slot', { date: day.short, time: selection.time, guests })}</p>
@@ -408,7 +432,7 @@ function SlotControls({
   return (
     <div className="pub-card pub-book">
       <h2 id={headingId} tabIndex={-1}>
-        {t('booking.pick')}
+        {title ?? t('booking.pick')}
       </h2>
 
       <DayChips
@@ -417,6 +441,7 @@ function SlotControls({
         shownDay={shownDay}
         labelId={dayLabelId}
         onPick={(date) => {
+          setTouched(true);
           const valid = slotProblem({ ...selection, date }) === 'date' ? serviceToday : date;
           setPendingDay(valid === serviceDate ? null : valid);
         }}
@@ -427,7 +452,10 @@ function SlotControls({
         bounds={bounds}
         partySize={selection.partySize}
         labelId={partyLabelId}
-        onChange={(partySize) => onSelectionChange({ ...selection, partySize })}
+        onChange={(partySize) => {
+          setTouched(true);
+          onSelectionChange({ ...selection, partySize });
+        }}
       />
 
       <TimeChips
@@ -441,15 +469,22 @@ function SlotControls({
         unchecked={failed && !answered}
         labelId={timeLabelId}
         onPick={(choice) => {
+          setTouched(true);
           setPickedOn(serviceDate);
           setPreferredPart(dayPartOf(choice.time));
           onSelectionChange({ ...selection, date: choice.date, time: choice.time });
         }}
         onPart={(part) => {
+          setTouched(true);
           setPreferredPart(part);
           setPickedOn(shownDay);
         }}
       />
+
+      {/* A booking's own time the venue no longer offers: said, never moved (S3). */}
+      {!touched && answered && (!chosen || chosen.state === 'busy') ? (
+        <p className="pub-notice pub-notice-alert">{t('booking.timeNotOffered')}</p>
+      ) : null}
 
       {/* Always mounted, so a refusal that appears is heard (review N12). */}
       <div role="status">

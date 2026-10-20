@@ -40,7 +40,7 @@ async function reviewsRegion() {
 }
 
 describe('the reviews summary', () => {
-  it('gives the average and the count, without a spread it cannot know', async () => {
+  it("draws the spread for any number of reviews from the server's counts, reading no page for it", async () => {
     const harness = createHarness({ now: FRIDAY_EVENING, showcase: true });
     const pages = vi.spyOn(harness.gateway, 'getBranchReviews');
     render(harness.wrap(<PublicApp />, LUMEN));
@@ -49,10 +49,17 @@ describe('the reviews summary', () => {
     const summary = region.querySelector<HTMLElement>('.pub-review-summary')!;
     expect(within(summary).getByText(/^\d\.\d$/u)).toBeDefined();
     expect(within(summary).getByText('24 reviews')).toBeDefined();
-    // Twenty-four reviews and twenty to a page: the spread would be made up
-    // from a sample, so it is not drawn — and the page is not read for it.
+    // Twenty-four reviews and twenty to a page: the spread comes from
+    // `ratingCounts`, the whole branch's, so no page is read to draw it.
+    const detail = await harness.gateway.getBranchDetail('b-lumen-north');
+    const counts = detail!.ratingCounts;
+    expect(counts.reduce((sum, count) => sum + count, 0)).toBe(24);
+    const spread = await within(region).findByRole('img', { name: /^How guests rated it/u });
+    expect(spread.getAttribute('aria-label')).toBe(
+      `How guests rated it: 5 stars: ${counts[4]}, 4 stars: ${counts[3]}, 3 stars: ${counts[2]}, ` +
+        `2 stars: ${counts[1]}, 1 star: ${counts[0]}`,
+    );
     await settle();
-    expect(within(region).queryByRole('img', { name: /How guests rated it/u })).toBeNull();
     expect(pages).not.toHaveBeenCalled();
   });
 
