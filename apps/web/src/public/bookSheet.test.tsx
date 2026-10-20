@@ -1,5 +1,10 @@
 // @vitest-environment jsdom
-import type { Booking, PublicBranch, TableAvailability } from '@yalla/api';
+import {
+  SmsUnavailableError,
+  type Booking,
+  type PublicBranch,
+  type TableAvailability,
+} from '@yalla/api';
 import { i18next } from '@yalla/i18n';
 import { act, cleanup, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
@@ -228,10 +233,9 @@ describe('the phone step', () => {
 
   it('closes the SMS door when the backend refuses to send a code, as it does Telegram', async () => {
     const w = await world();
-    class SmsUnavailableError extends Error {
-      override name = 'SmsUnavailableError';
-    }
-    vi.spyOn(w.harness.gateway, 'requestPhoneCode').mockRejectedValue(new SmsUnavailableError());
+    vi.spyOn(w.harness.gateway, 'requestPhoneCode').mockRejectedValue(
+      new SmsUnavailableError({ url: '/api/auth/diner/request-code' }),
+    );
     const user = userEvent.setup();
     render(sheet(w));
     await toPhone(user);

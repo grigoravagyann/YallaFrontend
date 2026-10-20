@@ -94,6 +94,10 @@ function publicRuntime(): PublicRuntime {
     // taken" path can be walked without a second device — the diner app's
     // `EXPO_PUBLIC_SIMULATE_TABLE_TAKEN`. Ignored against a real backend.
     simulateTableTaken: import.meta.env['VITE_MOCK_SIMULATE_TABLE_TAKEN'] === '1',
+    // Mock only: production's Telegram-only sheet, as a backend with no SMS
+    // provider answers it. Ignored against a real backend, which says for itself.
+    mockPhoneProofChannels:
+      import.meta.env['VITE_MOCK_SMS_OFF'] === '1' ? { sms: false } : undefined,
     // Mock only: other guests' bookings tomorrow evening at Northern Avenue, so
     // struck, requestable and cut-short times show. Never in tests.
     mockNeighbourBookings: import.meta.env.MODE !== 'test',
