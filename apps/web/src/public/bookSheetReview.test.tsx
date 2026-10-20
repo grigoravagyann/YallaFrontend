@@ -5,6 +5,7 @@ import {
   type PublicBranch,
   type TableAvailability,
 } from '@yalla/api';
+import { queryKeys } from '@yalla/api/react';
 import { act, cleanup, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -160,8 +161,11 @@ describe('where the focus goes', () => {
     await user.type(screen.getByLabelText('Phone number'), '77123456');
     await user.click(screen.getByRole('button', { name: 'Get a code by SMS' }));
     await screen.findByText(/^Codes by SMS are not available/u);
-    expect(document.activeElement).toBe(
-      screen.getByRole('button', { name: 'Confirm with Telegram' }),
+    // Moved by an effect after the render that shows the line.
+    await waitFor(() =>
+      expect(document.activeElement).toBe(
+        screen.getByRole('button', { name: 'Confirm with Telegram' }),
+      ),
     );
   });
 
@@ -229,9 +233,12 @@ describe('a failed "Send a new code"', () => {
 
 describe('the doors (S5, N2, N6)', () => {
   it('forgets the Telegram wait on Back: a later confirmation does not book under it', async () => {
+    // The poll on the test's clock, so the reads that would find the
+    // confirmation are certain to have come due, busy machine or not.
+    vi.useFakeTimers({ shouldAdvanceTime: true });
     const w = await world();
     vi.stubGlobal('open', () => null);
-    const user = userEvent.setup();
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
     render(w.harness.wrap(sheet(w)));
     await toPhone(user);
     await user.click(screen.getByRole('button', { name: 'Confirm with Telegram' }));
@@ -242,7 +249,10 @@ describe('the doors (S5, N2, N6)', () => {
 
     await user.click(screen.getByRole('button', { name: 'Back' }));
     w.harness.gateway.confirmTelegramVerification(challengeId, '+37477000000');
-    await new Promise((resolve) => setTimeout(resolve, 2500));
+    // Two of the mock server's 1.5 s polls (`pollAfterMs`), had it kept polling.
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(3000);
+    });
 
     expect(screen.getByRole('heading', { level: 2, name: 'Your phone' })).toBeDefined();
     expect(screen.queryByLabelText('Name for the booking')).toBeNull();
@@ -425,6 +435,7 @@ describe('after "Choose another time" (S3)', () => {
     // mounted (hidden) while it is open — a Book button to focus again.
     stubViewport(false);
     const harness = createHarness({ approvalWindowMs: 1 });
+    const made = vi.spyOn(harness.gateway, 'createBooking');
     render(harness.wrap(<PublicApp />, '/lumen-coffee/northern-avenue'));
     const user = userEvent.setup();
     const card = () => screen.getByRole('region', { name: 'Book a table' });
@@ -452,9 +463,16 @@ describe('after "Choose another time" (S3)', () => {
     await user.click(
       await screen.findByRole('button', { name: /^(Confirm booking|Request table)$/u }),
     );
-    await user.click(
-      await screen.findByRole('button', { name: 'Choose another time' }, { timeout: 15_000 }),
+    // The window closes, and the confirmation reads the booking again now
+    // rather than at its 15 s poll — which the 15 s wait for it here used to
+    // race, losing whenever the machine was busy.
+    await waitFor(() => expect(made).toHaveResolved());
+    const { manageToken } = await made.mock.results[0]!.value;
+    vi.setSystemTime(Date.now() + 1_000);
+    await act(() =>
+      harness.queryClient.invalidateQueries({ queryKey: queryKeys.managedBooking(manageToken!) }),
     );
+    await user.click(await screen.findByRole('button', { name: 'Choose another time' }));
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
 
     await openSheet();
@@ -470,8 +488,14 @@ describe('after "Choose another time" (S3)', () => {
       .find((chip) => chip.getAttribute('aria-disabled') !== 'true')!;
     await user.click(day);
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
-    await act(() => new Promise((resolve) => setTimeout(resolve, 600)));
-    expect(within(room()).queryByRole('button', { name: /^Book table/u })).not.toBeNull();
+    // The room's answer for the new time is in — the Book button waits for it
+    // — rather than whatever 600 ms of a busy machine had let through.
+    await waitFor(() =>
+      expect(
+        (within(room()).getByRole('button', { name: /^Book table/u }) as HTMLButtonElement)
+          .disabled,
+      ).toBe(false),
+    );
     expect(document.activeElement).toBe(day);
-  }, 30_000);
+  });
 });

@@ -118,7 +118,7 @@ describe('the room refetches for every control', () => {
     // questions, and only the last one is the question they are asking.
     for (const partySize of [3, 4, 5, 6]) rerender({ partySize });
 
-    await waitFor(() => expect(spy).toHaveBeenCalledTimes(2), { timeout: 1000 });
+    await waitFor(() => expect(spy).toHaveBeenCalledTimes(2));
     expect(spy.mock.calls[1]?.[0]?.partySize).toBe(6);
 
     // And it stays at two: nothing arrives late for a size nobody selected.

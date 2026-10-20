@@ -389,7 +389,10 @@ describe('the endings', () => {
   it('offers another time once the venue declined', async () => {
     const w = await world({ floorApprovesAtOnce: false, approvalWindowMs: 1 });
     const booking = await bookDirect(w);
-    await new Promise((resolve) => setTimeout(resolve, 20));
+    // Past the 1 ms answer window on the pinned clock, so the confirmation's
+    // first read finds it declined. Waiting 20 ms for the clock's own 20 ms
+    // step left that to a race, lost to the next read at the 15 s poll.
+    vi.setSystemTime(Date.now() + 1_000);
     const onChooseAnotherTime = vi.fn();
     render(
       w.harness.wrap(
@@ -403,16 +406,12 @@ describe('the endings', () => {
     );
 
     expect(
-      await screen.findByRole(
-        'heading',
-        { level: 2, name: 'It did not work out' },
-        { timeout: 15_000 },
-      ),
+      await screen.findByRole('heading', { level: 2, name: 'It did not work out' }),
     ).toBeDefined();
     await userEvent.setup().click(screen.getByRole('button', { name: 'Choose another time' }));
     expect(onChooseAnotherTime).toHaveBeenCalled();
     expect(screen.queryByRole('button', { name: 'Add to my calendar' })).toBeNull();
-  }, 20_000);
+  });
 });
 
 async function bookDirect(w: World): Promise<Booking> {

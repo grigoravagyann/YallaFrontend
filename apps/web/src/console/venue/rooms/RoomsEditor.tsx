@@ -160,20 +160,26 @@ export function RoomsEditor({ branchId, branchName = null, layout = 'console' }:
    * Where focus goes once the control that had it is gone: a photo removed,
    * a table deleted. The first of these ids on the page wins.
    */
-  const focusAfter = useRef<readonly string[] | null>(null);
-  // After every render: whatever set it also changed state, so one follows.
+  const [focusRequest, setFocusRequest] = useState<{ readonly ids: readonly string[] } | null>(
+    null,
+  );
+  /*
+   * State, not a ref read after every render: a click that lands before the
+   * last render's effects have run (a busy machine, a background read) had
+   * those effects take the request and look for a field that render never
+   * drew. As state it comes with the render that draws its target.
+   */
+  const focusAfter = (ids: readonly string[]) => setFocusRequest({ ids });
   useEffect(() => {
-    const ids = focusAfter.current;
-    if (!ids) return;
-    focusAfter.current = null;
-    for (const id of ids) {
+    if (!focusRequest) return;
+    for (const id of focusRequest.ids) {
       const target = document.getElementById(id);
       if (target) {
         target.focus();
         break;
       }
     }
-  });
+  }, [focusRequest]);
 
   const { reset: resetSave, error: saveError } = save;
   const dispatch = useCallback(
@@ -250,17 +256,13 @@ export function RoomsEditor({ branchId, branchName = null, layout = 'console' }:
       if (first) showPhoto(target.id, first.photoId);
     }
     select(table.id);
-    focusAfter.current = ['stage-title'];
+    focusAfter(['stage-title']);
   }
 
   function removePhoto(fromRoomId: string, removedPhotoId: string, position: number) {
     dispatch({ type: 'removePhoto', roomId: fromRoomId, photoId: removedPhotoId });
     // The photo that slides into its place, else the one before it, else the heading.
-    focusAfter.current = [
-      `room-photo-${position + 1}`,
-      `room-photo-${position - 1}`,
-      'stage-title',
-    ];
+    focusAfter([`room-photo-${position + 1}`, `room-photo-${position - 1}`, 'stage-title']);
   }
 
   /** A click on the photo: the table being placed goes there, or a new one. */
@@ -278,7 +280,7 @@ export function RoomsEditor({ branchId, branchName = null, layout = 'console' }:
     });
     select(id);
     // Its number is the next thing to type.
-    focusAfter.current = ['rm-t-label'];
+    focusAfter(['rm-t-label']);
   }
 
   function addRoom(event: FormEvent) {
@@ -386,7 +388,7 @@ export function RoomsEditor({ branchId, branchName = null, layout = 'console' }:
       }
       setDialog(null);
       // Its panel and its pin went with it.
-      focusAfter.current = ['stage-title', 'rooms-list-title'];
+      focusAfter(['stage-title', 'rooms-list-title']);
       toast.say(
         result.deleted
           ? t('rooms.delete.removed', { label: result.label })
@@ -815,7 +817,7 @@ export function RoomsEditor({ branchId, branchName = null, layout = 'console' }:
                   onUnpin={(id) => {
                     dispatch({ type: 'placeTable', id, pin: null });
                     // The pin had focus and is gone; the table is in the list on the left now.
-                    focusAfter.current = [`place-${id}`];
+                    focusAfter([`place-${id}`]);
                     setTableId(null);
                   }}
                   readOnly={busy}
@@ -898,14 +900,14 @@ export function RoomsEditor({ branchId, branchName = null, layout = 'console' }:
                 dispatch({ type: 'placeTable', id: selected.id, pin: null });
                 toast.say(t('rooms.table.unpinned', { label: selected.label }));
                 // The link went with the pin; the table is on the left now.
-                focusAfter.current = [`place-${selected.id}`];
+                focusAfter([`place-${selected.id}`]);
                 setTableId(null);
               }}
               onDelete={() => {
                 if (!isServerId(selected.id)) {
                   dispatch({ type: 'discardTable', id: selected.id });
                   select(null);
-                  focusAfter.current = ['stage-title'];
+                  focusAfter(['stage-title']);
                   return;
                 }
                 remove.reset();
@@ -1014,7 +1016,7 @@ export function RoomsEditor({ branchId, branchName = null, layout = 'console' }:
                 setRoomId(null);
                 select(null);
                 // The opener went with the room.
-                focusAfter.current = ['stage-title', 'rooms-list-title'];
+                focusAfter(['stage-title', 'rooms-list-title']);
               }}
             >
               {t('rooms.room.removeConfirm')}

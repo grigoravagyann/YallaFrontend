@@ -422,8 +422,16 @@ describe.each(CLOCKS)('at $label', ({ at }) => {
       await loseTheTable(userEvent.setup(), card);
       const notice = await taken(card);
       await waitFor(() => expect(document.activeElement).toBe(notice));
-      // The day reads again and the time moves off the struck one; the notice stays.
-      await new Promise((resolve) => setTimeout(resolve, 1500));
+      // The day reads again and the time moves off the struck ones to the one
+      // left — awaited, not given 1.5 s a busy machine may not get there in —
+      // and the notice stays.
+      await waitFor(() => {
+        const chips = within(within(card()).getByRole('group', { name: 'Time' })).getAllByRole(
+          'button',
+        );
+        expect(chips.slice(0, -1).every((chip) => chip.getAttribute('aria-disabled'))).toBe(true);
+        expect(chips.at(-1)!.getAttribute('aria-pressed')).toBe('true');
+      });
       expect(card().querySelector('.pub-notice-error')).toBe(notice);
       expect(document.activeElement).toBe(notice);
     });

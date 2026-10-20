@@ -450,7 +450,8 @@ describe('losing the table while confirming', () => {
     );
     // Red is for real failures (HANDOFF §3), and losing the table is one.
     expect(notice.classList.contains('pub-notice-error')).toBe(true);
-    expect(document.activeElement).toBe(notice);
+    // Focused by its own effect, after the render that shows it.
+    await waitFor(() => expect(document.activeElement).toBe(notice));
   });
 });
 
@@ -489,41 +490,48 @@ describe('verifying through Telegram', () => {
   });
 
   it('reaches a confirmed reservation once the bot confirms', async () => {
-    const world = await setUp();
-    const popup = fakePopup();
-    const open = vi.fn(() => popup);
-    vi.stubGlobal('open', open);
-    const user = userEvent.setup();
+    // The page's poll on the test's clock: its next read is advanced to, not
+    // waited 4 s for on a machine that may be too busy to get there.
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      const world = await setUp();
+      const popup = fakePopup();
+      const open = vi.fn(() => popup);
+      vi.stubGlobal('open', open);
+      const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
 
-    await user.click(await reachPhoneStep(world));
-    await user.click(await screen.findByRole('button', { name: 'Confirm with Telegram' }));
+      await user.click(await reachPhoneStep(world));
+      await user.click(await screen.findByRole('button', { name: 'Confirm with Telegram' }));
 
-    // Opened in the click, blank, then pointed at the bot once the server answered.
-    expect(open).toHaveBeenCalledTimes(1);
-    expect(await screen.findByText('Waiting for Telegram…')).toBeDefined();
-    const again = (await screen.findByRole('link', {
-      name: 'Open Telegram again',
-    })) as HTMLAnchorElement;
-    expect(again.href).toMatch(/^https:\/\/t\.me\/yalla_mock_bot\?start=tg_/u);
-    expect(again.target).toBe('_blank');
-    expect(again.rel).toContain('noopener');
-    await waitFor(() => expect(popup.location.href).toBe(again.href));
+      // Opened in the click, blank, then pointed at the bot once the server answered.
+      expect(open).toHaveBeenCalledTimes(1);
+      expect(await screen.findByText('Waiting for Telegram…')).toBeDefined();
+      const again = (await screen.findByRole('link', {
+        name: 'Open Telegram again',
+      })) as HTMLAnchorElement;
+      expect(again.href).toMatch(/^https:\/\/t\.me\/yalla_mock_bot\?start=tg_/u);
+      expect(again.target).toBe('_blank');
+      expect(again.rel).toContain('noopener');
+      await waitFor(() => expect(popup.location.href).toBe(again.href));
 
-    // The bot confirms. The page is polling, so it finds out by itself.
-    const challengeId = new URL(again.href).searchParams.get('start')!;
-    world.harness.gateway.confirmTelegramVerification(challengeId, '+37477123456');
+      // The bot confirms. The page is polling, so it finds out by itself.
+      const challengeId = new URL(again.href).searchParams.get('start')!;
+      world.harness.gateway.confirmTelegramVerification(challengeId, '+37477123456');
+      // The mock server's cadence (`pollAfterMs`): the next read is due.
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(1500);
+      });
 
-    const confirm = await screen.findByRole(
-      'button',
-      { name: 'Confirm booking' },
-      { timeout: 4000 },
-    );
-    await user.type(screen.getByLabelText('Name for the booking'), 'Ani');
-    await user.click(confirm);
+      const confirm = await screen.findByRole('button', { name: 'Confirm booking' });
+      await user.type(screen.getByLabelText('Name for the booking'), 'Ani');
+      await user.click(confirm);
 
-    expect(await screen.findByText('Table booked')).toBeDefined();
-    const { upcoming } = await world.harness.gateway.listBookings();
-    expect(upcoming[0]?.status).toBe('confirmed');
+      expect(await screen.findByText('Table booked')).toBeDefined();
+      const { upcoming } = await world.harness.gateway.listBookings();
+      expect(upcoming[0]?.status).toBe('confirmed');
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('says the link expired and starts a fresh challenge on Try again', async () => {

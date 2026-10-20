@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { act, cleanup, render, screen, waitFor, within } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { i18next } from '@yalla/i18n';
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -208,13 +208,29 @@ describe('share', () => {
   it('keeps "Link copied" up for its full time after a second copy', async () => {
     stubNavigator({ share: undefined, clipboard: { writeText: () => Promise.resolve() } });
     open(LUMEN);
-    await userEvent.click(await screen.findByRole('button', { name: 'Share' }));
-    await screen.findByRole('button', { name: 'Link copied' });
-    await new Promise((resolve) => setTimeout(resolve, 1500));
-    await userEvent.click(screen.getByRole('button', { name: 'Link copied' }));
+    const button = await screen.findByRole('button', { name: 'Share' });
+    // The button's 2.5 s on the test's clock from here, not the machine's. On
+    // real timers the check came 1.5 s into a 2.5 s timer: a second more of a
+    // busy machine and "Link copied" had gone before it was looked for.
+    vi.useFakeTimers({ toFake: ['Date', 'setTimeout', 'clearTimeout'] });
+    vi.setSystemTime(FRIDAY_EVENING());
+    /**
+     * A tap, and the clipboard's answer landing. `fireEvent` in `act`, not
+     * user-event, whose wrapper drains on a `setTimeout` that is fake here.
+     */
+    const copy = () => act(async () => void fireEvent.click(button));
+    const elapse = (ms: number) => act(() => vi.advanceTimersByTimeAsync(ms));
+
+    await copy();
+    expect(screen.getByRole('button', { name: 'Link copied' })).toBe(button);
+    await elapse(1500);
+    await copy();
     // 3 s after the first copy, 1.5 s after the second: the second one counts.
-    await new Promise((resolve) => setTimeout(resolve, 1500));
-    expect(screen.getByRole('button', { name: 'Link copied' })).toBeDefined();
+    await elapse(1500);
+    expect(screen.getByRole('button', { name: 'Link copied' })).toBe(button);
+    // And it goes once the second copy's own 2.5 s are up.
+    await elapse(1000);
+    expect(screen.getByRole('button', { name: 'Share' })).toBe(button);
   });
 
   it('shows the link to copy by hand when the clipboard refuses', async () => {
