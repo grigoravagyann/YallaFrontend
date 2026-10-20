@@ -1129,6 +1129,10 @@ review every string in `src/locales/hy` and `src/locales/ru`.**
     reworded: `sheet.telegram.useCode` «Лучше получить код по SMS»,
     `sheet.telegram.body` «…Страница обновится сама…», `sheet.phone.body`
     «…нужен только для того, чтобы…».
+- `public` — the day chips past midnight (2026-10-21), **not** reviewed:
+  `booking.tonight` («Այս գիշեր», «Сегодня ночью», "Tonight") names the first
+  chip while last night's block is still open past midnight — the backend's
+  service day — so the calendar's day keeps "Today".
 
 The Russian bundle carries four plural categories (`one`/`few`/`many`/`other`)
 where Armenian and English carry two. That is correct CLDR, not duplication, and

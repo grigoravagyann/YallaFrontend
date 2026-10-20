@@ -32,7 +32,12 @@ export interface DayWords {
   readonly short: string;
 }
 
-export function dayWords(dateKey: string, today: string, t: TFunction): DayWords {
+/**
+ * `tonight`: the branch's service day while last night is still open past
+ * midnight (`branchServiceToday`) — at 00:30 a bar open to 02:00 is still in
+ * yesterday's night, which is "Tonight", not "Today" (that is the calendar's).
+ */
+export function dayWords(dateKey: string, today: string, t: TFunction, tonight?: string): DayWords {
   const [year, month, day] = dateKey.split('-').map(Number) as [number, number, number];
   const weekdayIndex = new Date(Date.UTC(year, month - 1, day)).getUTCDay();
   const weekday = t(`booking.weekday.${weekdayIndex}`, { ns: 'public' });
@@ -45,11 +50,13 @@ export function dayWords(dateKey: string, today: string, t: TFunction): DayWords
     month: monthName,
   });
   const name =
-    dateKey === today
-      ? t('booking.today', { ns: 'public' })
-      : dateKey === addDays(today, 1)
-        ? t('booking.tomorrow', { ns: 'public' })
-        : null;
+    tonight !== undefined && tonight < today && dateKey === tonight
+      ? t('booking.tonight', { ns: 'public' })
+      : dateKey === today
+        ? t('booking.today', { ns: 'public' })
+        : dateKey === addDays(today, 1)
+          ? t('booking.tomorrow', { ns: 'public' })
+          : null;
   return {
     name,
     weekday,

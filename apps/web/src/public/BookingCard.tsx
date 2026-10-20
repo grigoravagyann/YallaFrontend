@@ -112,6 +112,15 @@ export interface BookingCardProps {
   /** Moves nothing by itself — just after a booking, until the visitor changes something. */
   readonly holdTime?: boolean | undefined;
   /**
+   * Called once, when the opening time is settled: the server's day has
+   * answered and the card is on its default (or on the visitor's time), or
+   * the day could not be read. The page reads the room only from then — not
+   * for the first guess from the published hours, which by day is often a
+   * time the card then moves off (a second read, and a room drawn for a time
+   * nobody chose).
+   */
+  readonly onTimeSettled?: (() => void) | undefined;
+  /**
    * Changing a booking from its manage link: the booking being moved, left
    * out of the day's times so its own slot and table read as free to it.
    */
@@ -174,6 +183,7 @@ function SlotControls({
   panelOpen = false,
   panelInColumn = false,
   holdTime = false,
+  onTimeSettled,
   excludeReservationId,
   keepTime = false,
   title,
@@ -329,27 +339,32 @@ function SlotControls({
    * that time's last: moving the time then would close the panel on the
    * confirmation it is showing.
    */
+  /** Where the card keeps the time once the day has answered: `undefined` until then. */
+  const target =
+    pendingDay !== null || !answered
+      ? undefined
+      : timePicked
+        ? chosen && chosen.state !== 'busy'
+          ? null
+          : nearestChoice(choices, selection.time, selection.date)
+        : defaultChoice(choices, preferredPart);
+  const moves =
+    target !== undefined &&
+    target !== null &&
+    (target.time !== selection.time || target.date !== selection.date);
   useEffect(() => {
-    if (hold || pendingDay !== null || !answered) return;
-    const next = timePicked
-      ? chosen && chosen.state !== 'busy'
-        ? null
-        : nearestChoice(choices, selection.time, selection.date)
-      : defaultChoice(choices, preferredPart);
-    if (next && (next.time !== selection.time || next.date !== selection.date)) {
-      onSelectionChange({ ...selection, date: next.date, time: next.time }, AUTOMATIC);
-    }
-  }, [
-    hold,
-    pendingDay,
-    answered,
-    timePicked,
-    chosen,
-    choices,
-    preferredPart,
-    selection,
-    onSelectionChange,
-  ]);
+    if (hold || !target || !moves) return;
+    onSelectionChange({ ...selection, date: target.date, time: target.time }, AUTOMATIC);
+  }, [hold, target, moves, selection, onSelectionChange]);
+
+  /** The opening time is settled: on the day's answer and staying there, or held, or unreadable. */
+  const timeKnown = hold || failed || (target !== undefined && !moves);
+  const reported = useRef(false);
+  useEffect(() => {
+    if (!timeKnown || reported.current || !onTimeSettled) return;
+    reported.current = true;
+    onTimeSettled();
+  }, [timeKnown, onTimeSettled]);
 
   /* A page left open past midnight: a day that has gone moves to today (review N1). */
   useEffect(() => {
@@ -437,6 +452,7 @@ function SlotControls({
       <DayChips
         branch={branch}
         today={serviceToday}
+        calendarToday={today}
         shownDay={shownDay}
         labelId={dayLabelId}
         onPick={(date) => {
@@ -528,13 +544,19 @@ function SlotControls({
 function DayChips({
   branch,
   today,
+  calendarToday,
   shownDay,
   labelId,
   onPick,
 }: {
   readonly branch: PublicBranch;
-  /** The branch's service day now: the first chip, "Today". */
+  /**
+   * The branch's service day now: the first chip — "Today", or "Tonight" while
+   * last night is still open past midnight.
+   */
   readonly today: string;
+  /** The branch's calendar day, which the words "Today" and "Tomorrow" are about. */
+  readonly calendarToday: string;
   readonly shownDay: string;
   readonly labelId: string;
   readonly onPick: (date: string) => void;
@@ -555,7 +577,7 @@ function DayChips({
       </span>
       <div className="pub-days" role="group" aria-labelledby={labelId}>
         {days.chips.map((date) => {
-          const words = dayWords(date, today, t);
+          const words = dayWords(date, calendarToday, t, today);
           return (
             <button
               key={date}
@@ -585,7 +607,9 @@ function DayChips({
             {/* The day chosen here is said in words, not only drawn (review N7). */}
             {onChip
               ? t('booking.otherDay')
-              : t('booking.otherDayChosen', { date: dayWords(shownDay, today, t).date })}
+              : t('booking.otherDayChosen', {
+                  date: dayWords(shownDay, calendarToday, t, today).date,
+                })}
           </button>
         ) : null}
       </div>
