@@ -1501,7 +1501,7 @@ export class EmailTakenError extends ApiError {
  *
  * Distinct from the other two on purpose: the next step is not another field
  * but another door. Whoever holds that phone can sign in with a code, so the
- * form offers "Log in with a code instead" rather than "pick another number".
+ * form offers "Log in with your phone number instead" rather than "pick another number".
  */
 export class PhoneInUseError extends ApiError {
   constructor(options: { url: string; requestId?: string | undefined }) {

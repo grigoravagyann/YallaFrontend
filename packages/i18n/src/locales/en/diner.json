@@ -199,7 +199,7 @@
     "editProfile": "Edit profile",
     "notVerified": "Not verified",
     "verify": "Verify",
-    "setPasswordPrompt": "Set a password to log in without a code.",
+    "setPasswordPrompt": "Set a password so you don't have to confirm your number each time.",
     "setPasswordAction": "Set a password",
     "deleteAccount": {
       "row": "Delete account",
@@ -379,7 +379,7 @@
     "passwordHint": "At least 8 characters",
     "showPassword": "Show password",
     "hidePassword": "Hide password",
-    "codeInstead": "Log in with a code instead",
+    "codeInstead": "Log in with your phone number instead",
     "sessionRevoked": {
       "title": "You were logged out",
       "body": "Something about your account changed, so this phone was logged out. Log in again to continue."
@@ -404,7 +404,7 @@
       "commandInUse": "That attempt could not be used. Tap confirm to try again.",
       "branchUnavailable": "This venue is not taking bookings right now.",
       "unknownOutcome": "The connection dropped before the venue answered, so we cannot tell yet whether you have the table. Check again — it will not book twice.",
-      "phoneNotVerified": "Confirm your phone number before booking. We'll text you a code.",
+      "phoneNotVerified": "Confirm your phone number before booking. It takes one step.",
       "freeByRequired": "A booking now follows on this table: you would free it by {{time}}.",
       "freeByRequiredNoTime": "A booking now follows on this table. Choose the table again.",
       "overlapsOwn": "You already have a booking here at {{time}} (table {{table}}). Choose another time, or change that booking.",
