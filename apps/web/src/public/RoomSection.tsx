@@ -69,6 +69,12 @@ export interface RoomSectionProps {
   readonly footer?: ReactNode;
   /** The booking being changed from its manage link: left out, so its own table reads free. */
   readonly excludeReservationId?: string | undefined;
+  /**
+   * Whether to read the room yet. The branch page holds it until the booking
+   * card has settled the time it opens on, so the room is read once, for that
+   * time, rather than first for a guess the card then moves off.
+   */
+  readonly readRoom?: boolean | undefined;
 }
 
 export function RoomSection({
@@ -81,6 +87,7 @@ export function RoomSection({
   onRoomShown,
   footer,
   excludeReservationId,
+  readRoom = true,
 }: RoomSectionProps) {
   const { t } = useTranslation('public');
   const holder = useRef<HTMLDivElement | null>(null);
@@ -101,9 +108,10 @@ export function RoomSection({
    * it.
    */
   const slotFloorQuery = useSlotFloor({
-    branchId: branch.id,
+    // Not before the page knows the time it opens on (`readRoom`).
+    branchId: readRoom ? branch.id : undefined,
     // A run along the time chips asks about the time it stops on (review S5).
-    slotUtc: useSettled(slotUtc),
+    slotUtc: useSettled(slotUtc, undefined, !readRoom),
     partySize: selection.partySize,
     // The backend asks in wall-clock terms; the zone travels with the slot so
     // it is never inferred from whatever the visitor's phone is set to.

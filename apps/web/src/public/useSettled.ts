@@ -15,14 +15,21 @@ export const SETTLE_MS = 250;
  *
  * The query key carries the settled value, so React Query sees one key change
  * and fetches once; a value passed back through is served from the cache.
+ *
+ * `follow`: nothing is being read yet, so there is nothing to spare — the
+ * value is taken as it is, and the first read once `follow` ends asks about
+ * the value then, not one from before (the room is read once on opening).
  */
-export function useSettled<T>(value: T, delayMs: number = SETTLE_MS): T {
+export function useSettled<T>(value: T, delayMs: number = SETTLE_MS, follow = false): T {
   const [settled, setSettled] = useState(value);
+  // Kept level while following, adjusted during render so no frame lags.
+  if (follow && !Object.is(settled, value)) setSettled(value);
 
   useEffect(() => {
+    if (follow) return;
     const timer = setTimeout(() => setSettled(value), Math.max(0, delayMs));
     return () => clearTimeout(timer);
-  }, [value, delayMs]);
+  }, [value, delayMs, follow]);
 
-  return settled;
+  return follow ? value : settled;
 }

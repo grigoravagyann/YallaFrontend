@@ -817,3 +817,27 @@ describe("the chosen table's free-cancellation line (public-page phase 4)", () =
     }
   });
 });
+
+describe('past midnight inside a night that is still open', () => {
+  it("calls the night still running 'Tonight', and the calendar's day 'Today'", async () => {
+    // 00:30 on Thursday in Yerevan; the bar is open 18:00–02:00, so it is still
+    // Wednesday's service. The chips used to call Wednesday "Today" and
+    // Thursday "Tomorrow", while the room's line said "Today" for Thursday.
+    vi.setSystemTime(new Date('2026-10-21T20:30:00Z'));
+    const LATE = ([0, 1, 2, 3, 4, 5, 6] as const).map((day) => ({
+      day,
+      blocks: [{ opensAt: '18:00', closesAt: '02:00' }],
+    }));
+    const { harness, branch } = await setUp({ weeklyHours: LATE, bookingWindowDays: 14 });
+    render(
+      harness.wrap(
+        <LiveCard branch={branch} initial={{ date: '2026-10-22', time: '19:00', partySize: 2 }} />,
+      ),
+    );
+    const days = within(screen.getByRole('group', { name: 'Day' })).getAllByRole('button');
+    expect(days[0]!.getAttribute('aria-label')).toBe('Tonight, Wed 21 October');
+    expect(days[0]!.textContent).toBe('Tonight21');
+    expect(days[1]!.getAttribute('aria-label')).toBe('Today, Thu 22 October');
+    expect(days[2]!.getAttribute('aria-label')).toBe('Tomorrow, Fri 23 October');
+  });
+});

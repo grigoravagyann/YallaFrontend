@@ -25,10 +25,17 @@ beforeAll(async () => {
 
 beforeEach(() => {
   stubIntersectionObserverAsNeverVisible();
+  // Midday in Yerevan. These walk a booking made two hours out, which is short
+  // notice — waiting for the venue — only while today still has times; at
+  // 22:30 it rolled to tomorrow morning and confirmed at once, and the
+  // pending and declined endings were never reached. The clock is pinned.
+  vi.useFakeTimers({ toFake: ['Date'], shouldAdvanceTime: true });
+  vi.setSystemTime(new Date('2026-10-21T08:00:00Z'));
 });
 
 afterEach(async () => {
   cleanup();
+  vi.useRealTimers();
   vi.unstubAllGlobals();
   vi.restoreAllMocks();
   if (i18next.language !== 'en') await act(() => i18next.changeLanguage('en'));
