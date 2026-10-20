@@ -4,6 +4,7 @@
     "slug": "yalla-diner",
     "owner": "grigoravagyan",
     "version": "0.1.0",
+    "icon": "./assets/images/icon.png",
     "scheme": "yalla",
     "orientation": "portrait",
     "userInterfaceStyle": "dark",
@@ -15,6 +16,11 @@
     },
     "android": {
       "package": "am.yalla.diner",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/images/adaptive-foreground.png",
+        "backgroundImage": "./assets/images/adaptive-background.png",
+        "monochromeImage": "./assets/images/adaptive-monochrome.png"
+      },
       "edgeToEdgeEnabled": true,
       "intentFilters": [
         {
@@ -42,11 +48,21 @@
       ]
     },
     "web": {
+      "favicon": "./assets/images/favicon.png",
       "bundler": "metro",
       "output": "static"
     },
     "plugins": [
       "expo-router",
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/images/splash-icon.png",
+          "imageWidth": 200,
+          "resizeMode": "contain",
+          "backgroundColor": "#1E0E07"
+        }
+      ],
       "expo-localization",
       [
         "expo-location",

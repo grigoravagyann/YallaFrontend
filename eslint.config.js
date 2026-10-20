@@ -134,5 +134,18 @@ export default tseslint.config(
     },
   },
 
+  // The icon and store-screenshot scripts: CommonJS run by Node, with callbacks Playwright runs
+  // inside the page, so both sets of globals.
+  {
+    files: ['apps/diner/assets/images/source/*.cjs', 'apps/diner/store/source/*.cjs'],
+    languageOptions: {
+      sourceType: 'commonjs',
+      globals: { ...globals.node, ...globals.browser },
+    },
+    rules: {
+      '@typescript-eslint/no-require-imports': 'off',
+    },
+  },
+
   prettier,
 );
