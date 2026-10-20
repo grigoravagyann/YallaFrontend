@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { FractionalDramError } from './errors';
 import { DRAM_SIGN, formatDram, formatDramAmount } from './money';
 import { LOCALES } from './locale';
@@ -31,6 +31,14 @@ describe('formatDram', () => {
 
   it('formats zero', () => {
     expect(normalise(formatDram(0, 'en'))).toBe('0 ֏');
+  });
+
+  it('formats minus zero as zero, never "-0"', () => {
+    // `formatDram(Math.round(-0.4))` is a refund that rounds to nothing.
+    for (const locale of LOCALES) {
+      expect(normalise(formatDram(-0, locale))).toBe('0 ֏');
+      expect(formatDramAmount(-0, locale)).toBe('0');
+    }
   });
 
   it('formats negative amounts (refunds) with the locale minus sign', () => {
@@ -85,6 +93,64 @@ describe('formatDram', () => {
 
   it('returns a stable result across repeated calls (formatter memoisation)', () => {
     expect(formatDram(5610, 'hy')).toBe(formatDram(5610, 'hy'));
+  });
+});
+
+/**
+ * A runtime whose ICU has no Armenian or Russian data: headless Chromium ships
+ * a reduced ICU, and `hy-AM` there falls back to the root locale, whose group
+ * separator is a comma. The public page then printed "1,200 ֏" in Armenian.
+ * The amount must not depend on which locale data the runtime happens to ship.
+ */
+describe('formatDram without the locale data', () => {
+  const RealNumberFormat = Intl.NumberFormat;
+
+  /** Every formatter built as the root locale would be, whatever was asked for. */
+  async function loadWith(
+    options: (asked: Intl.NumberFormatOptions | undefined) => Intl.NumberFormatOptions,
+  ) {
+    vi.resetModules();
+    function RootOnly(_locales?: string | string[], asked?: Intl.NumberFormatOptions) {
+      return new RealNumberFormat('und', options(asked));
+    }
+    // Everything else `Intl` has, prototype and non-enumerable members included.
+    vi.stubGlobal(
+      'Intl',
+      Object.create(Intl, {
+        NumberFormat: { value: RootOnly, configurable: true, writable: true },
+      }),
+    );
+    return import('./money');
+  }
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.resetModules();
+  });
+
+  /** U+00A0, the separator asserted exactly rather than normalised away. */
+  const NB = ' ';
+
+  it('groups hy and ru with a no-break space even when the runtime falls back to root', async () => {
+    const money = await loadWith((asked) => asked ?? {});
+    expect(money.formatDram(1200, 'hy')).toBe(`1${NB}200${NB}${DRAM_SIGN}`);
+    expect(money.formatDram(1234567, 'hy')).toBe(`1${NB}234${NB}567${NB}${DRAM_SIGN}`);
+    expect(money.formatDram(-2500, 'hy')).toBe(`-2${NB}500${NB}${DRAM_SIGN}`);
+    expect(money.formatDram(1400, 'ru')).toBe(`1${NB}400${NB}${DRAM_SIGN}`);
+    expect(money.formatDramAmount(5610, 'hy')).toBe(`5${NB}610`);
+  });
+
+  it('keeps the deliberate English comma', async () => {
+    const money = await loadWith((asked) => asked ?? {});
+    expect(money.formatDram(1400, 'en')).toBe(`1,400${NB}${DRAM_SIGN}`);
+  });
+
+  it('still groups a four-digit hy amount where "always" grouping is not supported', async () => {
+    // An engine that predates `useGrouping: 'always'` reads it as `true`, and
+    // Armenian's minimumGroupingDigits=2 then leaves "5610" ungrouped.
+    const money = await loadWith((asked) => ({ ...asked, useGrouping: false }));
+    expect(money.formatDram(5610, 'hy')).toBe(`5${NB}610${NB}${DRAM_SIGN}`);
+    expect(money.formatDram(900, 'hy')).toBe(`900${NB}${DRAM_SIGN}`);
   });
 });
 

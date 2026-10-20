@@ -93,6 +93,10 @@ function publicRuntime(): PublicRuntime {
     // Mock only: other guests' bookings tomorrow evening at Northern Avenue, so
     // struck, requestable and cut-short times show. Never in tests.
     mockNeighbourBookings: import.meta.env.MODE !== 'test',
+    // Mock only: Northern Avenue's finished listing and its reviews, for the
+    // header, the gallery and "see all". Never in tests, which read a bare,
+    // unreviewed branch unless they ask (the harness's `showcase`).
+    mockShowcase: import.meta.env.MODE !== 'test',
   });
 
   /** The unauthenticated half: slug resolution, the published profile, the manage link. */
@@ -101,6 +105,8 @@ function publicRuntime(): PublicRuntime {
     baseUrl: config.api?.baseUrl,
     gateway: diner,
     mockLatencyMs: 200,
+    // Mock only: two special days at Northern Avenue. Never in tests.
+    mockShowcaseSpecialDays: import.meta.env.MODE !== 'test',
   });
 
   runtime = {

@@ -256,3 +256,47 @@ export function missingPublicFixtures(): readonly string[] {
   }
   return missing;
 }
+
+/**
+ * What a branch's listing adds on the diner app's place page and the public
+ * page's header: cuisine, price, about, website, amenities and gallery
+ * (`GET /api/public/branches/{id}`). Only Northern Avenue fills it in, the way
+ * a venue that finished its listing would; every other branch is a venue that
+ * never did, so the page's "nothing here yet" paths stay walked.
+ */
+export interface PublicBranchDetailFixture {
+  readonly cuisine: string | null;
+  /** 1–4. */
+  readonly priceLevel: number | null;
+  /** Falls back to the venue's one line when absent. */
+  readonly about: string | null;
+  readonly websiteUrl: string | null;
+  readonly amenities: readonly string[];
+  readonly gallery: readonly PublicPhoto[];
+}
+
+/** A gallery photo, shaped exactly like the backend's serve route. */
+function mockGalleryPhoto(seed: string, index: number): PublicPhoto {
+  const photoId = `photo-gallery-${seed}-${index}`;
+  return {
+    photoId,
+    thumbnailUrl: `/api/photos/${photoId}/thumbnail`,
+    cardUrl: `/api/photos/${photoId}/card`,
+    fullUrl: `/api/photos/${photoId}/full`,
+    width: 1600,
+    height: 1200,
+  };
+}
+
+export const publicBranchDetailFixtures: Readonly<Record<string, PublicBranchDetailFixture>> = {
+  'b-lumen-north': {
+    cuisine: 'Coffee, breakfast and brunch',
+    priceLevel: 2,
+    about:
+      'A roastery café on Northern Avenue with a long window bar and a quiet back room. ' +
+      'Breakfast until noon, filter coffee all day and natural wine in the evening.',
+    websiteUrl: 'https://lumen.am',
+    amenities: ['outdoorSeating', 'wifi', 'cardPayment', 'vegan'],
+    gallery: [1, 2, 3, 4, 5, 6].map((index) => mockGalleryPhoto('lumen-north', index)),
+  },
+};

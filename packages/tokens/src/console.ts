@@ -307,6 +307,15 @@ export const consoleColor = {
   publicOpenDot: '#2E9E5B',
   /** The dot before "Closed · opens …": quiet on purpose, the words carry it. */
   publicClosedDot: '#A39383',
+  /**
+   * Over a photo: the "All 7" tile on the last thumbnail and behind the
+   * gallery dialog. Ink-brown at 62%; `photoText` reads on it over a white photo.
+   */
+  publicPhotoScrim: 'rgba(20, 10, 4, 0.62)',
+  /** The cover's "2 / 7" chip: the same ink, a little denser for its small type. */
+  publicPhotoCount: 'rgba(20, 10, 4, 0.72)',
+  /** A review's lit stars and the rating's star (Main artboard). 5.0:1 on white. */
+  publicStar: '#8A5E08',
 } as const;
 
 export type ConsoleColorToken = keyof typeof consoleColor;

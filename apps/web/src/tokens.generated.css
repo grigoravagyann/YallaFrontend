@@ -309,6 +309,9 @@
   --console-public-photo-ground: #3A2A1E;
   --console-public-open-dot: #2E9E5B;
   --console-public-closed-dot: #A39383;
+  --console-public-photo-scrim: rgba(20, 10, 4, 0.62);
+  --console-public-photo-count: rgba(20, 10, 4, 0.72);
+  --console-public-star: #8A5E08;
   --console-size-sidebar: 232px;
   --console-size-sidebar-grouped: 248px;
   --console-size-button: 40px;

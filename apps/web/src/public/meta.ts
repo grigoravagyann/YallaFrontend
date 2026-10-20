@@ -31,6 +31,17 @@ import { useEffect } from 'react';
  * defined and not yet implemented) behind a tiny prerender. Server-side
  * rendering is explicitly out of scope for this task, so the honest statement
  * is the one above rather than a `<meta>` call that looks like it did the job.
+ *
+ * ## Why the rating is not in the tags
+ *
+ * The page shows the branch's rating and review count (public-page phase 2),
+ * and they are kept out of the description and out of any structured data on
+ * purpose. The description is the server's (`getBranchMeta`), so the static
+ * card and the in-page one say the same thing. An `AggregateRating` written
+ * by this script would be seen only by a crawler that runs JavaScript, and
+ * would claim a rating no fetched HTML carries — structured data has to
+ * describe what the served page shows. When the meta route is rendered on the
+ * server, the rating belongs there.
  */
 
 /** The tags this module owns, so a repeat call replaces rather than accumulates. */

@@ -21,6 +21,11 @@ export interface ResolvePublicGatewayOptions {
    */
   readonly gateway: YallaGateway;
   readonly mockLatencyMs?: number | undefined;
+  /**
+   * Mock only: give Northern Avenue two special days in the weeks ahead, so the
+   * hours' special days can be walked. See `PublicMockOptions.showcaseSpecialDays`.
+   */
+  readonly mockShowcaseSpecialDays?: boolean | undefined;
 }
 
 /**
@@ -36,6 +41,7 @@ export function resolvePublicGateway(options: ResolvePublicGatewayOptions): Publ
     return createPublicMockGateway({
       gateway: options.gateway,
       latencyMs: options.mockLatencyMs ?? 250,
+      showcaseSpecialDays: options.mockShowcaseSpecialDays ?? false,
     });
   }
 

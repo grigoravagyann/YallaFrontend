@@ -3,6 +3,7 @@ import {
   createPublicMockGateway,
   createQueryClient,
   type MockGateway,
+  type MockReviewStore,
   type PublicGateway,
 } from '@yalla/api';
 import { GatewayProvider } from '@yalla/api/react';
@@ -83,6 +84,16 @@ export interface HarnessOptions {
   readonly floorApprovesAtOnce?: boolean;
   readonly approvalWindowMs?: number;
   readonly simulateVenueApprovalAfterMs?: number;
+  /**
+   * Northern Avenue's showcase, as mock mode shows it: the finished listing
+   * (cuisine, price, about, website, amenities, gallery), two dozen reviews
+   * (some answered; a `reviews` store replaces them) and two special days.
+   * Off by default, so every other test reads a bare, unreviewed branch on its
+   * plain week.
+   */
+  readonly showcase?: boolean;
+  /** A review store of the test's own, for a branch with a known set of reviews. */
+  readonly reviews?: MockReviewStore;
 }
 
 export function createHarness(options: HarnessOptions = {}): Harness {
@@ -96,8 +107,14 @@ export function createHarness(options: HarnessOptions = {}): Harness {
     floorApprovesAtOnce: options.floorApprovesAtOnce ?? false,
     approvalWindowMs: options.approvalWindowMs,
     simulateVenueApprovalAfterMs: options.simulateVenueApprovalAfterMs,
+    showcase: options.showcase ?? false,
+    ...(options.reviews ? { reviews: options.reviews } : {}),
   });
-  const publicGateway = createPublicMockGateway({ gateway, now: options.now });
+  const publicGateway = createPublicMockGateway({
+    gateway,
+    now: options.now,
+    showcaseSpecialDays: options.showcase ?? false,
+  });
   // Retry off, so a deliberate failure is one attempt and not four.
   const queryClient = createQueryClient({ retry: false, mutationNetworkMode: 'always' });
 

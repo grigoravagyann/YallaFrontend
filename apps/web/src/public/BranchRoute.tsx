@@ -1,14 +1,18 @@
 import type { PublicBranch, TableAvailability } from '@yalla/api';
 import { usePublicBranch, usePublicGateway, usePublicMenu } from '@yalla/api/react';
-import { useLocale, useTranslation } from '@yalla/i18n';
+import { useLocale } from '@yalla/i18n';
 import { Suspense, lazy, useEffect, useId, useMemo, useState, type ReactNode } from 'react';
 import { useParams } from 'react-router-dom';
+import { AboutSection } from './AboutSection';
 import { BookingCard } from './BookingCard';
 import { FindUs, OpeningHours } from './BranchDetails';
+import { useBranchDetail } from './branchDetail';
+import { BranchLine, FactsLine, HeaderActions, TypeLine } from './BranchHeader';
 import { isBookingColumnSticky } from './layout';
 import { BranchStatus } from './LiveCount';
 import { MenuSection } from './MenuSection';
 import { applyPageMeta } from './meta';
+import { PhotoGallery } from './PhotoGallery';
 import {
   FailedPage,
   LoadingPage,
@@ -17,26 +21,37 @@ import {
   pageState,
   StaleNotice,
 } from './PageStates';
+import { ReviewsSection } from './ReviewsSection';
 import { RoomSection } from './RoomSection';
 import { defaultSelection, slotInstant, type SlotSelection } from './slots';
 
 /**
  * `/{venueSlug}/{branchSlug}` — the page this whole task is about.
  *
- * The order of what is on it is the order somebody scanning a phone needs, and
- * it is not the order a venue would choose:
+ * In the order somebody scanning a phone needs it (public-page HANDOFF §2, the
+ * Main artboard), not the order a venue would choose:
  *
- * 1. the venue — name, cover, type, one line;
- * 2. **open or shut right now**, and until when — tonight, not a weekly table;
- * 3. **how many tables are free**, the largest thing after the name and the
- *    only fact on this page that no other website can tell them;
+ * 1. the photos, and the venue — name, branch, type · cuisine, rating ·
+ *    district · price;
+ * 2. **open or shut right now**, and until when — tonight, not a weekly table —
+ *    with **how many tables are free**, the one fact on this page no other
+ *    website can tell them; then call, the address and share;
+ * 3. the booking column (beside everything from 960px);
  * 4. the room;
- * 5. the menu;
- * 6. where it is, and the week's hours behind a tap.
+ * 5. the menu, about, and reviews with the venue's replies;
+ * 6. the week's hours and how to find the place.
  *
- * Nothing else. No reviews, no ratings, no social links, no newsletter, and no
- * app banner — a button that opens an app store is not a feature, it is a dead
- * end with a logo, and it would sit exactly where the free-table count belongs.
+ * Two reads feed it. `PublicBranch` (by slug) carries everything above the
+ * room and is the page: until it answers there is a skeleton, and it is what
+ * the not-found, unavailable and failure states are about. The branch's
+ * listing (`PublicBranchDetail`, by id) adds the cuisine, rating, price,
+ * district, about, amenities, website, gallery and reviews; each section says
+ * on its own what it does while that loads or when it fails, so a review list
+ * that did not load never hides the free tables.
+ *
+ * Still nothing else: no social links, no newsletter and no app banner — a
+ * button that opens an app store is a dead end with a logo, and it would sit
+ * exactly where the free-table count belongs.
  */
 
 /** The booking panel, its verification and its calendar file — none of it needed to read the page. */
@@ -84,10 +99,10 @@ function BranchPage({
   /** The line saying the page may be out of date, when it may. */
   readonly stale: ReactNode;
 }) {
-  const { t } = useTranslation('public');
   const { locale } = useLocale();
   const publicGateway = usePublicGateway();
   const menuQuery = usePublicMenu(branch.id);
+  const { detail, failed: detailFailed, retry: retryDetail } = useBranchDetail(branch.id);
 
   // The first slot the venue would accept — past its lead time and inside its
   // hours — rather than the next half hour, which at 01:21 is "too soon".
@@ -196,20 +211,23 @@ function BranchPage({
   return (
     <main className="pub-layout">
       <div className="pub-col pub-col-top">
-        <Cover branch={branch} />
+        <PhotoGallery
+          cover={branch.venue.coverPhoto}
+          gallery={detail?.gallery ?? []}
+          loading={detail === undefined}
+        />
 
         <header className="pub-head">
           <h1 className="display">{branch.venue.name}</h1>
-          <p className="pub-branch-name">{branch.name}</p>
-          <p className="pub-muted">
-            {t(`venue.type.${branch.venue.type}`, { ns: 'diner' })}
-            {branch.venue.description ? ` · ${branch.venue.description}` : ''}
-          </p>
+          <BranchLine branch={branch} />
+          <TypeLine branch={branch} detail={detail} />
+          <FactsLine detail={detail} locale={locale} />
 
           <div className="pub-now">
             <BranchStatus branch={branch} locale={locale} />
           </div>
           {stale}
+          <HeaderActions branch={branch} />
         </header>
       </div>
 
@@ -246,38 +264,17 @@ function BranchPage({
         {panelInAside ? null : panel}
 
         <MenuSection menu={menuQuery.data} />
-        <FindUs branch={branch} />
+        <AboutSection branch={branch} detail={detail} />
+        <ReviewsSection
+          branchId={branch.id}
+          detail={detail}
+          failed={detailFailed}
+          onRetry={retryDetail}
+          locale={locale}
+        />
         <OpeningHours branch={branch} locale={locale} />
+        <FindUs branch={branch} detail={detail} />
       </div>
     </main>
-  );
-}
-
-/**
- * The cover photo, or nothing at all.
- *
- * Eager rather than lazy — it is the top of the page and lazy-loading the one
- * image above the fold delays the thing that makes the page look like a place.
- * `width`/`height` are set so the space is reserved before the bytes arrive,
- * and a venue with no cover, or a URL that fails, renders no box rather than a
- * grey rectangle pretending a photo is coming.
- */
-function Cover({ branch }: { readonly branch: PublicBranch }) {
-  const [failed, setFailed] = useState(false);
-  const photo = branch.venue.coverPhoto;
-
-  if (!photo || failed) return null;
-
-  return (
-    <div className="pub-cover">
-      <img
-        src={photo.cardUrl}
-        alt=""
-        width={photo.width ?? 1600}
-        height={photo.height ?? 900}
-        decoding="async"
-        onError={() => setFailed(true)}
-      />
-    </div>
   );
 }

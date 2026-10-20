@@ -1009,6 +1009,27 @@ review every string in `src/locales/hy` and `src/locales/ru`.**
     what is shown **may be out of date**, never that it is gone). ru
     `page.notAvailable.title` now «Сейчас нет на Yalla» and `page.error.title`
     «У нас что-то пошло не так» (was a calque).
+- `public` — the public page redesign, phase 2 (2026-10-20): the header and
+  the details. `hy` follows the Main artboard where it has the words; `ru` and
+  `en`, and every `hy` string the artboard does not show, are **not**
+  reviewed. From the artboard: `header.allBranches_*`, `header.reviewCount_*`
+  («{{count}} կարծիք»), `header.call`, `.address`, `.share`, `.copied`,
+  `gallery.allShort` («Բոլորը»), `gallery.title`, `gallery.close`,
+  `section.about`, `section.reviews`, `reviews.seeAll_*`, `.showFewer`,
+  `reviews.who` (must keep saying only guests who came **through Yalla** can
+  review), `hours.todayMark`, `hours.zoneYerevan`. Written for this phase:
+  `header.rating`, `.noReviews`, `.priceLabel`, `header.price.1`–`4` (the
+  admin `publicPage.listing.price.level*` names, lower case, read after
+  «֏֏ ·»), `header.copyThis`, `header.actions`, `details.failed`,
+  `gallery.label`, `gallery.photo` and `gallery.all` (hy writes
+  "{{index}} / {{count}}", no suffix on a number), `menu.sections`,
+  `reviews.outOf`, `.count_*`, `.stars_*`, `.bar`, `.distribution`, `.more`,
+  `.loading`, `.none`, `.failed`, `.edited`, `reviews.age.*` (ages in words
+  from our own plurals rather than `Intl.RelativeTimeFormat`, which falls back
+  to English where the browser has no Armenian data), `hours.zone`,
+  `findUs.newTab`, `findUs.website`. Removed with the folded week:
+  `hours.show`, `hours.hide`. Replies reuse `diner` `place.review.reply.*`
+  and amenities `diner` `place.amenity.*`.
 
 The Russian bundle carries four plural categories (`one`/`few`/`many`/`other`)
 where Armenian and English carry two. That is correct CLDR, not duplication, and
