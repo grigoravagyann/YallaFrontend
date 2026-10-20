@@ -1,5 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import {
+  SmsUnavailableError,
   TelegramUnavailableError,
   verificationFailureCopy,
   type PhoneChallenge,
@@ -31,6 +32,7 @@ import {
   normalizePhone,
 } from '../../auth/validation';
 import {
+  usePhoneProofChannels,
   useRequestPhoneCode,
   useTelegramVerification,
   useVerifyPhoneCode,
@@ -112,6 +114,16 @@ export interface PhoneAuthFlowProps {
  * confirmed, then runs exactly the tail a passed code runs. A backend with
  * Telegram switched off refuses the first start, after which the button is
  * gone and the code stays.
+ *
+ * Which doors are open is the backend's to say, and it is read before either
+ * is offered (`usePhoneProofChannels`). With no SMS provider — production until
+ * one is chosen, decided 2026-10-20 — there is no "Send code" and no number
+ * field: the bot learns the number, so Telegram is the whole step. With neither
+ * door open the step says so instead of offering a button that cannot work.
+ * While the answer is on its way neither is shown, rather than a guess that
+ * flips. A code request refused with `SmsUnavailableError` anyway (the read
+ * failed, or is stale) closes the SMS door the way a refused start closes
+ * Telegram's.
  */
 export function PhoneAuthFlow({ mode, params }: PhoneAuthFlowProps) {
   const { t } = useTranslation('diner');
@@ -135,10 +147,22 @@ export function PhoneAuthFlow({ mode, params }: PhoneAuthFlowProps) {
   // The phone step says what it is for: the profile's "Verify" while signed
   // in confirms a number, and "Forgot your password?" is a log-in by code.
   const phoneCopy = accountPhone
-    ? ({ title: 'auth.login.confirmTitle', body: 'auth.login.confirmBody' } as const)
+    ? ({
+        title: 'auth.login.confirmTitle',
+        body: 'auth.login.confirmBody',
+        bodyTelegram: 'auth.login.confirmBodyTelegram',
+      } as const)
     : params.reason === 'forgotPassword'
-      ? ({ title: 'auth.login.forgot', body: 'auth.login.forgotBody' } as const)
-      : ({ title: 'auth.login.title', body: 'auth.login.body' } as const);
+      ? ({
+          title: 'auth.login.forgot',
+          body: 'auth.login.forgotBody',
+          bodyTelegram: 'auth.login.forgotBodyTelegram',
+        } as const)
+      : ({
+          title: 'auth.login.title',
+          body: 'auth.login.body',
+          bodyTelegram: 'auth.login.bodyTelegram',
+        } as const);
   // Sent back by the bot with a challenge in hand: straight to waiting.
   const [step, setStep] = useState<Step>(params.tg ? 'telegram' : firstStepOf);
   const [name, setName] = useState(rememberedName ?? '');
@@ -155,6 +179,7 @@ export function PhoneAuthFlow({ mode, params }: PhoneAuthFlowProps) {
   const [errorText, setErrorText] = useState<string | null>(null);
   const [secondsLeft, setSecondsLeft] = useState(0);
   const [telegramHidden, setTelegramHidden] = useState(false);
+  const [smsHidden, setSmsHidden] = useState(false);
   const [telegramNotInstalled, setTelegramNotInstalled] = useState(false);
   const [newPassword, setNewPassword] = useState('');
   const [newPasswordAgain, setNewPasswordAgain] = useState('');
@@ -163,6 +188,14 @@ export function PhoneAuthFlow({ mode, params }: PhoneAuthFlowProps) {
 
   const requestCode = useRequestPhoneCode();
   const verifyCode = useVerifyPhoneCode();
+  const channels = usePhoneProofChannels();
+  // Unknown until the read answers. A failed read offers both, as before the
+  // read existed: each door's own refusal then closes it after one try.
+  const channelsKnown = !channels.isPending;
+  const smsOn = channelsKnown && channels.data?.sms !== false && !smsHidden;
+  const telegramOn = channelsKnown && channels.data?.telegram !== false && !telegramHidden;
+  /** The door the first step leads with; `null` while the read is out. */
+  const door = !channelsKnown ? null : smsOn ? 'sms' : telegramOn ? 'telegram' : 'none';
   const codeInput = useRef<TextInput>(null);
   const nameInput = useRef<TextInput>(null);
   const numberInput = useRef<TextInput>(null);
@@ -390,6 +423,9 @@ export function PhoneAuthFlow({ mode, params }: PhoneAuthFlowProps) {
       setTimeout(() => codeInput.current?.focus(), 250);
     } catch (error) {
       if (!alive.current) return;
+      // No SMS on this backend after all: the code door closes, and the
+      // sentence points to Telegram (or says neither works, below).
+      if (error instanceof SmsUnavailableError) setSmsHidden(true);
       setErrorText(describe(error));
     }
   }, [phoneE164, requestCode, describe, locale]);
@@ -606,17 +642,26 @@ export function PhoneAuthFlow({ mode, params }: PhoneAuthFlowProps) {
           <Rise key={step} style={styles.step}>
             {step === 'phone' ? (
               <>
-                {/* Considerate framing: says why, not just what. */}
-                <Text style={styles.blurb}>{t(phoneCopy.body)}</Text>
-                {phoneField}
+                {/* Considerate framing: says why, not just what — and by which
+                    door. No number to type when the bot is the only one. */}
+                {door === 'sms' || door === 'telegram' ? (
+                  <Text style={styles.blurb}>
+                    {t(door === 'sms' ? phoneCopy.body : phoneCopy.bodyTelegram)}
+                  </Text>
+                ) : null}
+                {door === 'sms' ? phoneField : null}
               </>
             ) : null}
 
             {step === 'details' ? (
               <>
-                <Text style={styles.blurb}>{t('auth.signup.body')}</Text>
+                {door === 'sms' || door === 'telegram' ? (
+                  <Text style={styles.blurb}>
+                    {t(door === 'sms' ? 'auth.signup.body' : 'auth.signup.bodyTelegram')}
+                  </Text>
+                ) : null}
                 {nameField}
-                {phoneField}
+                {door === 'sms' ? phoneField : null}
                 <Field label={t('auth.emailLabel')} hint={t('auth.emailHint')} error={emailError}>
                   <FieldInput
                     value={email}
@@ -637,33 +682,46 @@ export function PhoneAuthFlow({ mode, params }: PhoneAuthFlowProps) {
 
             {firstStep ? (
               <>
-                {errorText ? (
+                {/* Neither door open: one plain sentence, and no button that
+                    cannot work. It says all the last refusal would have. */}
+                {door === 'none' ? (
+                  <Text style={styles.error} accessibilityRole="alert">
+                    {t('verify.unavailable')}
+                  </Text>
+                ) : errorText ? (
                   <Text style={styles.error} accessibilityRole="alert">
                     {errorText}
                   </Text>
                 ) : null}
-                <Button
-                  label={t('verify.sendCode')}
-                  icon="paper-plane-outline"
-                  size="large"
-                  disabled={!canSend}
-                  busy={requestCode.isPending}
-                  onPress={() => void send()}
-                  style={styles.primary}
-                />
-                {telegramHidden ? null : (
+                {door === null ? (
+                  <ActivityIndicator color={colors.primary} style={styles.channelsPending} />
+                ) : null}
+                {smsOn ? (
+                  <Button
+                    label={t('verify.sendCode')}
+                    icon="paper-plane-outline"
+                    size="large"
+                    disabled={!canSend}
+                    busy={requestCode.isPending}
+                    onPress={() => void send()}
+                    style={styles.primary}
+                  />
+                ) : null}
+                {telegramOn ? (
                   <>
+                    {/* The second door beside the code; the only one without it. */}
                     <Button
                       label={t('verify.telegramButton')}
-                      variant="secondary"
+                      variant={smsOn ? 'secondary' : 'primary'}
                       size="large"
                       disabled={!canTelegram}
                       busy={telegramStatus === 'starting'}
                       onPress={startTelegram}
+                      {...(smsOn ? {} : { style: styles.primary })}
                     />
                     <Text style={styles.hint}>{t('verify.telegramHint')}</Text>
                   </>
-                )}
+                ) : null}
                 <WhyVerify />
                 {/* Signed in already: confirming a number, not choosing an account. */}
                 {accountPhone ? null : (
@@ -823,7 +881,10 @@ export function PhoneAuthFlow({ mode, params }: PhoneAuthFlowProps) {
                     onPress={() => openTelegram(telegramUrl)}
                   />
                 ) : null}
-                <Button label={t('verify.telegramUseCode')} variant="text" onPress={back} />
+                {/* No code to fall back on where SMS is off: the arrow is the way back. */}
+                {smsOn ? (
+                  <Button label={t('verify.telegramUseCode')} variant="text" onPress={back} />
+                ) : null}
               </>
             ) : null}
 
@@ -1026,6 +1087,7 @@ const styles = StyleSheet.create({
   pasteDisabled: { opacity: 0.45 },
   pasteText: { ...typography.caption, color: colors.text },
   pending: { alignSelf: 'flex-start' },
+  channelsPending: { alignSelf: 'center', marginTop: space.sm },
   codeActions: {
     flexDirection: 'row',
     alignItems: 'center',

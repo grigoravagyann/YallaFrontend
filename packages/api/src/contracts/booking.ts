@@ -577,6 +577,23 @@ export interface RescheduleBookingCommand {
 // Phone verification
 // ---------------------------------------------------------------------------
 
+/**
+ * Which ways of proving a phone number this backend has on,
+ * `GET /api/auth/diner/phone-proof`. A deployment fact, the same for every
+ * caller: read it before offering a choice, so a diner is never handed a
+ * button that cannot work.
+ */
+export interface PhoneProofChannels {
+  /**
+   * A one-time code by SMS can be sent. False when no SMS provider is
+   * configured (outside Development); `requestPhoneCode` then rejects with
+   * `SmsUnavailableError`, and Telegram is the only way.
+   */
+  readonly sms: boolean;
+  /** The Telegram bot is on. False: `startTelegramVerification` rejects with `TelegramUnavailableError`. */
+  readonly telegram: boolean;
+}
+
 export interface PhoneChallenge {
   readonly challengeId: string;
   readonly phoneE164: string;

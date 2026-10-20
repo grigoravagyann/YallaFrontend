@@ -281,6 +281,8 @@ export const queryKeys = {
   // the venue section a platform body the next time the admin suspended one.
   managedVenue: (venueId: string) => ['console', 'managedVenue', venueId] as const,
   editorFloorPlan: (branchId: string) => ['console', 'floorPlan', branchId] as const,
+  /** Which ways of proving a phone this backend has on. See `usePhoneProofChannels`. */
+  phoneProofChannels: ['phoneProofChannels'] as const,
   /** One poll of a Telegram verification challenge. See `useTelegramVerification`. */
   telegramClaim: (challengeId: string) => ['telegramClaim', challengeId] as const,
   staffFloor: (branchId: string) => ['staff', 'floor', branchId] as const,
@@ -378,6 +380,29 @@ export function useVenue(venueId: string | undefined) {
     queryFn: () => gateway.getVenue(venueId!),
     enabled: Boolean(venueId),
     staleTime: staleTime.reference,
+  });
+}
+
+// --- Diner: proving a phone --------------------------------------------------
+
+/**
+ * Which ways of proving a number this backend has on: an SMS code, the
+ * Telegram bot, or both. Until an SMS provider is chosen (decided 2026-10-20)
+ * production has Telegram only, and a screen that offered "Send code" there
+ * would hand the diner a button that cannot work.
+ *
+ * A fact about the deployment, the same for everybody and for the life of the
+ * process, so it is read once and kept: `staleTime.static`. While it is
+ * loading a screen shows neither door rather than guessing one; if it fails
+ * the screen falls back to offering both, and each door's own refusal
+ * (`SmsUnavailableError`, `TelegramUnavailableError`) closes it after one try.
+ */
+export function usePhoneProofChannels() {
+  const gateway = useGateway();
+  return useQuery({
+    queryKey: queryKeys.phoneProofChannels,
+    queryFn: () => gateway.getPhoneProofChannels(),
+    staleTime: staleTime.static,
   });
 }
 

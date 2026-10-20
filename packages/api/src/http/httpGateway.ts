@@ -7,6 +7,7 @@ import type {
   DaySlots,
   MyBookings,
   PhoneChallenge,
+  PhoneProofChannels,
   VenueSummary,
   TelegramChallenge,
   TelegramClaimResult,
@@ -51,6 +52,7 @@ import {
   PhoneInUseError,
   PhoneNotVerifiedError,
   RateLimitedError,
+  SmsUnavailableError,
   HostCannotLeaveError,
   InviteExpiredError,
   ServiceRequestRateLimitedError,
@@ -1097,6 +1099,11 @@ export function createHttpGateway(client: ApiClient, options: HttpGatewayOptions
 
     // --- Phone verification: the diner sign-in ---------------------------------
 
+    async getPhoneProofChannels(): Promise<PhoneProofChannels> {
+      const channels = await dinerAuth.phoneProofChannels();
+      return { sms: channels.sms, telegram: channels.telegram };
+    },
+
     async requestPhoneCode(phoneE164, options): Promise<PhoneChallenge> {
       try {
         // The diner's language, so the SMS arrives in it rather than in the
@@ -1117,6 +1124,11 @@ export function createHttpGateway(client: ApiClient, options: HttpGatewayOptions
         };
       } catch (error) {
         if (error instanceof TooManyRequestsError) throw rateLimited(error);
+        // No SMS provider on this backend. Only this code: any other 503 is an
+        // outage, and telling the diner to use Telegram for it would be a guess.
+        if (error instanceof ApiError && error.status === 503 && error.code === 'sms-unavailable') {
+          throw new SmsUnavailableError({ url: error.url, requestId: error.requestId });
+        }
         throw error;
       }
     },
@@ -1313,7 +1325,8 @@ export function createHttpGateway(client: ApiClient, options: HttpGatewayOptions
     },
 
     /**
-     * `DELETE /api/diner/me` (K2), with the password or the code in the body.
+     * `DELETE /api/diner/me` (K2), with the password or the code in the body —
+     * or neither, when the bearer carries a phone proof from the last ten minutes.
      *
      * Deliberately does **not** sign the session out: the server has already
      * revoked it, and the caller's sign-out also clears the diner-scoped cache,

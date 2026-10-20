@@ -65,7 +65,7 @@ function renderFlow(gateway: MockGateway, params: { tg?: string } = {}) {
 
 /** Press the Telegram button and read the challenge id out of what was opened. */
 async function startThroughTelegram(open: ReturnType<typeof vi.spyOn>) {
-  fireEvent.click(screen.getByRole('button', { name: 'verify.telegramButton' }));
+  fireEvent.click(await screen.findByRole('button', { name: 'verify.telegramButton' }));
   await waitFor(() => expect(open).toHaveBeenCalledTimes(1));
   const url = String(open.mock.calls[0]?.[0]);
   const challengeId = BOT_LINK.exec(url)?.[1];

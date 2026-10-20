@@ -515,11 +515,15 @@ describe('deleting the account in the mock (K2)', () => {
   });
 
   it('needs a fresh code for its own number on an account with no password', async () => {
-    const gateway = createMockGateway();
+    const time = clock();
+    const gateway = createMockGateway({ now: time.now });
     const phone = '+37499000102';
     const signIn = await gateway.requestPhoneCode(phone);
     await gateway.verifyPhoneCode({ challengeId: signIn.challengeId, code: signIn.devCode! });
 
+    // The code sign-in is itself a phone proof for ten minutes (see
+    // `phoneProofChannels.test.ts`); past it, the deletion asks for a code.
+    time.advance(10 * 60_000 + 1_000);
     expect(named(await caught(gateway.deleteDinerAccount({})))).toEqual([['code', 'required']]);
     // The sign-in code was spent; nothing is waiting to be matched.
     expect(await caught(gateway.deleteDinerAccount({ code: signIn.devCode! }))).toBeInstanceOf(
