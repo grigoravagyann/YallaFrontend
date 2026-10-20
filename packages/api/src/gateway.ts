@@ -392,7 +392,7 @@ export interface YallaGateway {
    * @throws {UsernameTakenError} somebody has that username.
    * @throws {EmailTakenError} somebody signed up with that email.
    * @throws {PhoneInUseError} the number already has an account — offer
-   * "Log in with a code instead", which signs that account in.
+   * "Log in with your phone number instead", which signs that account in.
    * @throws {RateLimitedError} too many sign-ups from this address.
    */
   registerDiner(command: RegisterDinerCommand): Promise<DinerSignInResult>;
