@@ -1083,6 +1083,7 @@
       "questionNoNext": "Will you free the table by {{time}}?",
       "yes": "Yes, I'll free it by {{time}}",
       "no": "No, I'll choose another table or time",
+      "agree": "I'll free the table by {{time}}",
       "other": "Choose another table or time. These times have no limit:",
       "otherNoTimes": "Choose another table or another time."
     }

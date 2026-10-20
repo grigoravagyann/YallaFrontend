@@ -1118,7 +1118,8 @@ review every string in `src/locales/hy` and `src/locales/ru`.**
   words: `sheet.freeCancellationTomorrow` and `sheet.freeCancellationOn`
   (the date is `booking.date`, so `Intl` never prints a hy date in English).
   Removed from `diner`, which nothing renders any more: `verify.phoneTitle`,
-  `verify.phoneBody`, `book.freeBy.agree`.
+  `verify.phoneBody`. (`book.freeBy.agree` stays: the manage page's change
+  form asks the same promise with it.)
   - Review fixes (2026-10-20), **not** reviewed: `booking.weekdayInSentence.*`
     — the weekday as a sentence writes it, lower case in hy and ru («մինչև
     ուրբ, 23 հոկտեմբերի», «до 15:00, пт, 23 октября»), the same as
