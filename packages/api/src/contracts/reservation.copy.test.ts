@@ -254,11 +254,36 @@ describe('the unverified-guests refusals (2026-10-20)', () => {
     });
   });
 
-  it('words the per-network limit rather than “something went wrong”', () => {
+  it('words the per-network limit for a booker with no proved number', () => {
     const { TooManyRequestsError } = errorsBase;
     expect(
-      bookingFailure(new TooManyRequestsError({ url: URL, retryAfterSeconds: 600 }), YEREVAN, 'en'),
+      bookingFailure(
+        new TooManyRequestsError({ url: URL, retryAfterSeconds: 600 }),
+        YEREVAN,
+        'en',
+        { unverified: true },
+      ),
     ).toEqual({ kind: 'rateLimited', line: { key: 'confirm.error.rateLimited', params: {} } });
+  });
+
+  it('says only "too many requests" to anybody else, whom the general limit met (review S4)', () => {
+    const { TooManyRequestsError } = errorsBase;
+    expect(
+      bookingFailure(new TooManyRequestsError({ url: URL, retryAfterSeconds: 10 }), YEREVAN, 'en'),
+    ).toEqual({ kind: 'rateLimited', line: { key: 'confirm.error.tooManyRequests', params: {} } });
+  });
+
+  it('says the venue takes none without a verified number when its cap is 0', () => {
+    expect(
+      bookingFailure(
+        new errors.UnverifiedPartyTooLargeError({ url: URL, partySize: 2, maxPartySize: 0 }),
+        YEREVAN,
+        'en',
+      ),
+    ).toEqual({
+      kind: 'unverifiedPartyTooLarge',
+      line: { key: 'confirm.error.unverifiedOff', params: {} },
+    });
   });
 });
 

@@ -1097,7 +1097,7 @@
       },
       "unverifiedMaxPartySize": {
         "label": "Largest party without a verified number",
-        "why": "A larger party has to verify its number first, so a stranger cannot block a room with a booking nobody will come to."
+        "why": "A larger party has to verify its number first, so a stranger cannot block a room with a booking nobody will come to. 0 means no bookings without a verified number at all."
       },
       "unverifiedScansNeedAdmission": {
         "label": "Unverified scans wait for a waiter",
@@ -1134,7 +1134,7 @@
       "lateness_other": "At {{nudgeAt}}: “On your way? The table is held until {{heldUntil}}” · the “On our way” button adds {{count}} more minutes",
       "approvalAbove_one": "Bookings of up to {{count}} person are confirmed at once; larger ones wait for you",
       "approvalAbove_other": "Bookings of up to {{count}} people are confirmed at once; larger ones wait for you",
-      "approvalAll": "Every booking is confirmed at once",
+      "approvalAll": "Every booking with a verified number is confirmed at once",
       "approvalManual": "Every booking waits for your decision",
       "serviceCharge": "A separate line on the bill: “Service {{percent}} %”",
       "noServiceCharge": "No service charge is added",
@@ -1143,7 +1143,8 @@
       "unverifiedConfirmed_one": "Without a verified number, up to {{count}} person; the booking is confirmed as usual.",
       "unverifiedConfirmed_other": "Without a verified number, up to {{count}} people; the booking is confirmed as usual.",
       "unverifiedScanWaits": "A table that scans without one orders once a waiter lets it.",
-      "unverifiedScanOrders": "A table that scans without one orders at once."
+      "unverifiedScanOrders": "A table that scans without one orders at once.",
+      "unverifiedOff": "No bookings without a verified number."
     },
     "result": {
       "affectedTitle_one": "{{count}} existing booking no longer fits the new rules.",

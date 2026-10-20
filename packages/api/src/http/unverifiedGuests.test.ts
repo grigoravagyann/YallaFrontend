@@ -383,6 +383,16 @@ describe('a booking without a proved number', () => {
     expect(cap).toBeInstanceOf(UnverifiedPartyTooLargeError);
     expect(cap).toMatchObject({ partySize: 8, maxPartySize: 6 });
 
+    // A cap of 0: the branch takes none without a verified number.
+    const off = await refusal(
+      problemReply(422, 'reservation-unverified-party-too-large', {
+        reason: 14,
+        partySize: 2,
+        maxPartySize: 0,
+      }),
+    );
+    expect(off).toMatchObject({ partySize: 2, maxPartySize: 0 });
+
     expect(await refusal(problemReply(409, 'branch-unverified-queue-full'))).toBeInstanceOf(
       UnverifiedQueueFullError,
     );

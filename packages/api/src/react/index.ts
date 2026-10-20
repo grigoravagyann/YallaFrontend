@@ -26,6 +26,7 @@ import type {
   SubscriptionTier,
   UpdateVenueCommand,
 } from '../contracts/console';
+import type { StaffFloor } from '../contracts/service';
 import type { EditorFloorPlan, ReplaceFloorPlanCommand } from '../contracts/floorPlan';
 import type { SetReviewVisibilityCommand, VenueReviewQuery } from '../contracts/reviews';
 import type {
@@ -1521,11 +1522,25 @@ function useAdmissionDecision<C extends { readonly tabId: string }>(
     retry: false,
     onSuccess: (tab) => {
       queryClient.setQueryData(queryKeys.staffTab(tab.id), tab);
+      // The table's flag on the floor already on screen. Not a floor read: the
+      // change stream brings the decision's own row (with any status it
+      // changed) within a poll, and folds it in (UG review S9).
+      queryClient.setQueryData<StaffFloor | null>(queryKeys.staffFloor(branchId ?? ''), (floor) =>
+        floor
+          ? {
+              ...floor,
+              details: floor.details.map((detail) =>
+                detail.openTabId === tab.id
+                  ? { ...detail, openTabAwaitingAdmission: false }
+                  : detail,
+              ),
+            }
+          : floor,
+      );
     },
     onSettled: (_tab, _error, command) => {
       const branch = branchId ?? '';
       void queryClient.invalidateQueries({ queryKey: queryKeys.tabsAwaitingAdmission(branch) });
-      void queryClient.invalidateQueries({ queryKey: queryKeys.staffFloor(branch) });
       void queryClient.invalidateQueries({ queryKey: queryKeys.serviceRequests(branch) });
       void queryClient.invalidateQueries({ queryKey: queryKeys.staffTab(command.tabId) });
     },
@@ -2585,13 +2600,25 @@ export const MANAGE_LINK_POLL_MS = 15_000;
  */
 export const MANAGE_LINK_SLOW_POLL_MS = 60_000;
 
+/**
+ * Past this much time left to answer, the manage link reads slowly: the 15 s
+ * cadence is for a fifteen-minute window, and a booking made without a verified
+ * number may wait a day (UG review S8).
+ */
+export const MANAGE_LINK_FAST_POLL_WITHIN_MS = 60 * 60_000;
+
 /** The manage link's poll for a booking as it stands: `false` once nothing waits. */
 export function manageLinkPollMs(
   booking:
     { readonly status: string; readonly approvalExpiresAtUtc: string | null } | null | undefined,
+  now: number = Date.now(),
 ): number | false {
   if (!booking || booking.status !== 'pendingApproval') return false;
-  return awaitsVenueAnswer(booking) ? MANAGE_LINK_POLL_MS : MANAGE_LINK_SLOW_POLL_MS;
+  if (!awaitsVenueAnswer(booking)) return MANAGE_LINK_SLOW_POLL_MS;
+  const left = Date.parse(booking.approvalExpiresAtUtc ?? '') - now;
+  return Number.isFinite(left) && left > MANAGE_LINK_FAST_POLL_WITHIN_MS
+    ? MANAGE_LINK_SLOW_POLL_MS
+    : MANAGE_LINK_POLL_MS;
 }
 
 /**

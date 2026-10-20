@@ -598,10 +598,20 @@ export type BookingFailure =
   | { readonly kind: 'unknown'; readonly line: CopyLine }
   | { readonly kind: 'generic'; readonly line: CopyLine };
 
+export interface BookingFailureOptions {
+  /**
+   * The booker has no proved number (an unproved account, the public page's
+   * door without proof). Only then is a 429 the hourly budget for bookings
+   * without one; anybody else met the server's general request limit.
+   */
+  readonly unverified?: boolean | undefined;
+}
+
 export function bookingFailure(
   error: unknown,
   timeZoneId: TimeZone,
   locale: Locale,
+  options: BookingFailureOptions = {},
 ): BookingFailure {
   if (error instanceof TableTakenError) {
     return {
@@ -670,16 +680,26 @@ export function bookingFailure(
   if (error instanceof UnverifiedPartyTooLargeError) {
     return {
       kind: 'unverifiedPartyTooLarge',
-      line: line('confirm.error.unverifiedPartyTooLarge', { max: error.maxPartySize }),
+      // A cap of 0: this branch takes no bookings without a proved number.
+      line:
+        error.maxPartySize <= 0
+          ? line('confirm.error.unverifiedOff')
+          : line('confirm.error.unverifiedPartyTooLarge', { max: error.maxPartySize }),
     };
   }
   if (error instanceof UnverifiedQueueFullError) {
     return { kind: 'unverifiedQueueFull', line: line('confirm.error.unverifiedQueueFull') };
   }
-  // A booking is refused at 429 only for want of a proved number (ten an
-  // hour from one network); the time the server gives is an hour at most.
+  // A 429: for a booker with no proved number, the hourly budget for such
+  // bookings from one network; for anybody else the server's general request
+  // limit, which the same code answers — so the caller says which it is.
   if (error instanceof TooManyRequestsError) {
-    return { kind: 'rateLimited', line: line('confirm.error.rateLimited') };
+    return {
+      kind: 'rateLimited',
+      line: line(
+        options.unverified ? 'confirm.error.rateLimited' : 'confirm.error.tooManyRequests',
+      ),
+    };
   }
   if (error instanceof BookingBusyError) {
     return { kind: 'busy', line: line('confirm.error.busy') };

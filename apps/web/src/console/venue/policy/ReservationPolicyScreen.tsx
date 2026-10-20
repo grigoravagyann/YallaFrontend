@@ -605,10 +605,15 @@ export function groupExample(
         ? t('policy.example.approvalAll')
         : t('policy.example.approvalAbove', { count: policy.approvalRequiredAbovePartySize });
     case 'unverified': {
+      // A cap of 0 switches bookings without a verified number off altogether.
       const booking =
-        policy.unverifiedBookingsNeedApproval === true
-          ? t('policy.example.unverifiedApproved', { count: n(policy.unverifiedMaxPartySize) })
-          : t('policy.example.unverifiedConfirmed', { count: n(policy.unverifiedMaxPartySize) });
+        policy.unverifiedMaxPartySize === 0
+          ? t('policy.example.unverifiedOff')
+          : policy.unverifiedBookingsNeedApproval === true
+            ? t('policy.example.unverifiedApproved', { count: n(policy.unverifiedMaxPartySize) })
+            : t('policy.example.unverifiedConfirmed', {
+                count: n(policy.unverifiedMaxPartySize),
+              });
       const scan =
         policy.unverifiedScansNeedAdmission === false
           ? t('policy.example.unverifiedScanOrders')

@@ -13,7 +13,7 @@ import {
 import { GatewayProvider } from '@yalla/api/react';
 import { I18nextProvider, i18next } from '@yalla/i18n';
 import { QueryClientProvider } from '@tanstack/react-query';
-import { act, cleanup, render, screen, waitFor, within } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { useSyncExternalStore } from 'react';
 import { MemoryRouter } from 'react-router-dom';
@@ -172,8 +172,8 @@ describe('the rail', () => {
     expect(within(eight).getByText(/scanned 6 min ago/u)).toBeTruthy();
     expect(within(eight).getByText(/Արամ/u)).toBeTruthy();
     expect(within(eight).getByText(/2 phones/u)).toBeTruthy();
-    expect(within(eight).getByRole('button', { name: 'Admit' })).toBeTruthy();
-    expect(within(eight).getByRole('button', { name: 'Reject' })).toBeTruthy();
+    expect(within(eight).getByRole('button', { name: 'Admit table 8' })).toBeTruthy();
+    expect(within(eight).getByRole('button', { name: 'Reject table 8' })).toBeTruthy();
   });
 
   it('admits in one tap, online, under one command id: the card goes and the floor says so', async () => {
@@ -184,7 +184,7 @@ describe('the rail', () => {
     renderFloor(gateway);
 
     const five = await card('5');
-    await user.click(within(five).getByRole('button', { name: 'Admit' }));
+    await user.click(within(five).getByRole('button', { name: 'Admit table 5' }));
 
     await waitFor(() => expect(admit).toHaveBeenCalledTimes(1));
     expect(admit.mock.calls[0]![0]).toMatchObject({
@@ -209,15 +209,15 @@ describe('the rail', () => {
     renderFloor(gateway);
 
     const eight = await card('8');
-    await user.click(within(eight).getByRole('button', { name: 'Reject' }));
+    await user.click(within(eight).getByRole('button', { name: 'Reject table 8' }));
     const question = within(eight).getByRole('group', { name: 'Table 8: nobody there?' });
     expect(within(question).getByText('This closes the tab and frees the table.')).toBeTruthy();
     expect(reject).not.toHaveBeenCalled();
 
     await user.click(within(question).getByRole('button', { name: 'Cancel' }));
-    expect(within(eight).getByRole('button', { name: 'Admit' })).toBeTruthy();
+    expect(within(eight).getByRole('button', { name: 'Admit table 8' })).toBeTruthy();
 
-    await user.click(within(eight).getByRole('button', { name: 'Reject' }));
+    await user.click(within(eight).getByRole('button', { name: 'Reject table 8' }));
     await user.click(within(eight).getByRole('button', { name: 'Yes, reject' }));
     await waitFor(() => expect(reject).toHaveBeenCalledTimes(1));
     expect(await screen.findByText('Table 8: tab closed, table freed.')).toBeTruthy();
@@ -235,14 +235,14 @@ describe('the rail', () => {
 
     await waitFor(() =>
       expect(
-        (within(five).getByRole('button', { name: 'Admit' }) as HTMLButtonElement).disabled,
+        (within(five).getByRole('button', { name: 'Admit table 5' }) as HTMLButtonElement).disabled,
       ).toBe(true),
     );
     expect(
-      (within(five).getByRole('button', { name: 'Reject' }) as HTMLButtonElement).disabled,
+      (within(five).getByRole('button', { name: 'Reject table 5' }) as HTMLButtonElement).disabled,
     ).toBe(true);
     expect(within(five).getByText('Admitting or rejecting needs a connection.')).toBeTruthy();
-    await user.click(within(five).getByRole('button', { name: 'Admit' }));
+    await user.click(within(five).getByRole('button', { name: 'Admit table 5' }));
     expect(admit).not.toHaveBeenCalled();
   });
 
@@ -256,7 +256,7 @@ describe('the rail', () => {
     renderFloor(gateway);
 
     const five = await card('5');
-    await user.click(within(five).getByRole('button', { name: 'Admit' }));
+    await user.click(within(five).getByRole('button', { name: 'Admit table 5' }));
 
     expect(
       await within(five).findByText('Someone else already decided about this table.'),
@@ -285,7 +285,7 @@ describe('a reject the server refuses', () => {
     renderFloor(gateway);
 
     const eight = await card('8');
-    await user.click(within(eight).getByRole('button', { name: 'Reject' }));
+    await user.click(within(eight).getByRole('button', { name: 'Reject table 8' }));
     await user.click(within(eight).getByRole('button', { name: 'Yes, reject' }));
 
     expect(
@@ -310,7 +310,7 @@ describe('the table panel', () => {
 
     expect(within(panel).getByText('Waiting to be let in')).toBeTruthy();
     expect(within(panel).getByText(/Scanned without a verified number/u)).toBeTruthy();
-    await user.click(within(panel).getByRole('button', { name: 'Admit' }));
+    await user.click(within(panel).getByRole('button', { name: 'Admit table 5' }));
     await waitFor(() => expect(admit).toHaveBeenCalledTimes(1));
   });
 
@@ -348,7 +348,7 @@ describe('the floor and the requests', () => {
 });
 
 describe('the change stream', () => {
-  it('reads the floor again on a signal, rather than folding it in', () => {
+  it('folds an admission signal into the table, without reading the floor again (review S9)', () => {
     const floor = {
       plan: {
         branchId: BRANCH,
@@ -393,6 +393,187 @@ describe('the change stream', () => {
       signal: 'tabAdmitted',
     };
 
-    expect(applyFloorChanges(floor as never, [signal]).kind).toBe('gap');
+    const result = applyFloorChanges(floor as never, [signal]);
+    expect(result.kind).toBe('applied');
+    if (result.kind !== 'applied') return;
+    expect(result.changed).toEqual(['t5']);
+    const five = result.floor.details[0]!;
+    expect(five.openTabAwaitingAdmission).toBe(false);
+    // What the row does not say is left alone: the sitting and its tab.
+    expect(five.seatedAtUtc).toBe('2026-10-20T14:58:00Z');
+    expect(five.openTabId).toBe('tab-5');
+    expect(result.floor.lastSequence).toBe(5);
+  });
+
+  it('folds a scan that seats a free table, and a reject that frees it', () => {
+    const free = {
+      plan: { branchId: BRANCH, branchName: 'North', timeZoneId: 'Asia/Yerevan', tables: [] },
+      details: [
+        {
+          tableId: 't3',
+          label: '3',
+          seats: 2,
+          physicalStatus: 'free',
+          currentSessionId: null,
+          seatedAtUtc: null,
+          partySize: null,
+          nextReservationId: null,
+          nextReservationStartUtc: null,
+          nextReservationPartySize: null,
+          freeUntilUtc: null,
+          openTabId: null,
+          rowVersion: 'v',
+        },
+      ],
+      lastSequence: 9,
+      asOfUtc: '2026-10-20T15:00:00Z',
+    } as const;
+    const row = (sequence: number, overrides: Partial<FloorChange>): FloorChange => ({
+      sequence,
+      tableId: 't3',
+      tableLabel: '3',
+      fromStatus: 'free',
+      toStatus: 'occupied',
+      atUtc: '2026-10-20T15:01:00Z',
+      tableSessionId: 's3',
+      reservationId: null,
+      actor: 'diner',
+      actorId: null,
+      reason: '',
+      tabId: 'tab-3',
+      signal: 'tabAwaitingAdmission',
+      ...overrides,
+    });
+
+    const seated = applyFloorChanges(free as never, [row(10, {})]);
+    expect(seated.kind).toBe('applied');
+    if (seated.kind !== 'applied') return;
+    expect(seated.floor.details[0]).toMatchObject({
+      physicalStatus: 'occupied',
+      openTabId: 'tab-3',
+      openTabAwaitingAdmission: true,
+    });
+
+    const freed = applyFloorChanges(seated.floor, [
+      row(11, { fromStatus: 'occupied', toStatus: 'free', signal: 'tabAdmissionRejected' }),
+    ]);
+    expect(freed.kind).toBe('applied');
+    if (freed.kind !== 'applied') return;
+    expect(freed.floor.details[0]).toMatchObject({
+      physicalStatus: 'free',
+      openTabId: null,
+      openTabAwaitingAdmission: false,
+    });
+  });
+});
+
+describe('the review round (UG-FE-REVIEW)', () => {
+  it('says the table goes back to the late party it was held for (S3)', async () => {
+    const user = setupUser();
+    signIn();
+    const gateway = floorGateway();
+    // Table 8's sitting took a table held for a booking that is late: its next
+    // booking started before now and was not seated.
+    const read = gateway.getFloor.bind(gateway);
+    vi.spyOn(gateway, 'getFloor').mockImplementation(async (branchId) => {
+      const floor = await read(branchId);
+      if (!floor) return floor;
+      const late = new Date(Date.now() - 20 * 60_000).toISOString();
+      return {
+        ...floor,
+        details: floor.details.map((detail) =>
+          detail.label === '8'
+            ? {
+                ...detail,
+                nextReservationId: 'r-late',
+                nextReservationStartUtc: late,
+                nextReservationPartySize: 2,
+              }
+            : detail,
+        ),
+      };
+    });
+    renderFloor(gateway);
+
+    const eight = await card('8');
+    await user.click(within(eight).getByRole('button', { name: 'Reject table 8' }));
+    expect(
+      within(eight).getByText(
+        'This closes the tab and gives the table back to the late party it was held for.',
+      ),
+    ).toBeTruthy();
+    await user.click(within(eight).getByRole('button', { name: 'Yes, reject' }));
+    expect(
+      await screen.findByText('Table 8: tab closed, table held again for the late party.'),
+    ).toBeTruthy();
+  });
+
+  it('sends one Admit for two taps in one moment (N2)', async () => {
+    signIn();
+    const gateway = floorGateway();
+    const admit = vi.spyOn(gateway, 'admitTab');
+    renderFloor(gateway);
+
+    const five = await card('5');
+    const button = within(five).getByRole('button', { name: 'Admit table 5' });
+    fireEvent.click(button);
+    fireEvent.click(button);
+    await screen.findByText('Table 5 can order now.');
+    expect(admit).toHaveBeenCalledTimes(1);
+  });
+
+  it('moves the focus to the next waiting table when a card leaves (N3)', async () => {
+    const user = setupUser();
+    signIn();
+    renderFloor(floorGateway());
+
+    const five = await card('5');
+    await user.click(within(five).getByRole('button', { name: 'Admit table 5' }));
+    await screen.findByText('Table 5 can order now.');
+    await waitFor(() =>
+      expect(document.activeElement?.getAttribute('aria-label')).toBe('Reject table 8'),
+    );
+  });
+
+  it('says the table changed when a reject races the table (N4)', async () => {
+    const user = setupUser();
+    signIn();
+    const gateway = floorGateway();
+    vi.spyOn(gateway, 'rejectTab').mockRejectedValue(
+      new ConcurrencyConflictError({
+        url: 'x',
+        problem: {
+          type: '',
+          title: 'Conflict',
+          status: 409,
+          detail: 'The table changed.',
+          code: 'table-state-conflict',
+          traceId: 't',
+        },
+      }),
+    );
+    renderFloor(gateway);
+
+    const eight = await card('8');
+    await user.click(within(eight).getByRole('button', { name: 'Reject table 8' }));
+    await user.click(within(eight).getByRole('button', { name: 'Yes, reject' }));
+    expect(
+      await within(eight).findByText('The table changed meanwhile. Look at it again.'),
+    ).toBeTruthy();
+  });
+
+  it('does not read the whole floor again after a decision (S9)', async () => {
+    const user = setupUser();
+    signIn();
+    const gateway = floorGateway();
+    const floorReads = vi.spyOn(gateway, 'getFloor');
+    renderFloor(gateway);
+
+    const five = await card('5');
+    const before = floorReads.mock.calls.length;
+    await user.click(within(five).getByRole('button', { name: 'Admit table 5' }));
+    await screen.findByText('Table 5 can order now.');
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(floorReads.mock.calls.length).toBe(before);
   });
 });

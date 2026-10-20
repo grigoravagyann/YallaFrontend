@@ -656,6 +656,11 @@ export function createMockGateway(options: MockGatewayOptions = {}): MockGateway
    * One phone number, one active booking — for everybody, at any venue. The
    * held booking is named only to the account that holds it.
    */
+  /**
+   * One number, one active booking (2026-10-20). The browser's own limit is
+   * {@link refuseSecondFromBrowser}: the server checks the branch's queue
+   * between the two.
+   */
   function refuseSecondActiveBooking(url: string, caller: BookingCaller, movingId?: string): void {
     if (caller.phoneKey && !options.bookingsBeforeTheNumberRule) {
       const held = [...bookings.values()].find(
@@ -686,6 +691,10 @@ export function createMockGateway(options: MockGatewayOptions = {}): MockGateway
         });
       }
     }
+  }
+
+  /** One active unverified booking per browser, on the public page's door. */
+  function refuseSecondFromBrowser(url: string, caller: BookingCaller): void {
     if (caller.deviceId) {
       const held = [...bookings.values()].some(
         (entry) => bookerDevices.get(entry.id) === caller.deviceId && isActiveBooking(entry),
@@ -3352,7 +3361,8 @@ export function createMockGateway(options: MockGatewayOptions = {}): MockGateway
       // The branch-wide rules first, as the server applies them. Lead time:
       // the slot may have become too soon while they were deciding.
       refuseAtBranch(command.branchId, slot, command.partySize);
-      // Without a proved number, at most the branch's cap: a refusal verifying lifts.
+      // Without a proved number, at most the branch's cap: a refusal verifying
+      // lifts. A cap of 0 takes none at all (the branch switched them off).
       if (caller.unverified && command.partySize > unverifiedMaxPartySize) {
         throw new UnverifiedPartyTooLargeError({
           url,
@@ -3360,24 +3370,6 @@ export function createMockGateway(options: MockGatewayOptions = {}): MockGateway
           maxPartySize: unverifiedMaxPartySize,
         });
       }
-      // At most so many unverified bookings waiting for one branch's answer.
-      if (
-        caller.unverified &&
-        unverifiedBookingsNeedApproval &&
-        [...bookings.values()].filter(
-          (entry) =>
-            entry.branchId === command.branchId &&
-            entry.status === 'pendingApproval' &&
-            entry.awaitingApprovalBecause === 'unverifiedPhone',
-        ).length >= UNVERIFIED_QUEUE_MAX
-      ) {
-        throw new UnverifiedQueueFullError({ url });
-      }
-      // The diner's own evening first (review round): an overlap with their own
-      // booking says so, with the booking, as it always did.
-      refuseOverlapWithOwn(url, command.branchId, slot, policy.turnMinutes);
-      // Then one number, one active booking (and one unverified booking per browser).
-      refuseSecondActiveBooking(url, caller);
 
       // Judged at the slot being booked, not at now — the same projection the
       // availability answer used. Judging it at now would refuse a Saturday
@@ -3422,6 +3414,27 @@ export function createMockGateway(options: MockGatewayOptions = {}): MockGateway
           partySize: command.partySize,
         });
       }
+
+      // The server's order after the table (UG wire §1): the diner's own
+      // evening (an overlap says so, with the booking), then one number, one
+      // active booking, then the branch's queue, then the browser. A booked
+      // table answers as taken whatever number is typed.
+      refuseOverlapWithOwn(url, command.branchId, slot, policy.turnMinutes);
+      refuseSecondActiveBooking(url, caller);
+      // At most so many bookings without a proved number waiting for one
+      // branch's answer — whatever they wait for, as the server counts them.
+      if (
+        caller.unverified &&
+        [...bookings.values()].filter(
+          (entry) =>
+            entry.branchId === command.branchId &&
+            entry.status === 'pendingApproval' &&
+            entry.phoneUnverified === true,
+        ).length >= UNVERIFIED_QUEUE_MAX
+      ) {
+        throw new UnverifiedQueueFullError({ url });
+      }
+      refuseSecondFromBrowser(url, caller);
 
       // Booking times: a sitting the next booking cuts short is taken only with
       // the promise to free the table by then — the very instant, or a 422.

@@ -849,6 +849,11 @@
     "admittedNotice": "Table {{label}} can order now.",
     "rejectedFreedNotice": "Table {{label}}: tab closed, table freed.",
     "rejectedNotice": "Table {{label}}: tab closed.",
-    "hasOrders": "Orders were taken at this table, so somebody is there. Admit it instead."
+    "hasOrders": "Orders were taken at this table, so somebody is there. Admit it instead.",
+    "confirmHeld": "This closes the tab and gives the table back to the late party it was held for.",
+    "rejectedHeldNotice": "Table {{label}}: tab closed, table held again for the late party.",
+    "admitTable": "Admit table {{label}}",
+    "rejectTable": "Reject table {{label}}",
+    "tableChanged": "The table changed meanwhile. Look at it again."
   }
 }

@@ -69,7 +69,8 @@
     "atTable": {
       "action": "I’m at my table",
       "hint": "At the venue? Open your tab on the table you booked.",
-      "working": "Opening your tab…"
+      "working": "Opening your tab…",
+      "unverified": "Your number is not verified yet, so at the table scan the code on it to open the bill."
     },
     "note": {
       "title": "Note for the venue",
@@ -425,7 +426,9 @@
       "deviceHasBooking": "You already have a booking made from this browser without a verified number. Cancel it first, or verify your number.",
       "unverifiedPartyTooLarge": "Without a verified number this venue takes bookings for up to {{max}}. Verify your number to book for more.",
       "unverifiedQueueFull": "This venue has too many unconfirmed bookings right now. Verify your number to book, or try again later.",
-      "rateLimited": "Too many bookings without a verified number were made from this network in the last hour. Verify your number to book now, or try again later."
+      "rateLimited": "Too many bookings without a verified number were made from this network in the last hour. Verify your number to book now, or try again later.",
+      "tooManyRequests": "Too many requests just now. Wait a moment and try again.",
+      "unverifiedOff": "This venue takes bookings only with a verified number. Verify your number to book."
     },
     "checkAgain": "Check again",
     "nameLabel": "Name for the booking",

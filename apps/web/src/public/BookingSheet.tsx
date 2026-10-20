@@ -25,6 +25,7 @@ import {
   type PhoneDraft,
   type VerifyStep,
 } from './PhoneVerification';
+import { useLangPath } from './language';
 import { formatPhone } from './phone';
 import { SheetHead, SheetNote, SheetProgress } from './SheetParts';
 import { branchToday } from './slots';
@@ -32,6 +33,7 @@ import {
   browserDeviceId,
   keepManageToken,
   keptManageToken,
+  lastKeptManageToken,
   withoutProofDoor,
 } from './unverifiedBooking';
 
@@ -162,6 +164,12 @@ export default function BookingSheet({
   const [phoneError, setPhoneError] = useState<string | null>(null);
   /** The last refusal is one proving the number lifts: Telegram is offered beside it. */
   const [proofLifts, setProofLifts] = useState(false);
+  /**
+   * Refused because this page already made a booking without proof: its
+   * manage link, the visitor's only way back to it (review S6).
+   */
+  const [ownLink, setOwnLink] = useState<string | null>(null);
+  const langPath = useLangPath();
   /** The last attempt may have committed, so the button checks rather than books. */
   const [outcomeUnknown, setOutcomeUnknown] = useState(false);
   /** The table somebody else took, while the taken step shows. */
@@ -213,6 +221,7 @@ export default function BookingSheet({
     setOutcomeUnknown(false);
     setErrorText(null);
     setProofLifts(false);
+    setOwnLink(null);
     setLostLabel(null);
     setBooking(null);
     // The new table's window, before any button (see the module comment). A
@@ -271,7 +280,8 @@ export default function BookingSheet({
   /** What a refused or failed booking says, and where the sheet goes — for both doors. */
   const fail = useCallback(
     (error: unknown) => {
-      const failure = bookingFailure(error, branch.timeZoneId, locale);
+      // A 429 is the hourly budget only for a booking without proof (review S4).
+      const failure = bookingFailure(error, branch.timeZoneId, locale, { unverified: unproved });
 
       /*
        * Losing the race is an expected Friday-night outcome, not a failure
@@ -352,18 +362,34 @@ export default function BookingSheet({
         return;
       }
 
-      // The limits on booking without proof, each lifted by proving the number.
+      // The limits on booking without proof, each lifted by proving the number
+      // — a number somebody else booked without proof too (review N7).
       setProofLifts(
         unproved &&
           (failure.kind === 'deviceHasActiveBooking' ||
             failure.kind === 'unverifiedPartyTooLarge' ||
             failure.kind === 'unverifiedQueueFull' ||
-            failure.kind === 'rateLimited'),
+            failure.kind === 'rateLimited' ||
+            failure.kind === 'phoneHasActiveBooking'),
       );
+      // This page's own booking without proof holds the browser: offer it.
+      const kept = failure.kind === 'deviceHasActiveBooking' ? lastKeptManageToken() : null;
+      setOwnLink(kept ? langPath(`/booking/${kept}`) : null);
       setOutcomeUnknown(failure.kind === 'unknown');
       setErrorText(t(failure.line.key, failure.line.params));
     },
-    [branch.id, branch.timeZoneId, locale, queryClient, onTableTaken, t, tp, slotUtc, unproved],
+    [
+      branch.id,
+      branch.timeZoneId,
+      locale,
+      queryClient,
+      onTableTaken,
+      t,
+      tp,
+      slotUtc,
+      unproved,
+      langPath,
+    ],
   );
 
   /**
@@ -436,6 +462,7 @@ export default function BookingSheet({
     if (requiredFreeBy && !agreedFreeBy) return;
     setErrorText(null);
     setProofLifts(false);
+    setOwnLink(null);
     if (!verified) {
       await submitUnproved(name);
       return;
@@ -700,7 +727,7 @@ export default function BookingSheet({
                     {/* Before the number, what going without proof means here. */}
                     <SheetNote tone="amber">
                       {tp(
-                        door.needsApproval
+                        door?.needsApproval !== false
                           ? 'sheet.unverified.note'
                           : 'sheet.unverified.noteNoApproval',
                       )}
@@ -840,10 +867,16 @@ export default function BookingSheet({
                     ? t('confirm.submitting')
                     : outcomeUnknown
                       ? t('confirm.checkAgain')
-                      : copy.approval || (unproved && door.needsApproval)
+                      : copy.approval || (unproved && door?.needsApproval !== false)
                         ? t('confirm.requiresApproval')
                         : t('confirm.submit')}
                 </button>
+                {/* The booking this page made already: the way back to it. */}
+                {unproved && ownLink ? (
+                  <a className="pub-button" href={ownLink}>
+                    {tp('sheet.unverified.openYours')}
+                  </a>
+                ) : null}
                 {/* Refused for want of proof: the door that lifts it. */}
                 {unproved && proofLifts ? (
                   <button

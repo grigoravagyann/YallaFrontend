@@ -1184,6 +1184,19 @@ review every string in `src/locales/hy` and `src/locales/ru`.**
   must keep that the menu and calling a waiter work meanwhile),
   `tab.admission.*` (waiting title, the let-in notice, the turned-away screen and
   its way home), `tab.pay.awaitingAdmission`, `scan.error.turnedAway`.
+  Review round (same day): hy names the venue «վայրը» throughout, as the rest of
+  the app does (never «հաստատությունը»), and no sentence stacks «հաստատ…» three
+  times — "the venue confirms" became «որոշում է վայրը», "confirmed at once"
+  «ընդունվում է անմիջապես». New: public `sheet.unverified.tooManyNoTelegram`
+  (over the cap where Telegram is off) and `.openYours` (the booking this page
+  made); diner `confirm.error.tooManyRequests` (the general 429 — the
+  per-network sentence is for bookings without proof only),
+  `confirm.error.unverifiedOff` (a branch whose cap is 0), and
+  `booking.atTable.unverified` (scan the code instead); staff
+  `admission.confirmHeld` / `.rejectedHeldNotice` (the table goes back to the late
+  party it was held for), `.admitTable` / `.rejectTable` (button names with the
+  table), `.tableChanged`; admin `policy.example.approvalAll` now says "with a
+  verified number", `policy.example.unverifiedOff`, and the cap's why explains 0.
 
 The Russian bundle carries four plural categories (`one`/`few`/`many`/`other`)
 where Armenian and English carry two. That is correct CLDR, not duplication, and

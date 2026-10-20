@@ -271,7 +271,8 @@ export const POLICY_BOUNDS = {
   cancellationDeadlineMinutes: { min: 0, max: 14 * 24 * 60 },
   walkInHoldbackMinutes: { min: 0, max: 4 * 60 },
   serviceChargePercent: { min: 0, max: 100 },
-  unverifiedMaxPartySize: { min: 1, max: 100 },
+  // 0: no bookings without a verified number at all (product call, 2026-10-20).
+  unverifiedMaxPartySize: { min: 0, max: 100 },
 } as const satisfies Partial<Record<keyof ReservationPolicy, { min: number; max: number }>>;
 
 export type BoundedPolicyField = keyof typeof POLICY_BOUNDS;

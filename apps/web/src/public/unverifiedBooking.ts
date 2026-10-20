@@ -53,7 +53,18 @@ export function keptManageToken(commandId: string): string | null {
 }
 
 /**
- * The door without proof, for this party at this branch.
+ * The last booking this page made without proof, as its manage token: what a
+ * refused second attempt ("this browser already has one") offers to open —
+ * the visitor has no reminder and no other way back to it (UG review S6).
+ */
+export function lastKeptManageToken(): string | null {
+  return [...manageTokens.values()].at(-1) ?? null;
+}
+
+/**
+ * The door without proof, for this party at this branch — or `null` where
+ * the branch takes no bookings without a verified number (a cap of 0), and
+ * the sheet offers nothing.
  *
  * - `open`: the party is within the branch's cap, so the sheet offers it.
  * - `needsApproval`: the venue confirms such a booking itself first, which
@@ -69,8 +80,9 @@ export interface WithoutProofDoor {
 export function withoutProofDoor(
   policy: PublicBranch['policy'],
   partySize: number,
-): WithoutProofDoor {
+): WithoutProofDoor | null {
   const max = policy.unverifiedMaxPartySize;
+  if (max <= 0) return null;
   return {
     open: partySize <= max,
     needsApproval: policy.unverifiedBookingsNeedApproval,

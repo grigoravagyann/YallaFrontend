@@ -704,7 +704,9 @@ function BookingForm({ place, rooms, params, change, title, onBack }: BookingFor
         }
         return;
       }
-      const failure = bookingFailure(error, place.timeZoneId, locale);
+      const failure = bookingFailure(error, place.timeZoneId, locale, {
+        unverified: accountUnproved,
+      });
       // A booking landed after the room was read: the table now needs the
       // promise, or a different one. Asked again, with the server's time.
       if (failure.kind === 'freeByRequired') {

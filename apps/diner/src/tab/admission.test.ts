@@ -15,7 +15,8 @@ import {
 } from '@yalla/api';
 import { describe, expect, it } from 'vitest';
 import { canChangeBooking } from '../components/bookings/changeBooking';
-import { madeWithYourNumber } from '../lib/bookingsList';
+import { atTableOffer, canKeepTable } from '../lib/bookingActions';
+import { madeWithYourNumber, waitsOnOwnVenueAnswer } from '../lib/bookingsList';
 import { scanFailureFor } from '../lib/scanOutcome';
 import { unprovedFailureLine, proofLifts } from '../data/bookingRefusals';
 import { admissionState, justAdmitted } from './admission';
@@ -149,6 +150,35 @@ describe('a booking made without a proved number', () => {
     const own = { ...booking, id: 'own' };
     const stranger = { ...booking, id: 'stranger', madeWithYourNumber: true };
     expect(madeWithYourNumber([own, stranger])).toEqual({ own: [own], strangers: [stranger] });
+  });
+});
+
+describe('the review round (UG-FE-REVIEW)', () => {
+  const now = new Date('2026-10-20T15:40:00Z');
+  const sitting = {
+    id: 'r-1',
+    status: 'confirmed',
+    slotUtc: '2026-10-20T15:30:00Z',
+    endUtc: '2026-10-20T17:30:00Z',
+  } as Booking;
+
+  it('offers neither "keep my table" nor “I’m at my table” on an unproved booking (S7)', () => {
+    expect(canKeepTable(sitting, now)).toBe(true);
+    expect(canKeepTable({ ...sitting, phoneUnverified: true }, now)).toBe(false);
+    expect(atTableOffer(sitting, now)).toBe('open');
+    // The server refuses until the number is proved: scan the code on the table.
+    expect(atTableOffer({ ...sitting, phoneUnverified: true }, now)).toBe('scanInstead');
+    expect(atTableOffer({ ...sitting, status: 'cancelledByDiner' }, now)).toBeNull();
+  });
+
+  it('reads the list again only for the account’s own bookings waiting on the venue (S2)', () => {
+    const waiting = {
+      ...sitting,
+      status: 'pendingApproval',
+      approvalExpiresAtUtc: '2026-10-21T08:00:00Z',
+    } as Booking;
+    expect(waitsOnOwnVenueAnswer([waiting])).toBe(true);
+    expect(waitsOnOwnVenueAnswer([{ ...waiting, madeWithYourNumber: true }])).toBe(false);
   });
 });
 

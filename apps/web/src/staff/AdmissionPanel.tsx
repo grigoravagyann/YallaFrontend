@@ -7,7 +7,7 @@ import {
 } from '@yalla/api';
 import { useAdmitTab, useRejectTab } from '@yalla/api/react';
 import { useTranslation } from '@yalla/i18n';
-import { useEffect, useId, useRef, useState } from 'react';
+import { useCallback, useEffect, useId, useRef, useState } from 'react';
 import { ICONS, RailSection } from './FloorRail';
 import { useBranchFormat } from './useBranchFormat';
 
@@ -22,12 +22,31 @@ import { useBranchFormat } from './useBranchFormat';
  * - **Admit** lets the table order. One tap: it changes nothing anybody would
  *   regret.
  * - **Reject** asks first. It closes the tab, and when the scan itself seated
- *   the table it frees it — a party really there would have to scan again.
+ *   the table it frees it — a party really there would have to scan again — or,
+ *   when the scan took a table held for a late booking, gives it back to that
+ *   booking (the server puts it back to Held).
  *
  * Both are online only and never queued: a reject frees a table, and an
  * offline tablet cannot see whether somebody sat down there since. Each tap is
  * its own command id; the server answers a repeat as the tab stands.
  */
+
+/**
+ * Whether the table was held for a late booking when a scan took it: its next
+ * booking has started and is still not seated. Rejecting such a scan gives the
+ * table back to that booking (the server returns it to Held), and the screens
+ * say so rather than "frees the table" (UG review S3).
+ */
+export function wasHeldForLateParty(
+  detail:
+    | { readonly nextReservationId: string | null; readonly nextReservationStartUtc: string | null }
+    | undefined,
+  nowMs: number,
+): boolean {
+  if (!detail?.nextReservationId || !detail.nextReservationStartUtc) return false;
+  const start = Date.parse(detail.nextReservationStartUtc);
+  return Number.isFinite(start) && start <= nowMs;
+}
 
 /** What a decision did, for the floor's notice. */
 export interface AdmissionOutcome {
@@ -35,6 +54,8 @@ export interface AdmissionOutcome {
   readonly tableLabel: string;
   /** On a reject: whether the table was freed. */
   readonly tableFreed: boolean;
+  /** On a reject that freed it: the table went back to the late booking it was held for. */
+  readonly heldAgain: boolean;
 }
 
 /** The one table a decision is about: from the rail's list, or the floor's own flag. */
@@ -43,6 +64,12 @@ export interface AdmissionSubject {
   readonly tableLabel: string;
   /** Rejecting frees the table. Unknown (null) from the floor's flag alone. */
   readonly sittingSeatedByScan: boolean | null;
+  /**
+   * The table's next booking had started and was not seated before the scan
+   * took the table — it was held for that late party, and a reject that frees
+   * it gives it back to them (Held, not Free). From the floor as it stands.
+   */
+  readonly heldForLateParty?: boolean | undefined;
 }
 
 export interface AdmissionSectionProps {
@@ -54,6 +81,8 @@ export interface AdmissionSectionProps {
   readonly failed: boolean;
   readonly online: boolean;
   readonly onDecided: (outcome: AdmissionOutcome) => void;
+  /** Whether a table was held for a late booking before the scan took it (see `AdmissionSubject`). */
+  readonly heldForLateParty?: ((tableId: string) => boolean) | undefined;
 }
 
 /**
@@ -63,7 +92,44 @@ export interface AdmissionSectionProps {
 export function AdmissionSection(props: AdmissionSectionProps) {
   const { t } = useTranslation(['staff', 'common']);
   const format = useBranchFormat(props.timeZoneId);
-  const { waiting } = props;
+  const { waiting, onDecided } = props;
+  const listRef = useRef<HTMLUListElement>(null);
+  /**
+   * A card a decision is taking away, by its place in the list: when it goes,
+   * the focus moves to the card now in that place (or the one before), and to
+   * the rail when none is left — never to the page's top (review N3).
+   */
+  const leaving = useRef<{ readonly tabId: string; readonly index: number } | null>(null);
+  const decided = useCallback(
+    (outcome: AdmissionOutcome, tabId: string, index: number) => {
+      if (listRef.current?.contains(document.activeElement)) leaving.current = { tabId, index };
+      onDecided(outcome);
+    },
+    [onDecided],
+  );
+  useEffect(() => {
+    const gone = leaving.current;
+    if (!gone || waiting.some((entry) => entry.tabId === gone.tabId)) return;
+    leaving.current = null;
+    const cards = listRef.current?.querySelectorAll<HTMLElement>(':scope > li') ?? [];
+    const next = cards[Math.min(gone.index, cards.length - 1)];
+    next?.querySelector<HTMLElement>('button:not([disabled])')?.focus();
+  }, [waiting]);
+  // The last card went with the section: the rail keeps the focus.
+  const rail = useRef<HTMLElement | null>(null);
+  useEffect(() => {
+    rail.current = listRef.current?.closest('aside') ?? null;
+  });
+  useEffect(
+    () => () => {
+      const aside = rail.current;
+      if (!leaving.current || !aside) return;
+      leaving.current = null;
+      if (!aside.hasAttribute('tabindex')) aside.setAttribute('tabindex', '-1');
+      aside.focus();
+    },
+    [],
+  );
 
   if (props.loading || (waiting.length === 0 && !props.failed)) return null;
 
@@ -77,8 +143,8 @@ export function AdmissionSection(props: AdmissionSectionProps) {
       {props.failed && waiting.length === 0 ? (
         <p className="ft-rail-empty is-failed">{t('admission.unreachable')}</p>
       ) : (
-        <ul className="ft-items">
-          {waiting.map((entry) => {
+        <ul className="ft-items" ref={listRef}>
+          {waiting.map((entry, index) => {
             const minutes = Math.max(0, format.minutesSince(entry.openedAtUtc));
             const who = [
               entry.hostDisplayName ? t('admission.host', { name: entry.hostDisplayName }) : null,
@@ -101,10 +167,13 @@ export function AdmissionSection(props: AdmissionSectionProps) {
                 <p className="admission-who">{who}</p>
                 <AdmissionDecision
                   branchId={props.branchId}
-                  subject={entry}
+                  subject={{
+                    ...entry,
+                    heldForLateParty: props.heldForLateParty?.(entry.tableId) ?? false,
+                  }}
                   online={props.online}
                   variant="rail"
-                  onDecided={props.onDecided}
+                  onDecided={(outcome) => decided(outcome, entry.tabId, index)}
                 />
               </li>
             );
@@ -182,9 +251,12 @@ export function AdmissionDecision({
         : error instanceof ApiError && error.code === 'conflicting-state'
           ? // Orders were keyed on it: somebody is there. Admit is the way on.
             t('admission.hasOrders')
-          : isOffline(error)
-            ? t('admission.needsOnline')
-            : t('admission.failed'),
+          : error instanceof ApiError && error.code === 'table-state-conflict'
+            ? // Another waiter moved the table under this reject (review N4).
+              t('admission.tableChanged')
+            : isOffline(error)
+              ? t('admission.needsOnline')
+              : t('admission.failed'),
     );
   }
 
@@ -197,7 +269,12 @@ export function AdmissionDecision({
       admit.mutate(command, {
         onSuccess: () => {
           sending.current = false;
-          onDecided({ kind: 'admitted', tableLabel: subject.tableLabel, tableFreed: false });
+          onDecided({
+            kind: 'admitted',
+            tableLabel: subject.tableLabel,
+            tableFreed: false,
+            heldAgain: false,
+          });
         },
         onError: refused,
       });
@@ -207,10 +284,12 @@ export function AdmissionDecision({
       onSuccess: (tab) => {
         sending.current = false;
         setAsking(false);
+        const freed = tab.admission.tableFreed === true;
         onDecided({
           kind: 'rejected',
           tableLabel: subject.tableLabel,
-          tableFreed: tab.admission.tableFreed === true,
+          tableFreed: freed,
+          heldAgain: freed && subject.heldForLateParty === true,
         });
       },
       onError: refused,
@@ -232,7 +311,10 @@ export function AdmissionDecision({
             {subject.sittingSeatedByScan === false
               ? t('admission.confirmKeeps')
               : subject.sittingSeatedByScan === true
-                ? t('admission.confirmFrees')
+                ? subject.heldForLateParty
+                  ? // The scan took a table held for a late booking: it goes back to them.
+                    t('admission.confirmHeld')
+                  : t('admission.confirmFrees')
                 : t('admission.confirmMayFree')}
           </p>
           <div className={classes.row}>
@@ -263,6 +345,8 @@ export function AdmissionDecision({
             type="button"
             className={classes.reject}
             disabled={off}
+            // Every card has one: the name says which table (review N1).
+            aria-label={t('admission.rejectTable', { label: subject.tableLabel })}
             onClick={() => {
               setFailure(null);
               setAsking(true);
@@ -274,6 +358,7 @@ export function AdmissionDecision({
             type="button"
             className={classes.admit}
             disabled={off}
+            aria-label={t('admission.admitTable', { label: subject.tableLabel })}
             onClick={() => decide('admit')}
           >
             {admit.isPending ? t('approvals.sending') : t('admission.admit')}

@@ -1,4 +1,4 @@
-import { describeFailure, type Booking } from '@yalla/api';
+import { awaitsVenueAnswer, describeFailure, type Booking } from '@yalla/api';
 
 /**
  * What "My bookings" says when the read fails — by what went wrong.
@@ -41,6 +41,17 @@ export function madeWithYourNumber<B extends Pick<Booking, 'madeWithYourNumber'>
     own: bookings.filter((booking) => booking.madeWithYourNumber !== true),
     strangers: bookings.filter((booking) => booking.madeWithYourNumber === true),
   };
+}
+
+/**
+ * Whether the list should be read again at the venue's-answer cadence: one of
+ * the account's *own* bookings waits on the venue with a clock. Somebody
+ * else's made with its number may wait a day, and is not worth the reads.
+ */
+export function waitsOnOwnVenueAnswer(bookings: readonly Booking[]): boolean {
+  return bookings.some(
+    (booking) => booking.madeWithYourNumber !== true && awaitsVenueAnswer(booking),
+  );
 }
 
 /** Past this, a countdown in hours stops meaning much: the chip shows the day instead. */

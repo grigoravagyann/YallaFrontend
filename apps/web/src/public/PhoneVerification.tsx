@@ -554,7 +554,10 @@ export function PhoneVerification({
                     : 'sheet.unverified.offerNoApproval',
                   { max: unproved.max },
                 )
-              : tp('sheet.unverified.tooMany', { max: unproved.max })}
+              : // Telegram is the way to more only where it is on.
+                tp(telegram ? 'sheet.unverified.tooMany' : 'sheet.unverified.tooManyNoTelegram', {
+                  max: unproved.max,
+                })}
           </p>
         ) : null}
       </div>

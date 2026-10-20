@@ -214,7 +214,7 @@ export default function ConfirmScreen() {
 
         // What kind of failure this was is decided in one shared place, so the
         // web page classifies the same refusal the same way. See `bookingFailure`.
-        const failure = bookingFailure(error, zone, locale);
+        const failure = bookingFailure(error, zone, locale, { unverified: accountUnproved });
 
         // A booking landed after the room was read and the table now needs the
         // promise (or another time for it): asked again, with the server's time.

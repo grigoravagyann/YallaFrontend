@@ -83,10 +83,13 @@ export default function BookingsScreen() {
   // minutes late — and a seated party — out of "Past". The first upcoming one
   // is the large card; the rest follow under "Next".
   const { own: upcoming, strangers } = madeWithYourNumber(data?.upcoming ?? []);
+  // The account's history is its own: a stranger's booking with its number,
+  // cancelled or over, is nobody's business here (review S2).
+  const past = madeWithYourNumber(data?.past ?? []).own;
   const disowning = sheet?.booking.madeWithYourNumber === true;
   const hero = tab === 'upcoming' ? (justCancelled ?? upcoming[0] ?? null) : null;
   const rows: readonly Booking[] =
-    tab === 'upcoming' ? upcoming.filter((booking) => booking.id !== hero?.id) : (data?.past ?? []);
+    tab === 'upcoming' ? upcoming.filter((booking) => booking.id !== hero?.id) : past;
   // Only while the server would still move it and its own time can still be
   // chosen: waiting or confirmed, and not yet inside the branch's lead time.
   const heroChangeable = useCanChangeBooking(justCancelled ? null : hero, now);
@@ -110,10 +113,12 @@ export default function BookingsScreen() {
   const closeCancel = () => setSheet((current) => (current ? { ...current, open: false } : null));
   const confirmCancel = () => {
     if (!sheet) return;
+    // Read from the list, not the answer: the flag is only on `/mine` (review S1).
+    const disowned = sheet.booking.madeWithYourNumber === true;
     cancel.mutate(sheet.booking.id, {
       onSuccess: (cancelled) => {
         // Somebody else's goes; only the account's own stays on as "Cancelled".
-        if (cancelled.madeWithYourNumber !== true) setJustCancelled(cancelled);
+        if (!disowned) setJustCancelled(cancelled);
         closeCancel();
         haptics.tap();
         showToast(t('bookings.cancelledToast'));

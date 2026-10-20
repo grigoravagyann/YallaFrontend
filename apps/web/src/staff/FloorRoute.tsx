@@ -38,6 +38,7 @@ import {
   useStaffFloor,
   useStaffGateway,
   useStaffTab,
+  useNow,
   useTabsAwaitingAdmission,
   useVoidLine,
 } from '@yalla/api/react';
@@ -46,7 +47,12 @@ import { useTranslation } from '@yalla/i18n';
 import type { TFunction } from 'i18next';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { QueryFailureNotice } from '../components/QueryFailureNotice';
-import { AdmissionSection, type AdmissionOutcome, type AdmissionSubject } from './AdmissionPanel';
+import {
+  AdmissionSection,
+  wasHeldForLateParty,
+  type AdmissionOutcome,
+  type AdmissionSubject,
+} from './AdmissionPanel';
 import { ApprovalPanel, useRequestArrivals } from './ApprovalPanel';
 import { branchToday, decidedNotice } from './approvalRequests';
 import { primeChime } from './chime';
@@ -370,11 +376,19 @@ export function FloorRoute({ identity, device = null, paused }: FloorRouteProps)
           );
           if (!current) return;
           // A scan waiting to be let in, admitted or turned away: the rail's
-          // list is read again (and the floor, below, as a gap).
-          if (changes.some((change) => change.signal)) {
+          // list is read again, and the tab it names — the table itself is
+          // folded in below, never a whole-floor read (review S9: a flood of
+          // phantom scans must not cost every tablet a floor read each).
+          const signalled = changes.filter((change) => change.signal);
+          if (signalled.length > 0) {
             void queryClient.invalidateQueries({
               queryKey: queryKeys.tabsAwaitingAdmission(branchId),
             });
+            for (const change of signalled) {
+              if (change.tabId) {
+                void queryClient.invalidateQueries({ queryKey: queryKeys.staffTab(change.tabId) });
+              }
+            }
           }
           const result = applyFloorChanges(current, changes);
           if (result.kind === 'applied') {
@@ -520,6 +534,8 @@ export function FloorRoute({ identity, device = null, paused }: FloorRouteProps)
 
   const selectedTabId = selectedDetail?.openTabId ?? null;
   const selectedTabQuery = useStaffTab(active ? selectedTabId : null);
+  /** The clock a late booking is judged by (whether the scan took a held table). */
+  const clockMs = useNow(30_000).getTime();
 
   /**
    * The selected table's tab, when it waits to be let in: from the rail's list
@@ -529,14 +545,25 @@ export function FloorRoute({ identity, device = null, paused }: FloorRouteProps)
   const selectedAdmission = useMemo((): AdmissionSubject | null => {
     if (!selection) return null;
     const listed = waitingTables.find((entry) => entry.tableId === selection.tableId);
-    if (listed) return listed;
+    const held = wasHeldForLateParty(selectedDetail ?? undefined, clockMs);
+    if (listed) return { ...listed, heldForLateParty: held };
     if (!selectedDetail?.openTabAwaitingAdmission || !selectedTabId) return null;
     return {
       tabId: selectedTabId,
       tableLabel: selectedDetail.label,
       sittingSeatedByScan: null,
+      heldForLateParty: held,
     };
-  }, [selection, selectedDetail, selectedTabId, waitingTables]);
+  }, [selection, selectedDetail, selectedTabId, waitingTables, clockMs]);
+  /** Whether a waiting table was held for a late booking before the scan took it. */
+  const heldForLateParty = useCallback(
+    (tableId: string) =>
+      wasHeldForLateParty(
+        floorQuery.data?.details.find((detail) => detail.tableId === tableId),
+        clockMs,
+      ),
+    [floorQuery.data, clockMs],
+  );
 
   const admissionDecided = useCallback(
     (outcome: AdmissionOutcome) =>
@@ -545,9 +572,11 @@ export function FloorRoute({ identity, device = null, paused }: FloorRouteProps)
         text:
           outcome.kind === 'admitted'
             ? t('admission.admittedNotice', { label: outcome.tableLabel })
-            : outcome.tableFreed
-              ? t('admission.rejectedFreedNotice', { label: outcome.tableLabel })
-              : t('admission.rejectedNotice', { label: outcome.tableLabel }),
+            : outcome.heldAgain
+              ? t('admission.rejectedHeldNotice', { label: outcome.tableLabel })
+              : outcome.tableFreed
+                ? t('admission.rejectedFreedNotice', { label: outcome.tableLabel })
+                : t('admission.rejectedNotice', { label: outcome.tableLabel }),
       }),
     [t],
   );
@@ -1156,6 +1185,7 @@ export function FloorRoute({ identity, device = null, paused }: FloorRouteProps)
                 }
                 online={queue.online}
                 onDecided={admissionDecided}
+                heldForLateParty={heldForLateParty}
               />
             ) : null
           }

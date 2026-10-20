@@ -438,7 +438,9 @@
       "noteNoApproval": "Your number will not be verified, so this booking cannot be changed online later — only cancelled.",
       "phoneHint": "The venue calls this number if it needs to. It is not published.",
       "verifyInstead": "Confirm with Telegram instead",
-      "badPhone": "That does not look like a phone number. Write it with the country code, for example +374 77 123456."
+      "badPhone": "That does not look like a phone number. Write it with the country code, for example +374 77 123456.",
+      "tooManyNoTelegram": "Without a verified number this venue takes bookings for parties of up to {{max}}.",
+      "openYours": "Open the booking you made"
     }
   }
 }

@@ -138,7 +138,10 @@ describe('a field', () => {
     await user.clear(threshold);
     expect(threshold.getAttribute('aria-invalid')).toBe('false');
     expect(
-      within(group('What needs a person')).getByText(/Every booking is confirmed at once/u),
+      // Bookings without a verified number may wait (UG review N5).
+      within(group('What needs a person')).getByText(
+        /Every booking with a verified number is confirmed at once/u,
+      ),
     ).toBeTruthy();
   });
 });
@@ -199,16 +202,37 @@ describe('saving', () => {
     expect(save.mock.calls[0]![0].policy).toMatchObject({ unverifiedScansNeedAdmission: false });
   });
 
-  it('refuses a cap outside 1 to 100 before sending it', async () => {
+  it('refuses a cap outside 0 to 100 before sending it', async () => {
     const user = userEvent.setup();
     renderPolicy();
     await ready();
     const cap = input('Largest party without a verified number');
     await user.clear(cap);
-    await user.type(cap, '0');
+    await user.type(cap, '101');
     expect(
-      within(group('Guests without a verified number')).getByText('Must be between 1 and 100'),
+      within(group('Guests without a verified number')).getByText('Must be between 0 and 100'),
     ).toBeTruthy();
+  });
+
+  it('takes 0 as "no bookings without a verified number", and says so', async () => {
+    const user = userEvent.setup();
+    const gateway = createConsoleMockGateway({ latencyMs: 0, role: 'owner' });
+    const save = vi.spyOn(gateway, 'replaceReservationPolicy');
+    renderPolicy(gateway);
+    await ready();
+    const unverified = group('Guests without a verified number');
+    expect(
+      within(unverified).getByText(/0 means no bookings without a verified number at all/u),
+    ).toBeTruthy();
+    const cap = input('Largest party without a verified number');
+    await user.clear(cap);
+    await user.type(cap, '0');
+    expect(cap.getAttribute('aria-invalid')).toBe('false');
+    expect(within(unverified).getByText(/No bookings without a verified number\./u)).toBeTruthy();
+
+    await user.click(screen.getByRole('button', { name: 'Save the policy' }));
+    await waitFor(() => expect(save).toHaveBeenCalledTimes(1));
+    expect(save.mock.calls[0]![0].policy).toMatchObject({ unverifiedMaxPartySize: 0 });
   });
 
   it('keeps the affected-bookings result on the page until it is closed', async () => {

@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import type { CreateBookingCommand, SlotFloor } from '../contracts/booking';
 import {
   BookingCommandInUseError,
@@ -7,6 +7,7 @@ import {
   BookingLinkAccountUnavailableError,
   DeviceHasActiveBookingError,
   PhoneHasActiveBookingError,
+  TableTakenError,
   TabAwaitingAdmissionError,
   UnverifiedPartyTooLargeError,
 } from '../contracts/errors';
@@ -262,6 +263,26 @@ describe("the public page's booking without a proved number", () => {
     ).toBeInstanceOf(BookingCommandInUseError);
   });
 
+  it('answers a booked table as taken before the browser or the number (UG review S5)', async () => {
+    const { publicGateway, booking } = await page();
+    await publicGateway.createUnverifiedBooking(booking());
+
+    // The same browser, another number, the table it already took.
+    expect(
+      await caught(
+        publicGateway.createUnverifiedBooking(booking({ guestPhone: '+374 99 44-55-66' })),
+      ),
+    ).toBeInstanceOf(TableTakenError);
+  });
+
+  it('takes none without a proved number where the branch set the cap to 0', async () => {
+    const { publicGateway, booking } = await page({ unverifiedMaxPartySize: 0 });
+    expect(await caught(publicGateway.createUnverifiedBooking(booking()))).toMatchObject({
+      name: 'UnverifiedPartyTooLargeError',
+      maxPartySize: 0,
+    });
+  });
+
   it('holds one per browser and one per number, naming nobody', async () => {
     const { publicGateway, booking, other } = await page();
     await publicGateway.createUnverifiedBooking(booking());
@@ -342,11 +363,22 @@ describe('a tab a scan opened without a proved number', () => {
     });
 
   it('lets mock mode play a waiter who admits, or one who turns the table away', async () => {
-    const admits = world({ simulateAdmissionAfterMs: 5 });
-    const admitted = await scanned(admits);
-    const turnsAway = world({ simulateAdmissionAfterMs: 5, simulateAdmissionOutcome: 'reject' });
-    const rejected = await scanned(turnsAway);
-    await new Promise((resolve) => setTimeout(resolve, 30));
+    // The mock's waiter comes on a timer: the clock is the test's, not the machine's.
+    vi.useFakeTimers({ toFake: ['setTimeout'] });
+    const admits = world({ simulateAdmissionAfterMs: 5_000 });
+    const turnsAway = world({
+      simulateAdmissionAfterMs: 5_000,
+      simulateAdmissionOutcome: 'reject',
+    });
+    let admitted: Awaited<ReturnType<typeof scanned>>;
+    let rejected: Awaited<ReturnType<typeof scanned>>;
+    try {
+      admitted = await scanned(admits);
+      rejected = await scanned(turnsAway);
+      vi.advanceTimersByTime(5_000);
+    } finally {
+      vi.useRealTimers();
+    }
 
     expect((await admits.getDinerTab(admitted.tabId))?.admission).toMatchObject({
       status: 'admitted',

@@ -154,8 +154,12 @@ export function unverifiedBookingRefusal(
       return new UnverifiedPartyTooLargeError({
         ...base,
         partySize: Number.isFinite(size) && size > 0 ? size : command.partySize,
-        // A refusal that does not say the cap still refuses; one under the party asked for.
-        maxPartySize: Number.isFinite(max) && max > 0 ? max : Math.max(1, command.partySize - 1),
+        // 0: the branch takes no bookings without a proved number. A refusal
+        // that does not say the cap still refuses; one under the party asked for.
+        maxPartySize:
+          context['maxPartySize'] !== undefined && Number.isFinite(max) && max >= 0
+            ? max
+            : Math.max(1, command.partySize - 1),
       });
     }
     default:

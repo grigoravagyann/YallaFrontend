@@ -200,9 +200,20 @@ describe('bookings made with the account’s number by somebody else', () => {
       venueName: 'Café Aram',
     } as Booking;
     const own = { ...UNVERIFIED, id: 'own-1', phoneUnverified: false, status: 'confirmed' };
+    const strangerPast = {
+      ...stranger,
+      id: 'stranger-past',
+      status: 'cancelledByVenue',
+      venueName: 'Prank Bar',
+    } as Booking;
     const gateway = {
-      listBookings: vi.fn().mockResolvedValue({ upcoming: [stranger, own], past: [] }),
-      cancelBooking: vi.fn().mockResolvedValue({ ...stranger, status: 'cancelledByDiner' }),
+      listBookings: vi.fn().mockResolvedValue({ upcoming: [stranger, own], past: [strangerPast] }),
+      // The server's cancel answer does not carry the flag: it is only on `/mine`.
+      cancelBooking: vi.fn().mockResolvedValue({
+        ...stranger,
+        madeWithYourNumber: false,
+        status: 'cancelledByDiner',
+      }),
     } as Partial<YallaGateway>;
     useSession.setState({ signedIn: true });
     renderWith(gateway, <BookingsScreen />);
@@ -215,6 +226,16 @@ describe('bookings made with the account’s number by somebody else', () => {
     expect(await screen.findByText('bookings.madeWithYourNumber.cancelBody')).toBeDefined();
     fireEvent.click(screen.getByRole('button', { name: 'bookings.detail.cancelConfirm' }));
     await waitFor(() => expect(gateway.cancelBooking).toHaveBeenCalledWith('stranger-1'));
+    // Not kept on as the account's own cancelled booking (review S1).
+    await waitFor(() =>
+      expect(screen.queryByText('bookings.madeWithYourNumber.cancelBody')).toBeNull(),
+    );
+    expect(screen.queryByRole('button', { name: 'bookings.bookAgain' })).toBeNull();
+
+    // Nor are strangers' bookings in the account's history (review S2).
+    fireEvent.click(screen.getByRole('tab', { name: 'bookings.past' }));
+    await waitFor(() => expect(screen.queryByText(/Prank Bar/u)).toBeNull());
+    expect(screen.getByText('bookings.emptyPast.title')).toBeDefined();
   });
 });
 

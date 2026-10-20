@@ -257,7 +257,7 @@ describe('the refusals without proof', () => {
       'the number already holds a booking — naming nothing',
       new PhoneHasActiveBookingError({ url: '/x' }),
       /^This phone number already has an active booking\. Cancel it from its link first, or use that booking\.$/u,
-      false,
+      true,
     ],
     [
       'this browser already holds one',
@@ -311,6 +311,79 @@ describe('the refusals without proof', () => {
 
     await user.click(await screen.findByRole('button', { name: 'Confirm with Telegram instead' }));
     expect(await screen.findByRole('button', { name: 'Confirm with Telegram' })).toBeDefined();
+  });
+});
+
+describe('the review round (UG-FE-REVIEW)', () => {
+  /** The backend's answer to "which ways of proving a phone are on". */
+  function channels(w: World, sms: boolean, telegram: boolean) {
+    Object.assign(w.harness.gateway, {
+      getPhoneProofChannels: () => Promise.resolve({ sms, telegram }),
+    });
+  }
+
+  it('hides the way without proof where the branch takes none (cap 0)', async () => {
+    const w = await world();
+    const user = userEvent.setup();
+    render(sheet(w, { ...w.branch, policy: { ...w.branch.policy, unverifiedMaxPartySize: 0 } }));
+    await toPhone(user);
+
+    expect(screen.queryByRole('button', { name: WITHOUT })).toBeNull();
+    expect(screen.queryByText(/without verifying|Without a verified number/u)).toBeNull();
+  });
+
+  it('does not send a party over the cap to Telegram when Telegram is off (N8)', async () => {
+    const w = await world();
+    channels(w, true, false);
+    const user = userEvent.setup();
+    render(sheet(w, { ...w.branch, policy: { ...w.branch.policy, unverifiedMaxPartySize: 1 } }));
+    await toPhone(user);
+
+    expect(
+      await screen.findByText(
+        'Without a verified number this venue takes bookings for parties of up to 1.',
+      ),
+    ).toBeDefined();
+    expect(screen.queryByText(/with Telegram/u)).toBeNull();
+  });
+
+  it('offers the booking this page already made when the browser holds one (S6)', async () => {
+    const w = await world();
+    const user = userEvent.setup();
+    const first = render(sheet(w));
+    await bookWithoutProof(user);
+    const made = (await screen.findByRole('link', { name: /\/booking\/mbk_/u })).getAttribute(
+      'href',
+    )!;
+    first.unmount();
+
+    vi.spyOn(w.harness.publicGateway, 'createUnverifiedBooking').mockRejectedValue(
+      new DeviceHasActiveBookingError({ url: '/x' }),
+    );
+    render(sheet(w));
+    await bookWithoutProof(user, '77 654321');
+
+    const open = await screen.findByRole('link', { name: 'Open the booking you made' });
+    expect(open.getAttribute('href')).toBe(new URL(made).pathname + new URL(made).search);
+  });
+
+  it('says only "too many requests" to a visitor who proved the number (S4)', async () => {
+    const w = await world();
+    const user = userEvent.setup();
+    vi.spyOn(w.harness.gateway, 'createBooking').mockRejectedValue(
+      new TooManyRequestsError({ url: '/x', retryAfterSeconds: 30 }),
+    );
+    render(sheet(w));
+    await toPhone(user);
+    await user.type(await screen.findByLabelText('Phone number'), '77123456');
+    await user.click(screen.getByRole('button', { name: 'Get a code by SMS' }));
+    await user.type(await screen.findByLabelText('Code'), '123456');
+    await user.type(await screen.findByLabelText('Name for the booking'), 'Ani');
+    await user.click(screen.getByRole('button', { name: /^(Confirm booking|Request table)$/u }));
+
+    expect((await screen.findByRole('alert')).textContent).toBe(
+      'Too many requests just now. Wait a moment and try again.',
+    );
   });
 });
 

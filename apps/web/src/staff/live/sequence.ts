@@ -70,13 +70,6 @@ export function applyFloorChanges(
 
   for (const change of ordered) {
     const detail = details.get(change.tableId);
-    // About the table's tab, not the table (a scan waiting to be let in,
-    // admitted, turned away): the floor's flags and the tab id moved, often
-    // with no status change at all, and none of that is on the change.
-    if (change.signal) {
-      return { kind: 'gap', expected: floor.lastSequence + 1, received: change.sequence };
-    }
-
     // A table the client has never seen means the plan itself changed under us
     // — a table was added in the editor. Geometry does not arrive on this
     // stream, so this is a refetch, not something to patch around.
@@ -94,6 +87,36 @@ export function applyFloorChanges(
     }
 
     const occupied = change.toStatus === 'occupied';
+
+    /*
+     * About the table's tab (unverified guests): a scan waiting to be let in,
+     * admitted, or turned away. The row names the tab, so it folds in: the
+     * waiting flag follows the signal, the tab is the row's while one waits,
+     * and a turned-away tab is gone. A row that keeps the status
+     * (Occupied→Occupied) leaves the sitting alone — it is not a new one.
+     * A whole-floor read for each would cost every tablet a request per
+     * phantom scan, which is the flood this feature exists to stop (S9).
+     */
+    if (change.signal) {
+      const awaiting = change.signal === 'tabAwaitingAdmission';
+      const sameStatus = change.fromStatus === change.toStatus;
+      const signalled: StaffTableDetail = {
+        ...detail,
+        physicalStatus: change.toStatus,
+        currentSessionId: change.tableSessionId ?? detail.currentSessionId,
+        seatedAtUtc: sameStatus ? detail.seatedAtUtc : occupied ? change.atUtc : null,
+        partySize: occupied ? detail.partySize : null,
+        openTabId:
+          change.signal === 'tabAdmissionRejected' || !occupied
+            ? null
+            : (change.tabId ?? detail.openTabId),
+        openTabAwaitingAdmission: awaiting,
+      };
+      details.set(change.tableId, signalled);
+      states.set(change.tableId, STATE_FROM_STATUS[change.toStatus] ?? 'free');
+      changed.add(change.tableId);
+      continue;
+    }
 
     const next: StaffTableDetail = {
       ...detail,
