@@ -1,5 +1,10 @@
 // @vitest-environment jsdom
-import { MAX_BOOKING_NOTE, type PublicBranch, type TableAvailability } from '@yalla/api';
+import {
+  MAX_BOOKING_NOTE,
+  SmsUnavailableError,
+  type PublicBranch,
+  type TableAvailability,
+} from '@yalla/api';
 import { act, cleanup, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -85,9 +90,8 @@ async function verifyBySms(user: User) {
   await user.type(await screen.findByLabelText('Code'), '123456');
 }
 
-class SmsUnavailableError extends Error {
-  override name = 'SmsUnavailableError';
-}
+/** The gateway's refusal when the backend has no SMS provider. */
+const smsUnavailable = () => new SmsUnavailableError({ url: '/api/auth/diner/request-code' });
 
 describe('the calendar file (review S1)', () => {
   it('dates the free-cancellation line, never "tomorrow" or "today"', async () => {
@@ -149,7 +153,7 @@ describe('the calendar file (review S1)', () => {
 describe('where the focus goes', () => {
   it('lands on Telegram when the SMS door closes under the visitor (S2)', async () => {
     const w = await world();
-    vi.spyOn(w.harness.gateway, 'requestPhoneCode').mockRejectedValue(new SmsUnavailableError());
+    vi.spyOn(w.harness.gateway, 'requestPhoneCode').mockRejectedValue(smsUnavailable());
     const user = userEvent.setup();
     render(w.harness.wrap(sheet(w)));
     await toPhone(user);
@@ -246,7 +250,7 @@ describe('the doors (S5, N2, N6)', () => {
 
   it('keeps a refused door closed through Back and Continue', async () => {
     const w = await world();
-    vi.spyOn(w.harness.gateway, 'requestPhoneCode').mockRejectedValue(new SmsUnavailableError());
+    vi.spyOn(w.harness.gateway, 'requestPhoneCode').mockRejectedValue(smsUnavailable());
     const user = userEvent.setup();
     render(w.harness.wrap(sheet(w)));
     await toPhone(user);
