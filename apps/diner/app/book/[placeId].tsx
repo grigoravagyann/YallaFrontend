@@ -55,6 +55,7 @@ import {
 } from '../../src/components/bookings/GuestRecord';
 import { useDinerProfile } from '../../src/data/accountQueries';
 import { useBookingBlock } from '../../src/data/bookingBlock';
+import { pauseRefusalLine } from '../../src/lib/guestRecord';
 import { useMinuteClock } from '../../src/hooks/useMinuteClock';
 import { bookingRefusal, changeFailureLine, overlapsOwnLine } from '../../src/data/bookingRefusals';
 import {
@@ -785,7 +786,9 @@ function BookingForm({ place, rooms, params, change, title, onBack }: BookingFor
       }
       if (failure.kind === 'commandInUse') commandId.current = newCommandId();
       setOutcomeUnknown(failure.kind === 'unknown');
-      const line: CopyLine = change ? changeFailureLine(failure) : failure.line;
+      // The pause's end on the phone's clock, as the note and the banner say it.
+      const line: CopyLine =
+        pauseRefusalLine(failure, locale) ?? (change ? changeFailureLine(failure) : failure.line);
       setErrorText(t(line.key, line.params));
     },
     [
@@ -1421,9 +1424,7 @@ function BookingForm({ place, rooms, params, change, title, onBack }: BookingFor
           ) : null}
 
           {/* Paused for no-shows: no Book, and until when. */}
-          {pausedUntil ? (
-            <BookingBlockedNote untilUtc={pausedUntil} timeZoneId={place.timeZoneId} />
-          ) : null}
+          {pausedUntil ? <BookingBlockedNote untilUtc={pausedUntil} /> : null}
 
           {errorText && !(pauseRefused && pausedUntil) ? (
             <Text accessibilityRole="alert" style={styles.error}>

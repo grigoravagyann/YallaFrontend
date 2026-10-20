@@ -25,6 +25,7 @@ import { useBookingBlock } from '../../src/data/bookingBlock';
 import { keys, useCreateBooking, useSlotFloor, useVenue } from '../../src/data/queries';
 import { branchZoneSource } from '../../src/lib/browse';
 import { newCommandId } from '../../src/lib/commandId';
+import { pauseRefusalLine } from '../../src/lib/guestRecord';
 import {
   GUEST_NAME_MAX_LENGTH,
   canSubmit,
@@ -276,7 +277,9 @@ export default function ConfirmScreen() {
         }
         if (failure.kind === 'commandInUse') commandId.current = newCommandId();
         setOutcomeUnknown(failure.kind === 'unknown');
-        setErrorText(t(failure.line.key, failure.line.params));
+        // The pause's end on the phone's clock, as the note and the banner say it.
+        const line = pauseRefusalLine(failure, locale) ?? failure.line;
+        setErrorText(t(line.key, line.params));
       }
     },
     [
@@ -465,9 +468,7 @@ export default function ConfirmScreen() {
           ) : null}
 
           {/* Paused for no-shows: no Confirm, and until when. */}
-          {pausedUntil ? (
-            <BookingBlockedNote untilUtc={pausedUntil} timeZoneId={zone} style={styles.paused} />
-          ) : null}
+          {pausedUntil ? <BookingBlockedNote untilUtc={pausedUntil} style={styles.paused} /> : null}
 
           {errorText && !(pauseRefused && pausedUntil) ? (
             <Text style={styles.error} accessibilityRole="alert">

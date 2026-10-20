@@ -386,7 +386,17 @@ export function TableActionPanel(props: TableActionPanelProps) {
                   </small>
                 ) : null}
               </Fact>
-              <Fact label={t('table.party')}>{detail?.partySize ?? '—'}</Fact>
+              <Fact label={t('table.party')}>
+                {detail?.partySize ?? '—'}
+                {/* Seated on a proved guest's booking: their record (wire §0a). */}
+                <GuestRecordLine
+                  record={detail?.sittingGuestRecord}
+                  surface="staff"
+                  timeZoneId={timeZoneId}
+                  now={new Date()}
+                  className="tp-record"
+                />
+              </Fact>
               <Fact label={t('table.fact.bill')}>
                 {balance !== null ? format.dram(balance) : '—'}
               </Fact>

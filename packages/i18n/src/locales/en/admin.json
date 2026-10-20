@@ -1158,7 +1158,7 @@
     "fixFirst": "First fix the fields that are out of bounds",
     "noChanges": "No changes",
     "inactive": {
-      "autoConfirmOn": "Not used while bookings are confirmed automatically: every booking is confirmed at once already."
+      "autoConfirmOn": "Nothing to skip while bookings are confirmed automatically: it only skips approving every booking, which is off. Large parties, short notice, a no-show history and the previous guest's answer wait either way."
     }
   },
   "checklist": {
@@ -1542,7 +1542,8 @@
     "approved": "{{name}}'s booking is confirmed · the guest will be notified",
     "declined": "{{name}}'s booking was declined",
     "unverified": "number not verified",
-    "cancelledByBlock": "Cancelled: guest blocked for no-shows. {{name}}'s booking was not confirmed."
+    "cancelledByBlock": "Cancelled: guest blocked for no-shows. {{name}}'s booking was not confirmed.",
+    "refusedCancelledByBlock": "Cancelled automatically: the guest missed three bookings in three days."
   },
   "onboarding": {
     "steps": {
@@ -2313,7 +2314,8 @@
         "finished": "{{table}} is free",
         "finishedOwed": "{{table}} is free · {{amount}} is still unpaid on its tab",
         "replay": "Already done before: {{name}} · {{status}}",
-        "undoNoShow": "{{name}}'s no-show is undone · the booking stands again"
+        "undoNoShow": "{{name}}'s no-show is undone · the booking stands again",
+        "guestBlocked": "third no-show in three days: the guest can't book until {{date}}, {{time}}"
       },
       "nudged": "The app asked at {{time}}",
       "nudgeAt": "The app will ask at {{time}}",

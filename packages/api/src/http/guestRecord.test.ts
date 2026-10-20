@@ -6,6 +6,7 @@ import {
   BookingOverlapsOwnError,
   NoShowUndoWindowClosedError,
   PhoneHasActiveBookingError,
+  ReservationCancelledByBlockError,
 } from '../contracts/errors';
 import type { components } from '../generated/schema';
 import { createConsoleHttpGateway, createMemoryIdentityStore } from './consoleHttpGateway';
@@ -15,7 +16,7 @@ import { createHttpGateway } from './httpGateway';
 import { createPublicHttpGateway } from './publicHttpGateway';
 import { createStaffHttpGateway } from './staffHttpGateway';
 import { compared, reservationReport } from './reportMapping';
-import { floorChangePage } from './staffMapping';
+import { floorChangePage, staffFloorDetails } from './staffMapping';
 import { policyCommand, reservationPolicy } from './venueSettingsMapping';
 
 /**
@@ -495,5 +496,111 @@ describe("the venue's good-record setting", () => {
     // The two retired settings are never sent.
     expect(command).not.toHaveProperty('unverifiedBookingsNeedApproval');
     expect(command).not.toHaveProperty('unverifiedMaxPartySize');
+  });
+});
+
+describe('the staff wire gaps closed (wire §0a)', () => {
+  it("reads the next booking's and the sitting party's record off the floor", () => {
+    const [table] = staffFloorDetails({
+      tables: [
+        {
+          tableId: 't4',
+          label: '4',
+          seats: 4,
+          physicalStatus: 1,
+          rowVersion: 'AAA=',
+          nextReservationGuestRecord: { ...RECORD, unmarked: 0 },
+          sittingGuestRecord: null,
+        },
+      ],
+    } as never);
+    expect(table?.nextReservationGuestRecord).toMatchObject({ came: 11, noShows: 1 });
+    expect(table?.sittingGuestRecord).toBeNull();
+  });
+
+  it('says when a no-show blocked its guest, on the tablet and in the console', async () => {
+    const answer = {
+      reservation: { ...VIEW, status: 8 },
+      outcome: 1,
+      countsTowardNoShowThreshold: true,
+      tableId: 'tbl-7',
+      tableLabel: '7',
+      tableFreed: true,
+      tableStatus: 1,
+      wasReplay: false,
+      guestBlockedUntilUtc: '2026-10-28T15:00:00Z',
+    };
+    const tablet = await staffOver({
+      [`POST /api/reservations/${VIEW.id}/release`]: { body: answer },
+    }).releaseReservation({ reservationId: VIEW.id, outcome: 'noShow', clientCommandId: COMMAND });
+    expect(tablet.guestBlockedUntilUtc).toBe('2026-10-28T15:00:00Z');
+
+    const console = await consoleOver({
+      [`POST /api/reservations/${VIEW.id}/no-show`]: { body: answer },
+    }).actOnBooking({
+      kind: 'noShow',
+      branchId: BRANCH,
+      reservationId: VIEW.id,
+      tableId: 'tbl-7',
+      clientCommandId: COMMAND,
+    });
+    expect(console.guestBlockedUntilUtc).toBe('2026-10-28T15:00:00Z');
+
+    const { guestBlockedUntilUtc: _none, ...plain } = answer;
+    const ordinary = await staffOver({
+      [`POST /api/reservations/${VIEW.id}/release`]: { body: plain },
+    }).releaseReservation({ reservationId: VIEW.id, outcome: 'noShow', clientCommandId: COMMAND });
+    expect(ordinary.guestBlockedUntilUtc).toBeNull();
+  });
+
+  it("says a request was cancelled by its guest's block, on approve and reject alike", async () => {
+    const reply = problemReply(409, 'reservation-cancelled-by-block', {
+      reservationId: VIEW.id,
+      cancelledAtUtc: '2026-10-21T14:00:00Z',
+    });
+    const tablet = staffOver({
+      [`POST /api/reservations/${VIEW.id}/approve`]: reply,
+      [`POST /api/reservations/${VIEW.id}/reject`]: reply,
+    });
+    const approve = await caught(tablet.approveReservation({ reservationId: VIEW.id }));
+    expect(approve).toBeInstanceOf(ReservationCancelledByBlockError);
+    expect(approve).toMatchObject({ cancelledAtUtc: '2026-10-21T14:00:00Z' });
+    expect(await caught(tablet.rejectReservation({ reservationId: VIEW.id }))).toBeInstanceOf(
+      ReservationCancelledByBlockError,
+    );
+
+    const consoleGateway = consoleOver({
+      [`POST /api/reservations/${VIEW.id}/approve`]: reply,
+      [`POST /api/reservations/${VIEW.id}/reject`]: reply,
+    });
+    expect(
+      await caught(consoleGateway.approveReservation({ reservationId: VIEW.id })),
+    ).toBeInstanceOf(ReservationCancelledByBlockError);
+    expect(
+      await caught(consoleGateway.rejectReservation({ reservationId: VIEW.id })),
+    ).toBeInstanceOf(ReservationCancelledByBlockError);
+  });
+
+  it('reads a booking event on the change stream (signal 5)', () => {
+    const page = floorChangePage({
+      branchId: BRANCH,
+      maxSequence: 12,
+      hasMore: false,
+      changes: [
+        {
+          sequence: 12,
+          diningTableId: 't-4',
+          tableLabel: '4',
+          fromStatus: 1,
+          toStatus: 1,
+          atUtc: '2026-10-21T15:00:00Z',
+          actorType: 1,
+          reason: '',
+          reservationId: VIEW.id,
+          signal: 5,
+        },
+      ],
+    } as unknown as Schemas['Yalla.Application.Floor.BranchChangePage']);
+    expect(page.changes[0]).toMatchObject({ signal: 'bookingChanged', reservationId: VIEW.id });
   });
 });

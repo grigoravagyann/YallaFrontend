@@ -1403,6 +1403,10 @@
       "favorites": {
         "question": "Where are my favorites saved?",
         "answer": "When you are logged in, favorites are saved to your account, so they are there on any phone you log in on. Hearts you tap while logged out stay on this phone and move to your account when you log in."
+      },
+      "venuesSee": {
+        "question": "What do venues see about my bookings?",
+        "answer": "Only the numbers, never where. A venue you book with sees how many of your bookings in the last 12 months, at all venues, you kept, missed or cancelled late, and how many were not marked. If you miss three bookings in three days, you can't book for a week and your bookings that had not started are cancelled; while that lasts, venues see it too. If a venue marked you as a no-show by mistake, contact that venue."
       }
     },
     "contactTitle": "Contact support",
@@ -1421,6 +1425,6 @@
     "venuesSee": "What venues see"
   },
   "privacy": {
-    "guestRecord": "Venues you book with see how many of your bookings in the last 12 months you kept, missed or cancelled late — never where."
+    "guestRecord": "Venues you book with see how many of your bookings in the last 12 months, at all venues, you kept, missed or cancelled late, and how many were not marked. While booking is paused after three missed bookings in three days, they see that too. Just the numbers, never where."
   }
 }

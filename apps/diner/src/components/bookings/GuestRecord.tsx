@@ -1,9 +1,10 @@
 import { Ionicons } from '@expo/vector-icons';
 import type { GuestRecord } from '@yalla/api';
-import { formatDate, formatTime, type TimeZone } from '@yalla/format';
+import { formatDate, formatTime } from '@yalla/format';
 import { useLocale, useTranslation } from '@yalla/i18n';
 import { StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
-import { blockedLine, phoneTimeZone, recordCopy } from '../../lib/guestRecord';
+import { deviceTimeZone } from '../../deviceTimeZone';
+import { blockedLine, recordCopy } from '../../lib/guestRecord';
 import { colors, fontWeight, iconSize, radius, space, typography } from '../../theme';
 import { Card } from '../Card';
 import { Text } from '../Text';
@@ -63,7 +64,7 @@ export function BookingBlockedBanner({
 }) {
   const { t } = useTranslation('diner');
   const { locale } = useLocale();
-  const zone = phoneTimeZone();
+  const zone = deviceTimeZone();
   return (
     <View style={[styles.banner, style]} accessibilityRole="alert">
       <Ionicons name="ban-outline" size={iconSize.md} color={colors.errorInk} />
@@ -83,20 +84,19 @@ export function BookingBlockedBanner({
 /**
  * Where a booking starts — the place's Book, the booking screen, the confirm
  * screen — while booking is paused: the very sentence the server's refusal
- * says, in the branch's zone when there is one.
+ * says, on the phone's clock like the bookings tab's banner. The pause is
+ * the guest's, at every venue, so no branch's clock is its own.
  */
 export function BookingBlockedNote({
   untilUtc,
-  timeZoneId,
   style,
 }: {
   readonly untilUtc: string;
-  readonly timeZoneId?: TimeZone | null | undefined;
   readonly style?: StyleProp<ViewStyle>;
 }) {
   const { t } = useTranslation('diner');
   const { locale } = useLocale();
-  const line = blockedLine(untilUtc, timeZoneId ?? phoneTimeZone(), locale);
+  const line = blockedLine(untilUtc, deviceTimeZone(), locale);
   return (
     <View style={[styles.note, style]}>
       <Ionicons name="ban-outline" size={iconSize.sm} color={colors.errorInk} />

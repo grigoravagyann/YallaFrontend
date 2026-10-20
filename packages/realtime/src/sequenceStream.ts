@@ -112,6 +112,13 @@ export function createSequenceStream<T>(options: SequenceStreamOptions<T>): Live
   let running = false;
   let foreground = true;
   let sequence = 0;
+  /**
+   * Whether the caller has said where it is. A branch with no changes yet is
+   * at 0, which is a sequence, not "nothing read": without this the stream
+   * would ask for a full read on every poll until somebody first changed a
+   * table there (review N5 — the first session on a fresh branch).
+   */
+  let known = false;
   let inFlight = false;
   /**
    * The stream is missing on the server. Recorded once so the client does not
@@ -126,7 +133,7 @@ export function createSequenceStream<T>(options: SequenceStreamOptions<T>): Live
     if (inFlight) return;
     inFlight = true;
     try {
-      if (unavailable || sequence === 0) {
+      if (unavailable || !known) {
         handlers.onResync(unavailable ? 'notWired' : 'firstLoad');
         return;
       }
@@ -179,6 +186,7 @@ export function createSequenceStream<T>(options: SequenceStreamOptions<T>): Live
 
     setSequence(next) {
       sequence = next;
+      known = true;
     },
   };
 }

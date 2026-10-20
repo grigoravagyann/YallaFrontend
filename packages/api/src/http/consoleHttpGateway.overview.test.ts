@@ -360,6 +360,7 @@ describe('the row menu over HTTP', () => {
       tableLabel: '5',
       tableFreed: true,
       outstandingDram: null,
+      guestBlockedUntilUtc: null,
     });
   });
 

@@ -10,6 +10,7 @@ import {
 } from '@yalla/api';
 import { GatewayProvider } from '@yalla/api/react';
 import type * as I18nModule from '@yalla/i18n';
+import type * as DeviceTimeZoneModule from '../deviceTimeZone';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -90,6 +91,12 @@ vi.mock('./hooks', () => ({
   usePlace: () => ({ data: held.place, isLoading: false, isError: false }),
 }));
 vi.mock('../data/accountQueries', () => ({ useDinerProfile: () => ({ data: undefined }) }));
+// The pause's end is said on the phone's clock: a phone in Yerevan, wherever
+// the suite runs.
+vi.mock('../deviceTimeZone', async (importOriginal) => ({
+  ...(await importOriginal<typeof DeviceTimeZoneModule>()),
+  deviceTimeZone: () => 'Asia/Yerevan',
+}));
 
 afterEach(() => {
   cleanup();
@@ -936,7 +943,7 @@ describe('the Book screen, who may book', () => {
 
     expect(
       await screen.findByText(
-        'Venues you book with see how many of your bookings in the last 12 months you kept, missed or cancelled late — never where.',
+        'Venues you book with see how many of your bookings in the last 12 months, at all venues, you kept, missed or cancelled late, and how many were not marked. While booking is paused after three missed bookings in three days, they see that too. Just the numbers, never where.',
       ),
     ).toBeTruthy();
   });

@@ -77,7 +77,15 @@ describe('Help & Support', () => {
   it('answers the common questions, one at a time', () => {
     render(<HelpScreen />);
 
-    for (const topic of ['booking', 'code', 'table', 'reviews', 'deleteAccount', 'favorites']) {
+    for (const topic of [
+      'booking',
+      'venuesSee',
+      'code',
+      'table',
+      'reviews',
+      'deleteAccount',
+      'favorites',
+    ]) {
       expect(screen.getByText(`help.faq.${topic}.question`)).toBeTruthy();
     }
     expect(screen.queryByText('help.faq.favorites.answer')).toBeNull();

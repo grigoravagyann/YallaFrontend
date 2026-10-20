@@ -809,7 +809,7 @@ function PlaceDetails({
           </View>
         ) : pausedUntil ? (
           <View style={styles.paused}>
-            <BookingBlockedNote untilUtc={pausedUntil} timeZoneId={place.timeZoneId} />
+            <BookingBlockedNote untilUtc={pausedUntil} />
             <BookCta label={t('place.bookTable')} glyph disabled onPress={() => onBook()} />
           </View>
         ) : (

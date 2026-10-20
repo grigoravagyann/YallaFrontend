@@ -887,4 +887,7 @@ export {
   NO_SHOW_UNDO_WINDOW_CLOSED_CODE,
   NoShowUndoWindowClosedError,
   isNoShowUndoWindowClosed,
+  RESERVATION_CANCELLED_BY_BLOCK_CODE,
+  ReservationCancelledByBlockError,
+  isReservationCancelledByBlock,
 } from './contracts/errors';

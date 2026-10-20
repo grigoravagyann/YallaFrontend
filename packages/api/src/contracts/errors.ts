@@ -1755,6 +1755,8 @@ export function isAccountTaken(
 export const PHONE_HAS_ACTIVE_BOOKING_CODE = 'phone-has-active-booking';
 /** `booking-blocked-no-shows`: three no-shows in three days block booking for a week. */
 export const BOOKING_BLOCKED_NO_SHOWS_CODE = 'booking-blocked-no-shows';
+/** `reservation-cancelled-by-block`: the booking was cancelled by its guest's no-show block. */
+export const RESERVATION_CANCELLED_BY_BLOCK_CODE = 'reservation-cancelled-by-block';
 /** `no-show-undo-window-closed`: a no-show may be undone until 05:00 the next morning. */
 export const NO_SHOW_UNDO_WINDOW_CLOSED_CODE = 'no-show-undo-window-closed';
 /** `tab-awaiting-admission`: nothing is ordered on a tab a waiter has not let in. */
@@ -1838,6 +1840,38 @@ export class BookingBlockedNoShowsError extends ApiError {
 
 export function isBookingBlockedNoShows(error: unknown): error is BookingBlockedNoShowsError {
   return error instanceof BookingBlockedNoShowsError;
+}
+
+/**
+ * Approving or rejecting a booking its guest's no-show block already cancelled
+ * — `reservation-cancelled-by-block`, 409. Not "somebody else answered": the
+ * platform cancelled it, and the request card goes.
+ */
+export class ReservationCancelledByBlockError extends ApiError {
+  readonly reservationId: string | null;
+  readonly cancelledAtUtc: string | null;
+
+  constructor(
+    options: RefusalOptions & {
+      reservationId?: string | null | undefined;
+      cancelledAtUtc?: string | null | undefined;
+    },
+  ) {
+    super('This booking was cancelled automatically: its guest is blocked for no-shows.', {
+      status: 409,
+      url: options.url,
+      requestId: options.requestId,
+    });
+    this.name = 'ReservationCancelledByBlockError';
+    this.reservationId = options.reservationId ?? null;
+    this.cancelledAtUtc = options.cancelledAtUtc ?? null;
+  }
+}
+
+export function isReservationCancelledByBlock(
+  error: unknown,
+): error is ReservationCancelledByBlockError {
+  return error instanceof ReservationCancelledByBlockError;
 }
 
 /**

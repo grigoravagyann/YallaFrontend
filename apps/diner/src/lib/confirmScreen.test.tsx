@@ -12,6 +12,7 @@ import {
 } from '@yalla/api';
 import { GatewayProvider } from '@yalla/api/react';
 import type * as I18nModule from '@yalla/i18n';
+import type * as DeviceTimeZoneModule from '../deviceTimeZone';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -47,6 +48,12 @@ vi.mock('react-native-safe-area-context', () => ({
 }));
 vi.mock('../lib/haptics', () => ({
   haptics: { select: vi.fn(), success: vi.fn(), tap: vi.fn() },
+}));
+// The phone's clock: Yerevan's, unless a test takes the phone abroad.
+const phone = vi.hoisted(() => ({ zone: 'Asia/Yerevan' }));
+vi.mock('../deviceTimeZone', async (importOriginal) => ({
+  ...(await importOriginal<typeof DeviceTimeZoneModule>()),
+  deviceTimeZone: () => phone.zone,
 }));
 vi.mock('@yalla/i18n', async (importOriginal) => {
   const { dinerResources: resources } = await import('@yalla/i18n/diner');
@@ -291,7 +298,41 @@ describe('the confirm screen, the number rules and the no-show pause', () => {
     return { list };
   }
 
-  afterEach(() => useSession.setState({ profile: null }));
+  afterEach(() => {
+    useSession.setState({ profile: null });
+    phone.zone = 'Asia/Yerevan';
+  });
+
+  // Review round 2 (N4): the pause belongs to no venue, so its end is said on
+  // the phone's clock everywhere — the note here, the refusal, the bookings
+  // tab and the feed — never the venue's on one screen and the phone's on another.
+  it('says when the pause ends on the phone’s clock, not the venue’s', async () => {
+    phone.zone = 'UTC';
+    useSession.setState({
+      profile: { phoneVerified: true } as ReturnType<typeof useSession.getState>['profile'],
+    });
+    await ready({ record: { blockedUntilUtc: '2026-10-23T09:30:00Z' } });
+    expect(
+      await screen.findByText(
+        /^You can't book until .*23.*, 09:30, because of three missed bookings in three days\.$/u,
+      ),
+    ).toBeTruthy();
+  });
+
+  it('says the refusal’s end on the phone’s clock too', async () => {
+    phone.zone = 'UTC';
+    await refusedWith(
+      new BookingBlockedNoShowsError({
+        url: '/api/reservations',
+        blockedUntilUtc: '2026-10-23T09:30:00Z',
+      }),
+    );
+    expect(
+      await screen.findByText(
+        /^You can't book until .*23.*, 09:30, because of three missed bookings in three days\.$/u,
+      ),
+    ).toBeTruthy();
+  });
 
   it('sends an account with no proved number to prove it before anything is sent', async () => {
     useSession.setState({
@@ -398,7 +439,7 @@ describe('the confirm screen, the number rules and the no-show pause', () => {
     await ready();
     expect(
       screen.getByText(
-        'Venues you book with see how many of your bookings in the last 12 months you kept, missed or cancelled late — never where.',
+        'Venues you book with see how many of your bookings in the last 12 months, at all venues, you kept, missed or cancelled late, and how many were not marked. While booking is paused after three missed bookings in three days, they see that too. Just the numbers, never where.',
       ),
     ).toBeTruthy();
   });

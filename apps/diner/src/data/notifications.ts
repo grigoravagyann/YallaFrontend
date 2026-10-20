@@ -4,7 +4,7 @@ import {
   type KnownDinerNotificationKind,
 } from '@yalla/api';
 import { zonedParts, type TimeZone } from '@yalla/format';
-import { phoneTimeZone } from '../lib/guestRecord';
+import { deviceTimeZone } from '../deviceTimeZone';
 
 /**
  * How one row of the notifications feed reads and where tapping it goes.
@@ -143,8 +143,11 @@ function shortDay(date: string | null): string | null {
 
 /**
  * When the pause after three no-shows ends: the day (`27.10`) and the time
- * (`13:30`) on the phone's clock, the day as the branch wrote it when the row
- * says it. `null` when the row has no readable end.
+ * (`13:30`), both on the phone's clock — as the bookings tab and Book say it.
+ * The row's `blockedUntilLocalDate` is the day on the clock of the venue whose
+ * no-show made the pause; beside the phone's time it could name the wrong day
+ * on a phone in another zone (review round 2), so it is not read here.
+ * `null` when the row has no readable end.
  */
 function pauseEnd(
   notification: Pick<DinerNotification, 'params'>,
@@ -154,9 +157,7 @@ function pauseEnd(
   if (!Number.isFinite(until)) return null;
   const at = zonedParts(new Date(until), timeZone);
   return {
-    day:
-      shortDay(text(notification.params['blockedUntilLocalDate'])) ??
-      `${pad(at.day)}.${pad(at.month)}`,
+    day: `${pad(at.day)}.${pad(at.month)}`,
     time: `${pad(at.hour)}:${pad(at.minute)}`,
   };
 }
@@ -215,7 +216,7 @@ function guestRecordCopy(
  */
 export function notificationCopy(
   notification: Pick<DinerNotification, 'kind' | 'branchName' | 'params'>,
-  timeZone: TimeZone = phoneTimeZone(),
+  timeZone: TimeZone = deviceTimeZone(),
 ): NotificationCopy {
   const place =
     text(notification.branchName) ??

@@ -7,6 +7,7 @@ import {
   createStaffMockGateway,
   type EnrolledDevice,
   type FloorChange,
+  type StaffFloor,
   type StaffGateway,
   type StaffSessionSnapshot,
 } from '@yalla/api';
@@ -609,57 +610,90 @@ describe('the review round (UG-FE-REVIEW)', () => {
   });
 });
 
-describe("a booking cancelled by its guest's no-show block (signal 4)", () => {
-  it('says so on the floor, naming the table, and reads the requests again', async () => {
-    signIn();
+describe("a booking cancelled by its guest's no-show block (signal 4, review S6, N8)", () => {
+  /** The floor at sequence 10, whose next poll brings the given block cancellations. */
+  async function blockedFloor(reservationIds: (floor: StaffFloor) => readonly string[]) {
     const base = floorGateway();
+    const first = (await base.getFloor(BRANCH))!;
     let sent = false;
     const gateway: StaffGateway = {
       ...base,
-      // The stream reads changes after the floor's own sequence: give it one.
       getFloor: async (branchId) => {
         const floor = await base.getFloor(branchId);
-        return floor ? { ...floor, lastSequence: Math.max(floor.lastSequence, 10) } : floor;
+        return floor ? { ...floor, lastSequence: 10 } : floor;
       },
-      getFloorChanges: async (query) => {
-        const page = await base.getFloorChanges(query);
+      getFloorChanges: async ({ afterSequence }) => {
         if (sent)
-          return { ...page, lastSequence: Math.max(page.lastSequence, query.afterSequence) };
+          return { branchId: BRANCH, lastSequence: afterSequence, hasMore: false, changes: [] };
         sent = true;
-        const next = query.afterSequence + 1;
+        const changes = reservationIds(first).map((reservationId, index) => ({
+          sequence: afterSequence + 1 + index,
+          tableId: 't6',
+          tableLabel: '6',
+          fromStatus: 'free' as const,
+          toStatus: 'free' as const,
+          atUtc: new Date().toISOString(),
+          tableSessionId: null,
+          reservationId,
+          actor: 'system' as const,
+          actorId: null,
+          reason: '',
+          tabId: null,
+          signal: 'bookingCancelledByBlock' as const,
+        }));
         return {
-          ...page,
-          lastSequence: next,
-          changes: [
-            {
-              sequence: next,
-              tableId: 't9',
-              tableLabel: '9',
-              fromStatus: 'free',
-              toStatus: 'free',
-              atUtc: new Date().toISOString(),
-              tableSessionId: null,
-              reservationId: 'r-blocked',
-              actor: 'system',
-              actorId: null,
-              reason: '',
-              tabId: null,
-              signal: 'bookingCancelledByBlock',
-            },
-          ],
+          branchId: BRANCH,
+          lastSequence: afterSequence + changes.length,
+          hasMore: false,
+          changes,
         };
       },
     };
-    const requests = vi.spyOn(gateway, 'listAwaitingApproval');
-    renderFloor(gateway);
+    return gateway;
+  }
 
-    expect(
-      await screen.findByText(
-        'Table 9: a booking was cancelled — its guest is blocked for no-shows.',
-        undefined,
-        { timeout: 15000 },
-      ),
-    ).toBeTruthy();
-    expect(requests.mock.calls.length).toBeGreaterThan(1);
-  }, 20000);
+  it("says so when it was a table's booking due now, and reads the requests again at once", async () => {
+    vi.useFakeTimers({ now: new Date('2026-10-21T15:00:00.000Z'), shouldAdvanceTime: true });
+    try {
+      signIn();
+      const gateway = await blockedFloor((floor) => [
+        floor.details.find((detail) => detail.tableId === 't6')!.nextReservationId!,
+      ]);
+      const requests = vi.spyOn(gateway, 'listAwaitingApproval');
+      renderFloor(gateway);
+      await screen.findByRole('button', { name: /^Table 6, /u });
+      const before = requests.mock.calls.length;
+
+      // Two polls: the stream learns the floor's sequence, then reads the change.
+      await act(() => vi.advanceTimersByTimeAsync(8_500));
+
+      expect(
+        await screen.findByText(
+          /^Table 6: the \d\d:\d\d booking was cancelled — its guest is blocked for no-shows\.$/u,
+        ),
+      ).toBeTruthy();
+      // Not the list's own ten-second poll: read because of the change.
+      expect(requests.mock.calls.length).toBeGreaterThan(before);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('says nothing of a booking this floor never showed', async () => {
+    vi.useFakeTimers({ now: new Date('2026-10-21T15:00:00.000Z'), shouldAdvanceTime: true });
+    try {
+      signIn();
+      const gateway = await blockedFloor(() => ['r-days-ahead']);
+      const floorChanges = vi.spyOn(gateway, 'getFloorChanges');
+      renderFloor(gateway);
+      await screen.findByRole('button', { name: /^Table 6, /u });
+
+      await act(() => vi.advanceTimersByTimeAsync(8_500));
+
+      expect(floorChanges).toHaveBeenCalled();
+      expect(screen.queryByText(/blocked for no-shows/u)).toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 });

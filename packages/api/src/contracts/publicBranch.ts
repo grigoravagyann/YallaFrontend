@@ -1,6 +1,7 @@
 import type { ApprovalTrigger, DeclineReason } from './approvals';
 import type { VenueType } from './booking';
 import type { SpecialDay, WeeklyHours } from './branchSettings';
+import type { CancellationCause } from './guestRecord';
 
 /**
  * What a stranger with a link can see, and nothing more.
@@ -288,6 +289,11 @@ export interface ManagedBooking {
    * other booking.
    */
   readonly cancelledByVenue: boolean;
+  /**
+   * `noShowBlock`: cancelled automatically, the guest blocked after three
+   * missed bookings in three days (wire §0a). Absent for any other booking.
+   */
+  readonly cancelledBecause?: CancellationCause | null | undefined;
   /**
    * Why it waits, while it does: the guest before is being asked
    * (`earlierGuestConsent`) or the venue decides. Absent from an older server.

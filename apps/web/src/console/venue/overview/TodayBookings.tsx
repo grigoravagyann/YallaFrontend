@@ -14,7 +14,7 @@ import {
   type ReservationStatusCode,
 } from '@yalla/api';
 import { useBookingAction, useNow } from '@yalla/api/react';
-import { formatDram, formatTime, type TimeZone } from '@yalla/format';
+import { formatDayAndTime, formatDram, formatTime, type TimeZone } from '@yalla/format';
 import { useLocale, useTranslation } from '@yalla/i18n';
 import { useEffect, useId, useRef, useState } from 'react';
 import { RowMenu, type RowMenuItem } from '../../ui/RowMenu';
@@ -216,10 +216,15 @@ export function TodayBookings({
     switch (result.kind) {
       case 'seat':
         return t('overview.bookings.done.seated', { name });
-      case 'noShow':
-        return result.tableFreed
+      case 'noShow': {
+        const done = result.tableFreed
           ? t('overview.bookings.done.noShow', { name, table })
           : t('overview.bookings.done.noShowKept', { name });
+        // The guest's third in three days: blocked from booking (wire §0a).
+        if (!result.guestBlockedUntilUtc) return done;
+        const until = formatDayAndTime(result.guestBlockedUntilUtc, zone, locale);
+        return `${done} · ${t('overview.bookings.done.guestBlocked', { date: until.date, time: until.time })}`;
+      }
       case 'cancel':
         return t('overview.bookings.done.cancelled', { name });
       case 'undoNoShow':

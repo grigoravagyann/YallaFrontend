@@ -289,7 +289,8 @@
     "seeVenue": "See the venue",
     "cancelledByVenueBody": "The venue cancelled this booking. Call them if you have a question.",
     "changeUnverified": "A booking made without a verified phone number cannot be changed online. Cancel it and book again, or call the venue.",
-    "noReminders": "No reminders are sent for this booking. Keep this link."
+    "noReminders": "No reminders are sent for this booking. Keep this link.",
+    "cancelledByBlockBody": "Cancelled automatically: three missed bookings in three days. You can book again once the pause is over."
   },
   "header": {
     "allBranches_one": "All {{count}} branch",
@@ -417,7 +418,7 @@
       "notePlaceholder": "For example: a birthday, a high chair, an allergy",
       "noteHint": "{{length}} / {{max}} · only the venue sees it",
       "freeBy": "Free the table by",
-      "record": "Venues you book with see how many of your bookings in the last 12 months you kept, missed or cancelled late — just the numbers, never where."
+      "record": "Venues you book with see how many of your bookings in the last 12 months, at all venues, you kept, missed or cancelled late, and how many were not marked. While booking is paused after three missed bookings in three days, they see that too. Just the numbers, never where."
     },
     "done": {
       "table": "{{label}} · {{guests}}",

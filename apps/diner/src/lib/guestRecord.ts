@@ -1,5 +1,6 @@
-import { isBookingBlocked, type CopyLine, type GuestRecord } from '@yalla/api';
-import { formatDate, formatTime, YEREVAN, type Locale, type TimeZone } from '@yalla/format';
+import { isBookingBlocked, type BookingFailure, type CopyLine, type GuestRecord } from '@yalla/api';
+import { formatDate, formatTime, type Locale, type TimeZone } from '@yalla/format';
+import { deviceTimeZone } from '../deviceTimeZone';
 
 /**
  * The guest's own record (guest record, 2026-10-20): how they kept their
@@ -67,14 +68,16 @@ export function blockedLine(untilUtc: string, timeZoneId: TimeZone, locale: Loca
 }
 
 /**
- * The phone's own zone, for a time that belongs to no branch — the end of the
- * guest's pause on the bookings tab. The polyfills hand the device's zone to
- * `Intl` (see `deviceTimeZone.ts`); Yerevan where it cannot say.
+ * The server's 403 for a paused guest, said on the phone's clock like the
+ * bookings tab, the note by Book and the feed (review round 2): the shared
+ * `bookingFailure` words it on the branch's clock, which the pause does not
+ * belong to. `null` for any other failure, or a pause with no end said.
  */
-export function phoneTimeZone(): TimeZone {
-  try {
-    return new Intl.DateTimeFormat().resolvedOptions().timeZone || YEREVAN;
-  } catch {
-    return YEREVAN;
-  }
+export function pauseRefusalLine(
+  failure: BookingFailure,
+  locale: Locale,
+  timeZoneId: TimeZone = deviceTimeZone(),
+): CopyLine | null {
+  if (failure.kind !== 'blockedNoShows' || !failure.error.blockedUntilUtc) return null;
+  return blockedLine(failure.error.blockedUntilUtc, timeZoneId, locale);
 }

@@ -23,7 +23,7 @@
  * | `table-request-decided`   | `reservationId`, `requestId`, `accepted`, `freeByTime` — what the answer did |
  * | `booking-no-show`         | `reservationId` — a venue marked the booking a no-show |
  * | `bookings-blocked-no-shows` | `blockedUntilUtc` — three no-shows in three days: booking paused for a week |
- * | `bookings-unblocked`      | `liftedBecause` — the pause ended early |
+ * | `bookings-unblocked`      | `liftedBecause` ("1" lifted, "2" a no-show undone) — the pause ended early |
  *
  * `expired` is `"true"` on the decision nobody made: a short-notice request
  * the floor did not answer in its fifteen minutes, declined by the server with

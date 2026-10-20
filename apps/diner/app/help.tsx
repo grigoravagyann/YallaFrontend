@@ -24,7 +24,16 @@ import {
  * The questions the app's own behaviour raises, answered the way the app
  * actually behaves. When that behaviour changes, the answer changes with it.
  */
-const TOPICS = ['booking', 'code', 'table', 'reviews', 'deleteAccount', 'favorites'] as const;
+const TOPICS = [
+  'booking',
+  // What a venue sees of the guest's record (guest record, 2026-10-20).
+  'venuesSee',
+  'code',
+  'table',
+  'reviews',
+  'deleteAccount',
+  'favorites',
+] as const;
 
 type Topic = (typeof TOPICS)[number];
 

@@ -195,6 +195,34 @@ describe('the manage link of a legacy booking without a verified number', () => 
   });
 });
 
+describe('the manage link of a booking cancelled by a no-show block (wire §0a)', () => {
+  it('says it was cancelled automatically, and why, not that the venue called it off', async () => {
+    const harness = createHarness({ floorApprovesAtOnce: true });
+    const { url } = await bookedLink(harness);
+    const read = harness.publicGateway.getManagedBooking.bind(harness.publicGateway);
+    vi.spyOn(harness.publicGateway, 'getManagedBooking').mockImplementation(async (query) => {
+      const booking = await read(query);
+      return (
+        booking && {
+          ...booking,
+          status: 'cancelled' as const,
+          cancelledByVenue: true,
+          cancelledBecause: 'noShowBlock',
+          canCancel: false,
+        }
+      );
+    });
+
+    render(harness.wrap(<PublicApp />, url));
+
+    expect(
+      await screen.findByText(
+        'Cancelled automatically: three missed bookings in three days. You can book again once the pause is over.',
+      ),
+    ).toBeDefined();
+  });
+});
+
 /**
  * Every page in this route group left the shell's `<title>Yalla</title>` in
  * place, so a tab bar full of them was a row of identical labels — and the

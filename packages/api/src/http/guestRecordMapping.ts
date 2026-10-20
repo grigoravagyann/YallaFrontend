@@ -9,6 +9,8 @@ import {
   BookingBlockedNoShowsError,
   NO_SHOW_UNDO_WINDOW_CLOSED_CODE,
   NoShowUndoWindowClosedError,
+  RESERVATION_CANCELLED_BY_BLOCK_CODE,
+  ReservationCancelledByBlockError,
   PHONE_HAS_ACTIVE_BOOKING_CODE,
   PhoneHasActiveBookingError,
   type HeldBooking,
@@ -100,6 +102,36 @@ export function bookingBlockFromWire(wire: WireBookingBlock): BookingBlock {
     blockedUntilUtc: wire.blockedUntilUtc,
     liftedAtUtc: text(wire.liftedAtUtc),
   };
+}
+
+/** A decision on a booking a block already cancelled, as a typed error; null for anything else. */
+export function cancelledByBlockRefusal(error: unknown): ApiError | null {
+  if (!(error instanceof ApiError) || error.problem?.code !== RESERVATION_CANCELLED_BY_BLOCK_CODE) {
+    return null;
+  }
+  const context = error.problem.context ?? {};
+  return new ReservationCancelledByBlockError({
+    url: error.url,
+    requestId: error.requestId,
+    reservationId: text(context['reservationId']),
+    cancelledAtUtc: text(context['cancelledAtUtc']),
+  });
+}
+
+/**
+ * A request whose refusal `refusal` turns into a typed error; any other
+ * failure passes as it was. Wrapping the call (rather than chaining `.catch`)
+ * keeps `client.post(` whole for the gateway schema check.
+ */
+export async function withRefusal<T>(
+  request: Promise<T>,
+  refusal: (error: unknown) => ApiError | null,
+): Promise<T> {
+  try {
+    return await request;
+  } catch (error) {
+    throw refusal(error) ?? error;
+  }
 }
 
 /** An undo past its window, as a typed error; null for anything else. */

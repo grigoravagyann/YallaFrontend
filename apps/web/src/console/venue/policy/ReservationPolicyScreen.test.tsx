@@ -168,16 +168,22 @@ describe('the approval rules', () => {
       ),
     ).toBeTruthy();
 
-    // Every booking is confirmed automatically by default: nothing for it to do, and said why.
+    // Every booking is confirmed automatically by default: nothing for it to
+    // skip, and said why — without claiming every booking is confirmed at
+    // once, which large parties, short notice and the rest are not.
     expect(good.disabled).toBe(true);
-    const why = within(approval).getByText(/^Not used while bookings are confirmed automatically/u);
+    const why = within(approval).getByText(
+      /^Nothing to skip while bookings are confirmed automatically: it only skips approving every booking, which is off\. Large parties, short notice, a no-show history and the previous guest's answer wait either way\.$/u,
+    );
     expect(good.getAttribute('aria-describedby')).toContain(why.id);
 
     await user.click(
       within(approval).getByRole('switch', { name: 'Confirm bookings automatically' }),
     );
     expect(good.disabled).toBe(false);
-    expect(within(approval).queryByText(/^Not used while bookings are confirmed/u)).toBeNull();
+    expect(
+      within(approval).queryByText(/^Nothing to skip while bookings are confirmed/u),
+    ).toBeNull();
     await user.click(good);
     expect(good.getAttribute('aria-checked')).toBe('true');
     expect(

@@ -23,6 +23,8 @@ export interface FloorRailProps {
    * them order: `AdmissionSection`, right after the bookings.
    */
   readonly admissions?: ReactNode;
+  /** No-shows this tablet marked, still undoable: `NoShowSection`, after the tables waiting. */
+  readonly noShows?: ReactNode;
   readonly requests: readonly ServiceRequest[];
   /** The calls could not be read. Not the same as nobody calling. */
   readonly requestsFailed: boolean;
@@ -74,6 +76,8 @@ export function FloorRail(props: FloorRailProps) {
         {props.approvals}
 
         {props.admissions}
+
+        {props.noShows}
 
         <RailSection
           title={t('panel.calls.title')}

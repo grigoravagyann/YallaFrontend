@@ -1,5 +1,6 @@
 import type { components } from '../generated/schema';
 import { admissionFromWire, floorChangeSignal } from './admissionMapping';
+import { guestRecordFromWire } from './guestRecordMapping';
 import type {
   AffectedReservation,
   PreconditionFailure,
@@ -281,6 +282,9 @@ export function staffFloorDetails(state: FloorState): readonly StaffTableDetail[
       // Unverified guests: a badge on the next booking, Admit / Reject on the tab.
       nextReservationPhoneUnverified: table.nextReservationPhoneUnverified === true,
       openTabAwaitingAdmission: table.openTabAwaitingAdmission === true,
+      // Guest record (wire §0a): the next booking's guest, and the party sitting now.
+      nextReservationGuestRecord: guestRecordFromWire(table.nextReservationGuestRecord),
+      sittingGuestRecord: guestRecordFromWire(table.sittingGuestRecord),
     }),
   );
 }

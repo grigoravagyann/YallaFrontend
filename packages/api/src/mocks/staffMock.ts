@@ -81,7 +81,7 @@ import type {
   StaffGateway,
 } from '../staffGateway';
 import { answerWindowClosed, approvalExpiryFor, localDateAndTime } from './approvalWindow';
-import { noShowUndoableUntil, type GuestRecord } from '../contracts/guestRecord';
+import { NO_SHOW_BLOCK, noShowUndoableUntil, type GuestRecord } from '../contracts/guestRecord';
 import type { Photo } from '../contracts/menuAdmin';
 import { mockMenuFor } from './menu';
 import { mockBranchMenu, mockPhoto } from './menuDetail';
@@ -289,6 +289,11 @@ interface MockReservation {
   readonly guestRecord?: GuestRecord | null;
   /** How it was released, once it was: an undo is for a no-show only. */
   readonly releasedAs?: ReleaseReservationCommand['outcome'];
+  /**
+   * How many no-shows the guest already has on bookings that started in the
+   * last 72 hours: marking this one the third blocks them for a week.
+   */
+  readonly recentNoShows?: number;
 }
 
 /**
@@ -512,6 +517,8 @@ export function createStaffMockGateway(options: StaffMockOptions = {}): StaffGat
         released: false,
         // Two no-shows in the last days: a third blocks booking for a week.
         guestRecord: seededRecord(4, 2, 0),
+        // Two no-shows this week already: marking this one blocks him.
+        recentNoShows: 2,
       };
       reservations.set(reservation.id, reservation);
       lateTable.nextReservationId = reservation.id;
@@ -522,6 +529,7 @@ export function createStaffMockGateway(options: StaffMockOptions = {}): StaffGat
           ...existing,
           startUtc: lateTable.nextReservationStartUtc,
           guestRecord: seededRecord(4, 2, 0),
+          recentNoShows: 2,
         });
       }
     }
@@ -1490,6 +1498,11 @@ export function createStaffMockGateway(options: StaffMockOptions = {}): StaffGat
               : undefined) === true,
           openTabAwaitingAdmission:
             state.tabId !== null && tabs.get(state.tabId)?.admission.status === 'awaiting',
+          // Wire §0a: the next booking's guest, while it is still to come.
+          nextReservationGuestRecord: state.nextReservationId
+            ? (reservations.get(state.nextReservationId)?.guestRecord ?? null)
+            : null,
+          sittingGuestRecord: null,
         });
         return {
           ...table,
@@ -1803,6 +1816,13 @@ export function createStaffMockGateway(options: StaffMockOptions = {}): StaffGat
         tableLabel: label(reservation.tableId),
         tableFreed: freed,
         wasReplay: false,
+        // The third no-show in three days blocks the guest for a week (wire §0a).
+        guestBlockedUntilUtc:
+          command.outcome === 'noShow' &&
+          reservation.guestRecord &&
+          (reservation.recentNoShows ?? 0) + 1 >= NO_SHOW_BLOCK.threshold
+            ? new Date(now().getTime() + NO_SHOW_BLOCK.blockDays * 24 * 3_600_000).toISOString()
+            : null,
       };
       releasedCommands.set(command.clientCommandId, result);
       return settle(result);

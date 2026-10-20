@@ -824,9 +824,11 @@ describe("the guest's record and a no-show undone, on today's bookings", () => {
     expect(line(rowOf(card, 'Narine T.'))!.textContent).toBe(
       "Guest's record, last 12 months, all venues: 3 bookings · 2 came · 0 no-shows · 1 late cancellation",
     );
-    expect(line(rowOf(card, 'Hovhannes K.'))!.textContent).toMatch(/: New guest$/u);
+    expect(line(rowOf(card, 'Սոնա Վ.'))!.textContent).toMatch(/: New guest$/u);
     // Booked by phone at the venue: no proved account, nothing said either way.
     expect(line(rowOf(card, 'Gor A.'))).toBeNull();
+    // Seated: the record comes on pending and confirmed bookings only.
+    expect(line(rowOf(card, 'Hovhannes K.'))).toBeNull();
 
     // Late, and blocked since: said first, with when it ends.
     const blocked = line(rowOf(card, 'Արմեն Դ.'))!;

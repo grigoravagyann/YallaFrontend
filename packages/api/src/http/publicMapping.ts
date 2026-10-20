@@ -30,6 +30,7 @@ import { instantOrNull, type WirePublicBookingTimes } from './bookingTimesWire';
 import { absolutePhotoUrl } from './photoUrl';
 import { specialDaysFromWire } from './venueSettingsMapping';
 import { venueTypeFromCode } from './venueTypeMapping';
+import { cancellationCause } from './guestRecordMapping';
 
 type Schemas = components['schemas'];
 export type WirePublicBranch = Schemas['Yalla.Application.Public.PublicBranchPage'];
@@ -487,6 +488,8 @@ export function managedBookingFromWire(
     declinedBecause: declineReason(wire.declinedBecause),
     // 7 CancelledByVenue — unless it is a decline, which says so itself.
     cancelledByVenue: wire.status === 7 && declineReason(wire.declinedBecause) === null,
+    // Why, when the platform did it (wire §0a).
+    cancelledBecause: cancellationCause(wire.cancelledBecause),
     // Booking times: why it waits (the guest before, or the venue), while it
     // waits, and the promise to free the table.
     awaitingApprovalBecause:

@@ -202,6 +202,7 @@ function ApprovalRow({
     tooLate: t('approvals.tooLate'),
     answeredElsewhere: t('approvals.answeredElsewhere'),
     awaitingEarlierGuest: t('approvals.awaitingEarlierGuest'),
+    cancelledByBlock: t('approvals.refusedCancelledByBlock'),
   };
 
   function decide(run: typeof approve, command: { reason?: string }, said: string) {

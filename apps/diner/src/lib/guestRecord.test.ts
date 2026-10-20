@@ -1,6 +1,11 @@
-import { NEW_GUEST_RECORD, type GuestRecord } from '@yalla/api';
+import {
+  BookingBlockedNoShowsError,
+  NEW_GUEST_RECORD,
+  bookingFailure,
+  type GuestRecord,
+} from '@yalla/api';
 import { describe, expect, it } from 'vitest';
-import { blockedLine, blockedUntil, recordCopy } from './guestRecord';
+import { blockedLine, blockedUntil, pauseRefusalLine, recordCopy } from './guestRecord';
 
 /**
  * The guest's own record on the phone (guest record, 2026-10-20): how they
@@ -71,5 +76,26 @@ describe('the no-show pause', () => {
     expect(line.key).toBe('confirm.error.blockedNoShows');
     expect(line.params['time']).toBe('13:30');
     expect(String(line.params['date'])).toMatch(/27/u);
+  });
+
+  // Review round 2 (N4): the server's 403, said on the phone's clock like
+  // the note and the banner — not the venue's, as the shared copy has it.
+  it('words the server’s refusal on the phone’s clock, and leaves any other failure be', () => {
+    const refused = bookingFailure(
+      new BookingBlockedNoShowsError({ url: '/x', blockedUntilUtc: '2026-10-27T09:30:00Z' }),
+      'Asia/Yerevan',
+      'en',
+    );
+    expect(pauseRefusalLine(refused, 'en', 'UTC')?.params['time']).toBe('09:30');
+    expect(pauseRefusalLine(refused, 'en', 'Asia/Yerevan')?.params['time']).toBe('13:30');
+    expect(
+      pauseRefusalLine(bookingFailure(new Error('x'), 'Asia/Yerevan', 'en'), 'en', 'UTC'),
+    ).toBeNull();
+    const plain = bookingFailure(
+      new BookingBlockedNoShowsError({ url: '/x', blockedUntilUtc: null }),
+      'Asia/Yerevan',
+      'en',
+    );
+    expect(pauseRefusalLine(plain, 'en', 'UTC')).toBeNull();
   });
 });

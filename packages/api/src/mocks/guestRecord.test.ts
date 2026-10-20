@@ -354,6 +354,45 @@ describe('undoing a no-show in the staff and console mocks (review round)', () =
   });
 });
 
+describe("the overview's records in the console mock (review round 2)", () => {
+  it('come only on pending or confirmed rows, as the wire sends them', async () => {
+    const evening = new Date('2026-10-18T14:42:00Z');
+    const consoleGateway = createConsoleMockGateway({ latencyMs: 0, now: () => evening });
+    const overview = await consoleGateway.getBranchOverview('b-lumen-north');
+    const withRecord = overview.todayBookings.filter((row) => row.guestRecord);
+
+    expect(withRecord.length).toBeGreaterThan(0);
+    for (const row of withRecord) expect(['pendingApproval', 'confirmed']).toContain(row.status);
+    // The late guest blocked since keeps hers: that booking is still confirmed.
+    expect(
+      withRecord.some(
+        (row) => row.status === 'confirmed' && row.guestRecord?.blockedUntilUtc != null,
+      ),
+    ).toBe(true);
+  });
+
+  it('drops it once the guest is seated', async () => {
+    const evening = new Date('2026-10-18T14:42:00Z');
+    const consoleGateway = createConsoleMockGateway({ latencyMs: 0, now: () => evening });
+    const before = await consoleGateway.getBranchOverview('b-lumen-north');
+    const late = before.todayBookings.find(
+      (row) => row.status === 'confirmed' && row.guestRecord?.blockedUntilUtc != null,
+    )!;
+    await consoleGateway.actOnBooking({
+      branchId: 'b-lumen-north',
+      reservationId: late.id,
+      tableId: late.tableId,
+      kind: 'seat',
+      clientCommandId: newCommandId(),
+    });
+
+    const after = await consoleGateway.getBranchOverview('b-lumen-north');
+    const seated = after.todayBookings.find((row) => row.id === late.id)!;
+    expect(seated.status).toBe('seated');
+    expect(seated.guestRecord ?? null).toBeNull();
+  });
+});
+
 describe('the platform lifts a block in the console mock (review round)', () => {
   it('lists the blocks in force and lifts one with a reason, which it needs', async () => {
     const platform = createConsoleMockGateway({ latencyMs: 0, role: 'platformAdmin' });
@@ -374,5 +413,24 @@ describe('the platform lifts a block in the console mock (review round)', () => 
 
     const owner = createConsoleMockGateway({ latencyMs: 0, role: 'owner' });
     await expect(owner.listBookingBlocks()).rejects.toBeInstanceOf(ForbiddenError);
+  });
+});
+
+describe('the staff mock on the wire §0a gaps', () => {
+  it("draws the late booking's record on its table, and blocks its guest with the third no-show", async () => {
+    const staff = createStaffMockGateway({
+      latencyMs: 0,
+      now: () => new Date('2026-10-20T15:00:00.000Z'),
+    });
+    const floor = await staff.getFloor('b1');
+    const six = floor!.details.find((detail) => detail.tableId === 't6')!;
+    expect(six.nextReservationGuestRecord).toMatchObject({ noShows: 2 });
+
+    const released = await staff.releaseReservation({
+      reservationId: six.nextReservationId!,
+      outcome: 'noShow',
+      clientCommandId: newCommandId(),
+    });
+    expect(released.guestBlockedUntilUtc).toBe('2026-10-27T15:00:00.000Z');
   });
 });

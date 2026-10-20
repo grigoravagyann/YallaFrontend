@@ -2972,7 +2972,7 @@ export interface paths {
          *
          *     **Only from the booking's start.** Before `startUtc` nobody can have failed to come, so the answer is `409 reservation-not-started` (`context.reservationId`, `context.startUtc`) and nothing changes - the hold stays, the booking stays confirmed. From the start itself there is no further wait: the branch's grace period times the late nudge, and whether a party past their time is late or absent is the waiter's call. To let a booking go earlier, use `release` with `outcome: 2`.
          *
-         *     **The guest is told** every time (push `reservation.no-show`, feed `booking-no-show`), and who marked it is recorded. It counts toward a **no-show block** (three in three days, see `docs/reservations.md`) only when marked after the start plus the branch's grace (or the extended hold), and at most one per venue per service day counts. Marked by mistake? `POST /api/reservations/{id}/undo-no-show` until 05:00 the next morning.
+         *     **The guest is told** every time (push `reservation.no-show`, feed `booking-no-show`), and who marked it is recorded. It counts toward a **no-show block** (three in three days, see `docs/reservations.md`) only when marked after the start plus the branch's grace (or the extended hold), and at most one per venue per service day counts. Marked by mistake? `POST /api/reservations/{id}/undo-no-show` until 05:00 the next morning. When this no-show blocked the guest, the answer's `guestBlockedUntilUtc` says until when.
          */
         post: operations["markReservationNoShow"];
         delete?: never;
@@ -3045,7 +3045,7 @@ export interface paths {
         put?: never;
         /**
          * Withdraw a no-show marked by mistake
-         * @description For the tablet and the console, waiter or above at the booking's branch, **until 05:00 the morning after the booking's date**, branch time. The booking is `Confirmed` again (seat it, or mark it again), and the withdrawal is recorded with who did it and `reason`. If the guest was blocked for no-shows and fewer than three are left to hold the block, it is **lifted** - nothing it cancelled comes back - and the guest is told (`bookings-unblocked`).
+         * @description For the tablet and the console, waiter or above at the booking's branch, **until 05:00 the morning after the booking's service day**, branch time - a booking starting before 05:00 belongs to the evening before, so a 01:00 booking's window closes at 05:00 that same morning. The booking is `Confirmed` again (seat it, or mark it again), and the withdrawal is recorded with who did it and `reason`. If the guest was blocked for no-shows and fewer than three are left to hold the block, it is **lifted** - nothing it cancelled comes back - and the guest is told (`bookings-unblocked`).
          *
          *     Already withdrawn: `200` with the booking as it stands. **Online only** - not for the offline queue.
          */
@@ -7228,6 +7228,11 @@ export interface components {
             isBookable: boolean;
             label: string;
             /**
+             * @description The next booking's guest record - as on the console's list, and under the same rule: a proved account behind
+             *     it and the booking today or still to come. Absent otherwise. See Yalla.Application.Reservations.GuestRecord.
+             */
+            nextReservationGuestRecord?: components["schemas"]["Yalla.Application.Reservations.GuestRecord"] | null;
+            /**
              * Format: uuid
              * @description The next relevant booking, so the staff app can seat it straight from the floor.
              */
@@ -7282,6 +7287,11 @@ export interface components {
             seatedAtUtc?: string | null;
             /** Format: int32 */
             seats: number;
+            /**
+             * @description The guest record of the party sitting here now, when they were seated against a booking a proved account
+             *     made. Absent for a walk-in, a scan, or nobody.
+             */
+            sittingGuestRecord?: components["schemas"]["Yalla.Application.Reservations.GuestRecord"] | null;
             /**
              * Format: date-time
              * @description The time the party sitting here now promised to free the table by, when they were seated against
@@ -9016,6 +9026,8 @@ export interface components {
             cancellationDeadlineUtc: string;
             /** @description Whether this booking's cancellation, if it has one, arrived past the deadline. */
             cancelledAfterDeadline: boolean;
+            /** @description Set when the platform cancelled it - 1, its guest was blocked for three no-shows in three days. */
+            cancelledBecause?: components["schemas"]["Yalla.Domain.Occupancy.CancellationCause"] | null;
             /**
              * @description Whether `POST .../reschedule` would be considered at all: the booking is still to come, pending or
              *     confirmed, and its account is live with a proved number. False otherwise - hide "Change".
@@ -10389,6 +10401,12 @@ export interface components {
              *     rather than the waiter having to remember which button does what.
              */
             countsTowardNoShowThreshold: boolean;
+            /**
+             * Format: date-time
+             * @description Set when this no-show blocked the guest from booking (three in three days): until when - so the floor can tell
+             *     the waiter at once. Absent otherwise, and repeated on a replay of that no-show.
+             */
+            guestBlockedUntilUtc?: string | null;
             /** @description Which outcome was recorded. */
             outcome: components["schemas"]["Yalla.Application.Reservations.ReleaseOutcome"];
             /** @description The booking in its new state. */
@@ -11751,10 +11769,10 @@ export interface components {
          * @description What a branch change-stream entry signals beyond the table's status, when it is about the tab on the
          *     table rather than the table itself. Persisted as its number on `TableStateChanges.Signal`.
          *
-         *     Values: 1 TabAwaitingAdmission, 2 TabAdmitted, 3 TabAdmissionRejected, 4 BookingCancelledByBlock.
+         *     Values: 1 TabAwaitingAdmission, 2 TabAdmitted, 3 TabAdmissionRejected, 4 BookingCancelledByBlock, 5 BookingChanged.
          * @enum {integer}
          */
-        "Yalla.Domain.Enums.TableChangeSignal": 1 | 2 | 3 | 4;
+        "Yalla.Domain.Enums.TableChangeSignal": 1 | 2 | 3 | 4 | 5;
         /**
          * Format: int32
          * @description How a party came to occupy a table.
@@ -23478,7 +23496,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
                 };
             };
-            /** @description `reservation-approval-expired`: too late to answer - the short-notice answer window (`approvalExpiresAtUtc`) has closed, or the booking was already declined because nobody answered in time (`declinedBecause` 2); approving also once the booking has started. `context` carries `reservationId`, `status`, `startUtc` and `approvalExpiresAtUtc`. Drop the request from the panel: the diner is told the venue did not answer in time. `conflicting-state`: the booking is not waiting for approval. `reservation-awaiting-earlier-guest`: the booking waits on the guest before it on the table to answer in the app - theirs to answer, not the floor's (`context`: `reservationId`, `requestId`, `expiresAtUtc`). `table-request-not-pending`: approving a booking whose guest before has moved since they were asked. */
+            /** @description `reservation-approval-expired`: too late to answer - the short-notice answer window (`approvalExpiresAtUtc`) has closed, or the booking was already declined because nobody answered in time (`declinedBecause` 2); approving also once the booking has started. `context` carries `reservationId`, `status`, `startUtc` and `approvalExpiresAtUtc`. Drop the request from the panel: the diner is told the venue did not answer in time. `conflicting-state`: the booking is not waiting for approval. `reservation-cancelled-by-block` (`context.reservationId`, `cancelledAtUtc`): a no-show block cancelled it - its guest missed three bookings in three days. `reservation-awaiting-earlier-guest`: the booking waits on the guest before it on the table to answer in the app - theirs to answer, not the floor's (`context`: `reservationId`, `requestId`, `expiresAtUtc`). `table-request-not-pending`: approving a booking whose guest before has moved since they were asked. */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -23834,7 +23852,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
                 };
             };
-            /** @description `reservation-approval-expired`: too late to answer - the short-notice answer window (`approvalExpiresAtUtc`) has closed, or the booking was already declined because nobody answered in time (`declinedBecause` 2); approving also once the booking has started. `context` carries `reservationId`, `status`, `startUtc` and `approvalExpiresAtUtc`. Drop the request from the panel: the diner is told the venue did not answer in time. `conflicting-state`: the booking is not waiting for approval. `reservation-awaiting-earlier-guest`: the booking waits on the guest before it on the table to answer in the app - theirs to answer, not the floor's (`context`: `reservationId`, `requestId`, `expiresAtUtc`). `table-request-not-pending`: approving a booking whose guest before has moved since they were asked. */
+            /** @description `reservation-approval-expired`: too late to answer - the short-notice answer window (`approvalExpiresAtUtc`) has closed, or the booking was already declined because nobody answered in time (`declinedBecause` 2); approving also once the booking has started. `context` carries `reservationId`, `status`, `startUtc` and `approvalExpiresAtUtc`. Drop the request from the panel: the diner is told the venue did not answer in time. `conflicting-state`: the booking is not waiting for approval. `reservation-cancelled-by-block` (`context.reservationId`, `cancelledAtUtc`): a no-show block cancelled it - its guest missed three bookings in three days. `reservation-awaiting-earlier-guest`: the booking waits on the guest before it on the table to answer in the app - theirs to answer, not the floor's (`context`: `reservationId`, `requestId`, `expiresAtUtc`). `table-request-not-pending`: approving a booking whose guest before has moved since they were asked. */
             409: {
                 headers: {
                     [name: string]: unknown;

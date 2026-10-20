@@ -233,7 +233,10 @@
       "failed": "The no-show was not undone. Try again.",
       "needsOnline": "Undoing needs a connection."
     },
-    "bookingCancelledByBlock": "Table {{label}}: a booking was cancelled — its guest is blocked for no-shows."
+    "bookingCancelledByBlock": "Table {{label}}: the {{time}} booking was cancelled — its guest is blocked for no-shows.",
+    "bookingsCancelledByBlock_one": "{{count}} booking due soon was cancelled — its guest is blocked for no-shows (table {{labels}}).",
+    "bookingsCancelledByBlock_other": "{{count}} bookings due soon were cancelled — their guests are blocked for no-shows (tables {{labels}}).",
+    "guestBlocked": "Third no-show in three days: the guest can't book until {{date}}, {{time}}."
   },
   "unresolved": {
     "title": "Needs resolving",
@@ -331,7 +334,8 @@
     "arrivedOn_other": "New booking request: table {{label}} on {{date}} at {{time}}, {{count}} guests.",
     "askBefore": "Ask {{name}} whether the table will be free by {{time}}",
     "leavesBy": "leaves by {{time}}",
-    "awaitingEarlierGuest": "The guest before is answering this in the app. It is decided when they do, or declined if they do not."
+    "awaitingEarlierGuest": "The guest before is answering this in the app. It is decided when they do, or declined if they do not.",
+    "cancelledByBlock": "Cancelled automatically: the guest missed three bookings in three days."
   },
   "conflicts": {
     "title": "Needs a decision",
@@ -881,5 +885,9 @@
     "unmarked": "{{count}} not marked",
     "newGuest": "New guest",
     "blockedUntil": "Blocked until {{date}}, {{time}}"
+  },
+  "noShows": {
+    "title": "No-shows marked here",
+    "row": "Table {{label}} · can be undone until {{time}}"
   }
 }

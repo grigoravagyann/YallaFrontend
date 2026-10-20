@@ -59,6 +59,35 @@ describe('a stream with nothing read yet', () => {
   });
 });
 
+describe('a stream whose caller read a branch with no changes yet (review N5)', () => {
+  it('reads changes after 0 once the caller says 0 is where it is', async () => {
+    const h = handlers();
+    const fetchPage = vi.fn(async () => ({ lastSequence: 0, items: [] }));
+    const timers = fakeTimers();
+
+    const stream = createSequenceStream({
+      fetchPage,
+      handlers: h,
+      setInterval: timers.setInterval,
+      clearInterval: timers.clearInterval,
+    });
+    stream.start();
+    await flush();
+    expect(h.onResync).toHaveBeenCalledTimes(1);
+
+    // The floor was read, and its stream is empty: 0 is a sequence, not "unknown".
+    stream.setSequence(0);
+    timers.tick();
+    await flush();
+    timers.tick();
+    await flush();
+
+    expect(fetchPage).toHaveBeenCalledWith(0);
+    expect(fetchPage).toHaveBeenCalledTimes(2);
+    expect(h.onResync).toHaveBeenCalledTimes(1);
+  });
+});
+
 describe('a stream that has read up to a sequence', () => {
   it('delivers pages and advances', async () => {
     const h = handlers();

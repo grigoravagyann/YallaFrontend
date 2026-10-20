@@ -297,6 +297,11 @@ export interface ConsoleBookingActionResult {
   readonly tableFreed: boolean;
   /** Finishing a sitting with money still owed on its tab: how much. */
   readonly outstandingDram: number | null;
+  /**
+   * A no-show that blocked its guest — the third in three days: until when
+   * (wire §0a). Absent for every other action.
+   */
+  readonly guestBlockedUntilUtc?: string | null | undefined;
 }
 
 /** The status a table action leaves the booking in. A release answers its own. */

@@ -381,6 +381,24 @@ describe('no-shows and the pause on booking, in the feed', () => {
     expect(copy.params).toMatchObject({ count: 1, day: '27.10', time: '13:30' });
   });
 
+  // Review round 2 (N4): one clock for day and time. 21:30 UTC on the 27th
+  // is already the 28th at the venue; a phone on UTC reads the 27th, 21:30 —
+  // never the venue's day beside the phone's time.
+  it('says day and time on the phone’s clock, even where the venue’s day differs', () => {
+    const copy = notificationCopy(
+      row({
+        kind: 'bookings-blocked-no-shows',
+        params: {
+          blockedUntilUtc: '2026-10-27T21:30:00Z',
+          blockedUntilLocalDate: '2026-10-28',
+          cancelledCount: '1',
+        },
+      }),
+      'UTC',
+    );
+    expect(copy.params).toMatchObject({ day: '27.10', time: '21:30' });
+  });
+
   it('says a no-show was marked, where and when, and to contact the venue', () => {
     const copy = notificationCopy(
       row({

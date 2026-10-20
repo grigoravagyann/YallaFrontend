@@ -294,6 +294,11 @@ export interface ReservationReleaseResult {
    */
   readonly tableFreed: boolean;
   readonly wasReplay: boolean;
+  /**
+   * Set only when this no-show blocked its guest — the third in three days —
+   * until when (and again on a replay of that same no-show). Tell the waiter.
+   */
+  readonly guestBlockedUntilUtc?: string | null | undefined;
 }
 
 /**

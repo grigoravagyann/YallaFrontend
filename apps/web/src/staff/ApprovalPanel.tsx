@@ -194,6 +194,7 @@ function ApprovalCard({
             tooLate: t('approvals.tooLate'),
             answeredElsewhere: t('approvals.answeredElsewhere'),
             awaitingEarlierGuest: t('approvals.awaitingEarlierGuest'),
+            cancelledByBlock: t('approvals.cancelledByBlock'),
           });
           setFailure(text);
           onRefused({ request, text });

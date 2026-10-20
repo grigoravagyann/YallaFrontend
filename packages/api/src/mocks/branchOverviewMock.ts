@@ -52,7 +52,8 @@ const TODAY: readonly {
   /**
    * The guest's record (2026-10-20): came, no-shows, late cancels; `blockedDays`
    * — blocked for no-shows for that many days more. Absent: a booking staff
-   * made, with no proved account behind it.
+   * made, with no proved account behind it — and every row that is not pending
+   * or confirmed, which the server never sends one on.
    */
   readonly record?: {
     readonly came: number;
@@ -61,30 +62,9 @@ const TODAY: readonly {
     readonly blockedDays?: number;
   };
 }[] = [
-  {
-    offset: -195,
-    guest: 'Tigran Avetisyan',
-    party: 2,
-    channel: 'web',
-    status: 'completed',
-    record: { came: 4 },
-  },
-  {
-    offset: -75,
-    guest: 'Մարիամ Ս.',
-    party: 2,
-    channel: 'app',
-    status: 'seated',
-    record: { came: 11, noShows: 1 },
-  },
-  {
-    offset: -45,
-    guest: 'Hovhannes K.',
-    party: 4,
-    channel: 'web',
-    status: 'seated',
-    record: { came: 0 },
-  },
+  { offset: -195, guest: 'Tigran Avetisyan', party: 2, channel: 'web', status: 'completed' },
+  { offset: -75, guest: 'Մարիամ Ս.', party: 2, channel: 'app', status: 'seated' },
+  { offset: -45, guest: 'Hovhannes K.', party: 4, channel: 'web', status: 'seated' },
   // Late, and blocked since: a booking that had started is not cancelled by a block.
   {
     offset: -12,
@@ -103,21 +83,14 @@ const TODAY: readonly {
     record: { came: 2, late: 1 },
   },
   { offset: 65, guest: 'Gor A.', party: 4, channel: 'staff', status: 'confirmed' },
-  {
-    offset: 95,
-    guest: 'Ruzanna M.',
-    party: 2,
-    channel: 'app',
-    status: 'cancelledByDiner',
-    record: { came: 0 },
-  },
+  { offset: 95, guest: 'Ruzanna M.', party: 2, channel: 'app', status: 'cancelledByDiner' },
   {
     offset: 110,
     guest: 'Սոնա Վ.',
     party: 4,
     channel: 'web',
     status: 'confirmed',
-    record: { came: 7 },
+    record: { came: 0 },
   },
   {
     offset: 140,
@@ -278,6 +251,8 @@ export function branchOverviewFrom(input: {
       const nudgeAt = confirmed ? row.lateNudgeAtUtc : null;
       return {
         ...row,
+        // The record comes on a pending or confirmed booking only (GR wire §0.2).
+        guestRecord: confirmed || row.status === 'pendingApproval' ? row.guestRecord : null,
         holdExpiresAtUtc: confirmed ? row.holdExpiresAtUtc : null,
         lateNudgeAtUtc: nudgeAt,
         lateNudgeSent: nudgeAt === null ? null : Date.parse(nudgeAt) <= now.getTime(),

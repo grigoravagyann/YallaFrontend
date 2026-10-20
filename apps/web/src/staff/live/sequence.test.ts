@@ -113,24 +113,51 @@ describe('an incremental change', () => {
   });
 });
 
-describe('a gap in the sequence', () => {
-  it('reports a gap rather than applying what did arrive', () => {
-    // 41 never came. Applying 42 would leave table 2 drawn from a state that
-    // has been superseded by a change nobody has seen.
+describe('sequences with holes (review S1, S2)', () => {
+  /*
+   * `TableStateChanges.Sequence` is one IDENTITY across every branch, with
+   * holes from rolled-back inserts: a branch's next row is rarely
+   * `lastSequence + 1`. The server answers every row of the branch after
+   * `afterSequence`, so a hole is somebody else's row, never a missing one.
+   */
+  it('applies a later row across a hole: the numbers are shared by every branch', () => {
     const result = applyFloorChanges(floor, [change(42, 't2', 'occupied')]);
 
-    expect(result.kind).toBe('gap');
-    if (result.kind !== 'gap') return;
-    expect(result.expected).toBe(41);
-    expect(result.received).toBe(42);
+    expect(result.kind).toBe('applied');
+    if (result.kind !== 'applied') return;
+    expect(result.floor.lastSequence).toBe(42);
   });
 
-  it('refuses a page that is contiguous internally but starts late', () => {
+  it('applies a page that is increasing with holes inside it', () => {
     const result = applyFloorChanges(floor, [
+      change(47, 't4', 'held'),
       change(43, 't2', 'occupied'),
-      change(44, 't4', 'held'),
     ]);
-    expect(result.kind).toBe('gap');
+    expect(result.kind).toBe('applied');
+    if (result.kind !== 'applied') return;
+    expect(result.floor.lastSequence).toBe(47);
+    expect([...result.changed].sort()).toEqual(['t2', 't4']);
+  });
+
+  it('drops rows the floor already has, and is unchanged when that is all of them', () => {
+    // The floor was read after these rows were written: they are in it.
+    expect(applyFloorChanges(floor, [change(39, 't2', 'occupied')]).kind).toBe('unchanged');
+    const result = applyFloorChanges(floor, [
+      change(40, 't2', 'occupied'),
+      change(45, 't4', 'held'),
+    ]);
+    expect(result.kind).toBe('applied');
+    if (result.kind !== 'applied') return;
+    expect(result.changed).toEqual(['t4']);
+    expect(result.floor.lastSequence).toBe(45);
+  });
+
+  it('reads one row once, whatever the page repeats', () => {
+    const result = applyFloorChanges(floor, [
+      change(41, 't2', 'occupied'),
+      change(41, 't2', 'occupied'),
+    ]);
+    expect(result.kind).toBe('applied');
   });
 
   it('reports a gap for a table the client has never seen', () => {
@@ -142,7 +169,7 @@ describe('a gap in the sequence', () => {
 
   it('leaves the original floor untouched when it reports a gap', () => {
     const before = JSON.stringify(floor);
-    applyFloorChanges(floor, [change(99, 't2', 'occupied')]);
+    applyFloorChanges(floor, [change(99, 't-new', 'occupied')]);
     expect(JSON.stringify(floor)).toBe(before);
   });
 });
@@ -166,6 +193,22 @@ describe('a booking cancelled by a guest block', () => {
         fromStatus: 'free',
         reservationId: 'r-blocked',
         signal: 'bookingCancelledByBlock',
+      },
+    ]);
+    expect(result.kind).toBe('gap');
+  });
+});
+
+describe('a booking event at a table (signal 5)', () => {
+  it('reads the floor again, never folding the status the row carries', () => {
+    // From = to = the status the save saw: a new booking on an occupied table
+    // is not a sitting starting.
+    const result = applyFloorChanges(floor, [
+      {
+        ...change(41, 't2', 'occupied'),
+        fromStatus: 'occupied',
+        reservationId: 'r-new',
+        signal: 'bookingChanged',
       },
     ]);
     expect(result.kind).toBe('gap');

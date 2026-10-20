@@ -33,8 +33,10 @@ import {
  */
 
 const URL_TAG = 'mock://test';
+// All a venue sees (review round 2): the counts, the ones nobody marked
+// included, and the pause on booking while it lasts.
 const RECORD_LINE =
-  'Venues you book with see how many of your bookings in the last 12 months you kept, missed or cancelled late — just the numbers, never where.';
+  'Venues you book with see how many of your bookings in the last 12 months, at all venues, you kept, missed or cancelled late, and how many were not marked. While booking is paused after three missed bookings in three days, they see that too. Just the numbers, never where.';
 
 beforeAll(async () => {
   await initTestI18n();
@@ -281,12 +283,18 @@ describe('what venues see of the visitor’s record', () => {
     expect(line.compareDocumentPosition(send) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
-  it('is said in Armenian and Russian too', async () => {
+  it('is said in Armenian and Russian too, the unmarked ones and the pause included', async () => {
+    const said = (lng: 'hy' | 'ru') => i18next.t('sheet.name.record', { ns: 'public', lng });
     for (const language of ['hy', 'ru'] as const) {
-      const said = i18next.t('sheet.name.record', { ns: 'public', lng: language });
-      expect(said).not.toBe('sheet.name.record');
-      expect(said).toContain('12');
+      expect(said(language)).not.toBe('sheet.name.record');
+      expect(said(language)).toContain('12');
     }
+    expect(said('hy')).toContain('բոլոր վայրերում');
+    expect(said('hy')).toContain('չեն նշվել');
+    expect(said('hy')).toContain('դադարեցված');
+    expect(said('ru')).toContain('по всем заведениям');
+    expect(said('ru')).toContain('не отмечено');
+    expect(said('ru')).toContain('приостановлено');
   });
 });
 

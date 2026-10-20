@@ -507,7 +507,11 @@ function ManagePage({
       ) : null}
       {view === 'cancelled' ? (
         <p className="pub-muted">
-          {booking.cancelledByVenue ? t('manage.cancelledByVenueBody') : t('manage.cancelledBody')}
+          {booking.cancelledBecause === 'noShowBlock'
+            ? t('manage.cancelledByBlockBody')
+            : booking.cancelledByVenue
+              ? t('manage.cancelledByVenueBody')
+              : t('manage.cancelledBody')}
         </p>
       ) : null}
       {view === 'declined' ? (

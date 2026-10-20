@@ -1250,6 +1250,39 @@ review every string in `src/locales/hy` and `src/locales/ru`.**
     platform's `home.blocks.*` (lifting must say the cancelled bookings are not
     restored). Changed: `policy.example.approvalAll`, `.unverifiedScanWaits`,
     `.unverifiedScanOrders`.
+  - Review round 2 (2026-10-21), also unreviewed:
+    - The privacy promise (public `sheet.name.record`, diner
+      `privacy.guestRecord` — identical wording; the diner one is also the
+      record card's line and About's "What venues see") must now say all a
+      venue sees: kept / missed / cancelled late **and not marked**, the last
+      12 months, all venues, and **while it lasts the pause on booking** after
+      three missed bookings in three days; numbers only, **never where**.
+    - New diner `help.faq.venuesSee.question` / `.answer` (the same facts, plus
+      the week's pause cancelling bookings not yet started, and "contact the
+      venue" for a mistaken no-show).
+    - admin `policy.inactive.autoConfirmOn` must not claim every booking is
+      confirmed at once: the setting only skips "approve every booking", which
+      is off; large parties, short notice, a no-show history and the previous
+      guest's answer wait either way.
+    - hy: the venue is «վայր», never «հաստատություն» (which also reads as
+      "confirmation" beside «հաստատել»): staff/admin `guestRecord.label` («…բոլոր
+      վայրերում»), admin `policy.field.autoConfirmGuestsWithGoodRecord.why`,
+      `home.blocks.cap`. Older strings still using it, outside this feature:
+      diner `tab.admission.rejectedTitle`, `bill.adjustment.comp` and public
+      `booking.bigPartyAsk_*`.
+    - ru `bookings.record.came_*` reads «Вы пришли на {{came}} из {{count}}
+      брони/броней».
+    - staff (floor tablet): `notice.bookingCancelledByBlock` now names the
+      booking's time; new `notice.bookingsCancelledByBlock_*` (several at once,
+      tables listed), `notice.guestBlocked` (the no-show just marked was the
+      guest's third in three days: blocked until when), `noShows.title` /
+      `noShows.row` (the rail's no-shows still undoable, and until when).
+    - Staff wire gaps (wire §0a): staff `approvals.cancelledByBlock` and admin
+      `approvals.refusedCancelledByBlock` (a request its guest's block already
+      cancelled — never "somebody else answered"), admin
+      `overview.bookings.done.guestBlocked` (appended to the no-show toast), and
+      public `manage.cancelledByBlockBody` (the guest's own link: cancelled
+      automatically, and when they can book again).
 
 The Russian bundle carries four plural categories (`one`/`few`/`many`/`other`)
 where Armenian and English carry two. That is correct CLDR, not duplication, and

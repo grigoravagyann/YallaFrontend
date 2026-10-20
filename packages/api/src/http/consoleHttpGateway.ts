@@ -85,8 +85,10 @@ import { STATUS_AFTER } from '../contracts/branchOverview';
 import { reservationStatus } from './dinerMapping';
 import {
   bookingBlockFromWire,
+  cancelledByBlockRefusal,
   undoNoShowRefusal,
   type WireBookingBlock,
+  withRefusal,
 } from './guestRecordMapping';
 import { tableActionResult } from './staffMapping';
 import {
@@ -1227,17 +1229,22 @@ export function createConsoleHttpGateway(
       // sees a JSON document, which is what its nullable parameter is bound
       // from. The 403 and the 409 pass through as the client's own errors,
       // carrying the server's sentence as `message`.
-      const { data } = await client.post<WireReservation>(
-        `${RESERVATIONS}/${reservationId}/approve`,
-        {} satisfies WireDecision,
+      const { data } = await withRefusal(
+        client.post<WireReservation>(
+          `${RESERVATIONS}/${reservationId}/approve`,
+          {} satisfies WireDecision,
+        ),
+        cancelledByBlockRefusal,
       );
       return consoleBookingFromWire(data);
     },
 
     async rejectReservation({ reservationId, reason }) {
-      const { data } = await client.post<WireReservation>(
-        `${RESERVATIONS}/${reservationId}/reject`,
-        { reason: reason ?? null } satisfies WireDecision,
+      const { data } = await withRefusal(
+        client.post<WireReservation>(`${RESERVATIONS}/${reservationId}/reject`, {
+          reason: reason ?? null,
+        } satisfies WireDecision),
+        cancelledByBlockRefusal,
       );
       return consoleBookingFromWire(data);
     },
@@ -1279,6 +1286,8 @@ export function createConsoleHttpGateway(
         tableLabel: data.tableLabel,
         tableFreed: data.tableFreed,
         outstandingDram: null,
+        // Wire §0a: only when this no-show blocked its guest.
+        guestBlockedUntilUtc: data.guestBlockedUntilUtc ?? null,
       });
 
       switch (kind) {
@@ -1325,14 +1334,13 @@ export function createConsoleHttpGateway(
         case 'undoNoShow': {
           // A no-show marked by mistake, until 05:00 the next morning: the
           // booking back, confirmed.
-          const { data } = await client
-            .post<Schemas['Yalla.Application.Reservations.ReservationView']>(
+          const { data } = await withRefusal(
+            client.post<Schemas['Yalla.Application.Reservations.ReservationView']>(
               `${RESERVATIONS}/${reservationId}/undo-no-show`,
               { clientCommandId } satisfies Schemas['Yalla.Api.Endpoints.UndoNoShowRequest'],
-            )
-            .catch((error: unknown) => {
-              throw undoNoShowRefusal(error) ?? error;
-            });
+            ),
+            undoNoShowRefusal,
+          );
           return {
             kind,
             reservationId,

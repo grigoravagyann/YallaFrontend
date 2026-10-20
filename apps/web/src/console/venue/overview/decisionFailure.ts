@@ -1,4 +1,9 @@
-import { ApiError, describeFailure, isApprovalExpired } from '@yalla/api';
+import {
+  ApiError,
+  describeFailure,
+  isApprovalExpired,
+  isReservationCancelledByBlock,
+} from '@yalla/api';
 
 /** The server's code for a decision on a booking that is no longer pending. */
 const ANSWERED_ELSEWHERE_CODE = 'conflicting-state';
@@ -48,6 +53,11 @@ export interface DecisionFailureCopy {
    * will have left in time: it is decided when they do, or declined if not.
    */
   readonly awaitingEarlierGuest?: string | undefined;
+  /**
+   * Its guest's no-show block cancelled the booking meanwhile (wire §0a): not
+   * somebody else's answer, and nothing left to decide.
+   */
+  readonly cancelledByBlock?: string | undefined;
 }
 
 /**
@@ -63,6 +73,7 @@ export interface DecisionFailureCopy {
  * sentence, and the generic copy is the honest one.
  */
 export function decisionFailureText(error: unknown, copy: DecisionFailureCopy): string {
+  if (copy.cancelledByBlock && isReservationCancelledByBlock(error)) return copy.cancelledByBlock;
   if (copy.tooLate && isApprovalExpired(error)) return copy.tooLate;
   if (copy.awaitingEarlierGuest && isAwaitingEarlierGuest(error)) return copy.awaitingEarlierGuest;
   if (copy.answeredElsewhere && isAnsweredElsewhere(error)) return copy.answeredElsewhere;
