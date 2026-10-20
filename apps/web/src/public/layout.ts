@@ -33,3 +33,15 @@ export function isBookingColumnSticky(): boolean {
     window.matchMedia(STICKY_QUERY).matches
   );
 }
+
+/**
+ * The height the sticky booking column may take: the window less the top bar
+ * and the column's margin above and below (`public.css`: the bar, then
+ * `--space-xl` twice).
+ */
+export function stickyColumnRoom(): number {
+  const style = getComputedStyle(document.documentElement);
+  const bar = parseFloat(style.getPropertyValue('--console-size-public-bar')) || 60;
+  const gap = parseFloat(style.getPropertyValue('--space-xl')) || 24;
+  return window.innerHeight - bar - 2 * gap;
+}

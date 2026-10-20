@@ -1,7 +1,16 @@
 // @vitest-environment jsdom
 import { nextHalfHour, type PublicBranch } from '@yalla/api';
 import { useSlotFloor } from '@yalla/api/react';
-import { cleanup, fireEvent, render, renderHook, screen, waitFor } from '@testing-library/react';
+import {
+  cleanup,
+  fireEvent,
+  render,
+  renderHook,
+  screen,
+  waitFor,
+  within,
+} from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { useState, type ReactNode } from 'react';
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { BookingCard } from './BookingCard';
@@ -151,6 +160,14 @@ function LiveRoom({ branch, initial }: { branch: PublicBranch; initial: SlotSele
   // Same fallback `BranchRoute` uses: the page must never reach a render it
   // cannot complete, because there is no error boundary above it.
   const instant = slotInstant(selection, branch.timeZoneId) ?? nextHalfHour(new Date());
+  // The room's answer, as the page hands it to the card: a refused slot is
+  // said there, under the time.
+  const floor = useSlotFloor({
+    branchId: branch.id,
+    slotUtc: instant.toISOString(),
+    partySize: selection.partySize,
+    timeZoneId: branch.timeZoneId,
+  });
   return (
     <>
       <BookingCard
@@ -159,6 +176,7 @@ function LiveRoom({ branch, initial }: { branch: PublicBranch; initial: SlotSele
         onSelectionChange={setSelection}
         slotUtc={instant.toISOString()}
         headingId="book"
+        floor={floor.data ?? undefined}
       />
       <RoomSection
         branch={branch}
@@ -188,34 +206,34 @@ describe('a slot the branch refuses', () => {
     const harness = createHarness();
     const branch = await branchOf(harness);
 
-    // Yesterday. The server names this `pastLeadTime`; a room with every table
-    // greyed out would read as "fully booked", which is a different fact and
-    // sends the visitor away instead of to the date picker.
-    const yesterday = addDays(branchToday(branch.timeZoneId), -1);
+    // Past the booking window. The server names this `tooFarAhead`; a room
+    // with every table greyed out would read as "fully booked", which is a
+    // different fact and sends the visitor away instead of to the date picker.
+    // (Yesterday used to be the example; a day that has gone now moves to
+    // today by itself, review N1.)
     const selection = {
       ...defaultSelection(branch.timeZoneId, new Date()),
-      date: yesterday,
+      date: addDays(branchToday(branch.timeZoneId), branch.bookingWindowDays + 3),
       partySize: 2,
     };
 
     render(harness.wrap(<LiveRoom branch={branch} initial={selection} />));
 
-    await waitFor(() => expect(screen.getByText(/too soon to book this table/i)).toBeTruthy());
+    await waitFor(() => expect(screen.getByText(/too far ahead to book yet/i)).toBeTruthy());
   });
 
   it('clears the notice once a bookable slot is picked', async () => {
     const harness = createHarness();
     const branch = await branchOf(harness);
 
-    const yesterday = addDays(branchToday(branch.timeZoneId), -1);
     const selection = {
       ...defaultSelection(branch.timeZoneId, new Date()),
-      date: yesterday,
+      date: addDays(branchToday(branch.timeZoneId), branch.bookingWindowDays + 3),
       partySize: 2,
     };
 
     render(harness.wrap(<LiveRoom branch={branch} initial={selection} />));
-    await waitFor(() => expect(screen.getByText(/too soon to book this table/i)).toBeTruthy());
+    await waitFor(() => expect(screen.getByText(/too far ahead to book yet/i)).toBeTruthy());
 
     // Moving the date is the next step the notice exists to prompt, so the
     // control has to actually change the answer.
@@ -225,7 +243,7 @@ describe('a slot the branch refuses', () => {
     const tomorrow = addDays(branchToday(branch.timeZoneId), 1);
     fireEvent.change(screen.getByLabelText(/date/i), { target: { value: tomorrow } });
 
-    await waitFor(() => expect(screen.queryByText(/too soon to book this table/i)).toBeNull());
+    await waitFor(() => expect(screen.queryByText(/too far ahead to book yet/i)).toBeNull());
   });
 });
 
@@ -246,6 +264,8 @@ describe('clearing the date input', () => {
     const selection = defaultSelection(branch.timeZoneId, new Date());
 
     render(harness.wrap(<LiveRoom branch={branch} initial={selection} />));
+    // The date input is past the week of day chips, behind "Other day…".
+    await userEvent.setup().click(await screen.findByRole('button', { name: 'Other day…' }));
     await waitFor(() => expect(screen.getByLabelText(/date/i)).toBeTruthy());
 
     const dateInput = screen.getByLabelText(/date/i) as HTMLInputElement;
@@ -257,11 +277,14 @@ describe('clearing the date input', () => {
       expect(screen.getByLabelText(/date/i)).toBeTruthy();
       expect((screen.getByLabelText(/date/i) as HTMLInputElement).value).not.toBe('');
     });
-    expect(screen.getByLabelText(/guests/i)).toBeTruthy();
+    expect(screen.getByRole('group', { name: 'Guests' })).toBeTruthy();
   });
 
-  it('survives the same treatment on the time and party controls', async () => {
-    // The sibling controls, audited for the same class of failure.
+  it('leaves no free-form time or party control to empty', async () => {
+    // The sibling controls were audited for the same class of failure while
+    // they were a select each. Since phase 3 of the redesign they are chips
+    // and a stepper, which can only hand the page a time the day lists and a
+    // party size inside its bounds — there is no empty value to reach.
     const harness = createConsoleFreeHarness();
     const branch = await branchOf(harness);
 
@@ -270,15 +293,12 @@ describe('clearing the date input', () => {
         <LiveRoom branch={branch} initial={defaultSelection(branch.timeZoneId, new Date())} />,
       ),
     );
-    await waitFor(() => expect(screen.getByLabelText(/time/i)).toBeTruthy());
-
-    fireEvent.change(screen.getByLabelText(/time/i), { target: { value: '' } });
-    fireEvent.change(screen.getByLabelText(/guests/i), { target: { value: '' } });
-
-    await waitFor(() => {
-      expect((screen.getByLabelText(/time/i) as HTMLSelectElement).value).not.toBe('');
-      expect(screen.getByLabelText(/date/i)).toBeTruthy();
-    });
+    const card = await screen.findByRole('group', { name: 'Time' });
+    expect(within(card).queryByRole('combobox')).toBeNull();
+    expect(within(card).queryByRole('textbox')).toBeNull();
+    const party = screen.getByRole('group', { name: 'Guests' });
+    expect(within(party).queryByRole('combobox')).toBeNull();
+    expect(within(party).queryByRole('spinbutton')).toBeNull();
   });
 });
 

@@ -148,19 +148,19 @@ describe('the branch page layout', () => {
     const aside = await screen.findByRole('region', { name: 'Book a table' });
 
     expect(aside.id).toBe('book');
-    expect(within(aside).getByLabelText('Date')).toBeDefined();
-    expect(within(aside).getByLabelText('Time')).toBeDefined();
-    expect(within(aside).getByLabelText('Guests')).toBeDefined();
+    expect(within(aside).getByRole('group', { name: 'Day' })).toBeDefined();
+    expect(within(aside).getByRole('group', { name: 'Time' })).toBeDefined();
+    expect(within(aside).getByRole('group', { name: 'Guests' })).toBeDefined();
 
-    const room = screen.getByRole('region', { name: 'The room' });
-    expect(within(room).queryByLabelText('Time')).toBeNull();
+    const room = screen.getByRole('region', { name: 'Choose your table' });
+    expect(within(room).queryByRole('group', { name: 'Time' })).toBeNull();
   });
 
   it('puts the booking column after the header and before the room', async () => {
     open('/lumen-coffee/northern-avenue');
     const aside = await screen.findByRole('region', { name: 'Book a table' });
     const heading = screen.getByRole('heading', { level: 1, name: 'Lumen Coffee' });
-    const room = screen.getByRole('region', { name: 'The room' });
+    const room = screen.getByRole('region', { name: 'Choose your table' });
 
     expect(heading.compareDocumentPosition(aside) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(aside.compareDocumentPosition(room) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
@@ -174,7 +174,7 @@ describe('the branch page layout', () => {
     expect(
       within(aside).getByRole('link', { name: 'Call · +374 77 33 44 55' }).getAttribute('href'),
     ).toBe('tel:+37477334455');
-    expect(within(aside).queryByLabelText('Time')).toBeNull();
+    expect(within(aside).queryByRole('group', { name: 'Time' })).toBeNull();
   });
 
   it('opens the booking panel in the sticky column on a wide screen', async () => {
@@ -182,7 +182,7 @@ describe('the branch page layout', () => {
     open('/lumen-coffee/northern-avenue');
     const aside = await screen.findByRole('region', { name: 'Book a table' });
 
-    await userEvent.setup().click(await firstFreePin());
+    await bookFirstFreeTable(userEvent.setup());
 
     const panel = await screen.findByRole('dialog');
     expect(aside.contains(panel)).toBe(true);
@@ -198,6 +198,7 @@ describe('the branch page layout', () => {
 
     const pins = await freePins();
     await user.click(pins[0]!);
+    await user.click(await bookButton(aside, pins[0]!));
     const panel = await screen.findByRole('dialog');
     expect(aside.contains(panel)).toBe(true);
 
@@ -217,9 +218,9 @@ describe('the branch page layout', () => {
     stubViewport(false);
     open('/lumen-coffee/northern-avenue');
     const aside = await screen.findByRole('region', { name: 'Book a table' });
-    const room = screen.getByRole('region', { name: 'The room' });
+    const room = screen.getByRole('region', { name: 'Choose your table' });
 
-    await userEvent.setup().click(await firstFreePin());
+    await bookFirstFreeTable(userEvent.setup(), room);
 
     const panel = await screen.findByRole('dialog');
     expect(aside.contains(panel)).toBe(false);
@@ -236,4 +237,26 @@ async function freePins(): Promise<HTMLElement[]> {
 
 async function firstFreePin(): Promise<HTMLElement> {
   return (await freePins())[0]!;
+}
+
+/** The enabled "Book table N" for a chosen pin, in the booking card or the phone's bar. */
+async function bookButton(where: HTMLElement, pin: HTMLElement): Promise<HTMLElement> {
+  const button = await within(where).findByRole('button', {
+    name: `Book table ${pin.textContent}`,
+  });
+  await waitFor(() => expect((button as HTMLButtonElement).disabled).toBe(false));
+  return button;
+}
+
+/**
+ * A tap chooses the table; its Book button opens the panel — the card's on a
+ * desktop, the bar under the room on a phone.
+ */
+async function bookFirstFreeTable(
+  user: ReturnType<typeof userEvent.setup>,
+  where: HTMLElement = screen.getByRole('region', { name: 'Book a table' }),
+) {
+  const pin = await firstFreePin();
+  await user.click(pin);
+  await user.click(await bookButton(where, pin));
 }

@@ -1030,6 +1030,37 @@ review every string in `src/locales/hy` and `src/locales/ru`.**
   `findUs.newTab`, `findUs.website`. Removed with the folded week:
   `hours.show`, `hours.hide`. Replies reuse `diner` `place.review.reply.*`
   and amenities `diner` `place.amenity.*`.
+- `public` — the public page redesign, phase 3 (2026-10-20): the booking card
+  and the room. `hy` follows the Main artboard where it has the words; `ru`
+  and `en`, and every `hy` string the artboard does not show, are **not**
+  reviewed. From the artboard: `booking.day`, `.today`, `.tomorrow`,
+  `.otherDay`, `.otherDate_*` (must keep saying how many days ahead the
+  venue books), `.fewer`, `.more`, `.dayParts`, `.dayPart.*`, `.onRequest`,
+  `.noTimes.dayToday`, `booking.table.none`, `.prompt`, `.book`, `.forMe`,
+  `.chosen`, `.noneFits_*`, `room.choose`, `.now`, `.liveSub`, `room.view.*`,
+  `room.noneHere_*`. Written for this phase: `booking.weekday.*` and
+  `booking.month.*` (short weekdays and genitive month names — ours, not
+  `Intl`'s, which prints hy dates in English where the browser has no
+  Armenian data), `booking.date`, `.dayNamed`, `.bigParty_*` (followed by the
+  venue's number as a link), `.bigPartyAsk_*`, `.noTimes.day` / `.evening`,
+  `.seats_*`, `booking.table.table`, `.summary`, `.lost` (no suffix on the
+  table's label: «Սեղան {{label}} այս ընտրությամբ…»), `room.slot`,
+  `room.freeIn_*`, `room.list.*`. `booking.bigParty_*` replaces the
+  artboard's «10-ից ավելի…» with «Ավելի քան {{count}}…», which keeps the
+  number free of a suffix. Removed: `room.pick` (the card's prompt replaces
+  it) and `section.room` (the room's heading is now `room.choose` /
+  `room.now`).
+  - Review fixes (2026-10-20), **not** in an artboard and **not** reviewed:
+    `booking.change` (the artboard's «Փոխել»), `booking.timesUnchecked`
+    (must keep saying the times **could not be checked** — never that they
+    confirm), `booking.otherDayChosen`, `booking.table.tableOnly`,
+    `.summaryNoSeats`, `.checking`, `.roomFailed`, `room.failed`. `room.pin`
+    and `room.pinUnavailable` now carry `{{seats}}`, as the list rows do. hy
+    reworded: `booking.otherDate_*` «առաջիկա {{count}} օրվա ընթացքում» (was
+    «… օր առաջ», which reads as "ago"), `booking.fewer` / `.more` «Մեկ հյուր
+    պակաս» / «Մեկ հյուր ավելի», `booking.bigPartyAsk_*` «…կապվեք հաստատության
+    հետ։». A time that waits for a venue confirming itself (not short notice)
+    reuses `diner` `booking.approval.venueWillConfirm`.
 
 The Russian bundle carries four plural categories (`one`/`few`/`many`/`other`)
 where Armenian and English carry two. That is correct CLDR, not duplication, and

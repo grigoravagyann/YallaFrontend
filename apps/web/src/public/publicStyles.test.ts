@@ -30,6 +30,12 @@ const REDESIGNED = [
   'BranchDetails.tsx',
   'MenuSection.tsx',
   'icons.tsx',
+  'RoomSection.tsx',
+  'RoomPhotos.tsx',
+  'tablePick.ts',
+  'dayNames.ts',
+  'pinLayout.ts',
+  'useSettled.ts',
 ];
 
 /** Comments may quote a value; only code is checked. */

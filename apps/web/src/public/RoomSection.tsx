@@ -1,13 +1,18 @@
 import { unavailableCopy, type PublicBranch, type TableAvailability } from '@yalla/api';
 import { isOfflinePaused, PUBLIC_REFRESH_MS, useSlotFloor } from '@yalla/api/react';
 import { useTranslation } from '@yalla/i18n';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { TakenNotice } from './BookingCard';
+import { dayWords } from './dayNames';
 import RoomPhotos from './RoomPhotos';
-import type { SlotSelection } from './slots';
+import { branchToday, type SlotSelection } from './slots';
+import { useSettled } from './useSettled';
 
 /**
- * The rooms, and nothing else: the day, the time and the party are chosen on
- * the booking card (`BookingCard`), in the booking column beside or above this.
+ * "Choose your table": the rooms for the slot picked on the booking card
+ * (`BookingCard`), in the booking column beside or above this — room tabs with
+ * their free counts, the tables as pins on a photo or as a list, and on a
+ * phone the bar that books the table chosen here (the page's `footer`).
  *
  * The photos are behind an intersection observer: a visitor who reads the
  * free-table count and closes the tab — which is most of them — never
@@ -53,8 +58,15 @@ export interface RoomSectionProps {
   readonly slotUtc: string;
   readonly selectedTableId: string | null;
   readonly onTableTap: (availability: TableAvailability) => void;
-  /** Set after a 409, cleared when another table is picked. */
+  /**
+   * Set after a 409 in a panel that was open under this room, cleared when
+   * another table is picked: said here, where the panel was.
+   */
   readonly takenTableLabel: string | null;
+  /** Told which room is on screen, so "Choose for me" can look there first. */
+  readonly onRoomShown?: ((roomId: string) => void) | undefined;
+  /** What closes the section: on a phone, the bar that books the chosen table. */
+  readonly footer?: ReactNode;
 }
 
 export function RoomSection({
@@ -64,6 +76,8 @@ export function RoomSection({
   selectedTableId,
   onTableTap,
   takenTableLabel,
+  onRoomShown,
+  footer,
 }: RoomSectionProps) {
   const { t } = useTranslation('public');
   const holder = useRef<HTMLDivElement | null>(null);
@@ -85,7 +99,8 @@ export function RoomSection({
    */
   const slotFloorQuery = useSlotFloor({
     branchId: branch.id,
-    slotUtc,
+    // A run along the time chips asks about the time it stops on (review S5).
+    slotUtc: useSettled(slotUtc),
     partySize: selection.partySize,
     // The backend asks in wall-clock terms; the zone travels with the slot so
     // it is never inferred from whatever the visitor's phone is set to.
@@ -100,22 +115,19 @@ export function RoomSection({
   };
 
   /*
-   * A rule that refused the whole request before any table was considered: the
-   * slot has passed, it is beyond the branch's booking window, the venue is
-   * shut then. Named by the server and said out loud — a room drawn with every
-   * table greyed out reads as "fully booked", which is a different fact and
-   * sends the visitor away instead of to the date picker.
+   * A rule that refused the whole request before any table was considered —
+   * the slot has passed, it is beyond the window, the venue is shut — is said
+   * on the booking card, under the time that caused it. The room only knows
+   * not to add "no free table here" to it.
    */
-  /*
-   * Only when booking is on offer. `availability` still answers for a venue with
-   * web booking switched off — the room's free/taken colouring comes from it —
-   * but "too soon to book this table" on a page with no booking on it is an
-   * answer to a question nobody asked.
-   */
-  const rejection =
-    branch.acceptsWebBookings && slotFloorQuery.data?.rejection
-      ? unavailableCopy(slotFloorQuery.data.rejection, selection.partySize)
-      : null;
+  const refused = branch.acceptsWebBookings && Boolean(slotFloorQuery.data?.rejection);
+  /** The answer on screen is the last slot's or the last party's while the new one loads. */
+  const answer = slotFloorQuery.data;
+  const stale =
+    answer != null &&
+    (slotFloorQuery.isPlaceholderData ||
+      answer.partySize !== selection.partySize ||
+      Date.parse(answer.slotUtc) !== Date.parse(slotUtc));
 
   /*
    * Why each table the server will not give this party at this slot is
@@ -132,26 +144,23 @@ export function RoomSection({
     unavailable[entry.tableId] = t(copy.key, { ns: 'diner', ...copy.params });
   }
 
+  const day = dayWords(selection.date, branchToday(branch.timeZoneId), t);
+  // Its own call: a `diner` key read inside another key's options would be
+  // taken for that key's namespace by `pnpm i18n:check`.
+  const guests = t('booking.guests', { ns: 'diner', count: selection.partySize });
+
   return (
-    <section className="pub-section" aria-labelledby="room" ref={holder}>
-      <h2 id="room">{t('section.room')}</h2>
-
-      {/*
-        A lost table is information with a next step attached, not an error
-        banner. It sits above the room because the room is where the next step
-        is, and it survives until another table is picked.
-      */}
-      {branch.acceptsWebBookings && takenTableLabel ? (
-        <p className="pub-notice pub-notice-alert" role="status">
-          {t('confirm.error.tableTaken', { ns: 'diner', label: takenTableLabel })}
-        </p>
-      ) : null}
-
-      {rejection ? (
-        <p className="pub-notice pub-notice-alert" role="status">
-          {t(rejection.key, { ns: 'diner', ...rejection.params })}
-        </p>
-      ) : null}
+    <section className="pub-section pub-room" aria-labelledby="room" ref={holder}>
+      <h2 id="room">{t(branch.acceptsWebBookings ? 'room.choose' : 'room.now')}</h2>
+      <p className="pub-room-sub">
+        {branch.acceptsWebBookings
+          ? t('room.slot', {
+              date: day.short,
+              time: selection.time,
+              guests,
+            })
+          : t('room.liveSub')}
+      </p>
 
       {/* The room is what matters here; a stale answer is a line above it, not a
           screen of its own. The room is still worth seeing. */}
@@ -164,7 +173,18 @@ export function RoomSection({
       ) : null}
 
       {slotFloorQuery.isError && !slotFloorQuery.data ? (
-        <p className="pub-muted">{t('room.empty')}</p>
+        // Not "no tables marked yet": the room did not come, which is a
+        // different fact with a next step (review S5).
+        <div className="pub-room-failed">
+          <p className="pub-muted">{t('room.failed')}</p>
+          <button
+            type="button"
+            className="pub-button pub-button-small"
+            onClick={() => void slotFloorQuery.refetch()}
+          >
+            {t('page.retry')}
+          </button>
+        </div>
       ) : !approached || !slotFloorQuery.data ? (
         <div className="pub-plan is-placeholder" aria-hidden="true" />
       ) : (
@@ -175,8 +195,20 @@ export function RoomSection({
           onTableTap={handleTap}
           bookable={branch.acceptsWebBookings}
           unavailable={unavailable}
+          partySize={selection.partySize}
+          onRoomShown={onRoomShown}
+          refused={refused}
+          stale={stale}
         />
       )}
+
+      {/* A lost table is information with a next step attached — pick another,
+          in the room right above — said where the panel that lost it was. */}
+      {branch.acceptsWebBookings && takenTableLabel ? (
+        <TakenNotice label={takenTableLabel} />
+      ) : null}
+
+      {footer}
     </section>
   );
 }

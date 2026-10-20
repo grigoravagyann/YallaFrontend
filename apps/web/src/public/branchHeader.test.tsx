@@ -138,6 +138,26 @@ describe('the header', () => {
   });
 });
 
+describe("the header's Book a table", () => {
+  it('takes a phone down to the booking card, outside the contact group', async () => {
+    open('/lumen-coffee/northern-avenue');
+    const heading = await screen.findByRole('heading', { level: 1 });
+    const book = screen.getByRole('link', { name: 'Book a table' });
+    expect(book.getAttribute('href')).toBe('#book');
+    // Hidden from 960px by the stylesheet, where the card is beside it.
+    expect(book.classList.contains('pub-only-phone')).toBe(true);
+    expect(heading.compareDocumentPosition(book) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    const actions = screen.getByRole('group', { name: 'Contact and share' });
+    expect(actions.contains(book)).toBe(false);
+  });
+
+  it('is not offered where the venue takes no web bookings', async () => {
+    open('/tumanyan-shawarma/tumanyan-street');
+    await screen.findByRole('heading', { level: 1 });
+    expect(screen.queryByRole('link', { name: 'Book a table' })).toBeNull();
+  });
+});
+
 describe('share', () => {
   it('uses the Web Share API when there is one', async () => {
     const share = vi.fn(() => Promise.resolve());

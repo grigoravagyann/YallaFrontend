@@ -41,6 +41,12 @@ body:has(.pub)::before {
   display: none;
 }
 
+/* `hidden` wins over every box's own display: the booking bar and the Book
+   button are hidden, not unmounted, while the panel they open is open. */
+.pub [hidden] {
+  display: none !important;
+}
+
 .pub h1,
 .pub h2 {
   font-family: var(--font-family-display);
@@ -408,6 +414,11 @@ body:has(.pub)::before {
   margin-top: 6px;
 }
 
+/* The phone's way down to the booking card, above call, address and share. */
+.pub .pub-head-book {
+  margin-top: 6px;
+}
+
 .pub-share-manual {
   flex-basis: 100%;
   margin: 0;
@@ -595,6 +606,13 @@ body:has(.pub)::before {
   color: var(--console-amber);
 }
 
+/* A real failure — the table just taken: red (HANDOFF §3). */
+.pub-notice-error {
+  border-color: var(--console-red-line);
+  background: var(--console-red-bg);
+  color: var(--console-red);
+}
+
 .pub-error {
   margin: var(--space-md) 0 0;
   color: var(--console-red);
@@ -727,16 +745,313 @@ body:has(.pub)::before {
   margin-top: var(--space-md);
 }
 
-/* Date over the time and the party: the date clipped to "10/18/20" when three
-   shared a row at 375, and the booking column is no wider on a desktop. */
-.pub-slot {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+/* --------------------------------------------------------------------------
+ * The booking card: day chips, the party stepper, time chips, the table
+ * (Main artboard)
+ * -------------------------------------------------------------------------- */
+
+.pub-book {
+  gap: 18px;
+}
+
+.pub-label {
+  display: block;
+  margin: 0 0 var(--space-sm);
+  font-size: var(--console-text-public-label);
+  font-weight: var(--font-weight-bold);
+  color: var(--console-muted);
+}
+
+/* A week of days in one swipeable row, bleeding to the card's edge. */
+.pub-days {
+  display: flex;
+  gap: var(--space-sm);
+  margin: 0 -4px;
+  padding: 2px 4px 4px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.pub-day {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: calc(var(--console-size-public-control) + var(--space-lg));
+  height: calc(var(--console-size-public-control) + var(--space-lg));
+  border: 1.5px solid var(--console-button-edge);
+  border-radius: var(--console-radius-public-status);
+  background: var(--console-surface);
+  color: var(--console-ink);
+  font: inherit;
+  line-height: 1.2;
+  cursor: pointer;
+}
+
+.pub-day small {
+  font-size: var(--console-text-label);
+  font-weight: var(--font-weight-semibold);
+  color: var(--console-muted);
+}
+
+.pub-day b {
+  font-size: var(--console-text-booking-time);
+  font-variant-numeric: tabular-nums;
+}
+
+.pub-day[aria-pressed='true'],
+.pub-day-other.is-chosen {
+  border-color: var(--console-brand);
+  background: var(--console-brand);
+  color: var(--console-brand-foreground);
+}
+
+.pub-day[aria-pressed='true'] small {
+  color: var(--console-floor-bar-text);
+}
+
+.pub-day-other {
+  width: auto;
+  padding: 0 14px;
+  font-size: var(--console-text-public-label);
+  font-weight: var(--font-weight-bold);
+}
+
+.pub-date-other {
+  margin-top: var(--space-sm);
+}
+
+.pub-party {
+  display: flex;
+  align-items: center;
   gap: var(--space-md);
 }
 
-.pub-slot .pub-field:first-child {
-  grid-column: 1 / -1;
+.pub-step {
+  display: grid;
+  place-items: center;
+  width: var(--console-size-public-control);
+  height: var(--console-size-public-control);
+  border: 1.5px solid var(--console-button-edge);
+  border-radius: var(--radius-pill);
+  background: var(--console-surface);
+  color: var(--console-brand);
+  font: inherit;
+  font-size: 1.5em;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.pub-step[aria-disabled='true'] {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.pub-party output {
+  min-width: calc(2 * var(--console-size-public-control));
+  font-size: var(--console-text-booking-time);
+  font-weight: var(--font-weight-bold);
+  text-align: center;
+}
+
+.pub-hint {
+  margin: 6px 0 0;
+  font-size: var(--console-text-public-label);
+  color: var(--console-muted);
+}
+
+/* Two halves of one choice, the chosen one raised. */
+.pub-seg {
+  display: flex;
+  gap: 3px;
+  margin-bottom: 10px;
+  padding: 3px;
+  border-radius: var(--console-radius-public-control);
+  background: var(--console-line-soft);
+}
+
+.pub-seg button {
+  flex: 1;
+  min-height: var(--touch-minimum);
+  border: 0;
+  border-radius: var(--console-radius-control);
+  background: none;
+  color: var(--console-muted);
+  font: inherit;
+  font-size: var(--console-text-public-meta);
+  font-weight: var(--font-weight-semibold);
+  cursor: pointer;
+}
+
+.pub-seg button[aria-pressed='true'] {
+  background: var(--console-surface);
+  color: var(--console-ink);
+  box-shadow: var(--shadow-lift);
+}
+
+.pub-times {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--space-sm);
+}
+
+.pub-time {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: var(--console-size-public-control);
+  min-width: 0;
+  padding: 2px var(--space-xs);
+  border: 1.5px solid var(--console-button-edge);
+  border-radius: var(--console-radius-public-control);
+  background: var(--console-surface);
+  color: var(--console-ink);
+  font: inherit;
+  font-size: var(--console-text-public-body);
+  font-weight: var(--font-weight-bold);
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+}
+
+/* "On request": amber, a state and not a failure (HANDOFF §3). Never wider
+   than its chip: cut short with an ellipsis rather than over the border — the
+   chip's name says it in full. */
+.pub-time small {
+  max-width: 100%;
+  overflow: hidden;
+  font-size: var(--console-text-caption);
+  font-weight: var(--font-weight-bold);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  color: var(--console-amber);
+}
+
+/* Three times a row on a narrow phone (360px and under), where four left a
+   chip too narrow for «հարցումով» (review S6). */
+@media (max-width: 23.74rem) {
+  .pub-times {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+.pub-time[aria-pressed='true'] {
+  border-color: var(--console-brand);
+  background: var(--console-brand);
+  color: var(--console-brand-foreground);
+}
+
+.pub-time[aria-pressed='true'] small {
+  color: var(--console-floor-bar-text);
+}
+
+/* Full: drawn and struck, never chosen. */
+.pub-time.is-full {
+  border-color: var(--console-line-soft);
+  background: var(--console-line-soft);
+  color: var(--console-muted);
+  text-decoration: line-through;
+  cursor: not-allowed;
+}
+
+.pub-empty {
+  margin: 0;
+  padding: 14px;
+  border-radius: var(--console-radius-public-control);
+  background: var(--console-line-soft);
+  color: var(--console-muted);
+  font-size: var(--console-text-public-meta);
+}
+
+.pub-rooms .pub-empty {
+  margin-top: 10px;
+}
+
+/* The table: chosen in the room, named here, booked from here. */
+.pub-pick {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding-top: 14px;
+  border-top: 1px solid var(--console-line);
+}
+
+.pub-pick .pub-notice,
+.pub-pick .pub-button-primary,
+.pub-pick .pub-muted {
+  margin: 0;
+}
+
+.pub-pick-what {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-md);
+}
+
+.pub-pick-what b {
+  display: block;
+  font-size: var(--console-text-public-body);
+}
+
+.pub-pick-what span {
+  font-size: var(--console-text-public-label);
+  color: var(--console-muted);
+}
+
+.pub-pick-what .pub-pick-badge {
+  flex: none;
+  display: grid;
+  place-items: center;
+  min-width: var(--console-size-public-control);
+  height: var(--console-size-public-control);
+  padding: 0 6px;
+  border-radius: var(--console-radius-public-control);
+  background: var(--console-line-soft);
+  color: var(--console-muted);
+  font-family: var(--font-family-display);
+  font-size: var(--console-text-booking-time);
+  font-weight: var(--font-weight-bold);
+}
+
+.pub-pick-what .pub-pick-badge.is-on {
+  background: var(--console-brand);
+  color: var(--console-brand-foreground);
+}
+
+.pub-pick-me {
+  width: 100%;
+}
+
+/* Pressable, to say why it cannot act yet (review S9), and drawn as waiting. */
+.pub-pick-me[aria-disabled='true'] {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+/* The card folded to its summary while the panel is open under it (QA 1). */
+.pub-book-summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-sm) var(--space-md);
+}
+
+.pub-book-summary p {
+  margin: 0;
+  font-weight: var(--font-weight-bold);
+}
+
+.pub-pick-note {
+  margin: 0;
+  font-size: var(--console-text-public-label);
+  color: var(--console-ink);
+}
+
+.pub-pick-note:empty {
+  display: none;
 }
 
 .pub-field {
@@ -812,49 +1127,46 @@ body:has(.pub)::before {
  * The room
  * -------------------------------------------------------------------------- */
 
-/*
- * The room picker: one pill per room, the picked one filled. Only drawn when
- * the venue has more than one room with a photo.
- */
-/* The room's picker, legend, hint and photos, never wider than the column. */
+.pub-room-sub {
+  margin: calc(-1 * var(--space-sm)) 0 var(--space-md);
+  color: var(--console-muted);
+  font-size: var(--console-text-public-meta);
+}
+
+/* The room's tabs, view switch, photos or list, never wider than the column. */
 .pub-rooms {
   min-width: 0;
 }
 
-.pub-room-picker {
+.pub .pub-room-tabs {
+  margin-bottom: 10px;
+}
+
+.pub-room-view {
   display: flex;
-  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
   gap: var(--space-sm);
-  margin-bottom: var(--space-md);
+  margin-bottom: 10px;
 }
 
-.pub-room-picker button {
-  min-height: var(--touch-minimum);
-  padding: 0 14px;
-  border: 1.5px solid var(--console-button-edge);
-  border-radius: var(--console-radius-pill);
-  background: var(--console-surface);
-  color: var(--console-ink);
-  font: inherit;
-  font-size: var(--console-text-public-meta);
-  font-weight: var(--font-weight-semibold);
-  cursor: pointer;
+.pub-room-view .pub-label {
+  margin: 0;
 }
 
-.pub-room-picker button[aria-pressed='true'] {
-  border-color: var(--console-brand);
-  background: var(--console-brand);
-  color: var(--console-brand-foreground);
+.pub-room-view .pub-seg {
+  width: calc(4 * var(--console-size-public-control) + var(--space-sm));
+  margin: 0;
 }
 
 .pub-legend {
   display: flex;
   flex-wrap: wrap;
   gap: 6px 14px;
-  margin: 0 0 var(--space-sm);
+  margin: 10px 0 0;
   padding: 0;
   list-style: none;
-  font-size: 13px;
+  font-size: var(--console-text-label);
   color: var(--console-muted);
 }
 
@@ -864,8 +1176,82 @@ body:has(.pub)::before {
   gap: 6px;
 }
 
-.pub-room-hint {
-  margin-bottom: var(--space-sm);
+/* The tables as rows: the photo's accessible alternative. */
+.pub-table-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.pub-table-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+  width: 100%;
+  min-height: calc(var(--console-size-public-control) + var(--space-sm));
+  padding: 6px var(--space-md);
+  border: 1.5px solid var(--console-line);
+  border-radius: var(--console-radius-public-status);
+  background: var(--console-surface);
+  color: var(--console-ink);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.pub-table-row[aria-disabled='true'] {
+  cursor: default;
+}
+
+.pub-table-badge {
+  flex: none;
+  display: grid;
+  place-items: center;
+  min-width: calc(var(--touch-minimum) - var(--space-xs));
+  height: calc(var(--touch-minimum) - var(--space-xs));
+  padding: 0 4px;
+  border-radius: var(--console-radius-control);
+  background: var(--console-line-soft);
+  color: var(--console-grey);
+  font-weight: var(--font-weight-bold);
+}
+
+.pub-table-row.tone-free .pub-table-badge {
+  background: var(--console-green-bg);
+  color: var(--console-green);
+}
+
+.pub-table-row.tone-booked .pub-table-badge {
+  background: var(--console-amber-bg);
+  color: var(--console-amber);
+}
+
+.pub-table-text {
+  flex: 1;
+  min-width: 0;
+}
+
+.pub-table-text b {
+  display: block;
+  font-size: var(--console-text-public-meta);
+}
+
+.pub-table-text span {
+  font-size: var(--console-text-label);
+  color: var(--console-muted);
+}
+
+.pub-table-row[aria-pressed='true'] {
+  border-color: var(--console-brand);
+  box-shadow: 0 0 0 1px var(--console-brand);
+}
+
+.pub-table-row[aria-pressed='true'] .pub-table-badge {
+  background: var(--console-brand);
+  color: var(--console-brand-foreground);
 }
 
 /*
@@ -875,9 +1261,6 @@ body:has(.pub)::before {
 .pub-stage {
   position: relative;
   overflow: hidden;
-  /* Pins size themselves to the photo's width (cqi), so neighbours on a
-     crowded photo do not overlap on a phone. */
-  container-type: inline-size;
   border-radius: var(--console-radius-public-status);
   background: var(--console-public-photo-ground);
   touch-action: pan-y;
@@ -902,22 +1285,40 @@ body:has(.pub)::before {
   object-fit: contain;
 }
 
-/* Never colour alone: the label is on the pin and the state is in its name. */
+/*
+ * Never colour alone: the label is on the pin and the state is in its name.
+ * The button is a 44px target at every width; the 34px dot inside it carries
+ * the colour and the number.
+ */
 .pub-pin {
   position: absolute;
-  /* 44px on a wide photo, down to 28px on a 320px phone, where the seed
-     photo's tables stand 32px apart. */
-  min-width: clamp(1.75rem, 8.5cqi, 2.75rem);
-  height: clamp(1.75rem, 8.5cqi, 2.75rem);
-  padding: 0 clamp(0.125rem, 1cqi, var(--space-xs));
+  display: grid;
+  place-items: center;
+  min-width: var(--touch-minimum);
+  height: var(--touch-minimum);
+  padding: 0;
   transform: translate(-50%, -50%);
-  border: 2px solid var(--console-surface);
+  border: 0;
   border-radius: var(--radius-pill);
+  background: none;
   font: inherit;
-  font-size: clamp(0.75rem, 3.4cqi, 1rem);
-  font-weight: var(--font-weight-bold);
-  box-shadow: var(--shadow-lift);
   cursor: pointer;
+}
+
+.pub-pin-face {
+  display: grid;
+  place-items: center;
+  /* The dot: the target less 5px a side, so the photo shows round it. */
+  min-width: calc(var(--touch-minimum) - 10px);
+  height: calc(var(--touch-minimum) - 10px);
+  padding: 0 6px;
+  border-radius: var(--radius-pill);
+  box-shadow:
+    0 0 0 3px var(--console-surface),
+    var(--shadow-lift);
+  font-size: var(--console-text-public-label);
+  font-weight: var(--font-weight-bold);
+  font-variant-numeric: tabular-nums;
 }
 
 .pub-pin[aria-disabled='true'] {
@@ -926,40 +1327,44 @@ body:has(.pub)::before {
 
 .pub-pin:focus-visible {
   outline: 3px solid var(--console-surface);
-  outline-offset: 2px;
+  outline-offset: 0;
 }
 
-.pub-pin.is-selected {
-  border-color: var(--table-your-pick-fill);
-  outline: 3px solid var(--table-your-pick-fill);
+.pub-pin.is-selected .pub-pin-face {
+  background: var(--console-brand);
+  color: var(--console-brand-foreground);
+  box-shadow:
+    0 0 0 3px var(--console-surface),
+    0 0 0 6px var(--console-brand);
+  transform: scale(1.12);
 }
 
-.pub-pin.tone-free,
+.pub-pin.tone-free:not(.is-selected) .pub-pin-face,
 .pub-pin-dot.tone-free {
   background: var(--table-free-fill);
   color: var(--table-free-label);
 }
 
-.pub-pin.tone-booked,
+.pub-pin.tone-booked .pub-pin-face,
 .pub-pin-dot.tone-booked {
   background: var(--table-reserved-soon-fill);
   color: var(--table-reserved-soon-label);
 }
 
-.pub-pin.tone-occupied,
+.pub-pin.tone-occupied .pub-pin-face,
 .pub-pin-dot.tone-occupied {
   background: var(--table-occupied-fill);
   color: var(--table-occupied-label);
 }
 
-.pub-pin.tone-outOfService,
+.pub-pin.tone-outOfService .pub-pin-face,
 .pub-pin-dot.tone-outOfService {
   background: var(--table-out-of-service-fill);
   color: var(--table-out-of-service-label);
 }
 
 /* Free at the slot, but not for this party or time: never the bookable green. */
-.pub-pin.tone-unavailable,
+.pub-pin.tone-unavailable .pub-pin-face,
 .pub-pin-dot.tone-unavailable {
   border: 2px dashed var(--console-grey);
   background: var(--console-surface);
@@ -1005,6 +1410,44 @@ body:has(.pub)::before {
   height: clamp(14rem, 40vh, 22rem);
   border-radius: var(--console-radius-public-status);
   background: var(--console-public-skeleton);
+}
+
+/* The room did not come: said, with a retry, rather than "no tables yet". */
+.pub-room-failed {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-sm) var(--space-md);
+}
+
+.pub-room-failed .pub-muted {
+  margin: 0;
+}
+
+/* The phone's booking bar under the room, once a table is chosen (Main
+   artboard). Not drawn where the booking column stays beside the room. */
+.pub-pickbar {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: var(--space-md);
+  padding: var(--space-md);
+  border: 1.5px solid var(--console-brand);
+  border-radius: var(--console-radius-public-status);
+  background: var(--console-surface);
+}
+
+.pub-pickbar .pub-button-primary {
+  margin: 0;
+}
+
+.pub-room .pub-notice-error {
+  margin-top: var(--space-md);
+}
+
+/* The header's "Book a table": on a phone only, where the card is below it. */
+.pub-only-phone {
+  display: inline-flex;
 }
 
 /* --------------------------------------------------------------------------
@@ -1922,6 +2365,10 @@ a.pub-branch-card:hover {
     font-size: var(--console-text-public-title-wide);
   }
 
+  .pub .pub-only-phone {
+    display: none;
+  }
+
   .pub-card {
     padding: 22px;
   }
@@ -1947,6 +2394,11 @@ a.pub-branch-card:hover {
  * rings inside the scroll box.
  */
 @media (min-width: 60rem) and (min-height: 44rem) {
+  /* The sticky card names and books the chosen table beside the room. */
+  .pub-pickbar {
+    display: none;
+  }
+
   .pub-aside {
     position: sticky;
     top: calc(var(--console-size-public-bar) + var(--space-xl));
@@ -1955,10 +2407,22 @@ a.pub-branch-card:hover {
     margin: -4px;
     padding: 4px;
   }
+
+  /* Taller than the window: flows with the page, never a sticky box that
+     hides its own foot (QA 1). Set from the column's measured height. */
+  .pub-aside.is-tall {
+    position: static;
+    max-height: none;
+    overflow: visible;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
   .pub-skeleton {
     animation: none;
+  }
+
+  .pub-pin.is-selected .pub-pin-face {
+    transform: none;
   }
 }

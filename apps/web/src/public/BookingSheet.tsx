@@ -44,6 +44,11 @@ export interface BookingSheetProps {
    * so; this panel does not, because the answer is back in the room.
    */
   readonly onTableTaken: (tableLabel: string) => void;
+  /**
+   * The booking was made. The page then knows its table is not free because of
+   * this visitor, which is not a table lost (public page phase 3, review S1).
+   */
+  readonly onBooked?: (() => void) | undefined;
 }
 
 type Step = 'table' | 'verify' | 'confirm' | 'done';
@@ -55,6 +60,7 @@ export default function BookingSheet({
   partySize,
   onClose,
   onTableTaken,
+  onBooked,
 }: BookingSheetProps) {
   const { t } = useTranslation('diner');
   const { t: tp } = useTranslation('public');
@@ -161,6 +167,7 @@ export default function BookingSheet({
         });
         setBooking(created);
         setStep('done');
+        onBooked?.();
         // The room has changed: this table is gone, and so is the free count
         // above it. Both are read from the server rather than patched here.
         void queryClient.invalidateQueries({ queryKey: ['availability', branch.id] });
@@ -228,6 +235,7 @@ export default function BookingSheet({
       locale,
       queryClient,
       onTableTaken,
+      onBooked,
       onClose,
       t,
       tp,
