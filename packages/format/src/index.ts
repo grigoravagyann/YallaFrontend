@@ -5,6 +5,8 @@ export { FractionalDramError } from './errors';
 
 export { formatDram, formatDramAmount, DRAM_SIGN } from './money';
 
+export { formatRating } from './rating';
+
 export {
   formatTime,
   formatTimeRange,

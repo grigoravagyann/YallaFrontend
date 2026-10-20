@@ -140,6 +140,12 @@ export interface BranchDetail {
   readonly acceptsAppBookings: boolean;
   /** Newest three, hidden reviews left out. */
   readonly recentReviews: readonly BranchReview[];
+  /**
+   * How many shown reviews gave each number of stars, **one star first**:
+   * always five numbers, adding up to `listing.reviewCount`. The whole
+   * branch's spread, whatever page of reviews is in hand.
+   */
+  readonly ratingCounts: readonly number[];
   /** The same rooms `GET …/rooms` serves. */
   readonly rooms: readonly BranchRoom[];
   readonly asOfUtc: string;
@@ -152,6 +158,8 @@ export interface BranchReviewPage {
   readonly page: number;
   readonly pageSize: number;
   readonly reviews: readonly BranchReview[];
+  /** The whole branch's stars, one star first — the same on every page. See {@link BranchDetail.ratingCounts}. */
+  readonly ratingCounts: readonly number[];
 }
 
 /** The signed-in diner's own review of one branch. */

@@ -142,7 +142,11 @@ import { createTabOrders } from './tabOrders';
 import { mockBranchMenu, publishedBranchMenu, mockMenuItem, mockPhoto } from './menuDetail';
 import { coversSitting, openStateFrom } from '../contracts/openState';
 import { BOOKING_WINDOW_DAYS } from './publicMock';
-import { publicBranchFixtures, publicVenueFixtures } from './publicVenues';
+import {
+  publicBranchDetailFixtures,
+  publicBranchFixtures,
+  publicVenueFixtures,
+} from './publicVenues';
 import { publicRooms } from './roomFloors';
 import { mockVenues, type Branch as MockBranch, type Venue as MockVenue } from './venues';
 
@@ -366,6 +370,16 @@ export interface MockGatewayOptions {
    * walked in mock mode. Off unless asked: every test reads an empty evening.
    */
   readonly seedNeighbourBookings?: boolean | undefined;
+  /**
+   * Northern Avenue as a venue that finished its listing: a cuisine, a price
+   * level, about text, a website, amenities and a gallery
+   * (`publicBranchDetailFixtures`), and two dozen published reviews, a few
+   * answered by the venue — so the public page's header, gallery, reviews and
+   * "see all" paging can be walked in mock mode. Off unless asked: every test
+   * reads a bare, unreviewed branch. The reviews are ignored when `reviews` is
+   * passed.
+   */
+  readonly showcase?: boolean | undefined;
   /**
    * Another guest who booked in the app answers a request for their table:
    * yes, this many milliseconds after it is made. Absent, nobody answers and
@@ -1978,7 +1992,7 @@ export function createMockGateway(options: MockGatewayOptions = {}): MockGateway
    * Reviews live in a store a console mock can share, so a review written here
    * is moderated there. One per diner per branch, as the unique index says.
    */
-  const reviewStore = options.reviews ?? createMockReviewStore({ now });
+  const reviewStore = options.reviews ?? createMockReviewStore({ now, showcase: options.showcase });
 
   /** The reply as diners read it: signed short, by the same rule as their names. */
   function publicReply(review: StoredReview): PublicReviewReply | null {
@@ -2285,6 +2299,11 @@ export function createMockGateway(options: MockGatewayOptions = {}): MockGateway
     };
   }
 
+  /** The finished listing's extras, only in the showcase (see `MockGatewayOptions.showcase`). */
+  function listingExtras(branchId: string) {
+    return options.showcase ? publicBranchDetailFixtures[branchId] : undefined;
+  }
+
   function listingFor(
     venue: MockVenue,
     branch: MockBranch,
@@ -2307,8 +2326,8 @@ export function createMockGateway(options: MockGatewayOptions = {}): MockGateway
       venueName: venue.name,
       branchName: branch.name,
       venueType: venue.type,
-      cuisine: null,
-      priceLevel: null,
+      cuisine: listingExtras(branch.id)?.cuisine ?? null,
+      priceLevel: listingExtras(branch.id)?.priceLevel ?? null,
       address: fixture.addressLine,
       district: fixture.district,
       latitude: located ? fixture.latitude : null,
@@ -2354,6 +2373,11 @@ export function createMockGateway(options: MockGatewayOptions = {}): MockGateway
       : found.sort((a, b) => (b.rating ?? 0) - (a.rating ?? 0));
   }
 
+  /** The shown reviews per star, one star first, as the server counts them. */
+  function starCounts(reviews: readonly { readonly rating: number }[]): number[] {
+    return [1, 2, 3, 4, 5].map((stars) => reviews.filter((r) => r.rating === stars).length);
+  }
+
   function reviewUrl(branchId: string): string {
     return `${URL_TAG}/api/diner/branches/${branchId}/review`;
   }
@@ -2375,12 +2399,13 @@ export function createMockGateway(options: MockGatewayOptions = {}): MockGateway
       const listing = found ? listingFor(found.venue, found.branch, position) : null;
       const fixture = publicBranchFixtures[branchId];
       if (!listing || !fixture) return null;
+      const extras = listingExtras(branchId);
       return {
         listing,
-        about: publicVenueFixtures[listing.venueId]?.description ?? null,
-        websiteUrl: null,
+        about: extras?.about ?? publicVenueFixtures[listing.venueId]?.description ?? null,
+        websiteUrl: extras?.websiteUrl ?? null,
         phoneE164: fixture.phoneE164,
-        amenities: [],
+        amenities: extras?.amenities ?? [],
         specialDays: [],
         openingHours: fixture.weeklyHours.flatMap((entry) =>
           entry.blocks.map((block) => ({
@@ -2390,12 +2415,13 @@ export function createMockGateway(options: MockGatewayOptions = {}): MockGateway
             closesNextDay: block.closesAt <= block.opensAt,
           })),
         ),
-        gallery: [],
+        gallery: extras?.gallery ?? [],
         tableCount: floors.get(branchId)?.tables.length ?? 0,
         acceptsWebBookings: fixture.acceptsWebBookings,
         acceptsAppBookings: acceptsAppBookings(branchId),
         // Newest first written, hidden reviews left out (K8).
         recentReviews: reviewStore.visible(branchId).slice(0, 3).map(toPublicReview),
+        ratingCounts: starCounts(reviewStore.visible(branchId)),
         // The same rooms `getBranchRooms` serves, with live pins.
         rooms: found ? publicRooms(found.branch.rooms, floors.get(branchId)?.tables ?? []) : [],
         asOfUtc: now().toISOString(),
@@ -2422,6 +2448,7 @@ export function createMockGateway(options: MockGatewayOptions = {}): MockGateway
         page,
         pageSize,
         reviews: visible.slice((page - 1) * pageSize, page * pageSize).map(toPublicReview),
+        ratingCounts: starCounts(visible),
       };
     },
 

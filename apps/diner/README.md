@@ -41,6 +41,28 @@ The four Help and About variables stay unset until the product has a real
 support contact and real policy pages. Unset, the line is left out; nothing is
 ever shown as a placeholder.
 
+## Building for the stores
+
+`eas.json` has two profiles. Neither puts a URL or a key in the repository: each reads an **EAS
+environment** of the same name on expo.dev, set once with `eas env:create`.
+
+| Profile      | `eas build --profile …`                | What it is                                                                                       |
+| ------------ | -------------------------------------- | ------------------------------------------------------------------------------------------------ |
+| `preview`    | `preview --platform android`           | An installable `.apk` for testers (internal distribution), against the `preview` environment.    |
+| `production` | `production --platform android \| ios` | Store builds. The build number is kept by EAS (`appVersionSource: remote`) and bumped per build. |
+
+What each environment needs before its first build:
+
+| Variable                                     | Why                                                                                                                                                    |
+| -------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `EXPO_PUBLIC_API_URL`                        | **Required.** A store build has no dev server to derive the backend from. The deployed origin, e.g. `https://<domain>` (the API answers under `/api`). |
+| `GOOGLE_MAPS_ANDROID_API_KEY`                | The Android map. `app.config.js` puts it in `android.config.googleMaps.apiKey`; unset, the config is exactly `app.json` and the map is grey.           |
+| `EXPO_PUBLIC_SUPPORT_*`, `EXPO_PUBLIC_*_URL` | Optional, as in the table above. Terms and Privacy URLs are expected by both stores' review.                                                           |
+
+Outside the code, still to do: an Apple Developer account and an App Store Connect app for
+`am.yalla.diner` (then `submit.production` gets its `ascAppId`), a Google Play developer account and
+its first manual upload, and `app.json` `version` raised from `0.1.0` when the first release is cut.
+
 ## Capability matrix
 
 What the app does on real data, what it needs from outside the code to work,
@@ -77,7 +99,7 @@ the code is right and this table needs fixing.
 | Capability                                                                       | State today                          | What turns it on                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
 | -------------------------------------------------------------------------------- | ------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | Push: booking reminder with Cancel, "still coming?"                              | **Inert** without an EAS project     | An EAS project id in `app.json` (`extra.eas.projectId`) and a development or store build. Without it there is no push token: the opt-in card says the reminder will not arrive, `POST /api/diner/devices` is never called, and nothing else changes. **And** a backend on `Notifications__Channel=Expo` (plus `Notifications__ExpoAccessToken` if push security is on): the default `Log` channel writes the reminder to the server log and the in-app feed and sends no push. |
-| Map on an Android development or store build                                     | **Empty grey map** without a key     | A Google Maps Android API key in `android.config.googleMaps.apiKey`, from app config or an EAS secret. `react-native-maps` always draws Google Maps on Android; Expo Go carries its own key, so the map works there without one. iOS uses Apple Maps and needs nothing.                                                                                                                                                                                                        |
+| Map on an Android development or store build                                     | **Empty grey map** without a key     | A Google Maps Android API key as `GOOGLE_MAPS_ANDROID_API_KEY` in the build's EAS environment; `app.config.js` puts it in `android.config.googleMaps.apiKey`. `react-native-maps` always draws Google Maps on Android; Expo Go carries its own key, so the map works there without one. iOS uses Apple Maps and needs nothing.                                                                                                                                                 |
 | Universal links: `https://yalla.am/t/<code>` and `https://yalla.am/join/<token>` | **Inert** until the files are hosted | `apple-app-site-association` and `assetlinks.json` under `https://yalla.am/.well-known/`, which need the Apple Team ID and the Android release signing SHA-256. Until then those links open in the browser. `yalla://t/<code>` and `yalla://join/<token>` work now.                                                                                                                                                                                                            |
 
 ### Not offered

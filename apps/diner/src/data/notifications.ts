@@ -31,6 +31,8 @@ const COPY_KEY: Readonly<Record<KnownDinerNotificationKind, string>> = {
   'review-replied': 'reviewReplied',
   'table-request': 'tableRequest',
   'table-request-decided': 'tableRequestAccepted',
+  'booking-changed-by-link': 'bookingChangedByLink',
+  'booking-cancelled-by-link': 'bookingCancelledByLink',
 };
 
 export interface NotificationCopy {
@@ -46,6 +48,10 @@ export interface NotificationCopy {
     readonly requestedTime?: string;
     /** Booking times: the time the earlier guest is asked to leave by, or promised. */
     readonly freeBy?: string;
+    /** A change or cancel by the web link: the booking's day as `dd.MM`, as the push says it. */
+    readonly day?: string;
+    /** …and its party, which also picks the plural form. */
+    readonly count?: number;
   };
 }
 
@@ -95,6 +101,25 @@ function declinedChange(
 }
 
 /**
+ * The day, time and party a link's change or cancel row names: `24.10`,
+ * `20:00`, 3. `null` when the row lacks the day, the time or the party — the
+ * body then names the place only, never a blank, "undefined" or a guessed party.
+ */
+function linkSlot(
+  notification: Pick<DinerNotification, 'params'>,
+): { day: string; time: string; count: number } | null {
+  const date = /^(\d{4})-(\d{2})-(\d{2})$/u.exec(text(notification.params['date']) ?? '');
+  const time = text(notification.params['time']);
+  if (!date || !time) return null;
+  // Never invented: a row without a real party names the place only.
+  const raw = notification.params['partySize'];
+  const party =
+    typeof raw === 'number' || (typeof raw === 'string' && raw.trim() !== '') ? Number(raw) : NaN;
+  if (!Number.isInteger(party) || party < 1) return null;
+  return { day: `${date[3]}.${date[2]}`, time, count: party };
+}
+
+/**
  * The title and body keys for a row. A kind this build has no copy for — a
  * newer server — gets the generic pair rather than being dropped or guessed.
  */
@@ -128,6 +153,33 @@ export function notificationCopy(
       titleKey: `notifications.kind.${key}.title`,
       bodyKey: `notifications.kind.${key}.body`,
       params: { place, ...(time ? { time } : {}), ...(freeBy ? { freeBy } : {}) },
+    };
+  }
+  /*
+   * Changed or cancelled with the booking's web manage link — which may be in
+   * somebody else's hands, so the row says where the booking stands now: the
+   * day, the time and the party, and on a change whether it waits for the
+   * venue again. Without the slot it names the place only.
+   */
+  if (
+    notification.kind === 'booking-changed-by-link' ||
+    notification.kind === 'booking-cancelled-by-link'
+  ) {
+    const base =
+      notification.kind === 'booking-changed-by-link'
+        ? 'bookingChangedByLink'
+        : 'bookingCancelledByLink';
+    const slot = linkSlot(notification);
+    const body = !slot
+      ? `${base}Plain`
+      : notification.kind === 'booking-changed-by-link' &&
+          text(notification.params['status']) === '1'
+        ? `${base}Waiting`
+        : base;
+    return {
+      titleKey: `notifications.kind.${base}.title`,
+      bodyKey: `notifications.kind.${body}.body`,
+      params: { place, ...(slot ?? {}) },
     };
   }
   const declinedBecause = text(notification.params['declinedBecause']);

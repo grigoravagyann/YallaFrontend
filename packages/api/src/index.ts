@@ -196,6 +196,7 @@ export type { BranchReadiness } from './contracts/readiness';
 export {
   BookingNotChangeableError,
   ReservationNotStartedError,
+  BookingLinkAccountUnavailableError,
   BookingsNotAcceptedError,
   CannotReportOwnReviewError,
   FloorPlanChangedError,
@@ -366,6 +367,7 @@ export { createPublicHttpGateway } from './http/publicHttpGateway';
 export { coversSitting, openStateFrom } from './contracts/openState';
 export type {
   ManagedBooking,
+  RescheduleManagedBookingCommand,
   OpenState,
   PublicBranch,
   PublicBranchCard,

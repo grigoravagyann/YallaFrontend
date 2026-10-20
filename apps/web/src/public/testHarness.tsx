@@ -2,8 +2,12 @@ import {
   createMockGateway,
   createPublicMockGateway,
   createQueryClient,
+  type Booking,
   type MockGateway,
+  type MockReviewStore,
+  type PublicBranch,
   type PublicGateway,
+  type TableAvailability,
 } from '@yalla/api';
 import { GatewayProvider } from '@yalla/api/react';
 import { I18nextProvider, i18next, initI18n } from '@yalla/i18n';
@@ -11,6 +15,7 @@ import { PUBLIC_NAMESPACES, publicResources } from '@yalla/i18n/public';
 import { QueryClientProvider, type QueryClient } from '@tanstack/react-query';
 import type { ReactNode } from 'react';
 import { MemoryRouter } from 'react-router-dom';
+import { defaultSelection, slotInstant } from './slots';
 
 /**
  * The public page's providers, assembled the way `bootstrapPublic` assembles
@@ -83,6 +88,16 @@ export interface HarnessOptions {
   readonly floorApprovesAtOnce?: boolean;
   readonly approvalWindowMs?: number;
   readonly simulateVenueApprovalAfterMs?: number;
+  /**
+   * Northern Avenue's showcase, as mock mode shows it: the finished listing
+   * (cuisine, price, about, website, amenities, gallery), two dozen reviews
+   * (some answered; a `reviews` store replaces them) and two special days.
+   * Off by default, so every other test reads a bare, unreviewed branch on its
+   * plain week.
+   */
+  readonly showcase?: boolean;
+  /** A review store of the test's own, for a branch with a known set of reviews. */
+  readonly reviews?: MockReviewStore;
 }
 
 export function createHarness(options: HarnessOptions = {}): Harness {
@@ -96,8 +111,14 @@ export function createHarness(options: HarnessOptions = {}): Harness {
     floorApprovesAtOnce: options.floorApprovesAtOnce ?? false,
     approvalWindowMs: options.approvalWindowMs,
     simulateVenueApprovalAfterMs: options.simulateVenueApprovalAfterMs,
+    showcase: options.showcase ?? false,
+    ...(options.reviews ? { reviews: options.reviews } : {}),
   });
-  const publicGateway = createPublicMockGateway({ gateway, now: options.now });
+  const publicGateway = createPublicMockGateway({
+    gateway,
+    now: options.now,
+    showcaseSpecialDays: options.showcase ?? false,
+  });
   // Retry off, so a deliberate failure is one attempt and not four.
   const queryClient = createQueryClient({ retry: false, mutationNetworkMode: 'always' });
 
@@ -142,4 +163,50 @@ export function stubIntersectionObserverAsNeverVisible(): void {
     configurable: true,
     value: NeverIntersecting,
   });
+}
+
+/**
+ * A real web booking at Lumen Coffee · Northern Avenue in the harness's world,
+ * on the slot the page itself opens on two hours from now, at the first table
+ * the room offers — through the gateway, as the booking sheet makes one, so
+ * the manage link it hands back is the one the confirmation would show.
+ */
+export async function bookAtLumen(
+  harness: Harness,
+  options: { readonly partySize?: number } = {},
+): Promise<{ readonly branch: PublicBranch; readonly booking: Booking }> {
+  const branch = (await harness.publicGateway.resolveBranch({
+    venueSlug: 'lumen-coffee',
+    branchSlug: 'northern-avenue',
+  })) as PublicBranch;
+  const partySize = options.partySize ?? 2;
+  const selection = {
+    ...defaultSelection(branch.timeZoneId, new Date(Date.now() + 2 * 60 * 60_000), {
+      minLeadMinutes: branch.policy.minLeadMinutes,
+      turnTimeMinutes: branch.policy.turnTimeMinutes,
+      weeklyHours: branch.weeklyHours,
+    }),
+    partySize,
+  };
+  const slotUtc = slotInstant(selection, branch.timeZoneId)!.toISOString();
+  const table = (
+    await harness.gateway.getTableAvailability({
+      branchId: branch.id,
+      slotUtc,
+      partySize,
+      timeZoneId: branch.timeZoneId,
+    })
+  ).find((entry) => entry.isBookable) as TableAvailability;
+  const booking = await harness.gateway.createBooking({
+    commandId: crypto.randomUUID(),
+    branchId: branch.id,
+    tableId: table.tableId,
+    slotUtc,
+    timeZoneId: branch.timeZoneId,
+    partySize,
+    guestName: 'Ani',
+    guestPhone: '+37477123456',
+    channel: 'web',
+  });
+  return { branch, booking };
 }

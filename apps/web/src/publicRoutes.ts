@@ -32,6 +32,12 @@
  * manager or owner ever gets a password, so a venue that claimed the word would
  * silently turn every link an owner sends into a "we could not find that place"
  * page — and nobody would know which side to blame.
+ *
+ * `booking` is deliberately **not** here, although no venue may take it as a
+ * slug either (the backend's `SlugText` reserves it). `/booking/{token}` is the
+ * manage link in every booking reminder, and it is served by the *public*
+ * page: listing it here would send that link to the console's sign-in. The
+ * public router matches it before `/:venueSlug/:branchSlug` instead.
  */
 export const RESERVED_FIRST_SEGMENTS: readonly string[] = [
   'assets',

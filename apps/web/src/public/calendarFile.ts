@@ -17,7 +17,8 @@ import { formatTime, icsEvent, icsFileName, type Locale } from '@yalla/format';
  */
 
 export interface CalendarInput {
-  readonly booking: Booking;
+  /** A booking, or the manage link's view of one with the sitting's end worked out. */
+  readonly booking: Pick<Booking, 'id' | 'slotUtc' | 'endUtc' | 'timeZoneId'>;
   /** The venue, which the booking view does not name; the page knows it. */
   readonly venueName: string;
   readonly addressLine: string;
@@ -62,7 +63,7 @@ export function bookingIcs(input: CalendarInput): string {
  * still be cancelled for free, and the link that does it.
  */
 export function icsDescription(input: {
-  readonly booking: Booking;
+  readonly booking: Pick<Booking, 'code' | 'tableLabel' | 'slotUtc' | 'timeZoneId'>;
   readonly locale: Locale;
   readonly codeLabel: string;
   readonly cancellationLine: string;

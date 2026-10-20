@@ -1,32 +1,18 @@
-import {
-  isShortNotice,
-  unavailableCopy,
-  type PublicBranch,
-  type TableAvailability,
-} from '@yalla/api';
-import {
-  isOfflinePaused,
-  PUBLIC_REFRESH_MS,
-  useDaySlots,
-  useNow,
-  useSlotFloor,
-} from '@yalla/api/react';
-import { formatTime } from '@yalla/format';
-import { useLocale, useTranslation } from '@yalla/i18n';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { unavailableCopy, type PublicBranch, type TableAvailability } from '@yalla/api';
+import { isOfflinePaused, PUBLIC_REFRESH_MS, useSlotFloor } from '@yalla/api/react';
+import { useTranslation } from '@yalla/i18n';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { TakenNotice } from './BookingCard';
+import { dayWords } from './dayNames';
 import RoomPhotos from './RoomPhotos';
-import {
-  PARTY_SIZES,
-  addDays,
-  branchToday,
-  nearestChoice,
-  slotProblem,
-  timeChoices,
-  type SlotSelection,
-} from './slots';
+import { branchToday, type SlotSelection } from './slots';
+import { useSettled } from './useSettled';
 
 /**
- * The rooms, the three controls above them, and nothing else.
+ * "Choose your table": the rooms for the slot picked on the booking card
+ * (`BookingCard`), in the booking column beside or above this — room tabs with
+ * their free counts, the tables as pins on a photo or as a list, and on a
+ * phone the bar that books the table chosen here (the page's `footer`).
  *
  * The photos are behind an intersection observer: a visitor who reads the
  * free-table count and closes the tab — which is most of them — never
@@ -69,70 +55,36 @@ function useHasApproached(ref: React.RefObject<HTMLElement | null>): boolean {
 export interface RoomSectionProps {
   readonly branch: PublicBranch;
   readonly selection: SlotSelection;
-  readonly onSelectionChange: (next: SlotSelection) => void;
   readonly slotUtc: string;
   readonly selectedTableId: string | null;
   readonly onTableTap: (availability: TableAvailability) => void;
-  /** Set after a 409, cleared when another table is picked. */
+  /**
+   * Set after a 409 in a panel that was open under this room, cleared when
+   * another table is picked: said here, where the panel was.
+   */
   readonly takenTableLabel: string | null;
+  /** Told which room is on screen, so "Choose for me" can look there first. */
+  readonly onRoomShown?: ((roomId: string) => void) | undefined;
+  /** What closes the section: on a phone, the bar that books the chosen table. */
+  readonly footer?: ReactNode;
+  /** The booking being changed from its manage link: left out, so its own table reads free. */
+  readonly excludeReservationId?: string | undefined;
 }
 
 export function RoomSection({
   branch,
   selection,
-  onSelectionChange,
   slotUtc,
   selectedTableId,
   onTableTap,
   takenTableLabel,
+  onRoomShown,
+  footer,
+  excludeReservationId,
 }: RoomSectionProps) {
   const { t } = useTranslation('public');
-  const { locale } = useLocale();
   const holder = useRef<HTMLDivElement | null>(null);
   const approached = useHasApproached(holder);
-
-  /*
-   * The day's times, from the server's day of slots: every quarter hour whose
-   * whole sitting fits the hours — a time that would run past closing is not
-   * an option — struck when no table can be had, "on request" when only a
-   * table somebody booked shortly before is left. The phone app's rules, from
-   * the same read; the published hours stand in until it answers.
-   */
-  const daySlotsQuery = useDaySlots({
-    branchId: branch.acceptsWebBookings ? branch.id : undefined,
-    date: selection.date,
-    partySize: selection.partySize,
-  });
-  const dayAnswer = daySlotsQuery.isError ? undefined : daySlotsQuery.data;
-  const choices = useMemo(
-    () =>
-      timeChoices({
-        date: selection.date,
-        day: dayAnswer,
-        weeklyHours: branch.weeklyHours,
-        turnTimeMinutes: branch.policy.turnTimeMinutes,
-        timeZoneId: branch.timeZoneId,
-      }),
-    [
-      selection.date,
-      dayAnswer,
-      branch.weeklyHours,
-      branch.policy.turnTimeMinutes,
-      branch.timeZoneId,
-    ],
-  );
-  const chosen = choices.find((choice) => choice.time === selection.time) ?? null;
-
-  /*
-   * Never left on a time that cannot be had: once the day has answered, a
-   * struck or absent selection moves to the nearest time that can.
-   */
-  useEffect(() => {
-    if (!dayAnswer || dayAnswer.date !== selection.date) return;
-    if (chosen && chosen.state !== 'busy') return;
-    const next = nearestChoice(choices, selection.time);
-    if (next && next.time !== selection.time) onSelectionChange({ ...selection, time: next.time });
-  }, [dayAnswer, chosen, choices, selection, onSelectionChange]);
 
   /*
    * The tables **as they will be at the chosen slot** — each with its pin on a
@@ -150,59 +102,15 @@ export function RoomSection({
    */
   const slotFloorQuery = useSlotFloor({
     branchId: branch.id,
-    slotUtc,
+    // A run along the time chips asks about the time it stops on (review S5).
+    slotUtc: useSettled(slotUtc),
     partySize: selection.partySize,
     // The backend asks in wall-clock terms; the zone travels with the slot so
     // it is never inferred from whatever the visitor's phone is set to.
     timeZoneId: branch.timeZoneId,
     pollMs: PUBLIC_REFRESH_MS,
+    excludeBookingId: excludeReservationId,
   });
-
-  const today = branchToday(branch.timeZoneId);
-  // Short notice is the server's rule, by the instant: today, or under six hours.
-  const now = useNow();
-
-  /**
-   * Apply a change to one control, refusing to store an unusable selection.
-   *
-   * A `type="date"` input is **empty** between a clear and the next keystroke,
-   * and stays empty for as long as somebody leaves it that way. That used to
-   * reach `slotInstant`, throw inside `Intl` during render, and white-screen
-   * the page — on the one surface in the product that is opened by strangers
-   * from a link, who have no reason to try again.
-   *
-   * So the control falls back rather than clearing: an empty date is not a
-   * state a diner ever *means* to be in, and the nearest thing they do mean is
-   * today. The room stays on screen throughout, which is the actual
-   * requirement — a diner mid-edit has not asked to stop seeing the room.
-   */
-  const applySelection = (next: SlotSelection) => {
-    const problem = slotProblem(next);
-    if (problem === null) {
-      onSelectionChange(next);
-      return;
-    }
-
-    onSelectionChange({
-      ...next,
-      // Only the broken half is replaced; the other keeps whatever was picked.
-      ...(problem === 'date' ? { date: today } : { time: selection.time }),
-    });
-  };
-  /*
-   * The venue's own horizon, so the platform's date picker cannot offer a day
-   * the server will refuse once a table has already been chosen.
-   *
-   * Undefined when the branch does not publish a window — the public API serves
-   * it only to authenticated console callers. An unbounded picker is the right
-   * degradation rather than a guessed horizon: `availability` answers every slot
-   * with `OutsideBookingWindow` when it is beyond the window, and the rejection
-   * below is rendered as a sentence *before* a table is chosen, so the late
-   * refusal this bound exists to prevent does not happen either way. A guessed
-   * `max` would instead forbid days the venue really does take.
-   */
-  const lastBookableDay =
-    branch.bookingWindowDays === null ? undefined : addDays(today, branch.bookingWindowDays);
 
   const handleTap = (tableId: string) => {
     if (!branch.acceptsWebBookings) return;
@@ -211,22 +119,19 @@ export function RoomSection({
   };
 
   /*
-   * A rule that refused the whole request before any table was considered: the
-   * slot has passed, it is beyond the branch's booking window, the venue is
-   * shut then. Named by the server and said out loud — a room drawn with every
-   * table greyed out reads as "fully booked", which is a different fact and
-   * sends the visitor away instead of to the date picker.
+   * A rule that refused the whole request before any table was considered —
+   * the slot has passed, it is beyond the window, the venue is shut — is said
+   * on the booking card, under the time that caused it. The room only knows
+   * not to add "no free table here" to it.
    */
-  /*
-   * Only when booking is on offer. `availability` still answers for a venue with
-   * web booking switched off — the room's free/taken colouring comes from it —
-   * but "too soon to book this table" on a page with no booking on it is an
-   * answer to a question nobody asked.
-   */
-  const rejection =
-    branch.acceptsWebBookings && slotFloorQuery.data?.rejection
-      ? unavailableCopy(slotFloorQuery.data.rejection, selection.partySize)
-      : null;
+  const refused = branch.acceptsWebBookings && Boolean(slotFloorQuery.data?.rejection);
+  /** The answer on screen is the last slot's or the last party's while the new one loads. */
+  const answer = slotFloorQuery.data;
+  const stale =
+    answer != null &&
+    (slotFloorQuery.isPlaceholderData ||
+      answer.partySize !== selection.partySize ||
+      Date.parse(answer.slotUtc) !== Date.parse(slotUtc));
 
   /*
    * Why each table the server will not give this party at this slot is
@@ -243,111 +148,23 @@ export function RoomSection({
     unavailable[entry.tableId] = t(copy.key, { ns: 'diner', ...copy.params });
   }
 
+  const day = dayWords(selection.date, branchToday(branch.timeZoneId), t);
+  // Its own call: a `diner` key read inside another key's options would be
+  // taken for that key's namespace by `pnpm i18n:check`.
+  const guests = t('booking.guests', { ns: 'diner', count: selection.partySize });
+
   return (
-    <section className="pub-section" aria-labelledby="room" ref={holder}>
-      <h2 id="room">{t('section.room')}</h2>
-
-      {branch.acceptsWebBookings ? (
-        <div className="pub-slot">
-          <label className="pub-field">
-            <span>{t('booking.date', { ns: 'diner' })}</span>
-            <input
-              type="date"
-              value={selection.date}
-              min={today}
-              max={lastBookableDay}
-              onChange={(event) =>
-                applySelection({ ...selection, date: event.currentTarget.value })
-              }
-            />
-          </label>
-          <label className="pub-field">
-            <span>{t('booking.time', { ns: 'diner' })}</span>
-            <select
-              value={selection.time}
-              onChange={(event) =>
-                applySelection({ ...selection, time: event.currentTarget.value })
-              }
-            >
-              {/* Quarter-hourly rather than a free-form time input: the backend
-                  reasons in slots, and a 20:07 request is one nobody can fill.
-                  A struck time is drawn and named, never chosen. */}
-              {chosen === null ? <option value={selection.time}>{selection.time}</option> : null}
-              {choices.map((choice) => (
-                <option key={choice.time} value={choice.time} disabled={choice.state === 'busy'}>
-                  {choice.state === 'busy'
-                    ? t('book.slotFull', { ns: 'diner', time: choice.time })
-                    : choice.state === 'requestable'
-                      ? t('booking.timeOnRequest', { time: choice.time })
-                      : choice.time}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="pub-field">
-            <span>{t('booking.partySize', { ns: 'diner' })}</span>
-            <select
-              value={selection.partySize}
-              onChange={(event) => {
-                // `Number('')` is `NaN`, which would reach the availability
-                // query as a party size and come back as a refusal nobody
-                // asked for. The list is fixed, so anything off it is a bug
-                // rather than a choice.
-                const partySize = Number(event.currentTarget.value);
-                applySelection({
-                  ...selection,
-                  partySize: PARTY_SIZES.includes(partySize) ? partySize : selection.partySize,
-                });
-              }}
-            >
-              {PARTY_SIZES.map((size) => (
-                <option key={size} value={size}>
-                  {t('booking.guests', { ns: 'diner', count: size })}
-                </option>
-              ))}
-            </select>
-          </label>
-        </div>
-      ) : (
-        <p className="pub-notice">{t('booking.notOffered')}</p>
-      )}
-
-      {/* What the chosen time comes with: asked for, and freed by when. */}
-      {branch.acceptsWebBookings && chosen?.state === 'requestable' ? (
-        <p className="pub-muted">
-          {t(
-            isShortNotice({ startUtc: slotUtc, timeZoneId: branch.timeZoneId, now })
-              ? 'booking.approval.why'
-              : 'table.requestable.earlierGuest',
-            { ns: 'diner' },
-          )}
-        </p>
-      ) : null}
-      {branch.acceptsWebBookings && chosen?.mustFreeByUtc ? (
-        <p className="pub-muted">
-          {t('table.mustFreeBy', {
-            ns: 'diner',
-            time: formatTime(chosen.mustFreeByUtc, branch.timeZoneId, locale),
-          })}
-        </p>
-      ) : null}
-
-      {/*
-        A lost table is information with a next step attached, not an error
-        banner. It sits above the room because the room is where the next step
-        is, and it survives until another table is picked.
-      */}
-      {branch.acceptsWebBookings && takenTableLabel ? (
-        <p className="pub-notice pub-notice-alert" role="status">
-          {t('confirm.error.tableTaken', { ns: 'diner', label: takenTableLabel })}
-        </p>
-      ) : null}
-
-      {rejection ? (
-        <p className="pub-notice pub-notice-alert" role="status">
-          {t(rejection.key, { ns: 'diner', ...rejection.params })}
-        </p>
-      ) : null}
+    <section className="pub-section pub-room" aria-labelledby="room" ref={holder}>
+      <h2 id="room">{t(branch.acceptsWebBookings ? 'room.choose' : 'room.now')}</h2>
+      <p className="pub-room-sub">
+        {branch.acceptsWebBookings
+          ? t('room.slot', {
+              date: day.short,
+              time: selection.time,
+              guests,
+            })
+          : t('room.liveSub')}
+      </p>
 
       {/* The room is what matters here; a stale answer is a line above it, not a
           screen of its own. The room is still worth seeing. */}
@@ -360,7 +177,18 @@ export function RoomSection({
       ) : null}
 
       {slotFloorQuery.isError && !slotFloorQuery.data ? (
-        <p className="pub-muted">{t('room.empty')}</p>
+        // Not "no tables marked yet": the room did not come, which is a
+        // different fact with a next step (review S5).
+        <div className="pub-room-failed">
+          <p className="pub-muted">{t('room.failed')}</p>
+          <button
+            type="button"
+            className="pub-button pub-button-small"
+            onClick={() => void slotFloorQuery.refetch()}
+          >
+            {t('page.retry')}
+          </button>
+        </div>
       ) : !approached || !slotFloorQuery.data ? (
         <div className="pub-plan is-placeholder" aria-hidden="true" />
       ) : (
@@ -371,8 +199,20 @@ export function RoomSection({
           onTableTap={handleTap}
           bookable={branch.acceptsWebBookings}
           unavailable={unavailable}
+          partySize={selection.partySize}
+          onRoomShown={onRoomShown}
+          refused={refused}
+          stale={stale}
         />
       )}
+
+      {/* A lost table is information with a next step attached — pick another,
+          in the room right above — said where the panel that lost it was. */}
+      {branch.acceptsWebBookings && takenTableLabel ? (
+        <TakenNotice label={takenTableLabel} />
+      ) : null}
+
+      {footer}
     </section>
   );
 }

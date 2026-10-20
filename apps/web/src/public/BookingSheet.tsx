@@ -44,6 +44,11 @@ export interface BookingSheetProps {
    * so; this panel does not, because the answer is back in the room.
    */
   readonly onTableTaken: (tableLabel: string) => void;
+  /**
+   * The booking was made. The page then knows its table is not free because of
+   * this visitor, which is not a table lost (public page phase 3, review S1).
+   */
+  readonly onBooked?: (() => void) | undefined;
 }
 
 type Step = 'table' | 'verify' | 'confirm' | 'done';
@@ -55,6 +60,7 @@ export default function BookingSheet({
   partySize,
   onClose,
   onTableTaken,
+  onBooked,
 }: BookingSheetProps) {
   const { t } = useTranslation('diner');
   const { t: tp } = useTranslation('public');
@@ -85,15 +91,39 @@ export default function BookingSheet({
   const panel = useRef<HTMLDivElement>(null);
 
   /*
-   * One id per panel, reused on every retry.
+   * One id per attempt, reused on every retry of it.
    *
    * This is what makes a bad connection unable to create two bookings: the
    * server treats a repeat of the same id as the same command and returns the
-   * original. Generated once per mount rather than per attempt — a fresh id on
-   * retry would be a *second* booking, which is the exact failure the whole
-   * mechanism exists to prevent.
+   * original. A fresh id on retry would be a *second* booking, which is the
+   * exact failure the whole mechanism exists to prevent.
+   *
+   * An attempt is one table. The panel stays open when the visitor taps
+   * another table in the room — beside it on a desktop — and that is a new
+   * attempt: under the old id the server would replay the first table's
+   * booking, or refuse the id as in use. So a new table gets a new id and its
+   * own free-by question, and loses the last attempt's error and "check
+   * again"; the verified phone and the name carry over, because they are the
+   * visitor's, not the table's. Adjusted during render, React's pattern for
+   * state that follows a prop, so no frame shows the new table with the old
+   * attempt's state.
    */
-  const commandId = useRef(newCommandId()).current;
+  const [attempt, setAttempt] = useState(() => ({
+    tableId: availability.tableId,
+    commandId: newCommandId(),
+  }));
+  if (attempt.tableId !== availability.tableId) {
+    setAttempt({ tableId: availability.tableId, commandId: newCommandId() });
+    setRequiredFreeBy(availability.mustFreeByUtc ?? null);
+    setAgreedFreeBy(false);
+    setOutcomeUnknown(false);
+    setErrorText(null);
+    if (step === 'done') {
+      setBooking(null);
+      setStep('table');
+    }
+  }
+  const commandId = attempt.commandId;
 
   const copy = tableCopy(availability, { partySize, timeZoneId: branch.timeZoneId, locale });
   const line = (value: CopyLine): string => t(value.key, value.params);
@@ -137,6 +167,7 @@ export default function BookingSheet({
         });
         setBooking(created);
         setStep('done');
+        onBooked?.();
         // The room has changed: this table is gone, and so is the free count
         // above it. Both are read from the server rather than patched here.
         void queryClient.invalidateQueries({ queryKey: ['availability', branch.id] });
@@ -204,6 +235,7 @@ export default function BookingSheet({
       locale,
       queryClient,
       onTableTaken,
+      onBooked,
       onClose,
       t,
       tp,

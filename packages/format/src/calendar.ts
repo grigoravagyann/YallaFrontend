@@ -194,6 +194,11 @@ export interface IcsEventInput {
   readonly now?: Date | undefined;
 }
 
+/** A revision number that only grows: whole minutes since 2020-01-01T00:00Z. */
+function sequenceAt(now: Date): number {
+  return Math.max(0, Math.floor((now.getTime() - Date.UTC(2020, 0, 1)) / 60_000));
+}
+
 /** The `.ics` body, CRLF-delimited as the format requires. */
 export function icsEvent(input: IcsEventInput): string {
   const { uid, startUtc, endUtc, timeZoneId, summary, location, description, url } = input;
@@ -231,6 +236,14 @@ export function icsEvent(input: IcsEventInput): string {
     'BEGIN:VEVENT',
     `UID:${uid}`,
     `DTSTAMP:${utcStamp(now)}`,
+    /*
+     * The same booking keeps its UID through a change of time or party, so a
+     * file downloaded after the change must say it is the newer version, or a
+     * calendar that already holds the event keeps the old time. Minutes since
+     * 2020 rise with every download and fit the integer RFC 5545 asks for.
+     */
+    `SEQUENCE:${sequenceAt(now)}`,
+    `LAST-MODIFIED:${utcStamp(now)}`,
     zoneIsStable
       ? `DTSTART;TZID=${timeZoneId}:${localStamp(zonedParts(startUtc, timeZoneId))}`
       : `DTSTART:${utcStamp(startUtc)}`,

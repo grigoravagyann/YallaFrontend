@@ -2471,6 +2471,8 @@ export interface paths {
          * One booking, by the manage link that was mailed with it
          * @description What the confirmation screen renders, for somebody holding nothing but the link: venue, branch, address, table and the room it is in (`roomName`, absent for a table in no room), local date and time, party size, status, the code quoted at the door, and the instant past which cancelling counts as late. A waiting booking carries `approvalExpiresAtUtc` to count down to and `awaitsEarlierGuestAnswer`: true while the guest with the table before it is asked in the app whether they will have left in time (only they answer), false when the venue decides it.
          *
+         *     For the page around it: `venueSlug` and `branchSlug`, the branch page's public address (`/{venueSlug}/{branchSlug}`) - the link a reminder carries is the web's token-only `/booking/{token}`, which names no branch - and, for changing the booking, `reservationId` (send it as `excludeReservationId` on the public availability and day-slot reads, so the table already held reads as free) and `tableId`, the booked table.
+         *
          *     **Nothing else.** No diner id, no phone number, no other bookings, no floor state. The token is the whole credential and it will be pasted into WhatsApp, left in browser history and read by whoever picks the phone up, so this response is a hand-picked subset rather than a trimmed reservation.
          *
          *     **A cancelled, missed or finished booking answers 200 with its state**, not 404. Somebody opening a three-week-old link should learn what happened to their table.
@@ -2501,6 +2503,27 @@ export interface paths {
          *     tapping Cancel on a page has nothing to say and should not have to send an empty object.
          */
         post: operations["cancelPublicBooking"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/public/bookings/{token}/reschedule": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Moves a booking from its manage link.
+         * @description The app's body, unchanged, so the page and the app send one shape. The validation filter has
+         *     already refused a null date, time or table by the time this runs.
+         */
+        post: operations["reschedulePublicBooking"];
         delete?: never;
         options?: never;
         head?: never;
@@ -2540,7 +2563,7 @@ export interface paths {
         };
         /**
          * One branch's details screen, by id
-         * @description `listing` is the card exactly as the list serves it. Beside it: `about`, `websiteUrl`, `phoneE164`, `amenities`, `openingHours` (`day` 0 = Sunday, wall-clock `opensAt`/`closesAt` as `HH:mm:ss`, `closesNextDay`), `gallery` (pictures beyond the cover, in order), `tableCount`, `acceptsWebBookings`, `recentReviews` (newest three) and `rooms` - the rooms with their photos and the live pins on them, exactly as `GET /api/public/branches/{branchId}/rooms` serves them.
+         * @description `listing` is the card exactly as the list serves it. Beside it: `about`, `websiteUrl`, `phoneE164`, `amenities`, `openingHours` (`day` 0 = Sunday, wall-clock `opensAt`/`closesAt` as `HH:mm:ss`, `closesNextDay`), `gallery` (pictures beyond the cover, in order), `tableCount`, `acceptsWebBookings`, `recentReviews` (newest three), `ratingCounts` (shown reviews per star, **one star first**: always five numbers, adding up to `listing.reviewCount`) and `rooms` - the rooms with their photos and the live pins on them, exactly as `GET /api/public/branches/{branchId}/rooms` serves them.
          *
          *     A branch that is inactive or whose venue is suspended or deleted is **404**, read live. `listing.rating` and `listing.reviewCount` are read live too; the other live numbers share the list's fifteen seconds.
          */
@@ -2663,7 +2686,7 @@ export interface paths {
         };
         /**
          * A page of a branch's reviews, newest first
-         * @description Twenty a page from `page=1`. `rating` and `reviewCount` are read live. Each review carries `authorName` as a first name and last initial, never the account or its id.
+         * @description Twenty a page from `page=1`. `rating`, `reviewCount` and `ratingCounts` are read live, over the shown reviews only (one taken down by moderation counts nowhere). `ratingCounts` is the whole branch's star distribution, the same on every page: five numbers, **one star first** (`[1★, 2★, 3★, 4★, 5★]`), zeros included, adding up to `reviewCount`. Each review carries `authorName` as a first name and last initial, never the account or its id.
          */
         get: operations["getPublicBranchReviews"];
         put?: never;
@@ -2706,6 +2729,8 @@ export interface paths {
         /**
          * One branch's public page, by its slug pair
          * @description Address, coordinates, opening hours, whether it is open **now** in its own time zone, the live free-table count, and the floor plan in diner shape.
+         *
+         *     `venueBranchCount`: how many of the venue's branches `GET /api/public/venues` lists - the ones switched on, this one included; a branch switched off is neither listed nor counted - read live with the booking switch, for the page's "All N branches" link.
          *
          *     The floor plan here is not the editor's: it carries no QR tokens and no table status beyond whether somebody is sitting there. A QR token is the credential that opens a tab.
          *
@@ -3543,6 +3568,8 @@ export interface paths {
         /**
          * Key in an order spoken at the table
          * @description The same code path as a diner's order, deliberately: the total is only right if **every** order goes through the system.
+         *
+         *     **Straight to the kitchen.** A waiter's order is answered with `status` `InKitchen`: the waiter who took it at the table is the check a phone's order waits at `New` for, so there is no second send. The tab's stream carries `OrderPlaced` and then `OrderStatusChanged` (New -> InKitchen) in the same commit.
          *
          *     `onBehalfOfParticipantId` is what keeps "everyone pays their own" working. Without it the line is **attributed to the table** and splits across everyone present - a real answer rather than a wrong one, and one whose cost the venue can see in its own numbers.
          *
@@ -8616,6 +8643,8 @@ export interface components {
             branchAddress: string;
             /** @description Which location. */
             branchName: string;
+            /** @description The branch's half of that address. */
+            branchSlug: string;
             /**
              * @description Whether cancelling would do anything - false once the booking is already cancelled, missed or
              *     finished. <b>Not</b> the deadline: cancelling past the deadline is allowed and merely recorded.
@@ -8658,12 +8687,30 @@ export interface components {
              */
             partySize: number;
             /**
+             * Format: uuid
+             * @description The booking's id - for one thing: the page that changes the booking sends it as
+             *     `excludeReservationId` on the branch's public availability and day-slot reads, so the table
+             *     the visitor already holds reads as free to them, as the app's change screen does. It opens nothing:
+             *     every route keyed by a booking id wants the booking's diner or the venue's staff, and the reads that
+             *     take it say no more about it than that its table is free.
+             */
+            reservationId: string;
+            /**
              * @description The room the table is in - "Hall", "Terrace" - or absent for a table in no room. Said beside the
              *     table label, because "table 4" alone does not tell somebody arriving which room to walk into.
              */
             roomName?: string | null;
             /** @description Lifecycle of a booking. Every member is the result of somebody doing something. */
             status: components["schemas"]["Yalla.Domain.Enums.ReservationStatus"];
+            /**
+             * Format: uuid
+             * @description The booked table's id - so the change screen can start from the table the booking holds, and send it
+             *     back as `diningTableId` when only the time or the party changes. Table ids are no secret: the
+             *     branch's public availability and room photos publish them for every pinned table. The booked one is
+             *     named even if it has since been unpinned or taken out, which those reads do not list; a move to it is
+             *     then refused as for any table that cannot be booked.
+             */
+            tableId: string;
             /** @description The table, as printed on the floor. */
             tableLabel: string;
             /**
@@ -8673,6 +8720,12 @@ export interface components {
             timeZoneId: string;
             /** @description The venue, as the confirmation names it. */
             venueName: string;
+            /**
+             * @description The venue's half of the branch's public address, `/{venueSlug}/{branchSlug}`. The link a reminder
+             *     carries is `/booking/{token}`, with no branch in it, so the page needs these to link back to
+             *     the branch's page and open the booking card there. Public already: the address is the page's.
+             */
+            venueSlug: string;
         };
         /** @description One branch on the browse list. */
         "Yalla.Application.Public.PublicBranchCard": {
@@ -8731,6 +8784,12 @@ export interface components {
             openingHours: components["schemas"]["Yalla.Application.BranchSettings.OpeningHoursView"][];
             /** @description Published contact number, or absent. */
             phoneE164?: string | null;
+            /**
+             * @description How many shown reviews gave each star, <b>one star first</b>: always five numbers, <c>[1★, 2★, 3★, 4★,
+             *     5★]</c>, zeros included. Over the same reviews as `listing.rating` and `listing.reviewCount`,
+             *     read live with them, so the five add up to the count. For the distribution bars.
+             */
+            ratingCounts: number[];
             /** @description The newest three published reviews, by when they were first written. The rest are paged on the reviews route. */
             recentReviews: components["schemas"]["Yalla.Application.Public.PublicReviewView"][];
             /**
@@ -8947,6 +9006,14 @@ export interface components {
              *     wrong zone, and a tourist is a named primary user of this surface.
              */
             timeZoneId: string;
+            /**
+             * Format: int32
+             * @description How many branches the venue's chooser (`GET /api/public/venues`) lists for this venue - its
+             *     branches that are switched on, this one included - so the page can say "All 3 branches" without
+             *     downloading every venue to count them. A branch switched off is not listed there and not counted here.
+             *     Read live, in the same query as AcceptsWebBookings. At least 1.
+             */
+            venueBranchCount: number;
             /** @description The venue's name. */
             venueName: string;
             /** @description The venue half of the link. */
@@ -9032,16 +9099,38 @@ export interface components {
         };
         /** @description A page of a branch's published reviews, newest first by when each was written. */
         "Yalla.Application.Public.PublicReviewPage": {
-            /** Format: uuid */
+            /**
+             * Format: uuid
+             * @description The branch.
+             */
             branchId: string;
-            /** Format: int32 */
+            /**
+             * Format: int32
+             * @description This page, from 1.
+             */
             page: number;
-            /** Format: int32 */
+            /**
+             * Format: int32
+             * @description Reviews a page.
+             */
             pageSize: number;
-            /** Format: double */
+            /**
+             * Format: double
+             * @description The average of the shown reviews, or absent with none.
+             */
             rating?: number | null;
-            /** Format: int32 */
+            /**
+             * @description How many shown reviews gave each star, <b>one star first</b>: always five numbers, <c>[1★, 2★, 3★, 4★,
+             *     5★]</c>, zeros included - the whole branch's, not this page's. Over the same reviews as
+             *     Rating and ReviewCount, so the five add up to the count.
+             */
+            ratingCounts: number[];
+            /**
+             * Format: int32
+             * @description How many reviews are shown.
+             */
             reviewCount: number;
+            /** @description This page's reviews. */
             reviews: components["schemas"]["Yalla.Application.Public.PublicReviewView"][];
         };
         /** @description One published review. */
@@ -21466,6 +21555,113 @@ export interface operations {
                 };
                 content: {
                     "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+        };
+    };
+    reschedulePublicBooking: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                token: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["Yalla.Api.Endpoints.RescheduleReservationRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Yalla.Application.Public.PublicBookingView"];
+                };
+            };
+            /** @description `diningTableId` names a table at another branch. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description No usable token was presented, or the one presented was rejected. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description `phone-not-verified`: the booking's account cannot take a move - deactivated, deleted, without a proved number, or found not live mid-move. The message is for the link holder ("This booking can no longer be changed online. Call the venue, or cancel it and book again."); never a 401, since there is no session. The booking can still be read and cancelled from the link. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description The link is not valid - deliberately indistinguishable from an expired one, as on the read. Also `not-found` for a `diningTableId` that is no active table: read the link again to tell the two apart. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description `reservation-not-changeable`: the booking is finished with or has started. `reservation-approval-expired`: a short-notice request nobody answered in time. `table-already-booked` / `table-currently-occupied`: the new slot is taken - Someone else took that table between the diner seeing it free and confirming. The body's `context` carries the clashing window and a fresh availability snapshot, so the app can redraw the floor and show what changed rather than only saying no. Never retried automatically: this answer will not change on a repeat. `reservation-overlaps-own`: another of the diner's bookings at the branch runs then (no context). `concurrent-update`: the booking was cancelled, approved or seated while this was in flight; read it again. `bookings-not-accepted`, `web-bookings-not-accepted`, `branch-unavailable`: the branch stopped taking bookings. `client-command-id-in-use`: the id belongs to another command or to a different change. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description A branch rule refused the booking. Each rule has its own `code` - `reservation-party-exceeds-capacity`, `reservation-outside-opening-hours` and so on - with the numbers behind it in `context`, so the app can say which table to pick instead rather than showing a generic failure. `validation-failed` names a missing or malformed field; `reservation-free-by-required` asks for `acceptsFreeByUtc`. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description Too many requests in the window, or a one-time credential is out of attempts. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description Unexpected failure. Quote the traceId from the body. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description The table's booking lock could not be had in time. `context.retryable` is true: unlike the 409, this one is worth retrying - with the same `clientCommandId`, so a retry that crosses with a late-committing original is recognised as a replay. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.LockTimeoutProblem"];
                 };
             };
         };

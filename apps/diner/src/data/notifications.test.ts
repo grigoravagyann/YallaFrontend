@@ -241,3 +241,93 @@ describe('booking times in the feed', () => {
     expect(bookingKeysForRow(request)).toContainEqual(['booking', 'r1']);
   });
 });
+
+/**
+ * Public page phase 5: a change or a cancel made with the booking's web
+ * manage link. The link may be in somebody else's hands, so the account holder
+ * is told what happened — and where it stands now — in their own language.
+ */
+describe('a booking changed or cancelled with its link', () => {
+  const PARAMS = {
+    venueName: 'Lumen Coffee',
+    branchName: 'Northern Avenue',
+    date: '2026-10-24',
+    time: '20:00',
+    partySize: '3',
+    reservationCode: 'Y3107',
+  };
+
+  it('says the new day, time and party, and that it stands confirmed', () => {
+    const copy = notificationCopy(
+      row({ kind: 'booking-changed-by-link', params: { ...PARAMS, status: '2' } }),
+    );
+    expect(copy.titleKey).toBe('notifications.kind.bookingChangedByLink.title');
+    expect(copy.bodyKey).toBe('notifications.kind.bookingChangedByLink.body');
+    expect(copy.params).toMatchObject({ day: '24.10', time: '20:00', count: 3 });
+  });
+
+  it('says it waits for the venue when the change went back to it', () => {
+    const copy = notificationCopy(
+      row({ kind: 'booking-changed-by-link', params: { ...PARAMS, status: '1' } }),
+    );
+    expect(copy.bodyKey).toBe('notifications.kind.bookingChangedByLinkWaiting.body');
+  });
+
+  it('says it was cancelled with the link', () => {
+    const copy = notificationCopy(row({ kind: 'booking-cancelled-by-link', params: PARAMS }));
+    expect(copy.titleKey).toBe('notifications.kind.bookingCancelledByLink.title');
+    expect(copy.params).toMatchObject({ day: '24.10', time: '20:00' });
+  });
+
+  it('has the words in every language, the day, time and party in each', () => {
+    for (const params of [
+      { kind: 'booking-changed-by-link', params: { ...PARAMS, status: '2' } },
+      { kind: 'booking-changed-by-link', params: { ...PARAMS, status: '1' } },
+      { kind: 'booking-cancelled-by-link', params: PARAMS },
+    ]) {
+      const copy = notificationCopy(row(params));
+      for (const bundle of [
+        dinerResources.en.diner,
+        dinerResources.hy.diner,
+        dinerResources.ru.diner,
+      ]) {
+        const title = lookup(bundle, copy.titleKey);
+        const body =
+          lookup(bundle, copy.bodyKey) ??
+          lookup(bundle, `${copy.bodyKey}_other`) ??
+          lookup(bundle, `${copy.bodyKey}_one`);
+        expect(typeof title).toBe('string');
+        expect(typeof body).toBe('string');
+        expect(body as string).toContain('{{time}}');
+        expect(body as string).toContain('{{day}}');
+      }
+    }
+  });
+
+  it('never invents a party: without one the row names the place only', () => {
+    for (const partySize of [undefined, '', 'x', '0']) {
+      const params: Record<string, string> = { ...PARAMS, status: '2' };
+      if (partySize === undefined) delete params['partySize'];
+      else params['partySize'] = partySize;
+      expect(notificationCopy(row({ kind: 'booking-changed-by-link', params })).bodyKey).toBe(
+        'notifications.kind.bookingChangedByLinkPlain.body',
+      );
+    }
+  });
+
+  it('reads a row without the slot as the place only, never "undefined"', () => {
+    const copy = notificationCopy(row({ kind: 'booking-changed-by-link', params: {} }));
+    expect(copy.titleKey).toBe('notifications.kind.bookingChangedByLink.title');
+    expect(copy.bodyKey).toBe('notifications.kind.bookingChangedByLinkPlain.body');
+  });
+
+  it('opens the booking it is about, and reads it again', () => {
+    for (const kind of ['booking-changed-by-link', 'booking-cancelled-by-link']) {
+      expect(notificationRoute(row({ kind }))).toEqual({
+        pathname: '/booking/[bookingId]',
+        params: { bookingId: 'r1' },
+      });
+      expect(bookingKeysForRow(row({ kind }))).toContainEqual(['booking', 'r1']);
+    }
+  });
+});

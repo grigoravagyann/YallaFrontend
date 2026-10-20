@@ -1649,6 +1649,24 @@ export class BookingsNotAcceptedError extends ApiError {
   }
 }
 
+/**
+ * A change from the manage link that the booking's own account cannot take —
+ * `phone-not-verified`, 403, on `POST /api/public/bookings/{token}/reschedule`
+ * (public page phase 5).
+ *
+ * The account the booking belongs to was deactivated or deleted, or never
+ * proved its number. The visitor holding the link cannot fix that — there is
+ * no session to verify — so this is not {@link PhoneNotVerifiedError}, which
+ * sends a screen to the code flow. The way on is to call the venue, or to
+ * cancel (which still works) and book again.
+ */
+export class BookingLinkAccountUnavailableError extends ApiError {
+  constructor(options: RefusalOptions) {
+    super('This booking can no longer be changed online.', { status: 403, ...options });
+    this.name = 'BookingLinkAccountUnavailableError';
+  }
+}
+
 /** A diner reporting their own review — `conflicting-state`, 409 (addendum, K8 extension). */
 export class CannotReportOwnReviewError extends ApiError {
   constructor(options: RefusalOptions) {

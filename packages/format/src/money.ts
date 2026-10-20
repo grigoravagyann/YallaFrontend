@@ -32,32 +32,76 @@ function dramFormatter(locale: Locale): Intl.NumberFormat {
   return created;
 }
 
+/**
+ * The thousands separator where it is ours rather than the runtime's: a
+ * no-break space in Armenian and Russian, "1 400 ֏" (public-page HANDOFF §3).
+ *
+ * Not left to `Intl`, because what `Intl` says depends on the locale data the
+ * runtime ships rather than on the locale asked for. Headless Chromium carries
+ * no Armenian data and falls back to the root locale's comma ("1,200 ֏"), and an
+ * engine that predates `useGrouping: 'always'` drops the group from a
+ * four-digit Armenian amount altogether ("5610"). English keeps its own comma
+ * from `Intl` ("5,610 ֏"), deliberately: it is the convention an English
+ * reader expects, and every runtime has English data.
+ */
+const GROUP_SEPARATOR: Readonly<Record<Locale, string | null>> = {
+  hy: NBSP,
+  ru: NBSP,
+  en: null,
+};
+
 function assertWholeDram(amount: number): void {
   if (!Number.isFinite(amount) || !Number.isInteger(amount)) {
     throw new FractionalDramError(amount);
   }
 }
 
+/** "1234567" → "1 234 567", in threes from the right. */
+function groupThousands(digits: string, separator: string): string {
+  const groups: string[] = [];
+  for (let end = digits.length; end > 0; end -= 3) {
+    groups.unshift(digits.slice(Math.max(0, end - 3), end));
+  }
+  return groups.join(separator);
+}
+
+/** The amount without its sign: the digits and minus sign from `Intl`, the grouping as above. */
+function amountText(amount: number, locale: Locale): string {
+  // -0 (a rounded refund of nothing) is zero, never "-0".
+  const parts = dramFormatter(locale).formatToParts(amount === 0 ? 0 : amount);
+  const separator = GROUP_SEPARATOR[locale];
+
+  if (separator === null) {
+    return parts
+      .filter((part) => part.type !== 'currency' && part.type !== 'literal')
+      .map((part) => part.value)
+      .join('');
+  }
+
+  const sign = parts
+    .filter((part) => part.type === 'minusSign')
+    .map((part) => part.value)
+    .join('');
+  const digits = parts
+    .filter((part) => part.type === 'integer')
+    .map((part) => part.value)
+    .join('');
+  return `${sign}${groupThousands(digits, separator)}`;
+}
+
 /**
- * Format a whole-integer dram amount, e.g. `5,610 ֏`.
+ * Format a whole-integer dram amount: `1 400 ֏` in hy and ru, `1,400 ֏` in en.
  *
- * The digits, grouping separator and minus sign all come from `Intl.NumberFormat`
- * — never from string building. Only the position of the currency sign is ours:
- * `en` would otherwise render `֏5,610`, and dram is written after the amount in
- * Armenia regardless of the UI language.
+ * The digits and the minus sign come from `Intl.NumberFormat`; the grouping in
+ * hy and ru and the position of the currency sign are ours. `en` would
+ * otherwise render `֏5,610`, and dram is written after the amount in Armenia
+ * regardless of the UI language.
  *
  * @throws {FractionalDramError} if `amount` is not a finite integer.
  */
 export function formatDram(amount: number, locale: Locale): string {
   assertWholeDram(amount);
-
-  const parts = dramFormatter(locale).formatToParts(amount);
-  const digits = parts
-    .filter((part) => part.type !== 'currency' && part.type !== 'literal')
-    .map((part) => part.value)
-    .join('');
-
-  return `${digits}${NBSP}${DRAM_SIGN}`;
+  return `${amountText(amount, locale)}${NBSP}${DRAM_SIGN}`;
 }
 
 /**
@@ -66,12 +110,7 @@ export function formatDram(amount: number, locale: Locale): string {
  */
 export function formatDramAmount(amount: number, locale: Locale): string {
   assertWholeDram(amount);
-
-  return dramFormatter(locale)
-    .formatToParts(amount)
-    .filter((part) => part.type !== 'currency' && part.type !== 'literal')
-    .map((part) => part.value)
-    .join('');
+  return amountText(amount, locale);
 }
 
 export { DRAM_SIGN };

@@ -1288,6 +1288,26 @@
       "reviewReplied": {
         "title": "The place replied to your review",
         "body": "Read the reply on the page of {{place}}."
+      },
+      "bookingChangedByLink": {
+        "title": "Your booking was changed",
+        "body_one": "Your booking at {{place}} is now on {{day}} at {{time}}, for {{count}} guest. It was changed with the booking link — if that wasn't you, check your booking.",
+        "body_other": "Your booking at {{place}} is now on {{day}} at {{time}}, for {{count}} guests. It was changed with the booking link — if that wasn't you, check your booking."
+      },
+      "bookingChangedByLinkWaiting": {
+        "body_one": "Your booking at {{place}} is now on {{day}} at {{time}}, for {{count}} guest, waiting for the venue's answer. It was changed with the booking link — if that wasn't you, check your booking.",
+        "body_other": "Your booking at {{place}} is now on {{day}} at {{time}}, for {{count}} guests, waiting for the venue's answer. It was changed with the booking link — if that wasn't you, check your booking."
+      },
+      "bookingChangedByLinkPlain": {
+        "body": "Your booking at {{place}} was changed with the booking link. If that wasn't you, check your booking."
+      },
+      "bookingCancelledByLink": {
+        "title": "Your booking was cancelled",
+        "body_one": "Your booking at {{place}} on {{day}} at {{time}}, for {{count}} guest, was cancelled with the booking link. If that wasn't you, call the venue.",
+        "body_other": "Your booking at {{place}} on {{day}} at {{time}}, for {{count}} guests, was cancelled with the booking link. If that wasn't you, call the venue."
+      },
+      "bookingCancelledByLinkPlain": {
+        "body": "Your booking at {{place}} was cancelled with the booking link. If that wasn't you, call the venue."
       }
     },
     "yesterday": "Yesterday",
