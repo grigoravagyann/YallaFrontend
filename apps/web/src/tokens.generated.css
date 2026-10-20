@@ -312,6 +312,9 @@
   --console-public-photo-scrim: rgba(20, 10, 4, 0.62);
   --console-public-photo-count: rgba(20, 10, 4, 0.72);
   --console-public-star: #8A5E08;
+  --console-public-telegram: #2A6FB0;
+  --console-public-telegram-hover: #235D94;
+  --console-public-telegram-foreground: #FFFFFF;
   --console-size-sidebar: 232px;
   --console-size-sidebar-grouped: 248px;
   --console-size-button: 40px;

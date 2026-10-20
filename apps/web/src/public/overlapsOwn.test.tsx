@@ -1,6 +1,5 @@
 // @vitest-environment jsdom
 import { BookingOverlapsOwnError, type PublicBranch, type TableAvailability } from '@yalla/api';
-import { formatDayAndTime } from '@yalla/format';
 import { cleanup, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -95,10 +94,10 @@ describe('a second booking that overlaps the visitor’s own', () => {
       ),
     );
 
-    await user.click(await screen.findByRole('button', { name: /^Reserve table/u }));
+    await user.click(await screen.findByRole('button', { name: 'Continue' }));
     await user.type(await screen.findByLabelText('Phone number'), '77123456');
-    await user.click(screen.getByRole('button', { name: 'Send code' }));
-    await user.type(await screen.findByLabelText('Enter the code'), '123456');
+    await user.click(screen.getByRole('button', { name: 'Get a code by SMS' }));
+    await user.type(await screen.findByLabelText('Code'), '123456');
     await user.type(await screen.findByLabelText('Name for the booking'), 'Bella');
     await user.click(await screen.findByRole('button', { name: 'Confirm booking' }));
 
@@ -171,14 +170,21 @@ describe('a second booking that overlaps the visitor’s own', () => {
         />,
       ),
     );
-    await user.click(await screen.findByRole('button', { name: /^Reserve table/u }));
+    await user.click(await screen.findByRole('button', { name: 'Continue' }));
     await user.type(await screen.findByLabelText('Phone number'), '77123456');
-    await user.click(screen.getByRole('button', { name: 'Send code' }));
-    await user.type(await screen.findByLabelText('Enter the code'), '123456');
+    await user.click(screen.getByRole('button', { name: 'Get a code by SMS' }));
+    await user.type(await screen.findByLabelText('Code'), '123456');
     await user.type(await screen.findByLabelText('Name for the booking'), 'Bella');
     await user.click(await screen.findByRole('button', { name: 'Confirm booking' }));
 
-    const day = formatDayAndTime(dayBefore, branch.timeZoneId, 'en').date;
+    // The day in the sheet's own words ("Mon 19 October", public-page phase 4),
+    // checked against the browser's English, which has the data.
+    const day = new Intl.DateTimeFormat('en-GB', {
+      weekday: 'short',
+      day: 'numeric',
+      month: 'long',
+      timeZone: branch.timeZoneId,
+    }).format(dayBefore);
     expect(
       await screen.findByText(
         `You already have a booking here on ${day} at 23:30 (table 2). Change or cancel that one first.`,

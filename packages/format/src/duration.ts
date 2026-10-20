@@ -72,6 +72,17 @@ function listFormatter(locale: Locale): Intl.ListFormat {
 }
 
 /**
+ * The short hour and minute units, written the way ICU's hy and ru data write
+ * them ("1 ժ 35 ր", "1 ч 35 мин": the same for every count in the short
+ * style), so the result does not depend on the data a runtime ships — the way
+ * `formatDram` groups its own digits.
+ */
+const OWN_UNITS: Partial<Record<Locale, { readonly hour: string; readonly minute: string }>> = {
+  hy: { hour: 'ժ', minute: 'ր' },
+  ru: { hour: 'ч', minute: 'мин' },
+};
+
+/**
  * Format a positive span of minutes, e.g. `35 min`, `1 hr, 35 min`, `2 hr`.
  *
  * Built from `Intl.NumberFormat` unit styles joined by `Intl.ListFormat` rather
@@ -89,6 +100,16 @@ export function formatDuration(minutes: number, locale: Locale): string {
   const total = Math.max(0, Math.trunc(minutes));
   const hours = Math.floor(total / 60);
   const mins = total % 60;
+
+  // Armenian and Russian from our own words, as ICU writes them — a runtime
+  // without their locale data (headless Chromium, slim browser builds) fell
+  // back to "2 h" inside an Armenian sentence. English data is always there.
+  const own = OWN_UNITS[locale];
+  if (own) {
+    if (hours === 0) return `${mins} ${own.minute}`;
+    if (mins === 0) return `${hours} ${own.hour}`;
+    return `${hours} ${own.hour} ${mins} ${own.minute}`;
+  }
 
   if (hours === 0) return unitFormatter(locale, 'minute').format(mins);
   if (mins === 0) return unitFormatter(locale, 'hour').format(hours);

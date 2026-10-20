@@ -257,8 +257,6 @@
     }
   },
   "verify": {
-    "phoneTitle": "Your phone number",
-    "phoneBody": "We ask for this only to hold the table, so the venue can reach you if something changes.",
     "phoneLabel": "Phone number",
     "countryCode": "Country code",
     "phonePlaceholder": "77 123456",
