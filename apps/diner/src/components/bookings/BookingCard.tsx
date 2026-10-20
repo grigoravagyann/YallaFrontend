@@ -9,6 +9,7 @@ import {
   StyleSheet,
   View,
   type StyleProp,
+  type TextStyle,
   type ViewStyle,
 } from 'react-native';
 import { canCancel } from '../../lib/bookingActions';
@@ -67,33 +68,54 @@ export const bookingBadgeVariant: Readonly<Record<BookingStatus, BadgeVariant>> 
   unknown: 'closed',
 };
 
+/**
+ * The status's words. Two venue-side cancellations read as what they were:
+ * declined — "Not confirmed", never confirmed in the first place — and
+ * cancelled automatically by the pause after three no-shows in three days
+ * (guest record, 2026-10-20), which the venue did not do.
+ */
+export function bookingStatusKey(
+  booking: Pick<Booking, 'status' | 'declinedBecause' | 'cancelledBecause'>,
+): string {
+  if (booking.status === 'cancelledByVenue') {
+    if (booking.cancelledBecause === 'noShowBlock') return 'bookings.status.cancelledAutomatically';
+    if (booking.declinedBecause) return 'bookings.status.declined';
+  }
+  return `bookings.status.${booking.status}`;
+}
+
 export function BookingBadge({
-  status,
-  declined = false,
+  booking,
   tone = 'soft',
 }: {
-  readonly status: BookingStatus;
-  /**
-   * The venue declined it rather than cancelling it: "Not confirmed", not
-   * "Cancelled by the venue" — it was never confirmed in the first place.
-   */
-  readonly declined?: boolean;
+  readonly booking: Pick<Booking, 'status' | 'declinedBecause' | 'cancelledBecause'>;
   /** `solid` on a photo and in the list; `soft` on the detail card. */
   readonly tone?: BadgeTone;
 }) {
   const { t } = useTranslation('diner');
   return (
     <Badge
-      variant={bookingBadgeVariant[status]}
+      variant={bookingBadgeVariant[booking.status]}
       tone={tone}
       size="sm"
-      label={
-        declined && status === 'cancelledByVenue'
-          ? t('bookings.status.declined')
-          : t(`bookings.status.${status}`)
-      }
+      label={t(bookingStatusKey(booking))}
     />
   );
+}
+
+/** "Three missed bookings in three days." under a booking the pause cancelled; else nothing. */
+export function NoShowBlockReason({
+  booking,
+  style,
+}: {
+  readonly booking: Pick<Booking, 'status' | 'cancelledBecause'>;
+  readonly style?: StyleProp<TextStyle>;
+}) {
+  const { t } = useTranslation('diner');
+  if (booking.status !== 'cancelledByVenue' || booking.cancelledBecause !== 'noShowBlock') {
+    return null;
+  }
+  return <Text style={[styles.blockReason, style]}>{t('bookings.noShowBlockReason')}</Text>;
 }
 
 /** What every view of a booking says about it, in the branch's own clock. */
@@ -131,11 +153,7 @@ function useBookingFacts(booking: Booking, now: Date) {
     hasRoom: tableValue !== booking.tableLabel,
     // The code is in the name: it is what the diner reads out at the door, and
     // what the list is searched by.
-    label: `${where}, ${
-      Boolean(booking.declinedBecause) && booking.status === 'cancelledByVenue'
-        ? t('bookings.status.declined')
-        : t(`bookings.status.${booking.status}`)
-    }, ${tableLine}, ${when}, ${booking.code}`,
+    label: `${where}, ${t(bookingStatusKey(booking))}, ${tableLine}, ${when}, ${booking.code}`,
   };
 }
 
@@ -212,11 +230,7 @@ export function BookingHeroCard({
             </View>
           ) : null}
           <View style={styles.heroStatus}>
-            <BookingBadge
-              status={booking.status}
-              declined={Boolean(booking.declinedBecause)}
-              tone="solid"
-            />
+            <BookingBadge booking={booking} tone="solid" />
           </View>
           <Text display numberOfLines={1} style={styles.heroName}>
             {facts.where}
@@ -355,11 +369,8 @@ export function BookingRow({ booking, now, onOpen, style }: BookingRowProps) {
               ? `${facts.day} · ${facts.time} · ${facts.guests} · ${facts.table}`
               : `${facts.day} · ${facts.time} · ${facts.guests}`}
           </Text>
-          <BookingBadge
-            status={booking.status}
-            declined={Boolean(booking.declinedBecause)}
-            tone="solid"
-          />
+          <BookingBadge booking={booking} tone="solid" />
+          <NoShowBlockReason booking={booking} />
           {/* The countdown while it waits. Once declined the badge says so;
               why is the detail's to say, not a paragraph in the list. */}
           {awaitsVenueAnswer(booking) ? (
@@ -481,6 +492,7 @@ const styles = StyleSheet.create({
   answer: { marginHorizontal: space.md + 2, marginTop: -space.xs, marginBottom: space.md },
   request: { marginHorizontal: space.md + 2, marginBottom: space.md },
   rowRequest: { ...typography.caption, color: colors.warningInk },
+  blockReason: { ...typography.caption, color: colors.textMuted },
   rowAnswer: { alignSelf: 'flex-start', marginTop: space.xs },
   fact: { flex: 1, gap: 2 },
   factLabel: { ...typography.caption, color: colors.textMuted },

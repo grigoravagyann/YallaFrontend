@@ -457,3 +457,27 @@ describe('a change or a cancel made with the web manage link', () => {
     }
   });
 });
+
+/*
+ * Guest record (2026-10-20): a booking marked a no-show opens that booking;
+ * the week's pause after three in three days, and its early end, open the
+ * bookings tab — they name no booking.
+ */
+describe('a no-show, and the pause on booking', () => {
+  it('sends a no-show to the booking it was marked on', () => {
+    expect(parsePushTarget({ kind: 'booking-no-show', reservationId: 'r-missed' })).toEqual({
+      kind: 'booking',
+      reservationId: 'r-missed',
+      action: null,
+      extensionMinutes: null,
+    });
+  });
+
+  it('opens the bookings tab for the pause and for its end, with no booking id', () => {
+    for (const kind of ['bookings-blocked-no-shows', 'bookings-unblocked']) {
+      const target = parsePushTarget({ kind, blockedUntilUtc: '2026-10-27T09:30:00Z' });
+      expect(target).toEqual({ kind: 'bookings' });
+      expect(routeFor(target)).toEqual({ pathname: '/(tabs)/bookings' });
+    }
+  });
+});

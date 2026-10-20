@@ -6,6 +6,7 @@ import {
   isPaymentExceedsRemaining,
   ReservationNotStartedError,
   newCommandId,
+  noShowUndoableUntil,
   tableDetail,
   type AdjustmentKind,
   type AffectedReservation,
@@ -76,6 +77,7 @@ import { TabPanel } from './TabPanel';
 import { useBranchFormat } from './useBranchFormat';
 import { useCachedMenu } from './useCachedMenu';
 import { useConnectionState } from './useConnectionState';
+import { UndoNoShowNotice, type UndoableNoShow } from './UndoNoShowNotice';
 
 /**
  * The floor screen: the whole product, on a counter.
@@ -125,7 +127,20 @@ interface Notice {
   readonly text: string;
   /** What a table action was sent to do — not yet what the server did. */
   readonly acted?: boolean;
+  /** A no-show just marked: the notice offers to undo it (`UndoNoShowNotice`). */
+  readonly undo?: UndoableNoShow;
+  /**
+   * A booking at this table was cancelled by its guest's no-show block
+   * (change-stream signal 4): worded when shown, as the stream's handler has
+   * no translations of its own.
+   */
+  readonly blockCancelledAt?: string;
 }
+
+/** How long a notice stays: long enough to read at arm's length. */
+const NOTICE_MS = 6_000;
+/** A notice offering an undo stays longer: noticing the mistake takes a moment. */
+const UNDO_NOTICE_MS = 15_000;
 
 /**
  * An order's refusal as the order screen words it. A queued order is only
@@ -384,6 +399,18 @@ export function FloorRoute({ identity, device = null, paused }: FloorRouteProps)
             void queryClient.invalidateQueries({
               queryKey: queryKeys.tabsAwaitingAdmission(branchId),
             });
+            // A booking cancelled by its guest's no-show block may have been
+            // waiting for an answer here: the card goes with it.
+            const blockCancelled = signalled.find(
+              (change) => change.signal === 'bookingCancelledByBlock',
+            );
+            if (blockCancelled) {
+              void queryClient.invalidateQueries({
+                queryKey: queryKeys.awaitingApproval(branchId),
+              });
+              // Said once, briefly: the next booking here is gone.
+              setNotice({ kind: 'info', text: '', blockCancelledAt: blockCancelled.tableLabel });
+            }
             for (const change of signalled) {
               if (change.tabId) {
                 void queryClient.invalidateQueries({ queryKey: queryKeys.staffTab(change.tabId) });
@@ -403,7 +430,18 @@ export function FloorRoute({ identity, device = null, paused }: FloorRouteProps)
           setStreamFailing(false);
           setStaleSince(null);
           setAnsweredAt(minuteOf(lastAnswer.current));
-          void queryClient.invalidateQueries({ queryKey: queryKeys.staffFloor(branchId) });
+          // The floor read again, and the stream goes on from the sequence it
+          // answered at: without it the stream stays at 0, never reads a
+          // change, and asks for the whole floor on every poll (guest record
+          // QA, 2026-10-20 — the signals never reached the tablet).
+          void queryClient
+            .invalidateQueries({ queryKey: queryKeys.staffFloor(branchId) })
+            .then(() => {
+              const floor = queryClient.getQueryData<StaffFloor | null>(
+                queryKeys.staffFloor(branchId),
+              );
+              if (floor) stream.setSequence(floor.lastSequence);
+            });
           void queryClient.invalidateQueries({
             queryKey: queryKeys.tabsAwaitingAdmission(branchId),
           });
@@ -441,7 +479,10 @@ export function FloorRoute({ identity, device = null, paused }: FloorRouteProps)
   useEffect(() => {
     if (!notice) return;
     if (noticeTimer.current) clearTimeout(noticeTimer.current);
-    noticeTimer.current = setTimeout(() => setNotice(null), 6_000);
+    noticeTimer.current = setTimeout(
+      () => setNotice(null),
+      notice.undo ? UNDO_NOTICE_MS : NOTICE_MS,
+    );
     return () => {
       if (noticeTimer.current) clearTimeout(noticeTimer.current);
     };
@@ -677,10 +718,21 @@ export function FloorRoute({ identity, device = null, paused }: FloorRouteProps)
 
   const release = useCallback(
     (reservationId: string, outcome: ReleaseOutcome) => {
+      // When the booking was due, read before the release takes it off the floor.
+      const startUtc =
+        floor?.details.find((detail) => detail.nextReservationId === reservationId)
+          ?.nextReservationStartUtc ?? null;
       releaseReservation.mutate(
         { reservationId, outcome, clientCommandId: newCommandId() },
         {
           onSuccess: (result) => {
+            // A no-show marked by mistake can be undone until 05:00 the next
+            // morning: offered while that holds on this clock, and the server
+            // has the last word. Not on a replay's other outcome.
+            const undoable =
+              result.outcome === 'noShow' &&
+              (startUtc === null ||
+                Date.now() < noShowUndoableUntil(startUtc, timeZoneId).getTime());
             setNotice({
               kind: 'info',
               // The server says whether it counted, rather than the button
@@ -688,6 +740,9 @@ export function FloorRoute({ identity, device = null, paused }: FloorRouteProps)
               text: result.countsTowardNoShowThreshold
                 ? t('notice.releasedNoShow', { label: result.tableLabel })
                 : t('notice.releasedCancelled', { label: result.tableLabel }),
+              ...(undoable
+                ? { undo: { reservationId: result.reservationId, tableLabel: result.tableLabel } }
+                : {}),
             });
             setAffected((current) => {
               const next = new Map(current);
@@ -725,7 +780,7 @@ export function FloorRoute({ identity, device = null, paused }: FloorRouteProps)
         },
       );
     },
-    [floor, format, releaseReservation, t],
+    [floor, format, releaseReservation, t, timeZoneId],
   );
 
   /**
@@ -1019,12 +1074,26 @@ export function FloorRoute({ identity, device = null, paused }: FloorRouteProps)
 
       {/* Never over the PIN gate: a notice that lands as the tablet locks is
           somebody else's news, and the next person should not read it. */}
-      {notice && !paused ? (
+      {notice?.undo && !paused && branchId ? (
+        <UndoNoShowNotice
+          // A fresh one per no-show: a tap on the last one never carries over.
+          key={notice.undo.reservationId}
+          branchId={branchId}
+          noShow={notice.undo}
+          text={notice.text}
+          online={queue.online}
+          wide={view === 'kitchen'}
+          timeZoneId={timeZoneId}
+          onSettled={setNotice}
+        />
+      ) : notice && !paused ? (
         <p
           className={`floor-notice notice-${notice.kind}${view === 'kitchen' ? ' is-wide' : ''}`}
           role="status"
         >
-          {notice.text}
+          {notice.blockCancelledAt !== undefined
+            ? t('notice.bookingCancelledByBlock', { label: notice.blockCancelledAt })
+            : notice.text}
         </p>
       ) : null}
 
@@ -1119,6 +1188,13 @@ export function FloorRoute({ identity, device = null, paused }: FloorRouteProps)
             pending={pendingTableIds.has(selection.tableId)}
             online={queue.online}
             affectedReservations={affected.get(selection.tableId) ?? []}
+            // The table read carries no guest record; the awaiting list does,
+            // for a next booking that still waits for an answer.
+            nextBookingRecord={
+              awaitingQuery.data?.find(
+                (request) => request.id === selectedDetail?.nextReservationId,
+              )?.guestRecord ?? null
+            }
             releasing={releaseReservation.isPending}
             onAct={act}
             onRelease={release}

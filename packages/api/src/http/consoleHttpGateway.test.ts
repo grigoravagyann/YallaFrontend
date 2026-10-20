@@ -353,6 +353,8 @@ describe('deciding a pending booking over HTTP', () => {
     expect(bookings).toEqual([
       {
         phoneUnverified: false,
+        guestRecord: null,
+        cancelledBecause: null,
         id: 'r-1',
         code: 'K7M2',
         branchId: 'b-1',

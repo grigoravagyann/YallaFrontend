@@ -1,14 +1,7 @@
 import {
   ADMITTED,
-  BranchRequiresVerifiedPhoneError,
-  DeviceHasActiveBookingError,
-  PhoneHasActiveBookingError,
   ScanTurnedAwayError,
   TabAwaitingAdmissionError,
-  TooManyRequestsError,
-  UnverifiedPartyTooLargeError,
-  UnverifiedQueueFullError,
-  bookingFailure,
   type Booking,
   type DinerTabView,
   type TabAdmission,
@@ -17,9 +10,7 @@ import {
 import { describe, expect, it } from 'vitest';
 import { canChangeBooking } from '../components/bookings/changeBooking';
 import { atTableOffer, canKeepTable } from '../lib/bookingActions';
-import { madeWithYourNumber, waitsOnOwnVenueAnswer } from '../lib/bookingsList';
 import { scanFailureFor } from '../lib/scanOutcome';
-import { unprovedFailureLine, proofLifts } from '../data/bookingRefusals';
 import { admissionState, justAdmitted } from './admission';
 import { applyTabEvents } from './events';
 import { orderingBlock, orderingBlockKey } from './ordering';
@@ -29,8 +20,10 @@ import { billRequestFailure } from './payBill';
  * Unverified guests on the phone (2026-10-20): a tab a scan with no proved
  * number opened waits for a waiter — the menu readable, ordering and the bill
  * not, a waiter callable — until the stream says it was let in (21) or turned
- * away (22); a scan right after a turn-away is refused in words; a booking by
- * an account with no proved number is said as such, and its refusals too.
+ * away (22); a scan right after a turn-away is refused in words. The few
+ * bookings made without a proved number while that was possible (legacy rows)
+ * are never moved or used for "I'm at my table"; booking without proof is
+ * gone (guest record, 2026-10-20).
  */
 
 const url = 'https://api.test/api/tabs/t-1/orders';
@@ -130,7 +123,7 @@ describe('a scan right after a waiter turned it away', () => {
   });
 });
 
-describe('a booking made without a proved number', () => {
+describe('a legacy booking made without a proved number', () => {
   const booking = {
     id: 'r-1',
     status: 'pendingApproval',
@@ -141,16 +134,6 @@ describe('a booking made without a proved number', () => {
   it('is never offered Change — the server refuses it until the number is proved', () => {
     expect(canChangeBooking(booking, before)).toBe(true);
     expect(canChangeBooking({ ...booking, phoneUnverified: true }, before)).toBe(false);
-  });
-
-  it('nor is somebody else’s made with this account’s number', () => {
-    expect(canChangeBooking({ ...booking, madeWithYourNumber: true }, before)).toBe(false);
-  });
-
-  it('is listed apart when somebody else made it with the account’s number', () => {
-    const own = { ...booking, id: 'own' };
-    const stranger = { ...booking, id: 'stranger', madeWithYourNumber: true };
-    expect(madeWithYourNumber([own, stranger])).toEqual({ own: [own], strangers: [stranger] });
   });
 });
 
@@ -170,47 +153,5 @@ describe('the review round (UG-FE-REVIEW)', () => {
     // The server refuses until the number is proved: scan the code on the table.
     expect(atTableOffer({ ...sitting, phoneUnverified: true }, now)).toBe('scanInstead');
     expect(atTableOffer({ ...sitting, status: 'cancelledByDiner' }, now)).toBeNull();
-  });
-
-  it('reads the list again only for the account’s own bookings waiting on the venue (S2)', () => {
-    const waiting = {
-      ...sitting,
-      status: 'pendingApproval',
-      approvalExpiresAtUtc: '2026-10-21T08:00:00Z',
-    } as Booking;
-    expect(waitsOnOwnVenueAnswer([waiting])).toBe(true);
-    expect(waitsOnOwnVenueAnswer([{ ...waiting, madeWithYourNumber: true }])).toBe(false);
-  });
-});
-
-describe('the refusals an unproved account meets', () => {
-  const zone = 'Asia/Yerevan';
-
-  it('offers proving the number when the number’s booking is somebody else’s', () => {
-    const failure = bookingFailure(new PhoneHasActiveBookingError({ url }), zone, 'en');
-    expect(unprovedFailureLine(failure, true)).toEqual({
-      key: 'confirm.error.phoneHasBookingVerify',
-      params: {},
-    });
-    // A proved account is only held by a proved booking: nothing to offer.
-    expect(unprovedFailureLine(failure, false).key).toBe('confirm.error.phoneHasBooking');
-  });
-
-  it('knows which refusals proving the number lifts', () => {
-    const lifted = [
-      new BranchRequiresVerifiedPhoneError({ url }),
-      new DeviceHasActiveBookingError({ url }),
-      new UnverifiedPartyTooLargeError({ url, partySize: 8, maxPartySize: 6 }),
-      new UnverifiedQueueFullError({ url }),
-      new TooManyRequestsError({ url, retryAfterSeconds: 600 }),
-      new PhoneHasActiveBookingError({ url }),
-    ];
-    for (const error of lifted) {
-      expect(proofLifts(bookingFailure(error, zone, 'en'), true)).toBe(true);
-    }
-    expect(
-      proofLifts(bookingFailure(new UnverifiedQueueFullError({ url }), zone, 'en'), false),
-    ).toBe(false);
-    expect(proofLifts(bookingFailure(new Error('boom'), zone, 'en'), true)).toBe(false);
   });
 });

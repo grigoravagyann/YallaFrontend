@@ -1,6 +1,5 @@
 import {
   MAX_BOOKING_NOTE,
-  ValidationError,
   bookingFailure,
   newCommandId,
   tableCopy,
@@ -10,13 +9,13 @@ import {
   type TableAvailability,
   type VerifiedPhone,
 } from '@yalla/api';
-import { useCreateUnverifiedBooking, useGateway } from '@yalla/api/react';
+import { useGateway } from '@yalla/api/react';
 import { formatTime } from '@yalla/format';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useLocale, useTranslation } from '@yalla/i18n';
 import { useCallback, useEffect, useId, useRef, useState, type Ref } from 'react';
 import { BookingDone } from './BookingDone';
-import { dayWords, freeCancellationWords, whenWords } from './dayNames';
+import { freeCancellationWords, whenWords } from './dayNames';
 import {
   EMPTY_PHONE,
   NO_CLOSED_DOORS,
@@ -25,17 +24,9 @@ import {
   type PhoneDraft,
   type VerifyStep,
 } from './PhoneVerification';
-import { useLangPath } from './language';
 import { formatPhone } from './phone';
+import { numberRuleWords, otherBranchDay, overlapElsewhereWords } from './refusalWords';
 import { SheetHead, SheetNote, SheetProgress } from './SheetParts';
-import { branchToday } from './slots';
-import {
-  browserDeviceId,
-  keepManageToken,
-  keptManageToken,
-  lastKeptManageToken,
-  withoutProofDoor,
-} from './unverifiedBooking';
 
 /**
  * The whole booking flow, on the page, in one sheet (Book artboard).
@@ -48,12 +39,12 @@ import {
  *
  * The steps, under a progress line (Table · Phone · Name): the table, with the
  * window it is held for and the promise to free it by the next booking; the
- * phone, Telegram first — or, where the branch takes it, on without proving
- * the number, which the name step then asks for (unverified guests,
- * 2026-10-20); the name, with an optional note to the venue; then
- * booked, waiting for the venue, or declined (`BookingDone`). A table lost to
- * somebody else while confirming is a step of its own, listing what is free at
- * the same time.
+ * phone, Telegram first — always proved: there is no booking without a proved
+ * number (guest record, 2026-10-20); the name, with an optional note to the
+ * venue and a line on what venues see of the visitor's record; then booked,
+ * waiting for the venue, or declined (`BookingDone`). A table lost to somebody
+ * else while confirming is a step of its own, listing what is free at the same
+ * time.
  *
  * Every sentence about the table comes from the phone app's copy through
  * `tableCopy`, `verificationFailureCopy` and `bookingFailure`. The one rule
@@ -106,8 +97,6 @@ type Step = 'table' | 'taken' | 'verify' | 'name' | 'done';
 const NOTE_MAX = MAX_BOOKING_NOTE;
 /** How many free tables the taken step lists; the room shows them all. */
 const ALTERNATIVES_SHOWN = 6;
-/** Fewer digits than this after the country code is not a whole number (as the phone step says). */
-const PHONE_MIN_DIGITS = 6;
 
 export default function BookingSheet({
   branch,
@@ -130,9 +119,6 @@ export default function BookingSheet({
   const noteId = useId();
   const noteHintId = useId();
   const continueHintId = useId();
-  const phoneId = useId();
-  const phoneHintId = useId();
-  const phoneErrorId = useId();
   const { locale } = useLocale();
   const gateway = useGateway();
   const queryClient = useQueryClient();
@@ -155,21 +141,6 @@ export default function BookingSheet({
   const [closedDoors, setClosedDoors] = useState<ClosedDoors>(NO_CLOSED_DOORS);
   /** What the visitor tells the venue: a birthday, a high chair. Optional. */
   const [note, setNote] = useState('');
-  /**
-   * On without proving the number: the name step asks for it, and the booking
-   * goes through the public door. Dropped once the number is proved.
-   */
-  const [withoutProof, setWithoutProof] = useState(false);
-  /** The typed number, said under its field: too short, or not a number. */
-  const [phoneError, setPhoneError] = useState<string | null>(null);
-  /** The last refusal is one proving the number lifts: Telegram is offered beside it. */
-  const [proofLifts, setProofLifts] = useState(false);
-  /**
-   * Refused because this page already made a booking without proof: its
-   * manage link, the visitor's only way back to it (review S6).
-   */
-  const [ownLink, setOwnLink] = useState<string | null>(null);
-  const langPath = useLangPath();
   /** The last attempt may have committed, so the button checks rather than books. */
   const [outcomeUnknown, setOutcomeUnknown] = useState(false);
   /** The table somebody else took, while the taken step shows. */
@@ -189,7 +160,6 @@ export default function BookingSheet({
   const heading = useRef<HTMLHeadingElement>(null);
   const takenNote = useRef<HTMLDivElement>(null);
   const nameInput = useRef<HTMLInputElement>(null);
-  const phoneInput = useRef<HTMLInputElement>(null);
 
   /*
    * One id per attempt, reused on every retry of it.
@@ -220,8 +190,6 @@ export default function BookingSheet({
     setAgreedFreeBy(false);
     setOutcomeUnknown(false);
     setErrorText(null);
-    setProofLifts(false);
-    setOwnLink(null);
     setLostLabel(null);
     setBooking(null);
     // The new table's window, before any button (see the module comment). A
@@ -271,17 +239,35 @@ export default function BookingSheet({
     retry: false,
   });
 
-  /** The public door, without proof: its answer carries the manage link once. */
-  const createUnverified = useCreateUnverifiedBooking();
-  const sending = createBooking.isPending || createUnverified.isPending;
-  const door = withoutProofDoor(branch.policy, partySize);
-  const unproved = withoutProof && !verified;
-
-  /** What a refused or failed booking says, and where the sheet goes — for both doors. */
-  const fail = useCallback(
-    (error: unknown) => {
-      // A 429 is the hourly budget only for a booking without proof (review S4).
-      const failure = bookingFailure(error, branch.timeZoneId, locale, { unverified: unproved });
+  const submit = useCallback(async () => {
+    const name = guestName.trim();
+    if (!verified) return;
+    if (!name) {
+      // Said under the field, not a dead button (Book artboard).
+      const live = document.activeElement === nameInput.current;
+      setNameMissing(live ? 'live' : 'focused');
+      if (!live) nameInput.current?.focus();
+      return;
+    }
+    if (requiredFreeBy && !agreedFreeBy) return;
+    setErrorText(null);
+    try {
+      const created = await createBooking.mutateAsync({
+        guestPhone: verified.phoneE164,
+        guestName: name,
+        note: note.trim() || null,
+      });
+      setBooking(created);
+      setStep('done');
+      onBooked?.();
+      // The room has changed: this table is gone, and so is the free count
+      // above it. Both are read from the server rather than patched here.
+      void queryClient.invalidateQueries({ queryKey: ['availability', branch.id] });
+      void queryClient.invalidateQueries({ queryKey: ['public', 'branch'] });
+    } catch (error) {
+      // The place being booked: an overlap elsewhere names the other one.
+      const here = { venueName: branch.venue.name, branchName: branch.name };
+      const failure = bookingFailure(error, branch.timeZoneId, locale, { here });
 
       /*
        * Losing the race is an expected Friday-night outcome, not a failure
@@ -319,190 +305,66 @@ export default function BookingSheet({
         const { localStartTime: time, tableLabel: table } = failure.error;
         // Its day too when it is not the one being booked: last night's 23:30.
         const date = otherBranchDay(failure.error.localDate, slotUtc, branch.timeZoneId, tp);
+        // At another venue or branch, half an hour apart: that place named.
+        const elsewhere = overlapElsewhereWords(
+          failure.error,
+          here,
+          slotUtc,
+          branch.timeZoneId,
+          tp,
+        );
         setOutcomeUnknown(false);
         setErrorText(
-          !time
-            ? t(failure.line.key, failure.line.params)
-            : date
-              ? tp(table ? 'booking.overlapsOwnOn' : 'booking.overlapsOwnOnPlain', {
-                  date,
-                  time,
-                  table,
-                })
-              : tp(table ? 'booking.overlapsOwn' : 'booking.overlapsOwnPlain', { time, table }),
+          elsewhere ??
+            (!time
+              ? t(failure.line.key, failure.line.params)
+              : date
+                ? tp(table ? 'booking.overlapsOwnOn' : 'booking.overlapsOwnOnPlain', {
+                    date,
+                    time,
+                    table,
+                  })
+                : tp(table ? 'booking.overlapsOwn' : 'booking.overlapsOwnPlain', { time, table })),
         );
         return;
       }
 
-      // One number, one booking: named only to its own account, with our own
-      // day words (`Intl` writes hy dates in English where it has no data).
-      if (failure.kind === 'phoneHasActiveBooking' && failure.error.held) {
-        const { held } = failure.error;
+      // Three bookings held, or blocked for no-shows: the next booking named,
+      // or until when — in our own day words (`Intl` writes hy dates in English
+      // where it has no data). Nothing to retry; the sheet stays.
+      const numberRule = numberRuleWords(failure, branch.timeZoneId, locale, tp);
+      if (numberRule) {
         setOutcomeUnknown(false);
-        setErrorText(
-          t('confirm.error.phoneHasBookingHeld', {
-            venue: held.venueName || held.branchName,
-            date: dayWords(held.localDate, branchToday(branch.timeZoneId), tp).inSentence,
-            time: held.localStartTime,
-          }),
-        );
+        setErrorText(numberRule);
         return;
       }
 
-      // Not a phone number: said under the number typed.
-      if (
-        unproved &&
-        error instanceof ValidationError &&
-        (error.field?.toLowerCase() === 'guestphone' ||
-          error.violations.some((violation) => violation.field.toLowerCase() === 'guestphone'))
-      ) {
-        setOutcomeUnknown(false);
-        setPhoneError(tp('sheet.unverified.badPhone'));
-        phoneInput.current?.focus();
-        return;
-      }
-
-      // The limits on booking without proof, each lifted by proving the number
-      // — a number somebody else booked without proof too (review N7).
-      setProofLifts(
-        unproved &&
-          (failure.kind === 'deviceHasActiveBooking' ||
-            failure.kind === 'unverifiedPartyTooLarge' ||
-            failure.kind === 'unverifiedQueueFull' ||
-            failure.kind === 'rateLimited' ||
-            failure.kind === 'phoneHasActiveBooking' ||
-            failure.kind === 'verifiedPhoneRequired'),
-      );
-      // This page's own booking without proof holds the browser: offer it.
-      const kept = failure.kind === 'deviceHasActiveBooking' ? lastKeptManageToken() : null;
-      setOwnLink(kept ? langPath(`/booking/${kept}`) : null);
       setOutcomeUnknown(failure.kind === 'unknown');
       setErrorText(t(failure.line.key, failure.line.params));
-    },
-    [
-      branch.id,
-      branch.timeZoneId,
-      locale,
-      queryClient,
-      onTableTaken,
-      t,
-      tp,
-      slotUtc,
-      unproved,
-      langPath,
-    ],
-  );
-
-  /**
-   * Booking without proof: the typed number and this page's id, through the
-   * public door. The manage link is kept before anything else is done with
-   * the answer — a retry of the same command answers without it.
-   */
-  const submitUnproved = useCallback(
-    async (name: string) => {
-      const digits = phoneDraft.local.replace(/\D/gu, '');
-      if (digits.length < PHONE_MIN_DIGITS) {
-        setPhoneError(tp('sheet.phone.short'));
-        phoneInput.current?.focus();
-        return;
-      }
-      try {
-        const result = await createUnverified.mutateAsync({
-          branchId: branch.id,
-          commandId,
-          tableId: availability.tableId,
-          slotUtc,
-          timeZoneId: branch.timeZoneId,
-          partySize,
-          guestName: name,
-          guestPhone: `${phoneDraft.prefix.trim()}${digits}`,
-          deviceId: browserDeviceId(),
-          note: note.trim() || null,
-          ...(requiredFreeBy && agreedFreeBy ? { acceptsFreeByUtc: requiredFreeBy } : {}),
-        });
-        keepManageToken(commandId, result.manageToken);
-        setOutcomeUnknown(false);
-        setBooking({
-          ...result.booking,
-          manageToken: result.manageToken ?? keptManageToken(commandId),
-        });
-        setStep('done');
-        onBooked?.();
-      } catch (error) {
-        fail(error);
-      }
-    },
-    [
-      phoneDraft,
-      tp,
-      createUnverified,
-      branch.id,
-      branch.timeZoneId,
-      commandId,
-      availability.tableId,
-      slotUtc,
-      partySize,
-      note,
-      requiredFreeBy,
-      agreedFreeBy,
-      onBooked,
-      fail,
-    ],
-  );
-
-  const submit = useCallback(async () => {
-    const name = guestName.trim();
-    if (!verified && !unproved) return;
-    if (!name) {
-      // Said under the field, not a dead button (Book artboard).
-      const live = document.activeElement === nameInput.current;
-      setNameMissing(live ? 'live' : 'focused');
-      if (!live) nameInput.current?.focus();
-      return;
-    }
-    if (requiredFreeBy && !agreedFreeBy) return;
-    setErrorText(null);
-    setProofLifts(false);
-    setOwnLink(null);
-    if (!verified) {
-      await submitUnproved(name);
-      return;
-    }
-    try {
-      const created = await createBooking.mutateAsync({
-        guestPhone: verified.phoneE164,
-        guestName: name,
-        note: note.trim() || null,
-      });
-      setBooking(created);
-      setStep('done');
-      onBooked?.();
-      // The room has changed: this table is gone, and so is the free count
-      // above it. Both are read from the server rather than patched here.
-      void queryClient.invalidateQueries({ queryKey: ['availability', branch.id] });
-      void queryClient.invalidateQueries({ queryKey: ['public', 'branch'] });
-    } catch (error) {
-      fail(error);
     }
   }, [
     verified,
-    unproved,
     requiredFreeBy,
     agreedFreeBy,
     guestName,
     note,
     createBooking,
-    submitUnproved,
     branch.id,
+    branch.timeZoneId,
+    branch.venue.name,
+    branch.name,
+    locale,
     queryClient,
+    onTableTaken,
     onBooked,
-    fail,
+    t,
+    tp,
+    slotUtc,
   ]);
 
   const onVerified = useCallback(
     (result: VerifiedPhone) => {
       setVerified(result);
-      setWithoutProof(false);
       // Another table tapped while proving the phone: its window first.
       setStep(readTable === availability.tableId ? 'name' : 'table');
     },
@@ -517,32 +379,9 @@ export default function BookingSheet({
     if (verified) {
       setStep('name');
     } else {
-      setWithoutProof(false);
       setVerifyStep('phone');
       setStep('verify');
     }
-  };
-
-  /** On without proving: the number and the name, on the name step. */
-  const goOnWithoutProof = () => {
-    setErrorText(null);
-    setProofLifts(false);
-    setPhoneError(null);
-    setWithoutProof(true);
-    setStep('name');
-  };
-
-  /**
-   * From a refusal proving the number lifts, to Telegram — a new attempt: the
-   * unproved one was refused, and a verified booking is another command.
-   */
-  const proveInstead = () => {
-    setErrorText(null);
-    setProofLifts(false);
-    setWithoutProof(false);
-    setAttempt({ tableId: availability.tableId, commandId: newCommandId() });
-    setVerifyStep('phone');
-    setStep('verify');
   };
 
   const back =
@@ -550,9 +389,6 @@ export default function BookingSheet({
       ? () => (verifyStep === 'phone' ? setStep('table') : setVerifyStep('phone'))
       : step === 'name'
         ? () => {
-            setWithoutProof(false);
-            setErrorText(null);
-            setProofLifts(false);
             setVerifyStep('phone');
             setStep('verify');
           }
@@ -703,80 +539,23 @@ export default function BookingSheet({
               onNumberChange={setPhoneDraft}
               onVerified={onVerified}
               closedDoors={closedDoors}
-              onDoorClosed={(shut) => setClosedDoors((closed) => ({ ...closed, [shut]: true }))}
-              withoutProof={door}
-              onWithoutProof={goOnWithoutProof}
+              onDoorClosed={(door) => setClosedDoors((closed) => ({ ...closed, [door]: true }))}
             />
           ) : null}
 
-          {step === 'name' && (verified || unproved) ? (
+          {step === 'name' && verified ? (
             <form
               className="pub-sheet-step"
               noValidate
               onSubmit={(event) => {
                 event.preventDefault();
-                if (!sending) void submit();
+                if (!createBooking.isPending) void submit();
               }}
             >
               <div className="pub-sheet-body">
-                {verified ? (
-                  <SheetNote tone="green">
-                    {tp('sheet.name.verified', { phone: formatPhone(verified.phoneE164) })}
-                  </SheetNote>
-                ) : (
-                  <>
-                    {/* Before the number, what going without proof means here. */}
-                    <SheetNote tone="amber">
-                      {tp(
-                        door?.needsApproval !== false
-                          ? 'sheet.unverified.note'
-                          : 'sheet.unverified.noteNoApproval',
-                      )}
-                    </SheetNote>
-                    <div className="pub-sheet-field">
-                      <label htmlFor={phoneId}>{t('verify.phoneLabel')}</label>
-                      <div className="pub-phone-row">
-                        <input
-                          className="pub-input pub-input-prefix"
-                          value={phoneDraft.prefix}
-                          onChange={(event) => {
-                            setPhoneDraft({ ...phoneDraft, prefix: event.currentTarget.value });
-                            setPhoneError(null);
-                          }}
-                          inputMode="tel"
-                          autoComplete="tel-country-code"
-                          maxLength={5}
-                          aria-label={t('verify.countryCode')}
-                        />
-                        <input
-                          id={phoneId}
-                          ref={phoneInput}
-                          className={phoneError ? 'pub-input is-bad' : 'pub-input'}
-                          value={phoneDraft.local}
-                          onChange={(event) => {
-                            setPhoneDraft({ ...phoneDraft, local: event.currentTarget.value });
-                            setPhoneError(null);
-                          }}
-                          placeholder={t('verify.phonePlaceholder')}
-                          inputMode="tel"
-                          autoComplete="tel-national"
-                          aria-invalid={phoneError ? true : undefined}
-                          aria-describedby={
-                            phoneError ? `${phoneErrorId} ${phoneHintId}` : phoneHintId
-                          }
-                        />
-                      </div>
-                      <p className="pub-muted" id={phoneHintId}>
-                        {tp('sheet.unverified.phoneHint')}
-                      </p>
-                      {phoneError ? (
-                        <p className="pub-field-error" id={phoneErrorId}>
-                          {phoneError}
-                        </p>
-                      ) : null}
-                    </div>
-                  </>
-                )}
+                <SheetNote tone="green">
+                  {tp('sheet.name.verified', { phone: formatPhone(verified.phoneE164) })}
+                </SheetNote>
 
                 <div className="pub-sheet-field">
                   <label htmlFor={nameId}>{tp('sheet.name.label')}</label>
@@ -849,6 +628,12 @@ export default function BookingSheet({
                 </dl>
                 {copy.approval ? <SheetNote tone="amber">{line(copy.approval)}</SheetNote> : null}
 
+                {/* Said before the booking is sent: venues see the visitor's
+                    record — counts over twelve months, never where (guest record). */}
+                <div className="pub-sheet-terms">
+                  <p className="pub-muted">{tp('sheet.name.record')}</p>
+                </div>
+
                 {errorText ? (
                   <p className="pub-field-error" role="alert">
                     {errorText}
@@ -859,35 +644,19 @@ export default function BookingSheet({
                 <button
                   type="submit"
                   className="pub-button pub-button-primary"
-                  aria-disabled={sending || undefined}
+                  aria-disabled={createBooking.isPending || undefined}
                 >
                   {/* No optimistic success: a booking either exists on the
                       server or it does not, and telling someone they have a
                       table when they might not is the worst lie available. */}
-                  {sending
+                  {createBooking.isPending
                     ? t('confirm.submitting')
                     : outcomeUnknown
                       ? t('confirm.checkAgain')
-                      : copy.approval || (unproved && door?.needsApproval !== false)
+                      : copy.approval
                         ? t('confirm.requiresApproval')
                         : t('confirm.submit')}
                 </button>
-                {/* The booking this page made already: the way back to it. */}
-                {unproved && ownLink ? (
-                  <a className="pub-button" href={ownLink}>
-                    {tp('sheet.unverified.openYours')}
-                  </a>
-                ) : null}
-                {/* Refused for want of proof: the door that lifts it. */}
-                {unproved && proofLifts ? (
-                  <button
-                    type="button"
-                    className="pub-button pub-button-telegram"
-                    onClick={proveInstead}
-                  >
-                    {tp('sheet.unverified.verifyInstead')}
-                  </button>
-                ) : null}
               </div>
             </form>
           ) : null}
@@ -980,21 +749,4 @@ function TakenStep({
       </div>
     </div>
   );
-}
-
-/**
- * "Tue 20 October" for a branch day (`YYYY-MM-DD`) that is not the day of
- * `slotUtc` on the branch's calendar; `null` for the same day, or none given.
- * Our own words, as the rest of the sheet's dates (`dayNames.ts`).
- */
-function otherBranchDay(
-  localDate: string | null,
-  slotUtc: string,
-  timeZoneId: string,
-  t: Parameters<typeof dayWords>[2],
-): string | null {
-  if (!localDate || !/^\d{4}-\d{2}-\d{2}$/u.test(localDate)) return null;
-  const today = branchToday(timeZoneId);
-  if (localDate === branchToday(timeZoneId, new Date(slotUtc))) return null;
-  return dayWords(localDate, today, t).inSentence;
 }

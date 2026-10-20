@@ -33,6 +33,7 @@ import {
   WarningIcon,
 } from '../ui/icons';
 import { PageHeader } from '../ui/PageHeader';
+import { BookingBlocksCard } from './BookingBlocksCard';
 import { useVenueTypeLabel } from './venue/venueFields';
 import { issueText } from './venues/venueList';
 import { VenueThumb } from './venues/VenueThumb';
@@ -56,6 +57,8 @@ type Translate = ReturnType<typeof useTranslation>['t'];
  *   two that open a per-venue list — the bookings waiting for a venue's
  *   approval, and the tabs open now.
  * - **Bookings per day** for 14 or 30 days, today last and in the brand's tan.
+ * - **Guests blocked for no-shows**, while any are, with a lift that asks why
+ *   (`BookingBlocksCard`).
  * - **Not ready yet**: branches a guest can reach but would find unfinished.
  * - **Recently added** and **recent activity**: who did what, with no guest in it.
  */
@@ -193,6 +196,8 @@ function Home({
           locale={locale}
         />
       ) : null}
+
+      <BookingBlocksCard />
 
       <div className="yc-g2">
         <BookingsChart id={chartId} bookings={overview.bookings} locale={locale} />

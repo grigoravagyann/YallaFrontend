@@ -154,6 +154,10 @@ export function reservationsCsv(report: ReservationReport): string {
       measure('cancelled', report.cancelled, prior),
       measure('lateCancellations', report.lateCancellations, prior),
       measure('noShow', report.noShow, prior),
+      // A server before the guest record does not count them: no row, not a 0.
+      ...(report.systemCancelled
+        ? [measure('systemCancelled', report.systemCancelled, prior)]
+        : []),
       measure('cancellationRate', report.cancellationRate, prior),
       measure('noShowRate', report.noShowRate, prior),
       measure('webBookingsWithoutAnApp', report.webBookingsWithoutAnApp, prior),

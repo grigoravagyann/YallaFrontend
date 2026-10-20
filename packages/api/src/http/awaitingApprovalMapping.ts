@@ -8,6 +8,7 @@ import {
   type WireReservationTimes,
 } from './bookingTimesWire';
 import { reservationStatus } from './dinerMapping';
+import { guestRecordFromWire } from './guestRecordMapping';
 
 /**
  * The floor tablet's awaiting list, from the wire.
@@ -66,6 +67,7 @@ export function awaitingApprovalFromWire(wire: WireAwaitingApproval): AwaitingAp
     timeZoneId: view.timeZoneId,
     note: view.note ?? null,
     phoneUnverified: view.phoneUnverified === true,
+    guestRecord: guestRecordFromWire(view.guestRecord),
     // The row's own fields first; the reservation's when a server sends only those.
     approvalExpiresAtUtc: approvalExpiry(wire.approvalExpiresAtUtc ?? view.approvalExpiresAtUtc),
     because: approvalTrigger(wire.trigger ?? view.awaitingApprovalBecause),

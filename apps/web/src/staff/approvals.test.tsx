@@ -714,3 +714,107 @@ describe('the floor tablet', () => {
     expect(within(section).queryByText('No bookings are waiting for an answer.')).toBeNull();
   });
 });
+
+/** The guest's record on a card: its one line, sentence for a screen reader and all. */
+function recordLine(request: HTMLElement): HTMLElement | null {
+  return request.querySelector<HTMLElement>('.guest-record');
+}
+
+/** The mock's requests with their records replaced, by table. */
+function withRecords(
+  records: Readonly<Record<string, AwaitingApproval['guestRecord']>>,
+): StaffGateway {
+  const base = createStaffMockGateway({ latencyMs: 0, branchId: BRANCH, now: mockClock().now });
+  return {
+    ...base,
+    listAwaitingApproval: async (branchId) =>
+      (await base.listAwaitingApproval(branchId)).map((request) =>
+        request.tableLabel in records
+          ? { ...request, guestRecord: records[request.tableLabel] }
+          : request,
+      ),
+  };
+}
+
+describe("the guest's record on a request", () => {
+  it('says how the guest kept their bookings, in words, on each card', async () => {
+    signIn();
+    renderFloor(createStaffMockGateway({ latencyMs: 0, branchId: BRANCH, now: mockClock().now }));
+
+    const missed = recordLine(await card('7'))!;
+    expect(missed.textContent).toBe(
+      "Guest's record, last 12 months, all venues: 12 bookings · 11 came · 1 no-show",
+    );
+    // The no-show is said in words; its tone is never the only sign.
+    expect(within(missed).getByText('1 no-show').className).toContain('is-missed');
+
+    // No no-show is said too: it is the number a host looks for. A late
+    // cancellation is said only when there is one.
+    const late = recordLine(await card('11'))!;
+    expect(late.textContent).toMatch(/: 6 bookings · 5 came · 0 no-shows · 1 late cancellation$/u);
+    expect(late.querySelector('.is-missed')).toBeNull();
+    expect(missed.textContent).not.toMatch(/late cancellation/u);
+  });
+
+  it('says "New guest" plainly, and nothing at all when no account is behind the booking', async () => {
+    signIn();
+    renderFloor(
+      withRecords({
+        '7': {
+          booked: 0,
+          came: 0,
+          noShows: 0,
+          lateCancellations: 0,
+          unmarked: 0,
+          isNewGuest: true,
+          blockedUntilUtc: null,
+        },
+        '11': null,
+      }),
+    );
+
+    const fresh = recordLine(await card('7'))!;
+    expect(fresh.textContent).toMatch(/: New guest$/u);
+    // Neutral: not a warning.
+    expect(fresh.className).toContain('is-new');
+    expect(fresh.querySelector('.is-missed')).toBeNull();
+    expect(recordLine(await card('11'))).toBeNull();
+  });
+
+  it("says a blocked guest is blocked until when, on the branch's clock, with bookings nobody marked", async () => {
+    signIn();
+    const until = new Date(Date.now() + 6 * 24 * 3_600_000);
+    renderFloor(
+      withRecords({
+        '7': {
+          booked: 5,
+          came: 2,
+          noShows: 3,
+          lateCancellations: 0,
+          unmarked: 0,
+          isNewGuest: false,
+          blockedUntilUtc: until.toISOString(),
+        },
+        '11': {
+          booked: 8,
+          came: 5,
+          noShows: 0,
+          lateCancellations: 1,
+          unmarked: 2,
+          isNewGuest: false,
+          blockedUntilUtc: null,
+        },
+      }),
+    );
+
+    const blocked = recordLine(await card('7'))!;
+    const when = formatDayAndTime(until, 'Asia/Yerevan', 'en');
+    expect(within(blocked).getByText(`Blocked until ${when.date}, ${when.time}`)).toBeTruthy();
+    expect(blocked.className).toContain('is-blocked');
+    expect(blocked.textContent).toMatch(/· 5 bookings · 2 came · 3 no-shows$/u);
+
+    expect(recordLine(await card('11'))!.textContent).toMatch(
+      /: 8 bookings · 5 came · 0 no-shows · 1 late cancellation · 2 not marked$/u,
+    );
+  });
+});

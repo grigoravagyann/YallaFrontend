@@ -469,3 +469,35 @@ describe('the panel itself', () => {
     expect(onClose).toHaveBeenCalledTimes(2);
   });
 });
+
+describe("the next booking's guest record", () => {
+  const booked = {
+    nextReservationId: 'r-next',
+    nextReservationStartUtc: minutesFromNow(90),
+    nextReservationPartySize: 3,
+  };
+
+  it('is said under the next booking when the floor has it', () => {
+    const { panel } = show({
+      detail: booked,
+      nextBookingRecord: {
+        booked: 6,
+        came: 4,
+        noShows: 2,
+        lateCancellations: 0,
+        unmarked: 0,
+        isNewGuest: false,
+        blockedUntilUtc: null,
+      },
+    });
+    const next = within(panel).getByText('Next booking').nextElementSibling as HTMLElement;
+    expect(next.querySelector('.guest-record')?.textContent).toMatch(
+      /: 6 bookings · 4 came · 2 no-shows$/u,
+    );
+  });
+
+  it('is not said when no record came with it', () => {
+    const { panel } = show({ detail: booked });
+    expect(panel.querySelector('.guest-record')).toBeNull();
+  });
+});

@@ -1,4 +1,5 @@
 import {
+  BookingBlockedNoShowsError,
   BookingOverlapsOwnError,
   FreeByRequiredError,
   LeadTimeExceededError,
@@ -859,5 +860,128 @@ describe('changing a late-night booking at a bar', () => {
       ),
     ).toBeTruthy();
     expect(screen.queryByText(/so the venue checks the table is free/u)).toBeNull();
+  });
+});
+
+/*
+ * Guest record (2026-10-20): no booking without a proved number (as before
+ * #72), and none — new or a change — during the week's pause after three
+ * no-shows in three days. And Book says what venues see of the guest.
+ */
+describe('the Book screen, who may book', () => {
+  const PAUSED_UNTIL = '2026-10-23T09:30:00Z';
+  const paused =
+    /^You can't book until .*23.*, 13:30, because of three missed bookings in three days\.$/u;
+
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2026-10-16T08:00:00Z'));
+    useSession.setState({ signedIn: true, phoneE164: '+37499000000', guestName: 'Ani' });
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.restoreAllMocks();
+    useSession.setState({ signedIn: false, phoneE164: null, guestName: null, profile: null });
+  });
+
+  function record(blockedUntilUtc: string | null) {
+    return vi.spyOn(mock, 'listBookings').mockResolvedValue({
+      upcoming: [],
+      past: [],
+      guestRecord: {
+        booked: 3,
+        came: 0,
+        noShows: 3,
+        lateCancellations: 0,
+        unmarked: 0,
+        isNewGuest: false,
+        blockedUntilUtc,
+      },
+    });
+  }
+
+  it('turns Book into proving the number for an account that has not', async () => {
+    useSession.setState({
+      profile: { phoneVerified: false } as ReturnType<typeof useSession.getState>['profile'],
+    });
+    record(null);
+    const create = vi.spyOn(mock, 'createBooking');
+    router.push.mockClear();
+    params.current = { placeId: BRANCH };
+    renderScreen(<BookingScreen />);
+
+    const verify = await screen.findByRole('button', { name: 'Verify my number' });
+    await waitFor(() => expect(verify.getAttribute('aria-disabled')).not.toBe('true'));
+    fireEvent.click(verify);
+    await waitFor(() =>
+      expect(router.push).toHaveBeenCalledWith(expect.objectContaining({ pathname: '/auth/code' })),
+    );
+    expect(create).not.toHaveBeenCalled();
+  });
+
+  it('offers no Book while booking is paused, and says until when', async () => {
+    record(PAUSED_UNTIL);
+    params.current = { placeId: BRANCH };
+    renderScreen(<BookingScreen />);
+
+    expect(await screen.findByText(paused)).toBeTruthy();
+    const book = screen.getByRole('button', { name: /^Confirm Booking/u });
+    expect(book.getAttribute('aria-disabled')).toBe('true');
+  });
+
+  it('says what venues see, near Book', async () => {
+    record(null);
+    params.current = { placeId: BRANCH };
+    renderScreen(<BookingScreen />);
+
+    expect(
+      await screen.findByText(
+        'Venues you book with see how many of your bookings in the last 12 months you kept, missed or cancelled late — never where.',
+      ),
+    ).toBeTruthy();
+  });
+
+  it('says the pause when a change is refused for it, and reads the bookings again', async () => {
+    const at = (time: string) => new Date(`2026-10-16T${time}:00+04:00`).toISOString();
+    const [seven, half] = await Promise.all(
+      ['19:00', '19:30'].map((time) =>
+        mock.getSlotFloor({
+          branchId: BRANCH,
+          slotUtc: at(time),
+          partySize: 2,
+          timeZoneId: 'Asia/Yerevan',
+        }),
+      ),
+    );
+    const table = seven!.tables.find(
+      (candidate) =>
+        candidate.isBookable &&
+        half!.tables.find((other) => other.tableId === candidate.tableId)?.isBookable,
+    )!;
+    const list = record(null);
+    vi.spyOn(mock, 'rescheduleBooking').mockRejectedValue(
+      new BookingBlockedNoShowsError({
+        url: '/api/reservations/r-change/reschedule',
+        blockedUntilUtc: PAUSED_UNTIL,
+      }),
+    );
+    params.current = {
+      placeId: BRANCH,
+      bookingId: 'r-change',
+      slotUtc: at('19:00'),
+      party: '2',
+      tableId: table.tableId,
+      tableLabel: table.tableLabel,
+    };
+    renderScreen(<BookingScreen />);
+    await waitFor(() => expect(chosenTime()).toBe('19:00'));
+    stepTo('19:30');
+    const save = screen.getByRole('button', { name: /^Save changes, / });
+    await waitFor(() => expect(save.getAttribute('aria-disabled')).not.toBe('true'));
+    const reads = list.mock.calls.length;
+    fireEvent.click(save);
+
+    expect(await screen.findByText(paused)).toBeTruthy();
+    await waitFor(() => expect(list.mock.calls.length).toBeGreaterThan(reads));
   });
 });

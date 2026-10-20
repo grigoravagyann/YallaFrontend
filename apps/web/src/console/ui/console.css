@@ -1998,6 +1998,34 @@ textarea.yc-ctl {
   font-weight: var(--font-weight-semibold);
 }
 
+/* Home: guests blocked for no-shows, one row each with its Lift. */
+.yc-blocks {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.yc-blocks li {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+  padding: var(--space-md) 20px;
+  border-top: 1px solid var(--console-line-soft);
+}
+
+.yc-blocks-i {
+  flex: none;
+  color: var(--console-red);
+}
+
+.yc-blocks-who {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px var(--space-md);
+  min-width: 0;
+}
+
 .yc-form {
   display: flex;
   flex-direction: column;
@@ -4557,6 +4585,55 @@ textarea.yc-ctl {
   font-size: var(--console-text-caption);
 }
 
+/* The guest's record (2026-10-20), on a waiting booking and a row of today's:
+   an icon for its standing and the words for it — the no-show count amber,
+   the block red and bold, "New guest" plain. Never the colour alone. */
+.yc .guest-record {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0 6px;
+  margin: 0;
+  color: var(--console-muted);
+  font-size: var(--console-text-label);
+  font-variant-numeric: tabular-nums;
+}
+
+.yc .guest-record-i {
+  flex: none;
+  width: 14px;
+  height: 14px;
+}
+
+.yc .guest-record .is-missed,
+.yc .guest-record.is-missed .guest-record-i {
+  color: var(--console-amber);
+  font-weight: var(--font-weight-semibold);
+}
+
+.yc .guest-record.is-blocked {
+  color: var(--console-red);
+}
+
+.yc .guest-record.is-good .guest-record-i {
+  color: var(--console-green);
+}
+
+/* The bookings a guest's no-show block cancelled today: its own line under the foot. */
+.yc .yc-kpi-system {
+  display: block;
+  margin-top: 2px;
+}
+
+.yc .yc-bk-record {
+  /* Table cells do not wrap; the record does, under the name, rather than
+     pushing the status column out of sight. */
+  max-width: 14rem;
+  white-space: normal;
+  margin-top: 2px;
+  font-size: var(--console-text-caption);
+}
+
 /* The load by hour: bars under the dashed "room full" line. */
 .yc-load {
   padding: var(--space-lg) 20px var(--space-md);
@@ -6418,6 +6495,11 @@ textarea.yc-ctl {
   max-width: 62ch;
   color: var(--console-muted);
   font-size: var(--console-text-label);
+}
+
+/* Why a switch does nothing as the rest of the form stands. */
+.yc-pf-off {
+  font-style: italic;
 }
 
 .yc-pf-c {

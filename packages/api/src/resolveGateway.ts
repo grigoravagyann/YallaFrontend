@@ -3,7 +3,7 @@ import { createApiClient } from './client';
 import type { DataSource } from './config';
 import type { YallaGateway } from './gateway';
 import { createHttpGateway, type GatewayAudience, type TabTokenStorage } from './http/httpGateway';
-import { createMockGateway } from './mocks/mockGateway';
+import { createMockGateway, type MockGatewayOptions } from './mocks/mockGateway';
 import { persistMockGateway } from './mocks/persistence';
 import type { MockPersistence } from './resolveConsoleGateway';
 
@@ -67,6 +67,13 @@ export interface ResolveGatewayOptions {
   readonly mockAdmissionAfterMs?: number | undefined;
   /** Mock only: what that waiter decides — admit (absent) or turn the tab away. */
   readonly mockAdmissionOutcome?: 'admit' | 'reject' | undefined;
+  /**
+   * Mock only: the diner's record from before this world (guest record,
+   * 2026-10-20) — so the bookings screen has a record to show. Absent: new.
+   */
+  readonly mockGuestRecord?: MockGatewayOptions['guestRecord'];
+  /** Mock only: this diner is blocked for no-shows until then (ISO UTC). */
+  readonly mockBlockedUntilUtc?: string | undefined;
   /** Mock only: keep the world across a reload (QA F2). */
   readonly persist?: MockPersistence | undefined;
   /** Where tab participant tokens are kept between launches. Real only. */
@@ -100,6 +107,8 @@ export function resolveGateway(options: ResolveGatewayOptions): YallaGateway {
       phoneProofChannels: options.mockPhoneProofChannels,
       simulateAdmissionAfterMs: options.mockAdmissionAfterMs ?? 8_000,
       simulateAdmissionOutcome: options.mockAdmissionOutcome,
+      guestRecord: options.mockGuestRecord,
+      blockedUntilUtc: options.mockBlockedUntilUtc,
     };
     if (options.persist) {
       return persistMockGateway<YallaGateway>({

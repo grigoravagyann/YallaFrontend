@@ -83,6 +83,11 @@ import {
 import { branchOverviewFromWire, type WireBranchOverview } from './branchOverviewMapping';
 import { STATUS_AFTER } from '../contracts/branchOverview';
 import { reservationStatus } from './dinerMapping';
+import {
+  bookingBlockFromWire,
+  undoNoShowRefusal,
+  type WireBookingBlock,
+} from './guestRecordMapping';
 import { tableActionResult } from './staffMapping';
 import {
   activityFromWire,
@@ -636,6 +641,19 @@ export function createConsoleHttpGateway(
         { query: { deadLetterLimit: OUTBOX_DEAD_LETTER_LIMIT } },
       );
       return outboxHealthFromWire(data);
+    },
+
+    async listBookingBlocks() {
+      const { data } = await client.get<readonly WireBookingBlock[]>(`${PLATFORM}/booking-blocks`);
+      return (data ?? []).map(bookingBlockFromWire);
+    },
+
+    async liftBookingBlock({ blockId, reason }) {
+      const { data } = await client.post<WireBookingBlock>(
+        `${PLATFORM}/booking-blocks/${encodeURIComponent(blockId)}/lift`,
+        { reason: reason.trim() } satisfies Schemas['Yalla.Api.Endpoints.LiftBookingBlockRequest'],
+      );
+      return bookingBlockFromWire(data);
     },
 
     async listPlatformActivity(query = {}) {
@@ -1303,6 +1321,27 @@ export function createConsoleHttpGateway(
             outcome: 2,
           } satisfies Schemas['Yalla.Api.Endpoints.ReleaseReservationRequest']);
           return fromRelease(data);
+        }
+        case 'undoNoShow': {
+          // A no-show marked by mistake, until 05:00 the next morning: the
+          // booking back, confirmed.
+          const { data } = await client
+            .post<Schemas['Yalla.Application.Reservations.ReservationView']>(
+              `${RESERVATIONS}/${reservationId}/undo-no-show`,
+              { clientCommandId } satisfies Schemas['Yalla.Api.Endpoints.UndoNoShowRequest'],
+            )
+            .catch((error: unknown) => {
+              throw undoNoShowRefusal(error) ?? error;
+            });
+          return {
+            kind,
+            reservationId,
+            status: reservationStatus(data.status),
+            wasReplay: false,
+            tableLabel: data.tableLabel,
+            tableFreed: false,
+            outstandingDram: null,
+          };
         }
       }
     },

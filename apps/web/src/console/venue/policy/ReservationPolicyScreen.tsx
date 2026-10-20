@@ -21,6 +21,7 @@ import {
   clock,
   differsFromDefaults,
   fieldsInGroup,
+  inactiveBecause,
   leadExample,
   outOfBounds,
   refusalFor,
@@ -390,6 +391,10 @@ function PolicyField({
   const labelId = `pol-l-${key}`;
   const whyId = `pol-w-${key}`;
   const errorId = `pol-e-${key}`;
+  const offId = `pol-o-${key}`;
+  // Nothing for it to do as the rest of the form stands: offered, but not to
+  // be changed, with the reason beside it rather than a switch that does nothing.
+  const inactive = inactiveBecause(key, policy);
   const unit = spec.kind === 'toggle' ? '' : t(`policy.unit.${spec.kind}`);
 
   const error = invalid
@@ -433,6 +438,11 @@ function PolicyField({
         <span className="yc-pf-w" id={whyId}>
           {why}
         </span>
+        {inactive ? (
+          <span className="yc-pf-w yc-pf-off" id={offId}>
+            {t(`policy.inactive.${inactive}`)}
+          </span>
+        ) : null}
       </div>
       <div className="yc-pf-c">
         {spec.kind === 'toggle' ? (
@@ -444,8 +454,8 @@ function PolicyField({
               id={inputId(key)}
               aria-checked={value === true}
               aria-labelledby={labelId}
-              aria-describedby={whyId}
-              disabled={disabled}
+              aria-describedby={inactive ? `${whyId} ${offId}` : whyId}
+              disabled={disabled || inactive !== null}
               onClick={() => onChange(key, !(value === true))}
             />
             {value === true ? t('policy.on') : t('policy.off')}
@@ -476,7 +486,7 @@ function PolicyField({
             <button
               type="button"
               className="yc-lnk"
-              disabled={disabled}
+              disabled={disabled || inactive !== null}
               onClick={() => onChange(key, shipped)}
             >
               {t('policy.reset')}
@@ -600,26 +610,18 @@ export function groupExample(
         count: n(policy.graceExtensionMinutes),
       });
     case 'approval':
-      if (policy.autoConfirm !== true) return t('policy.example.approvalManual');
+      if (policy.autoConfirm !== true) {
+        return policy.autoConfirmGuestsWithGoodRecord === true
+          ? t('policy.example.approvalGoodRecord')
+          : t('policy.example.approvalManual');
+      }
       return policy.approvalRequiredAbovePartySize === null
         ? t('policy.example.approvalAll')
         : t('policy.example.approvalAbove', { count: policy.approvalRequiredAbovePartySize });
-    case 'unverified': {
-      // A cap of 0 switches bookings without a verified number off altogether.
-      const booking =
-        policy.unverifiedMaxPartySize === 0
-          ? t('policy.example.unverifiedOff')
-          : policy.unverifiedBookingsNeedApproval === true
-            ? t('policy.example.unverifiedApproved', { count: n(policy.unverifiedMaxPartySize) })
-            : t('policy.example.unverifiedConfirmed', {
-                count: n(policy.unverifiedMaxPartySize),
-              });
-      const scan =
-        policy.unverifiedScansNeedAdmission === false
-          ? t('policy.example.unverifiedScanOrders')
-          : t('policy.example.unverifiedScanWaits');
-      return `${booking} ${scan}`;
-    }
+    case 'scanning':
+      return policy.unverifiedScansNeedAdmission === false
+        ? t('policy.example.unverifiedScanOrders')
+        : t('policy.example.unverifiedScanWaits');
     case 'money':
       return n(policy.serviceChargePercent) > 0
         ? t('policy.example.serviceCharge', { percent: policy.serviceChargePercent })

@@ -64,6 +64,13 @@ describe('About', () => {
     expect(open).toHaveBeenCalledWith('https://example.test/terms');
     expect(screen.queryByText('about.privacy')).toBeNull();
   });
+
+  // Guest record (2026-10-20): the venues a guest books with see their counts.
+  it('says what venues see of the guest, with no link needed', () => {
+    render(<AboutScreen />);
+    expect(screen.getByText('about.venuesSee')).toBeTruthy();
+    expect(screen.getByText('privacy.guestRecord')).toBeTruthy();
+  });
 });
 
 describe('Help & Support', () => {

@@ -3,7 +3,7 @@ import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-li
 import userEvent from '@testing-library/user-event';
 import { Outlet, Route, Routes } from 'react-router-dom';
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { ReportQuery } from '@yalla/api';
+import { createConsoleMockGateway, type ConsoleGateway, type ReportQuery } from '@yalla/api';
 import { ToastProvider } from '../../ui/toast';
 import { menuItemHref } from '../menuAnchors';
 import { revenueCsv } from './csv';
@@ -285,6 +285,37 @@ describe('reservations', () => {
     expect(
       within(reservations).getByRole('link', { name: 'Open the reservation policy' }),
     ).toBeTruthy();
+  });
+});
+
+describe('bookings a guest block cancelled', () => {
+  function withSystemCancelled(value: number | null): ConsoleGateway {
+    const base = createConsoleMockGateway({ latencyMs: 0, role: 'owner' });
+    return {
+      ...base,
+      getReservationReport: async (query) => {
+        const report = await base.getReservationReport(query);
+        return {
+          ...report,
+          systemCancelled: value === null ? null : { value, previous: null, changeFraction: null },
+        };
+      },
+    };
+  }
+
+  it("are a line of their own, not the venue's cancellations", async () => {
+    renderReports({ harness: createConsoleHarness({ gateway: withSystemCancelled(2) }) });
+    await waitForSummary();
+    const reservations = card('Reservations');
+    const row = (await within(reservations).findByText('Cancelled: guest blocked for no-shows'))
+      .parentElement!;
+    expect(row.textContent).toMatch(/^Cancelled: guest blocked for no-shows2 \(/u);
+  });
+
+  it('are not said when there were none, or the server does not count them', async () => {
+    renderReports({ harness: createConsoleHarness({ gateway: withSystemCancelled(null) }) });
+    await waitForSummary();
+    expect(within(card('Reservations')).queryByText(/guest blocked/u)).toBeNull();
   });
 });
 

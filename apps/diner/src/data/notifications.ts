@@ -3,6 +3,8 @@ import {
   type DinerNotification,
   type KnownDinerNotificationKind,
 } from '@yalla/api';
+import { zonedParts, type TimeZone } from '@yalla/format';
+import { phoneTimeZone } from '../lib/guestRecord';
 
 /**
  * How one row of the notifications feed reads and where tapping it goes.
@@ -33,7 +35,16 @@ const COPY_KEY: Readonly<Record<KnownDinerNotificationKind, string>> = {
   'table-request-decided': 'tableRequestAccepted',
   'booking-changed-by-link': 'bookingChangedByLink',
   'booking-cancelled-by-link': 'bookingCancelledByLink',
+  'bookings-blocked-no-shows': 'bookingsBlockedNoShows',
+  'booking-no-show': 'bookingNoShow',
+  'bookings-unblocked': 'bookingsUnblocked',
 };
+
+/**
+ * The kinds about the guest's pause on booking (guest record, 2026-10-20):
+ * they name no booking, and open the bookings tab, where the pause is said.
+ */
+const PAUSE_KINDS: readonly string[] = ['bookings-blocked-no-shows', 'bookings-unblocked'];
 
 export interface NotificationCopy {
   readonly titleKey: string;
@@ -50,7 +61,10 @@ export interface NotificationCopy {
     readonly freeBy?: string;
     /** A change or cancel by the web link: the booking's day as `dd.MM`, as the push says it. */
     readonly day?: string;
-    /** …and its party, which also picks the plural form. */
+    /**
+     * …and its party, which also picks the plural form — or, on the pause
+     * after three no-shows, how many bookings it cancelled.
+     */
     readonly count?: number;
   };
 }
@@ -119,18 +133,97 @@ function linkSlot(
   return { day: `${date[3]}.${date[2]}`, time, count: party };
 }
 
+const pad = (value: number): string => String(value).padStart(2, '0');
+
+/** `2026-10-27` as `27.10`, the way the feed writes a day; `null` for anything else. */
+function shortDay(date: string | null): string | null {
+  const parts = /^(\d{4})-(\d{2})-(\d{2})$/u.exec(date ?? '');
+  return parts ? `${parts[3]}.${parts[2]}` : null;
+}
+
+/**
+ * When the pause after three no-shows ends: the day (`27.10`) and the time
+ * (`13:30`) on the phone's clock, the day as the branch wrote it when the row
+ * says it. `null` when the row has no readable end.
+ */
+function pauseEnd(
+  notification: Pick<DinerNotification, 'params'>,
+  timeZone: TimeZone,
+): { day: string; time: string } | null {
+  const until = Date.parse(text(notification.params['blockedUntilUtc']) ?? '');
+  if (!Number.isFinite(until)) return null;
+  const at = zonedParts(new Date(until), timeZone);
+  return {
+    day:
+      shortDay(text(notification.params['blockedUntilLocalDate'])) ??
+      `${pad(at.day)}.${pad(at.month)}`,
+    time: `${pad(at.hour)}:${pad(at.minute)}`,
+  };
+}
+
+/**
+ * The guest-record rows (2026-10-20): a no-show marked on a booking — where
+ * and when, and to contact the venue if it is wrong; the week's pause after
+ * three in three days — how many bookings it cancelled and when booking
+ * opens again; and the pause lifted early — why. `null` for any other row.
+ */
+function guestRecordCopy(
+  notification: Pick<DinerNotification, 'kind' | 'params'>,
+  place: string,
+  timeZone: TimeZone,
+): NotificationCopy | null {
+  const kind = `notifications.kind.`;
+  if (notification.kind === 'booking-no-show') {
+    const day = shortDay(text(notification.params['date']));
+    const time = text(notification.params['time']);
+    return {
+      titleKey: `${kind}bookingNoShow.title`,
+      bodyKey: day && time ? `${kind}bookingNoShow.body` : `${kind}bookingNoShowPlain.body`,
+      params: { place, ...(day && time ? { day, time } : {}) },
+    };
+  }
+  if (notification.kind === 'bookings-blocked-no-shows') {
+    const end = pauseEnd(notification, timeZone);
+    const count = Number(text(notification.params['cancelledCount']) ?? '0');
+    const cancelled = Number.isInteger(count) && count > 0 ? count : 0;
+    return {
+      titleKey: `${kind}bookingsBlockedNoShows.title`,
+      bodyKey: !end
+        ? `${kind}bookingsBlockedNoShowsPlain.body`
+        : cancelled > 0
+          ? `${kind}bookingsBlockedNoShows.body`
+          : `${kind}bookingsBlockedNoShowsNone.body`,
+      params: { place, ...(end ?? {}), ...(end && cancelled > 0 ? { count: cancelled } : {}) },
+    };
+  }
+  if (notification.kind === 'bookings-unblocked') {
+    // "1" lifted by Yalla's own staff; "2" a venue undid a no-show.
+    const why = text(notification.params['liftedBecause']);
+    const body = why === '1' ? 'Lifted' : why === '2' ? 'Undone' : '';
+    return {
+      titleKey: `${kind}bookingsUnblocked.title`,
+      bodyKey: `${kind}bookingsUnblocked${body}.body`,
+      params: { place },
+    };
+  }
+  return null;
+}
+
 /**
  * The title and body keys for a row. A kind this build has no copy for — a
  * newer server — gets the generic pair rather than being dropped or guessed.
  */
 export function notificationCopy(
   notification: Pick<DinerNotification, 'kind' | 'branchName' | 'params'>,
+  timeZone: TimeZone = phoneTimeZone(),
 ): NotificationCopy {
   const place =
     text(notification.branchName) ??
     text(notification.params['branchName']) ??
     text(notification.params['venueName']) ??
     '';
+  const record = guestRecordCopy(notification, place, timeZone);
+  if (record) return record;
   const change = declinedChange(notification);
   if (change) {
     return {
@@ -210,6 +303,8 @@ export function notificationCopy(
 export function bookingKeysForRow(
   notification: Pick<DinerNotification, 'kind' | 'reservationId'>,
 ): readonly (readonly string[])[] {
+  // The pause names no booking: the list, where it is said, is read again.
+  if (PAUSE_KINDS.includes(notification.kind)) return [['bookings']];
   const id = notification.reservationId;
   if (
     !id ||
@@ -223,7 +318,8 @@ export type NotificationRoute =
   | { readonly pathname: '/booking/[bookingId]'; readonly params: { bookingId: string } }
   | { readonly pathname: '/order/[orderId]'; readonly params: { orderId: string } }
   | { readonly pathname: '/tab/[tabId]'; readonly params: { tabId: string } }
-  | { readonly pathname: '/place/[placeId]'; readonly params: { placeId: string } };
+  | { readonly pathname: '/place/[placeId]'; readonly params: { placeId: string } }
+  | { readonly pathname: '/(tabs)/bookings' };
 
 function bookingRoute(id: string | null): NotificationRoute | null {
   return id ? { pathname: '/booking/[bookingId]', params: { bookingId: id } } : null;
@@ -253,6 +349,10 @@ export function notificationRoute(
 ): NotificationRoute | null {
   const { kind, reservationId, orderId, tabId, branchId } = notification;
   switch (kind) {
+    // The pause on booking, and its early end: said on the bookings tab.
+    case 'bookings-blocked-no-shows':
+    case 'bookings-unblocked':
+      return { pathname: '/(tabs)/bookings' };
     case 'booking-reminder':
     case 'booking-confirmed':
     case 'booking-declined':

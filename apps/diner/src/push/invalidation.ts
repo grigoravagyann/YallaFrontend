@@ -1,5 +1,5 @@
 import type { QueryClient, QueryKey } from '@tanstack/react-query';
-import type { PushData } from './payload';
+import { BOOKINGS_TAB_PUSH_KINDS, type PushData } from './payload';
 
 /**
  * What a push that just arrived makes stale.
@@ -37,7 +37,9 @@ export function queryKeysForPush(data: PushData | null | undefined): QueryKey[] 
   if (tabId !== null) keys.push(['dinerTab', tabId]);
 
   const reservationId = id(data, 'reservationId');
-  if (reservationId !== null || kind?.startsWith('reservation-')) {
+  // The pause on booking names no booking: the list says it, and is read again.
+  const aboutThePause = kind !== null && BOOKINGS_TAB_PUSH_KINDS.includes(kind);
+  if (reservationId !== null || kind?.startsWith('reservation-') || aboutThePause) {
     keys.push(['bookings']);
     if (reservationId !== null) {
       keys.push(['booking', reservationId], ['reservationState', reservationId]);

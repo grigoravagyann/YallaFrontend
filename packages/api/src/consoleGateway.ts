@@ -1,4 +1,5 @@
 import type { ConsoleBooking, DecideReservationCommand } from './contracts/approvals';
+import type { BookingBlock, LiftBookingBlockCommand } from './contracts/guestRecord';
 import type {
   BranchOverview,
   ConsoleBookingActionCommand,
@@ -210,6 +211,22 @@ export interface ConsoleGateway {
 
   /** `GET /api/platform/activity`: the newest audit rows, newest first. */
   listPlatformActivity(query?: PlatformActivityQuery): Promise<readonly PlatformActivityEntry[]>;
+
+  /**
+   * `GET /api/platform/booking-blocks`: guests blocked from booking for
+   * no-shows, the blocks in force, newest first (guest record review round).
+   */
+  listBookingBlocks(): Promise<readonly BookingBlock[]>;
+
+  /**
+   * `POST /api/platform/booking-blocks/{blockId}/lift` with a reason (3–500
+   * characters). The guest may book again and is told; what the block
+   * cancelled stays cancelled.
+   *
+   * @throws {ValidationError} 400 — the reason is missing or out of bounds.
+   * @throws {ConcurrencyConflictError} 409 `conflicting-state` — the block had already ended.
+   */
+  liftBookingBlock(command: LiftBookingBlockCommand): Promise<BookingBlock>;
 
   /** `GET /api/platform/me`. */
   getPlatformProfile(): Promise<PlatformAdminProfile>;

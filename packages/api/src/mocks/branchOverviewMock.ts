@@ -12,6 +12,7 @@ import type {
   ReservationChannel,
 } from '../contracts/branchOverview';
 import { openStateFrom } from '../contracts/openState';
+import type { GuestRecord } from '../contracts/guestRecord';
 import type { TableStatus } from '../contracts/service';
 import { localDateAndTime } from './approvalWindow';
 
@@ -48,15 +49,76 @@ const TODAY: readonly {
   readonly channel: ReservationChannel;
   readonly status: OverviewBooking['status'];
   readonly changeRequested?: boolean;
+  /**
+   * The guest's record (2026-10-20): came, no-shows, late cancels; `blockedDays`
+   * — blocked for no-shows for that many days more. Absent: a booking staff
+   * made, with no proved account behind it.
+   */
+  readonly record?: {
+    readonly came: number;
+    readonly noShows?: number;
+    readonly late?: number;
+    readonly blockedDays?: number;
+  };
 }[] = [
-  { offset: -195, guest: 'Tigran Avetisyan', party: 2, channel: 'web', status: 'completed' },
-  { offset: -75, guest: 'Մարիամ Ս.', party: 2, channel: 'app', status: 'seated' },
-  { offset: -45, guest: 'Hovhannes K.', party: 4, channel: 'web', status: 'seated' },
-  { offset: -12, guest: 'Արմեն Դ.', party: 3, channel: 'app', status: 'confirmed' },
-  { offset: 20, guest: 'Narine T.', party: 2, channel: 'app', status: 'confirmed' },
+  {
+    offset: -195,
+    guest: 'Tigran Avetisyan',
+    party: 2,
+    channel: 'web',
+    status: 'completed',
+    record: { came: 4 },
+  },
+  {
+    offset: -75,
+    guest: 'Մարիամ Ս.',
+    party: 2,
+    channel: 'app',
+    status: 'seated',
+    record: { came: 11, noShows: 1 },
+  },
+  {
+    offset: -45,
+    guest: 'Hovhannes K.',
+    party: 4,
+    channel: 'web',
+    status: 'seated',
+    record: { came: 0 },
+  },
+  // Late, and blocked since: a booking that had started is not cancelled by a block.
+  {
+    offset: -12,
+    guest: 'Արմեն Դ.',
+    party: 3,
+    channel: 'app',
+    status: 'confirmed',
+    record: { came: 2, noShows: 3, blockedDays: 6 },
+  },
+  {
+    offset: 20,
+    guest: 'Narine T.',
+    party: 2,
+    channel: 'app',
+    status: 'confirmed',
+    record: { came: 2, late: 1 },
+  },
   { offset: 65, guest: 'Gor A.', party: 4, channel: 'staff', status: 'confirmed' },
-  { offset: 95, guest: 'Ruzanna M.', party: 2, channel: 'app', status: 'cancelledByDiner' },
-  { offset: 110, guest: 'Սոնա Վ.', party: 4, channel: 'web', status: 'confirmed' },
+  {
+    offset: 95,
+    guest: 'Ruzanna M.',
+    party: 2,
+    channel: 'app',
+    status: 'cancelledByDiner',
+    record: { came: 0 },
+  },
+  {
+    offset: 110,
+    guest: 'Սոնա Վ.',
+    party: 4,
+    channel: 'web',
+    status: 'confirmed',
+    record: { came: 7 },
+  },
   {
     offset: 140,
     guest: 'Lilit B.',
@@ -64,8 +126,28 @@ const TODAY: readonly {
     channel: 'app',
     status: 'pendingApproval',
     changeRequested: true,
+    record: { came: 2 },
   },
 ];
+
+/** A seeded row's record, as the server counts it. */
+function seededRecord(record: (typeof TODAY)[number]['record'], now: Date): GuestRecord | null {
+  if (!record) return null;
+  const noShows = record.noShows ?? 0;
+  const late = record.late ?? 0;
+  const booked = record.came + noShows + late;
+  return {
+    booked,
+    came: record.came,
+    noShows,
+    lateCancellations: late,
+    unmarked: 0,
+    isNewGuest: booked === 0,
+    blockedUntilUtc: record.blockedDays
+      ? new Date(now.getTime() + record.blockedDays * 24 * 3_600_000).toISOString()
+      : null,
+  };
+}
 
 /** How long the app waits past the start before it asks "still coming?". */
 const LATE_NUDGE_MINUTES = 10;
@@ -127,6 +209,7 @@ export function seedTodayBookings(input: {
           : null,
       // Worked out on every read, against the clock: see `branchOverviewFrom`.
       lateNudgeSent: null,
+      guestRecord: seededRecord(row.record, input.now),
     };
     return [booking];
   });
@@ -285,6 +368,8 @@ export function branchOverviewFrom(input: {
       completed: count('completed'),
       noShow: count('noShow'),
       cancelled: rows.filter(isCancelled).length,
+      // The mock's own cancellations are all the venue's or the guest's.
+      cancelledBySystem: 0,
       people: holding.reduce((sum, row) => sum + row.partySize, 0),
       pendingChanges: shown.filter((row) => row.changeRequested).length,
     },

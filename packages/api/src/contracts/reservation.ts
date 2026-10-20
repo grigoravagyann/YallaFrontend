@@ -18,10 +18,9 @@ import {
   BookingBusyError,
   BookingCommandInUseError,
   BookingOverlapsOwnError,
+  BookingBlockedNoShowsError,
   BookingRejectedError,
-  BranchRequiresVerifiedPhoneError,
   BranchUnavailableError,
-  DeviceHasActiveBookingError,
   ExpiredCodeError,
   FreeByRequiredError,
   LeadTimeExceededError,
@@ -32,8 +31,6 @@ import {
   SmsUnavailableError,
   TelegramUnavailableError,
   TooManyAttemptsError,
-  UnverifiedPartyTooLargeError,
-  UnverifiedQueueFullError,
   WrongCodeError,
 } from './errors';
 import { NetworkError, ServerError, TimeoutError, TooManyRequestsError } from '../errors';
@@ -269,7 +266,8 @@ export function venueAnswerCopy(
  * Why a booking waits for the venue, under its pending title — the one
  * sentence the app's confirmation, the web's and the manage link all say.
  *
- * Made without a verified number: the venue confirms those itself. The guest
+ * Made without a verified number (legacy rows from 2026-10-20): the venue
+ * confirms those itself. The guest
  * before asked (by the app, or rung by the venue for a guest it has to). A
  * short-notice request on the floor's clock. Anything else: the venue will
  * confirm shortly.
@@ -581,33 +579,76 @@ export type BookingFailure =
       readonly nextBookingStartUtc: string | null;
     }
   /*
-   * Unverified guests (2026-10-20). One number holds one active booking: the
-   * line names it only when it is the caller's own (`error.held`). The rest
-   * are the limits on booking without a proved number — one per browser, the
-   * party cap, the venue's queue, the network's hourly budget — each of which
-   * a proved number lifts, so a screen offers proving it.
+   * The number rules (guest record, 2026-10-20). A proved number holds at most
+   * three active bookings: the line says how many, and names the caller's next
+   * one when the server did (`error.held`) so they know which to cancel.
    */
   | {
       readonly kind: 'phoneHasActiveBooking';
       readonly line: CopyLine;
       readonly error: PhoneHasActiveBookingError;
     }
-  | { readonly kind: 'deviceHasActiveBooking'; readonly line: CopyLine }
-  | { readonly kind: 'unverifiedPartyTooLarge'; readonly line: CopyLine }
-  | { readonly kind: 'unverifiedQueueFull'; readonly line: CopyLine }
-  /** The branch takes none without a verified number (its cap is 0): verify to book. */
-  | { readonly kind: 'verifiedPhoneRequired'; readonly line: CopyLine }
+  /**
+   * Three no-shows in three days: no booking, and no change, until
+   * `error.blockedUntilUtc`. Nothing to retry and nothing to offer.
+   */
+  | {
+      readonly kind: 'blockedNoShows';
+      readonly line: CopyLine;
+      readonly error: BookingBlockedNoShowsError;
+    }
+  /** A 429 — the server's request limit; wait a moment. */
   | { readonly kind: 'rateLimited'; readonly line: CopyLine }
   | { readonly kind: 'unknown'; readonly line: CopyLine }
   | { readonly kind: 'generic'; readonly line: CopyLine };
 
+/** The venue and branch being booked, as an overlap's refusal names places. */
+export interface BookingPlace {
+  readonly venueName?: string | null | undefined;
+  readonly branchName?: string | null | undefined;
+}
+
 export interface BookingFailureOptions {
   /**
-   * The booker has no proved number (an unproved account, the public page's
-   * door without proof). Only then is a 429 the hourly budget for bookings
-   * without one; anybody else met the server's general request limit.
+   * The venue and branch being booked. An overlap with the diner's own booking
+   * **elsewhere** — another venue, or another branch of this one — names that
+   * place ("…at Café Aram at 19:30, too close to this time"); one here says
+   * "here". Absent: every overlap is said as one here.
    */
-  readonly unverified?: boolean | undefined;
+  readonly here?: BookingPlace | undefined;
+}
+
+/**
+ * Whether the booking an overlap names is at another place than `here` — the
+ * venue (or branch) the diner is booking. Compared by name, as the refusal
+ * names it; a refusal that names no venue, or no `here`, reads as here.
+ */
+export function overlapIsElsewhere(
+  error: BookingOverlapsOwnError,
+  here: BookingPlace | undefined,
+): boolean {
+  const venue = error.venueName?.trim().toLowerCase();
+  const hereVenue = here?.venueName?.trim().toLowerCase();
+  if (!venue || !hereVenue) return false;
+  if (venue !== hereVenue) return true;
+  const branch = error.branchName?.trim().toLowerCase();
+  const hereBranch = here?.branchName?.trim().toLowerCase();
+  return Boolean(branch && hereBranch && branch !== hereBranch);
+}
+
+/**
+ * The place an overlap elsewhere names: "Café Aram" — or "Café Aram, North"
+ * when it is another branch of the venue being booked.
+ */
+export function overlapPlace(
+  error: BookingOverlapsOwnError,
+  here: BookingPlace | undefined,
+): string {
+  const venue = error.venueName?.trim() ?? '';
+  const branch = error.branchName?.trim() ?? '';
+  const sameVenue = venue !== '' && venue.toLowerCase() === here?.venueName?.trim().toLowerCase();
+  if (sameVenue && branch) return `${venue}, ${branch}`;
+  return venue || branch;
 }
 
 export function bookingFailure(
@@ -658,50 +699,48 @@ export function bookingFailure(
       error,
       line: !time
         ? line('confirm.error.generic')
-        : table
-          ? line('confirm.error.overlapsOwn', { time, table })
-          : line('confirm.error.overlapsOwnPlain', { time }),
+        : overlapIsElsewhere(error, options.here)
+          ? // Another venue: the two sittings need half an hour between them.
+            line('confirm.error.overlapsOwnElsewhere', {
+              venue: overlapPlace(error, options.here),
+              time,
+            })
+          : table
+            ? line('confirm.error.overlapsOwn', { time, table })
+            : line('confirm.error.overlapsOwnPlain', { time }),
     };
   }
   if (error instanceof PhoneHasActiveBookingError) {
     const held = error.held;
+    const max = error.maxActiveBookings;
     return {
       kind: 'phoneHasActiveBooking',
       error,
       line: held
-        ? line('confirm.error.phoneHasBookingHeld', {
+        ? line('confirm.error.maxActiveBookingsNext', {
+            max,
             venue: held.venueName || held.branchName,
             date: heldDay(held.localDate, timeZoneId, locale),
             time: held.localStartTime,
           })
-        : line('confirm.error.phoneHasBooking'),
+        : line('confirm.error.maxActiveBookings', { max }),
     };
   }
-  if (error instanceof DeviceHasActiveBookingError) {
-    return { kind: 'deviceHasActiveBooking', line: line('confirm.error.deviceHasBooking') };
-  }
-  if (error instanceof BranchRequiresVerifiedPhoneError) {
-    return { kind: 'verifiedPhoneRequired', line: line('confirm.error.unverifiedOff') };
-  }
-  if (error instanceof UnverifiedPartyTooLargeError) {
+  if (error instanceof BookingBlockedNoShowsError) {
     return {
-      kind: 'unverifiedPartyTooLarge',
-      line: line('confirm.error.unverifiedPartyTooLarge', { max: error.maxPartySize }),
+      kind: 'blockedNoShows',
+      error,
+      line: error.blockedUntilUtc
+        ? line('confirm.error.blockedNoShows', {
+            date: formatDate(error.blockedUntilUtc, timeZoneId, locale),
+            time: formatTime(error.blockedUntilUtc, timeZoneId, locale),
+          })
+        : line('confirm.error.blockedNoShowsPlain'),
     };
   }
-  if (error instanceof UnverifiedQueueFullError) {
-    return { kind: 'unverifiedQueueFull', line: line('confirm.error.unverifiedQueueFull') };
-  }
-  // A 429: for a booker with no proved number, the hourly budget for such
-  // bookings from one network; for anybody else the server's general request
-  // limit, which the same code answers — so the caller says which it is.
+  // A 429: the server's request limit. Nothing about the booking; wait a moment.
   if (error instanceof TooManyRequestsError) {
-    return {
-      kind: 'rateLimited',
-      line: line(
-        options.unverified ? 'confirm.error.rateLimited' : 'confirm.error.tooManyRequests',
-      ),
-    };
+    return { kind: 'rateLimited', line: line('confirm.error.tooManyRequests') };
   }
   if (error instanceof BookingBusyError) {
     return { kind: 'busy', line: line('confirm.error.busy') };

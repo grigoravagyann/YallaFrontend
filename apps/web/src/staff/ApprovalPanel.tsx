@@ -6,6 +6,7 @@ import {
   decisionFailureText,
   isAwaitingEarlierGuest,
 } from '../console/venue/overview/decisionFailure';
+import { GuestRecordLine } from '../console/venue/overview/GuestRecordLine';
 import {
   arrivalAnnouncement,
   branchToday,
@@ -31,6 +32,9 @@ import { useBranchFormat } from './useBranchFormat';
  * - **The table around it.** Who booked the table before (with a Call, to ask
  *   whether they are leaving), whether somebody is sitting there now, and who
  *   comes after. The three things a waiter would otherwise walk over to check.
+ * - **The guest's record.** How they kept their bookings over twelve months,
+ *   at every venue — or "New guest", or blocked for no-shows until when — so
+ *   a yes for a stranger who never came is not given blind.
  * - **Declining asks, once.** The guest is told no; the reason is optional and
  *   stays with the booking, never shown to them.
  *
@@ -239,6 +243,12 @@ function ApprovalCard({
           </>
         ) : null}
       </p>
+      <GuestRecordLine
+        record={request.guestRecord}
+        surface="staff"
+        timeZoneId={timeZoneId}
+        now={now}
+      />
       {request.note ? <p className="order-line-note">{request.note}</p> : null}
 
       {lines.length > 0 ? (

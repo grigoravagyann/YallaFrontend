@@ -1,4 +1,5 @@
 import type { SpecialDay } from './branchSettings';
+import type { GuestRecord } from './guestRecord';
 import type { ReservationStatusCode } from './push';
 import type { TableStatus } from './service';
 
@@ -80,6 +81,11 @@ export interface OverviewBookingCounts {
   readonly noShow: number;
   /** By the diner or by the venue, declined requests included. */
   readonly cancelled: number;
+  /**
+   * Of `cancelled`: called off by the platform because the guest was blocked
+   * for no-shows — not the venue's doing.
+   */
+  readonly cancelledBySystem: number;
   /** The party sizes of waiting, confirmed, seated and completed bookings. */
   readonly people: number;
   /** Of `confirmed`: bookings whose guest asked to change them, waiting for an answer. */
@@ -181,6 +187,11 @@ export interface OverviewBooking {
   readonly lateNudgeAtUtc: string | null;
   /** With `lateNudgeAtUtc`: whether it went out (true) or is still due (false). */
   readonly lateNudgeSent: boolean | null;
+  /**
+   * The guest's booking record over twelve months, at every venue — counts
+   * only, and a no-show block. Absent when no proved account is behind it.
+   */
+  readonly guestRecord?: GuestRecord | null | undefined;
 }
 
 /**
@@ -252,7 +263,11 @@ export function minutesLate(booking: OverviewBooking, now: Date): number {
  * There is no "ask whether they are coming": the app asks by itself at
  * `lateNudgeAtUtc`, and the backend has no manual nudge.
  */
-export type ConsoleBookingActionKind = 'seat' | 'noShow' | 'cancel' | 'finish';
+/**
+ * `undoNoShow` (guest record review round): a no-show marked by mistake,
+ * confirmed again — until 05:00 the next morning, branch time.
+ */
+export type ConsoleBookingActionKind = 'seat' | 'noShow' | 'cancel' | 'finish' | 'undoNoShow';
 
 export interface ConsoleBookingActionCommand {
   readonly kind: ConsoleBookingActionKind;
@@ -290,4 +305,5 @@ export const STATUS_AFTER: Readonly<Record<ConsoleBookingActionKind, Reservation
   noShow: 'noShow',
   cancel: 'cancelledByVenue',
   finish: 'completed',
+  undoNoShow: 'confirmed',
 };

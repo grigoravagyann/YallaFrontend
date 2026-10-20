@@ -187,6 +187,12 @@ function Kpis({
             changes: number(bookings.pendingChanges),
           },
         )}
+        {/* Not the venue's doing, nor the guest's own cancel: said apart, when any. */}
+        {bookings.cancelledBySystem > 0 ? (
+          <span className="yc-kpi-system">
+            {t('overview.kpi.cancelledBySystem', { count: bookings.cancelledBySystem })}
+          </span>
+        ) : null}
       </Kpi>
       <Link className="yc-card yc-kpi yc-kpi-a" to="/venue/floorplan">
         <span className="yc-kpi-l">{t('overview.kpi.inRoom')}</span>

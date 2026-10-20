@@ -157,3 +157,17 @@ describe('the most recent change to a table', () => {
     expect(latest?.actorId).toBe('staff-1');
   });
 });
+
+describe('a booking cancelled by a guest block', () => {
+  it("reads the floor again: the table's next booking is not on the row", () => {
+    const result = applyFloorChanges(floor, [
+      {
+        ...change(41, 't2', 'free'),
+        fromStatus: 'free',
+        reservationId: 'r-blocked',
+        signal: 'bookingCancelledByBlock',
+      },
+    ]);
+    expect(result.kind).toBe('gap');
+  });
+});

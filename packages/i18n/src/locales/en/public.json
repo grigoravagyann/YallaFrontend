@@ -276,7 +276,9 @@
         "busy": "Someone is booking that table this second. Press “Save the change” again.",
         "rateLimited": "Too many tries with this link just now. Wait a minute, then try again.",
         "notAccepted": "The venue is not taking bookings online right now. Your booking is unchanged.",
-        "tableGone": "That table is no longer available. Pick another."
+        "tableGone": "That table is no longer available. Pick another.",
+        "blocked": "You can't change bookings until {{date}}, {{time}}, because of three missed bookings in three days.",
+        "blockedPlain": "You can't change bookings for a week because of three missed bookings in three days."
       },
       "putBack": "The venue could not take the change. Your booking stays at {{when}}."
     },
@@ -393,8 +395,7 @@
       "short": "Write the whole number, for example 77 123456",
       "smsOff": "Codes by SMS are not available right now. Confirm with Telegram instead.",
       "noDoors": "Confirming a phone number is not available right now. Try again later.",
-      "loading": "Checking how we can confirm your number…",
-      "withoutProof": "Continue without verifying"
+      "loading": "Checking how we can confirm your number…"
     },
     "telegram": {
       "body": "In Telegram, press Start, then share your number. This page carries on by itself once the number is confirmed.",
@@ -415,7 +416,8 @@
       "optional": "(optional)",
       "notePlaceholder": "For example: a birthday, a high chair, an allergy",
       "noteHint": "{{length}} / {{max}} · only the venue sees it",
-      "freeBy": "Free the table by"
+      "freeBy": "Free the table by",
+      "record": "Venues you book with see how many of your bookings in the last 12 months you kept, missed or cancelled late — just the numbers, never where."
     },
     "done": {
       "table": "{{label}} · {{guests}}",
@@ -426,21 +428,7 @@
       "openManage": "Open the booking page",
       "back": "Back to the venue page",
       "auto": "This page updates by itself.",
-      "again": "Choose another time",
-      "unverifiedLinkHint": "We send no reminders for a booking made without a verified number. Keep this link: it shows the venue's answer, and it is how you cancel.",
-      "unverifiedNoLink": "We could not show this booking's link. Note the code; to cancel, call the venue."
-    },
-    "unverified": {
-      "offer": "No Telegram? You can book without verifying your number, for parties of up to {{max}}. The venue then confirms the booking itself first; with Telegram it is confirmed at once.",
-      "offerNoApproval": "No Telegram? You can book without verifying your number, for parties of up to {{max}}. Such a booking cannot be changed online later, only cancelled; with Telegram you can change it too.",
-      "tooMany": "Without a verified number this venue takes bookings for parties of up to {{max}}. Confirm your number with Telegram to book for more.",
-      "note": "Your number will not be verified, so the venue confirms this booking itself first. This page shows its answer.",
-      "noteNoApproval": "Your number will not be verified, so this booking cannot be changed online later — only cancelled.",
-      "phoneHint": "The venue calls this number if it needs to. It is not published.",
-      "verifyInstead": "Confirm with Telegram instead",
-      "badPhone": "That does not look like a phone number. Write it with the country code, for example +374 77 123456.",
-      "tooManyNoTelegram": "Without a verified number this venue takes bookings for parties of up to {{max}}.",
-      "openYours": "Open the booking you made"
+      "again": "Choose another time"
     }
   }
 }

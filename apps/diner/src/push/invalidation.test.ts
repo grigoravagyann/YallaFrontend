@@ -80,3 +80,13 @@ describe('invalidateForPush', () => {
     expect(queryKeysForPush({ kind: '', orderId: '' })).toEqual([['notifications']]);
   });
 });
+
+describe('invalidateForPush, the pause on booking', () => {
+  it('reads the bookings list again for the pause and its end, which name no booking', () => {
+    for (const kind of ['bookings-blocked-no-shows', 'bookings-unblocked']) {
+      expect(queryKeysForPush({ kind, blockedUntilUtc: '2026-10-27T09:30:00Z' })).toContainEqual([
+        'bookings',
+      ]);
+    }
+  });
+});

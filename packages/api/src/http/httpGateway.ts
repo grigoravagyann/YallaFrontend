@@ -86,6 +86,7 @@ import type {
 } from '../contracts/ordering';
 import type { components } from '../generated/schema';
 import { rethrowBookingRefusal } from './bookingRefusal';
+import { guestRecordFromWire } from './guestRecordMapping';
 import { admissionRefusal, scanTurnedAway } from './admissionMapping';
 import {
   availabilityFromResponse,
@@ -558,23 +559,34 @@ export function createHttpGateway(client: ApiClient, options: HttpGatewayOptions
   type ReservationViewWire = Schemas['Yalla.Application.Reservations.ReservationView'];
 
   /** `GET /api/reservations/mine`, as the wire has it. */
-  async function mineViews(): Promise<readonly ReservationViewWire[][]> {
+  async function mineWire(): Promise<Schemas['Yalla.Application.Reservations.MyReservations']> {
     const { data } =
       await client.get<Schemas['Yalla.Application.Reservations.MyReservations']>(
         '/api/reservations/mine',
       );
-    return [data.upcoming ?? [], data.past ?? []];
+    return data;
   }
 
-  /** The caller's bookings, split upcoming and past **by the server**. */
+  /**
+   * The caller's bookings, split upcoming and past **by the server**, with
+   * their own guest record beside them (2026-10-20).
+   */
   async function mine(): Promise<MyBookings> {
-    const [upcoming = [], past = []] = await mineViews();
-    return { upcoming: upcoming.map(toBooking), past: past.map(toBooking) };
+    const data = await mineWire();
+    return {
+      upcoming: (data.upcoming ?? []).map(toBooking),
+      past: (data.past ?? []).map(toBooking),
+      guestRecord: guestRecordFromWire(data.guestRecord),
+    };
   }
 
   async function findMineView(reservationId: string): Promise<ReservationViewWire | null> {
-    const [upcoming = [], past = []] = await mineViews();
-    return [...upcoming, ...past].find((entry) => entry.id === reservationId) ?? null;
+    const data = await mineWire();
+    return (
+      [...(data.upcoming ?? []), ...(data.past ?? [])].find(
+        (entry) => entry.id === reservationId,
+      ) ?? null
+    );
   }
 
   async function findMine(reservationId: string): Promise<Booking | null> {

@@ -113,6 +113,8 @@ export function reservationReport(
     noShowRate: compared(wire.noShowRate),
     cancellationRate: compared(wire.cancellationRate),
     lateCancellations: compared(wire.lateCancellations),
+    // Absent from a server before the guest record's review round.
+    systemCancelled: wire.systemCancelled ? compared(wire.systemCancelled) : null,
     leadTime: wire.leadTime.map((bucket) => ({
       upToHours: bucket.upToHours,
       bookings: bucket.bookings,

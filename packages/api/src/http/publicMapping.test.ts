@@ -64,9 +64,6 @@ describe('the open state on the public branch page', () => {
       turnTimeMinutes: 120,
       minLeadMinutes: 30,
       cancellationDeadlineMinutes: 120,
-      unverifiedMaxPartySize: 6,
-      unverifiedBookingsNeedApproval: true,
-      acceptsUnverifiedBookings: true,
     },
     asOfUtc: '2026-10-15T21:21:00Z',
     coverPhoto: null,
@@ -75,21 +72,6 @@ describe('the open state on the public branch page', () => {
 
   // 01:21 on Friday 16 October in Yerevan (UTC+4).
   const now = () => new Date('2026-10-15T21:21:00Z');
-
-  it('says whether the branch takes bookings without a verified number (df6de66)', () => {
-    const off = {
-      ...PAGE,
-      policy: { ...PAGE.policy, unverifiedMaxPartySize: 0, acceptsUnverifiedBookings: false },
-    };
-    expect(publicBranchFromWire(off, BASE, now).policy.acceptsUnverifiedBookings).toBe(false);
-    expect(publicBranchFromWire(PAGE, BASE, now).policy.acceptsUnverifiedBookings).toBe(true);
-    // A server before the flag: the cap says it.
-    const { acceptsUnverifiedBookings: _absent, ...older } = off.policy;
-    expect(
-      publicBranchFromWire({ ...PAGE, policy: older } as never, BASE, now).policy
-        .acceptsUnverifiedBookings,
-    ).toBe(false);
-  });
 
   it("names this morning's opening when the server says shut", () => {
     const branch = publicBranchFromWire(PAGE, BASE, now);
@@ -187,9 +169,6 @@ describe('the rooms on the public branch page', () => {
       turnTimeMinutes: 120,
       minLeadMinutes: 30,
       cancellationDeadlineMinutes: 120,
-      unverifiedMaxPartySize: 6,
-      unverifiedBookingsNeedApproval: true,
-      acceptsUnverifiedBookings: true,
     },
     asOfUtc: '2026-10-15T21:21:00Z',
     coverPhoto: null,

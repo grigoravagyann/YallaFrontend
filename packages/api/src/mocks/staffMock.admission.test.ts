@@ -48,7 +48,7 @@ describe('the tables waiting to be let in', () => {
     expect(list[1]).toMatchObject({ hostDisplayName: null, participantCount: 1 });
   });
 
-  it('marks their tables on the floor, and the booking made without a verified number', async () => {
+  it('marks their tables on the floor, and no booking as made without a verified number', async () => {
     const gateway = floor();
     const read = await gateway.getFloor(BRANCH);
 
@@ -57,14 +57,12 @@ describe('the tables waiting to be let in', () => {
       openTabAwaitingAdmission: true,
     });
     expect(tableDetail(read, 't1')?.openTabAwaitingAdmission).toBe(false);
-    expect(tableDetail(read, 't6')?.nextReservationPhoneUnverified).toBe(true);
+    // None is made any more (guest record, 2026-10-20): the flag stays false.
+    expect(tableDetail(read, 't6')?.nextReservationPhoneUnverified).toBe(false);
     expect(tableDetail(read, 't4')?.nextReservationPhoneUnverified).toBe(false);
 
     const requests = await gateway.listAwaitingApproval(BRANCH);
-    expect(requests.find((request) => request.because === 'unverifiedPhone')).toMatchObject({
-      phoneUnverified: true,
-      approvalExpiresAtUtc: '2026-10-20T16:00:00.000Z',
-    });
+    expect(requests.some((request) => request.because === 'unverifiedPhone')).toBe(false);
   });
 
   it('nobody on a waiting tab can order yet', async () => {

@@ -109,6 +109,37 @@ function floorGateway(): StaffGateway {
   return createStaffMockGateway({ latencyMs: 0, branchId: BRANCH, seedUnverifiedGuests: true });
 }
 
+/**
+ * The floor with the few bookings made without a verified number on
+ * 2026-10-20 (none is made any more; the badges stay for those): table 6's
+ * late booking, and the request at table 7 waiting for that reason.
+ */
+function legacyUnverifiedGateway(): StaffGateway {
+  const base = floorGateway();
+  return {
+    ...base,
+    getFloor: async (branchId) => {
+      const floor = await base.getFloor(branchId);
+      return floor
+        ? {
+            ...floor,
+            details: floor.details.map((detail) =>
+              detail.tableId === 't6'
+                ? { ...detail, nextReservationPhoneUnverified: true }
+                : detail,
+            ),
+          }
+        : floor;
+    },
+    listAwaitingApproval: async (branchId) =>
+      (await base.listAwaitingApproval(branchId)).map((request) =>
+        request.tableLabel === '7'
+          ? { ...request, because: 'unverifiedPhone' as const, phoneUnverified: true }
+          : request,
+      ),
+  };
+}
+
 function renderFloor(gateway: StaffGateway): void {
   const queryClient = createQueryClient({ retry: false, mutationNetworkMode: 'always' });
   render(
@@ -317,7 +348,7 @@ describe('the table panel', () => {
   it('says the next booking was made without a verified number', async () => {
     const user = setupUser();
     signIn();
-    renderFloor(floorGateway());
+    renderFloor(legacyUnverifiedGateway());
 
     await user.click(await screen.findByRole('button', { name: /^Table 6, / }));
     const panel = await screen.findByRole('dialog', { name: 'Actions for table 6' });
@@ -328,7 +359,7 @@ describe('the table panel', () => {
 describe('the floor and the requests', () => {
   it('flags the card of a waiting table and of a booking without a verified number', async () => {
     signIn();
-    renderFloor(floorGateway());
+    renderFloor(legacyUnverifiedGateway());
 
     const five = await screen.findByRole('button', { name: /^Table 5, / });
     expect(five.getAttribute('aria-label')).toMatch(/waiting to be let in/u);
@@ -339,11 +370,11 @@ describe('the floor and the requests', () => {
 
   it('words the new reason on the booking request', async () => {
     signIn();
-    renderFloor(floorGateway());
+    renderFloor(legacyUnverifiedGateway());
 
     const requests = await screen.findByRole('region', { name: /bookings to approve/i });
-    const nine = (await within(requests).findByText(/^Table 9\b/u)).closest('li')!;
-    expect(within(nine).getByText('Number not verified — the venue confirms')).toBeTruthy();
+    const seven = (await within(requests).findByText(/^Table 7\b/u)).closest('li')!;
+    expect(within(seven).getByText('Number not verified — the venue confirms')).toBeTruthy();
   });
 });
 
@@ -576,4 +607,59 @@ describe('the review round (UG-FE-REVIEW)', () => {
     await new Promise((resolve) => setTimeout(resolve, 50));
     expect(floorReads.mock.calls.length).toBe(before);
   });
+});
+
+describe("a booking cancelled by its guest's no-show block (signal 4)", () => {
+  it('says so on the floor, naming the table, and reads the requests again', async () => {
+    signIn();
+    const base = floorGateway();
+    let sent = false;
+    const gateway: StaffGateway = {
+      ...base,
+      // The stream reads changes after the floor's own sequence: give it one.
+      getFloor: async (branchId) => {
+        const floor = await base.getFloor(branchId);
+        return floor ? { ...floor, lastSequence: Math.max(floor.lastSequence, 10) } : floor;
+      },
+      getFloorChanges: async (query) => {
+        const page = await base.getFloorChanges(query);
+        if (sent)
+          return { ...page, lastSequence: Math.max(page.lastSequence, query.afterSequence) };
+        sent = true;
+        const next = query.afterSequence + 1;
+        return {
+          ...page,
+          lastSequence: next,
+          changes: [
+            {
+              sequence: next,
+              tableId: 't9',
+              tableLabel: '9',
+              fromStatus: 'free',
+              toStatus: 'free',
+              atUtc: new Date().toISOString(),
+              tableSessionId: null,
+              reservationId: 'r-blocked',
+              actor: 'system',
+              actorId: null,
+              reason: '',
+              tabId: null,
+              signal: 'bookingCancelledByBlock',
+            },
+          ],
+        };
+      },
+    };
+    const requests = vi.spyOn(gateway, 'listAwaitingApproval');
+    renderFloor(gateway);
+
+    expect(
+      await screen.findByText(
+        'Table 9: a booking was cancelled — its guest is blocked for no-shows.',
+        undefined,
+        { timeout: 15000 },
+      ),
+    ).toBeTruthy();
+    expect(requests.mock.calls.length).toBeGreaterThan(1);
+  }, 20000);
 });

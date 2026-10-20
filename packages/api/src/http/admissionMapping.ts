@@ -7,36 +7,25 @@ import {
   type TabAwaitingAdmission,
 } from '../contracts/admission';
 import {
-  BRANCH_REQUIRES_VERIFIED_PHONE_CODE,
-  BranchRequiresVerifiedPhoneError,
-  DEVICE_HAS_ACTIVE_BOOKING_CODE,
-  DeviceHasActiveBookingError,
-  PHONE_HAS_ACTIVE_BOOKING_CODE,
-  PhoneHasActiveBookingError,
   SCAN_TURNED_AWAY_CODE,
   ScanTurnedAwayError,
   TAB_ADMISSION_DECIDED_CODE,
   TAB_AWAITING_ADMISSION_CODE,
   TabAdmissionDecidedError,
   TabAwaitingAdmissionError,
-  UNVERIFIED_PARTY_TOO_LARGE_CODE,
-  UNVERIFIED_QUEUE_FULL_CODE,
-  UnverifiedPartyTooLargeError,
-  UnverifiedQueueFullError,
-  type HeldBooking,
 } from '../contracts/errors';
 import { ApiError } from '../errors';
 import type { components } from '../generated/schema';
 
 /**
- * The unverified-guests wire (2026-10-20), read once for every surface: the
- * tab's admission, the floor's awaiting list, the change stream's signal, and
- * the refusals the booking and ordering routes answer with.
+ * The tab-admission wire (2026-10-20), read once for every surface: the tab's
+ * admission, the floor's awaiting list, the change stream's signal, and the
+ * refusals the ordering routes answer with. (The booking refusals of that day
+ * went with the guest record: `guestRecordMapping.ts`.)
  *
  * Every reader is lenient in the same direction. A field a server does not
- * send reads as the state before the feature — an admitted tab, no signal, a
- * verified booking — so an older backend never locks a table out of ordering
- * or puts a badge on every booking.
+ * send reads as the state before the feature — an admitted tab, no signal —
+ * so an older backend never locks a table out of ordering.
  */
 
 type Schemas = components['schemas'];
@@ -61,6 +50,7 @@ const SIGNAL: Readonly<Record<number, FloorChangeSignal>> = {
   1: 'tabAwaitingAdmission',
   2: 'tabAdmitted',
   3: 'tabAdmissionRejected',
+  4: 'bookingCancelledByBlock',
 };
 
 export function admissionStatus(value: number | null | undefined): TabAdmissionStatus {
@@ -106,66 +96,6 @@ export function tabAwaitingAdmissionFromWire(wire: WireAwaiting): TabAwaitingAdm
 
 function text(value: unknown): string | null {
   return typeof value === 'string' && value.trim() !== '' ? value.trim() : null;
-}
-
-/**
- * The booking a 409 `phone-has-active-booking` names, when it names one —
- * only ever the caller's own. Null unless every field a sentence needs is there.
- */
-export function heldBookingFrom(context: Readonly<Record<string, unknown>>): HeldBooking | null {
-  const reservationId = text(context['reservationId']);
-  const code = text(context['code']);
-  const startUtc = text(context['startUtc']);
-  const localDate = text(context['localDate']);
-  const localStartTime = text(context['localStartTime']);
-  if (!reservationId || !code || !startUtc || !localDate || !localStartTime) return null;
-  return {
-    reservationId,
-    code,
-    startUtc,
-    localDate,
-    // "19:30:00" as the server writes a branch wall clock; said as "19:30".
-    localStartTime: localStartTime.slice(0, 5),
-    venueName: text(context['venueName']) ?? '',
-    branchName: text(context['branchName']) ?? '',
-  };
-}
-
-/**
- * The booking refusals the unverified-guests rules add, as typed errors; null
- * for anything else, which the caller maps as it always has. Shared by the
- * diner's booking route, the public page's unverified one and the manage link.
- */
-export function unverifiedBookingRefusal(
-  error: unknown,
-  command: { readonly partySize: number },
-): ApiError | null {
-  if (!(error instanceof ApiError) || !error.problem) return null;
-  const context = error.problem.context ?? {};
-  const base = { url: error.url, requestId: error.requestId };
-  switch (error.problem.code) {
-    case PHONE_HAS_ACTIVE_BOOKING_CODE:
-      return new PhoneHasActiveBookingError({ ...base, held: heldBookingFrom(context) });
-    case DEVICE_HAS_ACTIVE_BOOKING_CODE:
-      return new DeviceHasActiveBookingError(base);
-    case UNVERIFIED_QUEUE_FULL_CODE:
-      return new UnverifiedQueueFullError(base);
-    // A cap of 0: the branch takes none without a verified number (df6de66).
-    case BRANCH_REQUIRES_VERIFIED_PHONE_CODE:
-      return new BranchRequiresVerifiedPhoneError(base);
-    case UNVERIFIED_PARTY_TOO_LARGE_CODE: {
-      const max = Number(context['maxPartySize']);
-      const size = Number(context['partySize']);
-      return new UnverifiedPartyTooLargeError({
-        ...base,
-        partySize: Number.isFinite(size) && size > 0 ? size : command.partySize,
-        // A refusal that does not say the cap still refuses; one under the party asked for.
-        maxPartySize: Number.isFinite(max) && max > 0 ? max : Math.max(1, command.partySize - 1),
-      });
-    }
-    default:
-      return null;
-  }
 }
 
 /**

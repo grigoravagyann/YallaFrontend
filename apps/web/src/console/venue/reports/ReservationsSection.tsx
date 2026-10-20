@@ -36,7 +36,8 @@ export function useLeadLabel() {
 
 /**
  * Bookings, and what became of them (Reports artboard, "Reservations"): the
- * funnel from booked to seated, cancelled, cancelled late and not come; the
+ * funnel from booked to seated, cancelled, cancelled late and not come (and
+ * cancelled because the guest was blocked for no-shows, when any were); the
  * web bookings no reminder can reach; and how far ahead people book, which is
  * what the booking window is worth setting from — so the policy is a link
  * away.
@@ -80,6 +81,19 @@ export function ReservationsSection({ query, locale, onCsv }: ReservationsSectio
           value: data.noShow,
           tone: 'is-noshow',
         },
+        // Cancelled by the platform because the guest was blocked for
+        // no-shows: neither the venue's cancellation nor the guest's own, so
+        // apart from both. Said only when there were some.
+        ...(data.systemCancelled && data.systemCancelled.value > 0
+          ? [
+              {
+                key: 'system',
+                label: t('reports.reservations.systemCancelled'),
+                value: data.systemCancelled,
+                tone: 'is-cancel',
+              },
+            ]
+          : []),
       ]
     : [];
 

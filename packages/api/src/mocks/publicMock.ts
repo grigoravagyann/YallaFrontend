@@ -8,18 +8,12 @@ import type {
   PublicPageMeta,
   PublicVenue,
   PublicVenueHeader,
-  UnverifiedBookingResult,
 } from '../contracts/publicBranch';
 import type { Booking } from '../contracts/booking';
 import type { SpecialDay } from '../contracts/branchSettings';
 import { openStateFrom } from '../contracts/openState';
 import { NotFoundError } from '../errors';
-import {
-  BookingLinkAccountUnavailableError,
-  EndpointNotWiredError,
-  PhoneNotVerifiedError,
-} from '../contracts/errors';
-import type { MockGateway } from './mockGateway';
+import { BookingLinkAccountUnavailableError, PhoneNotVerifiedError } from '../contracts/errors';
 import {
   publicBranchFixtures,
   publicVenueFixtures,
@@ -41,12 +35,8 @@ import { mockVenues, type Branch, type Venue } from './venues';
  * server.
  */
 export interface PublicMockOptions {
-  /**
-   * The diner gateway this instance shares a world with. Required, see above.
-   * The diner mock's `bookWithoutProof` answers the unverified booking; a
-   * gateway without it says the route is not wired.
-   */
-  readonly gateway: YallaGateway & Partial<Pick<MockGateway, 'bookWithoutProof'>>;
+  /** The diner gateway this instance shares a world with. Required, see above. */
+  readonly gateway: YallaGateway;
   readonly now?: (() => Date) | undefined;
   readonly latencyMs?: number | undefined;
   /**
@@ -98,10 +88,6 @@ const DEFAULT_POLICY: PublicBranchPolicy = {
   turnTimeMinutes: 105,
   minLeadMinutes: 30,
   cancellationDeadlineMinutes: 120,
-  // Unverified bookings (2026-10-20): the server's defaults.
-  unverifiedMaxPartySize: 6,
-  unverifiedBookingsNeedApproval: true,
-  acceptsUnverifiedBookings: true,
 };
 
 function venueHeader(venue: Venue): PublicVenueHeader {
@@ -246,6 +232,7 @@ export function createPublicMockGateway(options: PublicMockOptions): PublicGatew
       // Lateness is not a reason to refuse. Only a booking that is already over
       // or already cancelled has nothing left to cancel.
       canCancel: booking.status === 'confirmed' || booking.status === 'pendingApproval',
+      // Legacy (2026-10-20): a booking made without a verified number.
       phoneUnverified: booking.phoneUnverified === true,
       // Never for a booking made without a verified number: cancel and book again.
       canChange:
@@ -401,17 +388,6 @@ export function createPublicMockGateway(options: PublicMockOptions): PublicGatew
      * gateway's own change of that booking, under the same rules, so the
      * status after it is decided there rather than guessed here.
      */
-    async createUnverifiedBooking(command): Promise<UnverifiedBookingResult> {
-      await wait();
-      if (!gateway.bookWithoutProof) {
-        throw new EndpointNotWiredError({
-          url: `${URL_TAG}/api/public/branches/${command.branchId}/bookings`,
-          endpoint: 'createUnverifiedBooking',
-        });
-      }
-      return gateway.bookWithoutProof(command);
-    },
-
     async rescheduleManagedBooking(command): Promise<ManagedBooking> {
       await wait();
       const bookingId = bookingIdFromToken(command.token);

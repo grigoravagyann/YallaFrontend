@@ -97,6 +97,12 @@ export function applyFloorChanges(
      * A whole-floor read for each would cost every tablet a request per
      * phantom scan, which is the flood this feature exists to stop (S9).
      */
+    // A booking here was cancelled because its guest was blocked for no-shows
+    // (guest record, 2026-10-20). The row says which booking, not what the
+    // table's next one is now: only a read of the floor knows.
+    if (change.signal === 'bookingCancelledByBlock') {
+      return { kind: 'gap', expected: floor.lastSequence + 1, received: change.sequence };
+    }
     if (change.signal) {
       const awaiting = change.signal === 'tabAwaitingAdmission';
       const sameStatus = change.fromStatus === change.toStatus;

@@ -44,6 +44,7 @@ const OVERVIEW: WireBranchOverview = {
     completed: 3,
     noShow: 1,
     cancelled: 2,
+    cancelledBySystem: 1,
     people: 96,
     pendingChanges: 1,
   },
@@ -183,6 +184,7 @@ describe('the overview over HTTP', () => {
         holdExpiresAtUtc: '2026-10-18T14:45:00Z',
         lateNudgeAtUtc: '2026-10-18T14:40:00Z',
         lateNudgeSent: true,
+        guestRecord: null,
       },
       expect.objectContaining({
         id: 'r-2',
@@ -193,6 +195,7 @@ describe('the overview over HTTP', () => {
         holdExpiresAtUtc: null,
         lateNudgeAtUtc: null,
         lateNudgeSent: null,
+        guestRecord: null,
       }),
     ]);
   });
@@ -206,6 +209,25 @@ describe('the overview over HTTP', () => {
     });
     const [row] = (await gateway.getBranchOverview('b-1')).todayBookings;
     expect(row!.lateNudgeSent).toBe(false);
+  });
+
+  it("reads the guest's record on a row, and its block (guest record, 2026-10-20)", async () => {
+    const [first] = OVERVIEW.todayBookings!;
+    const record = {
+      booked: 5,
+      came: 2,
+      noShows: 3,
+      lateCancellations: 0,
+      isNewGuest: false,
+      blockedUntilUtc: '2026-10-25T14:00:00Z',
+    };
+    const { gateway } = gatewayOver({
+      'GET /api/branches/b-1/overview': {
+        body: { ...OVERVIEW, todayBookings: [{ ...first!, guestRecord: record }] },
+      },
+    });
+    const [row] = (await gateway.getBranchOverview('b-1')).todayBookings;
+    expect(row!.guestRecord).toEqual({ ...record, unmarked: 0 });
   });
 
   it('reads a closed branch, no comparison and an empty day', async () => {

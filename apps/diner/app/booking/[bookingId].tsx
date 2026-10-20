@@ -7,7 +7,7 @@ import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useState } from 'react';
 import { ScrollView, Share, StyleSheet, View } from 'react-native';
 import { AtMyTableAction } from '../../src/components/AtMyTableAction';
-import { BookingBadge } from '../../src/components/bookings/BookingCard';
+import { BookingBadge, NoShowBlockReason } from '../../src/components/bookings/BookingCard';
 import {
   bookingShareLine,
   sittingEndLines,
@@ -230,8 +230,10 @@ function BookingDetail({
             </View>
           </View>
           <View style={styles.summaryFooter}>
-            <BookingBadge status={booking.status} declined={declined} />
+            <BookingBadge booking={booking} />
           </View>
+          {/* Cancelled by the pause after three no-shows in three days, not by the venue. */}
+          <NoShowBlockReason booking={booking} style={styles.answer} />
           {/* While the venue decides, the minutes it has left; once it has
               declined, why — sorry, when nobody answered in time. */}
           <VenueAnswerNote booking={booking} style={styles.answer} />

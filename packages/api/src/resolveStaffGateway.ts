@@ -35,7 +35,7 @@ export interface ResolveStaffGatewayOptions {
   readonly mockKitchen?: boolean | undefined;
   /**
    * Mock only: two tables a scan seated with no verified number, waiting to be
-   * let in, and bookings made without one. See `StaffMockOptions.seedUnverifiedGuests`.
+   * let in. See `StaffMockOptions.seedUnverifiedGuests`.
    */
   readonly mockUnverifiedGuests?: boolean | undefined;
 }

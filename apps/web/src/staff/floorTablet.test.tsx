@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import 'fake-indexeddb/auto';
 import {
+  NoShowUndoWindowClosedError,
   ReservationNotStartedError,
   createQueryClient,
   createStaffMockGateway,
@@ -400,6 +401,95 @@ describe('the table panel (Table artboard)', () => {
     expect(
       await screen.findByText(/^Table 6 · not due until \d\d:\d\d\. Nothing was released\.$/u),
     ).toBeTruthy();
+  });
+
+  it('offers to undo a no-show right after marking it, and undoes it', async () => {
+    signIn();
+    const user = setupUser();
+    const gateway = gatewayWith();
+    const undo = vi.spyOn(gateway, 'undoNoShow');
+    renderFloor(gateway);
+
+    await user.click(await screen.findByRole('button', { name: /^Table 6, /u }));
+    const panel = await screen.findByRole('dialog', { name: 'Actions for table 6' });
+    await user.click(within(panel).getByRole('button', { name: 'Release the booking' }));
+    await user.click(within(panel).getByRole('button', { name: /They didn't come/u }));
+    await user.click(within(panel).getByRole('button', { name: 'Release' }));
+
+    expect(await screen.findByText("Table 6's booking was released as a no-show.")).toBeTruthy();
+    expect(screen.getByText('Marked by mistake?')).toBeTruthy();
+    await user.click(screen.getByRole('button', { name: 'Undo the no-show at table 6' }));
+
+    await waitFor(() => expect(undo).toHaveBeenCalledTimes(1));
+    expect(undo.mock.calls[0]![0]).toMatchObject({ reservationId: expect.any(String) });
+    expect(undo.mock.calls[0]![0].clientCommandId).toBeTruthy();
+    expect(
+      await screen.findByText('Table 6: the no-show is undone. The booking stands again.'),
+    ).toBeTruthy();
+    expect(screen.queryByRole('button', { name: /^Undo the no-show/u })).toBeNull();
+  });
+
+  it('says it is too late to undo a no-show, and until when it could have been', async () => {
+    signIn();
+    const user = setupUser();
+    renderFloor(
+      gatewayWith({
+        undoNoShow: async () => {
+          throw new NoShowUndoWindowClosedError({
+            url: '/api/reservations/r/undo-no-show',
+            undoableUntilUtc: '2026-10-21T01:00:00Z',
+          });
+        },
+      }),
+    );
+
+    await user.click(await screen.findByRole('button', { name: /^Table 6, /u }));
+    const panel = await screen.findByRole('dialog', { name: 'Actions for table 6' });
+    await user.click(within(panel).getByRole('button', { name: 'Release the booking' }));
+    await user.click(within(panel).getByRole('button', { name: /They didn't come/u }));
+    await user.click(within(panel).getByRole('button', { name: 'Release' }));
+    await user.click(await screen.findByRole('button', { name: 'Undo the no-show at table 6' }));
+
+    expect(
+      await screen.findByText(
+        'Too late to undo: a no-show can be undone until 05:00 the next morning.',
+      ),
+    ).toBeTruthy();
+  });
+
+  it('turns the undo off while offline, with the reason: it is never queued', async () => {
+    signIn();
+    const user = setupUser();
+    renderFloor(gatewayWith());
+
+    await user.click(await screen.findByRole('button', { name: /^Table 6, /u }));
+    const panel = await screen.findByRole('dialog', { name: 'Actions for table 6' });
+    await user.click(within(panel).getByRole('button', { name: 'Release the booking' }));
+    await user.click(within(panel).getByRole('button', { name: /They didn't come/u }));
+    await user.click(within(panel).getByRole('button', { name: 'Release' }));
+    const undo = await screen.findByRole('button', { name: 'Undo the no-show at table 6' });
+
+    // Never queued: offline it is offered, off, with the reason.
+    act(() => setOnline(false));
+    await waitFor(() => expect((undo as HTMLButtonElement).disabled).toBe(true));
+    expect(screen.getByText('Undoing needs a connection.')).toBeTruthy();
+  });
+
+  it('offers no undo for a booking the guest called off', async () => {
+    signIn();
+    const user = setupUser();
+    renderFloor(gatewayWith());
+
+    await user.click(await screen.findByRole('button', { name: /^Table 6, /u }));
+    const panel = await screen.findByRole('dialog', { name: 'Actions for table 6' });
+    await user.click(within(panel).getByRole('button', { name: 'Release the booking' }));
+    await user.click(within(panel).getByRole('button', { name: /They let us know/u }));
+    await user.click(within(panel).getByRole('button', { name: 'Release' }));
+
+    expect(
+      await screen.findByText(/^Table 6's booking was released\. It does not count/u),
+    ).toBeTruthy();
+    expect(screen.queryByRole('button', { name: /^Undo the no-show/u })).toBeNull();
   });
 
   it('says an action taken offline waits for the connection', async () => {

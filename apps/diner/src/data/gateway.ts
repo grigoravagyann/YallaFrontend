@@ -48,6 +48,12 @@ export const gateway: YallaGateway = resolveGateway({
   // the table in — or turns it away with EXPO_PUBLIC_MOCK_ADMISSION=reject.
   mockAdmissionAfterMs: seconds(process.env['EXPO_PUBLIC_MOCK_ADMISSION_AFTER_SECONDS']),
   mockAdmissionOutcome: process.env['EXPO_PUBLIC_MOCK_ADMISSION'] === 'reject' ? 'reject' : 'admit',
+  // The guest record, in mock mode: the diner's own counts from before this
+  // world — EXPO_PUBLIC_MOCK_GUEST_RECORD="came/noShows/lateCancellations/unmarked",
+  // "11/1/0/0" when unset and "new" for none — and, with
+  // EXPO_PUBLIC_MOCK_BLOCKED_DAYS, a pause on booking that many days from now.
+  mockGuestRecord: mockGuestRecord(process.env['EXPO_PUBLIC_MOCK_GUEST_RECORD']),
+  mockBlockedUntilUtc: daysFromNow(process.env['EXPO_PUBLIC_MOCK_BLOCKED_DAYS']),
   // On the web build the mock world survives a full page load (QA F2); a
   // phone keeps the app alive between screens and has no localStorage.
   persist:
@@ -63,6 +69,24 @@ export const gateway: YallaGateway = resolveGateway({
 function seconds(value: string | undefined): number | undefined {
   const parsed = Number.parseInt(value ?? '', 10);
   return Number.isFinite(parsed) && parsed > 0 ? parsed * 1000 : undefined;
+}
+
+/** "11/1/0/0" as came, no-shows, late cancellations and unmarked; "new" for no record. */
+function mockGuestRecord(value: string | undefined) {
+  if (value === 'new') return undefined;
+  const [came = 11, noShows = 1, lateCancellations = 0, unmarked = 0] = (value ?? '')
+    .split('/')
+    .map((part) => Number.parseInt(part, 10))
+    .map((count) => (Number.isFinite(count) && count >= 0 ? count : undefined));
+  return { came, noShows, lateCancellations, unmarked };
+}
+
+/** A whole number of days from now as an ISO instant, or nothing. */
+function daysFromNow(value: string | undefined): string | undefined {
+  const days = Number.parseInt(value ?? '', 10);
+  return Number.isFinite(days) && days > 0
+    ? new Date(Date.now() + days * 24 * 3_600_000).toISOString()
+    : undefined;
 }
 
 /** True when the app is running on mock data. Drives the dev-only banner. */

@@ -43,7 +43,6 @@ const VIEW: ReservationViewWire = {
   wasReplay: false,
   awaitsEarlierGuestAnswer: false,
   phoneUnverified: false,
-  madeWithYourNumber: false,
   manageToken: 'mt-1',
 };
 
@@ -140,7 +139,7 @@ describe('creating a booking', () => {
 
     expect(booking).toEqual({
       phoneUnverified: false,
-      madeWithYourNumber: false,
+      cancelledBecause: null,
       id: VIEW.id,
       code: '482913',
       status: 'confirmed',

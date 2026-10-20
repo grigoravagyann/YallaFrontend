@@ -447,8 +447,6 @@ describe('the notifications feed in the mock (K12)', () => {
     const gateway = createMockGateway({
       now: time.now,
       floorApprovesAtOnce: true,
-      // Three bookings for one diner: from before one number, one active booking.
-      bookingsBeforeTheNumberRule: true,
     });
     await signUp(gateway, 5);
     const bookings = [];

@@ -3,11 +3,13 @@ import {
   ConcurrencyConflictError,
   ForbiddenError,
   createConsoleMockGateway,
+  type ConsoleBooking,
   type ConsoleGateway,
 } from '@yalla/api';
 import { cleanup, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
+import { formatDayAndTime } from '@yalla/format';
 import { ToastProvider } from '../../ui/toast';
 import { createConsoleHarness, initConsoleTestI18n } from '../reports/testHarness';
 import { ApprovalsCard } from './ApprovalsCard';
@@ -259,9 +261,24 @@ describe('a booking at short notice', () => {
   });
 
   it('says a booking was made without a verified number, beside why it waits', async () => {
-    const harness = renderCard();
+    // None is made any more (2026-10-20); the few from the hours they were are still answered.
+    const base = createConsoleMockGateway({ latencyMs: 0, role: 'owner' });
+    const gateway = {
+      ...base,
+      listPendingReservations: async (branchId: string) =>
+        (await base.listPendingReservations(branchId)).map((booking) =>
+          booking.awaitingApprovalBecause === 'branchApprovesEveryBooking'
+            ? {
+                ...booking,
+                awaitingApprovalBecause: 'unverifiedPhone' as const,
+                phoneUnverified: true,
+              }
+            : booking,
+        ),
+    };
+    renderCard({ gateway });
     const panel = await waitForPanel();
-    const pending = await harness.gateway.listPendingReservations('b-lumen-north');
+    const pending = await gateway.listPendingReservations('b-lumen-north');
     const unverified = pending.find((booking) => booking.phoneUnverified)!;
     const verified = pending.find((booking) => !booking.phoneUnverified)!;
 
@@ -507,5 +524,107 @@ describe('a booking the guest before answers in the app', () => {
 
     expect((await within(row).findByRole('alert')).textContent).toBe(THEIRS);
     expect(within(row).queryByRole('button', { name: /^approve$/i })).toBeNull();
+  });
+});
+
+describe("the guest's record on a waiting booking", () => {
+  const line = (row: HTMLElement) => row.querySelector<HTMLElement>('.guest-record');
+
+  /** The mock's waiting bookings with their records replaced, by why they wait. */
+  function withRecords(
+    change: (booking: ConsoleBooking) => ConsoleBooking['guestRecord'] | undefined,
+  ): ConsoleGateway {
+    const base = createConsoleMockGateway({ latencyMs: 0, role: 'owner' });
+    return {
+      ...base,
+      listPendingReservations: async (branchId) =>
+        (await base.listPendingReservations(branchId)).map((booking) => {
+          const record = change(booking);
+          return record === undefined ? booking : { ...booking, guestRecord: record };
+        }),
+    };
+  }
+
+  it('says how each guest kept their bookings, in words, and a new guest plainly', async () => {
+    const harness = renderCard();
+    const panel = await waitForPanel();
+    const pending = await harness.gateway.listPendingReservations('b-lumen-north');
+    const rowFor = (because: string) =>
+      within(panel)
+        .getByText(pending.find((booking) => booking.awaitingApprovalBecause === because)!.code)
+        .closest('li')!;
+
+    const history = line(rowFor('noShowHistory'))!;
+    expect(history.textContent).toBe(
+      "Guest's record, last 12 months, all venues: 7 bookings · 5 came · 2 no-shows",
+    );
+    expect(within(history).getByText('2 no-shows').className).toContain('is-missed');
+
+    const fresh = line(rowFor('largeParty'))!;
+    expect(fresh.textContent).toMatch(/: New guest$/u);
+    expect(fresh.className).toContain('is-new');
+  });
+
+  it('says a blocked guest is blocked until when, and nothing when no account is behind it', async () => {
+    const until = new Date(Date.now() + 5 * 24 * 3_600_000);
+    const gateway = withRecords((booking) =>
+      booking.awaitingApprovalBecause === 'noShowHistory'
+        ? {
+            booked: 6,
+            came: 3,
+            noShows: 3,
+            lateCancellations: 0,
+            unmarked: 0,
+            isNewGuest: false,
+            blockedUntilUtc: until.toISOString(),
+          }
+        : booking.awaitingApprovalBecause === 'largeParty'
+          ? null
+          : undefined,
+    );
+    renderCard({ gateway });
+    const panel = await waitForPanel();
+    const pending = await gateway.listPendingReservations('b-lumen-north');
+    const rowFor = (because: string) =>
+      within(panel)
+        .getByText(pending.find((booking) => booking.awaitingApprovalBecause === because)!.code)
+        .closest('li')!;
+
+    const blocked = line(rowFor('noShowHistory'))!;
+    const when = formatDayAndTime(until, 'Asia/Yerevan', 'en');
+    expect(within(blocked).getByText(`Blocked until ${when.date}, ${when.time}`)).toBeTruthy();
+    expect(blocked.className).toContain('is-blocked');
+    expect(line(rowFor('largeParty'))).toBeNull();
+  });
+
+  it('says a booking the guest block cancelled was cancelled for that, not confirmed', async () => {
+    const user = userEvent.setup();
+    const base = createConsoleMockGateway({ latencyMs: 0, role: 'owner' });
+    const gateway: ConsoleGateway = {
+      ...base,
+      approveReservation: async (command) => {
+        const [booking] = (await base.listPendingReservations('b-lumen-north')).filter(
+          (candidate) => candidate.id === command.reservationId,
+        );
+        return {
+          ...booking!,
+          status: 'cancelledByVenue',
+          awaitingApprovalBecause: null,
+          cancelledBecause: 'noShowBlock',
+        };
+      },
+    };
+    renderCard({ gateway });
+    const panel = await waitForPanel();
+    const [first] = await base.listPendingReservations('b-lumen-north');
+    const row = within(panel).getByText(first!.code).closest('li')!;
+
+    await user.click(within(row).getByRole('button', { name: /^approve$/i }));
+    expect(
+      await screen.findByText(
+        `Cancelled: guest blocked for no-shows. ${first!.guestName}'s booking was not confirmed.`,
+      ),
+    ).toBeTruthy();
+    expect(screen.queryByText(/booking is confirmed/u)).toBeNull();
   });
 });

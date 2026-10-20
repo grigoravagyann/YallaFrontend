@@ -151,6 +151,12 @@ export interface ReservationReport {
    * because a table given up in time is resold and one given up at 19:50 is not.
    */
   readonly lateCancellations: Compared;
+  /**
+   * Cancelled by the platform because the guest was blocked for no-shows.
+   * Left out of `cancelled` and `lateCancellations`: not the venue's, nor the
+   * guest's own. `null` from a server before it.
+   */
+  readonly systemCancelled: Compared | null;
   /** What `bookingWindowDays` should actually be set from. */
   readonly leadTime: readonly LeadTimeBucket[];
   /**

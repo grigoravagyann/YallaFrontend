@@ -46,12 +46,15 @@ import { ApiError, NotFoundError } from '../errors';
 import type { components } from '../generated/schema';
 import type {
   ReleaseReservationCommand,
+  UndoNoShowResult,
   ReservationReleaseResult,
   StaffGateway,
 } from '../staffGateway';
 import type { WireReservationWithApproval } from './approvalMapping';
 import { awaitingApprovalFromWire, type WireAwaitingApproval } from './awaitingApprovalMapping';
 import { consoleBookingFromWire } from './consoleMapping';
+import { undoNoShowRefusal } from './guestRecordMapping';
+import { reservationStatus } from './dinerMapping';
 import { floorFromState } from './mapping';
 import {
   adjustment,
@@ -304,6 +307,28 @@ export function createStaffHttpGateway(client: ApiClient): StaffGateway {
         tableLabel: data.tableLabel,
         tableFreed: data.tableFreed,
         wasReplay: data.wasReplay,
+      };
+    },
+
+    async undoNoShow({ reservationId, clientCommandId, reason }): Promise<UndoNoShowResult> {
+      // The booking as it now stands: confirmed again, or as it was when
+      // already undone.
+      const { data } = await client
+        .post<Schemas['Yalla.Application.Reservations.ReservationView']>(
+          `/api/reservations/${reservationId}/undo-no-show`,
+          {
+            clientCommandId,
+            ...(reason?.trim() ? { reason: reason.trim() } : {}),
+          } satisfies Schemas['Yalla.Api.Endpoints.UndoNoShowRequest'],
+        )
+        .catch((error: unknown) => {
+          throw undoNoShowRefusal(error) ?? error;
+        });
+      return {
+        reservationId: data.id,
+        status: reservationStatus(data.status),
+        tableId: data.tableId,
+        tableLabel: data.tableLabel,
       };
     },
 

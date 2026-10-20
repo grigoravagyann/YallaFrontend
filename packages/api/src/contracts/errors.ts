@@ -216,9 +216,11 @@ export class TableRequestClosedError extends ApiError {
 export const BOOKING_OVERLAPS_OWN_CODE = 'reservation-overlaps-own';
 
 /**
- * The diner already has a booking at this branch whose sitting overlaps the
- * one asked for — 409 `reservation-overlaps-own`, on a new booking or a change
- * by a signed-in diner. Not a taken table and not a rule: the answer is "you
+ * The diner already has a booking whose sitting overlaps the one asked for —
+ * 409 `reservation-overlaps-own`, on a new booking or a change by a signed-in
+ * diner. At the same branch sittings that only touch are fine; at another
+ * venue or branch the two need half an hour between them (2026-10-20), so the
+ * refusal names the venue too. Not a taken table and not a rule: the answer is "you
  * already have one at 19:30 (table 2)", so the booking already held is carried.
  * The one being changed is never counted against itself, and staff-made
  * bookings are never refused this way.
@@ -237,6 +239,9 @@ export class BookingOverlapsOwnError extends ApiError {
   /** "19:30" on the branch's clock, or `null`. */
   readonly localStartTime: string | null;
   readonly tableLabel: string | null;
+  /** The venue and branch of the booking already held; `null` from an older server. */
+  readonly venueName: string | null;
+  readonly branchName: string | null;
 
   constructor(options: {
     url: string;
@@ -245,6 +250,8 @@ export class BookingOverlapsOwnError extends ApiError {
     localDate?: string | null | undefined;
     localStartTime: string | null;
     tableLabel: string | null;
+    venueName?: string | null | undefined;
+    branchName?: string | null | undefined;
     requestId?: string | undefined;
     problem?: ProblemDetails | undefined;
   }) {
@@ -260,6 +267,8 @@ export class BookingOverlapsOwnError extends ApiError {
     this.localDate = options.localDate ?? null;
     this.localStartTime = options.localStartTime;
     this.tableLabel = options.tableLabel;
+    this.venueName = options.venueName ?? null;
+    this.branchName = options.branchName ?? null;
   }
 }
 
@@ -1738,25 +1747,24 @@ export function isAccountTaken(
     error instanceof PhoneInUseError
   );
 }
-
 // ---------------------------------------------------------------------------
-// Unverified guests (2026-10-20)
+// Number rules and tab admission (2026-10-20; guest record, the same day)
 // ---------------------------------------------------------------------------
 
-/** `phone-has-active-booking`: one number holds one active booking at a time. */
+/** `phone-has-active-booking`: a proved number holds at most three active bookings. */
 export const PHONE_HAS_ACTIVE_BOOKING_CODE = 'phone-has-active-booking';
-/** `device-has-active-booking`: one unverified booking per browser. */
-export const DEVICE_HAS_ACTIVE_BOOKING_CODE = 'device-has-active-booking';
-/** `reservation-unverified-party-too-large`: over the cap for an unproved number. */
-export const UNVERIFIED_PARTY_TOO_LARGE_CODE = 'reservation-unverified-party-too-large';
+/** `booking-blocked-no-shows`: three no-shows in three days block booking for a week. */
+export const BOOKING_BLOCKED_NO_SHOWS_CODE = 'booking-blocked-no-shows';
+/** `no-show-undo-window-closed`: a no-show may be undone until 05:00 the next morning. */
+export const NO_SHOW_UNDO_WINDOW_CLOSED_CODE = 'no-show-undo-window-closed';
 /** `tab-awaiting-admission`: nothing is ordered on a tab a waiter has not let in. */
 export const TAB_AWAITING_ADMISSION_CODE = 'tab-awaiting-admission';
 /** `tab-admission-decided`: admitting a rejected tab, or rejecting an admitted one. */
 export const TAB_ADMISSION_DECIDED_CODE = 'tab-admission-decided';
 
 /**
- * The booking a number already holds, named — only ever to the account that
- * holds it. "You already have a booking at Café Aram on 22 October at 19:30."
+ * One of the caller's own bookings, named by a refusal — only ever to the
+ * account that holds it. "The next is Café Aram on 22 October at 19:30."
  */
 export interface HeldBooking {
   readonly reservationId: string;
@@ -1771,25 +1779,34 @@ export interface HeldBooking {
 }
 
 /**
- * This phone number already holds a pending or confirmed booking that is not
- * over, at any venue — `phone-has-active-booking`, 409. One number, one active
- * booking, verified or not (decided 2026-10-20).
+ * This proved number already holds as many active bookings — pending or
+ * confirmed and not over, at any venue — as one number may
+ * (`maxActiveBookings`, 3) — `phone-has-active-booking`, 409. Moving a
+ * booking is never refused this way: it adds none.
  *
- * `held` names that booking when it is the caller's own account's, so the
- * screen can link to it ("change or cancel that one first"). Null otherwise —
- * a web visitor, or a number another account holds — and the screen then says
- * only that the number already has an active booking, naming nothing.
+ * `held` names the caller's **earliest** active booking, so the screen can say
+ * which one comes next ("cancel one — the next is …"). Null when the server
+ * named none: the rare case where the bookings in the way belong to another
+ * account holding the same number, which is never named.
  */
 export class PhoneHasActiveBookingError extends ApiError {
+  /** How many active bookings one number may hold. */
+  readonly maxActiveBookings: number;
   readonly held: HeldBooking | null;
 
-  constructor(options: RefusalOptions & { held?: HeldBooking | null | undefined }) {
-    super('This phone number already has an active booking.', {
+  constructor(
+    options: RefusalOptions & {
+      maxActiveBookings: number;
+      held?: HeldBooking | null | undefined;
+    },
+  ) {
+    super(`This phone number already holds ${options.maxActiveBookings} active bookings.`, {
       status: 409,
       url: options.url,
       requestId: options.requestId,
     });
     this.name = 'PhoneHasActiveBookingError';
+    this.maxActiveBookings = options.maxActiveBookings;
     this.held = options.held ?? null;
   }
 }
@@ -1799,53 +1816,50 @@ export function isPhoneHasActiveBooking(error: unknown): error is PhoneHasActive
 }
 
 /**
- * This browser already holds an active booking made without a verified number
- * — `device-has-active-booking`, 409, on the public page's unverified route
- * only. Cancel that one first, or verify the number (a verified booking is not
- * limited by the browser).
+ * The guest is blocked from booking for missed bookings — three no-shows on
+ * bookings that started within three days — `booking-blocked-no-shows`, 403,
+ * on a new booking and on every change (the app's and the manage link's).
+ * Nothing to retry: the screen says until when.
  */
-export class DeviceHasActiveBookingError extends ApiError {
-  constructor(options: RefusalOptions) {
-    super('This browser already has a booking made without a verified number.', {
+export class BookingBlockedNoShowsError extends ApiError {
+  /** When booking opens again, ISO-8601 UTC; null when the server did not say. */
+  readonly blockedUntilUtc: string | null;
+
+  constructor(options: RefusalOptions & { blockedUntilUtc?: string | null | undefined }) {
+    super('Booking is blocked for a while because of three missed bookings in three days.', {
+      status: 403,
+      url: options.url,
+      requestId: options.requestId,
+    });
+    this.name = 'BookingBlockedNoShowsError';
+    this.blockedUntilUtc = options.blockedUntilUtc ?? null;
+  }
+}
+
+export function isBookingBlockedNoShows(error: unknown): error is BookingBlockedNoShowsError {
+  return error instanceof BookingBlockedNoShowsError;
+}
+
+/**
+ * Too late to undo this no-show — `no-show-undo-window-closed`, 409. The
+ * window closed at `undoableUntilUtc` (05:00 the morning after, branch time).
+ */
+export class NoShowUndoWindowClosedError extends ApiError {
+  readonly undoableUntilUtc: string | null;
+
+  constructor(options: RefusalOptions & { undoableUntilUtc?: string | null | undefined }) {
+    super('This no-show can no longer be undone.', {
       status: 409,
       url: options.url,
       requestId: options.requestId,
     });
-    this.name = 'DeviceHasActiveBookingError';
+    this.name = 'NoShowUndoWindowClosedError';
+    this.undoableUntilUtc = options.undoableUntilUtc ?? null;
   }
 }
 
-export function isDeviceHasActiveBooking(error: unknown): error is DeviceHasActiveBookingError {
-  return error instanceof DeviceHasActiveBookingError;
-}
-
-/**
- * The party is larger than this branch takes without a verified number —
- * `reservation-unverified-party-too-large`, 422. Not a table rule: verifying
- * the number lifts it, so the screen offers that rather than another table.
- */
-export class UnverifiedPartyTooLargeError extends ApiError {
-  readonly partySize: number;
-  /** The branch's `unverifiedMaxPartySize`. */
-  readonly maxPartySize: number;
-
-  constructor(options: RefusalOptions & { partySize: number; maxPartySize: number }) {
-    super(
-      `Without a verified number this venue takes bookings for up to ${options.maxPartySize}.`,
-      {
-        status: 422,
-        url: options.url,
-        requestId: options.requestId,
-      },
-    );
-    this.name = 'UnverifiedPartyTooLargeError';
-    this.partySize = options.partySize;
-    this.maxPartySize = options.maxPartySize;
-  }
-}
-
-export function isUnverifiedPartyTooLarge(error: unknown): error is UnverifiedPartyTooLargeError {
-  return error instanceof UnverifiedPartyTooLargeError;
+export function isNoShowUndoWindowClosed(error: unknown): error is NoShowUndoWindowClosedError {
+  return error instanceof NoShowUndoWindowClosedError;
 }
 
 /**
@@ -1898,56 +1912,8 @@ export function isTabAdmissionDecided(error: unknown): error is TabAdmissionDeci
   return error instanceof TabAdmissionDecidedError;
 }
 
-/** `branch-requires-verified-phone`: the branch takes no bookings without a verified number. */
-export const BRANCH_REQUIRES_VERIFIED_PHONE_CODE = 'branch-requires-verified-phone';
-
-/**
- * The branch takes no bookings without a verified number — its cap is 0
- * (`branch-requires-verified-phone`, 422, `context.reason` 15
- * `VerifiedPhoneRequired`), on both unverified doors. Not the party cap: the
- * answer is "verify your number", never "a smaller party".
- */
-export class BranchRequiresVerifiedPhoneError extends ApiError {
-  constructor(options: RefusalOptions) {
-    super('This venue takes bookings only with a verified number.', {
-      status: 422,
-      url: options.url,
-      requestId: options.requestId,
-    });
-    this.name = 'BranchRequiresVerifiedPhoneError';
-  }
-}
-
-export function isBranchRequiresVerifiedPhone(
-  error: unknown,
-): error is BranchRequiresVerifiedPhoneError {
-  return error instanceof BranchRequiresVerifiedPhoneError;
-}
-
-/** `branch-unverified-queue-full`: the branch already has its fill of unverified bookings waiting. */
-export const UNVERIFIED_QUEUE_FULL_CODE = 'branch-unverified-queue-full';
 /** `scan-turned-away`: a scan right after a waiter turned this phone or table away. */
 export const SCAN_TURNED_AWAY_CODE = 'scan-turned-away';
-
-/**
- * The branch already has as many bookings without a verified number waiting
- * for its answer as it takes (20) — `branch-unverified-queue-full`, 409, on
- * both unverified doors. Verifying the number books as usual.
- */
-export class UnverifiedQueueFullError extends ApiError {
-  constructor(options: RefusalOptions) {
-    super('This venue cannot take more bookings without a verified number right now.', {
-      status: 409,
-      url: options.url,
-      requestId: options.requestId,
-    });
-    this.name = 'UnverifiedQueueFullError';
-  }
-}
-
-export function isUnverifiedQueueFull(error: unknown): error is UnverifiedQueueFullError {
-  return error instanceof UnverifiedQueueFullError;
-}
 
 /**
  * A waiter has just turned a scan from this phone (for 30 minutes) or at this

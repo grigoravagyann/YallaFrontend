@@ -42,7 +42,6 @@ const VIEW: ReservationView = {
   wasReplay: false,
   awaitsEarlierGuestAnswer: false,
   phoneUnverified: false,
-  madeWithYourNumber: false,
 };
 
 function waiting(extra: Record<string, unknown>): ReservationView {

@@ -11,7 +11,6 @@ import type * as I18nModule from '@yalla/i18n';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import BookingsScreen from '../../app/(tabs)/bookings';
 import SuccessScreen from '../../app/reserve/success';
 import TabScreen from '../../app/tab/[tabId]/index';
 import { JoinByLink } from '../components/JoinByLink';
@@ -22,9 +21,9 @@ import { useSession } from '../stores/session';
 /**
  * The unverified-guests screens on the phone (2026-10-20): a scanned tab that
  * waits for a waiter, is let in (a word of welcome, ordering opens) or turned
- * away (a plain screen and the way home, never a receipt); a booking made
- * without a proved number, said as such, with proving it offered; and the
- * bookings somebody else made with the account's number, apart, with Cancel.
+ * away (a plain screen and the way home, never a receipt); and a legacy
+ * booking made without a proved number (possible only on 2026-10-20), said as
+ * such — booking without proof, and its nudge, are gone (guest record).
  *
  * Copy is checked by key and its values, as the other screen tests do.
  */
@@ -175,8 +174,8 @@ const UNVERIFIED: Booking = {
   manageToken: null,
 } as unknown as Booking;
 
-describe('a booking made without a proved number', () => {
-  it('says the venue confirms it, and offers proving the number for next time', async () => {
+describe('a legacy booking made without a proved number', () => {
+  it('says the venue confirms it, and no longer nudges to prove the number', async () => {
     params.current = { bookingId: UNVERIFIED.id };
     renderWith(
       { getBooking: vi.fn().mockResolvedValue(UNVERIFIED), listBookings: vi.fn() } as unknown,
@@ -185,57 +184,7 @@ describe('a booking made without a proved number', () => {
 
     expect(await screen.findByText('success.pendingTitle')).toBeDefined();
     expect(screen.getByText('booking.approval.unverifiedWhy')).toBeDefined();
-    expect(screen.getByText('success.unverifiedNudge')).toBeDefined();
-    fireEvent.click(screen.getByRole('button', { name: 'confirm.verifyMyNumber' }));
-    expect(router.push).toHaveBeenCalledWith('/auth/code');
-  });
-});
-
-describe('bookings made with the account’s number by somebody else', () => {
-  it('are listed apart, each with Cancel, and cancelling says whose it was', async () => {
-    const stranger = {
-      ...UNVERIFIED,
-      id: 'stranger-1',
-      madeWithYourNumber: true,
-      venueName: 'Café Aram',
-    } as Booking;
-    const own = { ...UNVERIFIED, id: 'own-1', phoneUnverified: false, status: 'confirmed' };
-    const strangerPast = {
-      ...stranger,
-      id: 'stranger-past',
-      status: 'cancelledByVenue',
-      venueName: 'Prank Bar',
-    } as Booking;
-    const gateway = {
-      listBookings: vi.fn().mockResolvedValue({ upcoming: [stranger, own], past: [strangerPast] }),
-      // The server's cancel answer does not carry the flag: it is only on `/mine`.
-      cancelBooking: vi.fn().mockResolvedValue({
-        ...stranger,
-        madeWithYourNumber: false,
-        status: 'cancelledByDiner',
-      }),
-    } as Partial<YallaGateway>;
-    useSession.setState({ signedIn: true });
-    renderWith(gateway, <BookingsScreen />);
-
-    expect(await screen.findByText('bookings.madeWithYourNumber.title')).toBeDefined();
-    expect(
-      screen.getByText(/^bookings\.madeWithYourNumber\.body venue=Café Aram when=/u),
-    ).toBeDefined();
-    fireEvent.click(screen.getByRole('button', { name: 'bookings.madeWithYourNumber.cancel' }));
-    expect(await screen.findByText('bookings.madeWithYourNumber.cancelBody')).toBeDefined();
-    fireEvent.click(screen.getByRole('button', { name: 'bookings.detail.cancelConfirm' }));
-    await waitFor(() => expect(gateway.cancelBooking).toHaveBeenCalledWith('stranger-1'));
-    // Not kept on as the account's own cancelled booking (review S1).
-    await waitFor(() =>
-      expect(screen.queryByText('bookings.madeWithYourNumber.cancelBody')).toBeNull(),
-    );
-    expect(screen.queryByRole('button', { name: 'bookings.bookAgain' })).toBeNull();
-
-    // Nor are strangers' bookings in the account's history (review S2).
-    fireEvent.click(screen.getByRole('tab', { name: 'bookings.past' }));
-    await waitFor(() => expect(screen.queryByText(/Prank Bar/u)).toBeNull());
-    expect(screen.getByText('bookings.emptyPast.title')).toBeDefined();
+    expect(screen.queryByRole('button', { name: 'confirm.verifyMyNumber' })).toBeNull();
   });
 });
 

@@ -7,6 +7,7 @@ import type {
 import type { TableStatus } from '../contracts/service';
 import type { components } from '../generated/schema';
 import { reservationStatus } from './dinerMapping';
+import { guestRecordFromWire } from './guestRecordMapping';
 
 /** `GET /api/branches/{branchId}/overview`, as the generated schema has it. */
 type Schemas = components['schemas'];
@@ -50,6 +51,7 @@ function bookingFromWire(wire: WireOverviewBooking): OverviewBooking {
     lateNudgeAtUtc: nudgeAt,
     // Only with a nudge: "sent" says nothing without one.
     lateNudgeSent: nudgeAt === null ? null : wire.lateNudgeSent === true,
+    guestRecord: guestRecordFromWire(wire.guestRecord),
   };
 }
 

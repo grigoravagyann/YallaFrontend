@@ -22,6 +22,7 @@ import {
   isAnsweredElsewhere,
   isAwaitingEarlierGuest,
 } from './decisionFailure';
+import { GuestRecordLine } from './GuestRecordLine';
 
 /** Under five minutes left the clock turns amber; under one, red (the Main artboard). */
 const SOON_SECONDS = 300;
@@ -51,6 +52,10 @@ const MAX_REASON = 200;
  *   itself when its window closes; the time left is on its row, and once it is
  *   up the row stops offering a decision the server would refuse and says what
  *   happened instead, until it is put away.
+ * - **The guest's record beside each row**: how they kept their bookings over
+ *   twelve months at every venue, "New guest", or blocked for no-shows until
+ *   when (`GuestRecordLine`). An answer that comes back cancelled because the
+ *   guest was blocked meanwhile says so, rather than "confirmed".
  * - **The guest before answers some in the app** (`awaitsEarlierGuestAnswer`):
  *   those rows say so and offer nothing, and the server's
  *   `reservation-awaiting-earlier-guest` refusal turns a row round the same way.
@@ -204,8 +209,14 @@ function ApprovalRow({
     run.mutate(
       { reservationId: booking.id, ...command },
       {
-        onSuccess: () => {
-          toast.say(said);
+        onSuccess: (answer) => {
+          // Cancelled meanwhile because the guest was blocked for no-shows:
+          // not what was asked, and not the venue's cancellation either.
+          toast.say(
+            answer.cancelledBecause === 'noShowBlock'
+              ? t('approvals.cancelledByBlock', { name: booking.guestName })
+              : said,
+          );
           onGone();
         },
         onError: (error) => {
@@ -265,6 +276,14 @@ function ApprovalRow({
           <span className="yc-pill yc-pill-amber">{t('approvals.unverified')}</span>
         ) : null}
       </div>
+
+      <GuestRecordLine
+        record={booking.guestRecord}
+        surface="admin"
+        timeZoneId={timeZoneId}
+        now={now}
+        className="yc-ap-record"
+      />
 
       {/* What the diner asked for when booking (K9). Deciding without it is
           deciding blind: "a birthday, a quiet corner" is often the reason a

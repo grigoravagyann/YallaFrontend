@@ -27,6 +27,17 @@ export const DINER_NOTIFICATION_KINDS = [
   // partySize, reservationCode, and on a change `status` ("1" waiting, "2" confirmed).
   'booking-changed-by-link',
   'booking-cancelled-by-link',
+  // Three no-shows in three days: every booking not yet started was cancelled
+  // and booking is blocked for a week (guest record, 2026-10-20). `params`:
+  // blockedUntilUtc (ISO UTC), blockedUntilLocalDate (yyyy-MM-dd, the branch's
+  // day), cancelledCount. One entry for the whole block.
+  'bookings-blocked-no-shows',
+  // A venue marked one of the guest's bookings a no-show: venueName,
+  // branchName, date, time, partySize, reservationCode (and the booking's id).
+  'booking-no-show',
+  // The block is over early: liftedBecause "1" a platform admin lifted it,
+  // "2" a no-show was undone and the guest is under the threshold again.
+  'bookings-unblocked',
 ] as const;
 
 export type KnownDinerNotificationKind = (typeof DINER_NOTIFICATION_KINDS)[number];

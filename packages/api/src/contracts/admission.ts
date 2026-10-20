@@ -125,13 +125,20 @@ export interface RejectTabCommand {
 }
 
 /**
- * Why an entry on the branch's change stream is about a tab rather than the
- * table: `Yalla.Domain.Enums.TableChangeSignal`, 1 TabAwaitingAdmission,
- * 2 TabAdmitted, 3 TabAdmissionRejected. A tablet reads the awaiting list (and
- * the floor) again on any of them.
+ * Why an entry on the branch's change stream is about a tab or a booking
+ * rather than the table: `Yalla.Domain.Enums.TableChangeSignal`, 1
+ * TabAwaitingAdmission, 2 TabAdmitted, 3 TabAdmissionRejected — a tablet reads
+ * the awaiting list (and the floor) again on any of them — and 4
+ * BookingCancelledByBlock (guest record, 2026-10-20): a booking at this table
+ * (`reservationId`) was cancelled because its guest was blocked for no-shows;
+ * read the bookings again.
  */
 export type FloorChangeSignal =
-  'tabAwaitingAdmission' | 'tabAdmitted' | 'tabAdmissionRejected' | 'unknown';
+  | 'tabAwaitingAdmission'
+  | 'tabAdmitted'
+  | 'tabAdmissionRejected'
+  | 'bookingCancelledByBlock'
+  | 'unknown';
 
 /** At most this many characters in a reject's reason, as the server bounds it. */
 export const REJECT_TAB_REASON_MAX = 500;
