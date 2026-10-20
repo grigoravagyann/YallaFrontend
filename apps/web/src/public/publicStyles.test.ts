@@ -77,9 +77,11 @@ describe('the public page redesign', () => {
     expect(sticky!).toMatch(/^[^@]*\.pub-aside\s*\{[^}]*position:\s*sticky/u);
     // And nowhere else: on a short wide window the column flows with the page.
     expect(css().match(/position:\s*sticky/gu)!.length).toBe(
-      // the top bar, the phone's bottom sheet, and the column
-      3,
+      // the top bar, the phone's bottom sheet, the column, and the Book
+      // sheet's buttons inside the column (phase 4 review N7)
+      4,
     );
+    expect(css()).toMatch(/\.pub-aside \.pub-sheet-foot\s*\{[^}]*position:\s*sticky/u);
   });
 
   it('lets a component link keep its own colour under the pointer', () => {

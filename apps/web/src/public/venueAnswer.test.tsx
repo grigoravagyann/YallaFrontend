@@ -102,7 +102,7 @@ describe('the confirmation of a booking for tonight', () => {
 
     render(harness.wrap(<BookingDone booking={booking} branch={branch} />));
 
-    expect(await screen.findByRole('heading', { name: 'Request sent' })).toBeTruthy();
+    expect(await screen.findByRole('heading', { level: 3, name: 'Request sent' })).toBeTruthy();
     expect(screen.getByText(/checks the table is free before confirming/u)).toBeTruthy();
     const timer = screen.getByRole('timer');
     expect(timer.textContent).toMatch(/^Waiting for the venue · answer within 1[45]:\d\d$/u);
@@ -111,7 +111,7 @@ describe('the confirmation of a booking for tonight', () => {
   it('turns into a booking once the venue approves it', async () => {
     const { harness, branch, booking } = await bookTonight({ simulateVenueApprovalAfterMs: 1 });
     render(harness.wrap(<BookingDone booking={booking} branch={branch} />));
-    await screen.findByRole('heading', { name: 'Request sent' });
+    await screen.findByRole('heading', { level: 3, name: 'Request sent' });
 
     await elapse(5);
     await readAgain(harness, booking.manageToken!);
@@ -147,12 +147,30 @@ describe('the manage link on the confirmation', () => {
       ),
     );
 
+    // Waiting for the venue: the booking page is the sheet's link (Book artboard).
+    const link = await screen.findByRole('link', { name: 'Open the booking page' });
+    expect(link.getAttribute('href')).toBe(
+      `${window.location.origin}/booking/${booking.manageToken}?lang=ru`,
+    );
+  });
+
+  it('keeps it on a booked table’s link too, the one shown with its copy button', async () => {
+    const { harness, branch, booking } = await bookTonight({ floorApprovesAtOnce: true });
+    expect(booking.status).toBe('confirmed');
+    render(
+      harness.wrap(
+        <BookingDone booking={booking} branch={branch} />,
+        '/lumen-coffee/northern-avenue?lang=ru',
+      ),
+    );
+
     const link = await screen.findByText(/\/booking\//u, { selector: 'a' });
     // The short form the reminders carry too: the page finds the branch from
     // the answer (public page phase 5).
     expect(link.getAttribute('href')).toBe(
       `${window.location.origin}/booking/${booking.manageToken}?lang=ru`,
     );
+    expect(link.textContent).toBe(link.getAttribute('href'));
   });
 
   it('adds no language when the browser chose it', async () => {
@@ -164,8 +182,10 @@ describe('the manage link on the confirmation', () => {
       ),
     );
 
-    const link = await screen.findByText(/\/booking\//u, { selector: 'a' });
-    expect(link.getAttribute('href')).not.toContain('?');
+    const link = await screen.findByRole('link', { name: 'Open the booking page' });
+    expect(link.getAttribute('href')).toBe(
+      `${window.location.origin}/booking/${booking.manageToken}`,
+    );
   });
 });
 

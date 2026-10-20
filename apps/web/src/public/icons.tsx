@@ -10,6 +10,12 @@ export const ICON = {
   share:
     'M21 5a3 3 0 1 1-6 0 3 3 0 0 1 6 0zM9 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0zM21 19a3 3 0 1 1-6 0 3 3 0 0 1 6 0zM8.6 13.5l6.8 4M15.4 6.5l-6.8 4',
   close: 'M18 6 6 18M6 6l12 12',
+  // The Book sheet (Book artboard).
+  back: 'm15 18-6-6 6-6',
+  check: 'M20 6 9 17l-5-5',
+  alert: 'M22 12a10 10 0 1 1-20 0 10 10 0 0 1 20 0zM12 8v4M12 16h.01',
+  send: 'm22 2-7 20-4-9-9-4z',
+  clock: 'M12 6v6l4 2M22 12a10 10 0 1 1-20 0 10 10 0 0 1 20 0z',
   calendar:
     'M5 4h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2zM16 2v4M8 2v4M3 10h18',
   outdoorSeating: 'M12 3v18M5 8h14l-2 6H7z',

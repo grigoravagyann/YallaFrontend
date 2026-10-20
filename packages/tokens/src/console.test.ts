@@ -418,6 +418,12 @@ describe('the public page (docs/design/public-page)', () => {
     expect(ratio(consoleColor.publicStar, consoleColor.canvas)).toBeGreaterThanOrEqual(3);
   });
 
+  it('writes the Telegram button white on its blue, hovered or not, at body contrast', () => {
+    for (const fill of [consoleColor.publicTelegram, consoleColor.publicTelegramHover]) {
+      expect(ratio(consoleColor.publicTelegramForeground, fill)).toBeGreaterThanOrEqual(AA_BODY);
+    }
+  });
+
   it('keeps its type at 12px and up, with inputs at 16 so iOS does not zoom', () => {
     const publicSteps = Object.entries(consoleText).filter(([name]) => name.startsWith('public'));
     expect(publicSteps.length).toBeGreaterThan(0);
