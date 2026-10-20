@@ -1,6 +1,7 @@
 import type { FloorPlanData } from './tableFloor';
 import type { ApprovalTrigger, DeclineReason } from './approvals';
 import type { OpenState } from './publicBranch';
+import type { CancellationCause, GuestRecord } from './guestRecord';
 import type { ReservationStatusCode } from './push';
 
 /**
@@ -418,19 +419,20 @@ export interface Booking {
    */
   readonly declinedBecause: DeclineReason | null;
   /**
-   * Made without a proved phone number (2026-10-20): the venue may confirm it
-   * first (`awaitingApprovalBecause` `unverifiedPhone`), and it cannot be moved
-   * or used for "I'm at my table" until the number is proved. Absent from a
-   * server before unverified bookings, which reads as verified.
+   * Made without a proved phone number — possible only during the few hours
+   * of 2026-10-20 when such bookings were taken (legacy rows; every new
+   * booking needs a proved number). The venue may confirm it first
+   * (`unverifiedPhone`), and it cannot be moved or used for "I'm at my table".
+   * Absent reads as verified.
    */
   readonly phoneUnverified?: boolean | undefined;
   /**
-   * Somebody booked this without a proved number, using this account's own
-   * number (review round, 2026-10-20). It is listed so the account can see it
-   * and cancel it — "made with your number, not by you" — and it no longer
-   * blocks the account from booking. Absent: false.
+   * Why it was cancelled, when the status alone does not say:
+   * `noShowBlock` — cancelled automatically because the guest was blocked for
+   * three no-shows in three days (status `cancelledByVenue`). Absent or `null`
+   * for every other booking.
    */
-  readonly madeWithYourNumber?: boolean | undefined;
+  readonly cancelledBecause?: CancellationCause | null | undefined;
 
   /**
    * An opaque token granting sight of, and the power to cancel, **this booking
@@ -504,6 +506,12 @@ export interface AnswerTableRequestCommand {
 export interface MyBookings {
   readonly upcoming: readonly Booking[];
   readonly past: readonly Booking[];
+  /**
+   * The diner's own record over the last twelve months at every venue — what
+   * venues see beside their bookings — and `blockedUntilUtc` while blocked for
+   * no-shows. The server always sends it; absent from an older one.
+   */
+  readonly guestRecord?: GuestRecord | null | undefined;
 }
 
 /**

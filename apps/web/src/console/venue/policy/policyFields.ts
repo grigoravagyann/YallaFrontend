@@ -18,19 +18,20 @@ import {
  *
  * The groups are the questions an owner is actually asking, in the order they
  * ask them: how far ahead can people book, how long do we hold a table, what
- * happens when they are late, what needs a human, and what goes on the bill.
+ * happens when they are late, what needs a human, what a table that scans
+ * without a verified number may do, and what goes on the bill.
  */
 
-export type PolicyGroup = 'booking' | 'holding' | 'lateness' | 'approval' | 'unverified' | 'money';
+export type PolicyGroup = 'booking' | 'holding' | 'lateness' | 'approval' | 'scanning' | 'money';
 
 export const POLICY_GROUPS: readonly PolicyGroup[] = [
   'booking',
   'holding',
   'lateness',
   'approval',
-  // Guests whose phone number nobody proved (2026-10-20): after the approval
-  // rules, which these refine.
-  'unverified',
+  // A table that scans with no proved phone number (2026-10-20). Bookings
+  // always need one now, so only the scan is left to decide.
+  'scanning',
   'money',
 ];
 
@@ -89,6 +90,16 @@ export const POLICY_FIELDS: readonly PolicyFieldSpec[] = [
   minutes('graceExtensionMinutes', 'lateness', 5),
 
   { key: 'autoConfirm', group: 'approval', kind: 'toggle', bounds: null, step: 0, nullable: false },
+  // With "confirm automatically" off: a guest with a good record goes through
+  // at once. Beside the switch it depends on (see `inactiveBecause`).
+  {
+    key: 'autoConfirmGuestsWithGoodRecord',
+    group: 'approval',
+    kind: 'toggle',
+    bounds: null,
+    step: 0,
+    nullable: false,
+  },
   // A party of one is the smallest threshold that means anything; no ceiling.
   {
     key: 'approvalRequiredAbovePartySize',
@@ -99,28 +110,10 @@ export const POLICY_FIELDS: readonly PolicyFieldSpec[] = [
     nullable: true,
   },
 
-  // A booking without a verified number: approved first (on by default), and
-  // never for more than this many people.
-  {
-    key: 'unverifiedBookingsNeedApproval',
-    group: 'unverified',
-    kind: 'toggle',
-    bounds: null,
-    step: 0,
-    nullable: false,
-  },
-  {
-    key: 'unverifiedMaxPartySize',
-    group: 'unverified',
-    kind: 'people',
-    bounds: POLICY_BOUNDS.unverifiedMaxPartySize,
-    step: 1,
-    nullable: false,
-  },
   // A scan at the table with no verified number waits for a waiter (on by default).
   {
     key: 'unverifiedScansNeedAdmission',
-    group: 'unverified',
+    group: 'scanning',
     kind: 'toggle',
     bounds: null,
     step: 0,
@@ -150,6 +143,27 @@ export function fieldsInGroup(
   fields: readonly PolicyFieldSpec[] = POLICY_FIELDS,
 ): readonly PolicyFieldSpec[] {
   return fields.filter((field) => field.group === group);
+}
+
+/**
+ * Why a field does nothing as the policy stands, or `null` when it does.
+ *
+ * Auto-confirming guests with a good record skips only "the venue approves
+ * every booking"; with "confirm automatically" on there is nothing for it to
+ * skip. The switch is offered disabled then, with the reason beside it, and
+ * keeps its value — the owner turning automatic confirmation off again gets
+ * back what they had.
+ */
+export type InactiveReason = 'autoConfirmOn';
+
+export function inactiveBecause(
+  key: keyof ReservationPolicy,
+  policy: PolicyDraft,
+): InactiveReason | null {
+  if (key === 'autoConfirmGuestsWithGoodRecord' && policy.autoConfirm === true) {
+    return 'autoConfirmOn';
+  }
+  return null;
 }
 
 /**

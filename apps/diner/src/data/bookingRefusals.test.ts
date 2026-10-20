@@ -140,3 +140,61 @@ describe('overlapsOwnLine', () => {
     expect(overlapsOwnLine(noTime, slotUtc, zone, 'en').key).toBe('confirm.error.generic');
   });
 });
+
+/*
+ * Guest record (2026-10-20): no two of one guest's sittings overlap anywhere,
+ * and at another venue they need half an hour between them — so the refusal
+ * names the other place, with its day when that is another one.
+ */
+describe('overlapsOwnLine, a booking held at another place', () => {
+  const elsewhere = (localDate: string | null, branchName = 'Main') =>
+    new BookingOverlapsOwnError({
+      url: '/api/reservations',
+      existingReservationId: 'r-aram',
+      localStartTime: '23:30',
+      localDate,
+      tableLabel: '4',
+      venueName: 'Café Aram',
+      branchName,
+    });
+  const slotUtc = '2026-10-20T20:15:00Z';
+  const zone = 'Asia/Yerevan';
+  const here = { venueName: 'Lumen Coffee', branchName: 'Northern Avenue' };
+
+  it('names the venue and the time, never a table there', () => {
+    expect(overlapsOwnLine(elsewhere('2026-10-21'), slotUtc, zone, 'en', here)).toEqual({
+      key: 'confirm.error.overlapsOwnElsewhere',
+      params: { venue: 'Café Aram', time: '23:30' },
+    });
+  });
+
+  it('names its day too when it is on another one', () => {
+    const line = overlapsOwnLine(elsewhere('2026-10-20'), slotUtc, zone, 'en', here);
+    expect(line.key).toBe('confirm.error.overlapsOwnElsewhereOn');
+    expect(line.params).toMatchObject({ venue: 'Café Aram', time: '23:30' });
+    expect(String(line.params['date'])).toMatch(/20/u);
+  });
+
+  it('names the branch when it is another branch of the venue being booked', () => {
+    const line = overlapsOwnLine(elsewhere('2026-10-21', 'Cascade'), slotUtc, zone, 'en', {
+      venueName: 'Café Aram',
+      branchName: 'Main',
+    });
+    expect(line).toEqual({
+      key: 'confirm.error.overlapsOwnElsewhere',
+      params: { venue: 'Café Aram, Cascade', time: '23:30' },
+    });
+  });
+
+  it('says "here" for the place being booked, and when the place is not known', () => {
+    expect(
+      overlapsOwnLine(elsewhere('2026-10-21'), slotUtc, zone, 'en', {
+        venueName: 'Café Aram',
+        branchName: 'Main',
+      }).key,
+    ).toBe('confirm.error.overlapsOwn');
+    expect(overlapsOwnLine(elsewhere('2026-10-21'), slotUtc, zone, 'en').key).toBe(
+      'confirm.error.overlapsOwn',
+    );
+  });
+});

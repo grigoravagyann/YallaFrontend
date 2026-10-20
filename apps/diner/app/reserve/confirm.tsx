@@ -8,6 +8,10 @@ import { useCallback, useMemo, useRef, useState } from 'react';
 import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { FreeBySheet } from '../../src/components/bookings/FreeBySheet';
+import {
+  BookingBlockedNote,
+  GuestRecordPrivacyLine,
+} from '../../src/components/bookings/GuestRecord';
 import { Button } from '../../src/components/Button';
 import { Card } from '../../src/components/Card';
 import { IconButton } from '../../src/components/IconButton';
@@ -17,9 +21,11 @@ import { Skeleton } from '../../src/components/Skeleton';
 import { Text, TextInput } from '../../src/components/Text';
 import { refreshRoomAfterLoss } from '../../src/data/bookingCache';
 import { useBranchTimeZone } from '../../src/data/orderQueries';
-import { useCreateBooking, useSlotFloor, useVenue } from '../../src/data/queries';
+import { useBookingBlock } from '../../src/data/bookingBlock';
+import { keys, useCreateBooking, useSlotFloor, useVenue } from '../../src/data/queries';
 import { branchZoneSource } from '../../src/lib/browse';
 import { newCommandId } from '../../src/lib/commandId';
+import { pauseRefusalLine } from '../../src/lib/guestRecord';
 import {
   GUEST_NAME_MAX_LENGTH,
   canSubmit,
@@ -27,12 +33,7 @@ import {
   freeByAnswered,
   freeByNeeded,
 } from '../../src/lib/confirm';
-import {
-  bookingRefusal,
-  overlapsOwnLine,
-  proofLifts,
-  unprovedFailureLine,
-} from '../../src/data/bookingRefusals';
+import { bookingRefusal, overlapsOwnLine } from '../../src/data/bookingRefusals';
 import { haptics } from '../../src/lib/haptics';
 import { useConflict } from '../../src/stores/conflict';
 import { useSession } from '../../src/stores/session';
@@ -94,14 +95,18 @@ export default function ConfirmScreen() {
    */
   const [verifyRefused, setVerifyRefused] = useState(false);
   const profilePhoneVerified = useSession((s) => s.profile?.phoneVerified);
-  const mustVerify = verifyRefused && profilePhoneVerified !== true;
-  /**
-   * No proved number, and booking all the same (2026-10-20): the venue may
-   * confirm it first. Said before the tap, with proving it via Telegram
-   * offered — beside the refusal too, when proving it is what lifts it.
+  /*
+   * No booking without a proved number (guest record, 2026-10-20, as before
+   * #72): known from the profile before the tap, or from the server's refusal
+   * after it; either way Confirm becomes the Verify step, until the refreshed
+   * profile says the number is verified.
    */
-  const accountUnproved = profilePhoneVerified === false;
-  const [proofOffer, setProofOffer] = useState(false);
+  const mustVerify =
+    (verifyRefused || profilePhoneVerified === false) && profilePhoneVerified !== true;
+  /** Booking paused after three no-shows in three days: until when, or `null`. */
+  const pausedUntil = useBookingBlock();
+  /** The last refusal was the pause: said once, by the note, while the record says it too. */
+  const [pauseRefused, setPauseRefused] = useState(false);
   /** The last attempt may have committed: the button checks rather than books. */
   const [outcomeUnknown, setOutcomeUnknown] = useState(false);
 
@@ -152,6 +157,11 @@ export default function ConfirmScreen() {
   );
   const zone = timeZoneId ?? slotQuery.data?.plan.timeZoneId ?? null;
   const branchName = branch?.name ?? slotQuery.data?.plan.branchName ?? '';
+  // The place being booked, as an overlap at another venue names places.
+  const here = useMemo(
+    () => ({ venueName: venueQuery.data?.name ?? null, branchName }),
+    [venueQuery.data?.name, branchName],
+  );
 
   const state = confirmState({
     offline: isOfflinePaused(slotQuery),
@@ -168,7 +178,7 @@ export default function ConfirmScreen() {
     async (acceptsFreeByUtc: string | null = agreedFreeBy) => {
       if (!canSubmit({ state, guestName, pending }) || !zone || !phoneE164 || !slotUtc) return;
       setErrorText(null);
-      setProofOffer(false);
+      setPauseRefused(false);
       /*
        * A booking follows on the table: never sent without a yes to that very
        * instant — the server's once it named one, compared as an instant — and
@@ -214,7 +224,7 @@ export default function ConfirmScreen() {
 
         // What kind of failure this was is decided in one shared place, so the
         // web page classifies the same refusal the same way. See `bookingFailure`.
-        const failure = bookingFailure(error, zone, locale, { unverified: accountUnproved });
+        const failure = bookingFailure(error, zone, locale, { here });
 
         // A booking landed after the room was read and the table now needs the
         // promise (or another time for it): asked again, with the server's time.
@@ -253,18 +263,23 @@ export default function ConfirmScreen() {
         // The diner's own booking at that time: named, with its day when it
         // is on another one.
         if (failure.kind === 'overlapsOwn') {
-          const own = overlapsOwnLine(failure.error, slotUtc, zone, locale);
+          const own = overlapsOwnLine(failure.error, slotUtc, zone, locale, here);
           setOutcomeUnknown(false);
           setErrorText(t(own.key, own.params));
           return;
         }
 
+        // Paused for no-shows: the bookings are read again, so the bookings
+        // tab's banner and this screen's own note say it from now on.
+        if (failure.kind === 'blockedNoShows') {
+          setPauseRefused(true);
+          void queryClient.invalidateQueries({ queryKey: keys.bookings });
+        }
         if (failure.kind === 'commandInUse') commandId.current = newCommandId();
         setOutcomeUnknown(failure.kind === 'unknown');
-        // A limit on booking without a proved number: proving it is offered.
-        setProofOffer(proofLifts(failure, accountUnproved));
-        const said = unprovedFailureLine(failure, accountUnproved);
-        setErrorText(t(said.key, said.params));
+        // The pause's end on the phone's clock, as the note and the banner say it.
+        const line = pauseRefusalLine(failure, locale) ?? failure.line;
+        setErrorText(t(line.key, line.params));
       }
     },
     [
@@ -288,7 +303,7 @@ export default function ConfirmScreen() {
       serverFreeBy,
       table,
       slotQuery,
-      accountUnproved,
+      here,
     ],
   );
 
@@ -297,7 +312,8 @@ export default function ConfirmScreen() {
   const copy =
     table && zone ? tableCopy(table, { partySize: size, timeZoneId: zone, locale }) : null;
   const line = (value: CopyLine): string => t(value.key, value.params);
-  const enabled = canSubmit({ state, guestName, pending }) && Boolean(phoneE164);
+  const enabled =
+    canSubmit({ state, guestName, pending }) && Boolean(phoneE164) && pausedUntil === null;
 
   const back = () => {
     if (router.canGoBack()) router.back();
@@ -442,60 +458,49 @@ export default function ConfirmScreen() {
             </Card>
           ) : null}
 
-          {/* Opened with no booking params on purpose: the code flow then goes
-              back to this very screen, with its command id, instead of
-              replacing itself with a second confirm screen. */}
+          {/* No proved number: why Confirm is the Verify step below. */}
           {mustVerify ? (
             <Card style={[styles.windowCard, styles.verifyCard]}>
               <Text style={styles.notice} accessibilityRole="alert">
                 {t('confirm.error.phoneNotVerified')}
               </Text>
-              <Button
-                label={t('confirm.verifyMyNumber')}
-                onPress={() => router.push('/auth/code')}
-              />
             </Card>
           ) : null}
 
-          {errorText ? (
+          {/* Paused for no-shows: no Confirm, and until when. */}
+          {pausedUntil ? <BookingBlockedNote untilUtc={pausedUntil} style={styles.paused} /> : null}
+
+          {errorText && !(pauseRefused && pausedUntil) ? (
             <Text style={styles.error} accessibilityRole="alert">
               {errorText}
             </Text>
           ) : null}
-
-          {/* No proved number: the venue may confirm first; Telegram makes it instant. */}
-          {accountUnproved && !mustVerify ? (
-            <View style={styles.unproved}>
-              {proofOffer ? null : (
-                <Text style={styles.unprovedText}>{t('confirm.unverifiedNote')}</Text>
-              )}
-              <Button
-                label={t('confirm.verifyMyNumber')}
-                variant={proofOffer ? 'outline' : 'text'}
-                fullWidth={false}
-                onPress={() => router.push('/auth/code')}
-              />
-            </View>
-          ) : null}
         </ScrollView>
 
         <View style={[styles.footer, { paddingBottom: insets.bottom + space.md }]}>
+          {/* What the venue sees of the guest, said before the tap. */}
+          <GuestRecordPrivacyLine style={styles.privacy} />
           {/* No optimistic success: a booking either exists on the server or it
               does not, and telling someone they have a table when they might
               not is the worst possible lie in this app. */}
+          {/* The Verify step is opened with no booking params on purpose: the
+              code flow then goes back to this very screen, with its command
+              id, instead of replacing itself with a second confirm screen. */}
           <Button
             label={
               pending
                 ? t('confirm.submitting')
-                : outcomeUnknown
-                  ? t('confirm.checkAgain')
-                  : copy?.approval
-                    ? t('confirm.requiresApproval')
-                    : t('confirm.submit')
+                : mustVerify
+                  ? t('confirm.verifyMyNumber')
+                  : outcomeUnknown
+                    ? t('confirm.checkAgain')
+                    : copy?.approval
+                      ? t('confirm.requiresApproval')
+                      : t('confirm.submit')
             }
             size="large"
             disabled={!enabled}
-            onPress={() => void submit()}
+            onPress={() => (mustVerify ? router.push('/auth/code') : void submit())}
           />
         </View>
       </KeyboardAvoidingView>
@@ -590,8 +595,8 @@ const styles = StyleSheet.create({
   approval: { ...typography.caption, color: colors.infoInk },
   notice: { ...typography.body, color: colors.text },
   error: { ...typography.body, color: colors.errorInk, marginTop: space.lg },
-  unproved: { gap: space.xs, alignItems: 'flex-start', marginTop: space.lg },
-  unprovedText: { ...typography.caption, color: colors.infoInk },
+  paused: { marginTop: space.lg },
+  privacy: { marginBottom: space.sm },
   footer: {
     paddingHorizontal: layout.screenPadding,
     paddingTop: space.md,

@@ -44,7 +44,14 @@ export function createPollingLiveStream(options: PollingLiveStreamOptions): Live
   return createSequenceStream<FloorChange>({
     fetchPage: async (afterSequence) => {
       const page = await gateway.getFloorChanges({ branchId, afterSequence });
-      return { lastSequence: page.lastSequence, items: page.changes };
+      // `lastSequence` is the end of the branch's stream, not of this page:
+      // a page with more after it goes on from its own last row, or what it
+      // did not carry would be skipped (review S3).
+      const lastRow = page.changes.reduce(
+        (last, change) => Math.max(last, change.sequence),
+        afterSequence,
+      );
+      return { lastSequence: page.hasMore ? lastRow : page.lastSequence, items: page.changes };
     },
     handlers: {
       onItems: handlers.onChanges,

@@ -303,9 +303,8 @@ export function reservationPolicy(view: WirePolicy): ReservationPolicy {
     maxSeatOverhang: view.maxSeatOverhang ?? null,
     serviceChargePercent: view.serviceChargePercent,
     pricesIncludeVat: view.pricesIncludeVat,
-    // Absent from a server before unverified bookings: the shipped defaults.
-    unverifiedBookingsNeedApproval: view.unverifiedBookingsNeedApproval ?? true,
-    unverifiedMaxPartySize: view.unverifiedMaxPartySize ?? 6,
+    // Absent from a server before the guest record: the default, off.
+    autoConfirmGuestsWithGoodRecord: view.autoConfirmGuestsWithGoodRecord ?? false,
     // Absent from an older server: the default, on.
     unverifiedScansNeedAdmission: view.unverifiedScansNeedAdmission ?? true,
   };
@@ -344,8 +343,7 @@ export function policyCommand(
     maxSeatOverhang: policy.maxSeatOverhang,
     serviceChargePercent: policy.serviceChargePercent,
     pricesIncludeVat: policy.pricesIncludeVat,
-    unverifiedBookingsNeedApproval: policy.unverifiedBookingsNeedApproval,
-    unverifiedMaxPartySize: policy.unverifiedMaxPartySize,
+    autoConfirmGuestsWithGoodRecord: policy.autoConfirmGuestsWithGoodRecord,
     unverifiedScansNeedAdmission: policy.unverifiedScansNeedAdmission,
   };
 }
@@ -385,7 +383,6 @@ const BOUNDS_LABELS: readonly (readonly [string, keyof ReservationPolicy])[] = [
   ['Cancellation deadline', 'cancellationDeadlineMinutes'],
   ['Walk-in holdback', 'walkInHoldbackMinutes'],
   ['Service charge', 'serviceChargePercent'],
-  ['Unverified party size', 'unverifiedMaxPartySize'],
 ];
 
 export function policyFieldFromMessage(detail: string): keyof ReservationPolicy | null {

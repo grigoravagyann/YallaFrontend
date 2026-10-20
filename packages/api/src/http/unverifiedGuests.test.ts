@@ -1,27 +1,20 @@
 import { describe, expect, it } from 'vitest';
-import {
-  BranchRequiresVerifiedPhoneError,
-  DeviceHasActiveBookingError,
-  PhoneHasActiveBookingError,
-  TabAdmissionDecidedError,
-  UnverifiedPartyTooLargeError,
-  UnverifiedQueueFullError,
-} from '../contracts/errors';
+import { TabAdmissionDecidedError } from '../contracts/errors';
 import { ConcurrencyConflictError } from '../errors';
 import type { components } from '../generated/schema';
 import { approvalTrigger } from './approvalMapping';
 import { fakeBackend, problemReply, type FakeRoute } from './fakeBackend.testkit';
 import { createHttpGateway } from './httpGateway';
-import { createPublicHttpGateway } from './publicHttpGateway';
 import { createStaffHttpGateway } from './staffHttpGateway';
 import { floorChangePage, staffFloorDetails, staffTabFromView } from './staffMapping';
 import { managedBookingFromWire, type WirePublicBooking } from './publicMapping';
 import { policyCommand, reservationPolicy } from './venueSettingsMapping';
 
 /**
- * Unverified guests over HTTP (2026-10-20, UG wire): the booking without a
- * proved number, one active booking per number, and the tab a waiter lets
- * order. Every route and body is the wire's; every refusal arrives typed.
+ * Unverified guests over HTTP (2026-10-20, UG wire): the tab a waiter lets
+ * order, and what is left of the bookings made without a proved number while
+ * those were taken (the guest record retired them the same day). Every route
+ * and body is the wire's; every refusal arrives typed.
  */
 
 type Schemas = components['schemas'];
@@ -56,7 +49,6 @@ const VIEW: ReservationViewWire = {
   awaitsEarlierGuestAnswer: false,
   awaitingApprovalBecause: 6,
   phoneUnverified: true,
-  madeWithYourNumber: false,
   manageToken: 'manage-once',
 };
 
@@ -96,11 +88,6 @@ async function caught(promise: Promise<unknown>): Promise<unknown> {
 function staffOver(routes: Readonly<Record<string, FakeRoute>>) {
   const backend = fakeBackend(routes);
   return { backend, gateway: createStaffHttpGateway(backend.client()) };
-}
-
-function publicOver(routes: Readonly<Record<string, FakeRoute>>) {
-  const backend = fakeBackend(routes);
-  return { backend, gateway: createPublicHttpGateway(backend.client()) };
 }
 
 function dinerOver(routes: Readonly<Record<string, FakeRoute>>) {
@@ -310,161 +297,8 @@ describe('the floor: tables waiting to be let in', () => {
   });
 });
 
-describe('a booking without a proved number', () => {
-  const COMMAND_BODY = {
-    branchId: BRANCH,
-    commandId: COMMAND,
-    tableId: 'tbl-7',
-    // 15:30 UTC is 19:30 in Yerevan: the route takes the branch's wall clock.
-    slotUtc: '2026-10-22T15:30:00.000Z',
-    timeZoneId: 'Asia/Yerevan',
-    partySize: 2,
-    guestName: 'Ani',
-    guestPhone: '+374 99 11 22 33',
-    deviceId: 'browser-1',
-  } as const;
-  const ROUTE = `POST /api/public/branches/${BRANCH}/bookings`;
-
-  it('posts anonymously with the browser, and hands the token back once', async () => {
-    const { gateway, backend } = publicOver({ [ROUTE]: { status: 201, body: VIEW } });
-
-    const result = await gateway.createUnverifiedBooking(COMMAND_BODY);
-
-    const request = backend.requests[0]!;
-    expect(request.headers.get('authorization')).toBeNull();
-    expect(request.body).toEqual({
-      tableId: 'tbl-7',
-      date: '2026-10-22',
-      time: '19:30',
-      partySize: 2,
-      guestName: 'Ani',
-      guestPhone: '+374 99 11 22 33',
-      deviceId: 'browser-1',
-      clientCommandId: COMMAND,
-      note: null,
-    });
-    expect(result.manageToken).toBe('manage-once');
-    expect(result.wasReplay).toBe(false);
-    expect(result.booking).toMatchObject({
-      status: 'pendingApproval',
-      awaitingApprovalBecause: 'unverifiedPhone',
-      phoneUnverified: true,
-    });
-  });
-
-  it('carries no token on a replay', async () => {
-    const { manageToken: _token, ...replay } = VIEW;
-    const { gateway } = publicOver({ [ROUTE]: { body: { ...replay, wasReplay: true } } });
-
-    const result = await gateway.createUnverifiedBooking(COMMAND_BODY);
-
-    expect(result).toMatchObject({ manageToken: null, wasReplay: true });
-  });
-
-  it('names the three refusals of its own', async () => {
-    const refusal = async (reply: ReturnType<typeof problemReply>) =>
-      caught(publicOver({ [ROUTE]: reply }).gateway.createUnverifiedBooking(COMMAND_BODY));
-
-    const phone = await refusal(problemReply(409, 'phone-has-active-booking'));
-    expect(phone).toBeInstanceOf(PhoneHasActiveBookingError);
-    // Nothing named on this route: somebody else's booking is never described.
-    expect((phone as PhoneHasActiveBookingError).held).toBeNull();
-
-    expect(await refusal(problemReply(409, 'device-has-active-booking'))).toBeInstanceOf(
-      DeviceHasActiveBookingError,
-    );
-
-    const cap = await refusal(
-      problemReply(422, 'reservation-unverified-party-too-large', {
-        reason: 14,
-        partySize: 8,
-        maxPartySize: 6,
-      }),
-    );
-    expect(cap).toBeInstanceOf(UnverifiedPartyTooLargeError);
-    expect(cap).toMatchObject({ partySize: 8, maxPartySize: 6 });
-
-    // A cap of 0: the branch takes none without a verified number — its own
-    // 422, not the party cap with a maximum of 0 (df6de66).
-    expect(
-      await refusal(problemReply(422, 'branch-requires-verified-phone', { reason: 15 })),
-    ).toBeInstanceOf(BranchRequiresVerifiedPhoneError);
-
-    expect(await refusal(problemReply(409, 'branch-unverified-queue-full'))).toBeInstanceOf(
-      UnverifiedQueueFullError,
-    );
-  });
-
-  it("reads a booking somebody else made with the account's number", async () => {
-    const { gateway } = dinerOver({
-      'GET /api/reservations/mine': {
-        body: { upcoming: [{ ...VIEW, madeWithYourNumber: true }], past: [] },
-      },
-    });
-
-    const mine = await gateway.listBookings();
-
-    expect(mine.upcoming[0]).toMatchObject({ madeWithYourNumber: true, phoneUnverified: true });
-  });
-
-  it('reads the cap-0 refusal on the app door too', async () => {
-    const { gateway } = dinerOver({
-      'POST /api/reservations': problemReply(422, 'branch-requires-verified-phone', {
-        reason: 15,
-      }),
-    });
-
-    const error = await caught(
-      gateway.createBooking({ ...COMMAND_BODY, guestPhone: '+37499112233', channel: 'app' }),
-    );
-
-    expect(error).toBeInstanceOf(BranchRequiresVerifiedPhoneError);
-  });
-
-  it("names the account's own held booking when the app is refused for the number", async () => {
-    const { gateway } = dinerOver({
-      'POST /api/reservations': problemReply(409, 'phone-has-active-booking', {
-        reservationId: 'r-1',
-        code: 'K7Q2LM',
-        startUtc: '2026-10-22T15:30:00Z',
-        localDate: '2026-10-22',
-        localStartTime: '19:30:00',
-        venueName: 'Café Aram',
-        branchName: 'Main',
-      }),
-    });
-
-    const error = await caught(
-      gateway.createBooking({ ...COMMAND_BODY, guestPhone: '+37499112233', channel: 'app' }),
-    );
-
-    expect(error).toBeInstanceOf(PhoneHasActiveBookingError);
-    expect((error as PhoneHasActiveBookingError).held).toEqual({
-      reservationId: 'r-1',
-      code: 'K7Q2LM',
-      startUtc: '2026-10-22T15:30:00Z',
-      localDate: '2026-10-22',
-      localStartTime: '19:30',
-      venueName: 'Café Aram',
-      branchName: 'Main',
-    });
-  });
-
-  it('reads the flag and the reason on every booking the app reads', async () => {
-    const { gateway } = dinerOver({ 'POST /api/reservations': { status: 201, body: VIEW } });
-
-    const booking = await gateway.createBooking({
-      ...COMMAND_BODY,
-      guestPhone: '+37499112233',
-      channel: 'app',
-    });
-
-    expect(booking.phoneUnverified).toBe(true);
-    expect(booking.awaitingApprovalBecause).toBe('unverifiedPhone');
-    expect(approvalTrigger(6)).toBe('unverifiedPhone');
-  });
-
-  it('reads the link: never changed, and says why', () => {
+describe('legacy bookings made without a proved number, and the scans setting', () => {
+  it('reads the link of one: never changed, and says why', () => {
     const managed = managedBookingFromWire({
       reservationId: VIEW.id,
       code: VIEW.code,
@@ -487,7 +321,21 @@ describe('a booking without a proved number', () => {
     expect(managed).toMatchObject({ phoneUnverified: true, canChange: false, canCancel: true });
   });
 
-  it('reads the two policy settings, and the shipped ones from a server without them', () => {
+  it('reads the flag and the reason on a legacy booking the app reads', async () => {
+    const { gateway } = dinerOver({
+      'GET /api/reservations/mine': { body: { upcoming: [VIEW], past: [] } },
+    });
+
+    const [booking] = (await gateway.listBookings()).upcoming;
+
+    expect(booking).toMatchObject({
+      phoneUnverified: true,
+      awaitingApprovalBecause: 'unverifiedPhone',
+    });
+    expect(approvalTrigger(6)).toBe('unverifiedPhone');
+  });
+
+  it('reads the scans setting, and the shipped one from a server without it', () => {
     const base = {
       turnTimeMinutes: 90,
       bufferMinutes: 5,
@@ -501,28 +349,17 @@ describe('a booking without a proved number', () => {
       autoConfirm: true,
       serviceChargePercent: 10,
       pricesIncludeVat: true,
+      autoConfirmGuestsWithGoodRecord: false,
     };
     type WirePolicy = Parameters<typeof reservationPolicy>[0];
     expect(
-      reservationPolicy({
-        ...base,
-        unverifiedBookingsNeedApproval: false,
-        unverifiedMaxPartySize: 4,
-      } as WirePolicy),
-    ).toMatchObject({ unverifiedBookingsNeedApproval: false, unverifiedMaxPartySize: 4 });
-    expect(
-      reservationPolicy({ ...base, unverifiedScansNeedAdmission: false } as unknown as WirePolicy),
+      reservationPolicy({ ...base, unverifiedScansNeedAdmission: false } as WirePolicy),
     ).toMatchObject({ unverifiedScansNeedAdmission: false });
     const shipped = reservationPolicy(base as unknown as WirePolicy);
-    expect(shipped).toMatchObject({
-      unverifiedBookingsNeedApproval: true,
-      unverifiedMaxPartySize: 6,
-      unverifiedScansNeedAdmission: true,
-    });
+    expect(shipped).toMatchObject({ unverifiedScansNeedAdmission: true });
     // Sent back whole, so a save never resets a setting it did not show.
     expect(policyCommand({ ...shipped, unverifiedScansNeedAdmission: false })).toMatchObject({
-      unverifiedBookingsNeedApproval: true,
-      unverifiedMaxPartySize: 6,
+      autoConfirmGuestsWithGoodRecord: false,
       unverifiedScansNeedAdmission: false,
     });
   });

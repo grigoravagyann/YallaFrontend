@@ -1,18 +1,15 @@
 /**
- * Guests with a number nobody proved: the booking made without a phone proof,
- * and the tab a scan opened that a waiter has to let order.
+ * Guests with a number nobody proved: the tab a scan opened that a waiter has
+ * to let order.
  *
  * Decided on 2026-10-20. A phone number can be typed by anybody and a printed
  * QR code can be photographed and scanned from home, so neither is trusted on
  * its own any more:
  *
- * - **A booking without a proved number** is taken, with safeguards: the
- *   venue sees "number not verified" beside it (`phoneUnverified`), a party
- *   larger than the branch's `unverifiedMaxPartySize` is refused, and a branch
- *   that approves such bookings first (`unverifiedBookingsNeedApproval`, on by
- *   default) holds it as `PendingApproval` with the reason `unverifiedPhone`.
- *   One phone number holds one active booking at a time — for everybody,
- *   verified or not.
+ * - **A booking needs a proved number** again: the guest record (2026-10-20)
+ *   retired the booking without a phone proof, with its branch settings. The
+ *   few bookings made while it was live keep `phoneUnverified` ("number not
+ *   verified" beside them) and the approval reason `unverifiedPhone`.
  * - **A tab a scan opened with no proved number** waits for a waiter
  *   (`awaiting`): the phones read the menu and the tab and can call a waiter,
  *   but nothing can be ordered and no bill asked for until somebody on the
@@ -125,13 +122,24 @@ export interface RejectTabCommand {
 }
 
 /**
- * Why an entry on the branch's change stream is about a tab rather than the
- * table: `Yalla.Domain.Enums.TableChangeSignal`, 1 TabAwaitingAdmission,
- * 2 TabAdmitted, 3 TabAdmissionRejected. A tablet reads the awaiting list (and
- * the floor) again on any of them.
+ * Why an entry on the branch's change stream is about a tab or a booking
+ * rather than the table: `Yalla.Domain.Enums.TableChangeSignal`, 1
+ * TabAwaitingAdmission, 2 TabAdmitted, 3 TabAdmissionRejected — a tablet reads
+ * the awaiting list (and the floor) again on any of them — and 4
+ * BookingCancelledByBlock (guest record, 2026-10-20): a booking at this table
+ * (`reservationId`) was cancelled because its guest was blocked for no-shows;
+ * read the bookings again — and 5 BookingChanged: a booking at this table was
+ * made, approved, declined, moved, cancelled, or its no-show marked or
+ * withdrawn. Its row's status is not a transition (from = to): re-read the
+ * floor, never fold it.
  */
 export type FloorChangeSignal =
-  'tabAwaitingAdmission' | 'tabAdmitted' | 'tabAdmissionRejected' | 'unknown';
+  | 'tabAwaitingAdmission'
+  | 'tabAdmitted'
+  | 'tabAdmissionRejected'
+  | 'bookingCancelledByBlock'
+  | 'bookingChanged'
+  | 'unknown';
 
 /** At most this many characters in a reject's reason, as the server bounds it. */
 export const REJECT_TAB_REASON_MAX = 500;

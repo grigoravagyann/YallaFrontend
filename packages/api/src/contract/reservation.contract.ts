@@ -202,41 +202,45 @@ export function describeReservationContract(subject: ContractSubject): void {
       }
     });
 
-    it('refuses one number a second booking that does not overlap, naming the first to its own account', async () => {
-      // Since 2026-10-20 one phone number holds one active booking, anywhere.
+    it('refuses one number a fourth active booking, naming its earliest to its own account', async () => {
+      // Since 2026-10-20 one proved number holds at most three active bookings, anywhere.
       const bella = await subject.newDiner();
-      const first = await firstBookable();
-      const held = await bella.gateway.createBooking(
-        bookingOf(first.tableId, fixtures.tomorrowEveningUtc, bella),
-      );
-      try {
-        const later = new Date(Date.parse(fixtures.tomorrowEveningUtc) + 24 * 60 * 60_000);
+      const evening = (day: number) =>
+        new Date(Date.parse(fixtures.tomorrowEveningUtc) + day * 24 * 60 * 60_000).toISOString();
+      const tableOn = async (slotUtc: string) => {
         const floor = await bella.gateway.getSlotFloor({
           branchId: fixtures.branchId,
-          slotUtc: later.toISOString(),
+          slotUtc,
           partySize: 2,
           timeZoneId: fixtures.timeZoneId,
         });
-        const other = floor!.tables.find((entry) => entry.isBookable && !entry.mustFreeByUtc);
-        expect(other, 'no table is bookable the evening after').toBeDefined();
+        const table = floor!.tables.find((entry) => entry.isBookable && !entry.mustFreeByUtc);
+        expect(table, `no table is bookable at ${slotUtc}`).toBeDefined();
+        return table!.tableId;
+      };
+      const made: string[] = [];
+      try {
+        for (const day of [0, 1, 2]) {
+          const booking = await bella.gateway.createBooking(
+            bookingOf(await tableOn(evening(day)), evening(day), bella),
+          );
+          made.push(booking.id);
+        }
 
+        const fourth = evening(3);
+        const table = await tableOn(fourth);
         const refused: unknown = await bella.gateway
-          .createBooking(bookingOf(other!.tableId, later.toISOString(), bella))
+          .createBooking(bookingOf(table, fourth, bella))
           .catch((error: unknown) => error);
         expect(refused).toBeInstanceOf(PhoneHasActiveBookingError);
-        expect((refused as PhoneHasActiveBookingError).held).toMatchObject({
-          reservationId: held.id,
-          code: held.code,
-        });
+        expect(refused).toMatchObject({ maxActiveBookings: 3, held: { reservationId: made[0] } });
 
-        // Cancelling frees the number at once.
-        await bella.gateway.cancelBooking(held.id);
-        const second = await bella.gateway.createBooking(
-          bookingOf(other!.tableId, later.toISOString(), bella),
-        );
-        await bella.gateway.cancelBooking(second.id);
+        // Cancelling one frees a place at once.
+        await bella.gateway.cancelBooking(made[0]!);
+        const again = await bella.gateway.createBooking(bookingOf(table, fourth, bella));
+        made.push(again.id);
       } finally {
-        await bella.gateway.cancelBooking(held.id).catch(() => undefined);
+        for (const id of made) await bella.gateway.cancelBooking(id).catch(() => undefined);
       }
     });
   });

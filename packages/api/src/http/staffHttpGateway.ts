@@ -46,12 +46,15 @@ import { ApiError, NotFoundError } from '../errors';
 import type { components } from '../generated/schema';
 import type {
   ReleaseReservationCommand,
+  UndoNoShowResult,
   ReservationReleaseResult,
   StaffGateway,
 } from '../staffGateway';
 import type { WireReservationWithApproval } from './approvalMapping';
 import { awaitingApprovalFromWire, type WireAwaitingApproval } from './awaitingApprovalMapping';
 import { consoleBookingFromWire } from './consoleMapping';
+import { cancelledByBlockRefusal, undoNoShowRefusal, withRefusal } from './guestRecordMapping';
+import { reservationStatus } from './dinerMapping';
 import { floorFromState } from './mapping';
 import {
   adjustment,
@@ -304,6 +307,29 @@ export function createStaffHttpGateway(client: ApiClient): StaffGateway {
         tableLabel: data.tableLabel,
         tableFreed: data.tableFreed,
         wasReplay: data.wasReplay,
+        // Wire §0a: only when this no-show blocked its guest.
+        guestBlockedUntilUtc: data.guestBlockedUntilUtc ?? null,
+      };
+    },
+
+    async undoNoShow({ reservationId, clientCommandId, reason }): Promise<UndoNoShowResult> {
+      // The booking as it now stands: confirmed again, or as it was when
+      // already undone.
+      const { data } = await withRefusal(
+        client.post<Schemas['Yalla.Application.Reservations.ReservationView']>(
+          `/api/reservations/${reservationId}/undo-no-show`,
+          {
+            clientCommandId,
+            ...(reason?.trim() ? { reason: reason.trim() } : {}),
+          } satisfies Schemas['Yalla.Api.Endpoints.UndoNoShowRequest'],
+        ),
+        undoNoShowRefusal,
+      );
+      return {
+        reservationId: data.id,
+        status: reservationStatus(data.status),
+        tableId: data.tableId,
+        tableLabel: data.tableLabel,
       };
     },
 
@@ -321,19 +347,23 @@ export function createStaffHttpGateway(client: ApiClient): StaffGateway {
       // The empty decision body, as the console sends it: the route binds a
       // JSON document. The 409s — decided already, or too late — pass through
       // as the client's own `ConcurrencyConflictError`, code intact.
-      const { data } = await client.post<WireReservationWithApproval>(
-        `/api/reservations/${reservationId}/approve`,
-        {} satisfies Schemas['Yalla.Api.Endpoints.DecideReservationRequest'],
+      // Cancelled by its guest's no-show block meanwhile: said as that (wire §0a).
+      const { data } = await withRefusal(
+        client.post<WireReservationWithApproval>(
+          `/api/reservations/${reservationId}/approve`,
+          {} satisfies Schemas['Yalla.Api.Endpoints.DecideReservationRequest'],
+        ),
+        cancelledByBlockRefusal,
       );
       return consoleBookingFromWire(data);
     },
 
     async rejectReservation({ reservationId, reason }): Promise<ConsoleBooking> {
-      const { data } = await client.post<WireReservationWithApproval>(
-        `/api/reservations/${reservationId}/reject`,
-        {
+      const { data } = await withRefusal(
+        client.post<WireReservationWithApproval>(`/api/reservations/${reservationId}/reject`, {
           reason: reason ?? null,
-        } satisfies Schemas['Yalla.Api.Endpoints.DecideReservationRequest'],
+        } satisfies Schemas['Yalla.Api.Endpoints.DecideReservationRequest']),
+        cancelledByBlockRefusal,
       );
       return consoleBookingFromWire(data);
     },

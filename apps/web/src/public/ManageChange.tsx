@@ -13,7 +13,7 @@ import {
   type PublicBranch,
 } from '@yalla/api';
 import { useRescheduleManagedBooking, useSlotFloor } from '@yalla/api/react';
-import { formatTime } from '@yalla/format';
+import { branchDayKey, formatTime } from '@yalla/format';
 import { useLocale, useTranslation } from '@yalla/i18n';
 import { useQueryClient } from '@tanstack/react-query';
 import { useEffect, useId, useMemo, useState } from 'react';
@@ -23,6 +23,8 @@ import {
   type ChosenTable,
   type SelectionChange,
 } from './BookingCard';
+import { dayWords } from './dayNames';
+import { numberRuleWords, overlapElsewhereWords } from './refusalWords';
 import { RoomSection } from './RoomSection';
 import { branchClock, branchToday, slotInstant, type SlotSelection } from './slots';
 import { isPickable, pickTableFor, roomOf } from './tablePick';
@@ -317,7 +319,8 @@ export default function ManageChange({
       return;
     }
 
-    const read = bookingFailure(error, zone, locale);
+    const here = { venueName: booking.venueName, branchName: booking.branchName };
+    const read = bookingFailure(error, zone, locale, { here });
     switch (read.kind) {
       case 'tableTaken':
         // The room redraws and the visitor picks again, with the day, time and party kept.
@@ -333,8 +336,29 @@ export default function ManageChange({
         alert(td(read.line.key, read.line.params));
         return;
       case 'overlapsOwn':
-        // The link names nothing about the other booking, and neither does the page.
-        alert(t('manage.changing.error.overlapsOwn'));
+        // Another venue or branch, too close to the new time: named, as the
+        // Book sheet names it. One here, at this venue: said without naming it.
+        alert(
+          overlapElsewhereWords(read.error, here, slotUtc, zone, t) ??
+            t('manage.changing.error.overlapsOwn'),
+        );
+        return;
+      case 'blockedNoShows': {
+        // Three no-shows in three days: no change until the block ends; cancelling stays.
+        const until = read.error.blockedUntilUtc;
+        alert(
+          until
+            ? t('manage.changing.error.blocked', {
+                date: dayWords(branchDayKey(until, zone), branchToday(zone), t).inSentence,
+                time: formatTime(until, zone, locale),
+              })
+            : t('manage.changing.error.blockedPlain'),
+        );
+        return;
+      }
+      case 'phoneHasActiveBooking':
+        // A move adds no booking, so the server never says this of one; worded all the same.
+        alert(numberRuleWords(read, zone, locale, t) ?? td(read.line.key, read.line.params));
         return;
       case 'busy':
         // The same attempt: pressed again, it is the same command.

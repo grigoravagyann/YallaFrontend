@@ -30,6 +30,7 @@ import {
   type WireReservationWithApproval,
 } from './approvalMapping';
 import { reviewReplyFromWire, reviewSummaryFromWire } from './reviewReplyMapping';
+import { cancellationCause, guestRecordFromWire } from './guestRecordMapping';
 import { venueTypeFromCode } from './venueTypeMapping';
 
 type Schemas = components['schemas'];
@@ -279,6 +280,8 @@ export function consoleBookingFromWire(view: WireReservationWithApproval): Conso
     awaitsEarlierGuestAnswer: awaitsEarlierGuestAnswer(view),
     note: view.note ?? null,
     phoneUnverified: view.phoneUnverified === true,
+    guestRecord: guestRecordFromWire(view.guestRecord),
+    cancelledBecause: cancellationCause(view.cancelledBecause),
   };
 }
 

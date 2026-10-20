@@ -21,6 +21,9 @@
  * | `tabJoinRequested`        | `tabId` — to the host, someone is waiting  |
  * | `table-request`           | `reservationId`, `requestId`, `requestedTime`, `freeByTime` — somebody would like the diner's table after them; Yes/No buttons answer it |
  * | `table-request-decided`   | `reservationId`, `requestId`, `accepted`, `freeByTime` — what the answer did |
+ * | `booking-no-show`         | `reservationId` — a venue marked the booking a no-show |
+ * | `bookings-blocked-no-shows` | `blockedUntilUtc` — three no-shows in three days: booking paused for a week |
+ * | `bookings-unblocked`      | `liftedBecause` ("1" lifted, "2" a no-show undone) — the pause ended early |
  *
  * `expired` is `"true"` on the decision nobody made: a short-notice request
  * the floor did not answer in its fifteen minutes, declined by the server with
@@ -63,6 +66,12 @@ export type PushTarget =
    */
   | { readonly kind: 'tableRequest'; readonly reservationId: string; readonly requestId: string }
   /**
+   * The guest's pause on booking after three no-shows in three days, or its
+   * early end (guest record, 2026-10-20): no booking to land on — the
+   * bookings tab, where the pause is said.
+   */
+  | { readonly kind: 'bookings' }
+  /**
    * A payload this build does not understand, or one missing the id its screen
    * needs.
    *
@@ -75,6 +84,18 @@ export type PushTarget =
 /** The raw dictionary, as loosely as it actually arrives. */
 export type PushData = Readonly<Record<string, unknown>>;
 
+/**
+ * The push kinds about the guest record, in one place, as the backend's
+ * handlers write them (guest record review round, 2026-10-20). The no-show
+ * one names its booking; the two about the pause open the bookings tab, and
+ * `invalidation.ts` reads the list again for them.
+ */
+export const NO_SHOW_PUSH_KIND = 'booking-no-show';
+export const BOOKINGS_TAB_PUSH_KINDS: readonly string[] = [
+  'bookings-blocked-no-shows',
+  'bookings-unblocked',
+];
+
 function str(data: PushData, key: string): string | null {
   const value = data[key];
   return typeof value === 'string' && value.length > 0 ? value : null;
@@ -84,6 +105,7 @@ export function parsePushTarget(data: PushData | null | undefined): PushTarget {
   if (!data) return { kind: 'unknown' };
 
   const kind = str(data, 'kind');
+  if (kind !== null && BOOKINGS_TAB_PUSH_KINDS.includes(kind)) return { kind: 'bookings' };
 
   switch (kind) {
     // `table-request-decided` (booking times): the earlier guest's answer took
@@ -96,6 +118,7 @@ export function parsePushTarget(data: PushData | null | undefined): PushTarget {
     case 'reservation-decided':
     case 'reservation-changed-by-link':
     case 'reservation-cancelled-by-link':
+    case NO_SHOW_PUSH_KIND:
     case 'table-request-decided': {
       const reservationId = str(data, 'reservationId');
       // A booking notification with no booking id is not routable. Landing on
@@ -157,7 +180,8 @@ export type PushRoute =
         requestId?: string;
       };
     }
-  | { readonly pathname: '/tab/[tabId]'; readonly params: { tabId: string } };
+  | { readonly pathname: '/tab/[tabId]'; readonly params: { tabId: string } }
+  | { readonly pathname: '/(tabs)/bookings' };
 
 export function routeFor(target: PushTarget): PushRoute | null {
   switch (target.kind) {
@@ -169,6 +193,8 @@ export function routeFor(target: PushTarget): PushRoute | null {
       };
     case 'tab':
       return { pathname: '/tab/[tabId]', params: { tabId: target.tabId } };
+    case 'bookings':
+      return { pathname: '/(tabs)/bookings' };
     default:
       return null;
   }

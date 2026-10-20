@@ -1,6 +1,7 @@
 import type { ApprovalTrigger, DeclineReason } from './approvals';
-import type { Booking, VenueType } from './booking';
+import type { VenueType } from './booking';
 import type { SpecialDay, WeeklyHours } from './branchSettings';
+import type { CancellationCause } from './guestRecord';
 
 /**
  * What a stranger with a link can see, and nothing more.
@@ -57,8 +58,7 @@ export interface PublicRoom {
  * subset on this route and withholds the rest — `docs/public-surface.md` is
  * explicit that it is "a hand-picked subset, not a projection of
  * `ReservationPolicy`" — so reusing the console's four-field shape would mean
- * inventing the two it does not send. Three numbers, all real — and the two
- * that say what booking without a verified number means here.
+ * inventing the two it does not send. Three numbers, all real.
  */
 export interface PublicBranchPolicy {
   /** How long the table is held. The answer to "can we linger?". */
@@ -67,22 +67,6 @@ export interface PublicBranchPolicy {
   readonly minLeadMinutes: number;
   /** Cancelling later than this is still allowed, but recorded as late. */
   readonly cancellationDeadlineMinutes: number;
-  /**
-   * The largest party bookable without a verified phone number. Published so
-   * the page can say "more than 6? verify your number" before the visitor
-   * commits; a refusal, not an approval threshold.
-   */
-  readonly unverifiedMaxPartySize: number;
-  /**
-   * Whether a booking without a verified number waits for the venue to
-   * confirm it — said on the page before booking, not after.
-   */
-  readonly unverifiedBookingsNeedApproval: boolean;
-  /**
-   * Whether the branch takes bookings without a verified number at all — false
-   * exactly when its cap is 0 (df6de66). False: the page offers verifying only.
-   */
-  readonly acceptsUnverifiedBookings: boolean;
 }
 
 /**
@@ -306,6 +290,11 @@ export interface ManagedBooking {
    */
   readonly cancelledByVenue: boolean;
   /**
+   * `noShowBlock`: cancelled automatically, the guest blocked after three
+   * missed bookings in three days (wire §0a). Absent for any other booking.
+   */
+  readonly cancelledBecause?: CancellationCause | null | undefined;
+  /**
    * Why it waits, while it does: the guest before is being asked
    * (`earlierGuestConsent`) or the venue decides. Absent from an older server.
    */
@@ -331,8 +320,8 @@ export interface ManagedBooking {
    */
   readonly canCancel: boolean;
   /**
-   * Made without a verified phone number. Absent from a server before
-   * unverified bookings, which reads as verified.
+   * Made without a verified phone number — legacy rows from the few hours of
+   * 2026-10-20 when such bookings were taken. Absent reads as verified.
    */
   readonly phoneUnverified?: boolean | undefined;
   /**
@@ -342,52 +331,6 @@ export interface ManagedBooking {
    * from an older server, which reads as true (the change itself then says no).
    */
   readonly canChange?: boolean | undefined;
-}
-
-/**
- * A booking from the public page without proving the number —
- * `POST /api/public/branches/{branchId}/bookings` (2026-10-20).
- *
- * The app's booking without its branch (the route names it) and channel (the
- * web's), plus the browser's `deviceId`. A visitor who does prove their number
- * books through the diner gateway as before and keeps instant confirmation.
- */
-export interface UnverifiedBookingCommand {
-  readonly branchId: string;
-  /** One per booking attempt, reused on every retry of it. */
-  readonly commandId: string;
-  readonly tableId: string;
-  readonly slotUtc: string;
-  /** The branch's zone: the server takes wall-clock date and time. */
-  readonly timeZoneId: string;
-  /** At most the branch's `unverifiedMaxPartySize`. */
-  readonly partySize: number;
-  readonly guestName: string;
-  /** What the venue calls. Spaces, dashes and brackets are fine; the server reads E.164. */
-  readonly guestPhone: string;
-  /**
-   * Generated once per browser and kept (the page's own storage). Scopes a
-   * retry to this browser and limits it to one active unverified booking.
-   */
-  readonly deviceId: string;
-  readonly note?: string | null | undefined;
-  /** The table's must-free-by time, agreed to — only when the slot asks for it. */
-  readonly acceptsFreeByUtc?: string | null | undefined;
-}
-
-/**
- * What the unverified booking answered.
- *
- * `manageToken` comes back **once**, on the first answer. A retry with the
- * same command id from the same browser answers the booking with
- * `wasReplay: true` and no token — only its hash exists on the server — so the
- * page stores the token before it does anything else.
- */
-export interface UnverifiedBookingResult {
-  readonly booking: Booking;
-  /** Null on a replay. */
-  readonly manageToken: string | null;
-  readonly wasReplay: boolean;
 }
 
 /**

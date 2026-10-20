@@ -60,6 +60,10 @@ const KIND_ICON: Readonly<Record<string, IoniconName>> = {
   'review-hidden': actionIcon.star,
   // The venue answered: a speech bubble, the reply under the review.
   'review-replied': 'chatbubble-ellipses-outline',
+  // Guest record: a no-show marked on a booking, and the pause on booking it can bring.
+  'booking-no-show': actionIcon.calendar,
+  'bookings-blocked-no-shows': 'ban-outline',
+  'bookings-unblocked': actionIcon.calendar,
 };
 
 function kindIcon(notification: DinerNotification): IoniconName {

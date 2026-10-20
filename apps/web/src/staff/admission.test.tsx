@@ -7,6 +7,7 @@ import {
   createStaffMockGateway,
   type EnrolledDevice,
   type FloorChange,
+  type StaffFloor,
   type StaffGateway,
   type StaffSessionSnapshot,
 } from '@yalla/api';
@@ -107,6 +108,37 @@ function setOnline(online: boolean): void {
 
 function floorGateway(): StaffGateway {
   return createStaffMockGateway({ latencyMs: 0, branchId: BRANCH, seedUnverifiedGuests: true });
+}
+
+/**
+ * The floor with the few bookings made without a verified number on
+ * 2026-10-20 (none is made any more; the badges stay for those): table 6's
+ * late booking, and the request at table 7 waiting for that reason.
+ */
+function legacyUnverifiedGateway(): StaffGateway {
+  const base = floorGateway();
+  return {
+    ...base,
+    getFloor: async (branchId) => {
+      const floor = await base.getFloor(branchId);
+      return floor
+        ? {
+            ...floor,
+            details: floor.details.map((detail) =>
+              detail.tableId === 't6'
+                ? { ...detail, nextReservationPhoneUnverified: true }
+                : detail,
+            ),
+          }
+        : floor;
+    },
+    listAwaitingApproval: async (branchId) =>
+      (await base.listAwaitingApproval(branchId)).map((request) =>
+        request.tableLabel === '7'
+          ? { ...request, because: 'unverifiedPhone' as const, phoneUnverified: true }
+          : request,
+      ),
+  };
 }
 
 function renderFloor(gateway: StaffGateway): void {
@@ -317,7 +349,7 @@ describe('the table panel', () => {
   it('says the next booking was made without a verified number', async () => {
     const user = setupUser();
     signIn();
-    renderFloor(floorGateway());
+    renderFloor(legacyUnverifiedGateway());
 
     await user.click(await screen.findByRole('button', { name: /^Table 6, / }));
     const panel = await screen.findByRole('dialog', { name: 'Actions for table 6' });
@@ -328,7 +360,7 @@ describe('the table panel', () => {
 describe('the floor and the requests', () => {
   it('flags the card of a waiting table and of a booking without a verified number', async () => {
     signIn();
-    renderFloor(floorGateway());
+    renderFloor(legacyUnverifiedGateway());
 
     const five = await screen.findByRole('button', { name: /^Table 5, / });
     expect(five.getAttribute('aria-label')).toMatch(/waiting to be let in/u);
@@ -339,11 +371,11 @@ describe('the floor and the requests', () => {
 
   it('words the new reason on the booking request', async () => {
     signIn();
-    renderFloor(floorGateway());
+    renderFloor(legacyUnverifiedGateway());
 
     const requests = await screen.findByRole('region', { name: /bookings to approve/i });
-    const nine = (await within(requests).findByText(/^Table 9\b/u)).closest('li')!;
-    expect(within(nine).getByText('Number not verified — the venue confirms')).toBeTruthy();
+    const seven = (await within(requests).findByText(/^Table 7\b/u)).closest('li')!;
+    expect(within(seven).getByText('Number not verified — the venue confirms')).toBeTruthy();
   });
 });
 
@@ -575,5 +607,93 @@ describe('the review round (UG-FE-REVIEW)', () => {
     await screen.findByText('Table 5 can order now.');
     await new Promise((resolve) => setTimeout(resolve, 50));
     expect(floorReads.mock.calls.length).toBe(before);
+  });
+});
+
+describe("a booking cancelled by its guest's no-show block (signal 4, review S6, N8)", () => {
+  /** The floor at sequence 10, whose next poll brings the given block cancellations. */
+  async function blockedFloor(reservationIds: (floor: StaffFloor) => readonly string[]) {
+    const base = floorGateway();
+    const first = (await base.getFloor(BRANCH))!;
+    let sent = false;
+    const gateway: StaffGateway = {
+      ...base,
+      getFloor: async (branchId) => {
+        const floor = await base.getFloor(branchId);
+        return floor ? { ...floor, lastSequence: 10 } : floor;
+      },
+      getFloorChanges: async ({ afterSequence }) => {
+        if (sent)
+          return { branchId: BRANCH, lastSequence: afterSequence, hasMore: false, changes: [] };
+        sent = true;
+        const changes = reservationIds(first).map((reservationId, index) => ({
+          sequence: afterSequence + 1 + index,
+          tableId: 't6',
+          tableLabel: '6',
+          fromStatus: 'free' as const,
+          toStatus: 'free' as const,
+          atUtc: new Date().toISOString(),
+          tableSessionId: null,
+          reservationId,
+          actor: 'system' as const,
+          actorId: null,
+          reason: '',
+          tabId: null,
+          signal: 'bookingCancelledByBlock' as const,
+        }));
+        return {
+          branchId: BRANCH,
+          lastSequence: afterSequence + changes.length,
+          hasMore: false,
+          changes,
+        };
+      },
+    };
+    return gateway;
+  }
+
+  it("says so when it was a table's booking due now, and reads the requests again at once", async () => {
+    vi.useFakeTimers({ now: new Date('2026-10-21T15:00:00.000Z'), shouldAdvanceTime: true });
+    try {
+      signIn();
+      const gateway = await blockedFloor((floor) => [
+        floor.details.find((detail) => detail.tableId === 't6')!.nextReservationId!,
+      ]);
+      const requests = vi.spyOn(gateway, 'listAwaitingApproval');
+      renderFloor(gateway);
+      await screen.findByRole('button', { name: /^Table 6, /u });
+      const before = requests.mock.calls.length;
+
+      // Two polls: the stream learns the floor's sequence, then reads the change.
+      await act(() => vi.advanceTimersByTimeAsync(8_500));
+
+      expect(
+        await screen.findByText(
+          /^Table 6: the \d\d:\d\d booking was cancelled — its guest is blocked for no-shows\.$/u,
+        ),
+      ).toBeTruthy();
+      // Not the list's own ten-second poll: read because of the change.
+      expect(requests.mock.calls.length).toBeGreaterThan(before);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('says nothing of a booking this floor never showed', async () => {
+    vi.useFakeTimers({ now: new Date('2026-10-21T15:00:00.000Z'), shouldAdvanceTime: true });
+    try {
+      signIn();
+      const gateway = await blockedFloor(() => ['r-days-ahead']);
+      const floorChanges = vi.spyOn(gateway, 'getFloorChanges');
+      renderFloor(gateway);
+      await screen.findByRole('button', { name: /^Table 6, /u });
+
+      await act(() => vi.advanceTimersByTimeAsync(8_500));
+
+      expect(floorChanges).toHaveBeenCalled();
+      expect(screen.queryByText(/blocked for no-shows/u)).toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

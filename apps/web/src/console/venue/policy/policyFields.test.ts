@@ -6,6 +6,7 @@ import {
   clock,
   differsFromDefaults,
   fieldsInGroup,
+  inactiveBecause,
   isDefault,
   leadExample,
   outOfBounds,
@@ -143,6 +144,29 @@ describe('the form layout', () => {
     const shipped = Object.keys(defaultPolicyFor('cafe')).sort();
     const editable = POLICY_FIELDS.map((field) => field.key as string).sort();
     expect(editable).toEqual(shipped);
+  });
+});
+
+describe('a field that does nothing as the policy stands', () => {
+  it('is the good-record auto-confirm while every booking is confirmed automatically', () => {
+    const cafe = defaultPolicyFor('cafe');
+    expect(cafe.autoConfirm).toBe(true);
+    expect(inactiveBecause('autoConfirmGuestsWithGoodRecord', cafe)).toBe('autoConfirmOn');
+    expect(
+      inactiveBecause('autoConfirmGuestsWithGoodRecord', { ...cafe, autoConfirm: false }),
+    ).toBeNull();
+    expect(inactiveBecause('autoConfirm', cafe)).toBeNull();
+  });
+
+  it('sits right after "confirm automatically", and the scan rule has its own group', () => {
+    expect(fieldsInGroup('approval').map((field) => field.key)).toEqual([
+      'autoConfirm',
+      'autoConfirmGuestsWithGoodRecord',
+      'approvalRequiredAbovePartySize',
+    ]);
+    expect(fieldsInGroup('scanning').map((field) => field.key)).toEqual([
+      'unverifiedScansNeedAdmission',
+    ]);
   });
 });
 

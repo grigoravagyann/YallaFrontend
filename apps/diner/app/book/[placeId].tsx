@@ -24,7 +24,6 @@ import {
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Button } from '../../src/components/Button';
 import { Chip } from '../../src/components/Chip';
 import { EmptyState } from '../../src/components/EmptyState';
 import { ErrorState } from '../../src/components/ErrorState';
@@ -50,15 +49,15 @@ import { TimeWheel } from '../../src/components/place/TimeWheel';
 import { RoomPhotosView } from '../../src/components/tables/RoomPhotosView';
 import { TableLegend } from '../../src/components/tables/TableLegend';
 import { useCapacityLabel } from '../../src/components/tables/TableMarker';
-import { useDinerProfile } from '../../src/data/accountQueries';
-import { useMinuteClock } from '../../src/hooks/useMinuteClock';
 import {
-  bookingRefusal,
-  changeFailureLine,
-  overlapsOwnLine,
-  proofLifts,
-  unprovedFailureLine,
-} from '../../src/data/bookingRefusals';
+  BookingBlockedNote,
+  GuestRecordPrivacyLine,
+} from '../../src/components/bookings/GuestRecord';
+import { useDinerProfile } from '../../src/data/accountQueries';
+import { useBookingBlock } from '../../src/data/bookingBlock';
+import { pauseRefusalLine } from '../../src/lib/guestRecord';
+import { useMinuteClock } from '../../src/hooks/useMinuteClock';
+import { bookingRefusal, changeFailureLine, overlapsOwnLine } from '../../src/data/bookingRefusals';
 import {
   keys,
   useBookingRules,
@@ -391,12 +390,12 @@ function BookingForm({ place, rooms, params, change, title, onBack }: BookingFor
   // over the photo, where the next pick is made.
   const [conflictText, setConflictText] = useState<string | null>(null);
   const [outcomeUnknown, setOutcomeUnknown] = useState(false);
-  /** The last refusal is one proving the number lifts: "Verify my number" beside it. */
-  const [proofOffer, setProofOffer] = useState(false);
+  /** The last refusal was the pause on booking: said once, by the note, while the record says it too. */
+  const [pauseRefused, setPauseRefused] = useState(false);
   const clearErrors = useCallback(() => {
     setErrorText(null);
     setConflictText(null);
-    setProofOffer(false);
+    setPauseRefused(false);
   }, []);
 
   const activeDateKey = dateKey ?? days[0]?.dateKey ?? null;
@@ -604,11 +603,11 @@ function BookingForm({ place, rooms, params, change, title, onBack }: BookingFor
   // A booking being changed already has its name.
   const needsName = !change && verified && !rememberedName;
   /*
-   * An account whose number has never been proved books all the same
-   * (unverified guests, 2026-10-20): the venue may confirm it first, and the
-   * screen says so and offers proving it with Telegram for instant
-   * confirmation. Only the server's refusal (a deactivated account) turns
-   * Confirm into the Verify step, until the refreshed profile says verified.
+   * An account whose number has never passed the SMS code cannot book (again
+   * so since the guest record, 2026-10-20). Known from the profile before the
+   * tap, or from the server's refusal after it (the backstop); either way
+   * Confirm becomes the Verify step, until the refreshed profile says the
+   * number is verified.
    */
   // Read here so the check does not depend on the Profile tab having been opened.
   useDinerProfile();
@@ -616,9 +615,20 @@ function BookingForm({ place, rooms, params, change, title, onBack }: BookingFor
   const [verifyRefused, setVerifyRefused] = useState(false);
   // Not for a change: the booking was made on a verified number, and the code
   // flow ends on the confirm screen, which makes a new booking.
-  const mustVerify = !change && verified && verifyRefused && profilePhoneVerified !== true;
-  /** Books without a proved number: said before the tap, and its refusals offer proving it. */
-  const accountUnproved = !change && verified && profilePhoneVerified === false;
+  const mustVerify =
+    !change &&
+    verified &&
+    (profilePhoneVerified === false || (verifyRefused && profilePhoneVerified !== true));
+  /**
+   * Booking — and changing a booking — paused after three no-shows in three
+   * days: until when, or `null`. Book is not offered meanwhile, and says why.
+   */
+  const pausedUntil = useBookingBlock();
+  // The place being booked, as an overlap at another venue names places.
+  const here = useMemo(
+    () => ({ venueName: place.venueName, branchName: place.branchName }),
+    [place.venueName, place.branchName],
+  );
 
   // One id per screen, reused on every retry — see `confirm.tsx`.
   const commandId = useRef(newCommandId());
@@ -683,6 +693,7 @@ function BookingForm({ place, rooms, params, change, title, onBack }: BookingFor
     chosenRefusal === null &&
     !pending &&
     !unchanged &&
+    pausedUntil === null &&
     (change !== null || !verified || guestName.trim().length > 0);
 
   /**
@@ -704,9 +715,7 @@ function BookingForm({ place, rooms, params, change, title, onBack }: BookingFor
         }
         return;
       }
-      const failure = bookingFailure(error, place.timeZoneId, locale, {
-        unverified: accountUnproved,
-      });
+      const failure = bookingFailure(error, place.timeZoneId, locale, { here });
       // A booking landed after the room was read: the table now needs the
       // promise, or a different one. Asked again, with the server's time.
       if (failure.kind === 'freeByRequired') {
@@ -764,18 +773,22 @@ function BookingForm({ place, rooms, params, change, title, onBack }: BookingFor
       // The diner's own booking at that time: named, with its day when it is
       // on another one — for a change as for a new booking.
       if (failure.kind === 'overlapsOwn') {
-        const own = overlapsOwnLine(failure.error, slotUtc, place.timeZoneId, locale);
+        const own = overlapsOwnLine(failure.error, slotUtc, place.timeZoneId, locale, here);
         setOutcomeUnknown(false);
         setErrorText(t(own.key, own.params));
         return;
       }
+      // Paused for no-shows, new or a change: the bookings are read again, so
+      // the bookings tab's banner and this screen's own note say it from now on.
+      if (failure.kind === 'blockedNoShows') {
+        setPauseRefused(true);
+        void queryClient.invalidateQueries({ queryKey: keys.bookings });
+      }
       if (failure.kind === 'commandInUse') commandId.current = newCommandId();
       setOutcomeUnknown(failure.kind === 'unknown');
-      // A limit on booking without a proved number: proving it is offered.
-      setProofOffer(!change && proofLifts(failure, accountUnproved));
-      const line: CopyLine = change
-        ? changeFailureLine(failure)
-        : unprovedFailureLine(failure, accountUnproved);
+      // The pause's end on the phone's clock, as the note and the banner say it.
+      const line: CopyLine =
+        pauseRefusalLine(failure, locale) ?? (change ? changeFailureLine(failure) : failure.line);
       setErrorText(t(line.key, line.params));
     },
     [
@@ -791,7 +804,7 @@ function BookingForm({ place, rooms, params, change, title, onBack }: BookingFor
       t,
       reducedMotion,
       setVerifyRefused,
-      accountUnproved,
+      here,
       setFreeByAsk,
       setServerFreeBy,
       setPickedMs,
@@ -1410,26 +1423,17 @@ function BookingForm({ place, rooms, params, change, title, onBack }: BookingFor
             </Text>
           ) : null}
 
-          {errorText ? (
+          {/* Paused for no-shows: no Book, and until when. */}
+          {pausedUntil ? <BookingBlockedNote untilUtc={pausedUntil} /> : null}
+
+          {errorText && !(pauseRefused && pausedUntil) ? (
             <Text accessibilityRole="alert" style={styles.error}>
               {errorText}
             </Text>
           ) : null}
 
-          {/* No proved number: the venue may confirm first; Telegram makes it instant. */}
-          {accountUnproved ? (
-            <View style={styles.unproved}>
-              {proofOffer ? null : (
-                <Text style={styles.unprovedText}>{t('confirm.unverifiedNote')}</Text>
-              )}
-              <Button
-                label={t('confirm.verifyMyNumber')}
-                variant={proofOffer ? 'outline' : 'text'}
-                fullWidth={false}
-                onPress={() => router.push('/auth/code')}
-              />
-            </View>
-          ) : null}
+          {/* What the venue sees of the guest, said before Book. */}
+          {change ? null : <GuestRecordPrivacyLine />}
 
           {/* Said no to freeing the table in time: another table or time. */}
           {freeByDeclined ? (
@@ -1837,8 +1841,6 @@ const styles = StyleSheet.create({
   requests: { minHeight: 96 },
   hint: { ...typography.caption, color: colors.textMuted },
   error: { ...typography.body, color: colors.errorInk },
-  unproved: { gap: space.xs, alignItems: 'flex-start' },
-  unprovedText: { ...typography.caption, color: colors.infoInk },
   bookingsOff: { gap: space.xs, paddingVertical: space.xs },
   bookingsOffTitle: { ...typography.body, fontWeight: fontWeight.bold, color: colors.text },
   bookingsOffBody: { ...typography.body, color: colors.textMuted },

@@ -1,14 +1,18 @@
 import {
+  BookingBlockedNoShowsError,
   BookingOverlapsOwnError,
   FreeByRequiredError,
+  NEW_GUEST_RECORD,
   PhoneHasActiveBookingError,
-  UnverifiedQueueFullError,
+  PhoneNotVerifiedError,
   createMockGateway,
   type Booking,
+  type GuestRecord,
   type SlotFloor,
 } from '@yalla/api';
 import { GatewayProvider } from '@yalla/api/react';
 import type * as I18nModule from '@yalla/i18n';
+import type * as DeviceTimeZoneModule from '../deviceTimeZone';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -44,6 +48,12 @@ vi.mock('react-native-safe-area-context', () => ({
 }));
 vi.mock('../lib/haptics', () => ({
   haptics: { select: vi.fn(), success: vi.fn(), tap: vi.fn() },
+}));
+// The phone's clock: Yerevan's, unless a test takes the phone abroad.
+const phone = vi.hoisted(() => ({ zone: 'Asia/Yerevan' }));
+vi.mock('../deviceTimeZone', async (importOriginal) => ({
+  ...(await importOriginal<typeof DeviceTimeZoneModule>()),
+  deviceTimeZone: () => phone.zone,
 }));
 vi.mock('@yalla/i18n', async (importOriginal) => {
   const { dinerResources: resources } = await import('@yalla/i18n/diner');
@@ -242,12 +252,15 @@ describe('the confirm screen, a booking that overlaps the diner’s own', () => 
 });
 
 /*
- * An account that has not proved its number books all the same (unverified
- * guests, 2026-10-20): the screen says the venue may confirm first and offers
- * Telegram — and beside a refusal proving the number lifts.
+ * No booking without a proved number (guest record, 2026-10-20 — as before
+ * #72): an account whose number is not proved is sent to prove it, from the
+ * profile before the tap and from the server's 403 after it. And the number
+ * rules and the no-show pause, worded: at most three active bookings, no two
+ * sittings too close anywhere, and a week without booking after three
+ * no-shows in three days.
  */
-describe('the confirm screen, an account with no proved number', () => {
-  async function ready() {
+describe('the confirm screen, the number rules and the no-show pause', () => {
+  async function ready(options: { record?: Partial<GuestRecord> } = {}) {
     const seven = await mock.getSlotFloor({
       branchId: BRANCH,
       slotUtc: at('19:00'),
@@ -264,54 +277,169 @@ describe('the confirm screen, an account with no proved number', () => {
       slotUtc: at('19:00'),
       partySize: '2',
     };
-    useSession.setState({
-      profile: { phoneVerified: false } as ReturnType<typeof useSession.getState>['profile'],
+    const list = vi.spyOn(mock, 'listBookings').mockResolvedValue({
+      upcoming: [],
+      past: [],
+      guestRecord: { ...NEW_GUEST_RECORD, ...options.record },
     });
     renderScreen();
     const submit = await screen.findByRole('button', {
-      name: /^(Confirm booking|Request table)$/u,
+      name: /^(Confirm booking|Request table|Verify my number)$/u,
     });
-    await waitFor(() => expect(submit.getAttribute('aria-disabled')).not.toBe('true'));
-    return submit;
+    return { submit, list };
   }
 
-  afterEach(() => useSession.setState({ profile: null }));
+  async function refusedWith(error: unknown) {
+    const { submit, list } = await ready();
+    await waitFor(() => expect(submit.getAttribute('aria-disabled')).not.toBe('true'));
+    const create = vi.spyOn(mock, 'createBooking').mockRejectedValue(error);
+    fireEvent.click(submit);
+    await waitFor(() => expect(create).toHaveBeenCalledTimes(1));
+    return { list };
+  }
 
-  it('lets it book, saying the venue may confirm first and offering Telegram', async () => {
-    await ready();
-    expect(
-      screen.getByText(
-        'Your number is not verified yet, so the venue may confirm this booking first. Verify it with Telegram and bookings are confirmed at once.',
-      ),
-    ).toBeTruthy();
-    fireEvent.click(screen.getByRole('button', { name: 'Verify my number' }));
-    expect(router.push).toHaveBeenCalledWith('/auth/code');
+  afterEach(() => {
+    useSession.setState({ profile: null });
+    phone.zone = 'Asia/Yerevan';
   });
 
-  it('words a refusal proving the number lifts, with Verify beside it', async () => {
-    const submit = await ready();
-    vi.spyOn(mock, 'createBooking').mockRejectedValue(
-      new UnverifiedQueueFullError({ url: '/api/reservations' }),
-    );
-    fireEvent.click(submit);
+  // Review round 2 (N4): the pause belongs to no venue, so its end is said on
+  // the phone's clock everywhere — the note here, the refusal, the bookings
+  // tab and the feed — never the venue's on one screen and the phone's on another.
+  it('says when the pause ends on the phone’s clock, not the venue’s', async () => {
+    phone.zone = 'UTC';
+    useSession.setState({
+      profile: { phoneVerified: true } as ReturnType<typeof useSession.getState>['profile'],
+    });
+    await ready({ record: { blockedUntilUtc: '2026-10-23T09:30:00Z' } });
     expect(
       await screen.findByText(
-        'This venue has too many unconfirmed bookings right now. Verify your number to book, or try again later.',
+        /^You can't book until .*23.*, 09:30, because of three missed bookings in three days\.$/u,
       ),
     ).toBeTruthy();
-    expect(screen.getByRole('button', { name: 'Verify my number' })).toBeTruthy();
+  });
+
+  it('says the refusal’s end on the phone’s clock too', async () => {
+    phone.zone = 'UTC';
+    await refusedWith(
+      new BookingBlockedNoShowsError({
+        url: '/api/reservations',
+        blockedUntilUtc: '2026-10-23T09:30:00Z',
+      }),
+    );
+    expect(
+      await screen.findByText(
+        /^You can't book until .*23.*, 09:30, because of three missed bookings in three days\.$/u,
+      ),
+    ).toBeTruthy();
+  });
+
+  it('sends an account with no proved number to prove it before anything is sent', async () => {
+    useSession.setState({
+      profile: { phoneVerified: false } as ReturnType<typeof useSession.getState>['profile'],
+    });
+    const create = vi.spyOn(mock, 'createBooking');
+    const { submit } = await ready();
+    expect(
+      screen.getByText('Confirm your phone number before booking. It takes one step.'),
+    ).toBeTruthy();
+    expect(submit.textContent).toBe('Verify my number');
+    await waitFor(() => expect(submit.getAttribute('aria-disabled')).not.toBe('true'));
+    fireEvent.click(submit);
+    expect(router.push).toHaveBeenCalledWith('/auth/code');
+    expect(create).not.toHaveBeenCalled();
+    expect(
+      screen.queryByText(/^Your number is not verified yet, so the venue may confirm/u),
+    ).toBeNull();
+  });
+
+  it('sends the diner to prove the number after the server’s 403 too', async () => {
+    await refusedWith(new PhoneNotVerifiedError({ url: '/api/reservations' }));
+    expect(
+      await screen.findByText('Confirm your phone number before booking. It takes one step.'),
+    ).toBeTruthy();
+    expect(screen.getAllByRole('button', { name: 'Verify my number' }).length).toBeGreaterThan(0);
+  });
+
+  it('says three active bookings are the most, naming the next one', async () => {
+    await refusedWith(
+      new PhoneHasActiveBookingError({
+        url: '/api/reservations',
+        maxActiveBookings: 3,
+        held: {
+          reservationId: 'r-next',
+          code: 'K7Q2LM',
+          startUtc: '2026-10-22T15:30:00Z',
+          localDate: '2026-10-22',
+          localStartTime: '19:30',
+          venueName: 'Café Aram',
+          branchName: 'Main',
+        },
+      }),
+    );
+    expect(
+      await screen.findByText(
+        /^You already have 3 active bookings — the most one phone number can hold\. Cancel one \(the next is Café Aram, .*22.* at 19:30\) and try again\.$/u,
+      ),
+    ).toBeTruthy();
+  });
+
+  it('names the other venue when the booking held there is too close to this one', async () => {
+    await refusedWith(
+      new BookingOverlapsOwnError({
+        url: '/api/reservations',
+        existingReservationId: 'r-aram',
+        localStartTime: '20:00',
+        localDate: '2026-10-16',
+        tableLabel: '4',
+        venueName: 'Café Aram',
+        branchName: 'Main',
+      }),
+    );
+    expect(
+      await screen.findByText(
+        'You already have a booking at Café Aram at 20:00, too close to this time. Change that booking, or cancel it first.',
+      ),
+    ).toBeTruthy();
+  });
+
+  it('says until when booking is paused, and reads the bookings again for the banner', async () => {
+    const { list } = await refusedWith(
+      new BookingBlockedNoShowsError({
+        url: '/api/reservations',
+        blockedUntilUtc: '2026-10-23T09:30:00Z',
+      }),
+    );
+    expect(
+      await screen.findByText(
+        /^You can't book until .*23.*, 13:30, because of three missed bookings in three days\.$/u,
+      ),
+    ).toBeTruthy();
+    await waitFor(() => expect(list.mock.calls.length).toBeGreaterThanOrEqual(2));
     expect(router.replace).not.toHaveBeenCalled();
   });
 
-  it('offers proving the number when somebody else’s booking holds it', async () => {
-    const submit = await ready();
-    vi.spyOn(mock, 'createBooking').mockRejectedValue(
-      new PhoneHasActiveBookingError({ url: '/api/reservations' }),
-    );
-    fireEvent.click(submit);
+  it('does not offer Confirm while booking is paused, and says why', async () => {
+    useSession.setState({
+      profile: { phoneVerified: true } as ReturnType<typeof useSession.getState>['profile'],
+    });
+    const create = vi.spyOn(mock, 'createBooking');
+    const { submit } = await ready({ record: { blockedUntilUtc: '2026-10-23T09:30:00Z' } });
     expect(
       await screen.findByText(
-        /^This phone number already has an active booking\. If you did not make it/u,
+        /^You can't book until .*23.*, 13:30, because of three missed bookings in three days\.$/u,
+      ),
+    ).toBeTruthy();
+    expect(submit.getAttribute('aria-disabled')).toBe('true');
+    fireEvent.click(submit);
+    expect(create).not.toHaveBeenCalled();
+  });
+
+  it('says what the venue will see of the guest, near Confirm', async () => {
+    await ready();
+    expect(
+      screen.getByText(
+        'Venues you book with see how many of your bookings in the last 12 months, at all venues, you kept, missed or cancelled late, and how many were not marked. While booking is paused after three missed bookings in three days, they see that too. Just the numbers, never where.',
       ),
     ).toBeTruthy();
   });

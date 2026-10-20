@@ -56,10 +56,11 @@ const ManageChange = lazy(() => import('./ManageChange'));
  * again until it is answered, slowly enough to leave the link's budget for a
  * change (`useManagedBooking`). Waiting is blue, never green (HANDOFF §3).
  *
- * A booking made without a verified number (2026-10-20) says so beside its
- * status, is never offered "Change" — the server would refuse it — and says
- * why instead: cancel and book again, or call. It gets no reminders, so the
- * page says to keep the link.
+ * A booking made without a verified number — legacy rows from the few hours
+ * of 2026-10-20 when the page took them; none are made now (guest record) —
+ * says so beside its status, is never offered "Change" (the server's
+ * `canChange`; it would refuse the move) and says why instead: cancel and book
+ * again, or call. It gets no reminders, so the page says to keep the link.
  */
 export function ManageBookingRoute() {
   const { venueSlug, branchSlug, token } = useParams<{
@@ -342,7 +343,7 @@ function ManagePage({
   const canChange =
     live &&
     !locked &&
-    // The server's own word: false for every booking without a verified number.
+    // The server's own word: false for every (legacy) booking without a verified number.
     booking.canChange !== false &&
     branch !== null &&
     branch.acceptsWebBookings &&
@@ -506,7 +507,11 @@ function ManagePage({
       ) : null}
       {view === 'cancelled' ? (
         <p className="pub-muted">
-          {booking.cancelledByVenue ? t('manage.cancelledByVenueBody') : t('manage.cancelledBody')}
+          {booking.cancelledBecause === 'noShowBlock'
+            ? t('manage.cancelledByBlockBody')
+            : booking.cancelledByVenue
+              ? t('manage.cancelledByVenueBody')
+              : t('manage.cancelledBody')}
         </p>
       ) : null}
       {view === 'declined' ? (

@@ -348,11 +348,15 @@ export {
   unavailableCopy,
   venueAnswerCopy,
   pendingReasonCopy,
+  overlapIsElsewhere,
+  overlapPlace,
   verificationFailureCopy,
 } from './contracts/reservation';
 export type {
   AvailabilityWindowCopy,
   BookingFailure,
+  BookingFailureOptions,
+  BookingPlace,
   CopyLine,
   TableCopy,
   VenueAnswerState,
@@ -369,8 +373,6 @@ export { coversSitting, openStateFrom } from './contracts/openState';
 export type {
   ManagedBooking,
   RescheduleManagedBookingCommand,
-  UnverifiedBookingCommand,
-  UnverifiedBookingResult,
   OpenState,
   PublicBranch,
   PublicBranchCard,
@@ -677,6 +679,8 @@ export type {
   ReleaseOutcome,
   ReleaseReservationCommand,
   ReservationReleaseResult,
+  UndoNoShowCommand,
+  UndoNoShowResult,
   StaffGateway,
 } from './staffGateway';
 export { resolveStaffGateway } from './resolveStaffGateway';
@@ -826,8 +830,7 @@ export type {
 
 export { slugify } from './slug';
 
-// Unverified guests (2026-10-20): bookings without a proved number, and tabs a
-// waiter lets order.
+// Tab admission (2026-10-20): tabs a waiter lets order.
 export { ADMITTED, REJECT_TAB_REASON_MAX, isAwaitingAdmission } from './contracts/admission';
 export type {
   AdmitTabCommand,
@@ -839,11 +842,8 @@ export type {
   TabAwaitingAdmission,
 } from './contracts/admission';
 export {
-  BRANCH_REQUIRES_VERIFIED_PHONE_CODE,
-  BranchRequiresVerifiedPhoneError,
-  isBranchRequiresVerifiedPhone,
-  DEVICE_HAS_ACTIVE_BOOKING_CODE,
-  DeviceHasActiveBookingError,
+  BOOKING_BLOCKED_NO_SHOWS_CODE,
+  BookingBlockedNoShowsError,
   PHONE_HAS_ACTIVE_BOOKING_CODE,
   PhoneHasActiveBookingError,
   TAB_ADMISSION_DECIDED_CODE,
@@ -852,16 +852,42 @@ export {
   TabAwaitingAdmissionError,
   SCAN_TURNED_AWAY_CODE,
   ScanTurnedAwayError,
-  UNVERIFIED_PARTY_TOO_LARGE_CODE,
-  UNVERIFIED_QUEUE_FULL_CODE,
-  UnverifiedPartyTooLargeError,
-  UnverifiedQueueFullError,
+  isBookingBlockedNoShows,
   isScanTurnedAway,
-  isUnverifiedQueueFull,
-  isDeviceHasActiveBooking,
   isPhoneHasActiveBooking,
   isTabAdmissionDecided,
   isTabAwaitingAdmission,
-  isUnverifiedPartyTooLarge,
   type HeldBooking,
+} from './contracts/errors';
+
+// The guest record (2026-10-20): what venues see of how a guest kept their
+// bookings, the number rules, and the no-show block.
+export {
+  GOOD_RECORD_MIN_CAME,
+  LIFT_REASON_MAX,
+  LIFT_REASON_MIN,
+  MAX_ACTIVE_BOOKINGS_PER_NUMBER,
+  NEW_GUEST_RECORD,
+  NO_SHOW_BLOCK,
+  NO_SHOW_UNDO_UNTIL_HOUR,
+  OTHER_VENUE_GAP_MINUTES,
+  guestRecordStanding,
+  hasGoodRecord,
+  isBookingBlocked,
+  noShowUndoableUntil,
+} from './contracts/guestRecord';
+export type {
+  BookingBlock,
+  CancellationCause,
+  GuestRecord,
+  GuestRecordStanding,
+  LiftBookingBlockCommand,
+} from './contracts/guestRecord';
+export {
+  NO_SHOW_UNDO_WINDOW_CLOSED_CODE,
+  NoShowUndoWindowClosedError,
+  isNoShowUndoWindowClosed,
+  RESERVATION_CANCELLED_BY_BLOCK_CODE,
+  ReservationCancelledByBlockError,
+  isReservationCancelledByBlock,
 } from './contracts/errors';

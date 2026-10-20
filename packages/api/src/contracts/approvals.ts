@@ -1,5 +1,6 @@
 import { branchDayKey, formatCountdown, type Locale, type TimeZone } from '@yalla/format';
 import { ApiError } from '../errors';
+import type { CancellationCause, GuestRecord } from './guestRecord';
 import type { ReservationStatusCode } from './push';
 
 /**
@@ -50,11 +51,18 @@ export interface ConsoleBooking {
   /** The diner's note for the venue (K9), or `null`. */
   readonly note: string | null;
   /**
-   * Made without a proved phone number — "number not verified" beside it. The
-   * venue may want to ring before confirming. Absent from a server before
-   * unverified bookings, which reads as verified.
+   * Made without a proved phone number — "number not verified" beside it.
+   * Only bookings from the few hours of 2026-10-20 when such bookings were
+   * taken; absent reads as verified.
    */
   readonly phoneUnverified?: boolean | undefined;
+  /**
+   * How the guest kept their bookings over the last twelve months, at every
+   * venue — counts only. Absent when no proved account is behind the booking.
+   */
+  readonly guestRecord?: GuestRecord | null | undefined;
+  /** `noShowBlock`: cancelled automatically, the guest blocked for no-shows. */
+  readonly cancelledBecause?: CancellationCause | null | undefined;
 }
 
 /**
@@ -62,9 +70,9 @@ export interface ConsoleBooking {
  * 2 LargeParty, 3 NoShowHistory, 4 ShortNotice, 5 EarlierGuestConsent,
  * 6 UnverifiedPhone. `unknown` for a value a newer server adds.
  *
- * `unverifiedPhone` is a booking made without a proved phone number at a
- * branch that approves those first (`unverifiedBookingsNeedApproval`, on by
- * default). It waits for the venue without a clock, like a large party.
+ * `unverifiedPhone` is a booking made without a proved phone number while
+ * such bookings were taken (a few hours of 2026-10-20). None is made any more;
+ * the trigger stays for those few rows until they are answered or swept.
  *
  * `shortNotice` is the floor's own: a booking for today, or starting within
  * {@link SHORT_NOTICE_HOURS} hours, is never confirmed blindly for a table
@@ -279,9 +287,15 @@ export interface AwaitingApproval {
   readonly note: string | null;
   /**
    * Made without a proved phone number: the card says "number not verified".
-   * Absent from a server before unverified bookings.
+   * Legacy rows only (2026-10-20); absent reads as verified.
    */
   readonly phoneUnverified?: boolean | undefined;
+  /**
+   * The guest's booking record — came, no-shows, late cancellations over
+   * twelve months, and a no-show block — for the floor to decide on. Absent
+   * when no proved account is behind the booking.
+   */
+  readonly guestRecord?: GuestRecord | null | undefined;
   /**
    * When the answer window closes. `null` for a request that waits without one.
    * An `earlierGuestConsent` request the floor decides has two hours, as the

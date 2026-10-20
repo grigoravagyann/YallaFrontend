@@ -24,6 +24,17 @@ function readPlatformTimeZone(): string | undefined {
 /** The platform `Intl`'s own zone, or `undefined` where it cannot say. */
 export const platformTimeZone: string | undefined = readPlatformTimeZone();
 
+/**
+ * The zone the phone's clock reads now, for a time that belongs to no branch
+ * — the end of the guest's pause on booking (guest record, 2026-10-20), said
+ * on this clock everywhere: the bookings tab, Book, Confirm and the feed.
+ * Read when asked, so after the polyfills it is the zone they adopted (the
+ * same one the feed's own "13:37" uses); Yerevan where `Intl` cannot say.
+ */
+export function deviceTimeZone(): string {
+  return readPlatformTimeZone() ?? 'Asia/Yerevan';
+}
+
 interface PolyfilledDateTimeFormat {
   __setDefaultTimeZone?: (timeZone: string) => void;
 }

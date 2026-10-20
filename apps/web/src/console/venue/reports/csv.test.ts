@@ -81,6 +81,13 @@ describe('the section files', () => {
     expect(revenueCsv(revenue)).toContain(`${CRLF}totalAmd,${revenue.totalAmd.value},,${CRLF}`);
   });
 
+  it('writes the bookings a guest block cancelled as their own measure, when counted', async () => {
+    const report = await gateway.getReservationReport(query);
+    const counted = { ...report, systemCancelled: { value: 2, previous: 1, changeFraction: 1 } };
+    expect(reservationsCsv(counted)).toMatch(/\r\nsystemCancelled,2,[^\r]*\r\n/u);
+    expect(reservationsCsv({ ...report, systemCancelled: null })).not.toContain('systemCancelled');
+  });
+
   it('writes the open-ended bucket with no top', async () => {
     const reservations = reservationsCsv(await gateway.getReservationReport(query));
     expect(reservations).toContain('fromHours,toHours,bookings');

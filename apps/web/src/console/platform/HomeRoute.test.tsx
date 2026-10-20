@@ -288,3 +288,55 @@ describe('Home', () => {
     expect(within(screen.getByRole('main')).queryByRole('link', { name: /^Venues/u })).toBeNull();
   });
 });
+
+describe('guests blocked for no-shows', () => {
+  async function blocksCard() {
+    return screen.findByRole('region', { name: 'Guests blocked for no-shows' }, { timeout: 5000 });
+  }
+
+  it('lists the blocks in force, newest first, with until when and how to reach the guest', async () => {
+    renderHome();
+    const card = await blocksCard();
+    const rows = await within(card).findAllByRole('listitem');
+    expect(rows).toHaveLength(2);
+    expect(within(rows[0]!).getByText('Արմեն Դավթյան')).toBeTruthy();
+    expect(within(rows[0]!).getByText('+37491555123')).toBeTruthy();
+    expect(within(rows[0]!).getByText(/^Blocked until .+, \d\d:\d\d$/u)).toBeTruthy();
+    // The account is gone; the block still holds through the number.
+    expect(within(rows[1]!).getByText('Account deleted')).toBeTruthy();
+  });
+
+  it('lifts a block only with a reason, and says the cancelled bookings stay cancelled', async () => {
+    const user = userEvent.setup();
+    const source = gateway();
+    const lift = vi.spyOn(source, 'liftBookingBlock');
+    renderHome(source);
+    const card = await blocksCard();
+
+    await user.click(
+      await within(card).findByRole('button', { name: 'Lift the block for Արմեն Դավթյան' }),
+    );
+    const dialog = await screen.findByRole('alertdialog', { name: 'Lift the block?' });
+    expect(
+      within(dialog).getByText(/The bookings the block cancelled are not restored\./u),
+    ).toBeTruthy();
+
+    await user.click(within(dialog).getByRole('button', { name: 'Lift the block' }));
+    expect(within(dialog).getByText('Say why, in 3 to 500 characters.')).toBeTruthy();
+    expect(lift).not.toHaveBeenCalled();
+
+    await user.type(
+      within(dialog).getByRole('textbox', { name: /^Why/u }),
+      'The venue marked a no-show by mistake',
+    );
+    await user.click(within(dialog).getByRole('button', { name: 'Lift the block' }));
+    await waitFor(() =>
+      expect(lift).toHaveBeenCalledWith({
+        blockId: 'blk-1',
+        reason: 'The venue marked a no-show by mistake',
+      }),
+    );
+    expect(await screen.findByText('Արմեն Դավթյան can book again')).toBeTruthy();
+    await waitFor(() => expect(within(card).getAllByRole('listitem')).toHaveLength(1));
+  });
+});

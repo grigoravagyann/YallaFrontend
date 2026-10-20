@@ -1197,6 +1197,92 @@ review every string in `src/locales/hy` and `src/locales/ru`.**
   party it was held for), `.admitTable` / `.rejectTable` (button names with the
   table), `.tableChanged`; admin `policy.example.approvalAll` now says "with a
   verified number", `policy.example.unverifiedOff`, and the cap's why explains 0.
+- All namespaces — guest record (2026-10-20), **not** in an Armenian or Russian
+  review yet. Bookings need a proved number again, so most of the unverified
+  guests' booking copy above is **removed**: public `sheet.phone.withoutProof`,
+  `sheet.unverified.*`, `sheet.done.unverifiedLinkHint` / `.unverifiedNoLink`;
+  diner `confirm.error.phoneHasBookingHeld` / `.phoneHasBooking` /
+  `.phoneHasBookingVerify` / `.deviceHasBooking` / `.unverifiedPartyTooLarge` /
+  `.unverifiedQueueFull` / `.rateLimited` / `.unverifiedOff`,
+  `confirm.unverifiedNote`, `success.unverifiedNudge`,
+  `bookings.madeWithYourNumber.*`; admin `policy.group.unverified.*`,
+  `policy.field.unverifiedBookingsNeedApproval.*`,
+  `policy.field.unverifiedMaxPartySize.*`, `policy.example.unverifiedApproved_*`
+  / `unverifiedConfirmed_*` / `unverifiedOff`. **Kept for the few legacy
+  bookings**: `manage.badge.unverified`, `manage.changeUnverified`,
+  `manage.noReminders`, `booking.approval.unverifiedWhy`,
+  `booking.atTable.unverified`, staff `admission.unverified`, admin
+  `approvals.unverified`, both `approvals.because.unverifiedPhone`.
+  New:
+  - diner `confirm.error.maxActiveBookings` / `.maxActiveBookingsNext` (three
+    active bookings per number; "Next" names the earliest — venue, day, time),
+    `.overlapsOwnElsewhere` / `.overlapsOwnElsewhereOn` (another venue, too
+    close: must keep "too close to this time"), `.blockedNoShows` /
+    `.blockedNoShowsPlain` (three missed bookings in three days; until when, or
+    "for a week"). The ru max-3 lines say «{{max}} активные брони», correct for
+    3 only — the server's maximum.
+  - diner app: `bookings.record.*` (the guest's own record; hy «Դուք եկել եք
+    {{came}} անգամ {{count}}-ից», plurals elsewhere), `bookings.blocked.*`,
+    `bookings.status.cancelledAutomatically` + `bookings.noShowBlockReason`
+    (together: cancelled automatically, three missed bookings in three days),
+    `privacy.guestRecord` and `about.venuesSee` (must keep: venues see counts
+    only, the last 12 months, kept / missed / cancelled late, **never where**),
+    `notifications.kind.bookingsBlockedNoShows*`, `.bookingNoShow*`,
+    `.bookingsUnblocked*` (the cancelled bookings are **not** restored).
+  - public `sheet.name.record` (the same privacy promise, beside Confirm),
+    `manage.changing.error.blocked` / `.blockedPlain`.
+  - staff and admin `guestRecord.*` (identical in both: label, bookings, came,
+    no-shows, late cancellations, not marked, "New guest" — neutral, never a
+    warning — and "Blocked until"). hy labels the counts («ամրագրում՝ 12 · եկավ՝
+    11 · չեկավ՝ 1») because a suffix glued to `{{count}}` fails `i18n:check`.
+  - staff `notice.undoNoShow.*` (undo a no-show until 05:00 the next morning).
+  - staff `notice.bookingCancelledByBlock` (a booking at this table was
+    cancelled by its guest's block); admin `overview.kpi.cancelledBySystem_*`
+    (today's bookings a block cancelled — not the venue's doing).
+  - admin `policy.group.scanning.*` (replaces the unverified group; must say
+    bookings always need a verified number),
+    `policy.field.autoConfirmGuestsWithGoodRecord.*` (must keep the definition
+    — 3 visits, no no-show, no late cancellation, 12 months, all venues — and
+    what it does **not** skip), `policy.inactive.autoConfirmOn`,
+    `policy.example.approvalGoodRecord`, `approvals.cancelledByBlock`,
+    `overview.bookings.action.undoNoShow` / `.done.undoNoShow` / `.undoNote` /
+    `.refused.undoTooLate*`, `reports.reservations.systemCancelled`, and the
+    platform's `home.blocks.*` (lifting must say the cancelled bookings are not
+    restored). Changed: `policy.example.approvalAll`, `.unverifiedScanWaits`,
+    `.unverifiedScanOrders`.
+  - Review round 2 (2026-10-21), also unreviewed:
+    - The privacy promise (public `sheet.name.record`, diner
+      `privacy.guestRecord` — identical wording; the diner one is also the
+      record card's line and About's "What venues see") must now say all a
+      venue sees: kept / missed / cancelled late **and not marked**, the last
+      12 months, all venues, and **while it lasts the pause on booking** after
+      three missed bookings in three days; numbers only, **never where**.
+    - New diner `help.faq.venuesSee.question` / `.answer` (the same facts, plus
+      the week's pause cancelling bookings not yet started, and "contact the
+      venue" for a mistaken no-show).
+    - admin `policy.inactive.autoConfirmOn` must not claim every booking is
+      confirmed at once: the setting only skips "approve every booking", which
+      is off; large parties, short notice, a no-show history and the previous
+      guest's answer wait either way.
+    - hy: the venue is «վայր», never «հաստատություն» (which also reads as
+      "confirmation" beside «հաստատել»): staff/admin `guestRecord.label` («…բոլոր
+      վայրերում»), admin `policy.field.autoConfirmGuestsWithGoodRecord.why`,
+      `home.blocks.cap`. Older strings still using it, outside this feature:
+      diner `tab.admission.rejectedTitle`, `bill.adjustment.comp` and public
+      `booking.bigPartyAsk_*`.
+    - ru `bookings.record.came_*` reads «Вы пришли на {{came}} из {{count}}
+      брони/броней».
+    - staff (floor tablet): `notice.bookingCancelledByBlock` now names the
+      booking's time; new `notice.bookingsCancelledByBlock_*` (several at once,
+      tables listed), `notice.guestBlocked` (the no-show just marked was the
+      guest's third in three days: blocked until when), `noShows.title` /
+      `noShows.row` (the rail's no-shows still undoable, and until when).
+    - Staff wire gaps (wire §0a): staff `approvals.cancelledByBlock` and admin
+      `approvals.refusedCancelledByBlock` (a request its guest's block already
+      cancelled — never "somebody else answered"), admin
+      `overview.bookings.done.guestBlocked` (appended to the no-show toast), and
+      public `manage.cancelledByBlockBody` (the guest's own link: cancelled
+      automatically, and when they can book again).
 
 The Russian bundle carries four plural categories (`one`/`few`/`many`/`other`)
 where Armenian and English carry two. That is correct CLDR, not duplication, and

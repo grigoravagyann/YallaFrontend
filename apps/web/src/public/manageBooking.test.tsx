@@ -2,7 +2,7 @@
 import type { PublicBranch, TableAvailability } from '@yalla/api';
 import { cleanup, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { afterEach, beforeAll, describe, expect, it } from 'vitest';
+import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { PublicApp } from './PublicApp';
 import { defaultSelection, slotInstant } from './slots';
 import { createHarness, initTestI18n, type Harness } from './testHarness';
@@ -25,7 +25,10 @@ beforeAll(async () => {
   await initTestI18n();
 });
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  vi.restoreAllMocks();
+});
 
 /**
  * Make a real booking in the harness's world, then hand back its own link.
@@ -146,6 +149,77 @@ describe('the manage-booking link', () => {
       expect(screen.getByRole('link', { name: 'See the venue' })).toBeDefined();
       cleanup();
     }
+  });
+});
+
+/**
+ * Bookings made without a verified number — the few hours of 2026-10-20 when
+ * the page took them. No new ones are made (guest record), but the link still
+ * reads those rows as the server sends them: the badge, no Change and why, and
+ * cancelling as for any booking.
+ */
+describe('the manage link of a legacy booking without a verified number', () => {
+  it('says the number is not verified, offers no change and says why, and still cancels', async () => {
+    const harness = createHarness({ floorApprovesAtOnce: true });
+    const { url } = await bookedLink(harness);
+    const read = harness.publicGateway.getManagedBooking.bind(harness.publicGateway);
+    vi.spyOn(harness.publicGateway, 'getManagedBooking').mockImplementation(async (query) => {
+      const booking = await read(query);
+      return booking && { ...booking, phoneUnverified: true, canChange: false };
+    });
+
+    render(harness.wrap(<PublicApp />, url));
+
+    expect(await screen.findByText('Number not verified')).toBeDefined();
+    expect(screen.queryByRole('button', { name: 'Change time or guests' })).toBeNull();
+    expect(
+      screen.getByText(
+        'A booking made without a verified phone number cannot be changed online. Cancel it and book again, or call the venue.',
+      ),
+    ).toBeDefined();
+    expect(
+      screen.getByText('No reminders are sent for this booking. Keep this link.'),
+    ).toBeDefined();
+    expect(screen.getByRole('button', { name: 'Cancel this booking' })).toBeDefined();
+  });
+
+  it('shows no badge on a booking made with a verified number', async () => {
+    const harness = createHarness({ floorApprovesAtOnce: true });
+    const { url } = await bookedLink(harness);
+
+    render(harness.wrap(<PublicApp />, url));
+
+    expect(await screen.findByText('Your booking')).toBeDefined();
+    expect(screen.queryByText('Number not verified')).toBeNull();
+    expect(await screen.findByRole('button', { name: 'Change time or guests' })).toBeDefined();
+  });
+});
+
+describe('the manage link of a booking cancelled by a no-show block (wire §0a)', () => {
+  it('says it was cancelled automatically, and why, not that the venue called it off', async () => {
+    const harness = createHarness({ floorApprovesAtOnce: true });
+    const { url } = await bookedLink(harness);
+    const read = harness.publicGateway.getManagedBooking.bind(harness.publicGateway);
+    vi.spyOn(harness.publicGateway, 'getManagedBooking').mockImplementation(async (query) => {
+      const booking = await read(query);
+      return (
+        booking && {
+          ...booking,
+          status: 'cancelled' as const,
+          cancelledByVenue: true,
+          cancelledBecause: 'noShowBlock',
+          canCancel: false,
+        }
+      );
+    });
+
+    render(harness.wrap(<PublicApp />, url));
+
+    expect(
+      await screen.findByText(
+        'Cancelled automatically: three missed bookings in three days. You can book again once the pause is over.',
+      ),
+    ).toBeDefined();
   });
 });
 

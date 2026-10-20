@@ -344,6 +344,30 @@
   transform: translateX(-50%);
 }
 
+/* A notice with something to press (a no-show's Undo): taps reach it. */
+[data-surface='staff'] .floor-notice.has-action {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  pointer-events: auto;
+}
+
+[data-surface='staff'] .floor-notice.has-action p {
+  margin: 0;
+}
+
+[data-surface='staff'] .floor-notice-undo {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-sm) 12px;
+}
+
+[data-surface='staff'] .floor-notice-note {
+  font-size: var(--console-text-label);
+  font-weight: var(--font-weight-regular);
+}
+
 [data-surface='staff'] .notice-warning {
   border-left-color: var(--console-floor-offline);
 }
@@ -937,6 +961,43 @@
 .ft-item .approval-line {
   color: var(--console-ink);
   font-feature-settings: var(--font-feature-tabular);
+}
+
+/* The guest's record (2026-10-20): one line, an icon for its standing and the
+   words for it — the no-show count amber, the block bold, "New guest" plain. */
+[data-surface='staff'] .guest-record {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0 6px;
+  margin: 0;
+  color: var(--console-muted);
+  font-size: var(--console-text-label);
+  font-feature-settings: var(--font-feature-tabular);
+}
+
+[data-surface='staff'] .guest-record-i {
+  flex: none;
+  width: 16px;
+  height: 16px;
+}
+
+[data-surface='staff'] .guest-record .is-missed,
+[data-surface='staff'] .guest-record.is-missed .guest-record-i {
+  color: var(--console-amber);
+  font-weight: var(--font-weight-semibold);
+}
+
+[data-surface='staff'] .guest-record.is-blocked {
+  color: var(--console-red);
+}
+
+[data-surface='staff'] .guest-record.is-good .guest-record-i {
+  color: var(--console-green);
+}
+
+[data-surface='staff'] .tp-record {
+  margin-top: var(--space-xs);
 }
 
 .approval-because .badge {

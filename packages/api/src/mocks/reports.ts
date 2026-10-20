@@ -488,6 +488,8 @@ export function createMockReports(world: MockReportWorld): MockReports {
           (day) => day.booked,
         ),
         lateCancellations: compare(current, prior, (day) => day.lateCancellations),
+        // A guest blocked for no-shows: now and then one of their bookings here.
+        systemCancelled: compare(current, prior, (day) => Math.floor(day.noShow / 3)),
         leadTime: leadTimeBuckets(sum(current, (day) => day.booked)),
         webBookingsWithoutAnApp: compare(current, prior, (day) => day.webWithoutApp),
       };

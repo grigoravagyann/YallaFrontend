@@ -15,7 +15,7 @@ import {
 } from '../contracts/errors';
 import { ApiError } from '../errors';
 import type { components } from '../generated/schema';
-import { unverifiedBookingRefusal } from './admissionMapping';
+import { numberRuleRefusal } from './guestRecordMapping';
 import { floorFromAvailability } from './mapping';
 
 /**
@@ -99,12 +99,10 @@ export function rethrowBookingRefusal(
   const freeBy = freeByRefusal(error);
   if (freeBy) throw freeBy;
 
-  // The unverified-guests refusals (2026-10-20): one active booking per
-  // number, one unverified booking per browser, the party cap without proof.
-  // Before the switch: the cap is a 422 `reservation-*` like a table rule, but
-  // its way on is verifying the number, not another table.
-  const unverified = unverifiedBookingRefusal(error, command);
-  if (unverified) throw unverified;
+  // The number rules (guest record, 2026-10-20): at most three active
+  // bookings per proved number, and the week's block after three no-shows.
+  const numberRule = numberRuleRefusal(error);
+  if (numberRule) throw numberRule;
 
   switch (code) {
     case 'phone-not-verified':
@@ -152,6 +150,9 @@ export function rethrowBookingRefusal(
         // "19:30:00" as the server writes a branch wall clock; said as "19:30".
         localStartTime: text(context['localStartTime'])?.slice(0, 5) ?? null,
         tableLabel: text(context['tableLabel']),
+        // Where it is: an overlap at another venue (half an hour apart) names it.
+        venueName: text(context['venueName']),
+        branchName: text(context['branchName']),
       });
     }
     case 'reservation-lock-timeout':

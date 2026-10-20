@@ -142,7 +142,8 @@
       "cancelledByDiner": "Cancelled",
       "cancelledByVenue": "Cancelled by the venue",
       "declined": "Not confirmed",
-      "unknown": "Changed"
+      "unknown": "Changed",
+      "cancelledAutomatically": "Cancelled automatically"
     },
     "empty": {
       "title": "No bookings yet",
@@ -184,13 +185,23 @@
       "hours": "in {{hours}} h",
       "minutes": "in {{minutes}} min"
     },
-    "madeWithYourNumber": {
-      "title": "Made with your number, not by you",
-      "body": "Someone booked {{venue}} for {{when}} with your number. If it was not you, cancel it.",
-      "cancel": "Cancel this booking",
-      "cancelTitle": "Cancel a booking you did not make?",
-      "cancelBody": "The venue will see that the owner of the number cancelled a booking they did not make."
-    }
+    "record": {
+      "title": "Your record · last 12 months",
+      "came_one": "You came {{came}} out of {{count}} booking",
+      "came_other": "You came {{came}} out of {{count}} bookings",
+      "new": "Nothing on your record yet: no bookings in the last 12 months.",
+      "noShows_one": "{{count}} missed booking",
+      "noShows_other": "{{count}} missed bookings",
+      "lateCancellations_one": "{{count}} late cancellation",
+      "lateCancellations_other": "{{count}} late cancellations",
+      "unmarked_one": "{{count}} booking the venue did not mark",
+      "unmarked_other": "{{count}} bookings the venue did not mark"
+    },
+    "blocked": {
+      "title": "Booking paused until {{date}}, {{time}}",
+      "body": "You missed three bookings in three days, so you can't book for a week. Bookings that had not started yet were cancelled."
+    },
+    "noShowBlockReason": "Three missed bookings in three days."
   },
   "profile": {
     "title": "Profile",
@@ -420,15 +431,13 @@
       "overlapsOwnPlain": "You already have a booking here at {{time}}. Choose another time, or change that booking.",
       "overlapsOwnOn": "You already have a booking here on {{date}} at {{time}} (table {{table}}). Choose another time, or change that booking.",
       "overlapsOwnOnPlain": "You already have a booking here on {{date}} at {{time}}. Choose another time, or change that booking.",
-      "phoneHasBookingHeld": "You already have a booking: {{venue}}, {{date}} at {{time}}. One phone number can hold one booking at a time — change or cancel that one first.",
-      "phoneHasBooking": "This phone number already has an active booking. Cancel it from its link first, or use that booking.",
-      "phoneHasBookingVerify": "This phone number already has an active booking. If you did not make it, verify your number with Telegram: then a booking someone else made with it will not stop you, and you can cancel it.",
-      "deviceHasBooking": "You already have a booking made from this browser without a verified number. Cancel it first, or verify your number.",
-      "unverifiedPartyTooLarge": "Without a verified number this venue takes bookings for up to {{max}}. Verify your number to book for more.",
-      "unverifiedQueueFull": "This venue has too many unconfirmed bookings right now. Verify your number to book, or try again later.",
-      "rateLimited": "Too many bookings without a verified number were made from this network in the last hour. Verify your number to book now, or try again later.",
       "tooManyRequests": "Too many requests just now. Wait a moment and try again.",
-      "unverifiedOff": "This venue takes bookings only with a verified number. Verify your number to book."
+      "overlapsOwnElsewhere": "You already have a booking at {{venue}} at {{time}}, too close to this time. Change that booking, or cancel it first.",
+      "overlapsOwnElsewhereOn": "You already have a booking at {{venue}} on {{date}} at {{time}}, too close to this time. Change that booking, or cancel it first.",
+      "maxActiveBookings": "You already have {{max}} active bookings — the most one phone number can hold. Cancel one, or wait until one is over.",
+      "maxActiveBookingsNext": "You already have {{max}} active bookings — the most one phone number can hold. Cancel one (the next is {{venue}}, {{date}} at {{time}}) and try again.",
+      "blockedNoShows": "You can't book until {{date}}, {{time}}, because of three missed bookings in three days.",
+      "blockedNoShowsPlain": "You can't book for a week because of three missed bookings in three days."
     },
     "checkAgain": "Check again",
     "nameLabel": "Name for the booking",
@@ -438,8 +447,7 @@
     "tableMissing": "That table is not on the plan any more. Go back and pick another.",
     "phoneMissing": "We need to confirm your number before booking.",
     "verifyNumber": "Confirm my number",
-    "verifyMyNumber": "Verify my number",
-    "unverifiedNote": "Your number is not verified yet, so the venue may confirm this booking first. Verify it with Telegram and bookings are confirmed at once."
+    "verifyMyNumber": "Verify my number"
   },
   "success": {
     "confirmedTitle": "Table booked",
@@ -457,8 +465,7 @@
     "table": "Table",
     "address": "Address",
     "copy": "Copy",
-    "copied": "Copied",
-    "unverifiedNudge": "Verify your number with Telegram and your next bookings are confirmed at once."
+    "copied": "Copied"
   },
   "net": {
     "offline": "You are offline.",
@@ -1336,6 +1343,34 @@
       },
       "bookingCancelledByLinkPlain": {
         "body": "Your booking at {{place}} was cancelled with the booking link. If that wasn't you, call the venue."
+      },
+      "bookingsBlockedNoShows": {
+        "title": "Booking paused for a week",
+        "body_one": "Three missed bookings in three days: your {{count}} upcoming booking was cancelled, and you can book again on {{day}} at {{time}}.",
+        "body_other": "Three missed bookings in three days: your {{count}} upcoming bookings were cancelled, and you can book again on {{day}} at {{time}}."
+      },
+      "bookingsBlockedNoShowsNone": {
+        "body": "Three missed bookings in three days: you can book again on {{day}} at {{time}}."
+      },
+      "bookingsBlockedNoShowsPlain": {
+        "body": "Three missed bookings in three days: you can't book for a week."
+      },
+      "bookingNoShow": {
+        "title": "Marked as a no-show",
+        "body": "Marked as a no-show at {{place}} on {{day}} at {{time}}. If this is wrong, contact the venue."
+      },
+      "bookingNoShowPlain": {
+        "body": "Marked as a no-show at {{place}}. If this is wrong, contact the venue."
+      },
+      "bookingsUnblocked": {
+        "title": "You can book again",
+        "body": "The pause on your bookings has been lifted. Bookings it cancelled stay cancelled."
+      },
+      "bookingsUnblockedLifted": {
+        "body": "Yalla lifted the pause on your bookings. Bookings it cancelled stay cancelled."
+      },
+      "bookingsUnblockedUndone": {
+        "body": "A venue undid a no-show, so the pause on your bookings is lifted. Bookings it cancelled stay cancelled."
       }
     },
     "yesterday": "Yesterday",
@@ -1368,6 +1403,10 @@
       "favorites": {
         "question": "Where are my favorites saved?",
         "answer": "When you are logged in, favorites are saved to your account, so they are there on any phone you log in on. Hearts you tap while logged out stay on this phone and move to your account when you log in."
+      },
+      "venuesSee": {
+        "question": "What do venues see about my bookings?",
+        "answer": "Only the numbers, never where. A venue you book with sees how many of your bookings in the last 12 months, at all venues, you kept, missed or cancelled late, and how many were not marked. If you miss three bookings in three days, you can't book for a week and your bookings that had not started are cancelled; while that lasts, venues see it too. If a venue marked you as a no-show by mistake, contact that venue."
       }
     },
     "contactTitle": "Contact support",
@@ -1382,6 +1421,10 @@
     "terms": "Terms of use",
     "privacy": "Privacy policy",
     "licences": "Open-source licences",
-    "licencesBody": "Yalla is built with open-source software. Each package is used under its own licence."
+    "licencesBody": "Yalla is built with open-source software. Each package is used under its own licence.",
+    "venuesSee": "What venues see"
+  },
+  "privacy": {
+    "guestRecord": "Venues you book with see how many of your bookings in the last 12 months, at all venues, you kept, missed or cancelled late, and how many were not marked. While booking is paused after three missed bookings in three days, they see that too. Just the numbers, never where."
   }
 }

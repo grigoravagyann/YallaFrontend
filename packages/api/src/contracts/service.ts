@@ -1,3 +1,4 @@
+import type { GuestRecord } from './guestRecord';
 /**
  * The counter screen's contracts, for the endpoints the backend has shipped.
  *
@@ -316,6 +317,14 @@ export interface StaffTableDetail {
    * server before admission, which reads as admitted.
    */
   readonly openTabAwaitingAdmission?: boolean | undefined;
+  /**
+   * The next booking's guest record — under the lists' rule: a proved account
+   * behind it, the booking today or later (guest record, wire §0a). Absent
+   * otherwise.
+   */
+  readonly nextReservationGuestRecord?: GuestRecord | null | undefined;
+  /** The record of the party sitting here now, seated on a proved account's booking. */
+  readonly sittingGuestRecord?: GuestRecord | null | undefined;
 }
 
 /**

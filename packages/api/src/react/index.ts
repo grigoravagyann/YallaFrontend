@@ -59,11 +59,7 @@ import {
   type DecideReservationCommand,
 } from '../contracts/approvals';
 import type { BranchOverview, ConsoleBookingActionCommand } from '../contracts/branchOverview';
-import type {
-  ManagedBooking,
-  RescheduleManagedBookingCommand,
-  UnverifiedBookingCommand,
-} from '../contracts/publicBranch';
+import type { ManagedBooking, RescheduleManagedBookingCommand } from '../contracts/publicBranch';
 import type { AdmitTabCommand, RejectTabCommand } from '../contracts/admission';
 import type { ReportQuery, ReportSection } from '../contracts/reports';
 import type {
@@ -79,7 +75,8 @@ import {
   type VenueTierResult,
 } from '../platformVenues';
 import type { PublicGateway } from '../publicGateway';
-import type { ReleaseReservationCommand } from '../staffGateway';
+import type { ReleaseReservationCommand, UndoNoShowCommand } from '../staffGateway';
+import type { LiftBookingBlockCommand } from '../contracts/guestRecord';
 import type { YallaGateway } from '../gateway';
 import type { StaffGateway } from '../staffGateway';
 import { staleTime } from '../queryClient';
@@ -346,6 +343,8 @@ export const queryKeys = {
   shifts: (branchId: string) => ['console', 'shifts', branchId] as const,
   platformOverview: ['console', 'platformOverview'] as const,
   outboxHealth: ['console', 'outboxHealth'] as const,
+  /** Guests blocked for no-shows (platform admin). */
+  bookingBlocks: ['console', 'bookingBlocks'] as const,
   platformActivity: (query: PlatformActivityQuery) =>
     ['console', 'platformActivity', query.limit ?? null, query.venueId ?? null] as const,
   platformProfile: ['console', 'platformProfile'] as const,
@@ -899,6 +898,34 @@ export function usePlatformActivity(query: PlatformActivityQuery = {}) {
     queryKey: queryKeys.platformActivity(query),
     queryFn: () => gateway.listPlatformActivity(query),
     staleTime: staleTime.frequent,
+  });
+}
+
+/** Guests blocked from booking for no-shows, the blocks in force (platform admin). */
+export function useBookingBlocks(enabled = true) {
+  const gateway = useConsoleGateway();
+  return useQuery({
+    queryKey: queryKeys.bookingBlocks,
+    queryFn: () => gateway.listBookingBlocks(),
+    enabled,
+    staleTime: staleTime.frequent,
+  });
+}
+
+/**
+ * Lift a block (platform admin), with a reason. Never retried: a lift is a
+ * decision; the list and the activity feed are read again after it.
+ */
+export function useLiftBookingBlock() {
+  const gateway = useConsoleGateway();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (command: LiftBookingBlockCommand) => gateway.liftBookingBlock(command),
+    retry: false,
+    onSettled: () => {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.bookingBlocks });
+      void queryClient.invalidateQueries({ queryKey: ['console', 'platformActivity'] });
+    },
   });
 }
 
@@ -1591,6 +1618,23 @@ export function useReassignHost() {
  * automatic retry is the wrong default for a call whose whole subject is
  * whether something goes on a person's record.
  */
+/**
+ * Undo a no-show marked by mistake (until 05:00 the next morning). Online
+ * only and never retried; the floor and the awaiting list are read again.
+ */
+export function useUndoNoShow(branchId: string | undefined) {
+  const gateway = useStaffGateway();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (command: UndoNoShowCommand) => gateway.undoNoShow(command),
+    retry: false,
+    onSettled: () => {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.staffFloor(branchId ?? '') });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.awaitingApproval(branchId ?? '') });
+    },
+  });
+}
+
 export function useReleaseReservation(branchId: string | undefined) {
   const gateway = useStaffGateway();
   const queryClient = useQueryClient();
@@ -2603,7 +2647,7 @@ export const MANAGE_LINK_SLOW_POLL_MS = 60_000;
 /**
  * Past this much time left to answer, the manage link reads slowly: the 15 s
  * cadence is for a fifteen-minute window, and a booking made without a verified
- * number may wait a day (UG review S8).
+ * number (legacy rows from 2026-10-20) may wait a day (UG review S8).
  */
 export const MANAGE_LINK_FAST_POLL_WITHIN_MS = 60 * 60_000;
 
@@ -2804,27 +2848,6 @@ export function useCancelManagedBooking(
     retry: false,
     onSuccess: (booking: ManagedBooking) => {
       queryClient.setQueryData(queryKeys.managedBooking(token ?? ''), booking);
-    },
-  });
-}
-
-/**
- * Booking from the public page without proving the number (2026-10-20).
- *
- * Retry is off: a retry with the same command id answers the booking but not
- * its manage token, which only the first answer carries — so the page decides
- * when to try again, and stores the token from `onSuccess` before anything
- * else. The room and the branch's counts are read again, as after any booking.
- */
-export function useCreateUnverifiedBooking() {
-  const gateway = usePublicGateway();
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: (command: UnverifiedBookingCommand) => gateway.createUnverifiedBooking(command),
-    retry: false,
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ['availability'] });
-      void queryClient.invalidateQueries({ queryKey: ['public', 'branch'] });
     },
   });
 }

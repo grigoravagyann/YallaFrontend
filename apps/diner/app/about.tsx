@@ -20,7 +20,8 @@ function open(url: string): void {
  *
  * The version and build come from `expo-constants`, so a bug report can name
  * the build it came from. "Terms" and "Privacy" are listed only for the URLs
- * configured in `EXPO_PUBLIC_TERMS_URL` and `EXPO_PUBLIC_PRIVACY_URL`.
+ * configured in `EXPO_PUBLIC_TERMS_URL` and `EXPO_PUBLIC_PRIVACY_URL`. What venues
+ * see of the guest — their booking counts — is said in the app itself.
  */
 export default function AboutScreen() {
   const { t } = useTranslation('diner');
@@ -83,6 +84,15 @@ export default function AboutScreen() {
             ) : null}
           </Card>
         ) : null}
+
+        {/* The guest record (2026-10-20): what a venue sees of the guest when they
+            book — said here as well as by Book, so it is never a surprise. */}
+        <Card style={styles.licences}>
+          <Text style={styles.licencesTitle} accessibilityRole="header">
+            {t('about.venuesSee')}
+          </Text>
+          <Text style={styles.licencesBody}>{t('privacy.guestRecord')}</Text>
+        </Card>
 
         <Card style={styles.licences}>
           <Text style={styles.licencesTitle} accessibilityRole="header">

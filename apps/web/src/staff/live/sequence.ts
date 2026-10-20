@@ -1,5 +1,4 @@
 import type { DerivedTableState, FloorChange, StaffFloor, StaffTableDetail } from '@yalla/api';
-import { findSequenceGap } from '@yalla/realtime';
 
 /**
  * Applying the branch's change stream to the floor already on screen.
@@ -23,10 +22,10 @@ export type SequenceResult =
   | { readonly kind: 'unchanged'; readonly floor: StaffFloor }
   | { readonly kind: 'applied'; readonly floor: StaffFloor; readonly changed: readonly string[] }
   /**
-   * A sequence number is missing, so some change never arrived — or a change
-   * arrived that cannot be folded in without inventing something. Either way
-   * the only safe answer is a full refetch: applying the rest would leave one
-   * table drawn from a state that has since been superseded, and nothing on
+   * A change arrived that cannot be folded in without inventing something —
+   * a table this screen has never seen, a freed table with a booking coming,
+   * a booking a block cancelled. The only safe answer is a full refetch:
+   * applying the rest would leave one table drawn from a guess, and nothing on
    * screen would say which one.
    */
   | { readonly kind: 'gap'; readonly expected: number; readonly received: number };
@@ -51,18 +50,20 @@ export function applyFloorChanges(
   floor: StaffFloor,
   changes: readonly FloorChange[],
 ): SequenceResult {
-  if (changes.length === 0) return { kind: 'unchanged', floor };
-
-  const ordered = [...changes].sort((a, b) => a.sequence - b.sequence);
-
-  // Contiguity, checked before anything is applied, by the same rule the tab
-  // stream uses. A partially applied page is worse than an unapplied one: the
-  // screen would look updated.
-  const gap = findSequenceGap(
-    floor.lastSequence,
-    ordered.map((change) => change.sequence),
-  );
-  if (gap) return { kind: 'gap', ...gap };
+  /*
+   * Not contiguity (review S1). `Sequence` is one IDENTITY across every
+   * branch, with holes from rolled-back inserts, and the server answers every
+   * row of this branch after the sequence asked for: a hole is another
+   * branch's row, never a missing one. What matters is order, and that a row
+   * the floor already has — it was read after the row was written — is not
+   * applied twice (S2). Each row once, in order.
+   */
+  const seen = new Set<number>();
+  const ordered = [...changes]
+    .filter((change) => change.sequence > floor.lastSequence)
+    .sort((a, b) => a.sequence - b.sequence)
+    .filter((change) => !seen.has(change.sequence) && Boolean(seen.add(change.sequence)));
+  if (ordered.length === 0) return { kind: 'unchanged', floor };
 
   const details = new Map(floor.details.map((detail) => [detail.tableId, detail]));
   const states = new Map<string, DerivedTableState>();
@@ -97,6 +98,17 @@ export function applyFloorChanges(
      * A whole-floor read for each would cost every tablet a request per
      * phantom scan, which is the flood this feature exists to stop (S9).
      */
+    // A booking here was cancelled because its guest was blocked for no-shows
+    // (guest record, 2026-10-20). The row says which booking, not what the
+    // table's next one is now: only a read of the floor knows.
+    //
+    // A booking event at this table — made, approved, declined, moved,
+    // cancelled, a no-show marked or withdrawn (signal 5). The row's status is
+    // what the save saw, not a transition: only a read of the floor says what
+    // the table's next booking is now (wire §0a).
+    if (change.signal === 'bookingCancelledByBlock' || change.signal === 'bookingChanged') {
+      return { kind: 'gap', expected: floor.lastSequence + 1, received: change.sequence };
+    }
     if (change.signal) {
       const awaiting = change.signal === 'tabAwaitingAdmission';
       const sameStatus = change.fromStatus === change.toStatus;

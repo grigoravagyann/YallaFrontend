@@ -224,12 +224,14 @@ export interface ReservationPolicy {
   readonly serviceChargePercent: number;
   readonly pricesIncludeVat: boolean;
   /**
-   * A booking made without a verified phone number waits for the venue to
-   * confirm it (`unverifiedPhone`). Telegram-verified bookers are not affected.
+   * With `autoConfirm` off ("we approve every booking"): a guest with a good
+   * record — came at least three times in twelve months, no no-show, no late
+   * cancellation — is confirmed at once instead. It skips only that one
+   * reason: short notice, a large party, a no-show history and a guest
+   * before's answer still wait. Off by default; nothing while `autoConfirm`
+   * is on.
    */
-  readonly unverifiedBookingsNeedApproval: boolean;
-  /** The largest party a booking without a verified number may be for. */
-  readonly unverifiedMaxPartySize: number;
+  readonly autoConfirmGuestsWithGoodRecord: boolean;
   /**
    * A scan with no proved number waits for a waiter to let the table order.
    * Off: such scans order at once, as before admission existed. On by default.
@@ -271,8 +273,6 @@ export const POLICY_BOUNDS = {
   cancellationDeadlineMinutes: { min: 0, max: 14 * 24 * 60 },
   walkInHoldbackMinutes: { min: 0, max: 4 * 60 },
   serviceChargePercent: { min: 0, max: 100 },
-  // 0: no bookings without a verified number at all (product call, 2026-10-20).
-  unverifiedMaxPartySize: { min: 0, max: 100 },
 } as const satisfies Partial<Record<keyof ReservationPolicy, { min: number; max: number }>>;
 
 export type BoundedPolicyField = keyof typeof POLICY_BOUNDS;
@@ -328,9 +328,7 @@ export function defaultPolicyFor(venueType: VenueType): ReservationPolicy {
     maxSeatOverhang: 2,
     serviceChargePercent: 10,
     pricesIncludeVat: true,
-    // A normal family table; a phantom booking for twelve blocks a room.
-    unverifiedBookingsNeedApproval: true,
-    unverifiedMaxPartySize: 6,
+    autoConfirmGuestsWithGoodRecord: false,
     unverifiedScansNeedAdmission: true,
   };
 }

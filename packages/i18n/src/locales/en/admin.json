@@ -1029,9 +1029,9 @@
         "title": "What goes on the bill",
         "body": "Both of these are visible to every guest."
       },
-      "unverified": {
-        "title": "Guests without a verified number",
-        "body": "Anyone can book from your page without proving their number. These limit what such a booking can be. Guests who verified with Telegram are not affected."
+      "scanning": {
+        "title": "Scanning without a verified number",
+        "body": "A table that scans the QR code without a verified phone number. Bookings always need a verified number."
       }
     },
     "field": {
@@ -1091,17 +1091,13 @@
         "label": "Prices include VAT",
         "why": "Affects only how the bill is presented."
       },
-      "unverifiedBookingsNeedApproval": {
-        "label": "Confirm bookings without a verified number yourself",
-        "why": "When it is on, a booking made without a verified number waits for you, and the guest is told the venue will confirm it."
-      },
-      "unverifiedMaxPartySize": {
-        "label": "Largest party without a verified number",
-        "why": "A larger party has to verify its number first, so a stranger cannot block a room with a booking nobody will come to. 0 means no bookings without a verified number at all."
-      },
       "unverifiedScansNeedAdmission": {
         "label": "Unverified scans wait for a waiter",
         "why": "When it is on, a table that scans the QR code without a verified number can read the menu but orders only after a waiter lets it. Turn it off only while your tablets cannot do that yet."
+      },
+      "autoConfirmGuestsWithGoodRecord": {
+        "label": "Auto-confirm guests with a good record",
+        "why": "Confirmed at once when the guest came at least 3 times in the last 12 months with no no-shows and no late cancellations (counted across all venues). Short notice, a large party, a no-show history or the previous guest's answer still wait for you."
       }
     },
     "sub": "{{branch}} · How bookings fit onto tables, and when your decision is needed. Changes apply to future bookings only.",
@@ -1134,17 +1130,13 @@
       "lateness_other": "At {{nudgeAt}}: “On your way? The table is held until {{heldUntil}}” · the “On our way” button adds {{count}} more minutes",
       "approvalAbove_one": "Bookings of up to {{count}} person are confirmed at once; larger ones wait for you",
       "approvalAbove_other": "Bookings of up to {{count}} people are confirmed at once; larger ones wait for you",
-      "approvalAll": "Every booking with a verified number is confirmed at once",
+      "approvalAll": "Every booking is confirmed at once",
       "approvalManual": "Every booking waits for your decision",
       "serviceCharge": "A separate line on the bill: “Service {{percent}} %”",
       "noServiceCharge": "No service charge is added",
-      "unverifiedApproved_one": "Without a verified number, up to {{count}} person; the booking waits for you.",
-      "unverifiedApproved_other": "Without a verified number, up to {{count}} people; the booking waits for you.",
-      "unverifiedConfirmed_one": "Without a verified number, up to {{count}} person; the booking is confirmed as usual.",
-      "unverifiedConfirmed_other": "Without a verified number, up to {{count}} people; the booking is confirmed as usual.",
-      "unverifiedScanWaits": "A table that scans without one orders once a waiter lets it.",
-      "unverifiedScanOrders": "A table that scans without one orders at once.",
-      "unverifiedOff": "No bookings without a verified number."
+      "unverifiedScanWaits": "A table that scans without a verified number orders once a waiter lets it.",
+      "unverifiedScanOrders": "A table that scans without a verified number orders at once.",
+      "approvalGoodRecord": "Guests with a good record are confirmed at once; every other booking waits for your decision"
     },
     "result": {
       "affectedTitle_one": "{{count}} existing booking no longer fits the new rules.",
@@ -1164,7 +1156,10 @@
     "discard": "Discard changes",
     "discarded": "Changes discarded",
     "fixFirst": "First fix the fields that are out of bounds",
-    "noChanges": "No changes"
+    "noChanges": "No changes",
+    "inactive": {
+      "autoConfirmOn": "Nothing to skip while bookings are confirmed automatically: it only skips approving every booking, which is off. Large parties, short notice, a no-show history and the previous guest's answer wait either way."
+    }
   },
   "checklist": {
     "title": "What is still needed before guests can come",
@@ -1282,7 +1277,8 @@
       "leadTitle": "How far ahead people book",
       "leadAria": "How far ahead people book: {{buckets}}",
       "leadHelp": "This is what the booking window is worth setting from.",
-      "policyLink": "Open the reservation policy"
+      "policyLink": "Open the reservation policy",
+      "systemCancelled": "Cancelled: guest blocked for no-shows"
     },
     "occupancy": {
       "people_one": "{{formatted}} person",
@@ -1545,7 +1541,9 @@
     "dismiss": "Got it",
     "approved": "{{name}}'s booking is confirmed · the guest will be notified",
     "declined": "{{name}}'s booking was declined",
-    "unverified": "number not verified"
+    "unverified": "number not verified",
+    "cancelledByBlock": "Cancelled: guest blocked for no-shows. {{name}}'s booking was not confirmed.",
+    "refusedCancelledByBlock": "Cancelled automatically: the guest missed three bookings in three days."
   },
   "onboarding": {
     "steps": {
@@ -2153,6 +2151,27 @@
         "signOutOthers": "signed out of their other devices",
         "reviewRemoveReply": "removed the venue's reply on a review at {{target}}"
       }
+    },
+    "blocks": {
+      "title": "Guests blocked for no-shows",
+      "cap": "Three no-shows in three days block booking for a week and cancel the guest's bookings still to come. Lift a block only when a venue marked a no-show by mistake.",
+      "noName": "Account deleted",
+      "until": "Blocked until {{date}}, {{time}}",
+      "lift": "Lift",
+      "liftLabel": "Lift the block for {{name}}",
+      "failed": "Could not read the blocked guests.",
+      "lifted": "{{name}} can book again",
+      "dialog": {
+        "title": "Lift the block?",
+        "body": "{{name}} can book again at once and is told so. The bookings the block cancelled are not restored.",
+        "reasonLabel": "Why (kept in the activity log)",
+        "reasonHint": "{{min}} to {{max}} characters.",
+        "reasonNeeded": "Say why, in {{min}} to {{max}} characters.",
+        "keep": "Keep the block",
+        "confirm": "Lift the block",
+        "ended": "This block has already ended. There is nothing to lift.",
+        "failed": "The block was not lifted. Try again."
+      }
     }
   },
   "account": {
@@ -2238,7 +2257,9 @@
       "noLastWeek": "Nothing to compare with last week",
       "sameAsLastWeek": "The same as last week",
       "bookingsFootChanges": "{{confirmed}} confirmed ({{changes}} asking to change) · {{pending}} waiting",
-      "revenueSince": "Revenue since {{time}}"
+      "revenueSince": "Revenue since {{time}}",
+      "cancelledBySystem_one": "{{count}} cancelled: the guest is blocked for no-shows",
+      "cancelledBySystem_other": "{{count}} cancelled: the guests are blocked for no-shows"
     },
     "bookings": {
       "title": "Today's bookings",
@@ -2282,7 +2303,8 @@
         "seat": "Mark seated",
         "noShow": "No-show · free the table",
         "cancel": "Cancel the booking",
-        "finish": "Finish · free the table"
+        "finish": "Finish · free the table",
+        "undoNoShow": "Undo the no-show"
       },
       "done": {
         "seated": "{{name}} is seated",
@@ -2291,7 +2313,9 @@
         "cancelled": "{{name}}'s booking is cancelled · the guest will be notified",
         "finished": "{{table}} is free",
         "finishedOwed": "{{table}} is free · {{amount}} is still unpaid on its tab",
-        "replay": "Already done before: {{name}} · {{status}}"
+        "replay": "Already done before: {{name}} · {{status}}",
+        "undoNoShow": "{{name}}'s no-show is undone · the booking stands again",
+        "guestBlocked": "third no-show in three days: the guest can't book until {{date}}, {{time}}"
       },
       "nudged": "The app asked at {{time}}",
       "nudgeAt": "The app will ask at {{time}}",
@@ -2317,10 +2341,13 @@
         "gone": "This booking is no longer there.",
         "offline": "You are offline. Nothing was sent.",
         "generic": "That did not go through. Try again.",
-        "notStarted": "This booking has not started yet, so it cannot be a no-show. Nothing was changed."
+        "notStarted": "This booking has not started yet, so it cannot be a no-show. Nothing was changed.",
+        "undoTooLate": "Too late to undo: a no-show can be undone until {{time}} the next morning.",
+        "undoTooLatePlain": "Too late to undo this no-show."
       },
       "tableTaken": "{{table}} is taken right now",
-      "tableOutOfService": "{{table}} is out of service right now"
+      "tableOutOfService": "{{table}} is out of service right now",
+      "undoNote": "Marked by mistake? It can be undone until {{time}}"
     },
     "load": {
       "title": "Load today",
@@ -2356,5 +2383,18 @@
       "empty": "Nothing needs a look right now.",
       "deviceOn": "Not heard from {{name}} since {{date}}, {{time}}"
     }
+  },
+  "guestRecord": {
+    "label": "Guest's record, last 12 months, all venues:",
+    "booked_one": "{{count}} booking",
+    "booked_other": "{{count}} bookings",
+    "came": "{{count}} came",
+    "noShows_one": "{{count}} no-show",
+    "noShows_other": "{{count}} no-shows",
+    "late_one": "{{count}} late cancellation",
+    "late_other": "{{count}} late cancellations",
+    "unmarked": "{{count}} not marked",
+    "newGuest": "New guest",
+    "blockedUntil": "Blocked until {{date}}, {{time}}"
   }
 }

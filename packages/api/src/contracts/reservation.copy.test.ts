@@ -188,7 +188,7 @@ describe("the venue's answer, on the booking", () => {
   });
 });
 
-describe('the unverified-guests refusals (2026-10-20)', () => {
+describe('the number rules and the no-show block (guest record, 2026-10-20)', () => {
   const held = {
     reservationId: 'r-1',
     code: 'K7Q2LM',
@@ -199,87 +199,85 @@ describe('the unverified-guests refusals (2026-10-20)', () => {
     branchName: 'Main',
   };
 
-  it('names the booking a number holds when it is the caller’s own', () => {
+  it('says how many active bookings one number holds, and names her next one', () => {
     const failure = bookingFailure(
-      new errors.PhoneHasActiveBookingError({ url: URL, held }),
+      new errors.PhoneHasActiveBookingError({ url: URL, maxActiveBookings: 3, held }),
       YEREVAN,
       'en',
     );
     expect(failure.kind).toBe('phoneHasActiveBooking');
-    expect(failure.line.key).toBe('confirm.error.phoneHasBookingHeld');
-    expect(failure.line.params).toMatchObject({ venue: 'Café Aram', time: '19:30' });
+    expect(failure.line.key).toBe('confirm.error.maxActiveBookingsNext');
+    expect(failure.line.params).toMatchObject({ max: 3, venue: 'Café Aram', time: '19:30' });
     expect(String(failure.line.params['date'])).toMatch(/22/u);
   });
 
-  it('names nothing when the number’s booking is not the caller’s', () => {
+  it('names nothing when the server named no booking of hers', () => {
     const failure = bookingFailure(
-      new errors.PhoneHasActiveBookingError({ url: URL }),
+      new errors.PhoneHasActiveBookingError({ url: URL, maxActiveBookings: 3 }),
       YEREVAN,
       'en',
     );
     expect(failure).toMatchObject({
       kind: 'phoneHasActiveBooking',
-      line: { key: 'confirm.error.phoneHasBooking', params: {} },
+      line: { key: 'confirm.error.maxActiveBookings', params: { max: 3 } },
     });
   });
 
-  it('says this browser already holds an unverified booking', () => {
+  it('says until when booking is blocked for no-shows', () => {
+    const failure = bookingFailure(
+      new errors.BookingBlockedNoShowsError({ url: URL, blockedUntilUtc: '2026-10-27T15:30:00Z' }),
+      YEREVAN,
+      'en',
+    );
+    expect(failure.kind).toBe('blockedNoShows');
+    expect(failure.line.key).toBe('confirm.error.blockedNoShows');
+    // 19:30 in Yerevan, on the 27th.
+    expect(failure.line.params).toMatchObject({ time: '19:30' });
+    expect(String(failure.line.params['date'])).toMatch(/27/u);
+
     expect(
-      bookingFailure(new errors.DeviceHasActiveBookingError({ url: URL }), YEREVAN, 'en'),
+      bookingFailure(new errors.BookingBlockedNoShowsError({ url: URL }), YEREVAN, 'en').line,
+    ).toEqual({ key: 'confirm.error.blockedNoShowsPlain', params: {} });
+  });
+
+  it('names the venue of an overlap elsewhere, and says "here" for one here', () => {
+    const overlap = new errors.BookingOverlapsOwnError({
+      url: URL,
+      existingReservationId: 'r-9',
+      localStartTime: '20:30',
+      tableLabel: '4',
+      venueName: 'Café Aram',
+      branchName: 'Main',
+    });
+
+    expect(
+      bookingFailure(overlap, YEREVAN, 'en', {
+        here: { venueName: 'Lumen', branchName: 'North' },
+      }).line,
     ).toEqual({
-      kind: 'deviceHasActiveBooking',
-      line: { key: 'confirm.error.deviceHasBooking', params: {} },
+      key: 'confirm.error.overlapsOwnElsewhere',
+      params: { venue: 'Café Aram', time: '20:30' },
     });
-  });
-
-  it('gives the cap for a party too large without a verified number', () => {
+    // Another branch of the venue being booked: both names.
     expect(
-      bookingFailure(
-        new errors.UnverifiedPartyTooLargeError({ url: URL, partySize: 8, maxPartySize: 6 }),
-        YEREVAN,
-        'en',
-      ),
-    ).toEqual({
-      kind: 'unverifiedPartyTooLarge',
-      line: { key: 'confirm.error.unverifiedPartyTooLarge', params: { max: 6 } },
-    });
-  });
-
-  it('says the venue has too many unconfirmed bookings waiting', () => {
+      bookingFailure(overlap, YEREVAN, 'en', {
+        here: { venueName: 'Café Aram', branchName: 'Cascade' },
+      }).line.params,
+    ).toMatchObject({ venue: 'Café Aram, Main' });
+    // The same place, or no place to compare with: "here".
     expect(
-      bookingFailure(new errors.UnverifiedQueueFullError({ url: URL }), YEREVAN, 'en'),
-    ).toEqual({
-      kind: 'unverifiedQueueFull',
-      line: { key: 'confirm.error.unverifiedQueueFull', params: {} },
-    });
+      bookingFailure(overlap, YEREVAN, 'en', {
+        here: { venueName: 'Café Aram', branchName: 'Main' },
+      }).line.key,
+    ).toBe('confirm.error.overlapsOwn');
+    expect(bookingFailure(overlap, YEREVAN, 'en').line.key).toBe('confirm.error.overlapsOwn');
   });
 
-  it('words the per-network limit for a booker with no proved number', () => {
-    const { TooManyRequestsError } = errorsBase;
-    expect(
-      bookingFailure(
-        new TooManyRequestsError({ url: URL, retryAfterSeconds: 600 }),
-        YEREVAN,
-        'en',
-        { unverified: true },
-      ),
-    ).toEqual({ kind: 'rateLimited', line: { key: 'confirm.error.rateLimited', params: {} } });
-  });
-
-  it('says only "too many requests" to anybody else, whom the general limit met (review S4)', () => {
+  it('says only "too many requests" to a 429', () => {
     const { TooManyRequestsError } = errorsBase;
     expect(
       bookingFailure(new TooManyRequestsError({ url: URL, retryAfterSeconds: 10 }), YEREVAN, 'en'),
     ).toEqual({ kind: 'rateLimited', line: { key: 'confirm.error.tooManyRequests', params: {} } });
-  });
-
-  it('says the venue takes bookings only with a verified number (cap 0, df6de66)', () => {
-    expect(
-      bookingFailure(new errors.BranchRequiresVerifiedPhoneError({ url: URL }), YEREVAN, 'en'),
-    ).toEqual({
-      kind: 'verifiedPhoneRequired',
-      line: { key: 'confirm.error.unverifiedOff', params: {} },
-    });
   });
 });
 
@@ -290,7 +288,7 @@ describe('why a booking waits for the venue', () => {
     declinedBecause: null,
   } as const;
 
-  it('says the venue confirms bookings made without a verified number', () => {
+  it('says the venue confirms bookings made without a verified number (legacy rows)', () => {
     expect(pendingReasonCopy({ ...waiting, awaitingApprovalBecause: 'unverifiedPhone' })).toEqual({
       key: 'booking.approval.unverifiedWhy',
       params: {},

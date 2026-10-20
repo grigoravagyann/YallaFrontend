@@ -220,7 +220,23 @@
       "queued": "{{text}} · sent when the connection returns"
     },
     "releaseNotDue": "Table {{label}} · not due until {{time}}. Nothing was released.",
-    "behindHeld": "Table {{label}} · waits for an action of {{name}}’s first · decide on “Needs a decision”"
+    "behindHeld": "Table {{label}} · waits for an action of {{name}}’s first · decide on “Needs a decision”",
+    "undoNoShow": {
+      "prompt": "Marked by mistake?",
+      "action": "Undo",
+      "actionLabel": "Undo the no-show at table {{label}}",
+      "sending": "Undoing…",
+      "done": "Table {{label}}: the no-show is undone. The booking stands again.",
+      "tooLate": "Too late to undo: a no-show can be undone until {{time}} the next morning.",
+      "tooLatePlain": "Too late to undo this no-show.",
+      "notNoShow": "Nothing to undo: this booking is no longer a no-show.",
+      "failed": "The no-show was not undone. Try again.",
+      "needsOnline": "Undoing needs a connection."
+    },
+    "bookingCancelledByBlock": "Table {{label}}: the {{time}} booking was cancelled — its guest is blocked for no-shows.",
+    "bookingsCancelledByBlock_one": "{{count}} booking due soon was cancelled — its guest is blocked for no-shows (table {{labels}}).",
+    "bookingsCancelledByBlock_other": "{{count}} bookings due soon were cancelled — their guests are blocked for no-shows (tables {{labels}}).",
+    "guestBlocked": "Third no-show in three days: the guest can't book until {{date}}, {{time}}."
   },
   "unresolved": {
     "title": "Needs resolving",
@@ -318,7 +334,8 @@
     "arrivedOn_other": "New booking request: table {{label}} on {{date}} at {{time}}, {{count}} guests.",
     "askBefore": "Ask {{name}} whether the table will be free by {{time}}",
     "leavesBy": "leaves by {{time}}",
-    "awaitingEarlierGuest": "The guest before is answering this in the app. It is decided when they do, or declined if they do not."
+    "awaitingEarlierGuest": "The guest before is answering this in the app. It is decided when they do, or declined if they do not.",
+    "cancelledByBlock": "Cancelled automatically: the guest missed three bookings in three days."
   },
   "conflicts": {
     "title": "Needs a decision",
@@ -855,5 +872,22 @@
     "admitTable": "Admit table {{label}}",
     "rejectTable": "Reject table {{label}}",
     "tableChanged": "The table changed meanwhile. Look at it again."
+  },
+  "guestRecord": {
+    "label": "Guest's record, last 12 months, all venues:",
+    "booked_one": "{{count}} booking",
+    "booked_other": "{{count}} bookings",
+    "came": "{{count}} came",
+    "noShows_one": "{{count}} no-show",
+    "noShows_other": "{{count}} no-shows",
+    "late_one": "{{count}} late cancellation",
+    "late_other": "{{count}} late cancellations",
+    "unmarked": "{{count}} not marked",
+    "newGuest": "New guest",
+    "blockedUntil": "Blocked until {{date}}, {{time}}"
+  },
+  "noShows": {
+    "title": "No-shows marked here",
+    "row": "Table {{label}} · can be undone until {{time}}"
   }
 }

@@ -118,10 +118,12 @@ describe('the connection chip on the staff header', () => {
     let serverDown = false;
     const gateway = new Proxy(base, {
       get(target, key: keyof StaffGateway) {
-        if (key === 'getFloor') {
-          return async (branchId: string) => {
+        // The server is down for the floor and for its change stream alike.
+        if (key === 'getFloor' || key === 'getFloorChanges') {
+          const read = target[key] as (query: never) => Promise<unknown>;
+          return async (query: never) => {
             if (serverDown) throw new Error('socket hang up');
-            return target.getFloor(branchId);
+            return read.call(target, query);
           };
         }
         return target[key];

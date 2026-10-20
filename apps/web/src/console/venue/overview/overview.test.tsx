@@ -2,6 +2,7 @@
 import {
   ConcurrencyConflictError,
   InvalidTransitionError,
+  NoShowUndoWindowClosedError,
   createConsoleMockGateway,
   overviewRowState,
   type BranchReadiness,
@@ -108,6 +109,32 @@ describe('the overview', () => {
     });
     renderOverview(gateway);
     expect(await screen.findByText(/ · New Year$/u)).toBeTruthy();
+  });
+
+  it("says how many of today's bookings a guest's no-show block cancelled", async () => {
+    const gateway = mockGateway();
+    const real = gateway.getBranchOverview.bind(gateway);
+    vi.spyOn(gateway, 'getBranchOverview').mockImplementation(async (branchId) => {
+      const overview = await real(branchId);
+      return {
+        ...overview,
+        bookings: { ...overview.bookings, cancelled: 3, cancelledBySystem: 2 },
+      };
+    });
+    renderOverview(gateway);
+    await bookingsCard();
+
+    const bookings = screen.getByText('Bookings today').closest('.yc-kpi') as HTMLElement;
+    expect(
+      within(bookings).getByText('2 cancelled: the guests are blocked for no-shows'),
+    ).toBeTruthy();
+  });
+
+  it('says nothing of the block when it cancelled nothing today', async () => {
+    renderOverview(mockGateway());
+    await bookingsCard();
+    const bookings = screen.getByText('Bookings today').closest('.yc-kpi') as HTMLElement;
+    expect(within(bookings).queryByText(/blocked for no-shows/u)).toBeNull();
   });
 
   it("shows today's four numbers from the overview read", async () => {
@@ -754,5 +781,120 @@ describe('worth a look and the setup card', () => {
     await bookingsCard();
     await waitFor(() => expect(readiness).toHaveBeenCalledTimes(2));
     expect(screen.queryByRole('region', { name: /what is still needed/i })).toBeNull();
+  });
+});
+
+describe("the guest's record and a no-show undone, on today's bookings", () => {
+  async function openMenu(
+    user: ReturnType<typeof userEvent.setup>,
+    card: HTMLElement,
+    name: string,
+  ) {
+    await user.click(within(rowOf(card, name)).getByRole('button', { name: /^Actions for/u }));
+    return screen.getByRole('menu');
+  }
+
+  const line = (row: HTMLElement) => row.querySelector<HTMLElement>('.guest-record');
+
+  /** The mock's late party, read as marked a no-show. */
+  async function withNoShow(base: ConsoleGateway) {
+    const late = (await base.getBranchOverview(BRANCH)).todayBookings.find(
+      (row) => overviewRowState(row, EVENING) === 'late',
+    )!;
+    const gateway: ConsoleGateway = {
+      ...base,
+      getBranchOverview: async (branchId) => {
+        const overview = await base.getBranchOverview(branchId);
+        return {
+          ...overview,
+          todayBookings: overview.todayBookings.map((row) =>
+            row.id === late.id ? { ...row, status: 'noShow' as const } : row,
+          ),
+        };
+      },
+    };
+    return { gateway, late };
+  }
+
+  it('says how each guest kept their bookings beside the name, and nothing for a booking staff made', async () => {
+    const { user } = renderOverview();
+    const card = await bookingsCard();
+    await user.click(within(card).getByRole('button', { name: 'All' }));
+
+    expect(line(rowOf(card, 'Narine T.'))!.textContent).toBe(
+      "Guest's record, last 12 months, all venues: 3 bookings · 2 came · 0 no-shows · 1 late cancellation",
+    );
+    expect(line(rowOf(card, 'Սոնա Վ.'))!.textContent).toMatch(/: New guest$/u);
+    // Booked by phone at the venue: no proved account, nothing said either way.
+    expect(line(rowOf(card, 'Gor A.'))).toBeNull();
+    // Seated: the record comes on pending and confirmed bookings only.
+    expect(line(rowOf(card, 'Hovhannes K.'))).toBeNull();
+
+    // Late, and blocked since: said first, with when it ends.
+    const blocked = line(rowOf(card, 'Արմեն Դ.'))!;
+    expect(blocked.className).toContain('is-blocked');
+    expect(within(blocked).getByText(/^Blocked until .+, \d\d:\d\d$/u)).toBeTruthy();
+    expect(blocked.textContent).toMatch(/· 5 bookings · 2 came · 3 no-shows$/u);
+  });
+
+  it('offers to undo a no-show from its row, sends it at once, and says so', async () => {
+    const { gateway, late } = await withNoShow(mockGateway());
+    const act = vi.spyOn(gateway, 'actOnBooking').mockResolvedValue({
+      kind: 'undoNoShow',
+      reservationId: late.id,
+      status: 'confirmed',
+      wasReplay: false,
+      tableLabel: late.tableLabel,
+      tableFreed: false,
+      outstandingDram: null,
+    });
+    const { user } = renderOverview(gateway);
+    const card = await bookingsCard();
+    await user.click(within(card).getByRole('button', { name: 'All' }));
+
+    const row = rowOf(card, late.guestName);
+    expect(within(row).getByText('No-show')).toBeTruthy();
+    expect(
+      within(row).getByText(/^Marked by mistake\? It can be undone until 05:00$/u),
+    ).toBeTruthy();
+
+    await user.click(
+      within(await openMenu(user, card, late.guestName)).getByRole('menuitem', {
+        name: 'Undo the no-show',
+      }),
+    );
+    // Not held for an undo of its own: it is the undo.
+    await waitFor(() =>
+      expect(act).toHaveBeenCalledWith(
+        expect.objectContaining({ kind: 'undoNoShow', reservationId: late.id }),
+      ),
+    );
+    expect(
+      await screen.findByText(`${late.guestName}'s no-show is undone · the booking stands again`),
+    ).toBeTruthy();
+  });
+
+  it('says when it is too late to undo a no-show', async () => {
+    const { gateway, late } = await withNoShow(mockGateway());
+    vi.spyOn(gateway, 'actOnBooking').mockRejectedValue(
+      new NoShowUndoWindowClosedError({
+        url: 'mock://undo',
+        undoableUntilUtc: '2026-10-19T01:00:00Z',
+      }),
+    );
+    const { user } = renderOverview(gateway);
+    const card = await bookingsCard();
+    await user.click(within(card).getByRole('button', { name: 'All' }));
+
+    await user.click(
+      within(await openMenu(user, card, late.guestName)).getByRole('menuitem', {
+        name: 'Undo the no-show',
+      }),
+    );
+    expect(
+      await screen.findByText(
+        'Too late to undo: a no-show can be undone until 05:00 the next morning.',
+      ),
+    ).toBeTruthy();
   });
 });

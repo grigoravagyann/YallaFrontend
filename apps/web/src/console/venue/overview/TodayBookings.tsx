@@ -1,7 +1,9 @@
 import {
   ApiError,
+  isNoShowUndoWindowClosed,
   minutesLate,
   newCommandId,
+  noShowUndoableUntil,
   overviewRowState,
   type BranchOverview,
   type ConsoleBookingActionCommand,
@@ -12,12 +14,13 @@ import {
   type ReservationStatusCode,
 } from '@yalla/api';
 import { useBookingAction, useNow } from '@yalla/api/react';
-import { formatDram, formatTime, type TimeZone } from '@yalla/format';
+import { formatDayAndTime, formatDram, formatTime, type TimeZone } from '@yalla/format';
 import { useLocale, useTranslation } from '@yalla/i18n';
 import { useEffect, useId, useRef, useState } from 'react';
 import { RowMenu, type RowMenuItem } from '../../ui/RowMenu';
 import { TOAST_UNDO_MS, useToast } from '../../ui/toast';
 import { bookingActionFailureText } from './bookingActionFailure';
+import { GuestRecordLine } from './GuestRecordLine';
 
 type Filter = 'next' | 'seated' | 'all';
 const FILTERS: readonly Filter[] = ['next', 'seated', 'all'];
@@ -44,6 +47,8 @@ const ACTIONS: Readonly<Partial<Record<OverviewRowState, readonly ConsoleBooking
   late: ['seat', 'noShow'],
   confirmed: ['seat', 'cancel'],
   seated: ['finish'],
+  // Marked by mistake: until 05:00 the next morning (see `undoUntil`).
+  noShow: ['undoNoShow'],
 };
 
 const DANGER: ReadonlySet<ConsoleBookingActionKind> = new Set(['noShow', 'cancel']);
@@ -78,6 +83,16 @@ interface Held {
 }
 
 /**
+ * Until when a no-show can be undone — 05:00 the morning after its start, on
+ * the branch's clock — or `null` once that has passed. The server has the last
+ * word; this only stops offering what it would refuse.
+ */
+function undoUntil(booking: OverviewBooking, zone: TimeZone, now: Date): Date | null {
+  const until = noShowUndoableUntil(booking.startUtc, zone);
+  return now.getTime() < until.getTime() ? until : null;
+}
+
+/**
  * Today's bookings, with the Main artboard's three filters — still to come,
  * in the room now, all of them — and a ⋮ menu per row.
  *
@@ -97,6 +112,10 @@ interface Held {
  * - **Each row is busy on its own**: one row's request never stops another's.
  * - **A refusal is said in the console's words** (`bookingActionFailure.ts`),
  *   never the server's English, and the list is read again.
+ * - **A no-show marked by mistake is undone from its row**, until 05:00 the
+ *   next morning: at once, not held — it is itself the way back.
+ * - **The guest's record beside the name** (`GuestRecordLine`): twelve months,
+ *   every venue, counts only; "New guest"; blocked for no-shows until when.
  * - **No "are they coming?"**: the app asks the guest by itself and the
  *   backend has no manual nudge (VC2 wire), so a late row says when the app
  *   asked, once it has.
@@ -197,12 +216,19 @@ export function TodayBookings({
     switch (result.kind) {
       case 'seat':
         return t('overview.bookings.done.seated', { name });
-      case 'noShow':
-        return result.tableFreed
+      case 'noShow': {
+        const done = result.tableFreed
           ? t('overview.bookings.done.noShow', { name, table })
           : t('overview.bookings.done.noShowKept', { name });
+        // The guest's third in three days: blocked from booking (wire §0a).
+        if (!result.guestBlockedUntilUtc) return done;
+        const until = formatDayAndTime(result.guestBlockedUntilUtc, zone, locale);
+        return `${done} · ${t('overview.bookings.done.guestBlocked', { date: until.date, time: until.time })}`;
+      }
       case 'cancel':
         return t('overview.bookings.done.cancelled', { name });
+      case 'undoNoShow':
+        return t('overview.bookings.done.undoNoShow', { name });
       case 'finish':
         return result.outstandingDram
           ? t('overview.bookings.done.finishedOwed', {
@@ -240,6 +266,14 @@ export function TodayBookings({
           table: t('approvals.table', { label: booking.tableLabel }),
         })
       );
+    }
+    // The window to undo a no-show closed: say until when it was open.
+    if (isNoShowUndoWindowClosed(error)) {
+      return error.undoableUntilUtc
+        ? t('overview.bookings.refused.undoTooLate', {
+            time: formatTime(error.undoableUntilUtc, zone, locale),
+          })
+        : t('overview.bookings.refused.undoTooLatePlain');
     }
     return bookingActionFailureText(error, {
       moved: t('overview.bookings.refused.moved'),
@@ -337,9 +371,14 @@ export function TodayBookings({
   }
 
   function items(row: Row): RowMenuItem[] {
-    const kinds = (ACTIONS[row.state] ?? []).filter(
-      // A no-show only once the grace is up: until then the table is still theirs.
-      (kind) => kind !== 'noShow' || minutesLate(row.booking, now) >= overview.graceMinutes,
+    const kinds = (ACTIONS[row.state] ?? []).filter((kind) =>
+      // A no-show only once the grace is up: until then the table is still
+      // theirs. Its undo only while the server still takes one.
+      kind === 'noShow'
+        ? minutesLate(row.booking, now) >= overview.graceMinutes
+        : kind === 'undoNoShow'
+          ? undoUntil(row.booking, zone, now) !== null
+          : true,
     );
     // Seat only at a table that can take the party: one free, or held for
     // them. Somebody sitting there, or a table out of service, is said here
@@ -423,24 +462,40 @@ export function TodayBookings({
                 const isBusy = busy.has(booking.id);
                 const isHeld = held.has(booking.id);
                 const menuItems = isBusy || isHeld ? [] : items(row);
+                // A no-show the server has, still in its undo window.
+                const undoableUntil =
+                  !isHeld && row.state === 'noShow' ? undoUntil(booking, zone, now) : null;
                 const note = isHeld
                   ? t('overview.bookings.heldNote')
-                  : state === 'changeRequested'
-                    ? t('overview.bookings.changeNote')
-                    : state === 'late' && booking.lateNudgeAtUtc && booking.lateNudgeSent !== null
-                      ? t(
-                          booking.lateNudgeSent
-                            ? 'overview.bookings.nudged'
-                            : 'overview.bookings.nudgeAt',
-                          {
-                            time: formatTime(booking.lateNudgeAtUtc, zone, locale),
-                          },
-                        )
-                      : null;
+                  : undoableUntil
+                    ? t('overview.bookings.undoNote', {
+                        time: formatTime(undoableUntil, zone, locale),
+                      })
+                    : state === 'changeRequested'
+                      ? t('overview.bookings.changeNote')
+                      : state === 'late' && booking.lateNudgeAtUtc && booking.lateNudgeSent !== null
+                        ? t(
+                            booking.lateNudgeSent
+                              ? 'overview.bookings.nudged'
+                              : 'overview.bookings.nudgeAt',
+                            {
+                              time: formatTime(booking.lateNudgeAtUtc, zone, locale),
+                            },
+                          )
+                        : null;
                 return (
                   <tr key={booking.id} aria-busy={isBusy || undefined}>
                     <td className="yc-strong">{time}</td>
-                    <td>{booking.guestName}</td>
+                    <td>
+                      <span className="yc-bk-who">{booking.guestName}</span>
+                      <GuestRecordLine
+                        record={booking.guestRecord}
+                        surface="admin"
+                        timeZoneId={overview.timeZoneId}
+                        now={now}
+                        className="yc-bk-record"
+                      />
+                    </td>
                     <td className="yc-num">{booking.partySize}</td>
                     <td>{t('approvals.table', { label: booking.tableLabel })}</td>
                     <td className="yc-muted">

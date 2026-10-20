@@ -27,6 +27,7 @@ import {
   instantOrNull,
   type WireReservationTimes,
 } from './bookingTimesWire';
+import { cancellationCause } from './guestRecordMapping';
 import { absolutePhoto } from './photoUrl';
 import { orderStatus, totals } from './staffMapping';
 import { photo } from './venueSettingsMapping';
@@ -331,7 +332,7 @@ export function booking(view: ReservationViewWire, venueName: string | null): Bo
     awaitsEarlierGuestAnswer: awaitsEarlierGuestAnswer(view),
     declinedBecause: declineReason(view.declinedBecause),
     phoneUnverified: view.phoneUnverified === true,
-    madeWithYourNumber: view.madeWithYourNumber === true,
+    cancelledBecause: cancellationCause(view.cancelledBecause),
     manageToken: view.manageToken ?? null,
     promisedFreeByUtc: instantOrNull(view.promisedFreeByUtc),
     incomingTableRequest: incomingTableRequestFromWire(view.incomingTableRequest),

@@ -51,6 +51,7 @@ import {
   ReservationNotStartedError,
   StaffPermissionError,
   StaffPinTakenError,
+  NoShowUndoWindowClosedError,
 } from '../contracts/errors';
 import { assignableRoles, branchBindingFor, isAdminRole, outranks } from '../contracts/staff';
 
@@ -152,6 +153,12 @@ import { mockRegistry, mockTokenHash, type MockRegistry } from './mockRegistry';
 import { fixtureStaffFor } from './staffFixture';
 import { mockVenues } from './venues';
 import { demoCoverThumbnail, demoVenues } from './consoleDemoVenues';
+import {
+  LIFT_REASON_MAX,
+  LIFT_REASON_MIN,
+  noShowUndoableUntil,
+  type BookingBlock,
+} from '../contracts/guestRecord';
 
 const URL_TAG = 'mock://yalla/console';
 // ---------------------------------------------------------------------------
@@ -218,7 +225,6 @@ const POLICY_LABELS: Readonly<Record<string, string>> = {
   cancellationDeadlineMinutes: 'Cancellation deadline',
   walkInHoldbackMinutes: 'Walk-in holdback',
   serviceChargePercent: 'Service charge',
-  unverifiedMaxPartySize: 'Unverified party size',
 };
 
 interface MockItem {
@@ -1206,6 +1212,8 @@ export function createConsoleMockGateway(options: ConsoleMockOptions = {}): Cons
         note?: string;
       },
       because: ConsoleBooking['awaitingApprovalBecause'],
+      /** How the guest kept their bookings; absent: no proved account behind it. */
+      record?: { came: number; noShows?: number; late?: number },
     ) => {
       const id = `r-${branchId.replace(/^b-/u, '')}-${suffix}`;
       bookings.set(id, {
@@ -1220,15 +1228,19 @@ export function createConsoleMockGateway(options: ConsoleMockOptions = {}): Cons
         localStartTime: guest.time,
         status: 'pendingApproval',
         awaitingApprovalBecause: because,
-        // A booking without a verified number has hours to be answered: the
-        // sooner of a day after it was made and two hours before it starts.
-        approvalExpiresAtUtc:
-          because === 'unverifiedPhone'
-            ? new Date(now().getTime() + 20 * 60 * 60_000).toISOString()
-            : null,
+        approvalExpiresAtUtc: null,
         note: guest.note ?? null,
-        // Made on the web without a verified number: the branch confirms those first.
-        phoneUnverified: because === 'unverifiedPhone',
+        guestRecord: record
+          ? {
+              booked: record.came + (record.noShows ?? 0) + (record.late ?? 0),
+              came: record.came,
+              noShows: record.noShows ?? 0,
+              lateCancellations: record.late ?? 0,
+              unmarked: 0,
+              isNewGuest: record.came + (record.noShows ?? 0) + (record.late ?? 0) === 0,
+              blockedUntilUtc: null,
+            }
+          : null,
       });
     };
 
@@ -1249,6 +1261,15 @@ export function createConsoleMockGateway(options: ConsoleMockOptions = {}): Cons
       awaitingApprovalBecause: 'shortNotice',
       approvalExpiresAtUtc: approvalExpiryFor(madeAt, soon.toISOString()),
       note: null,
+      guestRecord: {
+        booked: 6,
+        came: 6,
+        noShows: 0,
+        lateCancellations: 0,
+        unmarked: 0,
+        isNewGuest: false,
+        blockedUntilUtc: null,
+      },
     });
 
     seed(
@@ -1263,6 +1284,7 @@ export function createConsoleMockGateway(options: ConsoleMockOptions = {}): Cons
         note: 'A birthday. A quiet corner if possible.',
       },
       'largeParty',
+      { came: 0 },
     );
     seed(
       'b-lumen-north',
@@ -1275,6 +1297,7 @@ export function createConsoleMockGateway(options: ConsoleMockOptions = {}): Cons
         time: '20:30:00',
       },
       'noShowHistory',
+      { came: 5, noShows: 2 },
     );
     seed(
       'b-lumen-north',
@@ -1286,7 +1309,8 @@ export function createConsoleMockGateway(options: ConsoleMockOptions = {}): Cons
         table: 'W2',
         time: '20:00:00',
       },
-      'unverifiedPhone',
+      'branchApprovesEveryBooking',
+      { came: 11, noShows: 1 },
     );
     seed(
       'b-lumen-cascade',
@@ -1503,6 +1527,7 @@ export function createConsoleMockGateway(options: ConsoleMockOptions = {}): Cons
     noShow: 'Mark a booking as a no-show',
     cancel: 'Release a booking',
     finish: 'Free a table',
+    undoNoShow: 'Undo a no-show',
   };
 
   /**
@@ -1535,6 +1560,38 @@ export function createConsoleMockGateway(options: ConsoleMockOptions = {}): Cons
    * booking whose sitting ends — a table where somebody else sits now, or
    * nobody, is refused (`table-sitting-changed`).
    */
+  /** Guests blocked for no-shows, as the platform admin lists them (review round). */
+  const blocks = new Map<string, BookingBlock>();
+  let blocksSeeded = false;
+  function seedBlocks(): void {
+    if (blocksSeeded) return;
+    blocksSeeded = true;
+    const t = now().getTime();
+    const hours = (h: number) => new Date(t + h * 3_600_000).toISOString();
+    for (const block of [
+      {
+        blockId: 'blk-1',
+        dinerUserId: 'diner-armen',
+        dinerDisplayName: 'Արմեն Դավթյան',
+        phoneE164: '+37491555123',
+        blockedAtUtc: hours(-20),
+        blockedUntilUtc: hours(7 * 24 - 20),
+        liftedAtUtc: null,
+      },
+      {
+        blockId: 'blk-2',
+        dinerUserId: 'diner-gone',
+        dinerDisplayName: null,
+        phoneE164: '+37477000222',
+        blockedAtUtc: hours(-90),
+        blockedUntilUtc: hours(7 * 24 - 90),
+        liftedAtUtc: null,
+      },
+    ] satisfies BookingBlock[]) {
+      blocks.set(block.blockId, block);
+    }
+  }
+
   function actOnTodayBooking(command: ConsoleBookingActionCommand): ConsoleBookingActionResult {
     const replayed = actionReplies.get(command.clientCommandId);
     if (replayed) return { ...replayed, wasReplay: true };
@@ -1560,6 +1617,35 @@ export function createConsoleMockGateway(options: ConsoleMockOptions = {}): Cons
     const someoneElseSits =
       (sitting !== undefined && sitting.id !== row.id) || walkIn?.id === command.tableId;
     const status = SERVER_STATUS[row.status];
+
+    // Undo a no-show marked by mistake, until 05:00 the next morning: back to
+    // confirmed; one already undone answers as it stands; anything else is
+    // `conflicting-state` (guest record review round).
+    if (command.kind === 'undoNoShow') {
+      if (row.status !== 'noShow' && row.status !== 'confirmed') {
+        throw conflict(`Only a no-show can be undone; ${row.code} is ${status}.`);
+      }
+      if (row.status === 'noShow') {
+        const until = noShowUndoableUntil(row.startUtc, branchTimeZone(command.branchId));
+        if (now().getTime() > until.getTime()) {
+          throw new NoShowUndoWindowClosedError({
+            url: `${URL_TAG}/reservations/${row.id}/undo-no-show`,
+            undoableUntilUtc: until.toISOString(),
+          });
+        }
+        const undone: OverviewBooking = { ...row, status: 'confirmed' };
+        if (index >= 0) own[index] = undone;
+      }
+      return {
+        kind: command.kind,
+        reservationId: row.id,
+        status: 'confirmed',
+        wasReplay: row.status === 'confirmed',
+        tableLabel: row.tableLabel,
+        tableFreed: false,
+        outstandingDram: null,
+      };
+    }
 
     // A release of a booking already released answers as a replay, whatever
     // the click asked for: the stored outcome, the table untouched (VC2 wire 2.1).
@@ -2954,6 +3040,55 @@ export function createConsoleMockGateway(options: ConsoleMockOptions = {}): Cons
       await wait();
       requirePlatformAdmin(`${URL_TAG}/platform/outbox`);
       return outboxOf();
+    },
+
+    async listBookingBlocks() {
+      await wait();
+      requirePlatformAdmin(`${URL_TAG}/platform/booking-blocks`);
+      seedBlocks();
+      const t = now().getTime();
+      return [...blocks.values()]
+        .filter((block) => block.liftedAtUtc === null && Date.parse(block.blockedUntilUtc) > t)
+        .sort((a, b) => b.blockedAtUtc.localeCompare(a.blockedAtUtc));
+    },
+
+    async liftBookingBlock({ blockId, reason }) {
+      await wait();
+      const url = `${URL_TAG}/platform/booking-blocks/${blockId}/lift`;
+      requirePlatformAdmin(url);
+      seedBlocks();
+      const trimmed = reason.trim();
+      if (trimmed.length < LIFT_REASON_MIN || trimmed.length > LIFT_REASON_MAX) {
+        throw invalidRequest(
+          url,
+          'reason',
+          `Say why, in ${LIFT_REASON_MIN} to ${LIFT_REASON_MAX} characters.`,
+        );
+      }
+      const block = blocks.get(blockId);
+      if (!block) throw new NotFoundError({ url });
+      if (block.liftedAtUtc !== null) return block;
+      if (Date.parse(block.blockedUntilUtc) <= now().getTime()) {
+        throw new ConcurrencyConflictError({
+          url,
+          problem: {
+            type: '',
+            title: 'Conflict',
+            status: 409,
+            detail: 'The block has already ended.',
+            code: 'conflicting-state',
+            traceId: 'mock',
+          },
+        });
+      }
+      const lifted: BookingBlock = { ...block, liftedAtUtc: now().toISOString() };
+      blocks.set(blockId, lifted);
+      log(
+        'booking-block.lift',
+        { type: 'BookingBlock', id: blockId, name: block.dinerDisplayName ?? blockId },
+        null,
+      );
+      return lifted;
     },
 
     async listPlatformActivity(query = {}) {

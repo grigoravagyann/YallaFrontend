@@ -1,7 +1,6 @@
 import type { Booking } from '@yalla/api';
 import { isOfflinePaused } from '@yalla/api/react';
-import { formatDate, formatTime } from '@yalla/format';
-import { useLocale, useTranslation } from '@yalla/i18n';
+import { useTranslation } from '@yalla/i18n';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useState } from 'react';
 import { FlatList, StyleSheet, View } from 'react-native';
@@ -13,11 +12,11 @@ import {
   BookingSheetSummary,
 } from '../../src/components/bookings/BookingCard';
 import { changeBookingRoute } from '../../src/components/bookings/changeBooking';
+import { BookingBlockedBanner, GuestRecordCard } from '../../src/components/bookings/GuestRecord';
 import { useCanChangeBooking } from '../../src/components/bookings/useCanChangeBooking';
 import { ConfirmSheet } from '../../src/components/ConfirmSheet';
 import { EmptyState } from '../../src/components/EmptyState';
 import { ErrorState } from '../../src/components/ErrorState';
-import { Button } from '../../src/components/Button';
 import { Rise, riseDelay } from '../../src/components/motion/Rise';
 import { useToast } from '../../src/components/motion/Toast';
 import { Screen, useNavClearance } from '../../src/components/Screen';
@@ -25,19 +24,11 @@ import { SegmentedControl } from '../../src/components/SegmentedControl';
 import { Text } from '../../src/components/Text';
 import { useBookings, useCancelBooking } from '../../src/data/queries';
 import { useNow } from '../../src/hooks/useNow';
-import { bookingsFailureCopy, madeWithYourNumber } from '../../src/lib/bookingsList';
+import { bookingsFailureCopy } from '../../src/lib/bookingsList';
+import { blockedUntil } from '../../src/lib/guestRecord';
 import { haptics } from '../../src/lib/haptics';
 import { useSession } from '../../src/stores/session';
-import {
-  actionIcon,
-  colors,
-  displayWeight,
-  fontWeight,
-  layout,
-  radius,
-  space,
-  typography,
-} from '../../src/theme';
+import { actionIcon, colors, displayWeight, layout, space, typography } from '../../src/theme';
 
 type Tab = 'upcoming' | 'past';
 
@@ -47,16 +38,8 @@ interface CancelSheet {
   readonly open: boolean;
 }
 
-/**
- * Bookings somebody else made with this account's number and no proof
- * (unverified guests, 2026-10-20) are listed apart, above the account's own:
- * "made with your number, not by you", each with Cancel. They never stop the
- * account booking; cancelling tells the venue the number's owner disowned it.
- */
-
 export default function BookingsScreen() {
   const { t } = useTranslation('diner');
-  const { locale } = useLocale();
   const router = useRouter();
   const paddingBottom = useNavClearance();
   const now = useNow();
@@ -82,11 +65,15 @@ export default function BookingsScreen() {
   // ended and still holds a table is upcoming, which keeps a diner running five
   // minutes late — and a seated party — out of "Past". The first upcoming one
   // is the large card; the rest follow under "Next".
-  const { own: upcoming, strangers } = madeWithYourNumber(data?.upcoming ?? []);
-  // The account's history is its own: a stranger's booking with its number,
-  // cancelled or over, is nobody's business here (review S2).
-  const past = madeWithYourNumber(data?.past ?? []).own;
-  const disowning = sheet?.booking.madeWithYourNumber === true;
+  const upcoming: readonly Booking[] = data?.upcoming ?? [];
+  const past: readonly Booking[] = data?.past ?? [];
+  /*
+   * The guest's own record (guest record, 2026-10-20) under the list, on both
+   * tabs — what every venue they book with sees — and, while three no-shows
+   * in three days keep them from booking, the pause at the top.
+   */
+  const record = data?.guestRecord;
+  const pausedUntil = blockedUntil(record, now);
   const hero = tab === 'upcoming' ? (justCancelled ?? upcoming[0] ?? null) : null;
   const rows: readonly Booking[] =
     tab === 'upcoming' ? upcoming.filter((booking) => booking.id !== hero?.id) : past;
@@ -113,12 +100,9 @@ export default function BookingsScreen() {
   const closeCancel = () => setSheet((current) => (current ? { ...current, open: false } : null));
   const confirmCancel = () => {
     if (!sheet) return;
-    // Read from the list, not the answer: the flag is only on `/mine` (review S1).
-    const disowned = sheet.booking.madeWithYourNumber === true;
     cancel.mutate(sheet.booking.id, {
       onSuccess: (cancelled) => {
-        // Somebody else's goes; only the account's own stays on as "Cancelled".
-        if (!disowned) setJustCancelled(cancelled);
+        setJustCancelled(cancelled);
         closeCancel();
         haptics.tap();
         showToast(t('bookings.cancelledToast'));
@@ -231,34 +215,11 @@ export default function BookingsScreen() {
         onRefresh={() => void refetch()}
         ListHeaderComponent={
           <>
-            {tab === 'upcoming'
-              ? strangers.map((booking) => (
-                  <Rise key={booking.id}>
-                    <View style={styles.stranger} accessibilityRole="summary">
-                      <Text style={styles.strangerTitle} accessibilityRole="header">
-                        {t('bookings.madeWithYourNumber.title')}
-                      </Text>
-                      <Text style={styles.strangerBody}>
-                        {t('bookings.madeWithYourNumber.body', {
-                          venue: booking.venueName ?? booking.branchName,
-                          when: `${formatDate(booking.slotUtc, booking.timeZoneId, locale)} · ${formatTime(
-                            booking.slotUtc,
-                            booking.timeZoneId,
-                            locale,
-                          )}`,
-                        })}
-                      </Text>
-                      <Button
-                        label={t('bookings.madeWithYourNumber.cancel')}
-                        variant="destructive"
-                        size="small"
-                        fullWidth={false}
-                        onPress={() => openCancel(booking)}
-                      />
-                    </View>
-                  </Rise>
-                ))
-              : null}
+            {pausedUntil ? (
+              <Rise>
+                <BookingBlockedBanner untilUtc={pausedUntil} style={styles.card} />
+              </Rise>
+            ) : null}
             {hero ? (
               <Rise>
                 <BookingHeroCard
@@ -290,6 +251,7 @@ export default function BookingsScreen() {
           </Rise>
         )}
         ListEmptyComponent={hero ? null : empty}
+        ListFooterComponent={<GuestRecordCard record={record} style={styles.record} />}
       />
 
       {/* One tap plus a confirmation step — cancelling a table by accident is
@@ -297,19 +259,9 @@ export default function BookingsScreen() {
           not scold: a late cancel is far better for the venue than a no-show. */}
       <ConfirmSheet
         visible={sheet?.open === true && !cancel.isSuccess}
-        title={
-          disowning
-            ? t('bookings.madeWithYourNumber.cancelTitle')
-            : t('bookings.detail.cancelTitle')
-        }
+        title={t('bookings.detail.cancelTitle')}
         summary={sheet ? <BookingSheetSummary booking={sheet.booking} now={now} /> : null}
-        body={
-          disowning
-            ? t('bookings.madeWithYourNumber.cancelBody')
-            : isLate
-              ? t('bookings.detail.cancelLate')
-              : t('bookings.detail.cancelFree')
-        }
+        body={isLate ? t('bookings.detail.cancelLate') : t('bookings.detail.cancelFree')}
         confirmLabel={t('bookings.detail.cancelConfirm')}
         cancelLabel={t('bookings.detail.cancelKeep')}
         busyLabel={t('bookings.detail.cancelling')}
@@ -347,14 +299,5 @@ const styles = StyleSheet.create({
     marginBottom: space.md - 2,
   },
   row: { marginBottom: space.md - 2 },
-  stranger: {
-    gap: space.sm,
-    alignItems: 'flex-start',
-    padding: space.md,
-    marginBottom: space.md - 2,
-    borderRadius: radius.card,
-    backgroundColor: colors.warningSoft,
-  },
-  strangerTitle: { ...typography.body, fontWeight: fontWeight.bold, color: colors.text },
-  strangerBody: { ...typography.body, color: colors.text },
+  record: { marginTop: space.md },
 });

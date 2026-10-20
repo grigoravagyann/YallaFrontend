@@ -10657,7 +10657,7 @@
           "diner"
         ],
         "summary": "Book a table",
-        "description": "Idempotent on `clientCommandId`: a retry returns the original booking and creates nothing, answering 200 rather than 201. Lands as `Confirmed`, or `PendingApproval` (`awaitingApprovalBecause` says why) when the booking is at **short notice** - for the branch's today, or starting under six hours from now - the branch approves every booking, the party is over the branch's threshold, or the diner is over the rolling no-show threshold.\n\nA short-notice booking (`awaitingApprovalBecause` 4) is the floor's to decide, by `approvalExpiresAtUtc` - fifteen minutes from now, or the start if sooner. Unanswered by then it is declined (`CancelledByVenue`, `declinedBecause` 2 NoAnswer) and the diner gets a `reservation-decided` push with `expired` true. Count down to `approvalExpiresAtUtc`; read the booking again to see the answer.\n\nA booking for a table whose previous booking started under three hours before (`awaitingApprovalBecause` 5 EarlierGuestConsent) waits on that guest's yes, for **two hours** at most (`approvalExpiresAtUtc`, never past their start nor this one's). When `awaitsEarlierGuestAnswer` is true they are asked in the app and only they answer - unanswered it is declined with `declinedBecause` 4 EarlierGuestNoAnswer. When it is false the floor calls them and decides, by the same deadline - unanswered it is declined with `declinedBecause` 2 NoAnswer.\n\n**An account whose number was never proved** books without a verified number (`phoneUnverified: true`), as the public page's door does: at most `policy.unverifiedMaxPartySize` people (`422 reservation-unverified-party-too-large`), and **none at a branch whose cap is 0** (`422 branch-requires-verified-phone` - send the diner to verify their number), one active booking per number (`409 phone-has-active-booking`), at most 20 waiting per branch (`409 branch-unverified-queue-full`), and the network's budget shared with the web (`429 rate-limited`).\n\n**One table at a time per diner at a branch**: a sitting that overlaps another of the diner's own live bookings there (pending, confirmed or seated) is `409 reservation-overlaps-own`, with `context` naming the booking already held - `reservationId`, `code` (its door code), `localDate` (`\"2026-10-22\"`, the branch's calendar - say the day when it differs), `localStartTime` (`\"19:30:00\"`) and `tableLabel` - so the app can say \"You already have a booking at 19:30 (table 2)\". Sittings that only touch do not overlap; another branch is not refused. A retry with the same `clientCommandId` still answers as a replay.",
+        "description": "Idempotent on `clientCommandId`: a retry returns the original booking and creates nothing, answering 200 rather than 201. Lands as `Confirmed`, or `PendingApproval` (`awaitingApprovalBecause` says why) when the booking is at **short notice** - for the branch's today, or starting under six hours from now - the branch approves every booking, the party is over the branch's threshold, or the diner is over the rolling no-show threshold.\n\nA short-notice booking (`awaitingApprovalBecause` 4) is the floor's to decide, by `approvalExpiresAtUtc` - fifteen minutes from now, or the start if sooner. Unanswered by then it is declined (`CancelledByVenue`, `declinedBecause` 2 NoAnswer) and the diner gets a `reservation-decided` push with `expired` true. Count down to `approvalExpiresAtUtc`; read the booking again to see the answer.\n\nA booking for a table whose previous booking started under three hours before (`awaitingApprovalBecause` 5 EarlierGuestConsent) waits on that guest's yes, for **two hours** at most (`approvalExpiresAtUtc`, never past their start nor this one's). When `awaitsEarlierGuestAnswer` is true they are asked in the app and only they answer - unanswered it is declined with `declinedBecause` 4 EarlierGuestNoAnswer. When it is false the floor calls them and decides, by the same deadline - unanswered it is declined with `declinedBecause` 2 NoAnswer.\n\n**Only an account whose number is proved books** (`403 phone-not-verified` otherwise - send the diner to verify it). **At most three active bookings per proved number**, at every venue: the fourth is `409 phone-has-active-booking` with `context.maxActiveBookings` and the diner's own earliest active booking (`reservationId`, `code`, `startUtc`, `localDate`, `localStartTime`, `venueName`, `branchName`). **A guest blocked for no-shows** (three in three days) is `403 booking-blocked-no-shows` with `context.blockedUntilUtc` until the block ends.\n\nWith `autoConfirmGuestsWithGoodRecord` on at a branch that approves every booking, a guest with a good record is confirmed at once - see `GET /api/branches/{id}/reservation-policy`.\n\n**One table at a time per diner, anywhere**: a sitting that overlaps another of the diner's own live bookings (pending, confirmed or seated) is `409 reservation-overlaps-own`, with `context` naming the booking already held - `reservationId`, `code` (its door code), `localDate` (`\"2026-10-22\"`, the branch's calendar - say the day when it differs), `localStartTime` (`\"19:30:00\"`), `tableLabel`, `venueName` and `branchName` - so the app can say \"You already have a booking at Café Aram at 19:30\". At the same branch sittings that only touch do not overlap; at **another venue** the two need **30 minutes** between them (with a 90-minute sitting, starts less than 2 hours apart are refused). A retry with the same `clientCommandId` still answers as a replay.",
         "operationId": "createReservation",
         "requestBody": {
           "content": {
@@ -10716,11 +10716,11 @@
             }
           },
           "403": {
-            "description": "`phone-not-verified`: the account registered with a number it has never proved. Send the diner through the code flow (`request-code`, `verify-code`) first; reading and cancelling bookings stay open meanwhile.",
+            "description": "`phone-not-verified`: the account registered with a number it has never proved. Send the diner through the code flow (`request-code`, `verify-code`) first; reading and cancelling bookings stay open meanwhile. `booking-blocked-no-shows`: blocked until `context.blockedUntilUtc`.",
             "content": {
               "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.BookingBlockedProblem"
                 }
               }
             }
@@ -10736,11 +10736,11 @@
             }
           },
           "409": {
-            "description": "`table-already-booked` / `table-currently-occupied`: Someone else took that table between the diner seeing it free and confirming. The body's `context` carries the clashing window and a fresh availability snapshot, so the app can redraw the floor and show what changed rather than only saying no. Never retried automatically: this answer will not change on a repeat. `reservation-overlaps-own`: the diner already has a booking at this branch then - `context.reservationId`, `code`, `localDate`, `localStartTime`, `tableLabel` name it.",
+            "description": "`table-already-booked` / `table-currently-occupied`: Someone else took that table between the diner seeing it free and confirming. The body's `context` carries the clashing window and a fresh availability snapshot, so the app can redraw the floor and show what changed rather than only saying no. Never retried automatically: this answer will not change on a repeat. `reservation-overlaps-own`: the diner already has a booking then, here or too close to it at another venue - `context.reservationId`, `code`, `localDate`, `localStartTime`, `tableLabel`, `venueName`, `branchName` name it. `phone-has-active-booking`: three active bookings already.",
             "content": {
               "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.PhoneHasActiveBookingProblem"
                 }
               }
             }
@@ -10794,7 +10794,7 @@
           "diner"
         ],
         "summary": "Change a booking's date, time, party size or table",
-        "description": "Moves the diner's **own** booking and answers with it: the **same `id` and `code`** and manage link, at the new `startUtc`/`endUtc`, `partySize`, `tableId`, `roomId`/`roomName` and `status`. Send the whole new slot - `date`, `time`, `partySize` and `diningTableId` (required, the current table or another at the branch) - as a new booking would.\n\n**Only a booking still to come**: `PendingApproval` or `Confirmed` and not yet started. Anything else - seated, finished, cancelled, a no-show, or past its start - is `409 reservation-not-changeable`, before the new slot is looked at.\n\n**Judged as a new booking would be**, with the same `reservation-*` 422s: the branch open for business and still taking bookings from the channel the booking came from, lead time and booking window, opening hours, the table pinned on its room and fitting the party. The clash check runs under the target table's lock **excluding this booking**, so moving dinner by half an hour on the same table is never refused because of itself - and the 409's fresh floor shows the diner's own table free.\n\n**The status is decided again** by the create rules: the move can keep it `Confirmed`, confirm a pending one, or send it back to `PendingApproval` (`awaitingApprovalBecause` says why). A `Confirmed` booking that keeps its **table and start** and does not grow stays `Confirmed`, today included - nothing about it got harder to keep. Otherwise a move into the short-notice window (today, or under six hours away) goes to `PendingApproval` with a fifteen-minute `approvalExpiresAtUtc` - and keeps the slot it had: if the change is declined, or nobody answers it, the booking goes back to that slot, `Confirmed` as before, when it is still free. A booking **already waiting** on a short-notice answer keeps its deadline through a move (never past the new start); past the deadline it cannot be moved at all - `409 reservation-approval-expired`. A `Confirmed` booking whose party does not grow keeps its confirmation against the party-size threshold - the venue already said yes to that many people - but not against a branch that approves every booking or the diner's no-show history. A booking waiting on the guest before it (`awaitingApprovalBecause` 5) keeps its two-hour deadline through a move in the same way, whoever answers - the floor or that guest in the app.\n\n**One table at a time per diner at a branch**: a sitting that overlaps another of the diner's own live bookings there (pending, confirmed or seated) is `409 reservation-overlaps-own`, with `context` naming the booking already held - `reservationId`, `code` (its door code), `localDate` (`\"2026-10-22\"`, the branch's calendar - say the day when it differs), `localStartTime` (`\"19:30:00\"`) and `tableLabel` - so the app can say \"You already have a booking at 19:30 (table 2)\". Sittings that only touch do not overlap; another branch is not refused. A retry with the same `clientCommandId` still answers as a replay. The booking being moved is left out of that check, and a change that keeps its table, start and end (a party size) is not judged by it.\n\nThe reminder and late nudge are replaced with ones for the new time. Idempotent on `clientCommandId`: a retry of the same change answers `200` with the booking **as it stands now** and `wasReplay: true`, moving nothing; the same id on another command, or on a different change (another table, start or party size), is `409 client-command-id-in-use` - mint a fresh id per change.",
+        "description": "Moves the diner's **own** booking and answers with it: the **same `id` and `code`** and manage link, at the new `startUtc`/`endUtc`, `partySize`, `tableId`, `roomId`/`roomName` and `status`. Send the whole new slot - `date`, `time`, `partySize` and `diningTableId` (required, the current table or another at the branch) - as a new booking would.\n\n**Only a booking still to come**: `PendingApproval` or `Confirmed` and not yet started. Anything else - seated, finished, cancelled, a no-show, or past its start - is `409 reservation-not-changeable`, before the new slot is looked at.\n\n**Judged as a new booking would be**, with the same `reservation-*` 422s: the branch open for business and still taking bookings from the channel the booking came from, lead time and booking window, opening hours, the table pinned on its room and fitting the party. The clash check runs under the target table's lock **excluding this booking**, so moving dinner by half an hour on the same table is never refused because of itself - and the 409's fresh floor shows the diner's own table free.\n\n**The status is decided again** by the create rules: the move can keep it `Confirmed`, confirm a pending one, or send it back to `PendingApproval` (`awaitingApprovalBecause` says why). A `Confirmed` booking that keeps its **table and start** and does not grow stays `Confirmed`, today included - nothing about it got harder to keep. Otherwise a move into the short-notice window (today, or under six hours away) goes to `PendingApproval` with a fifteen-minute `approvalExpiresAtUtc` - and keeps the slot it had: if the change is declined, or nobody answers it, the booking goes back to that slot, `Confirmed` as before, when it is still free. A booking **already waiting** on a short-notice answer keeps its deadline through a move (never past the new start); past the deadline it cannot be moved at all - `409 reservation-approval-expired`. A `Confirmed` booking whose party does not grow keeps its confirmation against the party-size threshold - the venue already said yes to that many people - but not against a branch that approves every booking or the diner's no-show history. A booking waiting on the guest before it (`awaitingApprovalBecause` 5) keeps its two-hour deadline through a move in the same way, whoever answers - the floor or that guest in the app.\n\n**One table at a time per diner, anywhere**: a sitting that overlaps another of the diner's own live bookings (pending, confirmed or seated) is `409 reservation-overlaps-own`, with `context` naming the booking already held - `reservationId`, `code` (its door code), `localDate` (`\"2026-10-22\"`, the branch's calendar - say the day when it differs), `localStartTime` (`\"19:30:00\"`), `tableLabel`, `venueName` and `branchName` - so the app can say \"You already have a booking at Café Aram at 19:30\". At the same branch sittings that only touch do not overlap; at **another venue** the two need **30 minutes** between them (with a 90-minute sitting, starts less than 2 hours apart are refused). A retry with the same `clientCommandId` still answers as a replay. The booking being moved is left out of that check, and a change that keeps its table, start and end (a party size) is not judged by it.\n\nThe reminder and late nudge are replaced with ones for the new time. Idempotent on `clientCommandId`: a retry of the same change answers `200` with the booking **as it stands now** and `wasReplay: true`, moving nothing; the same id on another command, or on a different change (another table, start or party size), is `409 client-command-id-in-use` - mint a fresh id per change.",
         "operationId": "rescheduleReservation",
         "parameters": [
           {
@@ -11069,7 +11069,7 @@
           "diner"
         ],
         "summary": "The calling diner's own bookings, upcoming and past",
-        "description": "Upcoming means still going to happen: not finished, and not already called off. A booking cancelled for tomorrow belongs in the history, not at the top of the screen.\n\n**Made with your number, not by you.** For an account that proved its number, the list also carries the bookings somebody else made with that number and no proof of it - on the public page, or from an account that never proved it - with `madeWithYourNumber` true. They never stop this account booking; show them apart, with a cancel button (`POST /api/reservations/{id}/cancel`).",
+        "description": "Upcoming means still going to happen: not finished, and not already called off. A booking cancelled for tomorrow belongs in the history, not at the top of the screen.\n\n**`guestRecord`** beside the two lists: the diner's own record over the last 12 months at every venue - `booked`, `came`, `noShows`, `lateCancellations`, `isNewGuest`, and `blockedUntilUtc` while blocked for no-shows. It is what venues see beside their bookings.",
         "operationId": "getMyReservations",
         "responses": {
           "200": {
@@ -11259,7 +11259,7 @@
           "diner"
         ],
         "summary": "Cancel a booking",
-        "description": "A diner may only cancel their own - and one made with their proved number and no proof by somebody else (`madeWithYourNumber` on their list); anyone else's is 403. Free until the branch's cancellation deadline and still allowed after it - a late cancellation is far better than a no-show - with `cancelledAfterDeadline` recording which it was.",
+        "description": "A diner may only cancel their own; anyone else's is 403. Free until the branch's cancellation deadline and still allowed after it - a late cancellation is far better than a no-show - with `cancelledAfterDeadline` recording which it was.",
         "operationId": "cancelReservation",
         "parameters": [
           {
@@ -13723,154 +13723,6 @@
         }
       }
     },
-    "/api/public/branches/{branchId}/bookings": {
-      "post": {
-        "tags": [
-          "diner"
-        ],
-        "summary": "A booking without an account or a phone proof - the public gate first, as for every read here.",
-        "description": "For the visitor who will not prove their number (decided 2026-10-20). A visitor who does prove it - Telegram, `GET /api/auth/diner/phone-proof` says which ways are on - books with the diner token through `POST /api/reservations` as before and keeps instant confirmation per the venue's policy. This route needs neither SMS nor Telegram.\n\nThe app's booking body without `branchId` and `channel` (the route names the branch; the channel is the web's, so `acceptsWebBookings` gates it), plus **`deviceId`**: an id the page generates once and keeps (localStorage). `guestPhone` must be a real number in E.164 - spaces and dashes are dropped - and is what the venue calls.\n\n**What is different from a verified booking.** The booking says `phoneUnverified: true` everywhere staff read it. It is for at most `policy.unverifiedMaxPartySize` people (`422 reservation-unverified-party-too-large`, `context.maxPartySize` - offer to verify, which lifts it). **A branch whose cap is 0 takes none** (`policy.acceptsUnverifiedBookings` false - hide this door and offer verifying only): `422 branch-requires-verified-phone`, `context.reason` 15. When the branch approves such bookings first (`policy.unverifiedBookingsNeedApproval`, on by default) it lands `PendingApproval` with `awaitingApprovalBecause` **6** and an answer deadline (`approvalExpiresAtUtc`: a day at most, two hours before the start if that is sooner) - unanswered, it is declined for no answer. At most 20 wait at one branch at once (`409 branch-unverified-queue-full`). No reminder is sent. Its manage link reads and cancels it but never changes it (cancel and book again).\n\n**One active booking per number - for everybody.** A number that already holds a pending or confirmed booking that is not over, at any venue, is `409 phone-has-active-booking` with **no context** here. One active unverified booking per browser too: `409 device-has-active-booking`. Cancelling the other booking frees the number at once.\n\n**`manageToken` comes back once**, in the `201`. Store it before anything else: a retry with the same `clientCommandId` from the same `deviceId` answers `200` with the booking and **no token** (only its hash exists). The same id from another browser is `409 client-command-id-in-use`.\n\nRate limited per network - the address, an IPv6 one by its /64, never a token - at 10 bookings without a verified number an hour, a budget shared with the app's door (`429 rate-limited`); on a branch ceiling of its own, apart from the page's.",
-        "operationId": "createPublicBookingWithoutAccount",
-        "parameters": [
-          {
-            "name": "branchId",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "allOf": [
-                  {
-                    "$ref": "#/components/schemas/Yalla.Api.Endpoints.CreatePublicBookingRequest"
-                  }
-                ],
-                "description": "Body of `POST /api/public/branches/{branchId}/bookings`: the app's booking body without the branch\n(the route names it) and the channel (the web's), plus the browser's device id."
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "OK",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Yalla.Application.Reservations.ReservationView"
-                }
-              }
-            }
-          },
-          "201": {
-            "description": "Created",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Yalla.Application.Reservations.ReservationView"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "`guestPhone` is not a phone number (`context.field` `guestPhone`), or `deviceId` is missing.",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "No usable token was presented, or the one presented was rejected.",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "The caller is authenticated but not allowed to perform this action.",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "No such branch, it is not published, or no such table.",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
-                }
-              }
-            }
-          },
-          "409": {
-            "description": "`phone-has-active-booking` / `device-has-active-booking` (no context on this route). Also `table-already-booked` / `table-currently-occupied`: Someone else took that table between the diner seeing it free and confirming. The body's `context` carries the clashing window and a fresh availability snapshot, so the app can redraw the floor and show what changed rather than only saying no. Never retried automatically: this answer will not change on a repeat. `web-bookings-not-accepted`, `branch-unavailable`: the branch is not taking bookings. `client-command-id-in-use`: another browser's id.",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Yalla.Api.Errors.PhoneHasActiveBookingProblem"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "A branch rule refused the booking. Each rule has its own `code` - `reservation-party-exceeds-capacity`, `reservation-outside-opening-hours` and so on - with the numbers behind it in `context`, so the app can say which table to pick instead rather than showing a generic failure. `reservation-unverified-party-too-large`: over `policy.unverifiedMaxPartySize`. `branch-requires-verified-phone`: the branch takes no bookings without a verified number (its cap is 0).",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
-                }
-              }
-            }
-          },
-          "429": {
-            "description": "Too many requests in the window, or a one-time credential is out of attempts.",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "Unexpected failure. Quote the traceId from the body.",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
-                }
-              }
-            }
-          },
-          "503": {
-            "description": "The table's booking lock could not be had in time. `context.retryable` is true: unlike the 409, this one is worth retrying - with the same `clientCommandId`, so a retry that crosses with a late-committing original is recognised as a replay.",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Yalla.Api.Errors.LockTimeoutProblem"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "/api/public/branches/{branchId}/meta": {
       "get": {
         "tags": [
@@ -16031,6 +15883,209 @@
           },
           "422": {
             "description": "`hidden` missing, or `reason` missing (bound `required`) or over 500 characters (bound `max`) when hiding.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.ValidationFailedProblem"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests in the window, or a one-time credential is out of attempts.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected failure. Quote the traceId from the body.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/platform/booking-blocks": {
+      "get": {
+        "tags": [
+          "platform"
+        ],
+        "summary": "Guests blocked from booking for no-shows, now",
+        "description": "The no-show blocks in force (three no-shows in three days blocks a guest for a week - `docs/reservations.md`), newest first. `phoneE164` is the proved number the block also holds, while it holds one.",
+        "operationId": "listPlatformBookingBlocks",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Yalla.Application.Reservations.BookingBlockView"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request violated a domain rule or arrived malformed.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No usable token was presented, or the one presented was rejected.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller is authenticated but not allowed to perform this action.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests in the window, or a one-time credential is out of attempts.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected failure. Quote the traceId from the body.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/platform/booking-blocks/{blockId}/lift": {
+      "post": {
+        "tags": [
+          "platform"
+        ],
+        "summary": "Lift a guest's no-show block early, with a reason",
+        "description": "The guest can book again at once and is told (`bookings-unblocked`). **Nothing the block cancelled comes back.** `reason` is required (3-500 characters). **Audited** as `booking-block.lift`. A block already lifted answers as it stands; one that already ended is `409 conflicting-state`. The no-shows behind it never count toward another block.",
+        "operationId": "liftPlatformBookingBlock",
+        "parameters": [
+          {
+            "name": "blockId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "allOf": [
+                  {
+                    "$ref": "#/components/schemas/Yalla.Api.Endpoints.LiftBookingBlockRequest"
+                  }
+                ],
+                "description": "Body of `POST /api/platform/booking-blocks/{blockId}/lift`."
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Application.Reservations.BookingBlockView"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request violated a domain rule or arrived malformed.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No usable token was presented, or the one presented was rejected.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller is authenticated but not allowed to perform this action.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such block.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "`conflicting-state`: the block already ended.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "No reason, or a reason too short or too long.",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -19294,7 +19349,7 @@
             }
           },
           "409": {
-            "description": "`reservation-approval-expired`: too late to answer - the short-notice answer window (`approvalExpiresAtUtc`) has closed, or the booking was already declined because nobody answered in time (`declinedBecause` 2); approving also once the booking has started. `context` carries `reservationId`, `status`, `startUtc` and `approvalExpiresAtUtc`. Drop the request from the panel: the diner is told the venue did not answer in time. `conflicting-state`: the booking is not waiting for approval. `reservation-awaiting-earlier-guest`: the booking waits on the guest before it on the table to answer in the app - theirs to answer, not the floor's (`context`: `reservationId`, `requestId`, `expiresAtUtc`). `table-request-not-pending`: approving a booking whose guest before has moved since they were asked.",
+            "description": "`reservation-approval-expired`: too late to answer - the short-notice answer window (`approvalExpiresAtUtc`) has closed, or the booking was already declined because nobody answered in time (`declinedBecause` 2); approving also once the booking has started. `context` carries `reservationId`, `status`, `startUtc` and `approvalExpiresAtUtc`. Drop the request from the panel: the diner is told the venue did not answer in time. `conflicting-state`: the booking is not waiting for approval. `reservation-cancelled-by-block` (`context.reservationId`, `cancelledAtUtc`): a no-show block cancelled it - its guest missed three bookings in three days. `reservation-awaiting-earlier-guest`: the booking waits on the guest before it on the table to answer in the app - theirs to answer, not the floor's (`context`: `reservationId`, `requestId`, `expiresAtUtc`). `table-request-not-pending`: approving a booking whose guest before has moved since they were asked.",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -19412,7 +19467,7 @@
             }
           },
           "409": {
-            "description": "`reservation-approval-expired`: too late to answer - the short-notice answer window (`approvalExpiresAtUtc`) has closed, or the booking was already declined because nobody answered in time (`declinedBecause` 2); approving also once the booking has started. `context` carries `reservationId`, `status`, `startUtc` and `approvalExpiresAtUtc`. Drop the request from the panel: the diner is told the venue did not answer in time. `conflicting-state`: the booking is not waiting for approval. `reservation-awaiting-earlier-guest`: the booking waits on the guest before it on the table to answer in the app - theirs to answer, not the floor's (`context`: `reservationId`, `requestId`, `expiresAtUtc`). `table-request-not-pending`: approving a booking whose guest before has moved since they were asked.",
+            "description": "`reservation-approval-expired`: too late to answer - the short-notice answer window (`approvalExpiresAtUtc`) has closed, or the booking was already declined because nobody answered in time (`declinedBecause` 2); approving also once the booking has started. `context` carries `reservationId`, `status`, `startUtc` and `approvalExpiresAtUtc`. Drop the request from the panel: the diner is told the venue did not answer in time. `conflicting-state`: the booking is not waiting for approval. `reservation-cancelled-by-block` (`context.reservationId`, `cancelledAtUtc`): a no-show block cancelled it - its guest missed three bookings in three days. `reservation-awaiting-earlier-guest`: the booking waits on the guest before it on the table to answer in the app - theirs to answer, not the floor's (`context`: `reservationId`, `requestId`, `expiresAtUtc`). `table-request-not-pending`: approving a booking whose guest before has moved since they were asked.",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -19444,13 +19499,141 @@
         }
       }
     },
+    "/api/reservations/{id}/undo-no-show": {
+      "post": {
+        "tags": [
+          "staff"
+        ],
+        "summary": "Withdraw a no-show marked by mistake",
+        "description": "For the tablet and the console, waiter or above at the booking's branch, **until 05:00 the morning after the booking's service day**, branch time - a booking starting before 05:00 belongs to the evening before, so a 01:00 booking's window closes at 05:00 that same morning. The booking is `Confirmed` again (seat it, or mark it again), and the withdrawal is recorded with who did it and `reason`. If the guest was blocked for no-shows and fewer than three are left to hold the block, it is **lifted** - nothing it cancelled comes back - and the guest is told (`bookings-unblocked`).\n\nAlready withdrawn: `200` with the booking as it stands. **Online only** - not for the offline queue.",
+        "operationId": "undoReservationNoShow",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "allOf": [
+                  {
+                    "$ref": "#/components/schemas/Yalla.Api.Endpoints.UndoNoShowRequest"
+                  }
+                ],
+                "description": "Body of `POST /api/reservations/{id}/undo-no-show`."
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Application.Reservations.ReservationView"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request violated a domain rule or arrived malformed.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No usable token was presented, or the one presented was rejected.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not staff at this booking's branch.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such booking.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "`no-show-undo-window-closed` (`context.undoableUntilUtc`): its service day is over. `conflicting-state`: the booking is not a no-show.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests in the window, or a one-time credential is out of attempts.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected failure. Quote the traceId from the body.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The table's booking lock could not be had in time. `context.retryable` is true: unlike the 409, this one is worth retrying - with the same `clientCommandId`, so a retry that crosses with a late-committing original is recognised as a replay.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.LockTimeoutProblem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/reservations/{id}/no-show": {
       "post": {
         "tags": [
           "staff"
         ],
         "summary": "Mark a booking as a no-show, and free the table",
-        "description": "The same action as `release` with `outcome: 1`, under the name the tablet's late-booking panel uses - one implementation, two doors, so the two cannot drift.\n\n**Never automatic.** Prompt 2's rule that the decision belongs to a waiter applies here more than anywhere: only a person standing in the room knows whether the party is late or absent.\n\nCounts toward the diner's rolling no-show threshold. If they telephoned to say they could not come, use `release` with `outcome: 2` instead - a diner who let the venue know must not be punished for it.\n\n**Only from the booking's start.** Before `startUtc` nobody can have failed to come, so the answer is `409 reservation-not-started` (`context.reservationId`, `context.startUtc`) and nothing changes - the hold stays, the booking stays confirmed. From the start itself there is no further wait: the branch's grace period times the late nudge, and whether a party past their time is late or absent is the waiter's call. To let a booking go earlier, use `release` with `outcome: 2`.",
+        "description": "The same action as `release` with `outcome: 1`, under the name the tablet's late-booking panel uses - one implementation, two doors, so the two cannot drift.\n\n**Never automatic.** Prompt 2's rule that the decision belongs to a waiter applies here more than anywhere: only a person standing in the room knows whether the party is late or absent.\n\nCounts toward the diner's rolling no-show threshold. If they telephoned to say they could not come, use `release` with `outcome: 2` instead - a diner who let the venue know must not be punished for it.\n\n**Only from the booking's start.** Before `startUtc` nobody can have failed to come, so the answer is `409 reservation-not-started` (`context.reservationId`, `context.startUtc`) and nothing changes - the hold stays, the booking stays confirmed. From the start itself there is no further wait: the branch's grace period times the late nudge, and whether a party past their time is late or absent is the waiter's call. To let a booking go earlier, use `release` with `outcome: 2`.\n\n**The guest is told** every time (push `reservation.no-show`, feed `booking-no-show`), and who marked it is recorded. It counts toward a **no-show block** (three in three days, see `docs/reservations.md`) only when marked after the start plus the branch's grace (or the extended hold), and at most one per venue per service day counts. Marked by mistake? `POST /api/reservations/{id}/undo-no-show` until 05:00 the next morning. When this no-show blocked the guest, the answer's `guestBlockedUntilUtc` says until when.",
         "operationId": "markReservationNoShow",
         "parameters": [
           {
@@ -20419,80 +20602,6 @@
         "additionalProperties": false,
         "description": "Polls a Telegram phone verification."
       },
-      "Yalla.Api.Endpoints.CreatePublicBookingRequest": {
-        "required": [
-          "clientCommandId",
-          "date",
-          "deviceId",
-          "guestName",
-          "guestPhone",
-          "partySize",
-          "tableId",
-          "time"
-        ],
-        "type": "object",
-        "properties": {
-          "tableId": {
-            "type": "string",
-            "description": "The table picked off the room photos.",
-            "format": "uuid"
-          },
-          "date": {
-            "type": "string",
-            "description": "The local calendar date at the branch.",
-            "format": "date"
-          },
-          "time": {
-            "type": "string",
-            "description": "The local wall-clock start at the branch.",
-            "format": "time"
-          },
-          "partySize": {
-            "type": "integer",
-            "description": "How many are coming; at most the branch's `unverifiedMaxPartySize`.",
-            "format": "int32"
-          },
-          "guestName": {
-            "type": "string",
-            "description": "Who to ask for at the door."
-          },
-          "guestPhone": {
-            "type": "string",
-            "description": "The number the venue calls, in E.164 (spaces and dashes are dropped)."
-          },
-          "deviceId": {
-            "type": "string",
-            "description": "An id the page generates once and keeps. It scopes a retry to this browser and limits it to one active\nbooking without a verified number. Stored only as a hash."
-          },
-          "clientCommandId": {
-            "type": "string",
-            "description": "The page's id for this booking; a retry from the same browser answers with it.",
-            "format": "uuid"
-          },
-          "stayHint": {
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/Yalla.Domain.Enums.StayHint"
-              }
-            ],
-            "description": "Advisory only.",
-            "nullable": true
-          },
-          "note": {
-            "type": "string",
-            "description": "A note to the venue, at most 500 characters.",
-            "nullable": true
-          },
-          "acceptsFreeByUtc": {
-            "type": "string",
-            "description": "As on the app's booking.",
-            "format": "date-time",
-            "nullable": true
-          }
-        },
-        "additionalProperties": false,
-        "description": "Body of `POST /api/public/branches/{branchId}/bookings`: the app's booking body without the branch\n(the route names it) and the channel (the web's), plus the browser's device id."
-      },
       "Yalla.Api.Endpoints.CreateReservationRequest": {
         "required": [
           "branchId",
@@ -20689,6 +20798,18 @@
         },
         "additionalProperties": false,
         "description": "Body of `POST /api/tabs/join`."
+      },
+      "Yalla.Api.Endpoints.LiftBookingBlockRequest": {
+        "type": "object",
+        "properties": {
+          "reason": {
+            "type": "string",
+            "description": "Why - required, 3 to 500 characters, kept in the audit.",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false,
+        "description": "Body of `POST /api/platform/booking-blocks/{blockId}/lift`."
       },
       "Yalla.Api.Endpoints.LoginDinerRequest": {
         "required": [
@@ -21613,6 +21734,26 @@
         "additionalProperties": false,
         "description": "Body of a state-change request that needs nothing beyond the table."
       },
+      "Yalla.Api.Endpoints.UndoNoShowRequest": {
+        "required": [
+          "clientCommandId"
+        ],
+        "type": "object",
+        "properties": {
+          "clientCommandId": {
+            "type": "string",
+            "description": "The tap's id.",
+            "format": "uuid"
+          },
+          "reason": {
+            "type": "string",
+            "description": "Why it was a mistake - kept on the booking.",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false,
+        "description": "Body of `POST /api/reservations/{id}/undo-no-show`."
+      },
       "Yalla.Api.Endpoints.UpdateDinerProfileRequest": {
         "type": "object",
         "properties": {
@@ -21831,6 +21972,86 @@
         },
         "additionalProperties": false,
         "description": "Taking a line off the bill. It stays visible to the diner, labelled."
+      },
+      "Yalla.Api.Errors.BookingBlockedContext": {
+        "required": [
+          "blockedUntilUtc"
+        ],
+        "type": "object",
+        "properties": {
+          "blockedUntilUtc": {
+            "type": "string",
+            "description": "The end of the block.",
+            "format": "date-time"
+          }
+        },
+        "additionalProperties": false,
+        "description": "When a guest blocked for no-shows may book again."
+      },
+      "Yalla.Api.Errors.BookingBlockedProblem": {
+        "required": [
+          "code",
+          "context",
+          "detail",
+          "status",
+          "title",
+          "traceId",
+          "type"
+        ],
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "description": "A URI naming the problem type, built from Yalla.Api.Errors.ProblemShape.Code."
+          },
+          "title": {
+            "type": "string",
+            "description": "Short, stable summary of the kind of problem."
+          },
+          "status": {
+            "type": "integer",
+            "description": "The HTTP status code, repeated in the body.",
+            "format": "int32"
+          },
+          "detail": {
+            "type": "string",
+            "description": "What went wrong this time, in words."
+          },
+          "instance": {
+            "type": "string",
+            "description": "The request path this happened on.",
+            "nullable": true
+          },
+          "code": {
+            "type": "string",
+            "description": "The stable kebab-case slug. <b>This is what a client branches on.</b>"
+          },
+          "traceId": {
+            "type": "string",
+            "description": "Correlates this response with the one log entry written for it."
+          },
+          "errors": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "description": "Field-level complaints, when the failure was about the payload.",
+            "nullable": true
+          },
+          "context": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Yalla.Api.Errors.BookingBlockedContext"
+              }
+            ],
+            "description": "When a guest blocked for no-shows may book again."
+          }
+        },
+        "additionalProperties": false,
+        "description": "`booking-blocked-no-shows`, 403: the guest missed three bookings in three days, every booking of theirs not\n            yet started was cancelled, and they cannot book or move a booking until `context.blockedUntilUtc`."
       },
       "Yalla.Api.Errors.BookingTabRefusedContext": {
         "required": [
@@ -22855,55 +23076,62 @@
       },
       "Yalla.Api.Errors.PhoneHasActiveBookingContext": {
         "required": [
-          "branchName",
-          "code",
-          "localDate",
-          "localStartTime",
-          "reservationId",
-          "startUtc",
-          "venueName"
+          "maxActiveBookings"
         ],
         "type": "object",
         "properties": {
+          "maxActiveBookings": {
+            "type": "integer",
+            "description": "The limit: 3.",
+            "format": "int32"
+          },
           "reservationId": {
             "type": "string",
             "description": "That booking.",
-            "format": "uuid"
+            "format": "uuid",
+            "nullable": true
           },
           "code": {
             "type": "string",
-            "description": "Its door code."
+            "description": "Its door code.",
+            "nullable": true
           },
           "startUtc": {
             "type": "string",
             "description": "When it starts.",
-            "format": "date-time"
+            "format": "date-time",
+            "nullable": true
           },
           "localDate": {
             "type": "string",
             "description": "Its date on the branch's calendar, e.g. `2026-10-22`.",
-            "format": "date"
+            "format": "date",
+            "nullable": true
           },
           "localStartTime": {
             "type": "string",
             "description": "Its start on the branch's wall clock, e.g. `19:30:00`.",
-            "format": "time"
+            "format": "time",
+            "nullable": true
           },
           "venueName": {
             "type": "string",
-            "description": "Where."
+            "description": "Where.",
+            "nullable": true
           },
           "branchName": {
             "type": "string",
-            "description": "Which branch."
+            "description": "Which branch.",
+            "nullable": true
           }
         },
         "additionalProperties": false,
-        "description": "The booking a number already holds, named to the account that holds it - and only to it."
+        "description": "The most active bookings one number holds, and the caller's own earliest active booking - named to the account\nthat holds it, and only to it."
       },
       "Yalla.Api.Errors.PhoneHasActiveBookingProblem": {
         "required": [
           "code",
+          "context",
           "detail",
           "status",
           "title",
@@ -22959,12 +23187,11 @@
                 "$ref": "#/components/schemas/Yalla.Api.Errors.PhoneHasActiveBookingContext"
               }
             ],
-            "description": "The booking a number already holds, named to the account that holds it - and only to it.",
-            "nullable": true
+            "description": "The most active bookings one number holds, and the caller's own earliest active booking - named to the account\nthat holds it, and only to it."
           }
         },
         "additionalProperties": false,
-        "description": "`phone-has-active-booking`, 409: the booker's number already holds a pending or confirmed booking\n            that is not over, at any venue. `context` is present only when that booking is the calling\n            account's own; a web visitor, or an account booking under a number another account holds, gets no\n            context - say \"this number already has an active booking\". `device-has-active-booking` (the web\n            route: this browser already holds an unverified booking) arrives on the same status with no context."
+        "description": "`phone-has-active-booking`, 409: the booker's proved number already holds three pending or confirmed\n            bookings that are not over, at any venue - the most it holds (decided 2026-10-20, replacing one per number).\n            `context.maxActiveBookings` is the limit; the booking members name the caller's own earliest active\n            booking (absent only for a booking made without proof while Yalla#54 allowed it)."
       },
       "Yalla.Api.Errors.ReviewNeedsVisitContext": {
         "required": [
@@ -25307,16 +25534,11 @@
             "type": "integer",
             "format": "int32"
           },
-          "unverifiedBookingsNeedApproval": {
+          "unverifiedScansNeedAdmission": {
             "type": "boolean",
             "nullable": true
           },
-          "unverifiedMaxPartySize": {
-            "type": "integer",
-            "format": "int32",
-            "nullable": true
-          },
-          "unverifiedScansNeedAdmission": {
+          "autoConfirmGuestsWithGoodRecord": {
             "type": "boolean",
             "nullable": true
           }
@@ -25353,6 +25575,7 @@
       "Yalla.Application.BranchSettings.ReservationPolicyView": {
         "required": [
           "autoConfirm",
+          "autoConfirmGuestsWithGoodRecord",
           "bookingWindowDays",
           "bufferMinutes",
           "cancellationDeadlineMinutes",
@@ -25363,8 +25586,6 @@
           "pricesIncludeVat",
           "serviceChargePercent",
           "turnTimeMinutes",
-          "unverifiedBookingsNeedApproval",
-          "unverifiedMaxPartySize",
           "unverifiedScansNeedAdmission",
           "walkInHoldbackMinutes"
         ],
@@ -25426,14 +25647,10 @@
             "type": "integer",
             "format": "int32"
           },
-          "unverifiedBookingsNeedApproval": {
+          "unverifiedScansNeedAdmission": {
             "type": "boolean"
           },
-          "unverifiedMaxPartySize": {
-            "type": "integer",
-            "format": "int32"
-          },
-          "unverifiedScansNeedAdmission": {
+          "autoConfirmGuestsWithGoodRecord": {
             "type": "boolean"
           }
         },
@@ -26448,6 +26665,24 @@
           "nextReservationPhoneUnverified": {
             "type": "boolean",
             "description": "True when the next booking was made without a proved phone number - \"number not verified\" beside\nit. False when there is no next booking."
+          },
+          "nextReservationGuestRecord": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Yalla.Application.Reservations.GuestRecord"
+              }
+            ],
+            "description": "The next booking's guest record - as on the console's list, and under the same rule: a proved account behind\nit and the booking today or still to come. Absent otherwise. See Yalla.Application.Reservations.GuestRecord.",
+            "nullable": true
+          },
+          "sittingGuestRecord": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Yalla.Application.Reservations.GuestRecord"
+              }
+            ],
+            "description": "The guest record of the party sitting here now, when they were seated against a booking a proved account\nmade. Absent for a walk-in, a scan, or nobody.",
+            "nullable": true
           },
           "sittingPromisedFreeByUtc": {
             "type": "string",
@@ -27951,6 +28186,15 @@
             "type": "boolean",
             "description": "With LateNudgeAtUtc: whether it has gone out.",
             "nullable": true
+          },
+          "guestRecord": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Yalla.Application.Reservations.GuestRecord"
+              }
+            ],
+            "description": "The guest's record over the last twelve months at every venue; absent when no verified account is behind the\nbooking. See Yalla.Application.Reservations.GuestRecord.",
+            "nullable": true
           }
         },
         "additionalProperties": false,
@@ -27959,6 +28203,7 @@
       "Yalla.Application.Overview.OverviewBookingCounts": {
         "required": [
           "cancelled",
+          "cancelledBySystem",
           "completed",
           "confirmed",
           "late",
@@ -28019,6 +28264,11 @@
           "pendingChanges": {
             "type": "integer",
             "description": "Of Yalla.Application.Overview.OverviewBookingCounts.Confirmed, those with a change waiting for an answer.",
+            "format": "int32"
+          },
+          "cancelledBySystem": {
+            "type": "integer",
+            "description": "Of Yalla.Application.Overview.OverviewBookingCounts.Cancelled, those the platform cancelled - their guest was blocked for no-shows - and not the\nvenue or the guest.",
             "format": "int32"
           }
         },
@@ -29681,6 +29931,15 @@
           "canChange": {
             "type": "boolean",
             "description": "Whether `POST .../reschedule` would be considered at all: the booking is still to come, pending or\nconfirmed, and its account is live with a proved number. False otherwise - hide \"Change\"."
+          },
+          "cancelledBecause": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Yalla.Domain.Occupancy.CancellationCause"
+              }
+            ],
+            "description": "Set when the platform cancelled it - 1, its guest was blocked for three no-shows in three days.",
+            "nullable": true
           }
         },
         "additionalProperties": false,
@@ -30280,12 +30539,9 @@
       },
       "Yalla.Application.Public.PublicReservationPolicy": {
         "required": [
-          "acceptsUnverifiedBookings",
           "cancellationDeadlineMinutes",
           "minLeadMinutes",
-          "turnTimeMinutes",
-          "unverifiedBookingsNeedApproval",
-          "unverifiedMaxPartySize"
+          "turnTimeMinutes"
         ],
         "type": "object",
         "properties": {
@@ -30303,20 +30559,6 @@
             "type": "integer",
             "description": "How long before the start a diner may still cancel freely. On the page because a deadline\nnobody was told about is a deadline that produces no-shows rather than cancellations.",
             "format": "int32"
-          },
-          "unverifiedMaxPartySize": {
-            "type": "integer",
-            "description": "The largest party the page may book without a verified phone number. Published because the page must\nsay \"for more, verify your number\" before the visitor commits; it is a refusal, not an approval\nthreshold, so it opens no loophole. <b>0</b>: the branch takes no bookings without a verified number -\nsee Yalla.Application.Public.PublicReservationPolicy.AcceptsUnverifiedBookings.",
-            "format": "int32"
-          },
-          "unverifiedBookingsNeedApproval": {
-            "type": "boolean",
-            "description": "Whether a booking without a verified number waits for the venue to confirm it - so the page can say so\nbefore the visitor books, rather than after."
-          },
-          "acceptsUnverifiedBookings": {
-            "type": "boolean",
-            "description": "Whether the page offers booking without a verified number at all: false when the branch's cap is 0,\nand then the only door is verifying the number (a booking without it is\n`422 branch-requires-verified-phone`).",
-            "readOnly": true
           }
         },
         "additionalProperties": false,
@@ -31069,7 +31311,7 @@
                 "$ref": "#/components/schemas/Yalla.Application.Reports.Compared"
               }
             ],
-            "description": "Those called off, by anyone."
+            "description": "Those called off by the guest or the venue - not the platform's (see SystemCancelled)."
           },
           "noShow": {
             "allOf": [
@@ -31117,6 +31359,15 @@
               }
             ],
             "description": "Booked from the public page by somebody with no registered device. <b>These people cannot be\nreminded</b>: no app means no push channel, so the reminder, the late nudge and one-tap cancel -\nthe entire no-show story - do not reach them. This is the number that decides whether an SMS or\nTelegram channel is worth paying for. See `docs/reports.md`."
+          },
+          "systemCancelled": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Yalla.Application.Reports.Compared"
+              }
+            ],
+            "description": "Cancelled by the platform, not the venue: the guest was blocked for three no-shows in three days elsewhere. Left\nout of Cancelled, its rate and LateCancellations.",
+            "nullable": true
           }
         },
         "additionalProperties": false
@@ -31568,6 +31819,69 @@
         "additionalProperties": false,
         "description": "The booking before one awaiting approval, on its table, that day."
       },
+      "Yalla.Application.Reservations.BookingBlockView": {
+        "required": [
+          "blockedAtUtc",
+          "blockedUntilUtc",
+          "blockId",
+          "dinerUserId"
+        ],
+        "type": "object",
+        "properties": {
+          "blockId": {
+            "type": "string",
+            "description": "The block.",
+            "format": "uuid"
+          },
+          "dinerUserId": {
+            "type": "string",
+            "description": "The account blocked.",
+            "format": "uuid"
+          },
+          "dinerDisplayName": {
+            "type": "string",
+            "description": "Its display name, when it has one.",
+            "nullable": true
+          },
+          "phoneE164": {
+            "type": "string",
+            "description": "The proved number the block also holds, while it holds one.",
+            "nullable": true
+          },
+          "blockedAtUtc": {
+            "type": "string",
+            "description": "When it began.",
+            "format": "date-time"
+          },
+          "blockedUntilUtc": {
+            "type": "string",
+            "description": "When it ends on its own.",
+            "format": "date-time"
+          },
+          "liftedAtUtc": {
+            "type": "string",
+            "description": "When it was lifted early.",
+            "format": "date-time",
+            "nullable": true
+          },
+          "liftedBecause": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Yalla.Domain.Occupancy.BookingBlockLiftCause"
+              }
+            ],
+            "description": "Why: 1 a platform admin, 2 a no-show withdrawn.",
+            "nullable": true
+          },
+          "liftReason": {
+            "type": "string",
+            "description": "The reason given.",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false,
+        "description": "One no-show block as the platform console shows it."
+      },
       "Yalla.Application.Reservations.BranchAvailability": {
         "required": [
           "asOfUtc",
@@ -31828,6 +32142,56 @@
         "additionalProperties": false,
         "description": "What extending the hold did."
       },
+      "Yalla.Application.Reservations.GuestRecord": {
+        "required": [
+          "booked",
+          "came",
+          "isNewGuest",
+          "lateCancellations",
+          "noShows",
+          "unmarked"
+        ],
+        "type": "object",
+        "properties": {
+          "booked": {
+            "type": "integer",
+            "description": "Bookings whose time came, exactly Came + NoShows +\nLateCancellations + Unmarked. A venue's cancellation or decline (or the\nplatform's), a cancellation in good time and a booking still waiting for the venue are not counted at all.",
+            "format": "int32"
+          },
+          "came": {
+            "type": "integer",
+            "description": "Visits the venue vouched for: a waiter seated the party, or the sitting had an order sent to the kitchen or a\npayment (review S1). Opening a tab from the booking code alone never counts.",
+            "format": "int32"
+          },
+          "noShows": {
+            "type": "integer",
+            "description": "Marked as not having come (and not withdrawn).",
+            "format": "int32"
+          },
+          "lateCancellations": {
+            "type": "integer",
+            "description": "Cancelled by the guest after the venue's deadline, when the booking was confirmed and had been made before that\ndeadline (review S2).",
+            "format": "int32"
+          },
+          "unmarked": {
+            "type": "integer",
+            "description": "Bookings whose time came and went with nobody on the floor settling them (review S5): confirmed and past their end\nwith nobody seating or marking them, or opened only from the booking code with nothing ordered or paid. Neither a\nvisit nor a no-show - most often a venue that does not seat guests in Yalla.",
+            "format": "int32"
+          },
+          "isNewGuest": {
+            "type": "boolean",
+            "description": "Nothing booked in the window: show a neutral \"new guest\", never a warning."
+          },
+          "blockedUntilUtc": {
+            "type": "string",
+            "description": "While the guest is blocked from booking for no-shows (Yalla.Domain.Occupancy.NoShowBlockRules): when the\nblock ends. Absent otherwise.",
+            "format": "date-time",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false,
+        "description": "How a guest has kept their bookings over the last twelve months, at every venue - what a venue sees beside a\nbooking before it decides, and what the guest sees of themselves."
+      },
       "Yalla.Application.Reservations.IncomingTableRequest": {
         "required": [
           "expiresAtUtc",
@@ -31893,6 +32257,15 @@
               "$ref": "#/components/schemas/Yalla.Application.Reservations.ReservationView"
             },
             "description": "Everything else - completed, cancelled, missed - most recent first."
+          },
+          "guestRecord": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Yalla.Application.Reservations.GuestRecord"
+              }
+            ],
+            "description": "The diner's own record over the last twelve months - what venues see beside their bookings. Always present.",
+            "nullable": true
           }
         },
         "additionalProperties": false,
@@ -31968,6 +32341,12 @@
           "wasReplay": {
             "type": "boolean",
             "description": "True when the booking had already been released and this is that answer."
+          },
+          "guestBlockedUntilUtc": {
+            "type": "string",
+            "description": "Set when this no-show blocked the guest from booking (three in three days): until when - so the floor can tell\nthe waiter at once. Absent otherwise, and repeated on a replay of that no-show.",
+            "format": "date-time",
+            "nullable": true
           }
         },
         "additionalProperties": false,
@@ -31989,7 +32368,6 @@
           "localDate",
           "localEndTime",
           "localStartTime",
-          "madeWithYourNumber",
           "partySize",
           "phoneUnverified",
           "startUtc",
@@ -32094,11 +32472,16 @@
           },
           "phoneUnverified": {
             "type": "boolean",
-            "description": "True when the booking was made without a proved phone number - a web visitor who did not verify,\nor an app account whose number was never proved. Staff show \"number not verified\" beside it."
+            "description": "True when the booking was made without a proved phone number - only a booking made while Yalla#54's\nunverified booking was live (2026-10-20): a web visitor who did not verify, or an app account whose number\nwas never proved. No booking is made that way any more; the flag stays as history, and staff show \"number\nnot verified\" beside such a booking while its account has still not proved its number."
           },
-          "madeWithYourNumber": {
-            "type": "boolean",
-            "description": "On the reader's own list only: true for a booking somebody else made with the reader's (proved) phone\nnumber and no proof of it. Show it as \"made with your number, not by you\"; the reader may cancel it\nwith the usual cancel. False for the reader's own bookings and on every other read."
+          "guestRecord": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Yalla.Application.Reservations.GuestRecord"
+              }
+            ],
+            "description": "The guest's record over the last twelve months at every venue - on the venue's reads of a booking only\n(the console's list, the floor's awaiting cards, the answers to approve and reject). Absent on every diner\nand public read, and for a booking with no verified account behind it. See Yalla.Application.Reservations.GuestRecord.",
+            "nullable": true
           },
           "note": {
             "type": "string",
@@ -32122,6 +32505,15 @@
           "cancelledAfterDeadline": {
             "type": "boolean",
             "description": "Whether the cancellation came in past the branch's free-cancellation deadline. Recorded,\nnever punished here."
+          },
+          "cancelledBecause": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Yalla.Domain.Occupancy.CancellationCause"
+              }
+            ],
+            "description": "Why the platform cancelled it, when neither the guest nor the venue did: 1 = the guest was blocked for\nthree no-shows in three days. Absent on every other booking. The status is then CancelledByVenue.",
+            "nullable": true
           },
           "cancellationDeadlineUtc": {
             "type": "string",
@@ -34477,15 +34869,19 @@
         "enum": [
           1,
           2,
-          3
+          3,
+          4,
+          5
         ],
         "type": "integer",
-        "description": "What a branch change-stream entry signals beyond the table's status, when it is about the tab on the\ntable rather than the table itself. Persisted as its number on `TableStateChanges.Signal`.\n\nValues: 1 TabAwaitingAdmission, 2 TabAdmitted, 3 TabAdmissionRejected.",
+        "description": "What a branch change-stream entry signals beyond the table's status, when it is about the tab on the\ntable rather than the table itself. Persisted as its number on `TableStateChanges.Signal`.\n\nValues: 1 TabAwaitingAdmission, 2 TabAdmitted, 3 TabAdmissionRejected, 4 BookingCancelledByBlock, 5 BookingChanged.",
         "format": "int32",
         "x-enum-varnames": [
           "TabAwaitingAdmission",
           "TabAdmitted",
-          "TabAdmissionRejected"
+          "TabAdmissionRejected",
+          "BookingCancelledByBlock",
+          "BookingChanged"
         ]
       },
       "Yalla.Domain.Enums.TableSessionSource": {
@@ -34548,6 +34944,30 @@
           "Android"
         ]
       },
+      "Yalla.Domain.Occupancy.BookingBlockLiftCause": {
+        "enum": [
+          1,
+          2
+        ],
+        "type": "integer",
+        "description": "Why a block was lifted before it ended. Persisted as its number.\n\nValues: 1 PlatformAdmin, 2 NoShowUndone.",
+        "format": "int32",
+        "x-enum-varnames": [
+          "PlatformAdmin",
+          "NoShowUndone"
+        ]
+      },
+      "Yalla.Domain.Occupancy.CancellationCause": {
+        "enum": [
+          1
+        ],
+        "type": "integer",
+        "description": "Why the platform, not the guest nor the venue, cancelled a booking. Stored on the booking\n(`Reservation.CancelledBecause`) beside the status, which is `CancelledByVenue` - it was not the\nguest's choice, and it never counts in a guest record. Persisted as its number.\n\nValues: 1 NoShowBlock.",
+        "format": "int32",
+        "x-enum-varnames": [
+          "NoShowBlock"
+        ]
+      },
       "Yalla.Domain.Occupancy.ReservationRejectionReason": {
         "enum": [
           1,
@@ -34562,12 +34982,10 @@
           10,
           11,
           12,
-          13,
-          14,
-          15
+          13
         ],
         "type": "integer",
-        "description": "Why a table cannot be booked for a particular slot.\n\nValues: 1 LeadTimeTooShort, 2 OutsideBookingWindow, 3 OutsideOpeningHours, 4 PartyExceedsCapacity, 5 SeatOverhangExceeded, 6 TableNotBookable, 7 TableOutOfService, 8 TableAlreadyBooked, 9 LocalTimeDoesNotExist, 10 TableCurrentlyOccupied, 11 TableJustBooked, 12 NextBookingTooSoon, 13 EarlierGuestBeingAsked, 14 UnverifiedPartyTooLarge, 15 VerifiedPhoneRequired.",
+        "description": "Why a table cannot be booked for a particular slot.\n\nValues: 1 LeadTimeTooShort, 2 OutsideBookingWindow, 3 OutsideOpeningHours, 4 PartyExceedsCapacity, 5 SeatOverhangExceeded, 6 TableNotBookable, 7 TableOutOfService, 8 TableAlreadyBooked, 9 LocalTimeDoesNotExist, 10 TableCurrentlyOccupied, 11 TableJustBooked, 12 NextBookingTooSoon, 13 EarlierGuestBeingAsked.",
         "format": "int32",
         "x-enum-varnames": [
           "LeadTimeTooShort",
@@ -34582,9 +35000,7 @@
           "TableCurrentlyOccupied",
           "TableJustBooked",
           "NextBookingTooSoon",
-          "EarlierGuestBeingAsked",
-          "UnverifiedPartyTooLarge",
-          "VerifiedPhoneRequired"
+          "EarlierGuestBeingAsked"
         ]
       }
     },

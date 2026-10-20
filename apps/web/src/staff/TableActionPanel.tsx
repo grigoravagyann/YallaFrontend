@@ -2,6 +2,7 @@ import type {
   AffectedReservation,
   DerivedTableState,
   FloorTable,
+  GuestRecord,
   ReleaseOutcome,
   ServiceRequest,
   StaffTab,
@@ -13,6 +14,7 @@ import type { DayAndTime } from '@yalla/format';
 import { useTranslation } from '@yalla/i18n';
 import type { TFunction } from 'i18next';
 import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
+import { GuestRecordLine } from '../console/venue/overview/GuestRecordLine';
 import { AdmissionDecision, type AdmissionOutcome, type AdmissionSubject } from './AdmissionPanel';
 import { billRequestText } from './billRequestText';
 import { seatedMinutes } from './seatedMinutes';
@@ -69,6 +71,12 @@ export interface TableActionPanelProps {
    * whole reason the list exists.
    */
   readonly affectedReservations: readonly AffectedReservation[];
+  /**
+   * The next booking's guest record, when the floor knows it. The table read
+   * carries none; the awaiting list does, so only a next booking that still
+   * waits for an answer has one. Absent: nothing is said.
+   */
+  readonly nextBookingRecord?: GuestRecord | null | undefined;
   readonly onAct: (kind: TableActionKind, input?: { partySize?: number }) => void;
   /** Let a booking go, with the outcome the waiter chose. Never a default. */
   readonly onRelease: (reservationId: string, outcome: ReleaseOutcome) => void;
@@ -174,6 +182,13 @@ export function TableActionPanel(props: TableActionPanelProps) {
     <>
       {bookingWhen}
       {bookingFlag}
+      <GuestRecordLine
+        record={props.nextBookingRecord}
+        surface="staff"
+        timeZoneId={timeZoneId}
+        now={new Date()}
+        className="tp-record"
+      />
       {detail?.nextReservationPromisedFreeByUtc ? (
         <small>
           {t('table.mustFreeBy', { time: format.time(detail.nextReservationPromisedFreeByUtc) })}
@@ -371,7 +386,17 @@ export function TableActionPanel(props: TableActionPanelProps) {
                   </small>
                 ) : null}
               </Fact>
-              <Fact label={t('table.party')}>{detail?.partySize ?? '—'}</Fact>
+              <Fact label={t('table.party')}>
+                {detail?.partySize ?? '—'}
+                {/* Seated on a proved guest's booking: their record (wire §0a). */}
+                <GuestRecordLine
+                  record={detail?.sittingGuestRecord}
+                  surface="staff"
+                  timeZoneId={timeZoneId}
+                  now={new Date()}
+                  className="tp-record"
+                />
+              </Fact>
               <Fact label={t('table.fact.bill')}>
                 {balance !== null ? format.dram(balance) : '—'}
               </Fact>

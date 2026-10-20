@@ -331,3 +331,146 @@ describe('a booking changed or cancelled with its link', () => {
     }
   });
 });
+
+/*
+ * Guest record (2026-10-20): a venue marked a booking a no-show; three in
+ * three days paused booking for a week and cancelled what had not started;
+ * and the pause lifted early. The two about the pause open the bookings tab.
+ */
+describe('no-shows and the pause on booking, in the feed', () => {
+  const ZONE = 'Asia/Yerevan';
+  const BLOCK = {
+    blockedUntilUtc: '2026-10-27T09:30:00Z',
+    blockedUntilLocalDate: '2026-10-27',
+    cancelledCount: '2',
+  };
+
+  it('says how many bookings went and when booking opens again, plural by the count', () => {
+    const copy = notificationCopy(
+      row({ kind: 'bookings-blocked-no-shows', reservationId: null, params: BLOCK }),
+      ZONE,
+    );
+    expect(copy.titleKey).toBe('notifications.kind.bookingsBlockedNoShows.title');
+    expect(copy.bodyKey).toBe('notifications.kind.bookingsBlockedNoShows.body');
+    expect(copy.params).toMatchObject({ count: 2, day: '27.10', time: '13:30' });
+    const en = dinerResources.en.diner;
+    expect(lookup(en, `${copy.bodyKey}_one`)).toContain('{{count}}');
+    expect(lookup(en, `${copy.bodyKey}_other`)).toContain('{{time}}');
+  });
+
+  it('leaves the count out when nothing was cancelled, and the time when it has none', () => {
+    expect(
+      notificationCopy(
+        row({ kind: 'bookings-blocked-no-shows', params: { ...BLOCK, cancelledCount: '0' } }),
+        ZONE,
+      ).bodyKey,
+    ).toBe('notifications.kind.bookingsBlockedNoShowsNone.body');
+    expect(
+      notificationCopy(row({ kind: 'bookings-blocked-no-shows', params: {} }), ZONE).bodyKey,
+    ).toBe('notifications.kind.bookingsBlockedNoShowsPlain.body');
+  });
+
+  it('reads the end from the instant when the row has no local day', () => {
+    const copy = notificationCopy(
+      row({
+        kind: 'bookings-blocked-no-shows',
+        params: { blockedUntilUtc: BLOCK.blockedUntilUtc, cancelledCount: '1' },
+      }),
+      ZONE,
+    );
+    expect(copy.params).toMatchObject({ count: 1, day: '27.10', time: '13:30' });
+  });
+
+  // Review round 2 (N4): one clock for day and time. 21:30 UTC on the 27th
+  // is already the 28th at the venue; a phone on UTC reads the 27th, 21:30 —
+  // never the venue's day beside the phone's time.
+  it('says day and time on the phone’s clock, even where the venue’s day differs', () => {
+    const copy = notificationCopy(
+      row({
+        kind: 'bookings-blocked-no-shows',
+        params: {
+          blockedUntilUtc: '2026-10-27T21:30:00Z',
+          blockedUntilLocalDate: '2026-10-28',
+          cancelledCount: '1',
+        },
+      }),
+      'UTC',
+    );
+    expect(copy.params).toMatchObject({ day: '27.10', time: '21:30' });
+  });
+
+  it('says a no-show was marked, where and when, and to contact the venue', () => {
+    const copy = notificationCopy(
+      row({
+        kind: 'booking-no-show',
+        branchName: null,
+        params: {
+          venueName: 'Café Aram',
+          branchName: 'Main',
+          date: '2026-10-19',
+          time: '19:30',
+          partySize: '2',
+          reservationCode: 'K7Q2LM',
+        },
+      }),
+    );
+    expect(copy).toEqual({
+      titleKey: 'notifications.kind.bookingNoShow.title',
+      bodyKey: 'notifications.kind.bookingNoShow.body',
+      params: { place: 'Main', day: '19.10', time: '19:30' },
+    });
+    expect(notificationCopy(row({ kind: 'booking-no-show', params: {} })).bodyKey).toBe(
+      'notifications.kind.bookingNoShowPlain.body',
+    );
+  });
+
+  it('says why the pause was lifted early', () => {
+    const lifted = (liftedBecause?: string) =>
+      notificationCopy(
+        row({
+          kind: 'bookings-unblocked',
+          params: liftedBecause ? { liftedBecause } : {},
+        }),
+      );
+    expect(lifted('1').bodyKey).toBe('notifications.kind.bookingsUnblockedLifted.body');
+    expect(lifted('2').bodyKey).toBe('notifications.kind.bookingsUnblockedUndone.body');
+    expect(lifted().bodyKey).toBe('notifications.kind.bookingsUnblocked.body');
+    expect(lifted('1').titleKey).toBe('notifications.kind.bookingsUnblocked.title');
+  });
+
+  it('opens the bookings tab for the pause, and reads the list again', () => {
+    for (const kind of ['bookings-blocked-no-shows', 'bookings-unblocked']) {
+      const pause = row({ kind, reservationId: null, branchId: null });
+      expect(notificationRoute(pause)).toEqual({ pathname: '/(tabs)/bookings' });
+      expect(bookingKeysForRow(pause)).toEqual([['bookings']]);
+    }
+  });
+
+  it('opens the booking a no-show was marked on', () => {
+    const noShow = row({ kind: 'booking-no-show' });
+    expect(notificationRoute(noShow)).toEqual({
+      pathname: '/booking/[bookingId]',
+      params: { bookingId: 'r1' },
+    });
+    expect(bookingKeysForRow(noShow)).toContainEqual(['booking', 'r1']);
+  });
+
+  it('has every line in every language', () => {
+    for (const bundle of Object.values(dinerResources)) {
+      for (const key of [
+        'bookingsBlockedNoShows.title',
+        'bookingsBlockedNoShowsNone.body',
+        'bookingsBlockedNoShowsPlain.body',
+        'bookingNoShow.title',
+        'bookingNoShow.body',
+        'bookingNoShowPlain.body',
+        'bookingsUnblocked.title',
+        'bookingsUnblocked.body',
+        'bookingsUnblockedLifted.body',
+        'bookingsUnblockedUndone.body',
+      ]) {
+        expect(typeof lookup(bundle.diner, `notifications.kind.${key}`)).toBe('string');
+      }
+    }
+  });
+});

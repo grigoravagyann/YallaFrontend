@@ -8,6 +8,7 @@ import type {
   RejectTabCommand,
   TabAwaitingAdmission,
 } from './contracts/admission';
+import type { ReservationStatusCode } from './contracts/push';
 import type { Menu } from './contracts/menu';
 import type { StaffFloor, TableActionCommand, TableActionResult } from './contracts/service';
 import type {
@@ -92,6 +93,17 @@ export interface StaffGateway {
    * who phoned to cancel.
    */
   releaseReservation(command: ReleaseReservationCommand): Promise<ReservationReleaseResult>;
+
+  /**
+   * Undo a no-show marked by mistake, until 05:00 the next morning (guest
+   * record review round, 2026-10-20). Confirmed again; if that leaves the guest
+   * under the no-show block's threshold, their block is lifted (nothing they
+   * lost comes back) and they are told.
+   *
+   * @throws {NoShowUndoWindowClosedError} 409 `no-show-undo-window-closed`.
+   * @throws {ConcurrencyConflictError} 409 `conflicting-state` — not a no-show.
+   */
+  undoNoShow(command: UndoNoShowCommand): Promise<UndoNoShowResult>;
 
   // --- Bookings waiting for the floor ------------------------------------
 
@@ -282,4 +294,30 @@ export interface ReservationReleaseResult {
    */
   readonly tableFreed: boolean;
   readonly wasReplay: boolean;
+  /**
+   * Set only when this no-show blocked its guest — the third in three days —
+   * until when (and again on a replay of that same no-show). Tell the waiter.
+   */
+  readonly guestBlockedUntilUtc?: string | null | undefined;
+}
+
+/**
+ * Undo a no-show marked by mistake — `POST /api/reservations/{id}/undo-no-show`,
+ * waiter or above at the booking's branch, until 05:00 the next morning on the
+ * branch's clock ({@link noShowUndoableUntil}). Online only, never queued.
+ */
+export interface UndoNoShowCommand {
+  readonly reservationId: string;
+  /** One per tap, reused on a retry. */
+  readonly clientCommandId: string;
+  /** For the audit row; at most 500 characters. Never required. */
+  readonly reason?: string | undefined;
+}
+
+/** The booking after the undo: confirmed again (or as it stands, when already undone). */
+export interface UndoNoShowResult {
+  readonly reservationId: string;
+  readonly status: ReservationStatusCode;
+  readonly tableId: string;
+  readonly tableLabel: string;
 }

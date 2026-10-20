@@ -136,16 +136,16 @@ describe('F6 — booking codes are minted, not derived from the booking count', 
     const gateway = createMockGateway({
       now: WEDNESDAY_2PM,
       simulateJoiners: false,
-      // Six bookings for one diner: from before one number, one active booking.
-      bookingsBeforeTheNumberRule: true,
     });
     await verified(gateway);
     const seen = new Set<string>();
-    // A sitting apart: one diner holds one table at a time.
+    // A sitting apart: one diner holds one table at a time — and at most
+    // three active bookings, so each is let go once its code is seen.
     for (const time of ['11:00', '12:30', '14:00', '15:30', '17:00', '18:30']) {
-      const { code } = await bookAt(gateway, NORTH, `2026-09-17T${time}:00.000Z`);
+      const { id, code } = await bookAt(gateway, NORTH, `2026-09-17T${time}:00.000Z`);
       expect(seen.has(code)).toBe(false);
       seen.add(code);
+      await gateway.cancelBooking(id);
     }
   });
 });

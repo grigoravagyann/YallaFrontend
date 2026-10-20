@@ -8,7 +8,7 @@ import type {
 } from '@yalla/api';
 import { I18nextProvider, i18next } from '@yalla/i18n';
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
-import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { initConsoleTestI18n } from '../console/venue/reports/testHarness';
 import { TableActionPanel, type TableActionPanelProps } from './TableActionPanel';
 
@@ -299,6 +299,15 @@ describe('a held table', () => {
 });
 
 describe('a free table whose booking is late', () => {
+  // Midday: twenty minutes back is the same day wherever the run is, so the
+  // line says a bare time rather than yesterday's date (a midnight flake).
+  beforeEach(() => {
+    vi.useFakeTimers({ now: new Date('2026-10-21T08:00:00.000Z'), shouldAdvanceTime: true });
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   it('holds it, or releases the booking with a reason', () => {
     const start = minutesFromNow(-20.5);
     const { onAct, onRelease } = show({
@@ -467,5 +476,60 @@ describe('the panel itself', () => {
     fireEvent.click(button('Close and go back to the floor'));
     fireEvent.keyDown(panel, { key: 'Escape' });
     expect(onClose).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe("the next booking's guest record", () => {
+  const booked = {
+    nextReservationId: 'r-next',
+    nextReservationStartUtc: minutesFromNow(90),
+    nextReservationPartySize: 3,
+  };
+
+  it('is said under the next booking when the floor has it', () => {
+    const { panel } = show({
+      detail: booked,
+      nextBookingRecord: {
+        booked: 6,
+        came: 4,
+        noShows: 2,
+        lateCancellations: 0,
+        unmarked: 0,
+        isNewGuest: false,
+        blockedUntilUtc: null,
+      },
+    });
+    const next = within(panel).getByText('Next booking').nextElementSibling as HTMLElement;
+    expect(next.querySelector('.guest-record')?.textContent).toMatch(
+      /: 6 bookings · 4 came · 2 no-shows$/u,
+    );
+  });
+
+  it('is not said when no record came with it', () => {
+    const { panel } = show({ detail: booked });
+    expect(panel.querySelector('.guest-record')).toBeNull();
+  });
+  it("says the sitting party's record beside the party, when the floor has it (wire §0a)", () => {
+    const { panel } = show({
+      table: { state: 'occupied' },
+      detail: {
+        physicalStatus: 'occupied',
+        seatedAtUtc: minutesFromNow(-30),
+        partySize: 2,
+        sittingGuestRecord: {
+          booked: 3,
+          came: 3,
+          noShows: 0,
+          lateCancellations: 0,
+          unmarked: 0,
+          isNewGuest: false,
+          blockedUntilUtc: null,
+        },
+      },
+    });
+    const party = within(panel).getByText('Party').nextElementSibling as HTMLElement;
+    expect(party.querySelector('.guest-record')?.textContent).toMatch(
+      /: 3 bookings · 3 came · 0 no-shows$/u,
+    );
   });
 });

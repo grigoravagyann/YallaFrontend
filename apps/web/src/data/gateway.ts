@@ -97,7 +97,7 @@ export const staffDataGateway: StaffGateway = resolveStaffGateway({
   mockBookingTimes: import.meta.env.MODE !== 'test',
   // Mock only: a busy kitchen pass — late tickets, notes, one from the app.
   mockKitchen: import.meta.env.MODE !== 'test',
-  // Mock only: tables waiting to be let in, and bookings without a verified number.
+  // Mock only: tables waiting for a waiter to let them in.
   mockUnverifiedGuests: import.meta.env.MODE !== 'test',
   persist: mockPersistence('staff'),
 });

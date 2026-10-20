@@ -16,6 +16,7 @@ import {
   ReservationNotStartedError,
   TableNotSeatedError,
   TabAdmissionDecidedError,
+  NoShowUndoWindowClosedError,
 } from '../contracts/errors';
 import {
   ADMITTED,
@@ -74,10 +75,13 @@ import {
 } from '../contracts/approvals';
 import type {
   ReleaseReservationCommand,
+  UndoNoShowCommand,
+  UndoNoShowResult,
   ReservationReleaseResult,
   StaffGateway,
 } from '../staffGateway';
 import { answerWindowClosed, approvalExpiryFor, localDateAndTime } from './approvalWindow';
+import { NO_SHOW_BLOCK, noShowUndoableUntil, type GuestRecord } from '../contracts/guestRecord';
 import type { Photo } from '../contracts/menuAdmin';
 import { mockMenuFor } from './menu';
 import { mockBranchMenu, mockPhoto } from './menuDetail';
@@ -168,9 +172,8 @@ export interface StaffMockOptions {
   /**
    * Unverified guests on the floor (2026-10-20): two tables a scan seated with
    * no proved number, waiting for a waiter to let them order — table 8 six
-   * minutes ago, table 5 two — and a booking made without a verified number
-   * among the requests, at a branch that approves those first. For mock mode
-   * and for the admission tests; off otherwise.
+   * minutes ago, table 5 two. For mock mode and for the admission tests; off
+   * otherwise.
    */
   readonly seedUnverifiedGuests?: boolean;
   /**
@@ -257,6 +260,20 @@ interface MockTab {
   readonly seatedByScan: boolean;
 }
 
+/** A guest record from its counts, as the server writes one. */
+function seededRecord(came: number, noShows: number, lateCancellations: number): GuestRecord {
+  const booked = came + noShows + lateCancellations;
+  return {
+    booked,
+    came,
+    noShows,
+    lateCancellations,
+    unmarked: 0,
+    isNewGuest: booked === 0,
+    blockedUntilUtc: null,
+  };
+}
+
 interface MockReservation {
   readonly id: string;
   readonly tableId: string;
@@ -268,6 +285,15 @@ interface MockReservation {
   released: boolean;
   /** Booked without a proved number: "number not verified" on the floor. */
   readonly phoneUnverified?: boolean;
+  /** The guest's record; absent when no proved account is behind the booking. */
+  readonly guestRecord?: GuestRecord | null;
+  /** How it was released, once it was: an undo is for a no-show only. */
+  readonly releasedAs?: ReleaseReservationCommand['outcome'];
+  /**
+   * How many no-shows the guest already has on bookings that started in the
+   * last 72 hours: marking this one the third blocks them for a week.
+   */
+  readonly recentNoShows?: number;
 }
 
 /**
@@ -304,6 +330,8 @@ interface MockAwaiting {
   readonly awaitsEarlierGuestAnswer?: boolean;
   /** Booked without a proved number. */
   readonly phoneUnverified?: boolean;
+  /** The guest's record; absent when no proved account is behind the booking. */
+  readonly guestRecord?: GuestRecord | null;
   status: 'pendingApproval' | 'confirmed' | 'cancelledByVenue';
   declinedBecause: DeclineReason | null;
   reason: string | null;
@@ -487,13 +515,22 @@ export function createStaffMockGateway(options: StaffMockOptions = {}): StaffGat
         partySize: 3,
         startUtc: lateTable.nextReservationStartUtc,
         released: false,
+        // Two no-shows in the last days: a third blocks booking for a week.
+        guestRecord: seededRecord(4, 2, 0),
+        // Two no-shows this week already: marking this one blocks him.
+        recentNoShows: 2,
       };
       reservations.set(reservation.id, reservation);
       lateTable.nextReservationId = reservation.id;
     } else {
       const existing = reservations.get(lateTable.nextReservationId);
       if (existing) {
-        reservations.set(existing.id, { ...existing, startUtc: lateTable.nextReservationStartUtc });
+        reservations.set(existing.id, {
+          ...existing,
+          startUtc: lateTable.nextReservationStartUtc,
+          guestRecord: seededRecord(4, 2, 0),
+          recentNoShows: 2,
+        });
       }
     }
   }
@@ -529,6 +566,7 @@ export function createStaffMockGateway(options: StaffMockOptions = {}): StaffGat
       approvalExpiresAtUtc: approvalExpiryFor(madeAt, startUtc),
       because: 'shortNotice',
       note: null,
+      guestRecord: seededRecord(11, 1, 0),
       previousBooking: {
         startUtc: iso(new Date(seatedAt.getTime() - 5 * 60_000)),
         partySize: 4,
@@ -557,6 +595,7 @@ export function createStaffMockGateway(options: StaffMockOptions = {}): StaffGat
       approvalExpiresAtUtc: approvalExpiryFor(madeAt, startUtc),
       because: 'shortNotice',
       note: 'By the window if you can.',
+      guestRecord: seededRecord(0, 0, 0),
       previousBooking: null,
       nextBooking: null,
       status: 'pendingApproval',
@@ -578,6 +617,7 @@ export function createStaffMockGateway(options: StaffMockOptions = {}): StaffGat
       approvalExpiresAtUtc: null,
       because: 'largeParty',
       note: 'A birthday dinner.',
+      guestRecord: seededRecord(5, 0, 1),
       previousBooking: null,
       nextBooking: null,
       status: 'pendingApproval',
@@ -699,6 +739,7 @@ export function createStaffMockGateway(options: StaffMockOptions = {}): StaffGat
         because: 'earlierGuestConsent',
         awaitsEarlierGuestAnswer: false,
         note: null,
+        guestRecord: seededRecord(3, 0, 0),
         previousBooking: {
           startUtc: minutesFrom(start, 26 * 60 - 105),
           partySize: 2,
@@ -854,33 +895,6 @@ export function createStaffMockGateway(options: StaffMockOptions = {}): StaffGat
     // Two phantom-or-real tables, oldest first on the rail.
     seatByUnverifiedScan('t8', new Date(start.getTime() - 6 * 60_000), ['Արամ', null]);
     seatByUnverifiedScan('t5', new Date(start.getTime() - 2 * 60_000), [null]);
-    // The booking nobody has turned up for was made without a verified number.
-    const late = tables.get('t6')?.nextReservationId;
-    const lateBooking = late ? reservations.get(late) : undefined;
-    if (lateBooking) reservations.set(lateBooking.id, { ...lateBooking, phoneUnverified: true });
-    // And a web booking without a verified number, waiting for the venue.
-    if (tables.has('t9')) {
-      awaiting.set('res-await-5', {
-        id: 'res-await-5',
-        code: 'Y3155',
-        tableId: 't9',
-        guestName: 'Էլեն Վարդանյան',
-        guestPhone: '+37498765432',
-        partySize: 4,
-        startUtc: minutesFrom(start, 180),
-        arrivesAtUtc: minutesFrom(start, -10),
-        // The sooner of a day after it was made and two hours before it starts.
-        approvalExpiresAtUtc: minutesFrom(start, 60),
-        because: 'unverifiedPhone',
-        phoneUnverified: true,
-        note: null,
-        previousBooking: null,
-        nextBooking: null,
-        status: 'pendingApproval',
-        declinedBecause: null,
-        reason: null,
-      });
-    }
   }
 
   const seededTab = [...tabs.values()][0];
@@ -1365,6 +1379,7 @@ export function createStaffMockGateway(options: StaffMockOptions = {}): StaffGat
       awaitsEarlierGuestAnswer: pending && request.awaitsEarlierGuestAnswer === true,
       note: request.note,
       phoneUnverified: request.phoneUnverified === true,
+      guestRecord: request.guestRecord ?? null,
     };
   }
 
@@ -1423,6 +1438,7 @@ export function createStaffMockGateway(options: StaffMockOptions = {}): StaffGat
         partySize: request.partySize,
         startUtc: request.startUtc,
         released: false,
+        guestRecord: request.guestRecord ?? null,
       });
       const state = tables.get(request.tableId);
       const current = state?.nextReservationStartUtc ?? null;
@@ -1482,6 +1498,11 @@ export function createStaffMockGateway(options: StaffMockOptions = {}): StaffGat
               : undefined) === true,
           openTabAwaitingAdmission:
             state.tabId !== null && tabs.get(state.tabId)?.admission.status === 'awaiting',
+          // Wire §0a: the next booking's guest, while it is still to come.
+          nextReservationGuestRecord: state.nextReservationId
+            ? (reservations.get(state.nextReservationId)?.guestRecord ?? null)
+            : null,
+          sittingGuestRecord: null,
         });
         return {
           ...table,
@@ -1763,7 +1784,11 @@ export function createStaffMockGateway(options: StaffMockOptions = {}): StaffGat
         });
       }
 
-      reservations.set(reservation.id, { ...reservation, released: true });
+      reservations.set(reservation.id, {
+        ...reservation,
+        released: true,
+        releasedAs: command.outcome,
+      });
 
       const state = tables.get(reservation.tableId);
       let freed = false;
@@ -1791,9 +1816,54 @@ export function createStaffMockGateway(options: StaffMockOptions = {}): StaffGat
         tableLabel: label(reservation.tableId),
         tableFreed: freed,
         wasReplay: false,
+        // The third no-show in three days blocks the guest for a week (wire §0a).
+        guestBlockedUntilUtc:
+          command.outcome === 'noShow' &&
+          reservation.guestRecord &&
+          (reservation.recentNoShows ?? 0) + 1 >= NO_SHOW_BLOCK.threshold
+            ? new Date(now().getTime() + NO_SHOW_BLOCK.blockDays * 24 * 3_600_000).toISOString()
+            : null,
       };
       releasedCommands.set(command.clientCommandId, result);
       return settle(result);
+    },
+
+    /**
+     * The server's undo (review round): a no-show, until 05:00 the next
+     * morning, is confirmed again; one already undone answers as it stands;
+     * anything else is `conflicting-state`. The table is left as it is.
+     */
+    async undoNoShow(command: UndoNoShowCommand): Promise<UndoNoShowResult> {
+      const url = `/api/reservations/${command.reservationId}/undo-no-show`;
+      const reservation = reservations.get(command.reservationId);
+      if (!reservation) throw new NotFoundError({ url });
+      const answer = (status: UndoNoShowResult['status']): UndoNoShowResult => ({
+        reservationId: reservation.id,
+        status,
+        tableId: reservation.tableId,
+        tableLabel: label(reservation.tableId),
+      });
+      if (!reservation.released) return settle(answer('confirmed'));
+      if (reservation.releasedAs !== 'noShow') {
+        throw new ConcurrencyConflictError({
+          url,
+          problem: {
+            type: '',
+            title: 'Conflict',
+            status: 409,
+            detail: `${reservation.code} is not a no-show.`,
+            code: 'conflicting-state',
+            traceId: 'mock',
+          },
+        });
+      }
+      const until = noShowUndoableUntil(reservation.startUtc, plan.timeZoneId);
+      if (now().getTime() > until.getTime()) {
+        throw new NoShowUndoWindowClosedError({ url, undoableUntilUtc: until.toISOString() });
+      }
+      const { releasedAs: _undone, ...kept } = reservation;
+      reservations.set(reservation.id, { ...kept, released: false });
+      return settle(answer('confirmed'));
     },
 
     async listAwaitingApproval(requested): Promise<readonly AwaitingApproval[]> {
@@ -1839,6 +1909,7 @@ export function createStaffMockGateway(options: StaffMockOptions = {}): StaffGat
             timeZoneId: plan.timeZoneId,
             note: request.note,
             phoneUnverified: request.phoneUnverified === true,
+            guestRecord: request.guestRecord ?? null,
             approvalExpiresAtUtc: request.approvalExpiresAtUtc,
             because: request.because,
             promisedFreeByUtc: request.promisedFreeByUtc ?? null,

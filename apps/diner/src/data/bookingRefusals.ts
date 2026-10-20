@@ -1,10 +1,13 @@
 import {
   BookingNotChangeableError,
   type BookingOverlapsOwnError,
+  type BookingPlace,
   BookingsNotAcceptedError,
   MAX_BOOKING_NOTE,
   ValidationError,
   isApprovalExpired,
+  overlapIsElsewhere,
+  overlapPlace,
   type BookingFailure,
   type CopyLine,
 } from '@yalla/api';
@@ -47,40 +50,6 @@ export function bookingRefusal(error: unknown): CopyLine | null {
 }
 
 /**
- * `bookingFailure`'s line for an account that has not proved its number. A
- * number already booked by somebody else holds such an account back — but
- * proving the number lifts that (a stranger's unproved booking never holds a
- * proved account), so the sentence offers it. Every other line as it is.
- */
-export function unprovedFailureLine(failure: BookingFailure, accountUnproved: boolean): CopyLine {
-  if (failure.kind === 'phoneHasActiveBooking' && !failure.error.held && accountUnproved) {
-    return { key: 'confirm.error.phoneHasBookingVerify', params: {} };
-  }
-  return failure.line;
-}
-
-/**
- * Whether proving the number lifts this refusal, for an account that has not:
- * the party cap, the venue's queue, the network's hour, and a number somebody
- * else booked. The screen offers "Verify my number" beside it.
- */
-export function proofLifts(failure: BookingFailure, accountUnproved: boolean): boolean {
-  if (!accountUnproved) return false;
-  switch (failure.kind) {
-    case 'verifiedPhoneRequired':
-    case 'deviceHasActiveBooking':
-    case 'unverifiedPartyTooLarge':
-    case 'unverifiedQueueFull':
-    case 'rateLimited':
-      return true;
-    case 'phoneHasActiveBooking':
-      return failure.error.held === null;
-    default:
-      return false;
-  }
-}
-
-/**
  * `bookingFailure`'s line for a change rather than a new booking. Two of its
  * lines are about a booking being made — "Nothing was booked" — which, said of
  * a booking that already exists, reads as if it were gone; those get words of
@@ -98,16 +67,28 @@ export function changeFailureLine(failure: BookingFailure): CopyLine {
  * when that is not the day being booked: last night's 23:30 sitting runs into
  * a booking for 00:15, and "at 23:30" alone reads as tonight's. `localDate`
  * is the booking held's day on the branch's clock, as the server said it.
+ *
+ * Held at another place than `here` — the venue and branch being booked
+ * (guest record, 2026-10-20: sittings at two venues need half an hour between
+ * them) — it names that place instead of a table there: "…at Café Aram at
+ * 19:30, too close to this time". Without `here` every overlap reads as one here.
  */
 export function overlapsOwnLine(
   error: BookingOverlapsOwnError,
   slotUtc: string,
   timeZoneId: TimeZone,
   locale: Locale,
+  here?: BookingPlace,
 ): CopyLine {
   const { localStartTime: time, tableLabel: table } = error;
   if (!time) return { key: 'confirm.error.generic', params: {} };
   const date = otherBranchDay(error.localDate, slotUtc, timeZoneId, locale);
+  if (overlapIsElsewhere(error, here)) {
+    const venue = overlapPlace(error, here);
+    return date
+      ? { key: 'confirm.error.overlapsOwnElsewhereOn', params: { venue, date, time } }
+      : { key: 'confirm.error.overlapsOwnElsewhere', params: { venue, time } };
+  }
   if (date) {
     return table
       ? { key: 'confirm.error.overlapsOwnOn', params: { date, time, table } }

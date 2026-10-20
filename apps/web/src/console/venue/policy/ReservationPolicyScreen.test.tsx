@@ -138,52 +138,86 @@ describe('a field', () => {
     await user.clear(threshold);
     expect(threshold.getAttribute('aria-invalid')).toBe('false');
     expect(
-      // Bookings without a verified number may wait (UG review N5).
-      within(group('What needs a person')).getByText(
-        /Every booking with a verified number is confirmed at once/u,
-      ),
+      within(group('What needs a person')).getByText(/Every booking is confirmed at once/u),
     ).toBeTruthy();
   });
 });
 
-describe('saving', () => {
-  it('sets what a booking without a verified number may be, and says what the guest sees', async () => {
+describe('the approval rules', () => {
+  it('offers auto-confirming guests with a good record, said honestly, and only while bookings wait', async () => {
     const user = userEvent.setup();
     const gateway = createConsoleMockGateway({ latencyMs: 0, role: 'owner' });
     const save = vi.spyOn(gateway, 'replaceReservationPolicy');
     renderPolicy(gateway);
     await ready();
 
-    const unverified = group('Guests without a verified number');
-    const approve = within(unverified).getByRole('switch', {
-      name: 'Confirm bookings without a verified number yourself',
-    });
-    expect(approve.getAttribute('aria-checked')).toBe('true');
-    const cap = input('Largest party without a verified number');
-    expect(cap.value).toBe('6');
+    const approval = group('What needs a person');
+    const good = within(approval).getByRole('switch', {
+      name: 'Auto-confirm guests with a good record',
+    }) as HTMLButtonElement;
+    expect(good.getAttribute('aria-checked')).toBe('false');
+    // What it does, and what it does not skip, beside the switch.
     expect(
-      within(unverified).getByText(
-        /Without a verified number, up to 6 people; the booking waits for you\./u,
+      within(approval).getByText(
+        /came at least 3 times in the last 12 months with no no-shows and no late cancellations/u,
+      ),
+    ).toBeTruthy();
+    expect(
+      within(approval).getByText(
+        /Short notice, a large party, a no-show history or the previous guest's answer still wait for you/u,
       ),
     ).toBeTruthy();
 
-    await user.click(approve);
-    await user.clear(cap);
-    await user.type(cap, '4');
+    // Every booking is confirmed automatically by default: nothing for it to
+    // skip, and said why — without claiming every booking is confirmed at
+    // once, which large parties, short notice and the rest are not.
+    expect(good.disabled).toBe(true);
+    const why = within(approval).getByText(
+      /^Nothing to skip while bookings are confirmed automatically: it only skips approving every booking, which is off\. Large parties, short notice, a no-show history and the previous guest's answer wait either way\.$/u,
+    );
+    expect(good.getAttribute('aria-describedby')).toContain(why.id);
+
+    await user.click(
+      within(approval).getByRole('switch', { name: 'Confirm bookings automatically' }),
+    );
+    expect(good.disabled).toBe(false);
     expect(
-      within(unverified).getByText(
-        /Without a verified number, up to 4 people; the booking is confirmed as usual\./u,
+      within(approval).queryByText(/^Nothing to skip while bookings are confirmed/u),
+    ).toBeNull();
+    await user.click(good);
+    expect(good.getAttribute('aria-checked')).toBe('true');
+    expect(
+      within(approval).getByText(
+        /Guests with a good record are confirmed at once; every other booking waits for your decision/u,
       ),
     ).toBeTruthy();
 
     await user.click(screen.getByRole('button', { name: 'Save the policy' }));
     await waitFor(() => expect(save).toHaveBeenCalledTimes(1));
     expect(save.mock.calls[0]![0].policy).toMatchObject({
-      unverifiedBookingsNeedApproval: false,
-      unverifiedMaxPartySize: 4,
+      autoConfirm: false,
+      autoConfirmGuestsWithGoodRecord: true,
     });
   });
 
+  it('has nothing left about booking without a verified number', async () => {
+    renderPolicy();
+    await ready();
+    // Every booking needs a proved number now (2026-10-20): both settings went.
+    expect(
+      screen.queryByRole('switch', {
+        name: 'Confirm bookings without a verified number yourself',
+      }),
+    ).toBeNull();
+    expect(
+      screen.queryByRole('textbox', { name: 'Largest party without a verified number' }),
+    ).toBeNull();
+    expect(screen.queryByRole('region', { name: 'Guests without a verified number' })).toBeNull();
+    expect(screen.queryByText(/without a verified number, up to/iu)).toBeNull();
+  });
+});
+
+describe('saving', () => {
   it('lets the branch say whether a scan without a verified number waits for a waiter', async () => {
     const user = userEvent.setup();
     const gateway = createConsoleMockGateway({ latencyMs: 0, role: 'owner' });
@@ -191,48 +225,24 @@ describe('saving', () => {
     renderPolicy(gateway);
     await ready();
 
-    const gate = within(group('Guests without a verified number')).getByRole('switch', {
+    const scanning = group('Scanning without a verified number');
+    const gate = within(scanning).getByRole('switch', {
       name: 'Unverified scans wait for a waiter',
     });
     expect(gate.getAttribute('aria-checked')).toBe('true');
+    expect(
+      within(scanning).getByText(
+        /A table that scans without a verified number orders once a waiter lets it\./u,
+      ),
+    ).toBeTruthy();
     await user.click(gate);
+    expect(
+      within(scanning).getByText(/A table that scans without a verified number orders at once\./u),
+    ).toBeTruthy();
     await user.click(screen.getByRole('button', { name: 'Save the policy' }));
 
     await waitFor(() => expect(save).toHaveBeenCalledTimes(1));
     expect(save.mock.calls[0]![0].policy).toMatchObject({ unverifiedScansNeedAdmission: false });
-  });
-
-  it('refuses a cap outside 0 to 100 before sending it', async () => {
-    const user = userEvent.setup();
-    renderPolicy();
-    await ready();
-    const cap = input('Largest party without a verified number');
-    await user.clear(cap);
-    await user.type(cap, '101');
-    expect(
-      within(group('Guests without a verified number')).getByText('Must be between 0 and 100'),
-    ).toBeTruthy();
-  });
-
-  it('takes 0 as "no bookings without a verified number", and says so', async () => {
-    const user = userEvent.setup();
-    const gateway = createConsoleMockGateway({ latencyMs: 0, role: 'owner' });
-    const save = vi.spyOn(gateway, 'replaceReservationPolicy');
-    renderPolicy(gateway);
-    await ready();
-    const unverified = group('Guests without a verified number');
-    expect(
-      within(unverified).getByText(/0 means no bookings without a verified number at all/u),
-    ).toBeTruthy();
-    const cap = input('Largest party without a verified number');
-    await user.clear(cap);
-    await user.type(cap, '0');
-    expect(cap.getAttribute('aria-invalid')).toBe('false');
-    expect(within(unverified).getByText(/No bookings without a verified number\./u)).toBeTruthy();
-
-    await user.click(screen.getByRole('button', { name: 'Save the policy' }));
-    await waitFor(() => expect(save).toHaveBeenCalledTimes(1));
-    expect(save.mock.calls[0]![0].policy).toMatchObject({ unverifiedMaxPartySize: 0 });
   });
 
   it('keeps the affected-bookings result on the page until it is closed', async () => {

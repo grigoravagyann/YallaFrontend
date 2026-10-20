@@ -18,17 +18,16 @@ const MINUTE_MS = 60_000;
  * `leadMinutes` is the branch's `minLeadMinutes`, or the booking screen's
  * stand-in while that is not known.
  *
- * Never for a booking made without a proved number — the server refuses to
- * move it until the number is proved — nor for one somebody else made with
- * this account's number, which is the account's to cancel, not to move.
+ * Never for a booking made without a proved number (legacy rows from
+ * 2026-10-20) — the server refuses to move it until the number is proved.
  */
 export function canChangeBooking(
-  booking: Pick<Booking, 'status' | 'slotUtc' | 'phoneUnverified' | 'madeWithYourNumber'>,
+  booking: Pick<Booking, 'status' | 'slotUtc' | 'phoneUnverified'>,
   now: Date,
   leadMinutes = 0,
 ): boolean {
   const start = Date.parse(booking.slotUtc);
-  if (booking.phoneUnverified === true || booking.madeWithYourNumber === true) return false;
+  if (booking.phoneUnverified === true) return false;
   return (
     (booking.status === 'confirmed' || booking.status === 'pendingApproval') &&
     now.getTime() < start &&

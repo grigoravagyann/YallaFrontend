@@ -30,6 +30,7 @@ import { PhotoImage } from '../../src/components/PhotoImage';
 import { Screen } from '../../src/components/Screen';
 import { Skeleton } from '../../src/components/Skeleton';
 import { Text } from '../../src/components/Text';
+import { BookingBlockedNote } from '../../src/components/bookings/GuestRecord';
 import { AmenityChips } from '../../src/components/place/AmenityChips';
 import { BookCta, CtaFooter } from '../../src/components/place/BookCta';
 import { PlaceActions, openUrl } from '../../src/components/place/PlaceActions';
@@ -39,6 +40,7 @@ import { usePlaceCopy } from '../../src/components/places/placeCopy';
 import { placeDistrict } from '../../src/components/places/placeTitle';
 import { RoomPhotosView } from '../../src/components/tables/RoomPhotosView';
 import { TableLegend } from '../../src/components/tables/TableLegend';
+import { useBookingBlock } from '../../src/data/bookingBlock';
 import { usePlace, usePlaceRooms } from '../../src/places/hooks';
 import {
   formatClock,
@@ -500,6 +502,9 @@ function PlaceDetails({
   // Known from the place's own page (K9). Book is not offered where the app
   // cannot book, and the page says why instead.
   const bookingsOff = place.acceptsAppBookings === false;
+  // Paused after three no-shows in three days (guest record, 2026-10-20):
+  // Book stays in its place, off, with until when above it.
+  const pausedUntil = useBookingBlock();
 
   return (
     <Screen edges={['left', 'right']}>
@@ -802,6 +807,11 @@ function PlaceDetails({
             <Text style={styles.bookingsOffTitle}>{t('place.bookingsOff.title')}</Text>
             <Text style={styles.bookingsOffBody}>{t('place.bookingsOff.body')}</Text>
           </View>
+        ) : pausedUntil ? (
+          <View style={styles.paused}>
+            <BookingBlockedNote untilUtc={pausedUntil} />
+            <BookCta label={t('place.bookTable')} glyph disabled onPress={() => onBook()} />
+          </View>
         ) : (
           <BookCta label={t('place.bookTable')} glyph onPress={() => onBook()} />
         )}
@@ -1018,6 +1028,7 @@ const styles = StyleSheet.create({
   },
 
   bookingsOff: { gap: space.xs, paddingVertical: space.xs },
+  paused: { gap: space.sm },
   bookingsOffTitle: { ...typography.body, fontWeight: fontWeight.bold, color: colors.text },
   bookingsOffBody: { ...typography.body, color: colors.textMuted },
 
