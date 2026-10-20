@@ -2,19 +2,21 @@ import {
   approvalCountdown,
   awaitsVenueAnswer,
   declinedCopy,
-  freeCancellationCopy,
   venueAnswerCopy,
   type Booking,
   type PublicBranch,
   type VenueAnswerState,
 } from '@yalla/api';
 import { useManagedBooking, useNow } from '@yalla/api/react';
-import { formatDate, formatDuration, formatTime } from '@yalla/format';
+import { formatDuration, formatTime } from '@yalla/format';
 import { useLocale, useTranslation } from '@yalla/i18n';
-import { useState } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 import { appUrl } from './gateways';
 import { bookingIcs, downloadIcs, icsDescription } from './calendarFile';
+import { freeCancellationDated, freeCancellationWords, whenWords } from './dayNames';
+import { Icon } from './icons';
 import { useLangPath } from './language';
+import { SheetHead } from './SheetParts';
 
 /**
  * The booking is made. Now the part that is specific to the web.
@@ -25,39 +27,56 @@ import { useLangPath } from './language';
  * a page somebody opened from a chat. That is the entire no-show story, and it
  * does not reach this visitor.
  *
- * So this screen does three things beyond confirming, in this order, and the
- * order is the argument:
+ * So this screen does three things beyond confirming, and the order is the
+ * argument:
  *
- * 1. **Add to calendar.** Works everywhere, needs nothing, and puts the
- *    reminder where they already look. It is first because it is the only one
- *    of the three that is a complete substitute for what they are missing.
- * 2. **Get the app**, described as what it *adds* rather than as a download.
+ * 1. **Add to calendar** — the sheet's main button. Works everywhere, needs
+ *    nothing, and puts the reminder where they already look. It is first
+ *    because it is the only one that is a complete substitute for what they
+ *    are missing.
+ * 2. **A link to manage this booking**, with a copy button, which is not
+ *    optional. Without it the only way out of a booking made here is not
+ *    turning up, and a page that makes no-showing easier than cancelling is
+ *    worse for the venue than no page at all.
+ * 3. **Get the app**, described as what it *adds* rather than as a download.
  *    Rendered only when there is an app to get — see `appUrl`.
- * 3. **A link to manage this booking**, which is not optional. Without it the
- *    only way out of a booking made here is not turning up, and a page that
- *    makes no-showing easier than cancelling is worse for the venue than no
- *    page at all.
  *
  * A booking for tonight is a request first: the venue's floor has fifteen
  * minutes to answer. With no push channel, this page is where the answer
  * arrives — it counts the minutes down and reads the booking again through its
- * manage link until the venue has said yes or no, then says which. Declined,
- * the three offers above go: there is nothing to remember or manage.
+ * manage link until the venue has said yes or no, then says which (Book
+ * artboard: done, pending, declined). Waiting, the calendar waits too and the
+ * booking page is offered; declined, there is nothing to remember or manage,
+ * and another time is.
  */
 export interface BookingDoneProps {
   readonly booking: Booking;
   readonly branch: PublicBranch;
+  /** Close the sheet: back to the page. Absent where nothing holds the sheet. */
+  readonly onClose?: (() => void) | undefined;
+  /** Declined: close, and put the visitor on the booking card for another time. */
+  readonly onChooseAnotherTime?: (() => void) | undefined;
 }
 
-export function BookingDone({ booking, branch }: BookingDoneProps) {
+export function BookingDone({ booking, branch, onClose, onChooseAnotherTime }: BookingDoneProps) {
   const { t } = useTranslation('public');
   const { t: td } = useTranslation('diner');
   const { locale } = useLocale();
   const langPath = useLangPath();
   const [copied, setCopied] = useState(false);
+  const heading = useRef<HTMLHeadingElement>(null);
+  const linkId = useId();
+  /** "Copied" turning back into "Copy": cleared if the sheet goes first (review N13). */
+  const copiedTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  useEffect(() => () => clearTimeout(copiedTimer.current), []);
 
   /* Resolved here rather than at import: see `gateways.ts`. */
   const installUrl = appUrl();
+
+  // The sheet's new step: the keyboard and the screen reader start at its title.
+  useEffect(() => {
+    heading.current?.focus();
+  }, []);
 
   /*
    * The booking as it now stands, while the venue decides: read through the
@@ -84,14 +103,15 @@ export function BookingDone({ booking, branch }: BookingDoneProps) {
   const declinedTitle = declinedCopy(answerState.declinedBecause, 'title');
   const declinedBody = declinedCopy(answerState.declinedBecause, 'body');
 
-  const pending = answerState.status === 'pendingApproval';
+  const kind = declinedTitle
+    ? 'declined'
+    : answerState.status === 'pendingApproval'
+      ? 'pending'
+      : 'done';
   // The booking view names the branch, not the venue; this page knows the venue.
   const venueName = booking.venueName ?? branch.venue.name;
-  const when = `${formatDate(booking.slotUtc, booking.timeZoneId, locale)} · ${formatTime(
-    booking.slotUtc,
-    booking.timeZoneId,
-    locale,
-  )}`;
+  const when = whenWords(booking.slotUtc, booking.timeZoneId, locale, t);
+  const guests = td('booking.guests', { count: booking.partySize });
 
   /*
    * Absolute, because this link's whole job is to survive being pasted
@@ -110,10 +130,13 @@ export function BookingDone({ booking, branch }: BookingDoneProps) {
       ).toString()
     : null;
 
-  const cancellation = freeCancellationCopy(
+  // Our own words for the date: `Intl` writes hy dates in English where the
+  // browser has no Armenian data (public-page phase 4).
+  const cancellation = freeCancellationWords(
     booking.freeCancellationUntilUtc,
     booking.timeZoneId,
     locale,
+    t,
   );
 
   const addToCalendar = () => {
@@ -130,7 +153,13 @@ export function BookingDone({ booking, branch }: BookingDoneProps) {
           booking,
           locale,
           codeLabel: td('success.codeLabel'),
-          cancellationLine: td(cancellation.key, cancellation.params),
+          // Dated, never "tomorrow": the file is read on other days (review S1).
+          cancellationLine: freeCancellationDated(
+            booking.freeCancellationUntilUtc,
+            booking.timeZoneId,
+            locale,
+            t,
+          ),
           manageLabel: t('done.manage'),
           manageUrl: manageUrl ?? '',
         }),
@@ -145,182 +174,205 @@ export function BookingDone({ booking, branch }: BookingDoneProps) {
     try {
       await navigator.clipboard.writeText(manageUrl);
       setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
+      clearTimeout(copiedTimer.current);
+      copiedTimer.current = setTimeout(() => setCopied(false), 2500);
     } catch {
       // Clipboard blocked, or an insecure origin. The link is on screen and
-      // selectable, which is what the `<a>` below is for — no error needed.
+      // selectable, which is what the `<a>` beside it is for — no error needed.
     }
   };
 
-  if (declinedTitle) {
-    return (
-      <div className="pub-done">
-        {/* The answer arriving is announced: it replaces the waiting title. */}
-        <h3 className="display" aria-live="polite">
-          {td(declinedTitle.key, declinedTitle.params)}
-        </h3>
-        {declinedBody ? (
-          <p className="pub-notice pub-notice-alert">{td(declinedBody.key, declinedBody.params)}</p>
-        ) : null}
-        <dl className="pub-summary">
-          <div>
-            <dt>{td('confirm.venue')}</dt>
-            <dd>{`${venueName} · ${booking.branchName}`}</dd>
-          </div>
-          <div>
-            <dt>{td('confirm.when')}</dt>
-            <dd>{when}</dd>
-          </div>
-        </dl>
+  const summary = (
+    <dl className="pub-sum">
+      <div>
+        <dt>{td('confirm.venue')}</dt>
+        <dd>{`${venueName} · ${booking.branchName}`}</dd>
       </div>
-    );
-  }
+      <div>
+        <dt>{td('confirm.when')}</dt>
+        <dd>{when}</dd>
+      </div>
+      <div>
+        <dt>{td('confirm.tableRow')}</dt>
+        <dd>{t('sheet.done.table', { label: booking.tableLabel, guests })}</dd>
+      </div>
+    </dl>
+  );
+
+  const backToPage = onClose ? (
+    <button type="button" className="pub-button pub-button-ghost" onClick={onClose}>
+      {t('sheet.done.back')}
+    </button>
+  ) : null;
 
   return (
-    <div className="pub-done">
-      <h3 className="display" aria-live="polite">
-        {pending ? td('success.pendingTitle') : td('success.confirmedTitle')}
-      </h3>
-      {pending ? (
-        <p className="pub-notice">
-          {answerState.awaitingApprovalBecause === 'earlierGuestConsent'
-            ? // The venue rings a guest before who cannot answer in the app.
-              td(
-                answerState.awaitsEarlierGuestAnswer === false
-                  ? 'booking.approval.venueAsksEarlierGuest'
-                  : 'table.requestable.earlierGuest',
-              )
-            : answerState.approvalExpiresAtUtc
-              ? td('booking.approval.why')
-              : td('success.pendingBody')}
-        </p>
-      ) : null}
-      {/* While the venue decides: the minutes it has left to answer. A timer,
-          so a screen reader reads it when asked rather than every second. */}
-      {pending && answer ? (
-        <p
-          className={`pub-answer${countdown?.urgent ? ' is-urgent' : ''}`}
-          role="timer"
-          aria-label={td(answer.key, answer.params)}
-        >
-          {td(answer.key, answer.params)}
-        </p>
-      ) : null}
+    <div className="pub-sheet-step">
+      <SheetHead title={t(`sheet.title.${kind}`)} headingRef={heading} onClose={onClose} />
+      <div className="pub-sheet-body pub-done">
+        <div className={`pub-done-mark is-${kind}`} aria-hidden="true">
+          <Icon name={kind === 'done' ? 'check' : kind === 'pending' ? 'clock' : 'close'} />
+        </div>
+        {/* The answer arriving is announced: it replaces the waiting title. */}
+        <h3 className="pub-done-title" aria-live="polite">
+          {kind === 'declined' && declinedTitle
+            ? td(declinedTitle.key, declinedTitle.params)
+            : kind === 'pending'
+              ? td('success.pendingTitle')
+              : td('success.confirmedTitle')}
+        </h3>
 
-      {/*
-        Large and legible: staff ask for this at the door and it gets read
-        aloud over the phone, so it is the one thing here that has to survive a
-        noisy room.
-      */}
-      <div className={pending ? 'pub-code is-pending' : 'pub-code'}>
-        <p className="pub-code-label">{td('success.codeLabel')}</p>
-        <p className="pub-code-value num" aria-label={booking.code.split('').join(' ')}>
-          {booking.code}
-        </p>
-        <p className="pub-code-hint">{td('success.codeHint')}</p>
+        {kind === 'declined' ? (
+          declinedBody ? (
+            <p className="pub-done-body">{td(declinedBody.key, declinedBody.params)}</p>
+          ) : null
+        ) : kind === 'pending' ? (
+          <>
+            <p className="pub-done-body">
+              {answerState.awaitingApprovalBecause === 'earlierGuestConsent'
+                ? // The venue rings a guest before who cannot answer in the app.
+                  td(
+                    answerState.awaitsEarlierGuestAnswer === false
+                      ? 'booking.approval.venueAsksEarlierGuest'
+                      : 'table.requestable.earlierGuest',
+                  )
+                : answerState.approvalExpiresAtUtc
+                  ? td('booking.approval.why')
+                  : td('success.pendingBody')}
+            </p>
+            {/* While the venue decides: the minutes it has left to answer. A
+                timer, so a screen reader reads it when asked rather than every
+                second. */}
+            {answer ? (
+              <p
+                className={`pub-answer${countdown?.urgent ? ' is-urgent' : ''}`}
+                role="timer"
+                aria-label={td(answer.key, answer.params)}
+              >
+                {td(answer.key, answer.params)}
+              </p>
+            ) : null}
+            <p className="pub-done-body">{t('sheet.done.auto')}</p>
+          </>
+        ) : (
+          <p className="pub-done-body">{cancellation}</p>
+        )}
+
+        {/*
+          Large and legible: staff ask for this at the door and it gets read
+          aloud over the phone, so it is the one thing here that has to survive
+          a noisy room. Pending must never look confirmed: dashed blue.
+        */}
+        {kind === 'declined' ? null : (
+          <div className={kind === 'pending' ? 'pub-sheet-code is-pending' : 'pub-sheet-code'}>
+            <p className="pub-sheet-code-label">{td('success.codeLabel')}</p>
+            <p className="pub-sheet-code-value num" aria-label={booking.code.split('').join(' ')}>
+              {booking.code}
+            </p>
+            <p className="pub-sheet-code-label">{td('success.codeHint')}</p>
+          </div>
+        )}
+
+        {summary}
+
+        {kind === 'done' ? (
+          <>
+            {booking.promisedFreeByUtc ? (
+              <p className="pub-muted">
+                {td('booking.freeBy.promised', {
+                  time: formatTime(booking.promisedFreeByUtc, booking.timeZoneId, locale),
+                })}
+              </p>
+            ) : null}
+
+            {/*
+              The way out. Not optional — see the module comment.
+
+              When the server issued no token there is genuinely nothing to
+              link to, and a link that goes nowhere is worse than none. Then
+              the venue's own number is offered instead, because *some* way to
+              cancel has to exist.
+            */}
+            {manageUrl ? (
+              <section className="pub-sheet-field" aria-labelledby={linkId}>
+                <h4 className="pub-field-label" id={linkId}>
+                  {t('sheet.done.link')}
+                </h4>
+                <div className="pub-link-row">
+                  <a href={manageUrl}>{manageUrl}</a>
+                  <button
+                    type="button"
+                    className="pub-button pub-button-small"
+                    onClick={() => void copyLink()}
+                  >
+                    {copied ? t('sheet.done.copied') : t('sheet.done.copy')}
+                  </button>
+                </div>
+                <p className="pub-muted">{t('sheet.done.linkHint')}</p>
+              </section>
+            ) : branch.phoneE164 ? (
+              <a className="pub-button" href={`tel:${branch.phoneE164}`}>
+                {t('findUs.call')}
+              </a>
+            ) : null}
+
+            {/*
+              What happens after the free-cancellation time, which the deadline
+              alone does not say: cancelling late is allowed and merely
+              recorded as late. The number is the branch's own published rule.
+            */}
+            <p className="pub-muted">
+              {t('done.lateCancellation', {
+                window: formatDuration(branch.policy.cancellationDeadlineMinutes, locale),
+              })}
+            </p>
+
+            {/*
+              Last, and only when there is something to link to: omitted
+              entirely when `VITE_APP_URL` is unset, because an app-store badge
+              for an app that is not published is a dead end with a logo on it.
+            */}
+            {installUrl ? (
+              <section className="pub-offer pub-offer-quiet">
+                <h4>{t('done.getApp')}</h4>
+                <p className="pub-muted">{t('done.getAppBody')}</p>
+                <a
+                  className="pub-button pub-button-quiet"
+                  href={installUrl}
+                  target="_blank"
+                  rel="noreferrer noopener"
+                >
+                  {t('done.getApp')}
+                </a>
+              </section>
+            ) : null}
+          </>
+        ) : null}
       </div>
 
-      <dl className="pub-summary">
-        <div>
-          <dt>{td('confirm.venue')}</dt>
-          <dd>{`${venueName} · ${booking.branchName}`}</dd>
-        </div>
-        <div>
-          <dt>{td('confirm.when')}</dt>
-          <dd>{when}</dd>
-        </div>
-        <div>
-          <dt>{td('confirm.tableRow')}</dt>
-          <dd>{booking.tableLabel}</dd>
-        </div>
-      </dl>
-
-      {booking.promisedFreeByUtc ? (
-        <p className="pub-notice">
-          {td('booking.freeBy.promised', {
-            time: formatTime(booking.promisedFreeByUtc, booking.timeZoneId, locale),
-          })}
-        </p>
-      ) : null}
-      <p className="pub-muted">{td(cancellation.key, cancellation.params)}</p>
-
-      {/*
-        What happens *after* that time, which the deadline alone does not say.
-        Cancelling late is allowed and merely recorded as late — a venue would
-        far rather know than have the table sit empty — and a diner who thinks
-        they have missed their chance to cancel simply does not turn up. The
-        number is the branch's own published rule, not a constant.
-      */}
-      <p className="pub-muted">
-        {t('done.lateCancellation', {
-          window: formatDuration(branch.policy.cancellationDeadlineMinutes, locale),
-        })}
-      </p>
-
-      {/* 1. The reminder they would otherwise never get. */}
-      <section className="pub-offer">
-        <h4>{t('done.addCalendar')}</h4>
-        <p className="pub-muted">{t('done.addCalendarBody')}</p>
-        <button type="button" className="pub-button pub-button-primary" onClick={addToCalendar}>
-          {t('done.addCalendar')}
-        </button>
-      </section>
-
-      {/*
-        3. The way out. Not optional — see the module comment.
-
-        When the server issued no token there is genuinely nothing to link to,
-        and a link that goes nowhere is worse than none. In that case the
-        venue's own number is offered instead, because *some* way to cancel has
-        to exist: a person who cannot cancel does not stay home politely, they
-        simply do not turn up.
-      */}
-      {manageUrl ? (
-        <section className="pub-offer">
-          <h4>{t('done.manage')}</h4>
-          <p className="pub-muted">{t('done.manageBody')}</p>
-          <a className="pub-manage-link" href={manageUrl}>
-            {manageUrl}
+      <div className="pub-sheet-foot">
+        {kind === 'done' ? (
+          // The reminder they would otherwise never get.
+          <button type="button" className="pub-button pub-button-primary" onClick={addToCalendar}>
+            <Icon name="calendar" />
+            {t('done.addCalendar')}
+          </button>
+        ) : null}
+        {kind === 'pending' && manageUrl ? (
+          <a className="pub-button" href={manageUrl}>
+            {t('sheet.done.openManage')}
           </a>
-          <div className="pub-actions">
-            <button
-              type="button"
-              className="pub-button pub-button-quiet"
-              onClick={() => void copyLink()}
-            >
-              {copied ? t('done.copied') : t('done.copyLink')}
-            </button>
-          </div>
-        </section>
-      ) : branch.phoneE164 ? (
-        <section className="pub-offer">
-          <h4>{t('done.manage')}</h4>
-          <a className="pub-button pub-button-quiet" href={`tel:${branch.phoneE164}`}>
-            {t('findUs.call')}
-          </a>
-        </section>
-      ) : null}
-
-      {/*
-        2. Last, and only when there is something to link to.
-        Framed as what it adds, not as "download our app" — and omitted
-        entirely when `VITE_APP_URL` is unset, because an app-store badge for an
-        app that is not published is a dead end with a logo on it.
-      */}
-      {installUrl ? (
-        <section className="pub-offer pub-offer-quiet">
-          <h4>{t('done.getApp')}</h4>
-          <p className="pub-muted">{t('done.getAppBody')}</p>
-          <a
-            className="pub-button pub-button-quiet"
-            href={installUrl}
-            target="_blank"
-            rel="noreferrer noopener"
+        ) : null}
+        {kind === 'declined' && onChooseAnotherTime ? (
+          <button
+            type="button"
+            className="pub-button pub-button-primary"
+            onClick={onChooseAnotherTime}
           >
-            {t('done.getApp')}
-          </a>
-        </section>
-      ) : null}
+            {t('sheet.done.again')}
+          </button>
+        ) : null}
+        {backToPage}
+      </div>
     </div>
   );
 }

@@ -1098,6 +1098,37 @@ review every string in `src/locales/hy` and `src/locales/ru`.**
     «Сохранить изменение»), hy `.error.overlapsOwn` («Այդ ժամի մոտ…»), and
     `manage.declinedBody` drops "Nothing was charged" (nothing is ever
     charged).
+- `public` — the public page redesign, phase 4 (2026-10-20): the Book sheet,
+  `sheet.*`. `hy` follows the Book artboard where it has the words; `ru` and
+  `en`, and every `hy` string the artboard does not show, are **not**
+  reviewed. From the artboard: `sheet.progress.*` (Սեղան · Հեռախոս · Անուն),
+  `sheet.back`, `.close`, `sheet.title.*` (but `.pending`), `sheet.table.continue`,
+  `.agree`, `.agreeFirst`, `.lateOk`, `sheet.taken.body` (the label carries no
+  suffix: «Սեղան {{label}} հենց նոր…»), `.free`, `.alt`, `.seeRoom`,
+  `sheet.phone.body`, `.telegramNote`, `.telegram`, `.sms`, `.short`,
+  `sheet.telegram.body`, `.left`, `.checkNow`, `.useCode`, `sheet.code.label`,
+  `.check`, `sheet.name.*` (the counter says `{{length}} / {{max}}`),
+  `sheet.done.link`, `.linkHint`, `.copy`, `.copied`, `.openManage`, `.back`,
+  `.auto`, `.again`. Written for this phase: `sheet.title.pending` («Ձեր
+  հայտը» — the artboard's «Հայտն ուղարկված է» is already the title under it,
+  and «Սպասում ենք…» the countdown's), `sheet.table.value` /
+  `.valueNoRoom`, `sheet.taken.none_*`, `sheet.phone.telegramOnly` (no
+  "fastest" when Telegram is the only way), `.smsOff`, `.noDoors`,
+  `.loading`, `sheet.done.table`, and the free-cancellation dates in our own
+  words: `sheet.freeCancellationTomorrow` and `sheet.freeCancellationOn`
+  (the date is `booking.date`, so `Intl` never prints a hy date in English).
+  Removed from `diner`, which nothing renders any more: `verify.phoneTitle`,
+  `verify.phoneBody`. (`book.freeBy.agree` stays: the manage page's change
+  form asks the same promise with it.)
+  - Review fixes (2026-10-20), **not** reviewed: `booking.weekdayInSentence.*`
+    — the weekday as a sentence writes it, lower case in hy and ru («մինչև
+    ուրբ, 23 հոկտեմբերի», «до 15:00, пт, 23 октября»), the same as
+    `booking.weekday.*` in en; used by `sheet.freeCancellationOn` and
+    `booking.overlapsOwnOn*`. The calendar file always dates the
+    free-cancellation line (`sheet.freeCancellationOn`), never "tomorrow". ru
+    reworded: `sheet.telegram.useCode` «Лучше получить код по SMS»,
+    `sheet.telegram.body` «…Страница обновится сама…», `sheet.phone.body`
+    «…нужен только для того, чтобы…».
 
 The Russian bundle carries four plural categories (`one`/`few`/`many`/`other`)
 where Armenian and English carry two. That is correct CLDR, not duplication, and

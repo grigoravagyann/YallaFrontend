@@ -625,31 +625,6 @@ body:has(.pub)::before {
   font-size: var(--console-text-public-label);
 }
 
-/* The promise to free the table by a time, when a booking follows (booking times). */
-.pub-check {
-  display: flex;
-  align-items: flex-start;
-  gap: var(--space-sm);
-  min-height: var(--touch-minimum);
-  margin: var(--space-md) 0 0;
-  padding: 10px var(--space-md);
-  border: 1px solid var(--console-amber-line);
-  border-radius: var(--console-radius-public-control);
-  background: var(--console-amber-bg);
-  color: var(--console-ink);
-  font-size: var(--console-text-public-label);
-  line-height: 1.45;
-  cursor: pointer;
-}
-
-.pub-check input {
-  flex: none;
-  width: 20px;
-  height: 20px;
-  margin: 0;
-  accent-color: var(--console-brand);
-}
-
 /* --------------------------------------------------------------------------
  * Controls: 48px buttons, 16px inputs, every target past 44px
  * -------------------------------------------------------------------------- */
@@ -1451,37 +1426,38 @@ body:has(.pub)::before {
 }
 
 /* --------------------------------------------------------------------------
- * The booking panel
+ * The Book sheet (Book artboard): head, progress, a scrolling body and a foot
  * -------------------------------------------------------------------------- */
 
 /*
  * On a phone, sticky to the bottom of the viewport under the room rather than a
  * modal over it: the visitor is choosing *between* tables and needs to keep
- * seeing the room while they read the window. On a wide screen it opens in the
- * booking column instead, which is already sticky.
+ * seeing the room while they read the window — and the taken step lists the
+ * others. On a wide screen it opens in the booking column instead, which is
+ * already sticky. The body scrolls; the head and the foot with its buttons do
+ * not.
  */
 .pub-sheet {
   position: sticky;
   bottom: 0;
   z-index: 2;
+  display: flex;
+  flex-direction: column;
+  max-height: 85dvh;
   margin: 0 calc(-1 * var(--space-lg));
-  padding: var(--space-lg) var(--space-lg) var(--space-xl);
   border-top: 1px solid var(--console-line);
   border-radius: 24px 24px 0 0;
-  background: var(--console-surface);
+  background: var(--console-canvas);
   box-shadow: var(--shadow-sheet);
-  max-height: 80vh;
-  overflow-y: auto;
 }
 
 .pub-aside .pub-sheet {
   position: static;
+  max-height: none;
   margin: var(--space-lg) 0 0;
   border: 1px solid var(--console-line);
   border-radius: var(--console-radius-public-card);
   box-shadow: none;
-  max-height: none;
-  overflow: visible;
 }
 
 .pub-sheet.is-loading {
@@ -1492,45 +1468,567 @@ body:has(.pub)::before {
   outline-offset: -3px;
 }
 
+/* The phone's grab handle: a picture of a sheet, not a control. */
+.pub-sheet-grab {
+  flex: none;
+  width: 40px;
+  height: 5px;
+  margin: var(--space-sm) auto 0;
+  border-radius: 3px;
+  background: var(--console-button-edge);
+}
+
+.pub-aside .pub-sheet-grab {
+  display: none;
+}
+
+.pub-sheet-step {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+
 .pub-sheet-head {
   display: flex;
+  flex: none;
   align-items: center;
-  justify-content: space-between;
-  gap: var(--space-md);
+  gap: 10px;
+  padding: var(--space-sm) var(--space-md) 10px 20px;
 }
 
-.pub-sheet-body {
-  margin-top: var(--space-xs);
-}
-
-.pub-sheet-title {
+.pub-sheet-head h2 {
+  flex: 1;
+  min-width: 0;
   margin: 0;
   font-family: var(--font-family-display);
   font-size: var(--font-size-lg);
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+}
+
+.pub-sheet-head h2:focus {
+  outline: none;
+}
+
+/* Brought into view below the sticky top bar, with the sheet's head showing. */
+.pub-sheet-head h2 {
+  scroll-margin-top: calc(var(--console-size-public-bar) + var(--space-xl));
+}
+
+.pub-sheet .pub-note[tabindex] {
+  scroll-margin-top: calc(var(--console-size-public-bar) + var(--space-xl) + 72px);
+}
+
+.pub-sheet-head h2:focus-visible {
+  outline: 3px solid var(--console-focus);
+}
+
+.pub .pub-sheet-x {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: var(--touch-minimum);
+  height: var(--touch-minimum);
+  padding: 0;
+  border: 0;
+  border-radius: var(--console-radius-pill);
+  background: var(--console-line-soft);
+  color: var(--console-ink);
+  cursor: pointer;
+}
+
+.pub .pub-sheet-x:hover {
+  background: var(--console-hover);
+}
+
+/* Table · Phone · Name: a bar each, filled up to the step the visitor is on. */
+.pub-progress {
+  display: flex;
+  flex: none;
+  gap: 6px;
+  margin: 0;
+  padding: 0 20px var(--space-md);
+  list-style: none;
+}
+
+.pub-progress li {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: var(--space-xs);
+  color: var(--console-muted);
+  font-size: var(--console-text-caption);
   font-weight: var(--font-weight-bold);
 }
 
-.pub-window {
-  margin-top: var(--space-md);
-  padding: var(--space-md) 14px;
-  border-radius: var(--console-radius-public-status);
+.pub-progress i {
+  height: 4px;
+  border-radius: 2px;
+  background: var(--console-button-edge);
+}
+
+.pub-progress .is-done i,
+.pub-progress .is-current i {
+  background: var(--console-brand);
+}
+
+.pub-progress .is-current {
+  color: var(--console-ink);
+}
+
+.pub-sheet-body {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 14px;
+  min-height: 0;
+  padding: var(--space-xs) 20px 20px;
+  overflow-y: auto;
+}
+
+.pub-aside .pub-sheet-body {
+  overflow: visible;
+}
+
+.pub-sheet-body p {
+  margin: 0;
+}
+
+/* The body scrolls; nothing in it is squeezed to fit. */
+.pub-sheet-body > * {
+  flex-shrink: 0;
+}
+
+.pub-sheet-foot {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  gap: var(--space-sm);
+  padding: var(--space-md) 20px 20px;
+  border-top: 1px solid var(--console-line);
+}
+
+.pub-aside .pub-sheet-foot {
+  /* In the booking column the sheet scrolls with the column, or the page
+     when the column flows: its buttons stay in sight (review N7). */
+  position: sticky;
+  bottom: 0;
+  z-index: 1;
+  border-radius: 0 0 var(--console-radius-public-card) var(--console-radius-public-card);
   background: var(--console-canvas);
 }
 
-.pub-window-main {
+.pub-sheet-foot .pub-button {
+  width: 100%;
   margin: 0;
-  font-size: var(--font-size-lg);
-  font-weight: var(--font-weight-semibold);
 }
 
-/* Not a null state — an advantage, and a reason to pick this table. */
-.pub-window-main.is-open-ended {
+.pub-sheet-terms .pub-muted {
+  margin: 0;
+  font-size: var(--console-text-public-label);
+}
+
+.pub-sheet-hint {
+  text-align: center;
+}
+
+.pub-sheet-sub {
+  margin: var(--space-xs) 0 0;
+  font-family: var(--font-family-display);
+  font-size: var(--console-text-section);
+}
+
+/* What is being booked: a white card of label and value rows. */
+.pub-sum {
+  margin: 0;
+  padding: var(--space-xs) 14px;
+  border: 1px solid var(--console-line);
+  border-radius: var(--console-radius-public-status);
+  background: var(--console-surface);
+}
+
+.pub-sum > div {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-md);
+  padding: 10px 0;
+  border-bottom: 1px solid var(--console-line);
+  font-size: var(--console-text-public-meta);
+}
+
+.pub-sum > div:last-child {
+  border-bottom: 0;
+}
+
+.pub-sum dt {
+  color: var(--console-muted);
+}
+
+.pub-sum dd {
+  margin: 0;
+  min-width: 0;
+  text-align: right;
+  font-weight: var(--font-weight-bold);
+  overflow-wrap: anywhere;
+}
+
+/* A line with its icon: green held, amber attention, red a real failure, blue waiting. */
+.pub-note {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-sm);
+  padding: 10px var(--space-md);
+  border-radius: var(--console-radius-public-control);
+  font-size: var(--console-text-public-label);
+  line-height: 1.45;
+}
+
+.pub-note > svg {
+  flex: none;
+  width: 18px;
+  height: 18px;
+  margin-top: 2px;
+}
+
+.pub-note.is-green {
+  background: var(--console-green-bg);
   color: var(--console-green);
 }
 
-.pub-form h3 {
-  margin: var(--space-md) 0 0;
+.pub-note.is-amber {
+  background: var(--console-amber-bg);
+  color: var(--console-amber);
+}
+
+.pub-note.is-red {
+  background: var(--console-red-bg);
+  color: var(--console-red);
+}
+
+.pub-note.is-blue {
+  background: var(--console-blue-bg);
+  color: var(--console-blue);
+}
+
+/* The promise to free the table by the next booking, before Continue. */
+.pub-promise {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-md);
+  min-height: var(--touch-minimum);
+  padding: var(--space-md);
+  border: 1.5px solid var(--console-button-edge);
+  border-radius: 14px;
+  background: var(--console-surface);
+  font-size: var(--console-text-public-meta);
+  cursor: pointer;
+}
+
+.pub-promise.is-on {
+  border-color: var(--console-brand);
+}
+
+.pub-promise input {
+  flex: none;
+  width: 24px;
+  height: 24px;
+  margin: 0;
+  accent-color: var(--console-brand);
+}
+
+/* Fields: the label above, the hint and the error under. */
+.pub-sheet-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.pub-sheet-field > label,
+.pub-field-label {
+  margin: 0;
+  font-size: var(--console-text-public-label);
+  font-weight: var(--font-weight-bold);
+}
+
+.pub-field-optional {
+  color: var(--console-muted);
+  font-weight: var(--font-weight-regular);
+}
+
+.pub-sheet .pub-input {
+  min-height: 52px;
+  font-size: max(16px, var(--console-text-public-input));
+}
+
+.pub-input.is-bad {
+  border-color: var(--console-red);
+}
+
+.pub-field-error {
+  color: var(--console-red);
+  font-size: var(--console-text-public-label);
+  font-weight: var(--font-weight-semibold);
+}
+
+.pub-sheet .pub-textarea {
+  min-height: 88px;
+  padding: var(--space-md) 14px;
+  line-height: 1.4;
+  resize: vertical;
+}
+
+.pub-sheet .pub-phone-row {
+  display: grid;
+  grid-template-columns: 96px minmax(0, 1fr);
+  margin: 0;
+}
+
+.pub-sheet .pub-input-code {
+  min-height: 64px;
+  font-size: max(16px, var(--console-text-public-state-title));
+  font-weight: var(--font-weight-bold);
+  letter-spacing: 0.5em;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Telegram's own blue, white on it (`publicTelegram`, checked in the tokens). */
+.pub .pub-button-telegram {
+  border-color: var(--console-public-telegram);
+  background: var(--console-public-telegram);
+  color: var(--console-public-telegram-foreground);
+}
+
+.pub .pub-button-telegram:hover {
+  border-color: var(--console-public-telegram-hover);
+  background: var(--console-public-telegram-hover);
+  color: var(--console-public-telegram-foreground);
+}
+
+/* A quiet action: underlined words, still a 44px target. */
+.pub .pub-button-ghost {
+  min-height: var(--touch-minimum);
+  border-color: transparent;
+  background: transparent;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.pub .pub-button-ghost:hover {
+  background: var(--console-hover);
+}
+
+.pub-sheet .pub-button:disabled,
+.pub-sheet .pub-button[aria-disabled='true'] {
+  border-color: var(--console-line);
+  background: var(--console-line-soft);
+  cursor: not-allowed;
+}
+
+.pub .pub-sheet .pub-button:disabled,
+.pub .pub-sheet .pub-button[aria-disabled='true'] {
+  color: var(--console-muted);
+  opacity: 1;
+}
+
+/* A quiet action that cannot be pressed yet ("send again in 0:29"): just words. */
+.pub-sheet .pub-button-ghost:disabled {
+  border-color: transparent;
+  background: transparent;
+  text-decoration: none;
+}
+
+.pub-sheet-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 var(--space-sm);
+}
+
+.pub-sheet-links .pub-button {
+  padding: 0;
+}
+
+/* Waiting for Telegram: a ring turning, Telegram's blue on the line colour. */
+.pub-wait {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: var(--space-lg) 0;
+  text-align: center;
+}
+
+.pub-wait h3 {
+  margin: 0;
+  font-family: var(--font-family-display);
   font-size: var(--font-size-lg);
+}
+
+.pub-ring {
+  width: 64px;
+  height: 64px;
+  border: 5px solid var(--console-button-edge);
+  border-top-color: var(--console-public-telegram);
+  border-radius: 50%;
+  animation: pub-spin 1s linear infinite;
+}
+
+@keyframes pub-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* The taken step's offers: free at the same time. */
+.pub-alts {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.pub-alt {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+  width: 100%;
+  min-height: 56px;
+  padding: 6px var(--space-md);
+  border: 1.5px solid var(--console-line);
+  border-radius: 14px;
+  background: var(--console-surface);
+  color: var(--console-ink);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.pub-alt:hover {
+  border-color: var(--console-brand);
+}
+
+.pub-alt b {
+  display: block;
+  font-size: var(--console-text-public-meta);
+}
+
+.pub-alt span span {
+  color: var(--console-muted);
+  font-size: var(--console-text-label);
+}
+
+.pub-alt-badge {
+  display: grid;
+  flex: none;
+  place-items: center;
+  /* Grows with a long label ("T12A") rather than spilling out (review N14). */
+  min-width: 40px;
+  max-width: 96px;
+  height: 40px;
+  padding: 0 6px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  border-radius: 10px;
+  background: var(--console-green-bg);
+  color: var(--console-green);
+  font-weight: var(--font-weight-bold);
+}
+
+/* The endings: booked, waiting for the venue, declined. */
+.pub-done-mark {
+  display: grid;
+  place-items: center;
+  width: 72px;
+  height: 72px;
+  margin: var(--space-xs) auto 0;
+  border-radius: 50%;
+  background: var(--console-green-bg);
+  color: var(--console-green);
+}
+
+.pub-done-mark svg {
+  width: 38px;
+  height: 38px;
+}
+
+.pub-done-mark.is-pending {
+  background: var(--console-blue-bg);
+  color: var(--console-blue);
+}
+
+.pub-done-mark.is-declined {
+  background: var(--console-line-soft);
+  color: var(--console-muted);
+}
+
+.pub-sheet .pub-done-title {
+  text-align: center;
+  font-size: var(--font-size-xl);
+}
+
+.pub-done-body {
+  color: var(--console-muted);
+  font-size: var(--console-text-public-label);
+  text-align: center;
+}
+
+/* Read aloud at a door: the code, large, in the brand's frame; waiting, dashed blue. */
+.pub-sheet-code {
+  padding: var(--space-md);
+  border: 2px solid var(--console-brand);
+  border-radius: var(--console-radius-public-status);
+  background: var(--console-surface);
+  text-align: center;
+}
+
+.pub-sheet-code.is-pending {
+  border-style: dashed;
+  border-color: var(--console-blue);
+}
+
+.pub-sheet-code-label {
+  color: var(--console-muted);
+  font-size: var(--console-text-label);
+  font-weight: var(--font-weight-bold);
+}
+
+.pub-sheet-code-value {
+  font-family: var(--font-family-display);
+  font-size: var(--font-size-xxl);
+  font-weight: var(--font-weight-bold);
+  letter-spacing: 0.12em;
+  font-variant-numeric: tabular-nums;
+}
+
+/* The manage link, shortened on screen, whole in the copy and the href. */
+.pub-link-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  padding: 6px 6px 6px var(--space-md);
+  border: 1px solid var(--console-line);
+  border-radius: var(--console-radius-public-control);
+  background: var(--console-surface);
+}
+
+.pub-link-row a {
+  flex: 1;
+  min-width: 0;
+  /* The whole line is the link's target, not just its 13px of text. */
+  line-height: var(--touch-minimum);
+  overflow: hidden;
+  color: var(--console-muted);
+  font-size: var(--console-text-label);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pub-link-row .pub-button {
+  flex: none;
+  margin: 0;
 }
 
 /* --------------------------------------------------------------------------
@@ -2708,7 +3206,8 @@ a.pub-branch-card:hover {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .pub-skeleton {
+  .pub-skeleton,
+  .pub-ring {
     animation: none;
   }
 

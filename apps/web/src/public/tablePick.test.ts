@@ -2,6 +2,7 @@ import type { FloorTable, PublicRoom } from '@yalla/api';
 import { describe, expect, it } from 'vitest';
 import {
   freeCountByRoom,
+  freeTablesInOrder,
   isPickable,
   largestOfferedTable,
   pickTableFor,
@@ -160,5 +161,26 @@ describe('what the rooms say', () => {
     expect(isPickable(TABLES[0]!)).toBe(true);
     expect(isPickable(TABLES[1]!)).toBe(false);
     expect(isPickable(TABLES[2]!)).toBe(false);
+  });
+});
+
+describe('the free tables the Book sheet offers after one is taken', () => {
+  it('lists every pickable table on a photo, the best fit first, never one on no photo', () => {
+    const free = freeTablesInOrder(
+      [
+        table('8', 8, 't1'),
+        table('2', 2, 'h1'),
+        table('4', 4, 'v1'),
+        table('3', 4, 'h2'),
+        table('9', 2, null),
+        table('5', 6, 'h1', { isBookable: false }),
+        table('1', 2, 'h1', { state: 'reservedSoon' }),
+      ],
+      ROOMS,
+      3,
+    );
+    // A seat for everyone first (3 and 4 before 2), then the fewest seats,
+    // then the label.
+    expect(free.map((entry) => entry.label)).toEqual(['3', '4', '8', '2']);
   });
 });

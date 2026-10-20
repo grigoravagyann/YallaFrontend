@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import type { DaySlot, DaySlots, PublicBranch, SlotFloor } from '@yalla/api';
-import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { i18next } from '@yalla/i18n';
 import userEvent from '@testing-library/user-event';
 import { useState } from 'react';
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -774,5 +775,45 @@ describe('the nits', () => {
     expect(document.activeElement?.textContent).toBe('18:15');
     fireEvent.keyDown(document.activeElement!, { key: 'ArrowRight' });
     expect(document.activeElement?.textContent).toBe('18:30');
+  });
+});
+
+describe("the chosen table's free-cancellation line (public-page phase 4)", () => {
+  it('writes the date in Armenian from our own words, not the browser’s', async () => {
+    const { harness, branch, today } = await setUp();
+    await act(() => i18next.changeLanguage('hy'));
+    try {
+      const date = addDays(today, 3);
+      const slotUtc = slotInstant({ date, time: '19:00', partySize: 2 }, branch.timeZoneId)!;
+      const availability = (
+        await harness.gateway.getTableAvailability({
+          branchId: branch.id,
+          slotUtc: slotUtc.toISOString(),
+          partySize: 2,
+          timeZoneId: branch.timeZoneId,
+        })
+      ).find((entry) => entry.isBookable)!;
+      render(
+        harness.wrap(
+          <LiveCard
+            branch={branch}
+            initial={{ date, time: '19:00', partySize: 2 }}
+            extra={{
+              table: { label: availability.tableLabel, seats: 2, roomName: 'Սրահ', availability },
+              onBook: () => {},
+            }}
+          />,
+        ),
+      );
+      const line = await screen.findByText(/^Անվճար չեղարկում մինչև /u);
+      // The card's own day words ("ուրբ, 24 հոկտեմբերի", lower case mid-sentence), which read the same
+      // in a browser with no Armenian date data; `Intl` printed "Oct 24, 2026"
+      // there, and its own hy form where it has the data.
+      expect(line.textContent).toMatch(
+        /^Անվճար չեղարկում մինչև [ա-ֆ]+, \d{1,2} [ա-ֆ]+ի, \d{2}:\d{2}$/u,
+      );
+    } finally {
+      await act(() => i18next.changeLanguage('en'));
+    }
   });
 });

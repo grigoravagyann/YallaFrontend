@@ -316,6 +316,14 @@ export const consoleColor = {
   publicPhotoCount: 'rgba(20, 10, 4, 0.72)',
   /** A review's lit stars and the rating's star (Main artboard). 5.0:1 on white. */
   publicStar: '#8A5E08',
+  /**
+   * The Book sheet's first way to prove a phone: "Confirm with Telegram"
+   * (Book artboard). Telegram's own blue, a shade deeper so the white words on
+   * it pass for body text; the hover deeper again.
+   */
+  publicTelegram: '#2A6FB0',
+  publicTelegramHover: '#235D94',
+  publicTelegramForeground: '#FFFFFF',
 } as const;
 
 export type ConsoleColorToken = keyof typeof consoleColor;

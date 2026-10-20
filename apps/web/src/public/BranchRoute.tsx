@@ -30,7 +30,8 @@ import {
 import { ReviewsSection } from './ReviewsSection';
 import { RoomSection } from './RoomSection';
 import { branchToday, defaultSelection, slotInstant, type SlotSelection } from './slots';
-import { isPickable, pickTableFor, roomOf } from './tablePick';
+import type { SheetTable } from './BookingSheet';
+import { freeTablesInOrder, isPickable, pickTableFor, roomOf } from './tablePick';
 import { useSettled } from './useSettled';
 
 /**
@@ -155,10 +156,16 @@ function BranchPage({
    * it was booked, until the visitor changes something (review S1).
    */
   const [booked, setBooked] = useState(false);
-  /** The table lost to somebody else while confirming, said where the panel was. */
-  const [taken, setTaken] = useState<{ readonly label: string; readonly inAside: boolean } | null>(
-    null,
-  );
+  /**
+   * The table lost to somebody else while confirming. The sheet says it first,
+   * on its taken step; once the visitor closes it, the page says it where the
+   * sheet was.
+   */
+  const [taken, setTaken] = useState<{
+    readonly label: string;
+    readonly tableId: string;
+    readonly inAside: boolean;
+  } | null>(null);
   /** What happened to the chosen table, said on the card: chosen for you, none fits, gone. */
   const [tableNote, setTableNote] = useState<string | null>(null);
   /** The room on screen, which "Choose for me" looks in first. */
@@ -193,6 +200,19 @@ function BranchPage({
       window.removeEventListener('resize', measure);
     };
   });
+
+  /*
+   * The column turning from sticky to flowing (or back) moves everything in
+   * it: a sheet step that has just taken the focus — the confirmation, a new
+   * step's title — would be left above the window. Whatever has the focus in
+   * the column is brought back into view.
+   */
+  useEffect(() => {
+    const active = document.activeElement;
+    if (active instanceof HTMLElement && aside.current?.contains(active)) {
+      active.scrollIntoView?.({ block: 'nearest' });
+    }
+  }, [asideTall]);
 
   /*
    * Defence in depth behind `RoomSection`, which already refuses to store an
@@ -265,12 +285,59 @@ function BranchPage({
         }
       : null;
 
+  /*
+   * The sheet's taken step offers the tables free at the same slot, and its
+   * summary names the table's room — both from the room's answer the page
+   * already holds, so the sheet reads nothing of its own.
+   */
+  const alternatives = useMemo<readonly SheetTable[]>(() => {
+    if (!panel || !current) return [];
+    return freeTablesInOrder(current.plan.tables, branch.rooms, selection.partySize).flatMap(
+      (table) => {
+        const availability = current.tables.find(
+          (entry) => entry.tableId === table.id && entry.isBookable,
+        );
+        return availability
+          ? [{ availability, roomName: roomOf(table, branch.rooms)?.name ?? null }]
+          : [];
+      },
+    );
+  }, [panel, current, branch.rooms, selection.partySize]);
+  const panelTable = panel
+    ? floor?.plan.tables.find((table) => table.id === panel.availability.tableId)
+    : undefined;
+  const panelRoom = (panelTable && roomOf(panelTable, branch.rooms)?.name) ?? null;
+
+  /** Set when the venue declined and the visitor wants another time: the card takes the focus. */
+  const toCard = useRef(false);
+
   /** The focus back on the Book button once the panel has closed and it shows again. */
   useEffect(() => {
-    if (panel || !refocus.current) return;
+    if (panel) return;
+    if (toCard.current) {
+      toCard.current = false;
+      // Spent here: a later sheet closing must not send the focus back to a
+      // Book button from before (review S3).
+      refocus.current = false;
+      // The column is what scrolls into view: it keeps clear of the top bar.
+      aside.current?.scrollIntoView?.({ block: 'start' });
+      document.getElementById(bookingHeadingId)?.focus({ preventScroll: true });
+      return;
+    }
+    if (!refocus.current) return;
     refocus.current = false;
-    if (opener.current?.isConnected) opener.current.focus();
-  }, [panel]);
+    if (opener.current?.isConnected) {
+      opener.current.focus();
+    } else if (!taken) {
+      // The Book button went with the table just booked (or was never one —
+      // a table picked on the taken step): the card, ready for another
+      // (review N3). A table lost says so itself, and takes the focus.
+      aside.current?.scrollIntoView?.({ block: 'nearest' });
+      document.getElementById(bookingHeadingId)?.focus({ preventScroll: true });
+    }
+    // Only when the sheet closes: `taken` is read as it stands then.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [panel, bookingHeadingId]);
 
   const choose = (id: string, label: string) => {
     setTaken(null);
@@ -385,17 +452,30 @@ function BranchPage({
         <BookingSheet
           branch={branch}
           availability={panel.availability}
+          roomName={panelRoom}
           slotUtc={slotUtc}
           partySize={selection.partySize}
           onClose={closePanel}
           onBooked={() => setBooked(true)}
           onTableTaken={(label) => {
-            // Said where the panel was, which then has the focus — not the
-            // Book button, which is no longer the next thing to press.
-            setTaken({ label, inAside: panel.inAside });
+            // The sheet stays on its taken step. Closed, the page says it where
+            // the sheet was, and that takes the focus — not the Book button,
+            // which is no longer the next thing to press.
+            setTaken({ label, tableId: panel.availability.tableId, inAside: panel.inAside });
             setPicked(null);
             setTableNote(null);
             opener.current = null;
+          }}
+          alternatives={alternatives}
+          onPickTable={(availability) => {
+            // A table offered on the taken step: chosen as a tap in the room
+            // would choose it, and the sheet's new attempt (see `BookingSheet`).
+            choose(availability.tableId, availability.tableLabel);
+            setPanel((open) => (open ? { ...open, availability } : open));
+          }}
+          onChooseAnotherTime={() => {
+            toCard.current = true;
+            closePanel();
           }}
         />
       </Suspense>
@@ -465,7 +545,7 @@ function BranchPage({
           onPickForMe={pickForMe}
           roomReady={current !== undefined}
           tableNote={tableNote}
-          takenTableLabel={taken?.inAside ? taken.label : null}
+          takenTableLabel={!panel && taken?.inAside ? taken.label : null}
           panelOpen={panel !== null}
           panelInColumn={panel?.inAside ?? false}
           holdTime={booked}
@@ -480,12 +560,15 @@ function BranchPage({
           slotUtc={slotUtc}
           selectedTableId={picked?.id ?? null}
           onTableTap={(availability) => {
+            // The table just lost, still drawn free until the room answers
+            // again: not a new attempt, and not the visitor's (review N5).
+            if (panel && taken?.tableId === availability.tableId) return;
             choose(availability.tableId, availability.tableLabel);
             // An open panel follows the table tapped — a new attempt (see
             // `BookingSheet`) — and stays in the column it opened in.
             setPanel((open) => (open ? { ...open, availability } : open));
           }}
-          takenTableLabel={taken && !taken.inAside ? taken.label : null}
+          takenTableLabel={!panel && taken && !taken.inAside ? taken.label : null}
           onRoomShown={setRoomShown}
           footer={
             chosenTable ? (

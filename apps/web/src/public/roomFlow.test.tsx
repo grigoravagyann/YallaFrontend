@@ -312,7 +312,10 @@ async function taken(where: () => HTMLElement): Promise<HTMLElement> {
   return notice;
 }
 
-/** Book the chosen table through to the server, which says somebody took it. */
+/**
+ * Book the chosen table through to the server, which says somebody took it;
+ * the sheet then shows its taken step, and "See the room" closes it.
+ */
 async function loseTheTable(user: ReturnType<typeof userEvent.setup>, where: () => HTMLElement) {
   const pin = (await freePins())[0]!;
   const label = pin.textContent!;
@@ -320,13 +323,16 @@ async function loseTheTable(user: ReturnType<typeof userEvent.setup>, where: () 
   const book = await within(where()).findByRole('button', { name: `Book table ${label}` });
   await waitFor(() => expect((book as HTMLButtonElement).disabled).toBe(false));
   await user.click(book);
-  await user.click(await screen.findByRole('button', { name: /^Reserve table/u }));
+  await user.click(await screen.findByRole('button', { name: 'Continue' }));
   await user.type(await screen.findByLabelText('Phone number'), '77123456');
-  await user.click(screen.getByRole('button', { name: 'Send code' }));
-  await user.type(await screen.findByLabelText('Enter the code'), '123456');
+  await user.click(screen.getByRole('button', { name: 'Get a code by SMS' }));
+  await user.type(await screen.findByLabelText('Code'), '123456');
   await user.type(await screen.findByLabelText('Name for the booking'), 'Ani');
   await user.click(
     await screen.findByRole('button', { name: /^(Confirm booking|Request table)$/u }),
+  );
+  await user.click(
+    await within(await screen.findByRole('dialog')).findByRole('button', { name: 'See the room' }),
   );
   return label;
 }
@@ -408,17 +414,17 @@ describe('after the booking panel closes (review B2, S1)', () => {
     await waitFor(() => expect((book as HTMLButtonElement).disabled).toBe(false));
     const slotLine = room().querySelector('.pub-room-sub')!.textContent;
     await user.click(book);
-    await user.click(await screen.findByRole('button', { name: /^Reserve table/u }));
+    await user.click(await screen.findByRole('button', { name: 'Continue' }));
     await user.type(await screen.findByLabelText('Phone number'), '77123456');
-    await user.click(screen.getByRole('button', { name: 'Send code' }));
-    await user.type(await screen.findByLabelText('Enter the code'), '123456');
+    await user.click(screen.getByRole('button', { name: 'Get a code by SMS' }));
+    await user.type(await screen.findByLabelText('Code'), '123456');
     await user.type(await screen.findByLabelText('Name for the booking'), 'Ani');
     await user.click(
       await screen.findByRole('button', { name: /^(Confirm booking|Request table)$/u }),
     );
     const back = await screen.findByRole(
       'button',
-      { name: 'Back to the room' },
+      { name: 'Back to the venue page' },
       { timeout: 10_000 },
     );
     await new Promise((resolve) => setTimeout(resolve, 800));
