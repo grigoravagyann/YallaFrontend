@@ -51,6 +51,12 @@ export interface ResolveGatewayOptions {
    * their table this long after it is made. Absent, nobody answers.
    */
   readonly mockEarlierGuestAnswersAfterMs?: number | undefined;
+  /**
+   * Mock only: which ways of proving a phone the mock backend has on. Both
+   * when absent. See `MockGatewayOptions.phoneProofChannels`.
+   */
+  readonly mockPhoneProofChannels?:
+    { readonly sms?: boolean | undefined; readonly telegram?: boolean | undefined } | undefined;
   /** This install's device id, for opening and joining tabs. Real only. */
   readonly deviceId?: (() => Promise<string>) | undefined;
   /** Mock only: keep the world across a reload (QA F2). */
@@ -83,6 +89,7 @@ export function resolveGateway(options: ResolveGatewayOptions): YallaGateway {
       seedNeighbourBookings: options.mockNeighbourBookings ?? false,
       showcase: options.mockShowcase ?? false,
       simulateEarlierGuestAnswerAfterMs: options.mockEarlierGuestAnswersAfterMs,
+      phoneProofChannels: options.mockPhoneProofChannels,
     };
     if (options.persist) {
       return persistMockGateway<YallaGateway>({
