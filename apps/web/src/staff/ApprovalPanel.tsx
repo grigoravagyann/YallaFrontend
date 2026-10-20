@@ -230,6 +230,14 @@ function ApprovalCard({
         <span className="badge badge-warn">
           {t(`approvals.because.${request.because ?? 'unknown'}`)}
         </span>
+        {/* Made without a verified number for another reason too (short notice,
+            a large party): said beside it. The reason itself says it otherwise. */}
+        {request.phoneUnverified && request.because !== 'unverifiedPhone' ? (
+          <>
+            {' '}
+            <span className="badge badge-warn">{t('admission.unverified')}</span>
+          </>
+        ) : null}
       </p>
       {request.note ? <p className="order-line-note">{request.note}</p> : null}
 

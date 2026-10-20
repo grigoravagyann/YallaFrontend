@@ -11,7 +11,9 @@ import {
   TabNotAcceptingOrdersError,
   TableNotSeatedError,
 } from '../contracts/errors';
+import type { TabAwaitingAdmission } from '../contracts/admission';
 import type { Menu } from '../contracts/menu';
+import { admissionRefusal, tabAwaitingAdmissionFromWire } from './admissionMapping';
 import type {
   StaffFloor,
   TableActionCommand,
@@ -334,6 +336,42 @@ export function createStaffHttpGateway(client: ApiClient): StaffGateway {
         } satisfies Schemas['Yalla.Api.Endpoints.DecideReservationRequest'],
       );
       return consoleBookingFromWire(data);
+    },
+
+    // --- Tables waiting to be let in ---------------------------------------
+
+    async listTabsAwaitingAdmission(branchId): Promise<readonly TabAwaitingAdmission[]> {
+      // Oldest first, as the server orders it; kept as sent.
+      const { data } = await client.get<
+        Schemas['Yalla.Application.Tabs.TabAwaitingAdmissionView'][]
+      >(`/api/branches/${branchId}/tabs/awaiting-admission`);
+      return (data ?? []).map(tabAwaitingAdmissionFromWire);
+    },
+
+    async admitTab({ tabId, clientCommandId }): Promise<StaffTab> {
+      try {
+        const { data } = await client.post<Schemas['Yalla.Application.Tabs.TabStaffView']>(
+          `/api/tabs/${tabId}/admit`,
+          { clientCommandId },
+        );
+        return staffTabFromView(data, client.baseUrl);
+      } catch (error) {
+        throw admissionRefusal(error, tabId) ?? error;
+      }
+    },
+
+    async rejectTab({ tabId, clientCommandId, reason }): Promise<StaffTab> {
+      try {
+        const { data } = await client.post<Schemas['Yalla.Application.Tabs.TabStaffView']>(
+          `/api/tabs/${tabId}/reject`,
+          { clientCommandId, reason: reason?.trim() ? reason.trim() : null },
+        );
+        return staffTabFromView(data, client.baseUrl);
+      } catch (error) {
+        // `table-state-conflict` passes through as the client's own
+        // `ConcurrencyConflictError`: the floor is read again either way.
+        throw admissionRefusal(error, tabId) ?? error;
+      }
     },
 
     // --- The tab ------------------------------------------------------------

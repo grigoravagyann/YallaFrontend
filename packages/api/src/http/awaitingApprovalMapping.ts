@@ -65,6 +65,7 @@ export function awaitingApprovalFromWire(wire: WireAwaitingApproval): AwaitingAp
     localStartTime: view.localStartTime,
     timeZoneId: view.timeZoneId,
     note: view.note ?? null,
+    phoneUnverified: view.phoneUnverified === true,
     // The row's own fields first; the reservation's when a server sends only those.
     approvalExpiresAtUtc: approvalExpiry(wire.approvalExpiresAtUtc ?? view.approvalExpiresAtUtc),
     because: approvalTrigger(wire.trigger ?? view.awaitingApprovalBecause),

@@ -305,6 +305,17 @@ export interface StaffTableDetail {
   readonly nextReservationPromisedFreeByUtc?: string | null | undefined;
   /** The party sitting at the table now promised to have left by this. */
   readonly sittingPromisedFreeByUtc?: string | null | undefined;
+  /**
+   * The next booking was made without a proved phone number: "number not
+   * verified" beside it. Absent from a server before unverified bookings.
+   */
+  readonly nextReservationPhoneUnverified?: boolean | undefined;
+  /**
+   * The open tab was opened by a scan with no proved number and waits for a
+   * waiter to admit it: the table panel offers Admit and Reject. Absent from a
+   * server before admission, which reads as admitted.
+   */
+  readonly openTabAwaitingAdmission?: boolean | undefined;
 }
 
 /**

@@ -29,6 +29,8 @@ describe('a diner ordering from their own phone', () => {
       tableCode: mockTableCode('b-lumen-north-t4'),
       commandId: COMMAND(1),
     });
+    // Scanned with no proved number: a waiter lets the table order.
+    gateway.admitTabAsWaiter(scan.tab.tabId);
     expect(scan.kind).toBe('tabOpened');
     const tab = scan.tab;
 
@@ -94,6 +96,8 @@ describe('a diner ordering from their own phone', () => {
       tableCode: mockTableCode('b-lumen-north-t5'),
       commandId: COMMAND(3),
     });
+    // Scanned with no proved number: a waiter lets the table order.
+    gateway.admitTabAsWaiter(scan.tab.tabId);
     const menu = await gateway.getBranchMenuDetail(scan.tab.branchId);
     const item = (menu?.categories ?? []).flatMap((c) => c.items)[0]!;
 
@@ -129,6 +133,8 @@ describe('a diner ordering from their own phone', () => {
       tableCode: mockTableCode('b-lumen-north-t6'),
       commandId: COMMAND(5),
     });
+    // Scanned with no proved number: a waiter lets the table order.
+    gateway.admitTabAsWaiter(scan.tab.tabId);
     const menu = await gateway.getBranchMenuDetail(scan.tab.branchId);
     const items = (menu?.categories ?? []).flatMap((c) => c.items);
 
@@ -167,6 +173,8 @@ describe('a diner ordering from their own phone', () => {
       tableCode: mockTableCode('b-lumen-north-t7'),
       commandId: COMMAND(7),
     });
+    // Scanned with no proved number: a waiter lets the table order.
+    gateway.admitTabAsWaiter(scan.tab.tabId);
 
     const updated = await gateway.setSettlementMode({
       tabId: scan.tab.tabId,
@@ -184,6 +192,8 @@ describe('a diner ordering from their own phone', () => {
       tableCode: mockTableCode('b-lumen-north-t8'),
       commandId: COMMAND(9),
     });
+    // Scanned with no proved number: a waiter lets the table order.
+    gateway.admitTabAsWaiter(scan.tab.tabId);
 
     const call = await gateway.callWaiter({
       tabId: scan.tab.tabId,

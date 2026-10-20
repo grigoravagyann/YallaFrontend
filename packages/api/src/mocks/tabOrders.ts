@@ -1,3 +1,4 @@
+import { ADMITTED, type TabAdmission } from '../contracts/admission';
 import type { Photo } from '../contracts/menuAdmin';
 import type {
   BillScope,
@@ -532,7 +533,12 @@ export function createTabOrders(options: TabOrdersOptions) {
       tab: TableTab,
       type: Extract<
         TabEvent['type'],
-        'serviceRequested' | 'serviceRequestAcknowledged' | 'tabClosed' | 'participantJoined'
+        | 'serviceRequested'
+        | 'serviceRequestAcknowledged'
+        | 'tabClosed'
+        | 'participantJoined'
+        | 'tabAdmitted'
+        | 'tabAdmissionRejected'
       >,
       actor: TabEvent['actor'],
       data: Record<string, unknown> | null,
@@ -549,7 +555,12 @@ export function createTabOrders(options: TabOrdersOptions) {
      * aggregate on it at all — not a zero, which the union makes impossible to
      * render by accident.
      */
-    dinerView(tab: TableTab, participantId: string): DinerTabView {
+    dinerView(
+      tab: TableTab,
+      participantId: string,
+      /** Whether a waiter has let the table order. Absent: admitted. */
+      admission: TabAdmission = ADMITTED,
+    ): DinerTabView {
       const record = contentFor(tab.id, tab.branchId);
       const me = tab.participants.find((person) => person.id === participantId);
       const canSeeTableTotal = me?.permissions.canSeeTableTotal ?? false;
@@ -634,8 +645,12 @@ export function createTabOrders(options: TabOrdersOptions) {
           canOrder: me?.permissions.canOrder ?? false,
           // The same three-way rule the ordering endpoint enforces, in one
           // place. A screen must never assemble this itself.
+          // And, since 2026-10-20, a tab a waiter has let in.
           canOrderNow:
-            (me?.permissions.canOrder ?? false) && me?.status === 'active' && tab.status === 'open',
+            (me?.permissions.canOrder ?? false) &&
+            me?.status === 'active' &&
+            tab.status === 'open' &&
+            admission.status !== 'awaiting',
           canPay: me?.permissions.canPay ?? false,
           canSeeTableTotal,
           joinedAtUtc: me?.joinedAtUtc ?? tab.openedAtUtc,
@@ -674,6 +689,7 @@ export function createTabOrders(options: TabOrdersOptions) {
         maxSequence: record.sequence,
         openedAtUtc: tab.openedAtUtc,
         closedAtUtc: tab.closedAtUtc,
+        admission,
         fetchedAtUtc: iso(now()),
       };
     },

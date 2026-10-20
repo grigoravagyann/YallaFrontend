@@ -139,6 +139,7 @@ export function TableList({
             }),
             leads ? null : card.state,
             card.sub,
+            card.flag,
             pending ? mark : null,
             table.floorAreaName,
           ]
@@ -163,6 +164,7 @@ export function TableList({
                     {card.state}
                   </span>
                   {card.sub ? <span className="ft-table-sub">{card.sub}</span> : null}
+                  {card.flag ? <span className="ft-table-flag">{card.flag}</span> : null}
                 </span>
                 {pending ? <span className="ft-table-pending">{mark}</span> : null}
               </button>

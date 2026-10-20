@@ -1,5 +1,11 @@
 // @vitest-environment jsdom
-import type { ServiceRequest, StaffTab, TabLine, UserRole } from '@yalla/api';
+import {
+  ADMITTED,
+  type ServiceRequest,
+  type StaffTab,
+  type TabLine,
+  type UserRole,
+} from '@yalla/api';
 import { formatDram } from '@yalla/format';
 import { I18nextProvider, i18next } from '@yalla/i18n';
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
@@ -96,6 +102,7 @@ const TAB: StaffTab = {
   tableId: 't4',
   tableLabel: '4',
   status: 'open',
+  admission: ADMITTED,
   settlementMode: 'everyonePaysOwnItems',
   settlementModeLocked: false,
   openedAtUtc: '2026-10-19T12:28:00Z',

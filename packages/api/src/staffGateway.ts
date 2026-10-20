@@ -3,6 +3,11 @@ import type {
   ConsoleBooking,
   DecideReservationCommand,
 } from './contracts/approvals';
+import type {
+  AdmitTabCommand,
+  RejectTabCommand,
+  TabAwaitingAdmission,
+} from './contracts/admission';
 import type { Menu } from './contracts/menu';
 import type { StaffFloor, TableActionCommand, TableActionResult } from './contracts/service';
 import type {
@@ -119,6 +124,33 @@ export interface StaffGateway {
    * the booking and never shown to the diner. Same guards as approve.
    */
   rejectReservation(command: DecideReservationCommand): Promise<ConsoleBooking>;
+
+  // --- Tables waiting to be let in (2026-10-20) ---------------------------
+
+  /**
+   * The tabs a scan opened with no proved number, waiting for a waiter,
+   * oldest first. `GET /api/branches/{branchId}/tabs/awaiting-admission` —
+   * waiter or above, this branch only. Read again on a change-stream `signal`.
+   */
+  listTabsAwaitingAdmission(branchId: string): Promise<readonly TabAwaitingAdmission[]>;
+
+  /**
+   * Let the table order. Online only, never queued. An admitted tab answers as
+   * it is.
+   *
+   * @throws {TabAdmissionDecidedError} 409 — another waiter rejected it first.
+   */
+  admitTab(command: AdmitTabCommand): Promise<StaffTab>;
+
+  /**
+   * Turn the tab away: it closes, its calls are answered, and the table is
+   * freed when the scan seated it (`admission.tableFreed`). Online only.
+   *
+   * @throws {TabAdmissionDecidedError} 409 — another waiter admitted it first.
+   * @throws {ConcurrencyConflictError} 409 `table-state-conflict` — a waiter
+   * changed the table at the same moment; read the floor again.
+   */
+  rejectTab(command: RejectTabCommand): Promise<StaffTab>;
 
   // --- The tab ------------------------------------------------------------
 

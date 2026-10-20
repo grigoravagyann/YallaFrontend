@@ -303,6 +303,11 @@ export function reservationPolicy(view: WirePolicy): ReservationPolicy {
     maxSeatOverhang: view.maxSeatOverhang ?? null,
     serviceChargePercent: view.serviceChargePercent,
     pricesIncludeVat: view.pricesIncludeVat,
+    // Absent from a server before unverified bookings: the shipped defaults.
+    unverifiedBookingsNeedApproval: view.unverifiedBookingsNeedApproval ?? true,
+    unverifiedMaxPartySize: view.unverifiedMaxPartySize ?? 6,
+    unverifiedScansNeedAdmission:
+      (view as WirePolicy & WireAdmissionSetting).unverifiedScansNeedAdmission ?? true,
   };
 }
 
@@ -321,9 +326,18 @@ export function policyDefaults(view: WirePolicyDefaults): ReservationPolicyDefau
   };
 }
 
+/**
+ * `unverifiedScansNeedAdmission` (UG wire §0 item 3), ahead of the generated
+ * schema: whether a scan with no proved number waits for a waiter. Absent from
+ * an older server, which reads as the default, on.
+ */
+interface WireAdmissionSetting {
+  readonly unverifiedScansNeedAdmission?: boolean | null;
+}
+
 export function policyCommand(
   policy: ReservationPolicy,
-): Schemas['Yalla.Application.BranchSettings.ReservationPolicyCommand'] {
+): Schemas['Yalla.Application.BranchSettings.ReservationPolicyCommand'] & WireAdmissionSetting {
   return {
     turnTimeMinutes: policy.turnTimeMinutes,
     bufferMinutes: policy.bufferMinutes,
@@ -339,6 +353,9 @@ export function policyCommand(
     maxSeatOverhang: policy.maxSeatOverhang,
     serviceChargePercent: policy.serviceChargePercent,
     pricesIncludeVat: policy.pricesIncludeVat,
+    unverifiedBookingsNeedApproval: policy.unverifiedBookingsNeedApproval,
+    unverifiedMaxPartySize: policy.unverifiedMaxPartySize,
+    unverifiedScansNeedAdmission: policy.unverifiedScansNeedAdmission,
   };
 }
 
@@ -377,6 +394,7 @@ const BOUNDS_LABELS: readonly (readonly [string, keyof ReservationPolicy])[] = [
   ['Cancellation deadline', 'cancellationDeadlineMinutes'],
   ['Walk-in holdback', 'walkInHoldbackMinutes'],
   ['Service charge', 'serviceChargePercent'],
+  ['Unverified party size', 'unverifiedMaxPartySize'],
 ];
 
 export function policyFieldFromMessage(detail: string): keyof ReservationPolicy | null {

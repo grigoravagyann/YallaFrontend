@@ -144,6 +144,73 @@ describe('a field', () => {
 });
 
 describe('saving', () => {
+  it('sets what a booking without a verified number may be, and says what the guest sees', async () => {
+    const user = userEvent.setup();
+    const gateway = createConsoleMockGateway({ latencyMs: 0, role: 'owner' });
+    const save = vi.spyOn(gateway, 'replaceReservationPolicy');
+    renderPolicy(gateway);
+    await ready();
+
+    const unverified = group('Guests without a verified number');
+    const approve = within(unverified).getByRole('switch', {
+      name: 'Confirm bookings without a verified number yourself',
+    });
+    expect(approve.getAttribute('aria-checked')).toBe('true');
+    const cap = input('Largest party without a verified number');
+    expect(cap.value).toBe('6');
+    expect(
+      within(unverified).getByText(
+        /Without a verified number, up to 6 people; the booking waits for you\./u,
+      ),
+    ).toBeTruthy();
+
+    await user.click(approve);
+    await user.clear(cap);
+    await user.type(cap, '4');
+    expect(
+      within(unverified).getByText(
+        /Without a verified number, up to 4 people; the booking is confirmed as usual\./u,
+      ),
+    ).toBeTruthy();
+
+    await user.click(screen.getByRole('button', { name: 'Save the policy' }));
+    await waitFor(() => expect(save).toHaveBeenCalledTimes(1));
+    expect(save.mock.calls[0]![0].policy).toMatchObject({
+      unverifiedBookingsNeedApproval: false,
+      unverifiedMaxPartySize: 4,
+    });
+  });
+
+  it('lets the branch say whether a scan without a verified number waits for a waiter', async () => {
+    const user = userEvent.setup();
+    const gateway = createConsoleMockGateway({ latencyMs: 0, role: 'owner' });
+    const save = vi.spyOn(gateway, 'replaceReservationPolicy');
+    renderPolicy(gateway);
+    await ready();
+
+    const gate = within(group('Guests without a verified number')).getByRole('switch', {
+      name: 'Unverified scans wait for a waiter',
+    });
+    expect(gate.getAttribute('aria-checked')).toBe('true');
+    await user.click(gate);
+    await user.click(screen.getByRole('button', { name: 'Save the policy' }));
+
+    await waitFor(() => expect(save).toHaveBeenCalledTimes(1));
+    expect(save.mock.calls[0]![0].policy).toMatchObject({ unverifiedScansNeedAdmission: false });
+  });
+
+  it('refuses a cap outside 1 to 100 before sending it', async () => {
+    const user = userEvent.setup();
+    renderPolicy();
+    await ready();
+    const cap = input('Largest party without a verified number');
+    await user.clear(cap);
+    await user.type(cap, '0');
+    expect(
+      within(group('Guests without a verified number')).getByText('Must be between 1 and 100'),
+    ).toBeTruthy();
+  });
+
   it('keeps the affected-bookings result on the page until it is closed', async () => {
     const user = userEvent.setup();
     renderPolicy();

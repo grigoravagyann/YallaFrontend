@@ -47,6 +47,7 @@ const VIEW: ReservationViewWire = {
   guestPhone: '+37477123456',
   wasReplay: false,
   awaitsEarlierGuestAnswer: false,
+  phoneUnverified: false,
 };
 
 function gatewayOver(routes: Readonly<Record<string, FakeRoute>>) {

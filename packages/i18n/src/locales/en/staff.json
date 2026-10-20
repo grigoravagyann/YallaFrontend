@@ -134,7 +134,8 @@
       "seatedLong_other": "Seated {{count}} min · long",
       "party_one": "{{count}} guest",
       "party_other": "{{count}} guests",
-      "late": "Late · booked {{time}}"
+      "late": "Late · booked {{time}}",
+      "awaitingAdmission": "waiting to be let in"
     },
     "heldMark": "waiting for {{name}}"
   },
@@ -271,7 +272,8 @@
       "noShowHistory": "Missed bookings before",
       "branchApprovesEveryBooking": "Every booking needs an OK",
       "unknown": "Needs an OK",
-      "earlierGuestConsent": "The guest before can't be asked in the app — call them"
+      "earlierGuestConsent": "The guest before can't be asked in the app — call them",
+      "unverifiedPhone": "Number not verified — the venue confirms"
     },
     "answerWithin": "Answer within",
     "leftLabel": "{{time}} left to answer",
@@ -821,5 +823,32 @@
     "occupied_other": "{{count}} tables occupied",
     "minutes_one": "{{count}} min",
     "minutes_other": "{{count}} min"
+  },
+  "admission": {
+    "title": "Waiting to be let in",
+    "unverified": "number not verified",
+    "scanned_one": "scanned {{count}} min ago",
+    "scanned_other": "scanned {{count}} min ago",
+    "scannedJustNow": "scanned just now",
+    "host": "Guest: {{name}}",
+    "phones_one": "{{count}} phone",
+    "phones_other": "{{count}} phones",
+    "admit": "Admit",
+    "reject": "Reject",
+    "confirmTitle": "Table {{label}}: nobody there?",
+    "confirmFrees": "This closes the tab and frees the table.",
+    "confirmKeeps": "This closes the tab. The table stays seated: if the guests are really there, they can scan again.",
+    "confirmMayFree": "This closes the tab, and frees the table if the scan seated it.",
+    "confirmReject": "Yes, reject",
+    "needsOnline": "Admitting or rejecting needs a connection.",
+    "decidedElsewhere": "Someone else already decided about this table.",
+    "failed": "That did not go through. Try again.",
+    "unreachable": "The tables waiting to be let in could not be read. That is not the same as none waiting.",
+    "panelTitle": "Waiting to be let in",
+    "why": "Scanned without a verified number. Check that the guests are at the table, then let them order.",
+    "admittedNotice": "Table {{label}} can order now.",
+    "rejectedFreedNotice": "Table {{label}}: tab closed, table freed.",
+    "rejectedNotice": "Table {{label}}: tab closed.",
+    "hasOrders": "Orders were taken at this table, so somebody is there. Admit it instead."
   }
 }

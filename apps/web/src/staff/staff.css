@@ -593,6 +593,18 @@
   color: var(--console-muted);
 }
 
+/* About the people, not the table: a scan waiting to be let in, a booking
+   made without a verified number. Amber words, never colour alone. */
+.ft-table-flag {
+  overflow: hidden;
+  line-height: 1.3;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-size: var(--console-text-label);
+  font-weight: var(--font-weight-bold);
+  color: var(--console-amber);
+}
+
 /* Done on this tablet, not yet on the server. */
 .ft-table-pending {
   position: absolute;
@@ -831,6 +843,45 @@
   background: var(--console-canvas);
   color: var(--console-muted);
   cursor: not-allowed;
+}
+
+/* --- A table waiting to be let in (2026-10-20) ------------------------------- */
+
+.admission-card .ft-item-top {
+  flex-wrap: wrap;
+}
+
+.ft-item .admission-who {
+  color: var(--console-ink);
+}
+
+/* Reject's question, in place of its button: named by its title. */
+.admission-confirm {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  padding: var(--space-md);
+  border: 1.5px solid var(--console-line);
+  border-radius: var(--console-radius-floor-button);
+  background: var(--console-canvas);
+}
+
+.admission-confirm:focus-visible {
+  outline: 2px solid var(--console-brand);
+  outline-offset: 2px;
+}
+
+.admission-confirm h3 {
+  margin: 0;
+  font-size: var(--console-text-nav);
+  font-weight: var(--font-weight-bold);
+}
+
+.tp-flag {
+  display: block;
+  width: fit-content;
+  margin-top: var(--space-xs);
+  font-size: var(--console-text-label);
 }
 
 /* --- A booking waiting for the floor's answer -------------------------------- */
@@ -1143,6 +1194,7 @@
 
 .tp-late,
 .tp-affected,
+.tp-admission,
 .tp-acts {
   display: flex;
   flex-direction: column;

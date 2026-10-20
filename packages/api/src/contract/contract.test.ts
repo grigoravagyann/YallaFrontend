@@ -1,4 +1,5 @@
 import { describe, it, vi } from 'vitest';
+import { describeAdmissionContract } from './admission.contract';
 import { describeAvailabilityContract } from './availability.contract';
 import { describeBookingTimesContract } from './bookingTimes.contract';
 import { describeConsoleListingContract } from './consoleListing.contract';
@@ -73,6 +74,8 @@ function describeEveryContract(subject: ContractSubject): void {
   // Booking times: one table, both sides of it booked by one diner.
   describeBookingTimesContract(subject);
   describeTabGapsContract(subject);
+  // Unverified guests: an anonymous scan waits for a waiter, who turns it away.
+  describeAdmissionContract(subject);
 }
 
 describeEveryContract(mockSubject());

@@ -26,6 +26,7 @@
  * Screens depend on these contracts; both gateways implement them.
  */
 
+import type { FloorChangeSignal, TabAdmission } from './admission';
 import type { Photo } from './menuAdmin';
 import type { TabParticipantRole } from './tab';
 import type {
@@ -589,6 +590,12 @@ export interface DinerTabView {
   readonly openedAtUtc: string;
   readonly closedAtUtc: string | null;
   /**
+   * Whether the table may order yet. While a waiter has not let a scan's tab
+   * in (`awaiting`), nobody's `me.canOrderNow` is true: the screen says a
+   * waiter will be over, keeps "call a waiter", and refetches on `tabAdmitted`.
+   */
+  readonly admission: TabAdmission;
+  /**
    * When this copy was read, from the client's own clock.
    *
    * `TabView` carries no `asOfUtc`. This is not the server's opinion of when
@@ -883,6 +890,10 @@ export type TabEventType =
   | 'tabClosing'
   | 'tabClosed'
   | 'tabAbandoned'
+  /** A waiter let a waiting table order (21). Refetch the tab; ordering opens. */
+  | 'tabAdmitted'
+  /** A waiter turned the tab away (22): it is closed. */
+  | 'tabAdmissionRejected'
   | 'unknown';
 
 /** Who caused it, for "added by the waiter" versus "you added this". */
@@ -947,6 +958,18 @@ export interface FloorChange {
   /** Who acted, as an id. Null for a system change. No name is projected. */
   readonly actorId: string | null;
   readonly reason: string;
+  /**
+   * The tab involved, when there was one — always on a {@link signal} entry.
+   * Absent from a server before admission.
+   */
+  readonly tabId?: string | null | undefined;
+  /**
+   * Set when the entry is about the table's tab rather than the table: a scan's
+   * tab waiting to be let in, admitted, or turned away. Such an entry often
+   * moves no status at all (occupied to occupied), and the tablet reads the
+   * awaiting list and the floor again on any of them.
+   */
+  readonly signal?: FloorChangeSignal | null | undefined;
 }
 
 export interface FloorChangePage {
@@ -1008,4 +1031,9 @@ export interface StaffTab {
   readonly adjustments: readonly TabAdjustment[];
   /** False when they were not read: none and unknown are not the same. */
   readonly adjustmentsKnown: boolean;
+  /**
+   * Whether the table may order yet: a scan's tab with no proved number waits
+   * for a waiter to admit it (or reject it, which closes it).
+   */
+  readonly admission: TabAdmission;
 }

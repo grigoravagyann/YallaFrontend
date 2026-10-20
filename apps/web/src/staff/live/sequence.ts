@@ -70,6 +70,13 @@ export function applyFloorChanges(
 
   for (const change of ordered) {
     const detail = details.get(change.tableId);
+    // About the table's tab, not the table (a scan waiting to be let in,
+    // admitted, turned away): the floor's flags and the tab id moved, often
+    // with no status change at all, and none of that is on the change.
+    if (change.signal) {
+      return { kind: 'gap', expected: floor.lastSequence + 1, received: change.sequence };
+    }
+
     // A table the client has never seen means the plan itself changed under us
     // — a table was added in the editor. Geometry does not arrive on this
     // stream, so this is a refetch, not something to patch around.

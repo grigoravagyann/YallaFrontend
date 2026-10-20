@@ -86,6 +86,7 @@ import type {
 } from '../contracts/ordering';
 import type { components } from '../generated/schema';
 import { rethrowBookingRefusal } from './bookingRefusal';
+import { admissionRefusal, scanTurnedAway } from './admissionMapping';
 import {
   availabilityFromResponse,
   daySlotsFromWire,
@@ -454,6 +455,9 @@ export function createHttpGateway(client: ApiClient, options: HttpGatewayOptions
     if (error instanceof NotFoundError) {
       throw new UnknownTableCodeError({ url: error.url });
     }
+    // Turned away a moment ago: before the generic 409s below.
+    const turnedAway = scanTurnedAway(error);
+    if (turnedAway) throw turnedAway;
     if (error instanceof ApiError) {
       const code = error.problem?.code;
       if (code === 'feature-not-enabled') {
@@ -615,9 +619,12 @@ export function createHttpGateway(client: ApiClient, options: HttpGatewayOptions
    * is "pick something else" and on the closing case is "go and look at the
    * bill". Everything else keeps the client's generic mapping.
    */
-  function rethrowOrdering(error: unknown): never {
+  function rethrowOrdering(error: unknown, tabId: string): never {
     if (!(error instanceof ApiError) || !error.problem) throw error;
     const context = error.problem.context ?? {};
+    // A waiter has not let the table order yet: said as itself, not a race.
+    const admission = admissionRefusal(error, tabId);
+    if (admission) throw admission;
 
     switch (error.problem.code) {
       case 'menu-item-unavailable':
@@ -1548,7 +1555,8 @@ export function createHttpGateway(client: ApiClient, options: HttpGatewayOptions
             requestId: error.requestId,
           });
         }
-        throw ended(error, tabId);
+        // The bill, on a tab a waiter has not let in yet: nothing is on it.
+        throw admissionRefusal(error, tabId) ?? ended(error, tabId);
       }
       return {
         id: data.serviceRequestId,
@@ -1806,7 +1814,7 @@ export function createHttpGateway(client: ApiClient, options: HttpGatewayOptions
       } catch (error) {
         // A 403 stays a 403: it is the ordering policy (pending, not allowed,
         // bill asked for), and the tray refetches the tab to say which.
-        rethrowOrdering(ended(error, command.tabId));
+        rethrowOrdering(ended(error, command.tabId), command.tabId);
       }
     },
 

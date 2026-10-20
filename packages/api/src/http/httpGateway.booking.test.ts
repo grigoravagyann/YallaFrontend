@@ -42,6 +42,7 @@ const VIEW: ReservationViewWire = {
   guestPhone: '+37477123456',
   wasReplay: false,
   awaitsEarlierGuestAnswer: false,
+  phoneUnverified: false,
   manageToken: 'mt-1',
 };
 
@@ -137,6 +138,8 @@ describe('creating a booking', () => {
     expect(backend.requests[0]?.headers.get('authorization')).toBe('Bearer diner-token');
 
     expect(booking).toEqual({
+      phoneUnverified: false,
+      madeWithYourNumber: false,
       id: VIEW.id,
       code: '482913',
       status: 'confirmed',

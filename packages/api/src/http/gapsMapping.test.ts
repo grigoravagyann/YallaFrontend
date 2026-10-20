@@ -150,6 +150,7 @@ describe('the staff tab, with tips and faces', () => {
     maxSequence: 4,
     serviceChargePercent: 10,
     timeZoneId: 'Asia/Yerevan',
+    admission: { status: 2, admittedBecause: 2 },
     lines: [],
     adjustments: [],
     totals: {

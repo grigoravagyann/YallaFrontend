@@ -98,6 +98,12 @@ export interface HarnessOptions {
   readonly showcase?: boolean;
   /** A review store of the test's own, for a branch with a known set of reviews. */
   readonly reviews?: MockReviewStore;
+  /**
+   * Bookings from before one phone number, one active booking (2026-10-20):
+   * for the tests of the overlap with the visitor's own booking, which the
+   * number rule now answers first for any new pair.
+   */
+  readonly bookingsBeforeTheNumberRule?: boolean;
 }
 
 export function createHarness(options: HarnessOptions = {}): Harness {
@@ -113,6 +119,7 @@ export function createHarness(options: HarnessOptions = {}): Harness {
     simulateVenueApprovalAfterMs: options.simulateVenueApprovalAfterMs,
     showcase: options.showcase ?? false,
     ...(options.reviews ? { reviews: options.reviews } : {}),
+    bookingsBeforeTheNumberRule: options.bookingsBeforeTheNumberRule ?? false,
   });
   const publicGateway = createPublicMockGateway({
     gateway,

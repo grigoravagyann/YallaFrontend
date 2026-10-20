@@ -218,6 +218,7 @@ const POLICY_LABELS: Readonly<Record<string, string>> = {
   cancellationDeadlineMinutes: 'Cancellation deadline',
   walkInHoldbackMinutes: 'Walk-in holdback',
   serviceChargePercent: 'Service charge',
+  unverifiedMaxPartySize: 'Unverified party size',
 };
 
 interface MockItem {
@@ -1219,8 +1220,15 @@ export function createConsoleMockGateway(options: ConsoleMockOptions = {}): Cons
         localStartTime: guest.time,
         status: 'pendingApproval',
         awaitingApprovalBecause: because,
-        approvalExpiresAtUtc: null,
+        // A booking without a verified number has hours to be answered: the
+        // sooner of a day after it was made and two hours before it starts.
+        approvalExpiresAtUtc:
+          because === 'unverifiedPhone'
+            ? new Date(now().getTime() + 20 * 60 * 60_000).toISOString()
+            : null,
         note: guest.note ?? null,
+        // Made on the web without a verified number: the branch confirms those first.
+        phoneUnverified: because === 'unverifiedPhone',
       });
     };
 
@@ -1267,6 +1275,18 @@ export function createConsoleMockGateway(options: ConsoleMockOptions = {}): Cons
         time: '20:30:00',
       },
       'noShowHistory',
+    );
+    seed(
+      'b-lumen-north',
+      '3',
+      {
+        name: 'Narek Avagyan',
+        phone: '+374 98 76 54 32',
+        party: 4,
+        table: 'W2',
+        time: '20:00:00',
+      },
+      'unverifiedPhone',
     );
     seed(
       'b-lumen-cascade',

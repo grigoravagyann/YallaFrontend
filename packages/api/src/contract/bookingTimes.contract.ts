@@ -18,8 +18,10 @@ import { randomUuid } from './subject';
  * > (`EarlierGuestConsent`) for up to two hours — whether the earlier guest
  * > answers in the app or the floor rings them and decides.
  *
- * One diner books both sides, so the suite holds against the mock (a world per
- * diner) and a live backend alike. Whether the earlier guest is asked by push
+ * One diner books the evening; the bookings either side of it are other
+ * diners' — since 2026-10-20 one phone number holds one active booking at a
+ * time — signed up beside the first (`rivalOf`), so the suite holds against the
+ * mock (a world per diner) and a live backend alike. Whether the earlier guest is asked by push
  * or the floor decides depends on their devices, so the answer itself is not
  * asserted here — only what every surface can rely on.
  */
@@ -105,9 +107,11 @@ export function describeBookingTimesContract(subject: ContractSubject): void {
       expect(Date.parse(freeBy)).toBeLessThan(evening);
       expect(Date.parse(freeBy)).toBeGreaterThan(Date.parse(slotUtc));
 
+      // Another diner: this one already holds the evening's booking.
+      const other = await subject.rivalOf(diner);
       let refused: unknown;
       try {
-        await diner.gateway.createBooking(command(slotUtc));
+        await other.gateway.createBooking(command(slotUtc));
       } catch (error) {
         refused = error;
       }
@@ -116,12 +120,12 @@ export function describeBookingTimesContract(subject: ContractSubject): void {
         Date.parse(freeBy),
       );
 
-      const kept = await diner.gateway.createBooking(
+      const kept = await other.gateway.createBooking(
         command(slotUtc, { acceptsFreeByUtc: freeBy }),
       );
       expect(Date.parse(kept.promisedFreeByUtc!)).toBe(Date.parse(freeBy));
       expect(Date.parse(kept.endUtc)).toBe(Date.parse(freeBy));
-      await diner.gateway.cancelBooking(kept.id);
+      await other.gateway.cancelBooking(kept.id);
     });
 
     it('offers it from 90 minutes after as a request, which waits for the guest before', async () => {
@@ -129,7 +133,9 @@ export function describeBookingTimesContract(subject: ContractSubject): void {
       // sitting both fit the opening hours whatever the evening's hour is.
       const earlierUtc = shifted(-240);
       const earlierTable = await onTable(earlierUtc);
-      const earlier = await diner.gateway.createBooking(
+      // Two more diners: one number, one active booking.
+      const earlierGuest = await subject.rivalOf(diner);
+      const earlier = await earlierGuest.gateway.createBooking(
         command(
           earlierUtc,
           earlierTable.mustFreeByUtc ? { acceptsFreeByUtc: earlierTable.mustFreeByUtc } : {},
@@ -144,7 +150,8 @@ export function describeBookingTimesContract(subject: ContractSubject): void {
           isRequestable: true,
         });
 
-        const later = await diner.gateway.createBooking(
+        const laterGuest = await subject.rivalOf(diner);
+        const later = await laterGuest.gateway.createBooking(
           command(slotUtc, table.mustFreeByUtc ? { acceptsFreeByUtc: table.mustFreeByUtc } : {}),
         );
         expect(later.status).toBe('pendingApproval');
@@ -160,9 +167,9 @@ export function describeBookingTimesContract(subject: ContractSubject): void {
           expect(window).toBeLessThanOrEqual(EARLIER_GUEST_WINDOW_MINUTES * MINUTE + MINUTE);
           expect(Date.parse(later.approvalExpiresAtUtc!)).toBeLessThanOrEqual(Date.parse(slotUtc));
         }
-        await diner.gateway.cancelBooking(later.id);
+        await laterGuest.gateway.cancelBooking(later.id);
       } finally {
-        await diner.gateway.cancelBooking(earlier.id).catch(() => undefined);
+        await earlierGuest.gateway.cancelBooking(earlier.id).catch(() => undefined);
       }
     });
   });

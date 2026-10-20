@@ -33,6 +33,11 @@ export interface ResolveStaffGatewayOptions {
   readonly mockBookingTimes?: boolean | undefined;
   /** Mock only: a busy kitchen pass. See `StaffMockOptions.seedKitchen`. */
   readonly mockKitchen?: boolean | undefined;
+  /**
+   * Mock only: two tables a scan seated with no verified number, waiting to be
+   * let in, and bookings made without one. See `StaffMockOptions.seedUnverifiedGuests`.
+   */
+  readonly mockUnverifiedGuests?: boolean | undefined;
 }
 
 /**
@@ -54,6 +59,7 @@ export function resolveStaffGateway(options: ResolveStaffGatewayOptions): StaffG
       ...(options.mockChurnOnTables ? { churnOnTables: options.mockChurnOnTables } : {}),
       ...(options.mockBookingTimes ? { seedBookingTimes: true } : {}),
       ...(options.mockKitchen ? { seedKitchen: true } : {}),
+      ...(options.mockUnverifiedGuests ? { seedUnverifiedGuests: true } : {}),
     };
     if (options.persist) {
       return persistMockGateway<StaffGateway>({

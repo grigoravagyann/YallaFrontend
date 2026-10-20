@@ -368,6 +368,8 @@ export { coversSitting, openStateFrom } from './contracts/openState';
 export type {
   ManagedBooking,
   RescheduleManagedBookingCommand,
+  UnverifiedBookingCommand,
+  UnverifiedBookingResult,
   OpenState,
   PublicBranch,
   PublicBranchCard,
@@ -822,3 +824,40 @@ export type {
 } from './contracts/ordering';
 
 export { slugify } from './slug';
+
+// Unverified guests (2026-10-20): bookings without a proved number, and tabs a
+// waiter lets order.
+export { ADMITTED, REJECT_TAB_REASON_MAX, isAwaitingAdmission } from './contracts/admission';
+export type {
+  AdmitTabCommand,
+  FloorChangeSignal,
+  RejectTabCommand,
+  TabAdmission,
+  TabAdmissionReason,
+  TabAdmissionStatus,
+  TabAwaitingAdmission,
+} from './contracts/admission';
+export {
+  DEVICE_HAS_ACTIVE_BOOKING_CODE,
+  DeviceHasActiveBookingError,
+  PHONE_HAS_ACTIVE_BOOKING_CODE,
+  PhoneHasActiveBookingError,
+  TAB_ADMISSION_DECIDED_CODE,
+  TAB_AWAITING_ADMISSION_CODE,
+  TabAdmissionDecidedError,
+  TabAwaitingAdmissionError,
+  SCAN_TURNED_AWAY_CODE,
+  ScanTurnedAwayError,
+  UNVERIFIED_PARTY_TOO_LARGE_CODE,
+  UNVERIFIED_QUEUE_FULL_CODE,
+  UnverifiedPartyTooLargeError,
+  UnverifiedQueueFullError,
+  isScanTurnedAway,
+  isUnverifiedQueueFull,
+  isDeviceHasActiveBooking,
+  isPhoneHasActiveBooking,
+  isTabAdmissionDecided,
+  isTabAwaitingAdmission,
+  isUnverifiedPartyTooLarge,
+  type HeldBooking,
+} from './contracts/errors';

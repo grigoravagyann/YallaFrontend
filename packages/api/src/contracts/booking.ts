@@ -417,6 +417,20 @@ export interface Booking {
    * venue cancelled after confirming it, which is a different sentence.
    */
   readonly declinedBecause: DeclineReason | null;
+  /**
+   * Made without a proved phone number (2026-10-20): the venue may confirm it
+   * first (`awaitingApprovalBecause` `unverifiedPhone`), and it cannot be moved
+   * or used for "I'm at my table" until the number is proved. Absent from a
+   * server before unverified bookings, which reads as verified.
+   */
+  readonly phoneUnverified?: boolean | undefined;
+  /**
+   * Somebody booked this without a proved number, using this account's own
+   * number (review round, 2026-10-20). It is listed so the account can see it
+   * and cancel it — "made with your number, not by you" — and it no longer
+   * blocks the account from booking. Absent: false.
+   */
+  readonly madeWithYourNumber?: boolean | undefined;
 
   /**
    * An opaque token granting sight of, and the power to cancel, **this booking

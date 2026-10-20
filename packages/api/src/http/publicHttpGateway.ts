@@ -4,7 +4,9 @@ import type {
   PublicBranch,
   PublicPageMeta,
   PublicVenue,
+  UnverifiedBookingResult,
 } from '../contracts/publicBranch';
+import { booking } from './dinerMapping';
 import type { components } from '../generated/schema';
 import { rethrowBookingRefusal } from './bookingRefusal';
 import { localDateTime } from './mapping';
@@ -211,6 +213,53 @@ export function createPublicHttpGateway(client: ApiClient): PublicGateway {
         }
         rethrowBookingRefusal(error, {
           branchId: null,
+          tableId: command.tableId,
+          partySize: command.partySize,
+        });
+      }
+    },
+
+    /*
+     * The anonymous door (2026-10-20): no token, no proof. The token in the
+     * first answer is the only copy there will ever be — a replay carries none —
+     * so it is handed back beside the booking rather than read off it later.
+     */
+    async createUnverifiedBooking(command): Promise<UnverifiedBookingResult> {
+      const { date, time } = localDateTime(command.slotUtc, command.timeZoneId);
+      try {
+        const { data } = await client.post<
+          Schemas['Yalla.Application.Reservations.ReservationView']
+        >(
+          `/api/public/branches/${encodeURIComponent(command.branchId)}/bookings`,
+          {
+            tableId: command.tableId,
+            date,
+            time,
+            partySize: command.partySize,
+            guestName: command.guestName,
+            guestPhone: command.guestPhone,
+            deviceId: command.deviceId,
+            clientCommandId: command.commandId,
+            note: command.note?.trim() ? command.note.trim() : null,
+            ...(command.acceptsFreeByUtc ? { acceptsFreeByUtc: command.acceptsFreeByUtc } : {}),
+          },
+          anonymous,
+        );
+        return {
+          booking: booking(data, null),
+          manageToken: data.manageToken?.trim() ? data.manageToken : null,
+          wasReplay: data.wasReplay,
+        };
+      } catch (error) {
+        if (error instanceof ApiError && error.code === 'web-bookings-not-accepted') {
+          throw new BookingsNotAcceptedError({
+            url: error.url,
+            requestId: error.requestId,
+            branchId: command.branchId,
+          });
+        }
+        rethrowBookingRefusal(error, {
+          branchId: command.branchId,
           tableId: command.tableId,
           partySize: command.partySize,
         });

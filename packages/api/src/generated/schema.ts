@@ -1,7 +1,7 @@
 /**
  * GENERATED FILE — do not edit.
  *
- * Source: http://127.0.0.1:5212/swagger/v1/swagger.json
+ * Source: http://127.0.0.1:5199/swagger/v1/swagger.json
  * Regenerate with: pnpm api:generate
  */
 
@@ -1702,6 +1702,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/branches/{branchId}/tabs/awaiting-admission": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Staff: the tables that scanned without a verified number and wait to be let in
+         * @description The tablet's rail: every open tab at the branch still waiting for admission, oldest first, at most 200 - with the table, its room, when the scan opened it, the host's name, how many phones are on it, and `sittingSeatedByScan` (true: rejecting frees the table). Read it again when the branch change stream carries a `signal`.
+         */
+        get: operations["listTabsAwaitingAdmission"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/diner/branches/{branchId}/review": {
         parameters: {
             query?: never;
@@ -2633,6 +2653,36 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/public/branches/{branchId}/bookings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * A booking without an account or a phone proof - the public gate first, as for every read here.
+         * @description For the visitor who will not prove their number (decided 2026-10-20). A visitor who does prove it - Telegram, `GET /api/auth/diner/phone-proof` says which ways are on - books with the diner token through `POST /api/reservations` as before and keeps instant confirmation per the venue's policy. This route needs neither SMS nor Telegram.
+         *
+         *     The app's booking body without `branchId` and `channel` (the route names the branch; the channel is the web's, so `acceptsWebBookings` gates it), plus **`deviceId`**: an id the page generates once and keeps (localStorage). `guestPhone` must be a real number in E.164 - spaces and dashes are dropped - and is what the venue calls.
+         *
+         *     **What is different from a verified booking.** The booking says `phoneUnverified: true` everywhere staff read it. It is for at most `policy.unverifiedMaxPartySize` people (`422 reservation-unverified-party-too-large`, `context.maxPartySize` - offer to verify, which lifts it). When the branch approves such bookings first (`policy.unverifiedBookingsNeedApproval`, on by default) it lands `PendingApproval` with `awaitingApprovalBecause` **6** and no deadline: the venue confirms it. No reminder is sent. Its manage link reads and cancels it but never changes it (cancel and book again).
+         *
+         *     **One active booking per number - for everybody.** A number that already holds a pending or confirmed booking that is not over, at any venue, is `409 phone-has-active-booking` with **no context** here. One active unverified booking per browser too: `409 device-has-active-booking`. Cancelling the other booking frees the number at once.
+         *
+         *     **`manageToken` comes back once**, in the `201`. Store it before anything else: a retry with the same `clientCommandId` from the same `deviceId` answers `200` with the booking and **no token** (only its hash exists). The same id from another browser is `409 client-command-id-in-use`.
+         *
+         *     Rate limited per address (10 an hour by default) on top of the branch ceiling.
+         */
+        post: operations["createPublicBookingWithoutAccount"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/public/branches/{branchId}/menu": {
         parameters: {
             query?: never;
@@ -3174,6 +3224,28 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/tabs/{tabId}/admit": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Staff: let a table that scanned without a verified number order
+         * @description A tab opened by a QR scan whose host has no proved phone number waits for a waiter (`admission.status` 1): the phones can read the menu and the tab, approve joiners and call a waiter, but not order. A waiter who can see the party at the table taps Admit; from then on it is an ordinary tab (approved guests with `canOrder` order, a phone's order waits at New for a waiter). A tab whose host proved their number, one opened from a booking, and one staff opened are admitted on the spot; a waiter's own order on a waiting tab admits it too.
+         *
+         *     Already admitted answers `200` as it is, writing nothing. Writes `TabAdmitted` (21) on the tab's stream and a signal entry (2) on the branch's change stream. Idempotent on `clientCommandId`. **Online only** - not one of the commands the tablet queues.
+         */
+        post: operations["admitTab"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/tabs/{tabId}/closing": {
         parameters: {
             query?: never;
@@ -3476,6 +3548,30 @@ export interface paths {
          * @description The host left early or their phone died, and without this the tab is stuck with nobody able to approve joiners or change the split. The new host must be an approved participant; the old host stays on the tab as a guest.
          */
         post: operations["reassignTabHost"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/tabs/{tabId}/reject": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Staff: turn away a tab nobody is really sitting at
+         * @description For a tab waiting for admission that the waiter cannot match to anybody at the table - a photographed QR code scanned from somewhere else. The tab closes (`status` 3, `admission.status` 3), its live invitation is revoked and its open calls are acknowledged by the rejecting waiter.
+         *
+         *     **When the scan itself seated the table** (a walk-in sitting no waiter and no booking opened), the table is **freed** through the table state machine - an Occupied-to-Free audit row with the reason given - and `admission.tableFreed` is true. A table a waiter or a booking seated stays seated; only the tab goes, and the party really there can scan again for a new one.
+         *
+         *     Already turned away answers `200` as it is. Writes `TabAdmissionRejected` (22) on the tab's stream and a signal entry (3) on the branch's change stream. Idempotent on `clientCommandId`. **Online only.**
+         */
+        post: operations["rejectTab"];
         delete?: never;
         options?: never;
         head?: never;
@@ -3920,6 +4016,14 @@ export interface components {
              */
             tabOrderLineId?: string | null;
         };
+        /** @description Body of `POST /api/tabs/{tabId}/admit`. */
+        "Yalla.Api.Endpoints.AdmitTabRequest": {
+            /**
+             * Format: uuid
+             * @description The tablet's id for this tap. A retry answers with the tab as it stands.
+             */
+            clientCommandId: string;
+        };
         /** @description Body of `POST /api/reservations/{reservationId}/table-requests/{requestId}/answer`. */
         "Yalla.Api.Endpoints.AnswerTableRequestRequest": {
             /**
@@ -3963,6 +4067,55 @@ export interface components {
         "Yalla.Api.Endpoints.ClaimTelegramVerificationRequest": {
             /** @description Language to store against the account. Falls back to `Accept-Language`, then Armenian. */
             localeCode?: string | null;
+        };
+        /**
+         * @description Body of `POST /api/public/branches/{branchId}/bookings`: the app's booking body without the branch
+         *     (the route names it) and the channel (the web's), plus the browser's device id.
+         */
+        "Yalla.Api.Endpoints.CreatePublicBookingRequest": {
+            /**
+             * Format: date-time
+             * @description As on the app's booking.
+             */
+            acceptsFreeByUtc?: string | null;
+            /**
+             * Format: uuid
+             * @description The page's id for this booking; a retry from the same browser answers with it.
+             */
+            clientCommandId: string;
+            /**
+             * Format: date
+             * @description The local calendar date at the branch.
+             */
+            date: string;
+            /**
+             * @description An id the page generates once and keeps. It scopes a retry to this browser and limits it to one active
+             *     booking without a verified number. Stored only as a hash.
+             */
+            deviceId: string;
+            /** @description Who to ask for at the door. */
+            guestName: string;
+            /** @description The number the venue calls, in E.164 (spaces and dashes are dropped). */
+            guestPhone: string;
+            /** @description A note to the venue, at most 500 characters. */
+            note?: string | null;
+            /**
+             * Format: int32
+             * @description How many are coming; at most the branch's `unverifiedMaxPartySize`.
+             */
+            partySize: number;
+            /** @description Advisory only. */
+            stayHint?: components["schemas"]["Yalla.Domain.Enums.StayHint"] | null;
+            /**
+             * Format: uuid
+             * @description The table picked off the room photos.
+             */
+            tableId: string;
+            /**
+             * Format: time
+             * @description The local wall-clock start at the branch.
+             */
+            time: string;
         };
         /** @description Body for booking a table. */
         "Yalla.Api.Endpoints.CreateReservationRequest": {
@@ -4324,6 +4477,16 @@ export interface components {
              *     Stored lowercased, unique case-insensitively.
              */
             username: string;
+        };
+        /** @description Body of `POST /api/tabs/{tabId}/reject`. */
+        "Yalla.Api.Endpoints.RejectTabRequest": {
+            /**
+             * Format: uuid
+             * @description The tablet's id for this tap.
+             */
+            clientCommandId: string;
+            /** @description Optional, at most 500 characters: the audit row's reason when the table is freed. */
+            reason?: string | null;
         };
         /** @description Body of `POST /api/reservations/{id}/release`. */
         "Yalla.Api.Endpoints.ReleaseReservationRequest": {
@@ -5191,6 +5354,67 @@ export interface components {
             /** @description A URI naming the problem type, built from Yalla.Api.Errors.ProblemShape.Code. */
             type: string;
         };
+        /** @description The booking a number already holds, named to the account that holds it - and only to it. */
+        "Yalla.Api.Errors.PhoneHasActiveBookingContext": {
+            /** @description Which branch. */
+            branchName: string;
+            /** @description Its door code. */
+            code: string;
+            /**
+             * Format: date
+             * @description Its date on the branch's calendar, e.g. `2026-10-22`.
+             */
+            localDate: string;
+            /**
+             * Format: time
+             * @description Its start on the branch's wall clock, e.g. `19:30:00`.
+             */
+            localStartTime: string;
+            /**
+             * Format: uuid
+             * @description That booking.
+             */
+            reservationId: string;
+            /**
+             * Format: date-time
+             * @description When it starts.
+             */
+            startUtc: string;
+            /** @description Where. */
+            venueName: string;
+        };
+        /**
+         * @description `phone-has-active-booking`, 409: the booker's number already holds a pending or confirmed booking
+         *                 that is not over, at any venue. `context` is present only when that booking is the calling
+         *                 account's own; a web visitor, or an account booking under a number another account holds, gets no
+         *                 context - say "this number already has an active booking". `device-has-active-booking` (the web
+         *                 route: this browser already holds an unverified booking) arrives on the same status with no context.
+         */
+        "Yalla.Api.Errors.PhoneHasActiveBookingProblem": {
+            /** @description The stable kebab-case slug. <b>This is what a client branches on.</b> */
+            code: string;
+            /** @description The booking a number already holds, named to the account that holds it - and only to it. */
+            context?: components["schemas"]["Yalla.Api.Errors.PhoneHasActiveBookingContext"] | null;
+            /** @description What went wrong this time, in words. */
+            detail: string;
+            /** @description Field-level complaints, when the failure was about the payload. */
+            errors?: {
+                [key: string]: string[];
+            } | null;
+            /** @description The request path this happened on. */
+            instance?: string | null;
+            /**
+             * Format: int32
+             * @description The HTTP status code, repeated in the body.
+             */
+            status: number;
+            /** @description Short, stable summary of the kind of problem. */
+            title: string;
+            /** @description Correlates this response with the one log entry written for it. */
+            traceId: string;
+            /** @description A URI naming the problem type, built from Yalla.Api.Errors.ProblemShape.Code. */
+            type: string;
+        };
         /** @description A first review of a branch the diner has not visited in the window. */
         "Yalla.Api.Errors.ReviewNeedsVisitContext": {
             /**
@@ -5257,6 +5481,42 @@ export interface components {
             code: string;
             /** @description This table has asked for too many things too quickly. */
             context: components["schemas"]["Yalla.Api.Errors.ServiceRequestRateLimitedContext"];
+            /** @description What went wrong this time, in words. */
+            detail: string;
+            /** @description Field-level complaints, when the failure was about the payload. */
+            errors?: {
+                [key: string]: string[];
+            } | null;
+            /** @description The request path this happened on. */
+            instance?: string | null;
+            /**
+             * Format: int32
+             * @description The HTTP status code, repeated in the body.
+             */
+            status: number;
+            /** @description Short, stable summary of the kind of problem. */
+            title: string;
+            /** @description Correlates this response with the one log entry written for it. */
+            traceId: string;
+            /** @description A URI naming the problem type, built from Yalla.Api.Errors.ProblemShape.Code. */
+            type: string;
+        };
+        /** @description A tab whose admission was already decided the other way. */
+        "Yalla.Api.Errors.TabAdmissionDecidedContext": {
+            /** @description Whether the people on a tab may order yet. */
+            admission: components["schemas"]["Yalla.Domain.Enums.TabAdmission"];
+            /**
+             * Format: uuid
+             * @description The tab.
+             */
+            tabId: string;
+        };
+        /** @description `tab-admission-decided`, 409: admitting a tab already turned away, or the other way round. */
+        "Yalla.Api.Errors.TabAdmissionDecidedProblem": {
+            /** @description The stable kebab-case slug. <b>This is what a client branches on.</b> */
+            code: string;
+            /** @description A tab whose admission was already decided the other way. */
+            context: components["schemas"]["Yalla.Api.Errors.TabAdmissionDecidedContext"];
             /** @description What went wrong this time, in words. */
             detail: string;
             /** @description Field-level complaints, when the failure was about the payload. */
@@ -6376,6 +6636,9 @@ export interface components {
             serviceChargePercent: number;
             /** Format: int32 */
             turnTimeMinutes: number;
+            unverifiedBookingsNeedApproval?: boolean | null;
+            /** Format: int32 */
+            unverifiedMaxPartySize?: number | null;
             /** Format: int32 */
             walkInHoldbackMinutes: number;
         };
@@ -6415,6 +6678,9 @@ export interface components {
             serviceChargePercent: number;
             /** Format: int32 */
             turnTimeMinutes: number;
+            unverifiedBookingsNeedApproval: boolean;
+            /** Format: int32 */
+            unverifiedMaxPartySize: number;
             /** Format: int32 */
             walkInHoldbackMinutes: number;
         };
@@ -6811,6 +7077,17 @@ export interface components {
              * @description Position in the stream. Strictly increasing per branch.
              */
             sequence: number;
+            /**
+             * @description Set when the entry is about the table's tab rather than the table: 1 a scan's tab is waiting to be let in,
+             *     2 it was admitted, 3 it was turned away (on the Occupied-to-Free row when that freed the table). Absent
+             *     on every ordinary change. A tablet refetches its awaiting-admission list on any of them.
+             */
+            signal?: components["schemas"]["Yalla.Domain.Enums.TableChangeSignal"] | null;
+            /**
+             * Format: uuid
+             * @description The tab involved, when there was one - always on a Signal entry.
+             */
+            tabId?: string | null;
             /** @description Its label, so a client can render without a second lookup. */
             tableLabel: string;
             /**
@@ -6897,6 +7174,11 @@ export interface components {
              */
             nextReservationId?: string | null;
             /**
+             * @description True when the next booking was made without a proved phone number - "number not verified" beside
+             *     it. False when there is no next booking.
+             */
+            nextReservationPhoneUnverified: boolean;
+            /**
              * Format: date-time
              * @description The time the next booking's guest promised to free the table by - "must free by 21:25" on the
              *     next-booking line - or absent when they made no such promise.
@@ -6905,6 +7187,11 @@ export interface components {
             /** Format: date-time */
             nextReservationStartUtc?: string | null;
             occupancySource?: components["schemas"]["Yalla.Domain.Enums.TableSessionSource"] | null;
+            /**
+             * @description True when Yalla.Application.Floor.TableFloorState.OpenTabId was opened by a scan with no proved number and waits for a waiter
+             *     to admit it before anybody on it can order. The tablet's table panel offers Admit / Reject.
+             */
+            openTabAwaitingAdmission: boolean;
             /**
              * Format: uuid
              * @description The open tab on this table, when the party sitting here has one.
@@ -8659,6 +8946,11 @@ export interface components {
             cancellationDeadlineUtc: string;
             /** @description Whether this booking's cancellation, if it has one, arrived past the deadline. */
             cancelledAfterDeadline: boolean;
+            /**
+             * @description Whether `POST .../reschedule` would be considered at all: the booking is still to come, pending or
+             *     confirmed, and its account is live with a proved number. False otherwise - hide "Change".
+             */
+            canChange: boolean;
             /** @description The short code quoted at the door. */
             code: string;
             /**
@@ -8686,6 +8978,11 @@ export interface components {
              * @description How many people.
              */
             partySize: number;
+            /**
+             * @description True when the booking was made without a proved phone number. The venue may confirm it first, and it is
+             *     never changed from the link - cancelled and booked again instead.
+             */
+            phoneUnverified: boolean;
             /**
              * Format: uuid
              * @description The booking's id - for one thing: the page that changes the booking sends it as
@@ -9096,6 +9393,18 @@ export interface components {
              *     "can we linger?", and finding out at the table is worse.
              */
             turnTimeMinutes: number;
+            /**
+             * @description Whether a booking without a verified number waits for the venue to confirm it - so the page can say so
+             *     before the visitor books, rather than after.
+             */
+            unverifiedBookingsNeedApproval: boolean;
+            /**
+             * Format: int32
+             * @description The largest party the page may book without a verified phone number. Published because the page must
+             *     say "for more, verify your number" before the visitor commits; it is a refusal, not an approval
+             *     threshold, so it opens no loophole.
+             */
+            unverifiedMaxPartySize: number;
         };
         /** @description A page of a branch's published reviews, newest first by when each was written. */
         "Yalla.Application.Public.PublicReviewPage": {
@@ -10035,6 +10344,11 @@ export interface components {
             /** Format: int32 */
             partySize: number;
             /**
+             * @description True when the booking was made without a proved phone number - a web visitor who did not verify,
+             *     or an app account whose number was never proved. Staff show "number not verified" beside it.
+             */
+            phoneUnverified: boolean;
+            /**
              * Format: date-time
              * @description The time the guest promised to have left the table by, or absent.
              */
@@ -10669,6 +10983,62 @@ export interface components {
              */
             reductionAmd: number;
         };
+        /** @description Whether a tab may order yet: waiting for a waiter, admitted, or turned away. See `docs/tabs.md`. */
+        "Yalla.Application.Tabs.TabAdmissionView": {
+            /**
+             * @description 1 a waiter admitted it, 2 the host's number is proved, 3 staff opened it, 4 the booker opened or joined it,
+             *     5 a waiter's order admitted it. Absent while waiting, once rejected, and on tabs from before admission.
+             */
+            admittedBecause?: components["schemas"]["Yalla.Domain.Enums.TabAdmissionReason"] | null;
+            /**
+             * Format: date-time
+             * @description When it was admitted or turned away; absent while waiting.
+             */
+            decidedAtUtc?: string | null;
+            /**
+             * Format: uuid
+             * @description The waiter who did, when one did.
+             */
+            decidedByStaffId?: string | null;
+            /** @description Whether the people on a tab may order yet. */
+            status: components["schemas"]["Yalla.Domain.Enums.TabAdmission"];
+            /** @description On a rejected tab: whether turning it away freed the table (the scan had seated it). */
+            tableFreed?: boolean | null;
+        };
+        /** @description One tab waiting for a waiter, as the tablet's rail draws it. */
+        "Yalla.Application.Tabs.TabAwaitingAdmissionView": {
+            /** @description What the host called themself, or the roster's placeholder. */
+            hostDisplayName?: string | null;
+            /**
+             * Format: date-time
+             * @description When the scan opened it.
+             */
+            openedAtUtc: string;
+            /**
+             * Format: int32
+             * @description Phones on the tab, the host included; removed ones not.
+             */
+            participantCount: number;
+            /** @description The table's room, absent for a table in none. */
+            roomName?: string | null;
+            /**
+             * @description True when the scan itself seated the table: rejecting then frees it. False when a waiter or a booking
+             *     seated the party - rejecting then closes only the tab, and the party can scan again.
+             */
+            sittingSeatedByScan: boolean;
+            /**
+             * Format: uuid
+             * @description The tab - admit or reject it.
+             */
+            tabId: string;
+            /**
+             * Format: uuid
+             * @description Its table.
+             */
+            tableId: string;
+            /** @description The table's label. */
+            tableLabel: string;
+        };
         /** @description An invitation to a tab. One token, two ways to hand it over. */
         "Yalla.Application.Tabs.TabJoinTokenResult": {
             /**
@@ -10801,8 +11171,8 @@ export interface components {
             /** @description The stored flag: whether the host allows them to add items. */
             canOrder: boolean;
             /**
-             * @description The flag applied to the moment: approved, allowed to order, and the tab still open. This is
-             *     what the ordering endpoints will enforce, computed by the same rule.
+             * @description The flag applied to the moment: approved, allowed to order, the tab still open - and admitted: false for
+             *     everybody while the tab waits for a waiter. This is what the ordering endpoints enforce.
              */
             canOrderNow: boolean;
             /** @description Whether they may settle against the tab. Implies CanSeeTableTotal. */
@@ -10838,6 +11208,8 @@ export interface components {
          */
         "Yalla.Application.Tabs.TabStaffView": {
             adjustments: components["schemas"]["Yalla.Application.Tabs.TabAdjustmentView"][];
+            /** @description Whether a tab may order yet: waiting for a waiter, admitted, or turned away. See `docs/tabs.md`. */
+            admission: components["schemas"]["Yalla.Application.Tabs.TabAdmissionView"];
             /** Format: uuid */
             branchId: string;
             /** Format: date-time */
@@ -10892,6 +11264,11 @@ export interface components {
              *     caller's part of it reaches them through `/shares`.
              */
             adjustments: components["schemas"]["Yalla.Application.Tabs.TabAdjustmentView"][];
+            /**
+             * @description Whether the tab may order yet. While it waits for a waiter (status 1) nobody's `canOrderNow` is
+             *     true: show "a waiter will be with you", keep "call a waiter". See `docs/tabs.md` section 2b.
+             */
+            admission: components["schemas"]["Yalla.Application.Tabs.TabAdmissionView"];
             /**
              * Format: uuid
              * @description The branch.
@@ -11065,10 +11442,10 @@ export interface components {
          * Format: int32
          * @description Why a booking needs a human before it is promised.
          *
-         *     Values: 1 BranchApprovesEveryBooking, 2 LargeParty, 3 NoShowHistory, 4 ShortNotice, 5 EarlierGuestConsent.
+         *     Values: 1 BranchApprovesEveryBooking, 2 LargeParty, 3 NoShowHistory, 4 ShortNotice, 5 EarlierGuestConsent, 6 UnverifiedPhone.
          * @enum {integer}
          */
-        "Yalla.Domain.Enums.ApprovalTrigger": 1 | 2 | 3 | 4 | 5;
+        "Yalla.Domain.Enums.ApprovalTrigger": 1 | 2 | 3 | 4 | 5 | 6;
         /**
          * Format: int32
          * @description How much of the tab a request for the bill is about. Only a Yalla.Domain.Enums.ServiceRequestPreset.TheBill
@@ -11187,12 +11564,37 @@ export interface components {
         "Yalla.Domain.Enums.SubscriptionTier": 1 | 2;
         /**
          * Format: int32
-         * @description What happened on a tab, for the catch-up stream.
+         * @description Whether the people on a tab may order yet.
          *
-         *     Values: 1 TabOpened, 2 ParticipantJoined, 3 ParticipantApproved, 4 ParticipantRejected, 5 ParticipantRemoved, 6 ParticipantPermissionsChanged, 7 ParticipantRenamed, 8 HostReassigned, 9 SettlementModeChanged, 10 OrderPlaced, 11 OrderStatusChanged, 12 LineVoided, 13 AdjustmentAdded, 14 AdjustmentVoided, 15 PaymentRecorded, 16 ServiceRequested, 17 ServiceRequestAcknowledged, 18 TabClosing, 19 TabClosed, 20 TabAbandoned.
+         *     Values: 1 AwaitingAdmission, 2 Admitted, 3 Rejected.
          * @enum {integer}
          */
-        "Yalla.Domain.Enums.TabEventType": 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15 | 16 | 17 | 18 | 19 | 20;
+        "Yalla.Domain.Enums.TabAdmission": 1 | 2 | 3;
+        /**
+         * Format: int32
+         * @description Why a tab was admitted. Persisted as its number.
+         *
+         *     Values: 1 Waiter, 2 VerifiedHost, 3 OpenedByStaff, 4 Booker, 5 WaiterOrder.
+         * @enum {integer}
+         */
+        "Yalla.Domain.Enums.TabAdmissionReason": 1 | 2 | 3 | 4 | 5;
+        /**
+         * Format: int32
+         * @description What happened on a tab, for the catch-up stream.
+         *
+         *     Values: 1 TabOpened, 2 ParticipantJoined, 3 ParticipantApproved, 4 ParticipantRejected, 5 ParticipantRemoved, 6 ParticipantPermissionsChanged, 7 ParticipantRenamed, 8 HostReassigned, 9 SettlementModeChanged, 10 OrderPlaced, 11 OrderStatusChanged, 12 LineVoided, 13 AdjustmentAdded, 14 AdjustmentVoided, 15 PaymentRecorded, 16 ServiceRequested, 17 ServiceRequestAcknowledged, 18 TabClosing, 19 TabClosed, 20 TabAbandoned, 21 TabAdmitted, 22 TabAdmissionRejected.
+         * @enum {integer}
+         */
+        "Yalla.Domain.Enums.TabEventType": 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15 | 16 | 17 | 18 | 19 | 20 | 21 | 22;
+        /**
+         * Format: int32
+         * @description What a branch change-stream entry signals beyond the table's status, when it is about the tab on the
+         *     table rather than the table itself. Persisted as its number on `TableStateChanges.Signal`.
+         *
+         *     Values: 1 TabAwaitingAdmission, 2 TabAdmitted, 3 TabAdmissionRejected.
+         * @enum {integer}
+         */
+        "Yalla.Domain.Enums.TableChangeSignal": 1 | 2 | 3;
         /**
          * Format: int32
          * @description How a party came to occupy a table.
@@ -11245,10 +11647,10 @@ export interface components {
          * Format: int32
          * @description Why a table cannot be booked for a particular slot.
          *
-         *     Values: 1 LeadTimeTooShort, 2 OutsideBookingWindow, 3 OutsideOpeningHours, 4 PartyExceedsCapacity, 5 SeatOverhangExceeded, 6 TableNotBookable, 7 TableOutOfService, 8 TableAlreadyBooked, 9 LocalTimeDoesNotExist, 10 TableCurrentlyOccupied, 11 TableJustBooked, 12 NextBookingTooSoon, 13 EarlierGuestBeingAsked.
+         *     Values: 1 LeadTimeTooShort, 2 OutsideBookingWindow, 3 OutsideOpeningHours, 4 PartyExceedsCapacity, 5 SeatOverhangExceeded, 6 TableNotBookable, 7 TableOutOfService, 8 TableAlreadyBooked, 9 LocalTimeDoesNotExist, 10 TableCurrentlyOccupied, 11 TableJustBooked, 12 NextBookingTooSoon, 13 EarlierGuestBeingAsked, 14 UnverifiedPartyTooLarge.
          * @enum {integer}
          */
-        "Yalla.Domain.Occupancy.ReservationRejectionReason": 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13;
+        "Yalla.Domain.Occupancy.ReservationRejectionReason": 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14;
     };
     responses: never;
     parameters: never;
@@ -18067,6 +18469,73 @@ export interface operations {
             };
         };
     };
+    listTabsAwaitingAdmission: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                branchId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Yalla.Application.Tabs.TabAwaitingAdmissionView"][];
+                };
+            };
+            /** @description The request violated a domain rule or arrived malformed. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description No usable token was presented, or the one presented was rejected. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description Not a waiter or above at this branch. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description Too many requests in the window, or a one-time credential is out of attempts. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description Unexpected failure. Quote the traceId from the body. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+        };
+    };
     getMyBranchReview: {
         parameters: {
             query?: never;
@@ -21976,6 +22445,122 @@ export interface operations {
             };
         };
     };
+    createPublicBookingWithoutAccount: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                branchId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["Yalla.Api.Endpoints.CreatePublicBookingRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Yalla.Application.Reservations.ReservationView"];
+                };
+            };
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Yalla.Application.Reservations.ReservationView"];
+                };
+            };
+            /** @description `guestPhone` is not a phone number (`context.field` `guestPhone`), or `deviceId` is missing. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description No usable token was presented, or the one presented was rejected. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description The caller is authenticated but not allowed to perform this action. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description No such branch, it is not published, or no such table. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description `phone-has-active-booking` / `device-has-active-booking` (no context on this route). Also `table-already-booked` / `table-currently-occupied`: Someone else took that table between the diner seeing it free and confirming. The body's `context` carries the clashing window and a fresh availability snapshot, so the app can redraw the floor and show what changed rather than only saying no. Never retried automatically: this answer will not change on a repeat. `web-bookings-not-accepted`, `branch-unavailable`: the branch is not taking bookings. `client-command-id-in-use`: another browser's id. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.PhoneHasActiveBookingProblem"];
+                };
+            };
+            /** @description A branch rule refused the booking. Each rule has its own `code` - `reservation-party-exceeds-capacity`, `reservation-outside-opening-hours` and so on - with the numbers behind it in `context`, so the app can say which table to pick instead rather than showing a generic failure. `reservation-unverified-party-too-large`: over `policy.unverifiedMaxPartySize`. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description Too many requests in the window, or a one-time credential is out of attempts. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description Unexpected failure. Quote the traceId from the body. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description The table's booking lock could not be had in time. `context.retryable` is true: unlike the 409, this one is worth retrying - with the same `clientCommandId`, so a retry that crosses with a late-committing original is recognised as a replay. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.LockTimeoutProblem"];
+                };
+            };
+        };
+    };
     getPublicMenu: {
         parameters: {
             query?: never;
@@ -23841,6 +24426,95 @@ export interface operations {
             };
         };
     };
+    admitTab: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                tabId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["Yalla.Api.Endpoints.AdmitTabRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Yalla.Application.Tabs.TabStaffView"];
+                };
+            };
+            /** @description Missing clientCommandId. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description No usable token was presented, or the one presented was rejected. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description Not a waiter or above at this tab's branch. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description No such tab. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description `tab-admission-decided`: the tab was already turned away. `client-command-id-in-use`: the id belongs to another command or tab (no context). */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.TabAdmissionDecidedProblem"];
+                };
+            };
+            /** @description Too many requests in the window, or a one-time credential is out of attempts. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description Unexpected failure. Quote the traceId from the body. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+        };
+    };
     beginClosingTab: {
         parameters: {
             query?: never;
@@ -24960,6 +25634,95 @@ export interface operations {
                 };
                 content: {
                     "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description Too many requests in the window, or a one-time credential is out of attempts. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description Unexpected failure. Quote the traceId from the body. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+        };
+    };
+    rejectTab: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                tabId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["Yalla.Api.Endpoints.RejectTabRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Yalla.Application.Tabs.TabStaffView"];
+                };
+            };
+            /** @description Missing clientCommandId, or a reason over 500 characters. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description No usable token was presented, or the one presented was rejected. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description Not a waiter or above at this tab's branch. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description No such tab. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description `tab-admission-decided`: the tab was already admitted. `table-state-conflict`: another waiter changed the table at the same moment - read it again. `client-command-id-in-use`. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.TabAdmissionDecidedProblem"];
                 };
             };
             /** @description Too many requests in the window, or a one-time credential is out of attempts. */

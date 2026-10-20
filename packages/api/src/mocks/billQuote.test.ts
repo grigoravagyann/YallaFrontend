@@ -303,6 +303,8 @@ async function hostedTab(simulateWaiter: boolean, time = clock()) {
     tableCode: mockTableCode('b-lumen-north-t1'),
     commandId: crypto.randomUUID(),
   });
+  // Scanned with no proved number: a waiter lets the table order.
+  gateway.admitTabAsWaiter(scan.tab.tabId);
   const tabId = scan.tab.tabId;
   const menu = await gateway.getBranchMenuDetail(scan.tab.branchId);
   const item = menu!.categories[0]!.items[0]!;

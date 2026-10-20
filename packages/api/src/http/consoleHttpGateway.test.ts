@@ -352,6 +352,7 @@ describe('deciding a pending booking over HTTP', () => {
     expect(url).toBe(`${BASE}/api/branches/b-1/reservations?status=1`);
     expect(bookings).toEqual([
       {
+        phoneUnverified: false,
         id: 'r-1',
         code: 'K7M2',
         branchId: 'b-1',

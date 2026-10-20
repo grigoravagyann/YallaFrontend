@@ -104,6 +104,8 @@ const MOCK_GAPS: Partial<Record<ContractCapability, string>> = {
   photoBytes: 'the mock stores no image bytes to serve',
   photoMarkers:
     "the mock's diner world keeps no rooms, so the console mock's pins never reach a diner",
+  admission:
+    "the mock's floor and phones are two worlds, so a waiter's admit never reaches the phone's tab",
 };
 
 export function mockSubject(): ContractSubject {

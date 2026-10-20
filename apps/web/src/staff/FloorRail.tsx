@@ -18,6 +18,11 @@ export interface FloorRailProps {
   readonly summary: string;
   /** The bookings waiting for an answer: `ApprovalPanel`, first in the rail. */
   readonly approvals: ReactNode;
+  /**
+   * Tables that scanned with no verified number, waiting for a waiter to let
+   * them order: `AdmissionSection`, right after the bookings.
+   */
+  readonly admissions?: ReactNode;
   readonly requests: readonly ServiceRequest[];
   /** The calls could not be read. Not the same as nobody calling. */
   readonly requestsFailed: boolean;
@@ -39,8 +44,9 @@ export interface FloorRailProps {
  * "Now": everything on the floor waiting for a person, beside the tables (the
  * Main artboard's rail).
  *
- * In the order a waiter should look: bookings with a clock on them, people
- * calling, food going cold on the pass, then money left on a freed table.
+ * In the order a waiter should look: bookings with a clock on them, tables
+ * that cannot order until somebody lets them, people calling, food going cold
+ * on the pass, then money left on a freed table.
  * Each section folds, says how many, and says plainly when it is empty —
  * "nobody is waiting" and "we could not ask" are different sentences.
  *
@@ -66,6 +72,8 @@ export function FloorRail(props: FloorRailProps) {
 
       <div className="ft-rail-body">
         {props.approvals}
+
+        {props.admissions}
 
         <RailSection
           title={t('panel.calls.title')}
@@ -315,6 +323,11 @@ export const ICONS = {
     <Icon>
       <circle cx="12" cy="12" r="10" />
       <path d="M12 8v4M12 16h.01" />
+    </Icon>
+  ),
+  scan: (
+    <Icon>
+      <path d="M3 7V5a2 2 0 0 1 2-2h2M17 3h2a2 2 0 0 1 2 2v2M21 17v2a2 2 0 0 1-2 2h-2M7 21H5a2 2 0 0 1-2-2v-2M7 12h10" />
     </Icon>
   ),
 } as const;

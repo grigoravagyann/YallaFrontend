@@ -1133,6 +1133,31 @@ review every string in `src/locales/hy` and `src/locales/ru`.**
   `booking.tonight` («Այս գիշեր», «Сегодня ночью», "Tonight") names the first
   chip while last night's block is still open past midnight — the backend's
   service day — so the calendar's day keeps "Today".
+- `staff` and `admin` — unverified guests, part A (2026-10-20), **not** in an
+  artboard and **not** reviewed. `staff`: `admission.*` — the "Now" rail's
+  section for tables that scanned with no verified number (`title`,
+  `unverified` «համարը չհաստատված» — also the badge on a booking made without
+  one, on the floor card, the table panel and a request card — `scanned_*`,
+  `scannedJustNow`, `host`, `phones_*`, `admit` «Թույլատրել», `reject`
+  «Մերժել»), Reject's question (`confirmTitle` «Սեղան {{label}}․ ոչ ոք չկա՞» —
+  no suffix on the label; `confirmFrees`, `confirmKeeps`, `confirmMayFree`:
+  freeing the table is said only when the scan seated it; `confirmReject`),
+  `needsOnline`, `decidedElsewhere`, `failed`, `unreachable` (not the same
+  sentence as nobody waiting), the table panel's `panelTitle` and `why`, and
+  the notices `admittedNotice`, `rejectedFreedNotice`, `rejectedNotice`;
+  `floor.card.awaitingAdmission` (short: it shares a card line, «պետք է
+  թույլատրել»); `approvals.because.unverifiedPhone`. `admin`:
+  `approvals.because.unverifiedPhone`, `approvals.unverified` (beside another
+  reason), and the Policy screen's group `policy.group.unverified.*`, fields
+  `policy.field.unverifiedBookingsNeedApproval.*` and
+  `policy.field.unverifiedMaxPartySize.*`, and the guest's view
+  `policy.example.unverifiedApproved_*` / `unverifiedConfirmed_*`. The group
+  must keep saying Telegram-verified guests are not affected. Added with the
+  backend's review round (same day): `admission.hasOrders` (a reject refused
+  because orders were keyed: somebody is there, admit instead), the third
+  switch `policy.field.unverifiedScansNeedAdmission.*` (its why must keep
+  saying it is switched off only while the tablets cannot admit yet) and its
+  guest's view `policy.example.unverifiedScanWaits` / `unverifiedScanOrders`.
 
 The Russian bundle carries four plural categories (`one`/`few`/`many`/`other`)
 where Armenian and English carry two. That is correct CLDR, not duplication, and

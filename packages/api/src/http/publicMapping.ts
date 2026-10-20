@@ -196,6 +196,10 @@ function policyFromWire(wire: WirePublicBranch['policy']): PublicBranchPolicy {
     turnTimeMinutes: wire?.turnTimeMinutes ?? 0,
     minLeadMinutes: wire?.minLeadMinutes ?? 0,
     cancellationDeadlineMinutes: wire?.cancellationDeadlineMinutes ?? 0,
+    // A server before unverified bookings: the shipped defaults, which is what
+    // it would have enforced had it known about them.
+    unverifiedMaxPartySize: wire?.unverifiedMaxPartySize ?? 6,
+    unverifiedBookingsNeedApproval: wire?.unverifiedBookingsNeedApproval ?? true,
   };
 }
 
@@ -504,6 +508,9 @@ export function managedBookingFromWire(
      * `cancelledLate` is what says it happened late.
      */
     canCancel: wire.canCancel ?? false,
+    phoneUnverified: wire.phoneUnverified === true,
+    // Unsaid, "Change" is offered and the change itself answers.
+    canChange: wire.canChange ?? true,
   };
 }
 

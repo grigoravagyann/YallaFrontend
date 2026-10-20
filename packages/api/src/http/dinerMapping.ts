@@ -1,4 +1,5 @@
 import type { components } from '../generated/schema';
+import { admissionFromWire } from './admissionMapping';
 import type { SettlementMode } from '../contracts/service';
 import type {
   DinerTabAdjustment,
@@ -261,6 +262,7 @@ export function dinerTab(view: TabView, fetchedAtUtc: string, baseUrl: string): 
     maxSequence: view.maxSequence,
     openedAtUtc: view.openedAtUtc,
     closedAtUtc: view.closedAtUtc ?? null,
+    admission: admissionFromWire(view.admission),
     fetchedAtUtc,
   };
 }
@@ -270,7 +272,14 @@ export function dinerTab(view: TabView, fetchedAtUtc: string, baseUrl: string): 
 /** With the booking-approval and booking-times fields the generated schema does not have yet. */
 type ReservationViewWire = Schemas['Yalla.Application.Reservations.ReservationView'] &
   WireApprovalFields &
-  WireReservationTimes;
+  WireReservationTimes & {
+    /**
+     * Unverified guests' review round (UG wire §0 item 5), ahead of the
+     * generated schema: somebody else booked without a proved number using
+     * this account's number. Absent from an older server.
+     */
+    readonly madeWithYourNumber?: boolean | null;
+  };
 
 /**
  * `ReservationStatus`: 1 PendingApproval, 2 Confirmed, 4 Seated, 5 Completed,
@@ -328,6 +337,8 @@ export function booking(view: ReservationViewWire, venueName: string | null): Bo
     approvalExpiresAtUtc: view.status === 1 ? approvalExpiry(view.approvalExpiresAtUtc) : null,
     awaitsEarlierGuestAnswer: awaitsEarlierGuestAnswer(view),
     declinedBecause: declineReason(view.declinedBecause),
+    phoneUnverified: view.phoneUnverified === true,
+    madeWithYourNumber: view.madeWithYourNumber === true,
     manageToken: view.manageToken ?? null,
     promisedFreeByUtc: instantOrNull(view.promisedFreeByUtc),
     incomingTableRequest: incomingTableRequestFromWire(view.incomingTableRequest),

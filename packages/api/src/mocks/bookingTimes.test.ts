@@ -40,6 +40,9 @@ function world(time: ReturnType<typeof clock>, options: MockGatewayOptions = {})
     simulateJoiners: false,
     now: time.now,
     codeSeed: 11,
+    // One diner booking both sides of a table: as the server's own tests mark
+    // such rows, from before one number, one active booking (2026-10-20).
+    bookingsBeforeTheNumberRule: true,
     ...options,
   });
 }

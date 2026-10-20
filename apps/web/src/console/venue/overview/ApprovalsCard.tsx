@@ -259,6 +259,11 @@ function ApprovalRow({
         <span className="yc-pill yc-pill-brand">
           {t(`approvals.because.${booking.awaitingApprovalBecause ?? 'unknown'}`)}
         </span>
+        {/* Made without a verified number (2026-10-20), and waiting for another
+            reason too: said beside it. When that is the reason, the pill says it. */}
+        {booking.phoneUnverified && booking.awaitingApprovalBecause !== 'unverifiedPhone' ? (
+          <span className="yc-pill yc-pill-amber">{t('approvals.unverified')}</span>
+        ) : null}
       </div>
 
       {/* What the diner asked for when booking (K9). Deciding without it is

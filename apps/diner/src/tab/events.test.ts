@@ -120,6 +120,8 @@ describe('applying a page of events', () => {
       commandId: '55555555-5555-4555-8555-555555555555',
     });
     const tab = scan.tab;
+    // Scanned with no proved number: a waiter lets the table order.
+    gateway.admitTabAsWaiter(tab.tabId);
 
     const menu = await gateway.getBranchMenuDetail(tab.branchId);
     const item = (menu?.categories ?? []).flatMap((category) => category.items)[0]!;
