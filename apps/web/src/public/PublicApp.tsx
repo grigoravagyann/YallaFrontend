@@ -10,7 +10,7 @@ import { VenueRoute } from './VenueRoute';
 /**
  * The public route group.
  *
- * Three routes and a catch-all, all unauthenticated, under one top bar: the
+ * Four routes and a catch-all, all unauthenticated, under one top bar: the
  * wordmark and the language switch, and nothing else (public-page HANDOFF:
  * own top bar, no sidebar, mobile first). No Yalla navigation, no sign-in
  * link, no app badge — a visitor arrived here for one venue, from a link
@@ -45,10 +45,19 @@ export function PublicApp() {
       </header>
 
       <Routes>
+        {/*
+          The manage link every reminder carries: `/booking/{token}`, with no
+          venue in it — the page learns the branch from the answer. First, so
+          it can never be read as a venue called "booking" with a branch named
+          after a token (the backend reserves `booking` as a slug). It is a
+          public-bundle path on purpose: `booking` is not in
+          `RESERVED_FIRST_SEGMENTS`, which would hand it to the console.
+        */}
+        <Route path="/booking/:token" element={<ManageBookingRoute />} />
         <Route path="/:venueSlug" element={<VenueRoute />} />
         <Route path="/:venueSlug/:branchSlug" element={<BranchRoute />} />
-        {/* Nested under the branch so no top-level word has to be reserved
-            away from venue slugs. See `publicRoutes.ts`. */}
+        {/* The long form the confirmation showed before the short one: kept,
+            because those links are already in people's chats. */}
         <Route path="/:venueSlug/:branchSlug/booking/:token" element={<ManageBookingRoute />} />
         <Route path="*" element={<NotFoundPage />} />
       </Routes>

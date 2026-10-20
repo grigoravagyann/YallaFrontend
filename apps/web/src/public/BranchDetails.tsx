@@ -25,7 +25,9 @@ import { formatPhone } from './phone';
  * into a search box is not; the address as the label either way, so the person
  * can read where they are being sent before they tap.
  */
-function mapsHref(branch: PublicBranch): string {
+export function mapsHref(
+  branch: Pick<PublicBranch, 'latitude' | 'longitude' | 'addressLine'>,
+): string {
   const query =
     branch.latitude !== null && branch.longitude !== null
       ? `${branch.latitude},${branch.longitude}`

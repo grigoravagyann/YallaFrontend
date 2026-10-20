@@ -104,7 +104,8 @@ export function BookingDone({ booking, branch }: BookingDoneProps) {
         // With the reader's `?lang=` when they chose one: the link they keep
         // opens in the language they booked in, not whatever the next
         // browser prefers. Without one, the browser was deciding, and still will.
-        langPath(`/${branch.venue.slug}/${branch.slug}/booking/${booking.manageToken}`),
+        // The short form the reminders carry: the page finds the branch from the answer.
+        langPath(`/booking/${booking.manageToken}`),
         window.location.origin,
       ).toString()
     : null;

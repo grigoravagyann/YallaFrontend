@@ -88,10 +88,14 @@ export function parsePushTarget(data: PushData | null | undefined): PushTarget {
   switch (kind) {
     // `table-request-decided` (booking times): the earlier guest's answer took
     // effect ("please free the table by 19:40"). It lands on their booking,
-    // which carries the promise.
+    // which carries the promise. The two `…-by-link` kinds: the booking was
+    // changed or cancelled with its web manage link, and the account holder
+    // lands on it to see where it stands (PP5 wire).
     case 'reservation-reminder':
     case 'reservation-late-nudge':
     case 'reservation-decided':
+    case 'reservation-changed-by-link':
+    case 'reservation-cancelled-by-link':
     case 'table-request-decided': {
       const reservationId = str(data, 'reservationId');
       // A booking notification with no booking id is not routable. Landing on

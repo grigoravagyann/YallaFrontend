@@ -118,9 +118,13 @@
   },
   "branches": {
     "title": "Choose a branch",
-    "free": "{{free}} of {{total}} tables free",
     "notAvailable": "Not available",
-    "empty": "This place has no branches listed yet."
+    "freeCount_one": "{{count}} table free",
+    "freeCount_other": "{{count}} tables free",
+    "noneFree": "no table free right now",
+    "later": "Later times may still be free",
+    "addressDistrict": "{{address}} · {{district}}",
+    "empty": "This venue has not added a branch on Yalla yet. Try again a little later."
   },
   "booking": {
     "offTitle": "Booking",
@@ -201,7 +205,8 @@
     },
     "change": "Change",
     "timesUnchecked": "We could not check which times are free. Pick a time, and the room will show what is free then.",
-    "otherDayChosen": "Other day: {{date}}"
+    "otherDayChosen": "Other day: {{date}}",
+    "timeNotOffered": "Your current time is no longer offered. Pick another time to change the booking."
   },
   "done": {
     "addCalendar": "Add to my calendar",
@@ -216,16 +221,60 @@
   },
   "manage": {
     "title": "Your booking",
+    "heading": {
+      "pending": "Your request",
+      "cancelled": "Booking cancelled",
+      "past": "Your visit"
+    },
+    "badge": {
+      "confirmed": "Confirmed",
+      "pending": "Waiting for confirmation",
+      "cancelled": "Cancelled",
+      "declined": "Declined",
+      "past": "Past"
+    },
+    "codeHint": "Show it at the door",
+    "updatesItself": "This page updates by itself.",
+    "freeUntil": "Free cancellation until {{day}}, {{time}}. You can still cancel later — the venue will just see that it was late.",
+    "freePassed": "The free-cancellation time has passed. You can still cancel — the venue will see that it was late.",
     "cancel": "Cancel this booking",
     "cancelling": "Cancelling…",
     "cancelFailed": "We could not cancel that. Try again.",
-    "cancelled": "Cancelled",
+    "cancelYes": "Yes, cancel",
+    "cancelNo": "No, keep the booking",
     "cancelledBody": "The table has gone back to the venue. Thank you for telling them.",
+    "declinedBody": "The venue could not take you at that time.",
+    "pastBody": "This visit is over. Thank you for choosing {{venue}}.",
+    "calendar": "Calendar",
+    "map": "Map",
+    "change": "Change time or guests",
+    "call": "Call the venue · {{phone}}",
+    "rebook": "Book again",
+    "changing": {
+      "intro": "Pick another day, time, number of guests or table. The venue may need to confirm the change.",
+      "unchanged": "This is your booking as it stands. Change the day, the time, the guests or the table.",
+      "save": "Save the change",
+      "saving": "Saving…",
+      "close": "Keep it as it is",
+      "confirmed": "Changed. Your booking is confirmed.",
+      "pending": "Changed. The venue needs to confirm the new time — this page will show the answer.",
+      "error": {
+        "account": "This booking can no longer be changed online. Call the venue, or cancel it and book again.",
+        "overlapsOwn": "You already have a booking at this venue around then. Choose another time.",
+        "commandInUse": "That try could not be used. Press “Save the change” again.",
+        "busy": "Someone is booking that table this second. Press “Save the change” again.",
+        "rateLimited": "Too many tries with this link just now. Wait a minute, then try again.",
+        "notAccepted": "The venue is not taking bookings online right now. Your booking is unchanged.",
+        "tableGone": "That table is no longer available. Pick another."
+      },
+      "putBack": "The venue could not take the change. Your booking stays at {{when}}."
+    },
     "gone": {
       "title": "This link no longer works",
-      "body": "It may have expired, or the booking may already be over."
+      "body": "The booking may already be over, or the link was copied wrong. If you are not sure, call the venue."
     },
-    "seeVenue": "See the venue"
+    "seeVenue": "See the venue",
+    "cancelledByVenueBody": "The venue cancelled this booking. Call them if you have a question."
   },
   "header": {
     "allBranches_one": "All {{count}} branch",

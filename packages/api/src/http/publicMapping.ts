@@ -266,6 +266,9 @@ export function publicBranchFromWire(
     acceptsWebBookings: wire.acceptsWebBookings ?? false,
 
     rooms: roomsFromWire(wire.floorPlan, baseUrl),
+
+    // This branch at least, from a server that predates the count.
+    venueBranchCount: Math.max(1, wire.venueBranchCount ?? 1),
   };
 }
 
@@ -445,28 +448,31 @@ function slotInstant(
 /**
  * One booking as its manage link shows it.
  *
- * `venueSlug` and `branchSlug` come from the caller rather than the wire,
- * because the manage URL is `/{venueSlug}/{branchSlug}/booking/{token}` — the
- * route already has both from its own address and the endpoint does not send
- * them. That is a real source, not a guess.
+ * `venueSlug` and `branchSlug` are the booking's own, from the wire: the link
+ * the reminders carry is `/booking/{token}`, with no branch in it, so the
+ * answer is the only place the page learns which branch to link home to. The
+ * caller's slugs — from the long `/{venueSlug}/{branchSlug}/booking/{token}`
+ * address — stand in only for a server that predates them.
  */
 export function managedBookingFromWire(
   wire: WirePublicBooking,
-  slugs: { readonly venueSlug: string; readonly branchSlug: string },
+  slugs?: { readonly venueSlug?: string | undefined; readonly branchSlug?: string | undefined },
 ): ManagedBooking {
   const timeZoneId = wire.timeZoneId ?? '';
 
   return {
+    reservationId: wire.reservationId ?? '',
     code: wire.code ?? '',
     status: bookingStatusFromWire(wire.status),
 
     venueName: wire.venueName ?? '',
-    venueSlug: slugs.venueSlug,
+    venueSlug: wire.venueSlug || slugs?.venueSlug || '',
     branchName: wire.branchName ?? '',
-    branchSlug: slugs.branchSlug,
+    branchSlug: wire.branchSlug || slugs?.branchSlug || '',
     addressLine: wire.branchAddress ?? '',
     timeZoneId,
 
+    tableId: wire.tableId ?? '',
     tableLabel: wire.tableLabel ?? '',
     // The room the table is in, from the booking's own table. Absent when the
     // table is in none — or from a server that predates it.
@@ -479,6 +485,8 @@ export function managedBookingFromWire(
     // While it waits for the venue, and only then.
     approvalExpiresAtUtc: wire.status === 1 ? approvalExpiry(wire.approvalExpiresAtUtc) : null,
     declinedBecause: declineReason(wire.declinedBecause),
+    // 7 CancelledByVenue — unless it is a decline, which says so itself.
+    cancelledByVenue: wire.status === 7 && declineReason(wire.declinedBecause) === null,
     // Booking times: why it waits (the guest before, or the venue), while it
     // waits, and the promise to free the table.
     awaitingApprovalBecause:

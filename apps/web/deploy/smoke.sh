@@ -51,6 +51,16 @@ case "$(header_of /venue/floorplan Cache-Control)" in
   *) fail "deep route lacks Cache-Control: no-cache" ;;
 esac
 
+# 2b. A manage link is the shell too, and asks not to be indexed.
+case "$(header_of /booking/smoke-token X-Robots-Tag)" in
+  *noindex*) ok "/booking/* carries X-Robots-Tag: noindex" ;;
+  *) fail "/booking/* lacks X-Robots-Tag: noindex" ;;
+esac
+case "$(header_of /venue/floorplan X-Robots-Tag)" in
+  '') ok "other routes carry no X-Robots-Tag" ;;
+  *) fail "X-Robots-Tag leaked onto /venue/floorplan" ;;
+esac
+
 # 3. A real hashed asset, long-cached.
 ASSET="$(curl -s "$BASE/" | grep -o '/assets/[^"]*\.js' | head -1)"
 [ -n "$ASSET" ] || fail "index.html references no /assets/*.js"

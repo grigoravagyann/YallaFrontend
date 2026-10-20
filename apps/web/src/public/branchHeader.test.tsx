@@ -113,13 +113,27 @@ describe('the header', () => {
     expect(link.getAttribute('href')).toBe('/lumen-coffee?lang=en');
   });
 
+  it("counts the branches from the branch page's own answer, never the whole venue list", async () => {
+    const harness = createHarness({ now: FRIDAY_EVENING });
+    const venues = vi.spyOn(harness.publicGateway, 'resolveVenue');
+    const page = harness.publicGateway.resolveBranch.bind(harness.publicGateway);
+    vi.spyOn(harness.publicGateway, 'resolveBranch').mockImplementation(async (input) => {
+      const branch = await page(input);
+      return branch ? { ...branch, venueBranchCount: 5 } : branch;
+    });
+    render(harness.wrap(<PublicApp />, LUMEN));
+    expect(await screen.findByRole('link', { name: 'All 5 branches' })).toBeTruthy();
+    await settle();
+    expect(venues).not.toHaveBeenCalled();
+  });
+
   it('has no branches link for a venue with one branch', async () => {
     const harness = createHarness({ now: FRIDAY_EVENING });
-    const venue = vi.spyOn(harness.publicGateway, 'resolveVenue');
+    const page = vi.spyOn(harness.publicGateway, 'resolveBranch');
     render(harness.wrap(<PublicApp />, '/tumanyan-shawarma/tumanyan-street'));
-    // Wait for the venue's own answer, not for something else on the page.
-    await waitFor(() => expect(venue).toHaveBeenCalledWith('tumanyan-shawarma'));
-    expect((await venue.mock.results[0]!.value)?.branches).toHaveLength(1);
+    // Wait for the page's own answer, which carries the count.
+    await waitFor(() => expect(page).toHaveBeenCalled());
+    expect((await page.mock.results[0]!.value)?.venueBranchCount).toBe(1);
     await settle();
     expect(screen.queryByRole('link', { name: /branch/u })).toBeNull();
   });

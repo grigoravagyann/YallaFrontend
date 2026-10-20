@@ -587,6 +587,18 @@ the booking panel is open in it. The new CSS sizes read the console tokens
 where one exists (`text-label`, `text-caption`, `text-booking-time`,
 `radius-control`, `radius-public-status`, the public control size).
 
+Phase 5 added the manage link and the branch chooser, with no new tokens. The
+manage page's status is a pill badge: green for confirmed, blue for waiting
+(the code box dashed blue with it, never green), red for declined, the soft
+line grey for cancelled and past; a cancelled or declined booking's summary is
+struck through in the muted ink. Cancelling asks inline, in a card with the red
+line border, the "yes" button red and "no" plain; the page's own cancel button
+is red words in a quiet box. Changing the booking opens the branch page's own
+booking card and room in the page's column. The chooser's cards are a 96px
+photo, the name, "address · district", the open dot with the free count, and a
+chevron; a branch that is not available is a dashed card on the soft ground
+with a grey tag, not a link.
+
 ---
 
 ## Motion

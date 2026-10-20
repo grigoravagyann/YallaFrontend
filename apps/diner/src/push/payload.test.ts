@@ -444,3 +444,16 @@ describe('a request for the diner’s table', () => {
     expect(tableRequestAnswer(PUSH_ACTIONS.cancel)).toBeNull();
   });
 });
+
+describe('a change or a cancel made with the web manage link', () => {
+  it('sends both to the booking they are about, with no action', () => {
+    for (const kind of ['reservation-changed-by-link', 'reservation-cancelled-by-link']) {
+      expect(parsePushTarget({ kind, reservationId: 'r-link' })).toEqual({
+        kind: 'booking',
+        reservationId: 'r-link',
+        action: null,
+        extensionMinutes: null,
+      });
+    }
+  });
+});
