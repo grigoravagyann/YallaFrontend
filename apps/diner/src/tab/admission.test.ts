@@ -1,5 +1,6 @@
 import {
   ADMITTED,
+  BranchRequiresVerifiedPhoneError,
   DeviceHasActiveBookingError,
   PhoneHasActiveBookingError,
   ScanTurnedAwayError,
@@ -197,6 +198,7 @@ describe('the refusals an unproved account meets', () => {
 
   it('knows which refusals proving the number lifts', () => {
     const lifted = [
+      new BranchRequiresVerifiedPhoneError({ url }),
       new DeviceHasActiveBookingError({ url }),
       new UnverifiedPartyTooLargeError({ url, partySize: 8, maxPartySize: 6 }),
       new UnverifiedQueueFullError({ url }),

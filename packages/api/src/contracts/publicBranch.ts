@@ -78,6 +78,11 @@ export interface PublicBranchPolicy {
    * confirm it — said on the page before booking, not after.
    */
   readonly unverifiedBookingsNeedApproval: boolean;
+  /**
+   * Whether the branch takes bookings without a verified number at all — false
+   * exactly when its cap is 0 (df6de66). False: the page offers verifying only.
+   */
+  readonly acceptsUnverifiedBookings: boolean;
 }
 
 /**

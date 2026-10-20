@@ -33,6 +33,7 @@ const PAGE: Page = {
     cancellationDeadlineMinutes: 120,
     unverifiedMaxPartySize: 6,
     unverifiedBookingsNeedApproval: true,
+    acceptsUnverifiedBookings: true,
   },
   asOfUtc: '2026-09-13T00:00:00Z',
   venueBranchCount: 1,

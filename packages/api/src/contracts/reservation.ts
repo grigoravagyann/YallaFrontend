@@ -19,6 +19,7 @@ import {
   BookingCommandInUseError,
   BookingOverlapsOwnError,
   BookingRejectedError,
+  BranchRequiresVerifiedPhoneError,
   BranchUnavailableError,
   DeviceHasActiveBookingError,
   ExpiredCodeError,
@@ -594,6 +595,8 @@ export type BookingFailure =
   | { readonly kind: 'deviceHasActiveBooking'; readonly line: CopyLine }
   | { readonly kind: 'unverifiedPartyTooLarge'; readonly line: CopyLine }
   | { readonly kind: 'unverifiedQueueFull'; readonly line: CopyLine }
+  /** The branch takes none without a verified number (its cap is 0): verify to book. */
+  | { readonly kind: 'verifiedPhoneRequired'; readonly line: CopyLine }
   | { readonly kind: 'rateLimited'; readonly line: CopyLine }
   | { readonly kind: 'unknown'; readonly line: CopyLine }
   | { readonly kind: 'generic'; readonly line: CopyLine };
@@ -677,14 +680,13 @@ export function bookingFailure(
   if (error instanceof DeviceHasActiveBookingError) {
     return { kind: 'deviceHasActiveBooking', line: line('confirm.error.deviceHasBooking') };
   }
+  if (error instanceof BranchRequiresVerifiedPhoneError) {
+    return { kind: 'verifiedPhoneRequired', line: line('confirm.error.unverifiedOff') };
+  }
   if (error instanceof UnverifiedPartyTooLargeError) {
     return {
       kind: 'unverifiedPartyTooLarge',
-      // A cap of 0: this branch takes no bookings without a proved number.
-      line:
-        error.maxPartySize <= 0
-          ? line('confirm.error.unverifiedOff')
-          : line('confirm.error.unverifiedPartyTooLarge', { max: error.maxPartySize }),
+      line: line('confirm.error.unverifiedPartyTooLarge', { max: error.maxPartySize }),
     };
   }
   if (error instanceof UnverifiedQueueFullError) {

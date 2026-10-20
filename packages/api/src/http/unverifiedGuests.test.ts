@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  BranchRequiresVerifiedPhoneError,
   DeviceHasActiveBookingError,
   PhoneHasActiveBookingError,
   TabAdmissionDecidedError,
@@ -383,15 +384,11 @@ describe('a booking without a proved number', () => {
     expect(cap).toBeInstanceOf(UnverifiedPartyTooLargeError);
     expect(cap).toMatchObject({ partySize: 8, maxPartySize: 6 });
 
-    // A cap of 0: the branch takes none without a verified number.
-    const off = await refusal(
-      problemReply(422, 'reservation-unverified-party-too-large', {
-        reason: 14,
-        partySize: 2,
-        maxPartySize: 0,
-      }),
-    );
-    expect(off).toMatchObject({ partySize: 2, maxPartySize: 0 });
+    // A cap of 0: the branch takes none without a verified number — its own
+    // 422, not the party cap with a maximum of 0 (df6de66).
+    expect(
+      await refusal(problemReply(422, 'branch-requires-verified-phone', { reason: 15 })),
+    ).toBeInstanceOf(BranchRequiresVerifiedPhoneError);
 
     expect(await refusal(problemReply(409, 'branch-unverified-queue-full'))).toBeInstanceOf(
       UnverifiedQueueFullError,
@@ -408,6 +405,20 @@ describe('a booking without a proved number', () => {
     const mine = await gateway.listBookings();
 
     expect(mine.upcoming[0]).toMatchObject({ madeWithYourNumber: true, phoneUnverified: true });
+  });
+
+  it('reads the cap-0 refusal on the app door too', async () => {
+    const { gateway } = dinerOver({
+      'POST /api/reservations': problemReply(422, 'branch-requires-verified-phone', {
+        reason: 15,
+      }),
+    });
+
+    const error = await caught(
+      gateway.createBooking({ ...COMMAND_BODY, guestPhone: '+37499112233', channel: 'app' }),
+    );
+
+    expect(error).toBeInstanceOf(BranchRequiresVerifiedPhoneError);
   });
 
   it("names the account's own held booking when the app is refused for the number", async () => {

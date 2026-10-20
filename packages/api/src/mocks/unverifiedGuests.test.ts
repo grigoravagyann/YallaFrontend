@@ -278,8 +278,7 @@ describe("the public page's booking without a proved number", () => {
   it('takes none without a proved number where the branch set the cap to 0', async () => {
     const { publicGateway, booking } = await page({ unverifiedMaxPartySize: 0 });
     expect(await caught(publicGateway.createUnverifiedBooking(booking()))).toMatchObject({
-      name: 'UnverifiedPartyTooLargeError',
-      maxPartySize: 0,
+      name: 'BranchRequiresVerifiedPhoneError',
     });
   });
 

@@ -273,15 +273,11 @@ describe('the unverified-guests refusals (2026-10-20)', () => {
     ).toEqual({ kind: 'rateLimited', line: { key: 'confirm.error.tooManyRequests', params: {} } });
   });
 
-  it('says the venue takes none without a verified number when its cap is 0', () => {
+  it('says the venue takes bookings only with a verified number (cap 0, df6de66)', () => {
     expect(
-      bookingFailure(
-        new errors.UnverifiedPartyTooLargeError({ url: URL, partySize: 2, maxPartySize: 0 }),
-        YEREVAN,
-        'en',
-      ),
+      bookingFailure(new errors.BranchRequiresVerifiedPhoneError({ url: URL }), YEREVAN, 'en'),
     ).toEqual({
-      kind: 'unverifiedPartyTooLarge',
+      kind: 'verifiedPhoneRequired',
       line: { key: 'confirm.error.unverifiedOff', params: {} },
     });
   });

@@ -7,6 +7,8 @@ import {
   type TabAwaitingAdmission,
 } from '../contracts/admission';
 import {
+  BRANCH_REQUIRES_VERIFIED_PHONE_CODE,
+  BranchRequiresVerifiedPhoneError,
   DEVICE_HAS_ACTIVE_BOOKING_CODE,
   DeviceHasActiveBookingError,
   PHONE_HAS_ACTIVE_BOOKING_CODE,
@@ -148,18 +150,17 @@ export function unverifiedBookingRefusal(
       return new DeviceHasActiveBookingError(base);
     case UNVERIFIED_QUEUE_FULL_CODE:
       return new UnverifiedQueueFullError(base);
+    // A cap of 0: the branch takes none without a verified number (df6de66).
+    case BRANCH_REQUIRES_VERIFIED_PHONE_CODE:
+      return new BranchRequiresVerifiedPhoneError(base);
     case UNVERIFIED_PARTY_TOO_LARGE_CODE: {
       const max = Number(context['maxPartySize']);
       const size = Number(context['partySize']);
       return new UnverifiedPartyTooLargeError({
         ...base,
         partySize: Number.isFinite(size) && size > 0 ? size : command.partySize,
-        // 0: the branch takes no bookings without a proved number. A refusal
-        // that does not say the cap still refuses; one under the party asked for.
-        maxPartySize:
-          context['maxPartySize'] !== undefined && Number.isFinite(max) && max >= 0
-            ? max
-            : Math.max(1, command.partySize - 1),
+        // A refusal that does not say the cap still refuses; one under the party asked for.
+        maxPartySize: Number.isFinite(max) && max > 0 ? max : Math.max(1, command.partySize - 1),
       });
     }
     default:

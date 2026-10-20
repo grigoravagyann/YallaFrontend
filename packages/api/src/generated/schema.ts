@@ -2668,7 +2668,7 @@ export interface paths {
          *
          *     The app's booking body without `branchId` and `channel` (the route names the branch; the channel is the web's, so `acceptsWebBookings` gates it), plus **`deviceId`**: an id the page generates once and keeps (localStorage). `guestPhone` must be a real number in E.164 - spaces and dashes are dropped - and is what the venue calls.
          *
-         *     **What is different from a verified booking.** The booking says `phoneUnverified: true` everywhere staff read it. It is for at most `policy.unverifiedMaxPartySize` people (`422 reservation-unverified-party-too-large`, `context.maxPartySize` - offer to verify, which lifts it). When the branch approves such bookings first (`policy.unverifiedBookingsNeedApproval`, on by default) it lands `PendingApproval` with `awaitingApprovalBecause` **6** and an answer deadline (`approvalExpiresAtUtc`: a day at most, two hours before the start if that is sooner) - unanswered, it is declined for no answer. At most 20 wait at one branch at once (`409 branch-unverified-queue-full`). No reminder is sent. Its manage link reads and cancels it but never changes it (cancel and book again).
+         *     **What is different from a verified booking.** The booking says `phoneUnverified: true` everywhere staff read it. It is for at most `policy.unverifiedMaxPartySize` people (`422 reservation-unverified-party-too-large`, `context.maxPartySize` - offer to verify, which lifts it). **A branch whose cap is 0 takes none** (`policy.acceptsUnverifiedBookings` false - hide this door and offer verifying only): `422 branch-requires-verified-phone`, `context.reason` 15. When the branch approves such bookings first (`policy.unverifiedBookingsNeedApproval`, on by default) it lands `PendingApproval` with `awaitingApprovalBecause` **6** and an answer deadline (`approvalExpiresAtUtc`: a day at most, two hours before the start if that is sooner) - unanswered, it is declined for no answer. At most 20 wait at one branch at once (`409 branch-unverified-queue-full`). No reminder is sent. Its manage link reads and cancels it but never changes it (cancel and book again).
          *
          *     **One active booking per number - for everybody.** A number that already holds a pending or confirmed booking that is not over, at any venue, is `409 phone-has-active-booking` with **no context** here. One active unverified booking per browser too: `409 device-has-active-booking`. Cancelling the other booking frees the number at once.
          *
@@ -2861,6 +2861,8 @@ export interface paths {
          *     A short-notice booking (`awaitingApprovalBecause` 4) is the floor's to decide, by `approvalExpiresAtUtc` - fifteen minutes from now, or the start if sooner. Unanswered by then it is declined (`CancelledByVenue`, `declinedBecause` 2 NoAnswer) and the diner gets a `reservation-decided` push with `expired` true. Count down to `approvalExpiresAtUtc`; read the booking again to see the answer.
          *
          *     A booking for a table whose previous booking started under three hours before (`awaitingApprovalBecause` 5 EarlierGuestConsent) waits on that guest's yes, for **two hours** at most (`approvalExpiresAtUtc`, never past their start nor this one's). When `awaitsEarlierGuestAnswer` is true they are asked in the app and only they answer - unanswered it is declined with `declinedBecause` 4 EarlierGuestNoAnswer. When it is false the floor calls them and decides, by the same deadline - unanswered it is declined with `declinedBecause` 2 NoAnswer.
+         *
+         *     **An account whose number was never proved** books without a verified number (`phoneUnverified: true`), as the public page's door does: at most `policy.unverifiedMaxPartySize` people (`422 reservation-unverified-party-too-large`), and **none at a branch whose cap is 0** (`422 branch-requires-verified-phone` - send the diner to verify their number), one active booking per number (`409 phone-has-active-booking`), at most 20 waiting per branch (`409 branch-unverified-queue-full`), and the network's budget shared with the web (`429 rate-limited`).
          *
          *     **One table at a time per diner at a branch**: a sitting that overlaps another of the diner's own live bookings there (pending, confirmed or seated) is `409 reservation-overlaps-own`, with `context` naming the booking already held - `reservationId`, `code` (its door code), `localDate` (`"2026-10-22"`, the branch's calendar - say the day when it differs), `localStartTime` (`"19:30:00"`) and `tableLabel` - so the app can say "You already have a booking at 19:30 (table 2)". Sittings that only touch do not overlap; another branch is not refused. A retry with the same `clientCommandId` still answers as a replay.
          */
@@ -9389,6 +9391,12 @@ export interface components {
         /** @description The reservation rules a diner needs in order to book, and nothing else. */
         "Yalla.Application.Public.PublicReservationPolicy": {
             /**
+             * @description Whether the page offers booking without a verified number at all: false when the branch's cap is 0,
+             *     and then the only door is verifying the number (a booking without it is
+             *     `422 branch-requires-verified-phone`).
+             */
+            readonly acceptsUnverifiedBookings: boolean;
+            /**
              * Format: int32
              * @description How long before the start a diner may still cancel freely. On the page because a deadline
              *     nobody was told about is a deadline that produces no-shows rather than cancellations.
@@ -9414,7 +9422,8 @@ export interface components {
              * Format: int32
              * @description The largest party the page may book without a verified phone number. Published because the page must
              *     say "for more, verify your number" before the visitor commits; it is a refusal, not an approval
-             *     threshold, so it opens no loophole.
+             *     threshold, so it opens no loophole. <b>0</b>: the branch takes no bookings without a verified number -
+             *     see Yalla.Application.Public.PublicReservationPolicy.AcceptsUnverifiedBookings.
              */
             unverifiedMaxPartySize: number;
         };
@@ -11666,10 +11675,10 @@ export interface components {
          * Format: int32
          * @description Why a table cannot be booked for a particular slot.
          *
-         *     Values: 1 LeadTimeTooShort, 2 OutsideBookingWindow, 3 OutsideOpeningHours, 4 PartyExceedsCapacity, 5 SeatOverhangExceeded, 6 TableNotBookable, 7 TableOutOfService, 8 TableAlreadyBooked, 9 LocalTimeDoesNotExist, 10 TableCurrentlyOccupied, 11 TableJustBooked, 12 NextBookingTooSoon, 13 EarlierGuestBeingAsked, 14 UnverifiedPartyTooLarge.
+         *     Values: 1 LeadTimeTooShort, 2 OutsideBookingWindow, 3 OutsideOpeningHours, 4 PartyExceedsCapacity, 5 SeatOverhangExceeded, 6 TableNotBookable, 7 TableOutOfService, 8 TableAlreadyBooked, 9 LocalTimeDoesNotExist, 10 TableCurrentlyOccupied, 11 TableJustBooked, 12 NextBookingTooSoon, 13 EarlierGuestBeingAsked, 14 UnverifiedPartyTooLarge, 15 VerifiedPhoneRequired.
          * @enum {integer}
          */
-        "Yalla.Domain.Occupancy.ReservationRejectionReason": 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14;
+        "Yalla.Domain.Occupancy.ReservationRejectionReason": 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15;
     };
     responses: never;
     parameters: never;
@@ -22542,7 +22551,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["Yalla.Api.Errors.PhoneHasActiveBookingProblem"];
                 };
             };
-            /** @description A branch rule refused the booking. Each rule has its own `code` - `reservation-party-exceeds-capacity`, `reservation-outside-opening-hours` and so on - with the numbers behind it in `context`, so the app can say which table to pick instead rather than showing a generic failure. `reservation-unverified-party-too-large`: over `policy.unverifiedMaxPartySize`. */
+            /** @description A branch rule refused the booking. Each rule has its own `code` - `reservation-party-exceeds-capacity`, `reservation-outside-opening-hours` and so on - with the numbers behind it in `context`, so the app can say which table to pick instead rather than showing a generic failure. `reservation-unverified-party-too-large`: over `policy.unverifiedMaxPartySize`. `branch-requires-verified-phone`: the branch takes no bookings without a verified number (its cap is 0). */
             422: {
                 headers: {
                     [name: string]: unknown;

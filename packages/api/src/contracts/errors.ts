@@ -1898,6 +1898,32 @@ export function isTabAdmissionDecided(error: unknown): error is TabAdmissionDeci
   return error instanceof TabAdmissionDecidedError;
 }
 
+/** `branch-requires-verified-phone`: the branch takes no bookings without a verified number. */
+export const BRANCH_REQUIRES_VERIFIED_PHONE_CODE = 'branch-requires-verified-phone';
+
+/**
+ * The branch takes no bookings without a verified number — its cap is 0
+ * (`branch-requires-verified-phone`, 422, `context.reason` 15
+ * `VerifiedPhoneRequired`), on both unverified doors. Not the party cap: the
+ * answer is "verify your number", never "a smaller party".
+ */
+export class BranchRequiresVerifiedPhoneError extends ApiError {
+  constructor(options: RefusalOptions) {
+    super('This venue takes bookings only with a verified number.', {
+      status: 422,
+      url: options.url,
+      requestId: options.requestId,
+    });
+    this.name = 'BranchRequiresVerifiedPhoneError';
+  }
+}
+
+export function isBranchRequiresVerifiedPhone(
+  error: unknown,
+): error is BranchRequiresVerifiedPhoneError {
+  return error instanceof BranchRequiresVerifiedPhoneError;
+}
+
 /** `branch-unverified-queue-full`: the branch already has its fill of unverified bookings waiting. */
 export const UNVERIFIED_QUEUE_FULL_CODE = 'branch-unverified-queue-full';
 /** `scan-turned-away`: a scan right after a waiter turned this phone or table away. */

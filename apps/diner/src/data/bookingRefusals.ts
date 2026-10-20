@@ -67,6 +67,7 @@ export function unprovedFailureLine(failure: BookingFailure, accountUnproved: bo
 export function proofLifts(failure: BookingFailure, accountUnproved: boolean): boolean {
   if (!accountUnproved) return false;
   switch (failure.kind) {
+    case 'verifiedPhoneRequired':
     case 'deviceHasActiveBooking':
     case 'unverifiedPartyTooLarge':
     case 'unverifiedQueueFull':

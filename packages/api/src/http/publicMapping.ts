@@ -200,6 +200,9 @@ function policyFromWire(wire: WirePublicBranch['policy']): PublicBranchPolicy {
     // it would have enforced had it known about them.
     unverifiedMaxPartySize: wire?.unverifiedMaxPartySize ?? 6,
     unverifiedBookingsNeedApproval: wire?.unverifiedBookingsNeedApproval ?? true,
+    // A server before the flag: the cap says it (0 takes none).
+    acceptsUnverifiedBookings:
+      wire?.acceptsUnverifiedBookings ?? (wire?.unverifiedMaxPartySize ?? 6) > 0,
   };
 }
 

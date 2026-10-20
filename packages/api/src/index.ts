@@ -839,6 +839,9 @@ export type {
   TabAwaitingAdmission,
 } from './contracts/admission';
 export {
+  BRANCH_REQUIRES_VERIFIED_PHONE_CODE,
+  BranchRequiresVerifiedPhoneError,
+  isBranchRequiresVerifiedPhone,
   DEVICE_HAS_ACTIVE_BOOKING_CODE,
   DeviceHasActiveBookingError,
   PHONE_HAS_ACTIVE_BOOKING_CODE,

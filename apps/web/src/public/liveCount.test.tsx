@@ -48,6 +48,7 @@ function branch(overrides: Partial<PublicBranch>): PublicBranch {
       cancellationDeadlineMinutes: 120,
       unverifiedMaxPartySize: 6,
       unverifiedBookingsNeedApproval: true,
+      acceptsUnverifiedBookings: true,
     },
     bookingWindowDays: 14,
     acceptsWebBookings: true,

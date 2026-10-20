@@ -82,7 +82,8 @@ export function withoutProofDoor(
   partySize: number,
 ): WithoutProofDoor | null {
   const max = policy.unverifiedMaxPartySize;
-  if (max <= 0) return null;
+  // The server's own word (df6de66); the cap stands in where it is not said.
+  if (!policy.acceptsUnverifiedBookings || max <= 0) return null;
   return {
     open: partySize <= max,
     needsApproval: policy.unverifiedBookingsNeedApproval,

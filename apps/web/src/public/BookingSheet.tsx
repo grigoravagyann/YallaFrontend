@@ -370,7 +370,8 @@ export default function BookingSheet({
             failure.kind === 'unverifiedPartyTooLarge' ||
             failure.kind === 'unverifiedQueueFull' ||
             failure.kind === 'rateLimited' ||
-            failure.kind === 'phoneHasActiveBooking'),
+            failure.kind === 'phoneHasActiveBooking' ||
+            failure.kind === 'verifiedPhoneRequired'),
       );
       // This page's own booking without proof holds the browser: offer it.
       const kept = failure.kind === 'deviceHasActiveBooking' ? lastKeptManageToken() : null;

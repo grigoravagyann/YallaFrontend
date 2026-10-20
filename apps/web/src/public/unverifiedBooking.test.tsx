@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import {
+  BranchRequiresVerifiedPhoneError,
   DeviceHasActiveBookingError,
   NetworkError,
   PhoneHasActiveBookingError,
@@ -278,6 +279,12 @@ describe('the refusals without proof', () => {
       true,
     ],
     [
+      'the venue takes bookings only with a verified number',
+      new BranchRequiresVerifiedPhoneError({ url: '/x' }),
+      /^This venue takes bookings only with a verified number\. Verify your number to book\.$/u,
+      true,
+    ],
+    [
       'the network booked too many this hour',
       new TooManyRequestsError({ url: '/x', retryAfterSeconds: 900 }),
       /^Too many bookings without a verified number were made from this network/u,
@@ -325,7 +332,13 @@ describe('the review round (UG-FE-REVIEW)', () => {
   it('hides the way without proof where the branch takes none (cap 0)', async () => {
     const w = await world();
     const user = userEvent.setup();
-    render(sheet(w, { ...w.branch, policy: { ...w.branch.policy, unverifiedMaxPartySize: 0 } }));
+    // The server's own word (df6de66), not the cap read on this side.
+    render(
+      sheet(w, {
+        ...w.branch,
+        policy: { ...w.branch.policy, unverifiedMaxPartySize: 6, acceptsUnverifiedBookings: false },
+      }),
+    );
     await toPhone(user);
 
     expect(screen.queryByRole('button', { name: WITHOUT })).toBeNull();

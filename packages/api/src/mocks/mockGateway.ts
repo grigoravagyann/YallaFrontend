@@ -35,6 +35,7 @@ import {
   TabAwaitingAdmissionError,
   UnverifiedPartyTooLargeError,
   UnverifiedQueueFullError,
+  BranchRequiresVerifiedPhoneError,
   CannotReportOwnReviewError,
   InvalidCredentialsError,
   ReviewNeedsVisitError,
@@ -3361,8 +3362,12 @@ export function createMockGateway(options: MockGatewayOptions = {}): MockGateway
       // The branch-wide rules first, as the server applies them. Lead time:
       // the slot may have become too soon while they were deciding.
       refuseAtBranch(command.branchId, slot, command.partySize);
-      // Without a proved number, at most the branch's cap: a refusal verifying
-      // lifts. A cap of 0 takes none at all (the branch switched them off).
+      // A cap of 0: the branch takes none without a proved number — its own
+      // refusal, checked before the cap, the number and the budget (df6de66).
+      if (caller.unverified && unverifiedMaxPartySize <= 0) {
+        throw new BranchRequiresVerifiedPhoneError({ url });
+      }
+      // Without a proved number, at most the branch's cap: a refusal verifying lifts.
       if (caller.unverified && command.partySize > unverifiedMaxPartySize) {
         throw new UnverifiedPartyTooLargeError({
           url,

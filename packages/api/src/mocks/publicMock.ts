@@ -101,6 +101,7 @@ const DEFAULT_POLICY: PublicBranchPolicy = {
   // Unverified bookings (2026-10-20): the server's defaults.
   unverifiedMaxPartySize: 6,
   unverifiedBookingsNeedApproval: true,
+  acceptsUnverifiedBookings: true,
 };
 
 function venueHeader(venue: Venue): PublicVenueHeader {
