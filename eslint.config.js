@@ -124,15 +124,23 @@ export default tseslint.config(
   // Metro and Expo read their config with `require`, so these files are CommonJS whether
   // or not the rest of the workspace is ESM.
   {
-    files: [
-      '**/metro.config.js',
-      '**/babel.config.js',
-      'apps/diner/app.config.js',
-      'apps/diner/assets/images/source/*.cjs',
-    ],
+    files: ['**/metro.config.js', '**/babel.config.js', 'apps/diner/app.config.js'],
     languageOptions: {
       sourceType: 'commonjs',
       globals: { ...globals.node },
+    },
+    rules: {
+      '@typescript-eslint/no-require-imports': 'off',
+    },
+  },
+
+  // The icon and store-screenshot scripts: CommonJS run by Node, with callbacks Playwright runs
+  // inside the page, so both sets of globals.
+  {
+    files: ['apps/diner/assets/images/source/*.cjs', 'apps/diner/store/source/*.cjs'],
+    languageOptions: {
+      sourceType: 'commonjs',
+      globals: { ...globals.node, ...globals.browser },
     },
     rules: {
       '@typescript-eslint/no-require-imports': 'off',
