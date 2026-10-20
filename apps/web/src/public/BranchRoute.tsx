@@ -1,7 +1,17 @@
 import type { PublicBranch, TableAvailability } from '@yalla/api';
 import { usePublicBranch, usePublicGateway, usePublicMenu, useSlotFloor } from '@yalla/api/react';
 import { useLocale, useTranslation } from '@yalla/i18n';
-import { Suspense, lazy, useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react';
+import {
+  Suspense,
+  lazy,
+  useCallback,
+  useEffect,
+  useId,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from 'react';
 import { useParams } from 'react-router-dom';
 import { AboutSection } from './AboutSection';
 import {
@@ -176,6 +186,16 @@ function BranchPage({
   const refocus = useRef(false);
   const bookingHeadingId = useId();
   /**
+   * The card has settled the time the page opens on (the server's day is in),
+   * so the room can be read for it. Before that the selection is a guess from
+   * the published hours, which by day the card moves off: read at once, the
+   * room was read twice and drawn for a time nobody chose, and "Choose for me"
+   * said "still loading" in between. With no web booking there is no card to
+   * wait for.
+   */
+  const [timeSettled, setTimeSettled] = useState(!branch.acceptsWebBookings);
+  const settleTime = useCallback(() => setTimeSettled(true), []);
+  /**
    * The booking column is taller than the window — a day of thirty-odd times —
    * so it flows with the page rather than sticking as a box that hides its own
    * foot (QA 1). Measured, because only the content knows its height.
@@ -241,9 +261,9 @@ function BranchPage({
    * the previous slot's answer stays on screen while the next one loads.
    */
   const floorQuery = useSlotFloor({
-    branchId: branch.id,
+    branchId: timeSettled ? branch.id : undefined,
     // Settled as the room settles it, so the two read one key (review S5).
-    slotUtc: useSettled(slotUtc),
+    slotUtc: useSettled(slotUtc, undefined, !timeSettled),
     partySize: selection.partySize,
     timeZoneId: branch.timeZoneId,
   });
@@ -549,6 +569,7 @@ function BranchPage({
           panelOpen={panel !== null}
           panelInColumn={panel?.inAside ?? false}
           holdTime={booked}
+          onTimeSettled={settleTime}
         />
         {panel?.inAside ? sheet : null}
       </section>
@@ -558,6 +579,7 @@ function BranchPage({
           branch={branch}
           selection={selection}
           slotUtc={slotUtc}
+          readRoom={timeSettled}
           selectedTableId={picked?.id ?? null}
           onTableTap={(availability) => {
             // The table just lost, still drawn free until the room answers

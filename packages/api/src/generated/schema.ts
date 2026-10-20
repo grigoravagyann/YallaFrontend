@@ -1,7 +1,7 @@
 /**
  * GENERATED FILE — do not edit.
  *
- * Source: http://localhost:5197/swagger/v1/swagger.json
+ * Source: http://127.0.0.1:5212/swagger/v1/swagger.json
  * Regenerate with: pnpm api:generate
  */
 
