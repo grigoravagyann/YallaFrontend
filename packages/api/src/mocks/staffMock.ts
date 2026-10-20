@@ -621,8 +621,9 @@ export function createStaffMockGateway(options: StaffMockOptions = {}): StaffGat
         by: 'Ani Hakobyan',
         lines: [['granola', 1, 'Մեղրը՝ առանձին']],
       },
-      // Old and never sent: not the kitchen's to cook, so never late on its board.
-      { minutesAgo: 18, status: 'new', by: 'Ani Hakobyan', lines: [['lemonade', 2, null]] },
+      // From the app, old and never sent on by a waiter: not the kitchen's to cook, so never late
+      // on its board. A waiter's own order cannot sit here; it reaches the kitchen when it is sent.
+      { minutesAgo: 18, status: 'new', by: null, lines: [['lemonade', 2, null]] },
     ];
     tickets.forEach((ticket, index) => {
       const orderId = id('order');
@@ -1777,7 +1778,8 @@ export function createStaffMockGateway(options: StaffMockOptions = {}): StaffGat
         id: command.clientCommandId,
         tabId: tab.id,
         tableLabel: tab.tableLabel,
-        status: 'new',
+        // A waiter's order is in the kitchen the moment it is sent, as on the server.
+        status: 'inKitchen',
         placedAtUtc: iso(at),
         lineIds: [],
         placedByName: options.staffName ?? 'Ani Hakobyan',
@@ -1872,18 +1874,19 @@ export function createStaffMockGateway(options: StaffMockOptions = {}): StaffGat
           voidReason: null,
           voidedByName: null,
           placedAtUtc: iso(at),
-          orderStatus: 'new',
+          orderStatus: 'inKitchen',
         });
         order.lineIds.push(lineId);
       }
 
       orders.set(order.id, order);
       pushEvent(tab, 'orderPlaced', at);
+      pushEvent(tab, 'orderStatusChanged', at);
 
       return settle({
         orderId: order.id,
         tabId: tab.id,
-        status: 'new',
+        status: 'inKitchen',
         placedAtUtc: order.placedAtUtc,
         estimatedReadyAtUtc: minutesFrom(at, 15),
         wasReplay: false,

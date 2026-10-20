@@ -54,6 +54,28 @@ describe('who sent a ticket', () => {
   });
 });
 
+describe("a waiter's order", () => {
+  // Decided by the user on 2026-10-20, as on the server: the waiter who took
+  // the order is already the check, so there is no second "send" for it.
+  it('is in the kitchen the moment it is sent, with no send step left', async () => {
+    const gateway = mock();
+    const tabId = await openTab(gateway);
+    const menu = (await gateway.getMenu(BRANCH))!;
+    const dish = menu.sections[0]!.items.find((item) => item.isAvailable)!;
+    const id = '33333333-3333-4333-8333-333333333333';
+
+    const placed = await gateway.placeOrder({
+      tabId,
+      clientCommandId: id,
+      lines: [{ menuItemId: dish.id, quantity: 1, isShared: true, participantId: null }],
+    });
+
+    expect(placed.status).toBe('inKitchen');
+    const ticket = (await gateway.listOrderQueue(BRANCH)).find((order) => order.orderId === id);
+    expect(ticket?.status).toBe('inKitchen');
+  });
+});
+
 describe('the menu', () => {
   it("carries each dish's allergens, as the venue wrote them", async () => {
     const menu = (await mock().getMenu(BRANCH))!;
