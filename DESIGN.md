@@ -571,6 +571,22 @@ rating's stars. A sold-out dish is an amber pill, not the artboard's red.
 Money is `formatDram` everywhere: "1 400 ֏" in hy and ru whatever number data
 the browser ships, "1,400 ֏" in en.
 
+Phase 3 added the booking card and the room, with no new tokens. The card is
+chips: 64px day chips (the brown fill when chosen), a 48px round stepper, a
+segmented day/evening switch and a four-column grid of 48px time chips — a full
+time struck on the soft line colour, an on-request one with an amber
+"on request" under it. A table pin is a 44px target holding a 34px dot with a
+14px number; the chosen one is the brown with a ring. The list view's rows use
+the green and amber backgrounds for free and booked, grey for the rest. A table
+lost to somebody else is the page's one red notice.
+Review fixes: the time grid drops to three columns at 380px and under, so
+"on request" fits a chip at 360; pins pinned closer than a 44px target are
+drawn apart (`pinLayout.ts`); the booking column stops being sticky when its
+content is taller than the window, and folds to a summary with "Change" while
+the booking panel is open in it. The new CSS sizes read the console tokens
+where one exists (`text-label`, `text-caption`, `text-booking-time`,
+`radius-control`, `radius-public-status`, the public control size).
+
 ---
 
 ## Motion

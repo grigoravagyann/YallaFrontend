@@ -90,6 +90,10 @@ function publicRuntime(): PublicRuntime {
     mockVenueApprovesAfterMs: mockSeconds(
       import.meta.env['VITE_MOCK_VENUE_APPROVES_AFTER_SECONDS'],
     ),
+    // Mock only: the first booking attempt loses the race, so the "table just
+    // taken" path can be walked without a second device — the diner app's
+    // `EXPO_PUBLIC_SIMULATE_TABLE_TAKEN`. Ignored against a real backend.
+    simulateTableTaken: import.meta.env['VITE_MOCK_SIMULATE_TABLE_TAKEN'] === '1',
     // Mock only: other guests' bookings tomorrow evening at Northern Avenue, so
     // struck, requestable and cut-short times show. Never in tests.
     mockNeighbourBookings: import.meta.env.MODE !== 'test',

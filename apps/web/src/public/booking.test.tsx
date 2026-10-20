@@ -412,7 +412,7 @@ describe('losing the table while confirming', () => {
     expect((await harness.gateway.listBookings()).upcoming).toHaveLength(0);
   });
 
-  it('shows the taken-table message above the room', async () => {
+  it('says which table went, in red and focused, at the foot of the room where the panel was', async () => {
     const { harness, branch, selection, slotUtc, table } = await setUp();
 
     render(
@@ -428,11 +428,17 @@ describe('losing the table while confirming', () => {
       ),
     );
 
-    expect(
-      await screen.findByText(
-        `Table ${table.tableLabel} was just taken. Here is what is free now.`,
-      ),
-    ).toBeDefined();
+    const notice = await screen.findByText(
+      `Table ${table.tableLabel} was just taken. Here is what is free now.`,
+    );
+    // Focused, and not an alert as well: a focused alert is read twice (review S8).
+    expect(notice.getAttribute('role')).toBeNull();
+    expect(notice.textContent).toBe(
+      `Table ${table.tableLabel} was just taken. Here is what is free now.`,
+    );
+    // Red is for real failures (HANDOFF §3), and losing the table is one.
+    expect(notice.classList.contains('pub-notice-error')).toBe(true);
+    expect(document.activeElement).toBe(notice);
   });
 });
 

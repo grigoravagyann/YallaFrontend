@@ -93,7 +93,8 @@ describe('a live branch', () => {
     // Scoped to the badge: "Closed" also appears in the week's own table, and
     // a loose text query would match either and pass for the wrong reason.
     expect(container.querySelector('.pub-open')?.textContent).toMatch(/^(Open until|Closed)/u);
-    expect(screen.getByRole('heading', { name: 'The room' })).toBeDefined();
+    // The room asks the visitor to choose; the day, time and party sit on the card above it.
+    expect(screen.getByRole('heading', { name: 'Choose your table' })).toBeDefined();
     expect(screen.getByRole('heading', { name: 'Menu' })).toBeDefined();
     expect(screen.getByRole('heading', { name: 'Find us' })).toBeDefined();
     expect(screen.getByRole('heading', { name: 'Opening hours' })).toBeDefined();
@@ -202,8 +203,10 @@ describe('the slot the page opens on', () => {
     render(createHarness().wrap(<PublicApp />, '/lumen-coffee/northern-avenue'));
     await screen.findByRole('heading', { level: 1 });
 
-    const time = screen.getByLabelText('Time') as HTMLSelectElement;
-    expect(time.value).toBe('09:00');
+    // Every time today is short notice in the mock world, so 09:00 is on
+    // request — and still the default: nothing that day confirms at once.
+    const time = await screen.findByRole('button', { name: '09:00 · on request' });
+    await waitFor(() => expect(time.getAttribute('aria-pressed')).toBe('true'));
     expect(screen.queryByText('Too soon to book this table.')).toBeNull();
   });
 });

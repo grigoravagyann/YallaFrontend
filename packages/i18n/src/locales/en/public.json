@@ -33,7 +33,6 @@
     }
   },
   "section": {
-    "room": "The room",
     "menu": "Menu",
     "findUs": "Find us",
     "hours": "Opening hours",
@@ -42,13 +41,12 @@
   },
   "room": {
     "empty": "This place has not mapped its tables yet.",
-    "pick": "Tap a free table to book it",
     "legendLabel": "What the colours mean",
     "rooms": "Rooms",
     "photoOf": "{{room}}, photo {{index}} of {{count}}",
     "previous": "Previous photo",
     "next": "Next photo",
-    "pin": "Table {{label}}, {{status}}",
+    "pin": "Table {{label}}, {{seats}}, {{status}}",
     "status": {
       "free": "free",
       "booked": "booked",
@@ -63,8 +61,28 @@
       "outOfService": "Out of service",
       "unavailable": "Not for this time or party"
     },
-    "pinUnavailable": "Table {{label}}, not available: {{reason}}",
-    "unavailableHint": "Table {{label}}: {{reason}}"
+    "pinUnavailable": "Table {{label}}, {{seats}}, not available: {{reason}}",
+    "unavailableHint": "Table {{label}}: {{reason}}",
+    "choose": "Choose your table",
+    "now": "The room now",
+    "liveSub": "Updates by itself",
+    "slot": "{{date}} · {{time}} · {{guests}}",
+    "freeIn_one": "{{count}} free",
+    "freeIn_other": "{{count}} free",
+    "view": {
+      "label": "Show as",
+      "group": "How to show the tables",
+      "photo": "Photo",
+      "list": "List"
+    },
+    "list": {
+      "label": "Tables in {{room}}",
+      "table_one": "Table {{label}} · {{count}} seat",
+      "table_other": "Table {{label}} · {{count}} seats"
+    },
+    "noneHere_one": "No free table for {{count}} guest in this room at this time. Look at the other rooms or pick another time.",
+    "noneHere_other": "No free table for {{count}} guests in this room at this time. Look at the other rooms or pick another time.",
+    "failed": "We could not load the room."
   },
   "menu": {
     "empty": "No menu published yet.",
@@ -114,7 +132,76 @@
     "overlapsOwn": "You already have a booking here at {{time}} (table {{table}}). Change or cancel that one first.",
     "overlapsOwnPlain": "You already have a booking here at {{time}}. Change or cancel that one first.",
     "overlapsOwnOn": "You already have a booking here on {{date}} at {{time}} (table {{table}}). Change or cancel that one first.",
-    "overlapsOwnOnPlain": "You already have a booking here on {{date}} at {{time}}. Change or cancel that one first."
+    "overlapsOwnOnPlain": "You already have a booking here on {{date}} at {{time}}. Change or cancel that one first.",
+    "day": "Day",
+    "today": "Today",
+    "tomorrow": "Tomorrow",
+    "weekday": {
+      "0": "Sun",
+      "1": "Mon",
+      "2": "Tue",
+      "3": "Wed",
+      "4": "Thu",
+      "5": "Fri",
+      "6": "Sat"
+    },
+    "month": {
+      "1": "January",
+      "2": "February",
+      "3": "March",
+      "4": "April",
+      "5": "May",
+      "6": "June",
+      "7": "July",
+      "8": "August",
+      "9": "September",
+      "10": "October",
+      "11": "November",
+      "12": "December"
+    },
+    "date": "{{weekday}} {{day}} {{month}}",
+    "dayNamed": "{{name}}, {{date}}",
+    "otherDay": "Other day…",
+    "otherDate_one": "Pick a date (up to {{count}} day ahead)",
+    "otherDate_other": "Pick a date (up to {{count}} days ahead)",
+    "fewer": "Fewer guests",
+    "more": "More guests",
+    "bigParty_one": "For more than {{count}} guest, call",
+    "bigParty_other": "For more than {{count}} guests, call",
+    "bigPartyAsk_one": "For more than {{count}} guest, ask the venue directly.",
+    "bigPartyAsk_other": "For more than {{count}} guests, ask the venue directly.",
+    "dayParts": "Part of the day",
+    "dayPart": {
+      "day": "Daytime",
+      "evening": "Evening"
+    },
+    "onRequest": "on request",
+    "noTimes": {
+      "dayToday": "Today's daytime times have passed. Pick the evening or another day.",
+      "day": "No daytime times on this day. Pick the evening or another day.",
+      "evening": "No evening times on this day. Pick the daytime or another day."
+    },
+    "seats_one": "{{count}} seat",
+    "seats_other": "{{count}} seats",
+    "table": {
+      "none": "No table chosen yet",
+      "prompt": "Tap a free table on the room photo, or let us choose.",
+      "table": "Table {{label}} · {{room}}",
+      "summary": "{{seats}} · {{date}}, {{time}} · {{guests}}",
+      "book": "Book table {{label}}",
+      "forMe": "Choose for me",
+      "chosen": "We chose table {{label}}: {{seats}}, {{room}}.",
+      "noneFits_one": "No free table for {{count}} guest at this time. Try another time.",
+      "noneFits_other": "No free table for {{count}} guests at this time. Try another time.",
+      "lost": "Table {{label}} is not free with these choices. Pick another.",
+      "summaryNoSeats": "{{date}}, {{time}} · {{guests}}",
+      "checking": "The room is still loading. Try again in a moment.",
+      "roomFailed": "We could not load the room, so we cannot choose a table for you yet.",
+      "tableOnly": "Table {{label}}"
+    },
+    "change": "Change",
+    "timesUnchecked": "We could not check which times are free. Pick a time, and the room will show what is free then.",
+    "otherDayChosen": "Other day: {{date}}"
   },
   "done": {
     "addCalendar": "Add to my calendar",

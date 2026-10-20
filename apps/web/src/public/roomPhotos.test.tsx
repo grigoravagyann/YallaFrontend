@@ -13,7 +13,7 @@ import { createHarness, initTestI18n } from './testHarness';
  * The room, as the page shows it now that tables are pins on room photos: pick
  * a room, move through its photos, and tap a free pin to book that table.
  *
- * Every pin is a named button — "Table 4, free" — so a keyboard or a screen
+ * Every pin is a named button — "Table 4, 2 seats, free" — so a keyboard or a screen
  * reader reaches the room the way a finger does, and a pin that cannot be
  * booked still says what it is.
  */
@@ -81,6 +81,7 @@ function show(over: { bookable?: boolean } = {}) {
         selectedTableId={null}
         onTableTap={onTableTap}
         bookable={over.bookable ?? true}
+        partySize={2}
       />
     </I18nextProvider>,
   );
@@ -91,19 +92,20 @@ describe('the rooms on the public page', () => {
   it('offers a choice of room and shows the first room first', () => {
     show();
     const picker = screen.getByRole('group', { name: 'Rooms' });
-    const hall = within(picker).getByRole('button', { name: 'Hall' });
+    const hall = within(picker).getByRole('button', { name: /^Hall/u });
     expect(hall.getAttribute('aria-pressed')).toBe('true');
     expect(screen.getByRole('group', { name: 'Hall, photo 1 of 2' })).toBeTruthy();
   });
 
-  it('names every pin on the photo by table and state, coloured by state', () => {
+  it('names every pin on the photo by table, seats and state, coloured by state', () => {
+    // The seats as the list row says them (review N6).
     show();
     const tone = (name: string) => screen.getByRole('button', { name }).getAttribute('data-tone');
-    expect(tone('Table 1, free')).toBe('free');
-    expect(tone('Table 2, booked')).toBe('booked');
-    expect(tone('Table 3, occupied')).toBe('occupied');
+    expect(tone('Table 1, 2 seats, free')).toBe('free');
+    expect(tone('Table 2, 2 seats, booked')).toBe('booked');
+    expect(tone('Table 3, 2 seats, occupied')).toBe('occupied');
     // Out of service is its own grey, never the occupied red.
-    expect(tone('Table 6, out of service')).toBe('outOfService');
+    expect(tone('Table 6, 2 seats, out of service')).toBe('outOfService');
     // Table 4 is on the second photo, table 5 in another room.
     expect(screen.queryByRole('button', { name: /^Table 4,/u })).toBeNull();
     expect(screen.queryByRole('button', { name: /^Table 5,/u })).toBeNull();
@@ -114,7 +116,7 @@ describe('the rooms on the public page', () => {
     const user = userEvent.setup();
     await user.click(screen.getByRole('button', { name: 'Next photo' }));
     expect(screen.getByRole('group', { name: 'Hall, photo 2 of 2' })).toBeTruthy();
-    expect(screen.getByRole('button', { name: 'Table 4, booked' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Table 4, 2 seats, booked' })).toBeTruthy();
 
     const stage = screen.getByRole('group', { name: 'Hall, photo 2 of 2' });
     fireEvent.keyDown(stage, { key: 'ArrowLeft' });
@@ -135,9 +137,9 @@ describe('the rooms on the public page', () => {
   it("shows another room's photos and pins when it is picked", async () => {
     show();
     const user = userEvent.setup();
-    await user.click(screen.getByRole('button', { name: 'Terrace' }));
+    await user.click(screen.getByRole('button', { name: /^Terrace/u }));
     expect(screen.getByRole('group', { name: 'Terrace, photo 1 of 1' })).toBeTruthy();
-    expect(screen.getByRole('button', { name: 'Table 5, free' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Table 5, 2 seats, free' })).toBeTruthy();
     expect(screen.queryByRole('button', { name: 'Next photo' })).toBeNull();
   });
 
@@ -145,13 +147,15 @@ describe('the rooms on the public page', () => {
     const onTableTap = show();
     const user = userEvent.setup();
 
-    await user.click(screen.getByRole('button', { name: 'Table 3, occupied' }));
+    await user.click(screen.getByRole('button', { name: 'Table 3, 2 seats, occupied' }));
     expect(onTableTap).not.toHaveBeenCalled();
     expect(
-      screen.getByRole('button', { name: 'Table 3, occupied' }).getAttribute('aria-disabled'),
+      screen
+        .getByRole('button', { name: 'Table 3, 2 seats, occupied' })
+        .getAttribute('aria-disabled'),
     ).toBe('true');
 
-    const free = screen.getByRole('button', { name: 'Table 1, free' });
+    const free = screen.getByRole('button', { name: 'Table 1, 2 seats, free' });
     await user.click(free);
     expect(onTableTap).toHaveBeenLastCalledWith('a');
     free.focus();
@@ -162,7 +166,7 @@ describe('the rooms on the public page', () => {
 
   it('offers nothing to tap when the venue takes no web bookings', async () => {
     const onTableTap = show({ bookable: false });
-    await userEvent.setup().click(screen.getByRole('button', { name: 'Table 1, free' }));
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Table 1, 2 seats, free' }));
     expect(onTableTap).not.toHaveBeenCalled();
   });
 });
@@ -217,9 +221,9 @@ describe('the room section on the page', () => {
     );
 
     expect(await screen.findByRole('group', { name: /^Windows, photo 1 of 2$/u })).toBeTruthy();
-    const free = (await screen.findAllByRole('button', { name: /^Table \d+, free$/u })).find(
-      (pin) => pin.getAttribute('aria-disabled') !== 'true',
-    );
+    const free = (
+      await screen.findAllByRole('button', { name: /^Table \d+, \d+ seats?, free$/u })
+    ).find((pin) => pin.getAttribute('aria-disabled') !== 'true');
     await userEvent.setup().click(free!);
     await waitFor(() => expect(onTableTap).toHaveBeenCalledTimes(1));
     const label = /^Table (\d+),/u.exec(free!.getAttribute('aria-label') ?? '')?.[1];
@@ -230,7 +234,7 @@ describe('the room section on the page', () => {
 describe('the room photo stage, from review', () => {
   it('leaves the photo alone when an arrow key is pressed on a pin, so focus stays on the pin', () => {
     show();
-    const pin = screen.getByRole('button', { name: 'Table 1, free' });
+    const pin = screen.getByRole('button', { name: 'Table 1, 2 seats, free' });
     pin.focus();
 
     fireEvent.keyDown(pin, { key: 'ArrowRight' });
@@ -249,6 +253,7 @@ describe('the room photo stage, from review', () => {
           selectedTableId={null}
           onTableTap={() => {}}
           bookable
+          partySize={2}
         />
       </I18nextProvider>,
     );
@@ -279,6 +284,7 @@ describe('the rooms, from QA 2026-10-16', () => {
           onTableTap={onTableTap}
           bookable
           unavailable={unavailable}
+          partySize={4}
         />
       </I18nextProvider>,
     );
@@ -292,7 +298,7 @@ describe('the rooms, from QA 2026-10-16', () => {
     );
 
     const pin = screen.getByRole('button', {
-      name: 'Table 7, not available: Too small for 4 guests.',
+      name: 'Table 7, 2 seats, not available: Too small for 4 guests.',
     });
     expect(pin.getAttribute('data-tone')).toBe('unavailable');
     await userEvent.setup().click(pin);
@@ -305,12 +311,238 @@ describe('the rooms, from QA 2026-10-16', () => {
 
   it('turns the photo on a swipe that starts on a pin, and books nothing (B4)', () => {
     const onTableTap = show();
-    const pin = screen.getByRole('button', { name: 'Table 1, free' });
+    const pin = screen.getByRole('button', { name: 'Table 1, 2 seats, free' });
     fireEvent.pointerDown(pin, { clientX: 300, pointerId: 1 });
     fireEvent.pointerUp(pin, { clientX: 120, pointerId: 1 });
     fireEvent.click(pin);
 
     expect(screen.getByRole('group', { name: 'Hall, photo 2 of 2' })).toBeTruthy();
     expect(onTableTap).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * Phase 3 of the public page redesign (Main artboard): room tabs that say how
+ * many tables each room has free, a list of the tables as the photo's
+ * accessible alternative, and a room that follows a table chosen elsewhere.
+ */
+describe('the room tabs, the list and the chosen table', () => {
+  function showWith(
+    over: {
+      selectedTableId?: string | null;
+      tables?: readonly FloorTable[];
+      bookable?: boolean;
+      onRoomShown?: (roomId: string) => void;
+    } = {},
+  ) {
+    const onTableTap = vi.fn();
+    const view = (selectedTableId: string | null) => (
+      <I18nextProvider i18n={i18next}>
+        <RoomPhotos
+          rooms={ROOMS}
+          tables={over.tables ?? TABLES}
+          selectedTableId={selectedTableId}
+          onTableTap={onTableTap}
+          bookable={over.bookable ?? true}
+          partySize={2}
+          unavailable={{ g: 'Too small for 2 guests.' }}
+          onRoomShown={over.onRoomShown}
+        />
+      </I18nextProvider>
+    );
+    const rendered = render(view(over.selectedTableId ?? null));
+    return { onTableTap, rerender: (id: string | null) => rendered.rerender(view(id)) };
+  }
+
+  it('says on every room tab how many tables it has free for the visitor', () => {
+    showWith();
+    const tabs = within(screen.getByRole('group', { name: 'Rooms' })).getAllByRole('button');
+    // Read as "Hall 1 free": the count is part of the tab's name.
+    expect(tabs.map((tab) => tab.textContent)).toEqual(['Hall 1 free', 'Terrace 1 free']);
+    expect(tabs[0]!.getAttribute('aria-label')).toBeNull();
+  });
+
+  it('lists the same tables the photos show, with the same states and the same taps', async () => {
+    const tables = [...TABLES, table('g', '7', 'h2', { isBookable: false })];
+    const { onTableTap } = showWith({ tables });
+    const user = userEvent.setup();
+
+    // Every pin of the room, through both photos.
+    const pins: { label: string; pickable: boolean }[] = [];
+    for (let photoIndex = 0; photoIndex < 2; photoIndex += 1) {
+      for (const pin of within(
+        screen.getByRole('group', { name: `Hall, photo ${photoIndex + 1} of 2` }),
+      ).getAllByRole('button')) {
+        pins.push({
+          label: pin.textContent ?? '',
+          pickable: pin.getAttribute('aria-disabled') !== 'true',
+        });
+      }
+      if (photoIndex === 0) await user.click(screen.getByRole('button', { name: 'Next photo' }));
+    }
+
+    const views = screen.getByRole('group', { name: 'How to show the tables' });
+    await user.click(within(views).getByRole('button', { name: 'List' }));
+    expect(within(views).getByRole('button', { name: 'List' }).getAttribute('aria-pressed')).toBe(
+      'true',
+    );
+    // No photo, no legend: the states are words on the rows.
+    expect(screen.queryByRole('group', { name: /^Hall, photo/u })).toBeNull();
+    expect(screen.queryByRole('list', { name: 'What the colours mean' })).toBeNull();
+
+    const list = screen.getByRole('list', { name: 'Tables in Hall' });
+    const rows = within(list).getAllByRole('button');
+    const badge = (row: HTMLElement) => row.querySelector('.pub-table-badge')?.textContent ?? '';
+    const byLabel = (entries: { label: string; pickable: boolean }[]) =>
+      [...entries].sort((a, b) => a.label.localeCompare(b.label, undefined, { numeric: true }));
+    expect(
+      byLabel(
+        rows.map((row) => ({
+          label: badge(row),
+          pickable: row.getAttribute('aria-disabled') !== 'true',
+        })),
+      ),
+    ).toEqual(byLabel(pins));
+    expect(rows.map(badge)).toEqual(['1', '2', '3', '4', '6', '7']);
+
+    // Each row says its seats and its state, as the pin's name does.
+    const row = (label: string) => rows.find((entry) => badge(entry) === label)!;
+    expect(row('1').textContent).toContain('Table 1 · 2 seats');
+    expect(row('1').textContent).toContain('Free');
+    expect(row('3').textContent).toContain('Occupied');
+    expect(row('7').textContent).toContain('Too small for 2 guests.');
+
+    await user.click(row('3'));
+    expect(onTableTap).not.toHaveBeenCalled();
+    await user.click(row('7'));
+    expect(onTableTap).not.toHaveBeenCalled();
+    expect(screen.getByRole('status').textContent).toBe('Table 7: Too small for 2 guests.');
+    await user.click(row('1'));
+    expect(onTableTap).toHaveBeenCalledWith('a');
+  });
+
+  it('marks the chosen table on its row', async () => {
+    showWith({ selectedTableId: 'a' });
+    await userEvent.setup().click(screen.getByRole('button', { name: 'List' }));
+    const chosen = within(screen.getByRole('list', { name: 'Tables in Hall' }))
+      .getAllByRole('button')
+      .filter((entry) => entry.getAttribute('aria-pressed') === 'true');
+    expect(chosen.map((entry) => entry.querySelector('.pub-table-badge')?.textContent)).toEqual([
+      '1',
+    ]);
+  });
+
+  it('moves to the room and the photo of a table chosen for the visitor', () => {
+    const onRoomShown = vi.fn();
+    const { rerender } = showWith({ onRoomShown });
+    expect(onRoomShown).toHaveBeenLastCalledWith('hall');
+
+    rerender('e');
+    expect(screen.getByRole('group', { name: 'Terrace, photo 1 of 1' })).toBeTruthy();
+    expect(
+      screen.getByRole('button', { name: 'Table 5, 2 seats, free' }).getAttribute('aria-pressed'),
+    ).toBe('true');
+    expect(onRoomShown).toHaveBeenLastCalledWith('terrace');
+
+    rerender('d');
+    expect(screen.getByRole('group', { name: 'Hall, photo 2 of 2' })).toBeTruthy();
+  });
+
+  it('says when the room on screen has no table for the party, and points at the others', async () => {
+    showWith({
+      tables: [
+        table('a', '1', 'h1', { state: 'occupied', isBookable: false }),
+        table('e', '5', 't1'),
+      ],
+    });
+    expect(
+      screen.getByText(
+        'No free table for 2 guests in this room at this time. Look at the other rooms or pick another time.',
+      ),
+    ).toBeDefined();
+    await userEvent.setup().click(screen.getByRole('button', { name: /^Terrace/u }));
+    expect(screen.queryByText(/^No free table/u)).toBeNull();
+  });
+
+  it('puts the legend under the photo, and the table number inside its pin', () => {
+    showWith();
+    const stage = screen.getByRole('group', { name: 'Hall, photo 1 of 2' });
+    const legend = screen.getByRole('list', { name: 'What the colours mean' });
+    expect(stage.compareDocumentPosition(legend) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    // The button is the 44px target; the dot inside it carries the number.
+    const pin = screen.getByRole('button', { name: 'Table 1, 2 seats, free' });
+    expect(pin.querySelector('.pub-pin-face')?.textContent).toBe('1');
+  });
+});
+
+describe('an answer for the slot before (review N5)', () => {
+  it('draws no counts or "no free table" from the last slot while the new one loads', () => {
+    render(
+      <I18nextProvider i18n={i18next}>
+        <RoomPhotos
+          rooms={ROOMS}
+          tables={[
+            table('a', '1', 'h1', { state: 'occupied', isBookable: false }),
+            table('e', '5', 't1'),
+          ]}
+          selectedTableId={null}
+          onTableTap={() => {}}
+          bookable
+          partySize={2}
+          stale
+        />
+      </I18nextProvider>,
+    );
+    const tabs = screen.getByRole('group', { name: 'Rooms' });
+    expect(tabs.getAttribute('aria-busy')).toBe('true');
+    expect(
+      within(tabs)
+        .getAllByRole('button')
+        .map((tab) => tab.textContent),
+    ).toEqual(['Hall', 'Terrace']);
+    expect(screen.queryByText(/^No free table/u)).toBeNull();
+  });
+});
+
+describe('pins pinned close together (review S7)', () => {
+  it('draws them a whole target apart on the photo as it is drawn', () => {
+    class FixedSize {
+      constructor(private readonly callback: ResizeObserverCallback) {}
+      observe(target: Element) {
+        this.callback(
+          [{ target, contentRect: { width: 358, height: 268 } } as unknown as ResizeObserverEntry],
+          this as unknown as ResizeObserver,
+        );
+      }
+      unobserve() {}
+      disconnect() {}
+    }
+    vi.stubGlobal('ResizeObserver', FixedSize);
+    try {
+      render(
+        <I18nextProvider i18n={i18next}>
+          <RoomPhotos
+            rooms={ROOMS}
+            tables={[
+              table('a', '1', 'h1', { pin: { photoId: 'h1', x: 0.5, y: 0.5 } }),
+              table('b', '2', 'h1', { pin: { photoId: 'h1', x: 0.55, y: 0.5 } }),
+            ]}
+            selectedTableId={null}
+            onTableTap={() => {}}
+            bookable
+            partySize={2}
+          />
+        </I18nextProvider>,
+      );
+      const at = (name: string) => {
+        const style = screen.getByRole('button', { name }).style;
+        return { x: parseFloat(style.left), y: parseFloat(style.top) };
+      };
+      const one = at('Table 1, 2 seats, free');
+      const two = at('Table 2, 2 seats, free');
+      expect(Math.hypot(one.x - two.x, one.y - two.y)).toBeGreaterThanOrEqual(43.5);
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 });

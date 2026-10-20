@@ -34,12 +34,78 @@ export interface SlotSelection {
   readonly partySize: number;
 }
 
-/** Party sizes offered. Above the top of this a party phones the venue. */
-export const PARTY_SIZES: readonly number[] = [1, 2, 3, 4, 5, 6, 8, 10];
+/** The party stepper's top. Above it a party phones the venue. */
+export const PARTY_MAX = 10;
 
-/** `YYYY-MM-DD` for the branch's current service day. */
+/**
+ * The party stepper's bounds: one guest up to the branch's largest offered
+ * table, and never past {@link PARTY_MAX}.
+ *
+ * The public policy does not publish how far over its seats a table may be
+ * filled, so a party bigger than every table is sent to the phone rather than
+ * offered a room in which every table says "too small". Until the tables have
+ * answered (`null`), the page top.
+ */
+export function partyBounds(largestTable: number | null): {
+  readonly min: number;
+  readonly max: number;
+} {
+  const max =
+    largestTable === null || largestTable < 1 ? PARTY_MAX : Math.min(largestTable, PARTY_MAX);
+  return { min: 1, max };
+}
+
+/** How many day chips the booking card shows before "Other day…". */
+export const DAY_CHIPS = 7;
+
+/**
+ * The days the booking card offers, bounded by the branch's booking window:
+ * a chip for each of the first week's days the window reaches, the last day
+ * the date input may pick, and whether there are days past the chips.
+ *
+ * `windowDays` is how many days ahead the branch books; today is day zero.
+ */
+export function bookingDays(
+  today: string,
+  windowDays: number,
+): { readonly chips: readonly string[]; readonly last: string; readonly more: boolean } {
+  const ahead = Math.max(0, Math.floor(windowDays));
+  const count = Math.min(DAY_CHIPS, ahead + 1);
+  return {
+    chips: Array.from({ length: count }, (_, index) => addDays(today, index)),
+    last: addDays(today, ahead),
+    more: ahead + 1 > count,
+  };
+}
+
+/** The two halves of a day the time chips are split into (Main artboard). */
+export type DayPart = 'day' | 'evening';
+
+/**
+ * Which half of the day a time is in: the day from 05:00, the evening from
+ * 17:00 — and the small hours after midnight are still the evening before.
+ */
+export function dayPartOf(time: string): DayPart {
+  const minutes = toMinutes(time);
+  return minutes >= 5 * 60 && minutes < 17 * 60 ? 'day' : 'evening';
+}
+
+/** `YYYY-MM-DD` for the branch's calendar day now. */
 export function branchToday(timeZoneId: TimeZone, now: Date = new Date()): string {
   return branchDayKey(now, timeZoneId);
+}
+
+/**
+ * The branch's service day now: today, or yesterday while last night's block
+ * is still open past midnight (the backend's `ServiceDateOf`).
+ */
+export function branchServiceToday(
+  timeZoneId: TimeZone,
+  weeklyHours: WeeklyHours,
+  now: Date = new Date(),
+): string {
+  const today = branchToday(timeZoneId, now);
+  return serviceDayOf(today, branchClock(now, timeZoneId), weeklyHours, timeZoneId);
 }
 
 /** The date `days` after a `YYYY-MM-DD` key, as another key. */
@@ -48,14 +114,43 @@ export function addDays(dateKey: string, days: number): string {
   return new Date(Date.UTC(year, month - 1, day + days)).toISOString().slice(0, 10);
 }
 
+/**
+ * One formatter per zone and shape, kept: building an `Intl.DateTimeFormat` is
+ * the expensive part, and the hours fallback asks hundreds of times a render
+ * (review S2 measured 52 ms a call when each asked for a new one).
+ */
+const formatters = new Map<string, Intl.DateTimeFormat>();
+function formatterFor(kind: 'clock' | 'day', timeZoneId: TimeZone): Intl.DateTimeFormat {
+  const key = `${kind}|${timeZoneId}`;
+  let formatter = formatters.get(key);
+  if (!formatter) {
+    formatter =
+      kind === 'clock'
+        ? new Intl.DateTimeFormat('en-GB', {
+            hour: '2-digit',
+            minute: '2-digit',
+            hour12: false,
+            timeZone: timeZoneId,
+          })
+        : new Intl.DateTimeFormat('en-CA', {
+            year: 'numeric',
+            month: '2-digit',
+            day: '2-digit',
+            timeZone: timeZoneId,
+          });
+    formatters.set(key, formatter);
+  }
+  return formatter;
+}
+
+/** `YYYY-MM-DD`, the calendar day of an instant in the branch's zone. */
+function dayKeyIn(instant: Date, timeZoneId: TimeZone): string {
+  return formatterFor('day', timeZoneId).format(instant);
+}
+
 /** `HH:mm` wall-clock in the branch's zone for an instant. */
 export function branchClock(instant: Date, timeZoneId: TimeZone): string {
-  const parts = new Intl.DateTimeFormat('en-GB', {
-    hour: '2-digit',
-    minute: '2-digit',
-    hour12: false,
-    timeZone: timeZoneId,
-  }).formatToParts(instant);
+  const parts = formatterFor('clock', timeZoneId).formatToParts(instant);
   const read = (type: 'hour' | 'minute') => parts.find((part) => part.type === type)?.value ?? '00';
   const hour = read('hour') === '24' ? '00' : read('hour');
   return `${hour}:${read('minute')}`;
@@ -142,6 +237,10 @@ function clockInstant(dateKey: string, clock: string, timeZoneId: TimeZone): Dat
  *
  * Two people is the commonest booking by a wide margin and the one that needs
  * the least correcting.
+ *
+ * This is the page's first guess, made before the server's day of slots has
+ * answered. Once it has, the booking card moves to {@link defaultChoice} — the
+ * first time that confirms at once — unless the visitor has picked a time.
  */
 export function defaultSelection(
   timeZoneId: TimeZone,
@@ -258,12 +357,27 @@ export function slotInstant(selection: SlotSelection, timeZoneId: TimeZone): Dat
 
 /** One option of the time select: whether it can be had, and by when a table then must be free. */
 export interface TimeChoice {
+  /**
+   * `YYYY-MM-DD`, the calendar date the time is on — what a booking sends. A
+   * service day's night past midnight is on the next date (see
+   * {@link serviceDayChoices}).
+   */
+  readonly date: string;
   /** `HH:mm`, the branch's clock. */
   readonly time: string;
   /** `busy` is drawn and disabled; `requestable` is offered, labelled "on request". */
   readonly state: 'free' | 'requestable' | 'busy';
   /** Every table then is cut short by the next booking: free it by this. */
   readonly mustFreeByUtc: string | null;
+  /**
+   * A booking then is confirmed as it is made. False for a time the venue
+   * answers first — short notice, a party over the instant-confirmation limit,
+   * a venue that confirms every booking itself, or a table only to be had on
+   * request — which the chip calls "on request", and for a struck time.
+   * `null` until the server has answered for the day, or when it could not:
+   * the published hours say when, not how a booking would be taken (review S5).
+   */
+  readonly confirmsAtOnce: boolean | null;
 }
 
 /**
@@ -290,22 +404,36 @@ export function timeChoices(input: {
     // as the app leaves out times inside the lead.
     return day.slots
       .filter((slot) => refused || slot.unavailableReason !== 'pastLeadTime')
-      .map((slot) => ({
-        time: slot.time,
-        state:
+      .map((slot): TimeChoice => {
+        const state =
           !refused && slot.requestable
             ? 'requestable'
             : !refused && slot.isAvailable
               ? 'free'
-              : 'busy',
-        mustFreeByUtc: !refused && slot.isAvailable ? (slot.mustFreeByUtc ?? null) : null,
-      }));
+              : 'busy';
+        return {
+          date: input.date,
+          time: slot.time,
+          state,
+          mustFreeByUtc: !refused && slot.isAvailable ? (slot.mustFreeByUtc ?? null) : null,
+          confirmsAtOnce: state === 'free' && !slot.requiresApproval,
+        };
+      });
   }
   const fromHours = hoursChoices(input);
   const times = fromHours.length > 0 ? fromHours : timeOptions();
   // A day refused outright (shut, out of reach) offers nothing that day.
   const refused = Boolean(day && day.date === input.date && day.unavailableReason !== null);
-  return times.map((time) => ({ time, state: refused ? 'busy' : 'free', mustFreeByUtc: null }));
+  // Until the server answers nothing is known to confirm at once or to wait,
+  // and nothing is defaulted on: the page moves to the day's default only once
+  // the day has answered.
+  return times.map((time) => ({
+    date: input.date,
+    time,
+    state: refused ? 'busy' : 'free',
+    mustFreeByUtc: null,
+    confirmsAtOnce: refused ? false : null,
+  }));
 }
 
 /** The quarter hours of `date` whose whole sitting fits one of the published sittings. */
@@ -320,7 +448,7 @@ function hoursChoices(input: {
   for (const sitting of sittingsAround(input.date, input.weeklyHours, input.timeZoneId)) {
     for (let at = sitting.start.getTime(); at + turn <= sitting.end.getTime(); at += SLOT_MS) {
       const instant = new Date(at);
-      if (branchDayKey(instant, input.timeZoneId) !== input.date) continue;
+      if (dayKeyIn(instant, input.timeZoneId) !== input.date) continue;
       out.set(at, branchClock(instant, input.timeZoneId));
     }
   }
@@ -330,20 +458,150 @@ function hoursChoices(input: {
 /**
  * Where a selection on a time that cannot be had goes: the nearest option that
  * can, by the clock — the later of two equally near. `null` when none can.
+ *
+ * With `date`, by the clock of the night: 00:00 on the next date is a quarter
+ * hour after 23:45, not a whole day before it.
  */
-export function nearestChoice(choices: readonly TimeChoice[], time: string): TimeChoice | null {
-  const wanted = toMinutes(time);
+export function nearestChoice(
+  choices: readonly TimeChoice[],
+  time: string,
+  date?: string,
+): TimeChoice | null {
+  const at = (choiceDate: string, clock: string) =>
+    toMinutes(clock) + (date === undefined ? 0 : daysBetween(date, choiceDate) * 24 * 60);
+  const wanted = at(date ?? '', time);
   let best: TimeChoice | null = null;
+  let bestAt = 0;
   for (const choice of choices) {
     if (choice.state === 'busy') continue;
-    const distance = Math.abs(toMinutes(choice.time) - wanted);
-    const bestDistance = best === null ? Infinity : Math.abs(toMinutes(best.time) - wanted);
-    if (
-      distance < bestDistance ||
-      (distance === bestDistance && best !== null && choice.time > best.time)
-    ) {
+    const minutes = at(choice.date, choice.time);
+    const distance = Math.abs(minutes - wanted);
+    const bestDistance = best === null ? Infinity : Math.abs(bestAt - wanted);
+    if (distance < bestDistance || (distance === bestDistance && minutes > bestAt)) {
       best = choice;
+      bestAt = minutes;
     }
   }
   return best;
+}
+
+/** Whole days from one `YYYY-MM-DD` to another. */
+function daysBetween(from: string, to: string): number {
+  if (!from || !to) return 0;
+  return Math.round((Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) / 86_400_000);
+}
+
+/**
+ * The service day a time belongs to, as the backend files bookings: the day
+ * its opening block began. 00:30 on Friday inside Thursday's 18:00–02:00 is
+ * Thursday night's; a time in no published block is its own date's.
+ */
+export function serviceDayOf(
+  date: string,
+  time: string,
+  weeklyHours: WeeklyHours,
+  timeZoneId: TimeZone,
+): string {
+  return serviceDayReader(date, weeklyHours, timeZoneId)(date, time);
+}
+
+/** `serviceDayOf` for many times around one date, reading the hours once. */
+function serviceDayReader(
+  around: string,
+  weeklyHours: WeeklyHours,
+  timeZoneId: TimeZone,
+): (date: string, time: string) => string {
+  const sittings = sittingsAround(around, weeklyHours, timeZoneId);
+  return (date, time) => {
+    const at = clockInstant(date, time, timeZoneId).getTime();
+    const sitting = sittings.find((span) => span.start.getTime() <= at && at < span.end.getTime());
+    return sitting ? dayKeyIn(sitting.start, timeZoneId) : date;
+  };
+}
+
+/**
+ * Whether a service day's night has times past midnight — a block that opens
+ * that day and still fits a whole sitting after 00:00 — so the next date's
+ * answer is part of the day. A block closing at 00:00 does not run past
+ * midnight, and one closing at 01:00 with 90-minute sittings has its last time
+ * at 23:30: neither costs a second read.
+ */
+export function needsNextDay(
+  serviceDate: string,
+  weeklyHours: WeeklyHours,
+  timeZoneId: TimeZone,
+  turnTimeMinutes = 0,
+): boolean {
+  const midnight = clockInstant(addDays(serviceDate, 1), '00:00', timeZoneId).getTime();
+  const turn = Math.max(turnTimeMinutes, 1) * 60_000;
+  return sittingsAround(serviceDate, weeklyHours, timeZoneId).some(
+    (span) =>
+      dayKeyIn(span.start, timeZoneId) === serviceDate && span.end.getTime() - turn >= midnight,
+  );
+}
+
+/**
+ * A day chip's times: one **service day** (review B1), the backend's notion.
+ *
+ * The server lists a date's slots from 00:00 of that date, so for a bar open
+ * 18:00–02:00 the 22nd starts with 00:00–00:30 — which is the 21st's night.
+ * Filed as the 22nd's "evening", that was the time the page opened on: a
+ * visitor at 14:00 tapping "Tomorrow" was put on tonight's midnight. So a day
+ * shows its own times from its first opening, then its own night past
+ * midnight from the next date's answer (`nextDay`), each with the calendar
+ * date a booking sends.
+ */
+export function serviceDayChoices(input: {
+  readonly serviceDate: string;
+  /** The server's answer for `serviceDate`. */
+  readonly day: DaySlots | null | undefined;
+  /** The server's answer for the next date, for the night past midnight. */
+  readonly nextDay: DaySlots | null | undefined;
+  readonly weeklyHours: WeeklyHours;
+  readonly turnTimeMinutes: number;
+  readonly timeZoneId: TimeZone;
+}): readonly TimeChoice[] {
+  const { serviceDate, weeklyHours, turnTimeMinutes, timeZoneId } = input;
+  const belongs = serviceDayReader(serviceDate, weeklyHours, timeZoneId);
+  const own = timeChoices({
+    date: serviceDate,
+    day: input.day,
+    weeklyHours,
+    turnTimeMinutes,
+    timeZoneId,
+  }).filter((choice) => belongs(choice.date, choice.time) === serviceDate);
+  if (!needsNextDay(serviceDate, weeklyHours, timeZoneId, turnTimeMinutes)) return own;
+  const next = addDays(serviceDate, 1);
+  const night = timeChoices({
+    date: next,
+    day: input.nextDay,
+    weeklyHours,
+    turnTimeMinutes,
+    timeZoneId,
+  }).filter((choice) => belongs(choice.date, choice.time) === serviceDate);
+  return [...own, ...night];
+}
+
+/**
+ * The time a day opens on (public-page HANDOFF §3, decided 2026-10-20): the
+ * first time a booking is confirmed at once, and the first on-request time only
+ * when the day has no other. `null` when every time is struck.
+ *
+ * Within `part` — the half of the day the visitor is looking at — first, so a
+ * new day opens on the evening of somebody choosing an evening (Main
+ * artboard); but a time that confirms at once in the other half still comes
+ * before an on-request one in this half.
+ *
+ * Per day, on purpose (user decision 2026-10-20, review S4): the page opens on
+ * today and stays there. The server's short-notice rule makes every time
+ * today wait for the venue ("today, or under six hours"), so today opens on
+ * its first on-request time with the reason said beside it; another day opens
+ * on its first time that confirms at once.
+ */
+export function defaultChoice(choices: readonly TimeChoice[], part?: DayPart): TimeChoice | null {
+  const inPart = part ? choices.filter((choice) => dayPartOf(choice.time) === part) : choices;
+  const confirming = (list: readonly TimeChoice[]) =>
+    list.find((choice) => choice.state !== 'busy' && choice.confirmsAtOnce);
+  const open = (list: readonly TimeChoice[]) => list.find((choice) => choice.state !== 'busy');
+  return confirming(inPart) ?? confirming(choices) ?? open(inPart) ?? open(choices) ?? null;
 }
