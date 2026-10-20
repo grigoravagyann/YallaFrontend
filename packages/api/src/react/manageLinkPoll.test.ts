@@ -18,6 +18,16 @@ describe('the manage link poll', () => {
     expect(MANAGE_LINK_POLL_MS).toBe(15_000);
   });
 
+  it('reads once a minute while the answer is hours away (UG review S8)', () => {
+    const now = Date.parse('2026-10-20T10:00:00Z');
+    expect(manageLinkPollMs(at('pendingApproval', '2026-10-21T08:00:00Z'), now)).toBe(
+      MANAGE_LINK_SLOW_POLL_MS,
+    );
+    expect(manageLinkPollMs(at('pendingApproval', '2026-10-20T10:50:00Z'), now)).toBe(
+      MANAGE_LINK_POLL_MS,
+    );
+  });
+
   it('still reads, once a minute, while a request waits with no clock', () => {
     expect(manageLinkPollMs(at('pendingApproval', null))).toBe(MANAGE_LINK_SLOW_POLL_MS);
     expect(MANAGE_LINK_SLOW_POLL_MS).toBe(60_000);

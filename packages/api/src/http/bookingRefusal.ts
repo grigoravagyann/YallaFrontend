@@ -15,6 +15,7 @@ import {
 } from '../contracts/errors';
 import { ApiError } from '../errors';
 import type { components } from '../generated/schema';
+import { unverifiedBookingRefusal } from './admissionMapping';
 import { floorFromAvailability } from './mapping';
 
 /**
@@ -97,6 +98,13 @@ export function rethrowBookingRefusal(
   // what the screen does next is ask, not show an error.
   const freeBy = freeByRefusal(error);
   if (freeBy) throw freeBy;
+
+  // The unverified-guests refusals (2026-10-20): one active booking per
+  // number, one unverified booking per browser, the party cap without proof.
+  // Before the switch: the cap is a 422 `reservation-*` like a table rule, but
+  // its way on is verifying the number, not another table.
+  const unverified = unverifiedBookingRefusal(error, command);
+  if (unverified) throw unverified;
 
   switch (code) {
     case 'phone-not-verified':

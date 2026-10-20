@@ -59,6 +59,14 @@ export interface ResolveGatewayOptions {
     { readonly sms?: boolean | undefined; readonly telegram?: boolean | undefined } | undefined;
   /** This install's device id, for opening and joining tabs. Real only. */
   readonly deviceId?: (() => Promise<string>) | undefined;
+  /**
+   * Mock only: a waiter lets a table that scanned with no proved number order
+   * this many milliseconds after the scan (2026-10-20). Eight seconds when
+   * absent, so the waiting state can be seen and then left in mock mode.
+   */
+  readonly mockAdmissionAfterMs?: number | undefined;
+  /** Mock only: what that waiter decides — admit (absent) or turn the tab away. */
+  readonly mockAdmissionOutcome?: 'admit' | 'reject' | undefined;
   /** Mock only: keep the world across a reload (QA F2). */
   readonly persist?: MockPersistence | undefined;
   /** Where tab participant tokens are kept between launches. Real only. */
@@ -90,6 +98,8 @@ export function resolveGateway(options: ResolveGatewayOptions): YallaGateway {
       showcase: options.mockShowcase ?? false,
       simulateEarlierGuestAnswerAfterMs: options.mockEarlierGuestAnswersAfterMs,
       phoneProofChannels: options.mockPhoneProofChannels,
+      simulateAdmissionAfterMs: options.mockAdmissionAfterMs ?? 8_000,
+      simulateAdmissionOutcome: options.mockAdmissionOutcome,
     };
     if (options.persist) {
       return persistMockGateway<YallaGateway>({

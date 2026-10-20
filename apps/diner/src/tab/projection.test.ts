@@ -1,4 +1,10 @@
-import { createMockGateway, mockTableCode, type DinerTabLine, type DinerTabView } from '@yalla/api';
+import {
+  ADMITTED,
+  createMockGateway,
+  mockTableCode,
+  type DinerTabLine,
+  type DinerTabView,
+} from '@yalla/api';
 import { describe, expect, it } from 'vitest';
 import { ownItemsSubtotalDram, projectTab } from './projection';
 
@@ -47,6 +53,7 @@ function tab(overrides: Partial<DinerTabView> = {}): DinerTabView {
     timeZoneId: ZONE,
     tableLabel: '7',
     status: 'open',
+    admission: ADMITTED,
     settlementMode: 'everyonePaysOwnItems',
     settlementModeLocked: false,
     hostParticipantId: ME,

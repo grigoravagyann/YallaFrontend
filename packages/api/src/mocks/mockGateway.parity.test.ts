@@ -133,7 +133,12 @@ describe('F6 — booking codes are minted, not derived from the booking count', 
   });
 
   it('never repeats a code within one world', async () => {
-    const gateway = createMockGateway({ now: WEDNESDAY_2PM, simulateJoiners: false });
+    const gateway = createMockGateway({
+      now: WEDNESDAY_2PM,
+      simulateJoiners: false,
+      // Six bookings for one diner: from before one number, one active booking.
+      bookingsBeforeTheNumberRule: true,
+    });
     await verified(gateway);
     const seen = new Set<string>();
     // A sitting apart: one diner holds one table at a time.
@@ -156,6 +161,8 @@ describe('F9 — ordering after hours, and what the diner menu publishes', () =>
       tableCode: mockTableCode('b-lumen-north-t1'),
       commandId: commandId(),
     });
+    // Scanned with no proved number: a waiter lets the table order.
+    gateway.admitTabAsWaiter(scan.tab.tabId);
     const placed = await gateway.placeOrder({
       tabId: scan.tab.tabId,
       clientCommandId: commandId(),

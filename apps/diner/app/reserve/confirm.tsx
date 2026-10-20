@@ -27,7 +27,12 @@ import {
   freeByAnswered,
   freeByNeeded,
 } from '../../src/lib/confirm';
-import { bookingRefusal, overlapsOwnLine } from '../../src/data/bookingRefusals';
+import {
+  bookingRefusal,
+  overlapsOwnLine,
+  proofLifts,
+  unprovedFailureLine,
+} from '../../src/data/bookingRefusals';
 import { haptics } from '../../src/lib/haptics';
 import { useConflict } from '../../src/stores/conflict';
 import { useSession } from '../../src/stores/session';
@@ -90,6 +95,13 @@ export default function ConfirmScreen() {
   const [verifyRefused, setVerifyRefused] = useState(false);
   const profilePhoneVerified = useSession((s) => s.profile?.phoneVerified);
   const mustVerify = verifyRefused && profilePhoneVerified !== true;
+  /**
+   * No proved number, and booking all the same (2026-10-20): the venue may
+   * confirm it first. Said before the tap, with proving it via Telegram
+   * offered — beside the refusal too, when proving it is what lifts it.
+   */
+  const accountUnproved = profilePhoneVerified === false;
+  const [proofOffer, setProofOffer] = useState(false);
   /** The last attempt may have committed: the button checks rather than books. */
   const [outcomeUnknown, setOutcomeUnknown] = useState(false);
 
@@ -156,6 +168,7 @@ export default function ConfirmScreen() {
     async (acceptsFreeByUtc: string | null = agreedFreeBy) => {
       if (!canSubmit({ state, guestName, pending }) || !zone || !phoneE164 || !slotUtc) return;
       setErrorText(null);
+      setProofOffer(false);
       /*
        * A booking follows on the table: never sent without a yes to that very
        * instant — the server's once it named one, compared as an instant — and
@@ -201,7 +214,7 @@ export default function ConfirmScreen() {
 
         // What kind of failure this was is decided in one shared place, so the
         // web page classifies the same refusal the same way. See `bookingFailure`.
-        const failure = bookingFailure(error, zone, locale);
+        const failure = bookingFailure(error, zone, locale, { unverified: accountUnproved });
 
         // A booking landed after the room was read and the table now needs the
         // promise (or another time for it): asked again, with the server's time.
@@ -248,7 +261,10 @@ export default function ConfirmScreen() {
 
         if (failure.kind === 'commandInUse') commandId.current = newCommandId();
         setOutcomeUnknown(failure.kind === 'unknown');
-        setErrorText(t(failure.line.key, failure.line.params));
+        // A limit on booking without a proved number: proving it is offered.
+        setProofOffer(proofLifts(failure, accountUnproved));
+        const said = unprovedFailureLine(failure, accountUnproved);
+        setErrorText(t(said.key, said.params));
       }
     },
     [
@@ -272,6 +288,7 @@ export default function ConfirmScreen() {
       serverFreeBy,
       table,
       slotQuery,
+      accountUnproved,
     ],
   );
 
@@ -445,6 +462,21 @@ export default function ConfirmScreen() {
               {errorText}
             </Text>
           ) : null}
+
+          {/* No proved number: the venue may confirm first; Telegram makes it instant. */}
+          {accountUnproved && !mustVerify ? (
+            <View style={styles.unproved}>
+              {proofOffer ? null : (
+                <Text style={styles.unprovedText}>{t('confirm.unverifiedNote')}</Text>
+              )}
+              <Button
+                label={t('confirm.verifyMyNumber')}
+                variant={proofOffer ? 'outline' : 'text'}
+                fullWidth={false}
+                onPress={() => router.push('/auth/code')}
+              />
+            </View>
+          ) : null}
         </ScrollView>
 
         <View style={[styles.footer, { paddingBottom: insets.bottom + space.md }]}>
@@ -558,6 +590,8 @@ const styles = StyleSheet.create({
   approval: { ...typography.caption, color: colors.infoInk },
   notice: { ...typography.body, color: colors.text },
   error: { ...typography.body, color: colors.errorInk, marginTop: space.lg },
+  unproved: { gap: space.xs, alignItems: 'flex-start', marginTop: space.lg },
+  unprovedText: { ...typography.caption, color: colors.infoInk },
   footer: {
     paddingHorizontal: layout.screenPadding,
     paddingTop: space.md,

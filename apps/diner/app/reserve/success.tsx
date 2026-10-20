@@ -1,5 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
-import { declinedCopy } from '@yalla/api';
+import { declinedCopy, pendingReasonCopy } from '@yalla/api';
 import { isOfflinePaused } from '@yalla/api/react';
 import { formatDayAndTime, formatDate, formatTime } from '@yalla/format';
 import { useLocale, useTranslation } from '@yalla/i18n';
@@ -109,6 +109,10 @@ export default function SuccessScreen() {
   const declinedTitle = declinedCopy(booking.declinedBecause, 'title');
   const declinedBody = declinedCopy(booking.declinedBecause, 'body');
   const tone = declinedTitle ? 'declined' : pending ? 'pending' : 'success';
+  // Why it waits: short notice, the guest before, or no proved number.
+  const why = pendingReasonCopy(booking);
+  // Booked without a proved number: proving it confirms the next ones at once.
+  const unproved = booking.phoneUnverified === true && !declinedTitle;
   // The note as the venue received it (K9), not a copy kept on this phone.
   const note = booking.note;
   const slot = formatDayAndTime(booking.slotUtc, booking.timeZoneId, locale);
@@ -179,16 +183,7 @@ export default function SuccessScreen() {
             {declinedBody
               ? t(declinedBody.key, declinedBody.params)
               : pending
-                ? booking.awaitingApprovalBecause === 'earlierGuestConsent'
-                  ? // Booking times: the guest before is asked — by the app, or
-                    // by the venue for a guest it has to ring. A server that
-                    // does not say reads as the neutral sentence, as the note does.
-                    booking.awaitsEarlierGuestAnswer === false
-                    ? t('booking.approval.venueAsksEarlierGuest')
-                    : t('table.requestable.earlierGuest')
-                  : booking.approvalExpiresAtUtc
-                    ? t('booking.approval.why')
-                    : t('success.pendingBody')
+                ? t(why.key, why.params)
                 : t('success.expecting')}
           </Text>
         </Rise>
@@ -196,6 +191,21 @@ export default function SuccessScreen() {
         {pending ? (
           <Rise delay={200} style={styles.answer}>
             <VenueAnswerNote booking={booking} />
+          </Rise>
+        ) : null}
+
+        {/* No proved number: Telegram makes the next ones instant. */}
+        {unproved ? (
+          <Rise delay={210} style={styles.unproved}>
+            <Text style={styles.unprovedText}>{t('success.unverifiedNudge')}</Text>
+            <Button
+              label={t('confirm.verifyMyNumber')}
+              variant="outline"
+              size="small"
+              fullWidth={false}
+              style={styles.unprovedAction}
+              onPress={() => router.push('/auth/code')}
+            />
           </Rise>
         ) : null}
 
@@ -400,6 +410,10 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   answer: { marginTop: space.md },
+  unproved: { marginTop: space.md, alignItems: 'center', gap: space.sm, alignSelf: 'stretch' },
+  unprovedText: { ...typography.body, color: colors.infoInk, textAlign: 'center' },
+  // A hugging button sets its own `alignSelf`: centred here, under the line.
+  unprovedAction: { alignSelf: 'center' },
 
   card: {
     marginTop: space.xl - 2,

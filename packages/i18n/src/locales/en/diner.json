@@ -69,7 +69,8 @@
     "atTable": {
       "action": "I’m at my table",
       "hint": "At the venue? Open your tab on the table you booked.",
-      "working": "Opening your tab…"
+      "working": "Opening your tab…",
+      "unverified": "Your number is not verified yet, so at the table scan the code on it to open the bill."
     },
     "note": {
       "title": "Note for the venue",
@@ -86,7 +87,8 @@
       "waitingVenueEarlierGuest": "The venue is checking with the guest before you · answer within {{time}}",
       "checkingVenueEarlierGuest": "Waiting for the venue to check with the guest before you",
       "venueAsksEarlierGuest": "The venue will ask the guest before you whether they will have left by then.",
-      "venueWillConfirm": "The venue will confirm your booking"
+      "venueWillConfirm": "The venue will confirm your booking",
+      "unverifiedWhy": "The venue confirms bookings made without a verified number itself."
     },
     "declined": {
       "noAnswerTitle": "Sorry, not confirmed in time",
@@ -181,6 +183,13 @@
       "hoursMinutes": "in {{hours}} h {{minutes}} min",
       "hours": "in {{hours}} h",
       "minutes": "in {{minutes}} min"
+    },
+    "madeWithYourNumber": {
+      "title": "Made with your number, not by you",
+      "body": "Someone booked {{venue}} for {{when}} with your number. If it was not you, cancel it.",
+      "cancel": "Cancel this booking",
+      "cancelTitle": "Cancel a booking you did not make?",
+      "cancelBody": "The venue will see that the owner of the number cancelled a booking they did not make."
     }
   },
   "profile": {
@@ -410,7 +419,16 @@
       "overlapsOwn": "You already have a booking here at {{time}} (table {{table}}). Choose another time, or change that booking.",
       "overlapsOwnPlain": "You already have a booking here at {{time}}. Choose another time, or change that booking.",
       "overlapsOwnOn": "You already have a booking here on {{date}} at {{time}} (table {{table}}). Choose another time, or change that booking.",
-      "overlapsOwnOnPlain": "You already have a booking here on {{date}} at {{time}}. Choose another time, or change that booking."
+      "overlapsOwnOnPlain": "You already have a booking here on {{date}} at {{time}}. Choose another time, or change that booking.",
+      "phoneHasBookingHeld": "You already have a booking: {{venue}}, {{date}} at {{time}}. One phone number can hold one booking at a time — change or cancel that one first.",
+      "phoneHasBooking": "This phone number already has an active booking. Cancel it from its link first, or use that booking.",
+      "phoneHasBookingVerify": "This phone number already has an active booking. If you did not make it, verify your number with Telegram: then a booking someone else made with it will not stop you, and you can cancel it.",
+      "deviceHasBooking": "You already have a booking made from this browser without a verified number. Cancel it first, or verify your number.",
+      "unverifiedPartyTooLarge": "Without a verified number this venue takes bookings for up to {{max}}. Verify your number to book for more.",
+      "unverifiedQueueFull": "This venue has too many unconfirmed bookings right now. Verify your number to book, or try again later.",
+      "rateLimited": "Too many bookings without a verified number were made from this network in the last hour. Verify your number to book now, or try again later.",
+      "tooManyRequests": "Too many requests just now. Wait a moment and try again.",
+      "unverifiedOff": "This venue takes bookings only with a verified number. Verify your number to book."
     },
     "checkAgain": "Check again",
     "nameLabel": "Name for the booking",
@@ -420,7 +438,8 @@
     "tableMissing": "That table is not on the plan any more. Go back and pick another.",
     "phoneMissing": "We need to confirm your number before booking.",
     "verifyNumber": "Confirm my number",
-    "verifyMyNumber": "Verify my number"
+    "verifyMyNumber": "Verify my number",
+    "unverifiedNote": "Your number is not verified yet, so the venue may confirm this booking first. Verify it with Telegram and bookings are confirmed at once."
   },
   "success": {
     "confirmedTitle": "Table booked",
@@ -438,7 +457,8 @@
     "table": "Table",
     "address": "Address",
     "copy": "Copy",
-    "copied": "Copied"
+    "copied": "Copied",
+    "unverifiedNudge": "Verify your number with Telegram and your next bookings are confirmed at once."
   },
   "net": {
     "offline": "You are offline.",
@@ -492,7 +512,8 @@
       "bookingNoShow": "This booking is marked as a no-show. Ask a member of staff to open a tab for you.",
       "bookingTableOccupied": "Table {{label}} still has another party seated. Ask a member of staff to free it.",
       "bookingTableOccupiedNoLabel": "Another party is still seated at your table. Ask a member of staff to free it.",
-      "signInNeeded": "Confirm your number to use a booking code. The code on the table needs no account."
+      "signInNeeded": "Confirm your number to use a booking code. The code on the table needs no account.",
+      "turnedAway": "A member of staff has just closed a tab here. If you are at the table, ask a waiter to open one for you."
     },
     "dev": {
       "title": "Dev only — demo codes",
@@ -595,7 +616,8 @@
         "title": "The waiter is bringing the bill",
         "breakdown": "{{amount}} + {{tip}} tip",
         "body": "Pay at the table when they come over."
-      }
+      },
+      "awaitingAdmission": "A waiter has not let your table order yet, so the bill cannot be asked for. Call a waiter instead."
     },
     "joinRequest": {
       "one": "{{name}} wants to join",
@@ -614,6 +636,13 @@
       "approveNamed": "Approve {{name}}",
       "rejectNamed": "Not with us: {{name}}",
       "notAll": "{{done}}. The rest are still waiting — try again"
+    },
+    "admission": {
+      "waitingTitle": "Waiting for a waiter",
+      "admitted": "Your table can order now. Enjoy!",
+      "rejectedTitle": "The venue closed this tab",
+      "rejectedBody": "If you are at the table, ask a waiter to open one for you.",
+      "home": "Back to the start"
     }
   },
   "pending": {
@@ -883,7 +912,8 @@
       "notAllowed": "The host has not turned on ordering for you. Ask them, or a waiter.",
       "closing": "The bill has been asked for, so nothing more can go on this tab.",
       "closed": "This tab is closed.",
-      "removed": "You are no longer on this tab."
+      "removed": "You are no longer on this tab.",
+      "awaitingAdmission": "A waiter will let your table order in a moment. You can browse the menu and call a waiter meanwhile."
     }
   },
   "place": {

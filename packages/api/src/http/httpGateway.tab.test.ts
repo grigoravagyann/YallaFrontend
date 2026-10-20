@@ -628,3 +628,57 @@ describe('the menu', () => {
     expect(photo?.fullUrl).toBe('https://cdn.example/p1.jpg');
   });
 });
+
+describe('a tab a waiter has not let in yet (2026-10-20)', () => {
+  it('says so on an order, not as a race', async () => {
+    const { gateway } = await onTheTab({
+      [`POST /api/tabs/${TAB}/orders`]: problemReply(409, 'tab-awaiting-admission', {
+        tabId: TAB,
+      }),
+    });
+
+    const error = await caught(
+      gateway.placeOrder({
+        tabId: TAB,
+        clientCommandId: 'cmd-order',
+        lines: [{ menuItemId: 'm1', quantity: 1, isShared: false, participantId: ME }],
+      }),
+    );
+    expect(error.name).toBe('TabAwaitingAdmissionError');
+    expect(error['tabId']).toBe(TAB);
+  });
+
+  it('says so on the bill', async () => {
+    const { gateway } = await onTheTab({
+      [`POST /api/tabs/${TAB}/service-requests`]: problemReply(409, 'tab-awaiting-admission', {
+        tabId: TAB,
+      }),
+    });
+
+    const error = await caught(
+      gateway.callWaiter({
+        tabId: TAB,
+        reason: 'bill',
+        commandId: 'c',
+        bill: { scope: 'whole', tipPercent: 0 },
+      }),
+    );
+    expect(error.name).toBe('TabAwaitingAdmissionError');
+  });
+});
+
+describe('a scan a waiter just turned away (2026-10-20)', () => {
+  it('says when a scan is taken again', async () => {
+    const { gateway } = gatewayOver({
+      'POST /api/tabs/open': problemReply(409, 'scan-turned-away', {
+        retryAfterUtc: '2026-10-20T15:30:00Z',
+      }),
+    });
+
+    const error = await caught(
+      gateway.scanTableCode({ tableCode: 'a3f09c1e5b7d42e8', commandId: 'cmd-open' }),
+    );
+    expect(error.name).toBe('ScanTurnedAwayError');
+    expect(error['retryAfterUtc']).toBe('2026-10-20T15:30:00Z');
+  });
+});

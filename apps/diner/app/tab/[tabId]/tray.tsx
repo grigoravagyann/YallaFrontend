@@ -1,4 +1,4 @@
-import { MenuItemUnavailableError } from '@yalla/api';
+import { MenuItemUnavailableError, isTabAwaitingAdmission } from '@yalla/api';
 import { formatDram, formatTime } from '@yalla/format';
 import { useLocale, useTranslation } from '@yalla/i18n';
 import { onlineManager, useQueryClient } from '@tanstack/react-query';
@@ -151,6 +151,13 @@ export default function TrayScreen() {
       // The menu is cached hard; the dish that just sold out must say so.
       void queryClient.invalidateQueries({ queryKey: orderKeys.menuDetail(view.branchId) });
       setFailure({ kind: 'soldOut', itemName: error.itemName });
+      return;
+    }
+    // A waiter has not let the table in yet (a scan with no proved number):
+    // not a failure, the waiting the tab screen already says.
+    if (isTabAwaitingAdmission(error)) {
+      void refetchTab();
+      setFailure({ kind: 'blocked', block: 'awaitingAdmission' });
       return;
     }
     if (kind === 'forbidden' || kind === 'closing') {

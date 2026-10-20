@@ -16,6 +16,7 @@ import { queryKeys, useGateway } from '@yalla/api/react';
 import { useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query';
 import { bookingKeys } from './bookingKeys';
 import { orderKeys } from './orderQueries';
+import { waitsOnOwnVenueAnswer } from '../lib/bookingsList';
 
 /**
  * The browse and floor hooks live in `@yalla/api/react`, shared with the web
@@ -77,7 +78,7 @@ export function useBookings(enabled = true) {
     // answered. The push says so first when it can; a phone that never gave
     // permission, and the web build, only hear it this way.
     refetchInterval: (query) =>
-      query.state.data?.upcoming.some(awaitsVenueAnswer) ? APPROVAL_POLL_MS : false,
+      waitsOnOwnVenueAnswer(query.state.data?.upcoming ?? []) ? APPROVAL_POLL_MS : false,
   });
 }
 

@@ -304,7 +304,8 @@ describe('the app booking gate and the note in the mock (K9)', () => {
     const noted = await bookAt(gateway, NORTH, slotUtc, { note: '  A quiet corner, please.  ' });
     expect(noted.note).toBe('A quiet corner, please.');
     expect((await gateway.getBooking(noted.id))?.note).toBe('A quiet corner, please.');
-    // A sitting later: one diner holds one table at a time.
+    // One number holds one active booking: this one goes before the next.
+    await gateway.cancelBooking(noted.id);
     const later = new Date(Date.parse(slotUtc) + 2 * HOUR_MS).toISOString();
     expect((await bookAt(gateway, NORTH, later, { note: '   ' })).note).toBeNull();
 
@@ -443,7 +444,12 @@ describe('the notifications feed in the mock (K12)', () => {
   it('writes a reminder once a booking is two hours away, pages it, and marks it read', async () => {
     const time = clock();
     // Reminders are for confirmed bookings, and these are all short notice.
-    const gateway = createMockGateway({ now: time.now, floorApprovesAtOnce: true });
+    const gateway = createMockGateway({
+      now: time.now,
+      floorApprovesAtOnce: true,
+      // Three bookings for one diner: from before one number, one active booking.
+      bookingsBeforeTheNumberRule: true,
+    });
     await signUp(gateway, 5);
     const bookings = [];
     // A sitting apart: one diner holds one table at a time.

@@ -94,6 +94,17 @@ const ROSTER_CHANGING: ReadonlySet<TabEventType> = new Set<TabEventType>([
   'hostReassigned',
 ]);
 
+/**
+ * A waiter let the table order, or turned the tab away (unverified guests,
+ * 2026-10-20). The tab read says which, and ordering opens — or the screen
+ * says the venue closed it — within a poll of the stream rather than the
+ * screen's slower one. Not announced here: the tab screen says it, once.
+ */
+const ADMISSION_CHANGING: ReadonlySet<TabEventType> = new Set<TabEventType>([
+  'tabAdmitted',
+  'tabAdmissionRejected',
+]);
+
 /** Events worth announcing on screen. A payment is not a surprise; a void is. */
 const ANNOUNCED: ReadonlySet<TabEventType> = new Set<TabEventType>([
   'orderPlaced',
@@ -154,7 +165,10 @@ export function applyTabEvents(
 
   const nextSequence = ordered[ordered.length - 1]?.sequence ?? lastSequence;
   const changed = ordered.some(
-    (event) => BILL_CHANGING.has(event.type) || ROSTER_CHANGING.has(event.type),
+    (event) =>
+      BILL_CHANGING.has(event.type) ||
+      ROSTER_CHANGING.has(event.type) ||
+      ADMISSION_CHANGING.has(event.type),
   );
 
   if (!changed) return { kind: 'unchanged', lastSequence: nextSequence };

@@ -13,6 +13,7 @@ import type { DayAndTime } from '@yalla/format';
 import { useTranslation } from '@yalla/i18n';
 import type { TFunction } from 'i18next';
 import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
+import { AdmissionDecision, type AdmissionOutcome, type AdmissionSubject } from './AdmissionPanel';
 import { billRequestText } from './billRequestText';
 import { seatedMinutes } from './seatedMinutes';
 import { tableCardText, tableTone } from './tableCard';
@@ -79,6 +80,13 @@ export interface TableActionPanelProps {
   /** Start a tab for a seated party that is not going to scan. Online only. */
   readonly onStartTab: () => void;
   readonly startingTab: boolean;
+  /**
+   * The table's tab, when a scan with no verified number opened it and it
+   * waits for a waiter: Admit and Reject, as on the rail. Online only.
+   */
+  readonly admission?: AdmissionSubject | null | undefined;
+  readonly branchId?: string | null | undefined;
+  readonly onAdmissionDecided?: ((outcome: AdmissionOutcome) => void) | undefined;
   readonly onOrder: () => void;
   readonly onClose: () => void;
 }
@@ -158,9 +166,14 @@ export function TableActionPanel(props: TableActionPanelProps) {
   // A bare time reads as tonight; a booking days away said so is how a waiter
   // seats nobody over it (QA 2026-10-16). The guest's promise to free the
   // table goes under it, smaller, as on the card.
+  // Booked without a verified number: said beside it, wherever the booking is.
+  const bookingFlag = detail?.nextReservationPhoneUnverified ? (
+    <span className="badge badge-warn tp-flag">{t('admission.unverified')}</span>
+  ) : null;
   const nextBooking = bookingStart ? (
     <>
       {bookingWhen}
+      {bookingFlag}
       {detail?.nextReservationPromisedFreeByUtc ? (
         <small>
           {t('table.mustFreeBy', { time: format.time(detail.nextReservationPromisedFreeByUtc) })}
@@ -389,6 +402,23 @@ export function TableActionPanel(props: TableActionPanelProps) {
               </Warn>
             ) : null}
 
+            {/* A scan with no verified number: nobody on the tab can order until
+                a waiter who can see the table lets them. */}
+            {props.admission && props.branchId ? (
+              <section className="tp-admission" aria-label={t('admission.panelTitle')}>
+                <Warn tone="amber">
+                  <b>{t('admission.panelTitle')}</b> {t('admission.why')}
+                </Warn>
+                <AdmissionDecision
+                  branchId={props.branchId}
+                  subject={props.admission}
+                  online={online}
+                  variant="panel"
+                  onDecided={(outcome) => props.onAdmissionDecided?.(outcome)}
+                />
+              </section>
+            ) : null}
+
             <div className="tp-acts">
               {/* Orders need a tab. A guest opens one by scanning; for a party
                   that will not, the waiter starts one here. Online only — it
@@ -494,7 +524,10 @@ export function TableActionPanel(props: TableActionPanelProps) {
               <Warn tone="blue">{t('table.held.kept')}</Warn>
             )}
             <Facts>
-              <Fact label={t('table.fact.booked')}>{bookingWhen ?? '—'}</Fact>
+              <Fact label={t('table.fact.booked')}>
+                {bookingWhen ?? '—'}
+                {bookingWhen ? bookingFlag : null}
+              </Fact>
               <Fact label={t('table.party')}>{detail?.nextReservationPartySize ?? '—'}</Fact>
               <Fact label={t('table.fact.room')}>{room ?? '—'}</Fact>
             </Facts>

@@ -26,6 +26,7 @@ import type {
   SubscriptionTier,
   UpdateVenueCommand,
 } from '../contracts/console';
+import type { StaffFloor } from '../contracts/service';
 import type { EditorFloorPlan, ReplaceFloorPlanCommand } from '../contracts/floorPlan';
 import type { SetReviewVisibilityCommand, VenueReviewQuery } from '../contracts/reviews';
 import type {
@@ -34,6 +35,7 @@ import type {
   OpenTabForStaffCommand,
   ReassignHostCommand,
   RecordCashPaymentCommand,
+  StaffTab,
   VoidLineCommand,
 } from '../contracts/ordering';
 import type { Menu } from '../contracts/menu';
@@ -57,7 +59,12 @@ import {
   type DecideReservationCommand,
 } from '../contracts/approvals';
 import type { BranchOverview, ConsoleBookingActionCommand } from '../contracts/branchOverview';
-import type { ManagedBooking, RescheduleManagedBookingCommand } from '../contracts/publicBranch';
+import type {
+  ManagedBooking,
+  RescheduleManagedBookingCommand,
+  UnverifiedBookingCommand,
+} from '../contracts/publicBranch';
+import type { AdmitTabCommand, RejectTabCommand } from '../contracts/admission';
 import type { ReportQuery, ReportSection } from '../contracts/reports';
 import type {
   ChangePlatformPasswordCommand,
@@ -291,6 +298,9 @@ export const queryKeys = {
   serviceRequests: (branchId: string) => ['staff', 'serviceRequests', branchId] as const,
   /** Bookings waiting for the floor's yes or no. */
   awaitingApproval: (branchId: string) => ['staff', 'awaitingApproval', branchId] as const,
+  /** Tables a scan seated with no proved number, waiting for a waiter to let them order. */
+  tabsAwaitingAdmission: (branchId: string) =>
+    ['staff', 'tabsAwaitingAdmission', branchId] as const,
   staffMenu: (branchId: string) => ['staff', 'menu', branchId] as const,
   tabLines: (tabId: string) => ['staff', 'tabLines', tabId] as const,
   adminMenu: (branchId: string) => ['console', 'menu', branchId] as const,
@@ -1472,6 +1482,83 @@ export function useOpenTabForStaff() {
   });
 }
 
+/**
+ * The tables waiting for a waiter to let them order, oldest first.
+ *
+ * Not polled on a clock of its own: the floor's change stream carries a
+ * `signal` on every scan that waits, admit and reject, and the floor reads this
+ * again on any of them (and on a resync) — so a new card arrives within a poll
+ * of the stream, for one request. The interval here is only the backstop for a
+ * stream that is not running, and pauses in the background.
+ */
+export function useTabsAwaitingAdmission(branchId: string | undefined, enabled = true) {
+  const gateway = useStaffGateway();
+  return useQuery({
+    queryKey: queryKeys.tabsAwaitingAdmission(branchId ?? ''),
+    queryFn: () => gateway.listTabsAwaitingAdmission(branchId!),
+    enabled: Boolean(branchId) && enabled,
+    staleTime: staleTime.live,
+    refetchInterval: 30_000,
+    refetchIntervalInBackground: false,
+  });
+}
+
+/**
+ * Admit and Reject. Never retried and never queued — online only, as the
+ * server requires; a lost answer is retried by the waiter under the same
+ * command id, which answers the tab as it stands. The list, the floor and the
+ * tab are read again on *settle*: a 409 means somebody else decided first,
+ * and the list on screen is what is stale. The calls too, on a reject, which
+ * answers the tab's open calls.
+ */
+function useAdmissionDecision<C extends { readonly tabId: string }>(
+  branchId: string | undefined,
+  decide: (gateway: StaffGateway, command: C) => Promise<StaffTab>,
+) {
+  const gateway = useStaffGateway();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (command: C) => decide(gateway, command),
+    retry: false,
+    onSuccess: (tab) => {
+      queryClient.setQueryData(queryKeys.staffTab(tab.id), tab);
+      // The table's flag on the floor already on screen. Not a floor read: the
+      // change stream brings the decision's own row (with any status it
+      // changed) within a poll, and folds it in (UG review S9).
+      queryClient.setQueryData<StaffFloor | null>(queryKeys.staffFloor(branchId ?? ''), (floor) =>
+        floor
+          ? {
+              ...floor,
+              details: floor.details.map((detail) =>
+                detail.openTabId === tab.id
+                  ? { ...detail, openTabAwaitingAdmission: false }
+                  : detail,
+              ),
+            }
+          : floor,
+      );
+    },
+    onSettled: (_tab, _error, command) => {
+      const branch = branchId ?? '';
+      void queryClient.invalidateQueries({ queryKey: queryKeys.tabsAwaitingAdmission(branch) });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.serviceRequests(branch) });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.staffTab(command.tabId) });
+    },
+  });
+}
+
+export function useAdmitTab(branchId: string | undefined) {
+  return useAdmissionDecision(branchId, (gateway, command: AdmitTabCommand) =>
+    gateway.admitTab(command),
+  );
+}
+
+export function useRejectTab(branchId: string | undefined) {
+  return useAdmissionDecision(branchId, (gateway, command: RejectTabCommand) =>
+    gateway.rejectTab(command),
+  );
+}
+
 /** Asking for the bill. Stops the tab taking new items. */
 export function useBeginClosing() {
   const gateway = useStaffGateway();
@@ -2513,13 +2600,25 @@ export const MANAGE_LINK_POLL_MS = 15_000;
  */
 export const MANAGE_LINK_SLOW_POLL_MS = 60_000;
 
+/**
+ * Past this much time left to answer, the manage link reads slowly: the 15 s
+ * cadence is for a fifteen-minute window, and a booking made without a verified
+ * number may wait a day (UG review S8).
+ */
+export const MANAGE_LINK_FAST_POLL_WITHIN_MS = 60 * 60_000;
+
 /** The manage link's poll for a booking as it stands: `false` once nothing waits. */
 export function manageLinkPollMs(
   booking:
     { readonly status: string; readonly approvalExpiresAtUtc: string | null } | null | undefined,
+  now: number = Date.now(),
 ): number | false {
   if (!booking || booking.status !== 'pendingApproval') return false;
-  return awaitsVenueAnswer(booking) ? MANAGE_LINK_POLL_MS : MANAGE_LINK_SLOW_POLL_MS;
+  if (!awaitsVenueAnswer(booking)) return MANAGE_LINK_SLOW_POLL_MS;
+  const left = Date.parse(booking.approvalExpiresAtUtc ?? '') - now;
+  return Number.isFinite(left) && left > MANAGE_LINK_FAST_POLL_WITHIN_MS
+    ? MANAGE_LINK_SLOW_POLL_MS
+    : MANAGE_LINK_POLL_MS;
 }
 
 /**
@@ -2705,6 +2804,27 @@ export function useCancelManagedBooking(
     retry: false,
     onSuccess: (booking: ManagedBooking) => {
       queryClient.setQueryData(queryKeys.managedBooking(token ?? ''), booking);
+    },
+  });
+}
+
+/**
+ * Booking from the public page without proving the number (2026-10-20).
+ *
+ * Retry is off: a retry with the same command id answers the booking but not
+ * its manage token, which only the first answer carries — so the page decides
+ * when to try again, and stores the token from `onSuccess` before anything
+ * else. The room and the branch's counts are read again, as after any booking.
+ */
+export function useCreateUnverifiedBooking() {
+  const gateway = usePublicGateway();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (command: UnverifiedBookingCommand) => gateway.createUnverifiedBooking(command),
+    retry: false,
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['availability'] });
+      void queryClient.invalidateQueries({ queryKey: ['public', 'branch'] });
     },
   });
 }

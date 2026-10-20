@@ -27,7 +27,14 @@ const PAGE: Page = {
   acceptsWebBookings: true,
   acceptsAppBookings: true,
   bookingWindowDays: 14,
-  policy: { turnTimeMinutes: 90, minLeadMinutes: 30, cancellationDeadlineMinutes: 120 },
+  policy: {
+    turnTimeMinutes: 90,
+    minLeadMinutes: 30,
+    cancellationDeadlineMinutes: 120,
+    unverifiedMaxPartySize: 6,
+    unverifiedBookingsNeedApproval: true,
+    acceptsUnverifiedBookings: true,
+  },
   asOfUtc: '2026-09-13T00:00:00Z',
   venueBranchCount: 1,
   coverPhoto: {

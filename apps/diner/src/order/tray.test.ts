@@ -151,6 +151,8 @@ describe('the tray subtotal', () => {
       commandId: '11111111-1111-4111-8111-111111111111',
     });
     const tab = scan.tab;
+    // Scanned with no proved number: a waiter lets the table order.
+    gateway.admitTabAsWaiter(tab.tabId);
 
     const menu = await gateway.getBranchMenuDetail(tab.branchId);
     const items = (menu?.categories ?? []).flatMap((category) => category.items);
@@ -198,6 +200,8 @@ describe('a shared line', () => {
       commandId: '33333333-3333-4333-8333-333333333333',
     });
     const tab = scan.tab;
+    // Scanned with no proved number: a waiter lets the table order.
+    gateway.admitTabAsWaiter(tab.tabId);
 
     const menu = await gateway.getBranchMenuDetail(tab.branchId);
     const item = (menu?.categories ?? []).flatMap((category) => category.items)[0]!;

@@ -1,4 +1,5 @@
 import type { components } from '../generated/schema';
+import { admissionFromWire } from './admissionMapping';
 import type { SettlementMode } from '../contracts/service';
 import type {
   DinerTabAdjustment,
@@ -261,6 +262,7 @@ export function dinerTab(view: TabView, fetchedAtUtc: string, baseUrl: string): 
     maxSequence: view.maxSequence,
     openedAtUtc: view.openedAtUtc,
     closedAtUtc: view.closedAtUtc ?? null,
+    admission: admissionFromWire(view.admission),
     fetchedAtUtc,
   };
 }
@@ -328,6 +330,8 @@ export function booking(view: ReservationViewWire, venueName: string | null): Bo
     approvalExpiresAtUtc: view.status === 1 ? approvalExpiry(view.approvalExpiresAtUtc) : null,
     awaitsEarlierGuestAnswer: awaitsEarlierGuestAnswer(view),
     declinedBecause: declineReason(view.declinedBecause),
+    phoneUnverified: view.phoneUnverified === true,
+    madeWithYourNumber: view.madeWithYourNumber === true,
     manageToken: view.manageToken ?? null,
     promisedFreeByUtc: instantOrNull(view.promisedFreeByUtc),
     incomingTableRequest: incomingTableRequestFromWire(view.incomingTableRequest),

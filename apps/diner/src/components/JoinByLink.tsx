@@ -7,6 +7,7 @@ import { colors, layout, space, typography } from '../theme';
 import { Button } from './Button';
 import { Text } from './Text';
 import { useJoinByCode } from '../hooks/useJoinByCode';
+import { TURNED_AWAY_KEY } from '../lib/scanOutcome';
 
 export interface JoinByLinkProps {
   /** What the route lifted out of the link: an invitation or a table code. */
@@ -27,6 +28,7 @@ export function JoinByLink({ code }: JoinByLinkProps) {
   const { t } = useTranslation('diner');
   const router = useRouter();
   const { enter, failure, isWorking } = useJoinByCode();
+  const turnedAway = failure?.key === TURNED_AWAY_KEY;
 
   // One attempt per code. Without the guard a re-render — or the router
   // re-reading params — fires a second join while the first is still in flight.
@@ -52,14 +54,16 @@ export function JoinByLink({ code }: JoinByLinkProps) {
           </>
         ) : (
           <>
+            {/* A waiter just turned this phone away: not a bad link, and scanning
+                again will not help yet — somebody really there asks a waiter. */}
             <Text display style={styles.title}>
-              {t('join.failedTitle')}
+              {turnedAway ? t('tab.admission.rejectedTitle') : t('join.failedTitle')}
             </Text>
             <Text style={styles.body}>{t(failure.key, failure.params ?? {})}</Text>
-            <Text style={styles.muted}>{t('join.failedBody')}</Text>
+            {turnedAway ? null : <Text style={styles.muted}>{t('join.failedBody')}</Text>}
             <Button
-              label={t('scan.scanAgain')}
-              onPress={() => router.replace('/(tabs)/scan')}
+              label={turnedAway ? t('tab.admission.home') : t('scan.scanAgain')}
+              onPress={() => router.replace(turnedAway ? '/' : '/(tabs)/scan')}
               fullWidth={false}
               style={styles.primary}
             />

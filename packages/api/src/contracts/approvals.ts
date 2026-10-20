@@ -49,12 +49,22 @@ export interface ConsoleBooking {
   readonly awaitsEarlierGuestAnswer?: boolean | undefined;
   /** The diner's note for the venue (K9), or `null`. */
   readonly note: string | null;
+  /**
+   * Made without a proved phone number — "number not verified" beside it. The
+   * venue may want to ring before confirming. Absent from a server before
+   * unverified bookings, which reads as verified.
+   */
+  readonly phoneUnverified?: boolean | undefined;
 }
 
 /**
  * `Yalla.Domain.Enums.ApprovalTrigger`: 1 BranchApprovesEveryBooking,
- * 2 LargeParty, 3 NoShowHistory, 4 ShortNotice, 5 EarlierGuestConsent.
- * `unknown` for a value a newer server adds.
+ * 2 LargeParty, 3 NoShowHistory, 4 ShortNotice, 5 EarlierGuestConsent,
+ * 6 UnverifiedPhone. `unknown` for a value a newer server adds.
+ *
+ * `unverifiedPhone` is a booking made without a proved phone number at a
+ * branch that approves those first (`unverifiedBookingsNeedApproval`, on by
+ * default). It waits for the venue without a clock, like a large party.
  *
  * `shortNotice` is the floor's own: a booking for today, or starting within
  * {@link SHORT_NOTICE_HOURS} hours, is never confirmed blindly for a table
@@ -75,6 +85,7 @@ export type ApprovalTrigger =
   | 'noShowHistory'
   | 'shortNotice'
   | 'earlierGuestConsent'
+  | 'unverifiedPhone'
   | 'unknown';
 
 /**
@@ -266,6 +277,11 @@ export interface AwaitingApproval {
   readonly localStartTime: string;
   readonly timeZoneId: string;
   readonly note: string | null;
+  /**
+   * Made without a proved phone number: the card says "number not verified".
+   * Absent from a server before unverified bookings.
+   */
+  readonly phoneUnverified?: boolean | undefined;
   /**
    * When the answer window closes. `null` for a request that waits without one.
    * An `earlierGuestConsent` request the floor decides has two hours, as the

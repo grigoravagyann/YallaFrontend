@@ -46,6 +46,8 @@ const VIEW: WireReservationWithApproval = {
   guestPhone: '+37493217788',
   wasReplay: false,
   awaitsEarlierGuestAnswer: false,
+  phoneUnverified: false,
+  madeWithYourNumber: false,
   awaitingApprovalBecause: 4,
   approvalExpiresAtUtc: EXPIRES,
 };
@@ -169,6 +171,7 @@ const AWAITING: WireAwaitingApproval = {
 describe('a request on the floor tablet', () => {
   it('reads the booking, the window and the table around it', () => {
     expect(awaitingApprovalFromWire(AWAITING)).toEqual({
+      phoneUnverified: false,
       id: VIEW.id,
       code: 'Y3107',
       branchId: BRANCH,

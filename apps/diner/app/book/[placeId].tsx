@@ -24,6 +24,7 @@ import {
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Button } from '../../src/components/Button';
 import { Chip } from '../../src/components/Chip';
 import { EmptyState } from '../../src/components/EmptyState';
 import { ErrorState } from '../../src/components/ErrorState';
@@ -51,7 +52,13 @@ import { TableLegend } from '../../src/components/tables/TableLegend';
 import { useCapacityLabel } from '../../src/components/tables/TableMarker';
 import { useDinerProfile } from '../../src/data/accountQueries';
 import { useMinuteClock } from '../../src/hooks/useMinuteClock';
-import { bookingRefusal, changeFailureLine, overlapsOwnLine } from '../../src/data/bookingRefusals';
+import {
+  bookingRefusal,
+  changeFailureLine,
+  overlapsOwnLine,
+  proofLifts,
+  unprovedFailureLine,
+} from '../../src/data/bookingRefusals';
 import {
   keys,
   useBookingRules,
@@ -384,9 +391,12 @@ function BookingForm({ place, rooms, params, change, title, onBack }: BookingFor
   // over the photo, where the next pick is made.
   const [conflictText, setConflictText] = useState<string | null>(null);
   const [outcomeUnknown, setOutcomeUnknown] = useState(false);
+  /** The last refusal is one proving the number lifts: "Verify my number" beside it. */
+  const [proofOffer, setProofOffer] = useState(false);
   const clearErrors = useCallback(() => {
     setErrorText(null);
     setConflictText(null);
+    setProofOffer(false);
   }, []);
 
   const activeDateKey = dateKey ?? days[0]?.dateKey ?? null;
@@ -594,10 +604,11 @@ function BookingForm({ place, rooms, params, change, title, onBack }: BookingFor
   // A booking being changed already has its name.
   const needsName = !change && verified && !rememberedName;
   /*
-   * An account whose number has never passed the SMS code cannot book. Known
-   * from the profile before the tap, or from the server's refusal after it
-   * (the backstop); either way Confirm becomes the Verify step, until the
-   * refreshed profile says the number is verified.
+   * An account whose number has never been proved books all the same
+   * (unverified guests, 2026-10-20): the venue may confirm it first, and the
+   * screen says so and offers proving it with Telegram for instant
+   * confirmation. Only the server's refusal (a deactivated account) turns
+   * Confirm into the Verify step, until the refreshed profile says verified.
    */
   // Read here so the check does not depend on the Profile tab having been opened.
   useDinerProfile();
@@ -605,10 +616,9 @@ function BookingForm({ place, rooms, params, change, title, onBack }: BookingFor
   const [verifyRefused, setVerifyRefused] = useState(false);
   // Not for a change: the booking was made on a verified number, and the code
   // flow ends on the confirm screen, which makes a new booking.
-  const mustVerify =
-    !change &&
-    verified &&
-    (profilePhoneVerified === false || (verifyRefused && profilePhoneVerified !== true));
+  const mustVerify = !change && verified && verifyRefused && profilePhoneVerified !== true;
+  /** Books without a proved number: said before the tap, and its refusals offer proving it. */
+  const accountUnproved = !change && verified && profilePhoneVerified === false;
 
   // One id per screen, reused on every retry — see `confirm.tsx`.
   const commandId = useRef(newCommandId());
@@ -694,7 +704,9 @@ function BookingForm({ place, rooms, params, change, title, onBack }: BookingFor
         }
         return;
       }
-      const failure = bookingFailure(error, place.timeZoneId, locale);
+      const failure = bookingFailure(error, place.timeZoneId, locale, {
+        unverified: accountUnproved,
+      });
       // A booking landed after the room was read: the table now needs the
       // promise, or a different one. Asked again, with the server's time.
       if (failure.kind === 'freeByRequired') {
@@ -759,7 +771,11 @@ function BookingForm({ place, rooms, params, change, title, onBack }: BookingFor
       }
       if (failure.kind === 'commandInUse') commandId.current = newCommandId();
       setOutcomeUnknown(failure.kind === 'unknown');
-      const line: CopyLine = change ? changeFailureLine(failure) : failure.line;
+      // A limit on booking without a proved number: proving it is offered.
+      setProofOffer(!change && proofLifts(failure, accountUnproved));
+      const line: CopyLine = change
+        ? changeFailureLine(failure)
+        : unprovedFailureLine(failure, accountUnproved);
       setErrorText(t(line.key, line.params));
     },
     [
@@ -775,6 +791,7 @@ function BookingForm({ place, rooms, params, change, title, onBack }: BookingFor
       t,
       reducedMotion,
       setVerifyRefused,
+      accountUnproved,
       setFreeByAsk,
       setServerFreeBy,
       setPickedMs,
@@ -1399,6 +1416,21 @@ function BookingForm({ place, rooms, params, change, title, onBack }: BookingFor
             </Text>
           ) : null}
 
+          {/* No proved number: the venue may confirm first; Telegram makes it instant. */}
+          {accountUnproved ? (
+            <View style={styles.unproved}>
+              {proofOffer ? null : (
+                <Text style={styles.unprovedText}>{t('confirm.unverifiedNote')}</Text>
+              )}
+              <Button
+                label={t('confirm.verifyMyNumber')}
+                variant={proofOffer ? 'outline' : 'text'}
+                fullWidth={false}
+                onPress={() => router.push('/auth/code')}
+              />
+            </View>
+          ) : null}
+
           {/* Said no to freeing the table in time: another table or time. */}
           {freeByDeclined ? (
             <Rise>
@@ -1805,6 +1837,8 @@ const styles = StyleSheet.create({
   requests: { minHeight: 96 },
   hint: { ...typography.caption, color: colors.textMuted },
   error: { ...typography.body, color: colors.errorInk },
+  unproved: { gap: space.xs, alignItems: 'flex-start' },
+  unprovedText: { ...typography.caption, color: colors.infoInk },
   bookingsOff: { gap: space.xs, paddingVertical: space.xs },
   bookingsOffTitle: { ...typography.body, fontWeight: fontWeight.bold, color: colors.text },
   bookingsOffBody: { ...typography.body, color: colors.textMuted },

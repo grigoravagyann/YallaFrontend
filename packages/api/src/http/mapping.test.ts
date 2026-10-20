@@ -155,6 +155,8 @@ describe('floor', () => {
       physicalStatus: 1,
       state: 1,
       rowVersion: 'AAAAAAAAB9E=',
+      nextReservationPhoneUnverified: false,
+      openTabAwaitingAdmission: false,
     } as const;
     const plan = floorFromState({
       asOfUtc: '2026-09-05T15:00:00Z',
@@ -200,6 +202,8 @@ describe('floor', () => {
           state: 4,
           rowVersion: 'AAAAAAAAB9E=',
           seatedAtUtc: '2026-09-05T14:10:00Z',
+          nextReservationPhoneUnverified: false,
+          openTabAwaitingAdmission: false,
         },
       ],
     };

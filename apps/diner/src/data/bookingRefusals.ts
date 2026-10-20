@@ -47,6 +47,40 @@ export function bookingRefusal(error: unknown): CopyLine | null {
 }
 
 /**
+ * `bookingFailure`'s line for an account that has not proved its number. A
+ * number already booked by somebody else holds such an account back — but
+ * proving the number lifts that (a stranger's unproved booking never holds a
+ * proved account), so the sentence offers it. Every other line as it is.
+ */
+export function unprovedFailureLine(failure: BookingFailure, accountUnproved: boolean): CopyLine {
+  if (failure.kind === 'phoneHasActiveBooking' && !failure.error.held && accountUnproved) {
+    return { key: 'confirm.error.phoneHasBookingVerify', params: {} };
+  }
+  return failure.line;
+}
+
+/**
+ * Whether proving the number lifts this refusal, for an account that has not:
+ * the party cap, the venue's queue, the network's hour, and a number somebody
+ * else booked. The screen offers "Verify my number" beside it.
+ */
+export function proofLifts(failure: BookingFailure, accountUnproved: boolean): boolean {
+  if (!accountUnproved) return false;
+  switch (failure.kind) {
+    case 'verifiedPhoneRequired':
+    case 'deviceHasActiveBooking':
+    case 'unverifiedPartyTooLarge':
+    case 'unverifiedQueueFull':
+    case 'rateLimited':
+      return true;
+    case 'phoneHasActiveBooking':
+      return failure.error.held === null;
+    default:
+      return false;
+  }
+}
+
+/**
  * `bookingFailure`'s line for a change rather than a new booking. Two of its
  * lines are about a booking being made — "Nothing was booked" — which, said of
  * a booking that already exists, reads as if it were gone; those get words of

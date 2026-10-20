@@ -3,7 +3,7 @@ import { useLocale, useTranslation } from '@yalla/i18n';
 import { StyleSheet, type StyleProp, type ViewStyle } from 'react-native';
 import { useJoinByCode } from '../hooks/useJoinByCode';
 import { useNow } from '../hooks/useNow';
-import { canOpenTabForBooking } from '../lib/bookingActions';
+import { atTableOffer } from '../lib/bookingActions';
 import { colors, space, typography } from '../theme';
 import { Button } from './Button';
 import { Card } from './Card';
@@ -39,7 +39,17 @@ export function AtMyTableAction({
 
   // Hidden, not disabled: on a cancelled or finished booking there is nothing
   // to explain and no tap that could ever work.
-  if (!canOpenTabForBooking(booking, now)) return null;
+  const offer = atTableOffer(booking, now);
+  if (offer === null) return null;
+  // Made without a proved number: the server will not open the tab from the
+  // booking, so the button would only be refused. The code on the table works.
+  if (offer === 'scanInstead') {
+    return (
+      <Card style={[styles.card, style]}>
+        <Text style={styles.hint}>{t('booking.atTable.unverified')}</Text>
+      </Card>
+    );
+  }
 
   return (
     <Card style={[styles.card, style]}>

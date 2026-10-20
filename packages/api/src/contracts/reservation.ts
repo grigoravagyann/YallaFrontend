@@ -1,4 +1,11 @@
-import { branchDayKey, formatDate, formatTime, type Locale, type TimeZone } from '@yalla/format';
+import {
+  branchDayKey,
+  formatDate,
+  formatTime,
+  instantFromZonedClock,
+  type Locale,
+  type TimeZone,
+} from '@yalla/format';
 import { approvalCountdown, type ApprovalTrigger, type DeclineReason } from './approvals';
 import { isKnownUnavailableReason } from './booking';
 import type {
@@ -12,19 +19,24 @@ import {
   BookingCommandInUseError,
   BookingOverlapsOwnError,
   BookingRejectedError,
+  BranchRequiresVerifiedPhoneError,
   BranchUnavailableError,
+  DeviceHasActiveBookingError,
   ExpiredCodeError,
   FreeByRequiredError,
   LeadTimeExceededError,
+  PhoneHasActiveBookingError,
   PhoneNotVerifiedError,
   RateLimitedError,
   TableTakenError,
   SmsUnavailableError,
   TelegramUnavailableError,
   TooManyAttemptsError,
+  UnverifiedPartyTooLargeError,
+  UnverifiedQueueFullError,
   WrongCodeError,
 } from './errors';
-import { NetworkError, ServerError, TimeoutError } from '../errors';
+import { NetworkError, ServerError, TimeoutError, TooManyRequestsError } from '../errors';
 
 /**
  * The reservation flow's rules, in one place, for both surfaces that run it.
@@ -251,6 +263,29 @@ export function venueAnswerCopy(
     );
   }
   return declinedCopy(booking.declinedBecause, 'body');
+}
+
+/**
+ * Why a booking waits for the venue, under its pending title — the one
+ * sentence the app's confirmation, the web's and the manage link all say.
+ *
+ * Made without a verified number: the venue confirms those itself. The guest
+ * before asked (by the app, or rung by the venue for a guest it has to). A
+ * short-notice request on the floor's clock. Anything else: the venue will
+ * confirm shortly.
+ */
+export function pendingReasonCopy(booking: VenueAnswerState): CopyLine {
+  if (booking.awaitingApprovalBecause === 'unverifiedPhone') {
+    return line('booking.approval.unverifiedWhy');
+  }
+  if (booking.awaitingApprovalBecause === 'earlierGuestConsent') {
+    return line(
+      booking.awaitsEarlierGuestAnswer === false
+        ? 'booking.approval.venueAsksEarlierGuest'
+        : 'table.requestable.earlierGuest',
+    );
+  }
+  return line(booking.approvalExpiresAtUtc ? 'booking.approval.why' : 'success.pendingBody');
 }
 
 /** Which sentence pair a decline reason reads as. */
@@ -545,13 +580,41 @@ export type BookingFailure =
       readonly requiredFreeByUtc: string | null;
       readonly nextBookingStartUtc: string | null;
     }
+  /*
+   * Unverified guests (2026-10-20). One number holds one active booking: the
+   * line names it only when it is the caller's own (`error.held`). The rest
+   * are the limits on booking without a proved number — one per browser, the
+   * party cap, the venue's queue, the network's hourly budget — each of which
+   * a proved number lifts, so a screen offers proving it.
+   */
+  | {
+      readonly kind: 'phoneHasActiveBooking';
+      readonly line: CopyLine;
+      readonly error: PhoneHasActiveBookingError;
+    }
+  | { readonly kind: 'deviceHasActiveBooking'; readonly line: CopyLine }
+  | { readonly kind: 'unverifiedPartyTooLarge'; readonly line: CopyLine }
+  | { readonly kind: 'unverifiedQueueFull'; readonly line: CopyLine }
+  /** The branch takes none without a verified number (its cap is 0): verify to book. */
+  | { readonly kind: 'verifiedPhoneRequired'; readonly line: CopyLine }
+  | { readonly kind: 'rateLimited'; readonly line: CopyLine }
   | { readonly kind: 'unknown'; readonly line: CopyLine }
   | { readonly kind: 'generic'; readonly line: CopyLine };
+
+export interface BookingFailureOptions {
+  /**
+   * The booker has no proved number (an unproved account, the public page's
+   * door without proof). Only then is a 429 the hourly budget for bookings
+   * without one; anybody else met the server's general request limit.
+   */
+  readonly unverified?: boolean | undefined;
+}
 
 export function bookingFailure(
   error: unknown,
   timeZoneId: TimeZone,
   locale: Locale,
+  options: BookingFailureOptions = {},
 ): BookingFailure {
   if (error instanceof TableTakenError) {
     return {
@@ -600,6 +663,46 @@ export function bookingFailure(
           : line('confirm.error.overlapsOwnPlain', { time }),
     };
   }
+  if (error instanceof PhoneHasActiveBookingError) {
+    const held = error.held;
+    return {
+      kind: 'phoneHasActiveBooking',
+      error,
+      line: held
+        ? line('confirm.error.phoneHasBookingHeld', {
+            venue: held.venueName || held.branchName,
+            date: heldDay(held.localDate, timeZoneId, locale),
+            time: held.localStartTime,
+          })
+        : line('confirm.error.phoneHasBooking'),
+    };
+  }
+  if (error instanceof DeviceHasActiveBookingError) {
+    return { kind: 'deviceHasActiveBooking', line: line('confirm.error.deviceHasBooking') };
+  }
+  if (error instanceof BranchRequiresVerifiedPhoneError) {
+    return { kind: 'verifiedPhoneRequired', line: line('confirm.error.unverifiedOff') };
+  }
+  if (error instanceof UnverifiedPartyTooLargeError) {
+    return {
+      kind: 'unverifiedPartyTooLarge',
+      line: line('confirm.error.unverifiedPartyTooLarge', { max: error.maxPartySize }),
+    };
+  }
+  if (error instanceof UnverifiedQueueFullError) {
+    return { kind: 'unverifiedQueueFull', line: line('confirm.error.unverifiedQueueFull') };
+  }
+  // A 429: for a booker with no proved number, the hourly budget for such
+  // bookings from one network; for anybody else the server's general request
+  // limit, which the same code answers — so the caller says which it is.
+  if (error instanceof TooManyRequestsError) {
+    return {
+      kind: 'rateLimited',
+      line: line(
+        options.unverified ? 'confirm.error.rateLimited' : 'confirm.error.tooManyRequests',
+      ),
+    };
+  }
   if (error instanceof BookingBusyError) {
     return { kind: 'busy', line: line('confirm.error.busy') };
   }
@@ -622,4 +725,19 @@ export function bookingFailure(
     return { kind: 'unknown', line: line('confirm.error.unknownOutcome') };
   }
   return { kind: 'generic', line: line('confirm.error.generic') };
+}
+
+/**
+ * "22 October" for a branch day (`YYYY-MM-DD`) as the server names one, read
+ * at noon so no zone can tip it into the day before; the bare string when it
+ * is not one.
+ */
+function heldDay(localDate: string, timeZoneId: TimeZone, locale: Locale): string {
+  const parts = /^(\d{4})-(\d{2})-(\d{2})$/u.exec(localDate);
+  if (!parts) return localDate;
+  const noon = instantFromZonedClock(
+    { year: Number(parts[1]), month: Number(parts[2]), day: Number(parts[3]), hour: 12, minute: 0 },
+    timeZoneId,
+  );
+  return formatDate(noon, timeZoneId, locale);
 }

@@ -258,6 +258,44 @@ describe('a booking at short notice', () => {
     expect(within(plain).queryByRole('timer')).toBeNull();
   });
 
+  it('says a booking was made without a verified number, beside why it waits', async () => {
+    const harness = renderCard();
+    const panel = await waitForPanel();
+    const pending = await harness.gateway.listPendingReservations('b-lumen-north');
+    const unverified = pending.find((booking) => booking.phoneUnverified)!;
+    const verified = pending.find((booking) => !booking.phoneUnverified)!;
+
+    const row = within(panel).getByText(unverified.code).closest('li')!;
+    expect(within(row).getByText('Number not verified')).toBeTruthy();
+    // A large party made without one would say both; this one waits for that reason alone.
+    expect(within(row).queryByText('number not verified')).toBeNull();
+
+    const plain = within(panel).getByText(verified.code).closest('li')!;
+    expect(within(plain).queryByText(/number not verified/iu)).toBeNull();
+  });
+
+  it('flags an unverified booking that waits for another reason', async () => {
+    const base = createConsoleMockGateway({ latencyMs: 0, role: 'owner' });
+    const gateway = {
+      ...base,
+      listPendingReservations: async (branchId: string) =>
+        (await base.listPendingReservations(branchId)).map((booking) =>
+          booking.awaitingApprovalBecause === 'largeParty'
+            ? { ...booking, phoneUnverified: true }
+            : booking,
+        ),
+    };
+    renderCard({ gateway });
+    const panel = await waitForPanel();
+    const large = (await gateway.listPendingReservations('b-lumen-north')).find(
+      (booking) => booking.awaitingApprovalBecause === 'largeParty',
+    )!;
+
+    const row = within(panel).getByText(large.code).closest('li')!;
+    expect(within(row).getByText('Large party')).toBeTruthy();
+    expect(within(row).getByText('number not verified')).toBeTruthy();
+  });
+
   it('stops offering a decision once the time is up', async () => {
     const base = createConsoleMockGateway({ latencyMs: 0, role: 'owner' });
     const closed: ConsoleGateway = {
@@ -292,12 +330,14 @@ describe('a booking at short notice', () => {
       ...base,
       listPendingReservations: async (branchId) =>
         (await base.listPendingReservations(branchId)).map((booking) =>
-          booking.approvalExpiresAtUtc
+          // The short-notice one: a booking without a verified number has a
+          // clock too, in hours, and keeps it.
+          booking.awaitingApprovalBecause === 'shortNotice'
             ? {
                 ...booking,
                 approvalExpiresAtUtc: new Date(Date.now() + seconds * 1000).toISOString(),
               }
-            : booking,
+            : { ...booking, approvalExpiresAtUtc: null },
         ),
     });
 

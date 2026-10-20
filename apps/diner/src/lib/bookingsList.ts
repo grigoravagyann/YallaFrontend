@@ -1,4 +1,4 @@
-import { describeFailure } from '@yalla/api';
+import { awaitsVenueAnswer, describeFailure, type Booking } from '@yalla/api';
 
 /**
  * What "My bookings" says when the read fails — by what went wrong.
@@ -27,6 +27,31 @@ export function bookingsFailureCopy(error: unknown, offline = false): BookingsFa
     default:
       return { titleKey: 'net.serverError', bodyKey: null, action: 'retry' };
   }
+}
+
+/**
+ * The account's own bookings, and the ones somebody else made with its number
+ * and no proof (2026-10-20) — listed apart, "made with your number, not by
+ * you", each with Cancel. They never hold the account back from booking.
+ */
+export function madeWithYourNumber<B extends Pick<Booking, 'madeWithYourNumber'>>(
+  bookings: readonly B[],
+): { readonly own: readonly B[]; readonly strangers: readonly B[] } {
+  return {
+    own: bookings.filter((booking) => booking.madeWithYourNumber !== true),
+    strangers: bookings.filter((booking) => booking.madeWithYourNumber === true),
+  };
+}
+
+/**
+ * Whether the list should be read again at the venue's-answer cadence: one of
+ * the account's *own* bookings waits on the venue with a clock. Somebody
+ * else's made with its number may wait a day, and is not worth the reads.
+ */
+export function waitsOnOwnVenueAnswer(bookings: readonly Booking[]): boolean {
+  return bookings.some(
+    (booking) => booking.madeWithYourNumber !== true && awaitsVenueAnswer(booking),
+  );
 }
 
 /** Past this, a countdown in hours stops meaning much: the chip shows the day instead. */

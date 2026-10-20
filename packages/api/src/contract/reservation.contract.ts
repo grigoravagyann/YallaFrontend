@@ -1,6 +1,7 @@
 import { beforeAll, describe, expect, it } from 'vitest';
 import {
   BookingOverlapsOwnError,
+  PhoneHasActiveBookingError,
   LeadTimeExceededError,
   TableTakenError,
 } from '../contracts/errors';
@@ -196,6 +197,44 @@ export function describeReservationContract(subject: ContractSubject): void {
           tableLabel: held.tableLabel,
         });
         expect((refused as BookingOverlapsOwnError).localStartTime).toMatch(/^\d\d:\d\d$/u);
+      } finally {
+        await bella.gateway.cancelBooking(held.id).catch(() => undefined);
+      }
+    });
+
+    it('refuses one number a second booking that does not overlap, naming the first to its own account', async () => {
+      // Since 2026-10-20 one phone number holds one active booking, anywhere.
+      const bella = await subject.newDiner();
+      const first = await firstBookable();
+      const held = await bella.gateway.createBooking(
+        bookingOf(first.tableId, fixtures.tomorrowEveningUtc, bella),
+      );
+      try {
+        const later = new Date(Date.parse(fixtures.tomorrowEveningUtc) + 24 * 60 * 60_000);
+        const floor = await bella.gateway.getSlotFloor({
+          branchId: fixtures.branchId,
+          slotUtc: later.toISOString(),
+          partySize: 2,
+          timeZoneId: fixtures.timeZoneId,
+        });
+        const other = floor!.tables.find((entry) => entry.isBookable && !entry.mustFreeByUtc);
+        expect(other, 'no table is bookable the evening after').toBeDefined();
+
+        const refused: unknown = await bella.gateway
+          .createBooking(bookingOf(other!.tableId, later.toISOString(), bella))
+          .catch((error: unknown) => error);
+        expect(refused).toBeInstanceOf(PhoneHasActiveBookingError);
+        expect((refused as PhoneHasActiveBookingError).held).toMatchObject({
+          reservationId: held.id,
+          code: held.code,
+        });
+
+        // Cancelling frees the number at once.
+        await bella.gateway.cancelBooking(held.id);
+        const second = await bella.gateway.createBooking(
+          bookingOf(other!.tableId, later.toISOString(), bella),
+        );
+        await bella.gateway.cancelBooking(second.id);
       } finally {
         await bella.gateway.cancelBooking(held.id).catch(() => undefined);
       }

@@ -28,6 +28,8 @@ function world(): YallaGateway {
     simulateJoiners: false,
     now: () => new Date(NOW),
     codeSeed: 11,
+    // Two bookings for one diner: from before one number, one active booking.
+    bookingsBeforeTheNumberRule: true,
   });
 }
 

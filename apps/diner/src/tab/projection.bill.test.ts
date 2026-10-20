@@ -1,4 +1,4 @@
-import type { DinerTabLine, DinerTabView } from '@yalla/api';
+import { ADMITTED, type DinerTabLine, type DinerTabView } from '@yalla/api';
 import { describe, expect, it } from 'vitest';
 import { paymentRows, projectTab } from './projection';
 
@@ -37,6 +37,7 @@ function tab(overrides: Partial<DinerTabView> = {}): DinerTabView {
     timeZoneId: ZONE,
     tableLabel: '7',
     status: 'open',
+    admission: ADMITTED,
     settlementMode: 'anyonePaysAnyAmount',
     settlementModeLocked: false,
     hostParticipantId: 'p-me',

@@ -21,13 +21,16 @@ import {
  * happens when they are late, what needs a human, and what goes on the bill.
  */
 
-export type PolicyGroup = 'booking' | 'holding' | 'lateness' | 'approval' | 'money';
+export type PolicyGroup = 'booking' | 'holding' | 'lateness' | 'approval' | 'unverified' | 'money';
 
 export const POLICY_GROUPS: readonly PolicyGroup[] = [
   'booking',
   'holding',
   'lateness',
   'approval',
+  // Guests whose phone number nobody proved (2026-10-20): after the approval
+  // rules, which these refine.
+  'unverified',
   'money',
 ];
 
@@ -94,6 +97,34 @@ export const POLICY_FIELDS: readonly PolicyFieldSpec[] = [
     bounds: { min: 1, max: null },
     step: 1,
     nullable: true,
+  },
+
+  // A booking without a verified number: approved first (on by default), and
+  // never for more than this many people.
+  {
+    key: 'unverifiedBookingsNeedApproval',
+    group: 'unverified',
+    kind: 'toggle',
+    bounds: null,
+    step: 0,
+    nullable: false,
+  },
+  {
+    key: 'unverifiedMaxPartySize',
+    group: 'unverified',
+    kind: 'people',
+    bounds: POLICY_BOUNDS.unverifiedMaxPartySize,
+    step: 1,
+    nullable: false,
+  },
+  // A scan at the table with no verified number waits for a waiter (on by default).
+  {
+    key: 'unverifiedScansNeedAdmission',
+    group: 'unverified',
+    kind: 'toggle',
+    bounds: null,
+    step: 0,
+    nullable: false,
   },
 
   {

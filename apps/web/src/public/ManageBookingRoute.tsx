@@ -2,6 +2,7 @@ import {
   approvalCountdown,
   awaitsVenueAnswer,
   declinedCopy,
+  pendingReasonCopy,
   promisedFreeByCopy,
   venueAnswerCopy,
   type ManagedBooking,
@@ -54,6 +55,11 @@ const ManageChange = lazy(() => import('./ManageChange'));
  * fifteen minutes to answer: the page counts them down and reads the booking
  * again until it is answered, slowly enough to leave the link's budget for a
  * change (`useManagedBooking`). Waiting is blue, never green (HANDOFF §3).
+ *
+ * A booking made without a verified number (2026-10-20) says so beside its
+ * status, is never offered "Change" — the server would refuse it — and says
+ * why instead: cancel and book again, or call. It gets no reminders, so the
+ * page says to keep the link.
  */
 export function ManageBookingRoute() {
   const { venueSlug, branchSlug, token } = useParams<{
@@ -323,6 +329,8 @@ function ManagePage({
   // Booking times: the promise made when booking, because another follows.
   const promise = promisedFreeByCopy(booking.promisedFreeByUtc, zone, locale);
   const declinedBody = declinedCopy(booking.declinedBecause, 'body');
+  const why = pendingReasonCopy(booking);
+  const unproved = booking.phoneUnverified === true;
   const hasBranch = Boolean(booking.venueSlug && booking.branchSlug);
   const branchPath = langPath(`/${booking.venueSlug}/${booking.branchSlug}`);
 
@@ -334,6 +342,8 @@ function ManagePage({
   const canChange =
     live &&
     !locked &&
+    // The server's own word: false for every booking without a verified number.
+    booking.canChange !== false &&
     branch !== null &&
     branch.acceptsWebBookings &&
     Boolean(booking.reservationId && booking.tableId) &&
@@ -412,10 +422,19 @@ function ManagePage({
       <h1 className="display" ref={headingRef} tabIndex={-1}>
         {headingOf(booking, t)}
       </h1>
-      <p className={`pub-badge ${badge.tone}`}>
-        <i aria-hidden="true" />
-        {t(badge.key)}
-      </p>
+      <div className="pub-badges">
+        <p className={`pub-badge ${badge.tone}`}>
+          <i aria-hidden="true" />
+          {t(badge.key)}
+        </p>
+        {/* Needs attention, not a failure: amber (HANDOFF §3). */}
+        {unproved ? (
+          <p className="pub-badge is-amber">
+            <i aria-hidden="true" />
+            {t('manage.badge.unverified')}
+          </p>
+        ) : null}
+      </div>
       {stale}
 
       {said ? (
@@ -461,18 +480,8 @@ function ManagePage({
 
       {view === 'pending' ? (
         <div className="pub-notice pub-notice-wait">
-          <p>
-            {booking.awaitingApprovalBecause === 'earlierGuestConsent'
-              ? // The venue rings a guest before who cannot answer in the app.
-                td(
-                  booking.awaitsEarlierGuestAnswer === false
-                    ? 'booking.approval.venueAsksEarlierGuest'
-                    : 'table.requestable.earlierGuest',
-                )
-              : booking.approvalExpiresAtUtc
-                ? td('booking.approval.why')
-                : td('success.pendingBody')}
-          </p>
+          {/* Why it waits: short notice, the guest before, no verified number. */}
+          <p>{td(why.key, why.params)}</p>
           {answer ? (
             <p
               className={`pub-answer${countdown?.urgent ? ' is-urgent' : ''}`}
@@ -514,6 +523,13 @@ function ManagePage({
           {t('manage.changing.error.account')}
         </p>
       ) : null}
+      {/* No "Change" for this booking, and why — said rather than a button gone missing. */}
+      {live && !locked && booking.canChange === false ? (
+        <p className="pub-muted">
+          {unproved ? t('manage.changeUnverified') : t('manage.changing.error.account')}
+        </p>
+      ) : null}
+      {live && unproved ? <p className="pub-muted">{t('manage.noReminders')}</p> : null}
 
       {confirming && booking.canCancel ? (
         <section

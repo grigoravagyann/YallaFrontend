@@ -40,28 +40,18 @@ describe('booking with an unconfirmed number', () => {
     channel: 'app' as const,
   };
 
-  it('is refused until the code confirms the number, and then goes on to the booking rules', async () => {
+  it('books without the code since 2026-10-20, but keeps "I\'m at my table" behind it', async () => {
     const gateway = createMockGateway();
     await gateway.registerDiner(FORM);
 
-    const refused = await caught(gateway.createBooking(BOOKING));
-    expect(refused.name).toBe('PhoneNotVerifiedError');
-    expect(refused['status']).toBe(403);
+    // No 403 any more: past the gate, the unknown branch is what answers.
+    const booked = await caught(gateway.createBooking(BOOKING));
+    expect(booked.name).not.toBe('PhoneNotVerifiedError');
+    expect(booked['status']).toBe(404);
 
+    // Opening a tab from a booking still needs the number proved.
     const tab = await caught(gateway.openTabByBooking({ bookingCode: 'ABC123' } as never));
     expect(tab.name).toBe('PhoneNotVerifiedError');
-
-    const challenge = await gateway.requestPhoneCode(FORM.phoneE164);
-    await gateway.verifyPhoneCode({
-      challengeId: challenge.challengeId,
-      code: challenge.devCode ?? '123456',
-    });
-
-    // Past the gate: now the unknown branch is what answers.
-    const next = await caught(
-      gateway.createBooking({ ...BOOKING, commandId: 'a7349047-a625-4c20-85ee-7ccefc6c2ea1' }),
-    );
-    expect(next.name).not.toBe('PhoneNotVerifiedError');
   });
 });
 

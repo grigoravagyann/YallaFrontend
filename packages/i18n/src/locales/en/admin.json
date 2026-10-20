@@ -1028,6 +1028,10 @@
       "money": {
         "title": "What goes on the bill",
         "body": "Both of these are visible to every guest."
+      },
+      "unverified": {
+        "title": "Guests without a verified number",
+        "body": "Anyone can book from your page without proving their number. These limit what such a booking can be. Guests who verified with Telegram are not affected."
       }
     },
     "field": {
@@ -1086,6 +1090,18 @@
       "pricesIncludeVat": {
         "label": "Prices include VAT",
         "why": "Affects only how the bill is presented."
+      },
+      "unverifiedBookingsNeedApproval": {
+        "label": "Confirm bookings without a verified number yourself",
+        "why": "When it is on, a booking made without a verified number waits for you, and the guest is told the venue will confirm it."
+      },
+      "unverifiedMaxPartySize": {
+        "label": "Largest party without a verified number",
+        "why": "A larger party has to verify its number first, so a stranger cannot block a room with a booking nobody will come to. 0 means no bookings without a verified number at all."
+      },
+      "unverifiedScansNeedAdmission": {
+        "label": "Unverified scans wait for a waiter",
+        "why": "When it is on, a table that scans the QR code without a verified number can read the menu but orders only after a waiter lets it. Turn it off only while your tablets cannot do that yet."
       }
     },
     "sub": "{{branch}} · How bookings fit onto tables, and when your decision is needed. Changes apply to future bookings only.",
@@ -1118,10 +1134,17 @@
       "lateness_other": "At {{nudgeAt}}: “On your way? The table is held until {{heldUntil}}” · the “On our way” button adds {{count}} more minutes",
       "approvalAbove_one": "Bookings of up to {{count}} person are confirmed at once; larger ones wait for you",
       "approvalAbove_other": "Bookings of up to {{count}} people are confirmed at once; larger ones wait for you",
-      "approvalAll": "Every booking is confirmed at once",
+      "approvalAll": "Every booking with a verified number is confirmed at once",
       "approvalManual": "Every booking waits for your decision",
       "serviceCharge": "A separate line on the bill: “Service {{percent}} %”",
-      "noServiceCharge": "No service charge is added"
+      "noServiceCharge": "No service charge is added",
+      "unverifiedApproved_one": "Without a verified number, up to {{count}} person; the booking waits for you.",
+      "unverifiedApproved_other": "Without a verified number, up to {{count}} people; the booking waits for you.",
+      "unverifiedConfirmed_one": "Without a verified number, up to {{count}} person; the booking is confirmed as usual.",
+      "unverifiedConfirmed_other": "Without a verified number, up to {{count}} people; the booking is confirmed as usual.",
+      "unverifiedScanWaits": "A table that scans without one orders once a waiter lets it.",
+      "unverifiedScanOrders": "A table that scans without one orders at once.",
+      "unverifiedOff": "No bookings without a verified number."
     },
     "result": {
       "affectedTitle_one": "{{count}} existing booking no longer fits the new rules.",
@@ -1501,7 +1524,8 @@
       "noShowHistory": "No-show history",
       "shortNotice": "Short notice",
       "unknown": "Needs a decision",
-      "earlierGuestConsent": "Asking the guest before"
+      "earlierGuestConsent": "Asking the guest before",
+      "unverifiedPhone": "Number not verified"
     },
     "leftToAnswer": "{{time}} left to answer",
     "timeUp": "Time is up. The diner is being told the venue could not confirm.",
@@ -1520,7 +1544,8 @@
     "minutesLeft_other": "{{count}} minutes left",
     "dismiss": "Got it",
     "approved": "{{name}}'s booking is confirmed · the guest will be notified",
-    "declined": "{{name}}'s booking was declined"
+    "declined": "{{name}}'s booking was declined",
+    "unverified": "number not verified"
   },
   "onboarding": {
     "steps": {

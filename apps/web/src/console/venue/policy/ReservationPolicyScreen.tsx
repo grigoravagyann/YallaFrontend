@@ -604,6 +604,22 @@ export function groupExample(
       return policy.approvalRequiredAbovePartySize === null
         ? t('policy.example.approvalAll')
         : t('policy.example.approvalAbove', { count: policy.approvalRequiredAbovePartySize });
+    case 'unverified': {
+      // A cap of 0 switches bookings without a verified number off altogether.
+      const booking =
+        policy.unverifiedMaxPartySize === 0
+          ? t('policy.example.unverifiedOff')
+          : policy.unverifiedBookingsNeedApproval === true
+            ? t('policy.example.unverifiedApproved', { count: n(policy.unverifiedMaxPartySize) })
+            : t('policy.example.unverifiedConfirmed', {
+                count: n(policy.unverifiedMaxPartySize),
+              });
+      const scan =
+        policy.unverifiedScansNeedAdmission === false
+          ? t('policy.example.unverifiedScanOrders')
+          : t('policy.example.unverifiedScanWaits');
+      return `${booking} ${scan}`;
+    }
     case 'money':
       return n(policy.serviceChargePercent) > 0
         ? t('policy.example.serviceCharge', { percent: policy.serviceChargePercent })

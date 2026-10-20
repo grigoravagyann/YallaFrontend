@@ -4,6 +4,8 @@ import type {
   PublicPageMeta,
   PublicVenue,
   RescheduleManagedBookingCommand,
+  UnverifiedBookingCommand,
+  UnverifiedBookingResult,
 } from './contracts/publicBranch';
 
 /**
@@ -127,4 +129,22 @@ export interface PublicGateway {
    * table that is gone, which a fresh read of the link tells apart.
    */
   rescheduleManagedBooking(command: RescheduleManagedBookingCommand): Promise<ManagedBooking>;
+
+  /**
+   * Book without proving the number — `POST /api/public/branches/{branchId}/bookings`
+   * (2026-10-20). Anonymous; the booking says `phoneUnverified`, waits for the
+   * venue when the branch approves such bookings first (`unverifiedPhone`), is
+   * never sent a reminder, and its link cancels but never changes it.
+   *
+   * Store `manageToken` before anything else: only the first answer has it.
+   *
+   * Refusals: `PhoneHasActiveBookingError` (naming nothing here),
+   * `DeviceHasActiveBookingError`, `UnverifiedPartyTooLargeError` (offer to
+   * verify), `RateLimitedError`-shaped 429 as the client maps it, and the
+   * booking sheet's own — `TableTakenError`, `FreeByRequiredError`,
+   * `BookingRejectedError`, `LeadTimeExceededError`, `BookingsNotAcceptedError`,
+   * `BookingCommandInUseError`, `BookingBusyError` (retry with the same id).
+   * A `ValidationError` naming `guestPhone` when the number is not one.
+   */
+  createUnverifiedBooking(command: UnverifiedBookingCommand): Promise<UnverifiedBookingResult>;
 }

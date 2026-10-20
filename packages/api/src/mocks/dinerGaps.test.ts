@@ -10,7 +10,7 @@ import { NotFoundError, ValidationError } from '../errors';
 import type { YallaGateway } from '../gateway';
 import { SEEDED_ACCOUNT } from './accounts';
 import { percentOf } from './billing';
-import { createMockGateway } from './mockGateway';
+import { createMockGateway, type MockGateway } from './mockGateway';
 import { publicBranchFixtures } from './publicVenues';
 import { createStaffMockGateway } from './staffMock';
 import { mockTableCode } from './tableCodes';
@@ -483,11 +483,13 @@ describe('changing a booking', () => {
 // --- The tab: a bill request, faces --------------------------------------------------------
 
 /** A tab on a free table, this device its host, with one item ordered. */
-async function tabWithAnItem(gateway: YallaGateway) {
+async function tabWithAnItem(gateway: MockGateway) {
   const scan = await gateway.scanTableCode({
     tableCode: mockTableCode(`${NORTH}-t1`),
     commandId: crypto.randomUUID(),
   });
+  // Scanned with no proved number: a waiter lets the table order.
+  gateway.admitTabAsWaiter(scan.tab.tabId);
   const tab = scan.tab;
   const menu = await gateway.getBranchMenuDetail(tab.branchId);
   const item = menu!.categories[0]!.items[0]!;
@@ -553,6 +555,8 @@ describe('asking for the bill with a tip', () => {
       tableCode: mockTableCode(`${NORTH}-t2`),
       commandId: crypto.randomUUID(),
     });
+    // Scanned with no proved number: a waiter lets the table order.
+    gateway.admitTabAsWaiter(scan.tab.tabId);
     const ask = (reason: 'bill' | 'water', tipPercent: number) =>
       caught(
         gateway.callWaiter({

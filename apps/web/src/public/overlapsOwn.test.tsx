@@ -35,7 +35,9 @@ afterEach(cleanup);
 
 describe('a second booking that overlaps the visitor’s own', () => {
   it('names the booking already held, and keeps the visitor on the sheet', async () => {
-    const harness = createHarness({ floorApprovesAtOnce: true });
+    // Two of her own: from before one number, one active booking, which
+    // answers first for any new pair (2026-10-20).
+    const harness = createHarness({ floorApprovesAtOnce: true, bookingsBeforeTheNumberRule: true });
     const branch = (await harness.publicGateway.resolveBranch({
       venueSlug: VENUE,
       branchSlug: BRANCH,
@@ -119,7 +121,9 @@ describe('a second booking that overlaps the visitor’s own', () => {
   });
 
   it('says the day too when the booking in the way is on another one', async () => {
-    const harness = createHarness({ floorApprovesAtOnce: true });
+    // Two of her own: from before one number, one active booking, which
+    // answers first for any new pair (2026-10-20).
+    const harness = createHarness({ floorApprovesAtOnce: true, bookingsBeforeTheNumberRule: true });
     const branch = (await harness.publicGateway.resolveBranch({
       venueSlug: VENUE,
       branchSlug: BRANCH,

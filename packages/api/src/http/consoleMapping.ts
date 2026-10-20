@@ -278,6 +278,7 @@ export function consoleBookingFromWire(view: WireReservationWithApproval): Conso
     approvalExpiresAtUtc: approvalExpiry(view.approvalExpiresAtUtc),
     awaitsEarlierGuestAnswer: awaitsEarlierGuestAnswer(view),
     note: view.note ?? null,
+    phoneUnverified: view.phoneUnverified === true,
   };
 }
 

@@ -1133,6 +1133,70 @@ review every string in `src/locales/hy` and `src/locales/ru`.**
   `booking.tonight` («Այս գիշեր», «Сегодня ночью», "Tonight") names the first
   chip while last night's block is still open past midnight — the backend's
   service day — so the calendar's day keeps "Today".
+- `staff` and `admin` — unverified guests, part A (2026-10-20), **not** in an
+  artboard and **not** reviewed. `staff`: `admission.*` — the "Now" rail's
+  section for tables that scanned with no verified number (`title`,
+  `unverified` «համարը չհաստատված» — also the badge on a booking made without
+  one, on the floor card, the table panel and a request card — `scanned_*`,
+  `scannedJustNow`, `host`, `phones_*`, `admit` «Թույլատրել», `reject`
+  «Մերժել»), Reject's question (`confirmTitle` «Սեղան {{label}}․ ոչ ոք չկա՞» —
+  no suffix on the label; `confirmFrees`, `confirmKeeps`, `confirmMayFree`:
+  freeing the table is said only when the scan seated it; `confirmReject`),
+  `needsOnline`, `decidedElsewhere`, `failed`, `unreachable` (not the same
+  sentence as nobody waiting), the table panel's `panelTitle` and `why`, and
+  the notices `admittedNotice`, `rejectedFreedNotice`, `rejectedNotice`;
+  `floor.card.awaitingAdmission` (short: it shares a card line, «պետք է
+  թույլատրել»); `approvals.because.unverifiedPhone`. `admin`:
+  `approvals.because.unverifiedPhone`, `approvals.unverified` (beside another
+  reason), and the Policy screen's group `policy.group.unverified.*`, fields
+  `policy.field.unverifiedBookingsNeedApproval.*` and
+  `policy.field.unverifiedMaxPartySize.*`, and the guest's view
+  `policy.example.unverifiedApproved_*` / `unverifiedConfirmed_*`. The group
+  must keep saying Telegram-verified guests are not affected. Added with the
+  backend's review round (same day): `admission.hasOrders` (a reject refused
+  because orders were keyed: somebody is there, admit instead), the third
+  switch `policy.field.unverifiedScansNeedAdmission.*` (its why must keep
+  saying it is switched off only while the tablets cannot admit yet) and its
+  guest's view `policy.example.unverifiedScanWaits` / `unverifiedScanOrders`.
+- `public` and `diner` — unverified guests, part B (2026-10-20), **not** in an
+  artboard and **not** reviewed. `public`: the Book sheet's way without proof —
+  `sheet.phone.withoutProof` «Շարունակել առանց հաստատելու», the line before it
+  `sheet.unverified.offer` / `.offerNoApproval` (must keep all three facts: the
+  venue may confirm first — or, where it does not, that the booking cannot be
+  changed online — Telegram is instant, and the party cap `{{max}}`, said as
+  "parties of up to" / «մինչև … հոգու» / «до … человек» so no plural is
+  needed), `.tooMany` (over the cap: no button, Telegram for more), the name
+  step's `.note` / `.noteNoApproval`, `.phoneHint`, `.badPhone`,
+  `.verifyInstead` (beside a refusal proving the number lifts);
+  `sheet.done.unverifiedLinkHint` (must keep saying no reminders are sent and
+  that the link is how to cancel) and `.unverifiedNoLink`; the manage link's
+  `manage.badge.unverified`, `manage.changeUnverified` (cancel and book again,
+  or call) and `manage.noReminders`. `diner` (also read by the web page through
+  `bookingFailure`): `confirm.error.phoneHasBookingHeld` (names the caller's own
+  booking only), `.phoneHasBooking` (names nothing), `.phoneHasBookingVerify`
+  (an unproved account: proving the number lifts a stranger's booking),
+  `.deviceHasBooking`, `.unverifiedPartyTooLarge`, `.unverifiedQueueFull`,
+  `.rateLimited`; `confirm.unverifiedNote`; `booking.approval.unverifiedWhy`;
+  `success.unverifiedNudge`; `bookings.madeWithYourNumber.*` (made with the
+  account's number, not by it — the cancel body must say the venue will see the
+  owner disowned it); the scanned tab waiting for a waiter
+  `order.blocked.awaitingAdmission` (hy «Մատուցողը շուտով կհաստատի Ձեր սեղանը…»:
+  must keep that the menu and calling a waiter work meanwhile),
+  `tab.admission.*` (waiting title, the let-in notice, the turned-away screen and
+  its way home), `tab.pay.awaitingAdmission`, `scan.error.turnedAway`.
+  Review round (same day): hy names the venue «վայրը» throughout, as the rest of
+  the app does (never «հաստատությունը»), and no sentence stacks «հաստատ…» three
+  times — "the venue confirms" became «որոշում է վայրը», "confirmed at once"
+  «ընդունվում է անմիջապես». New: public `sheet.unverified.tooManyNoTelegram`
+  (over the cap where Telegram is off) and `.openYours` (the booking this page
+  made); diner `confirm.error.tooManyRequests` (the general 429 — the
+  per-network sentence is for bookings without proof only),
+  `confirm.error.unverifiedOff` (a branch whose cap is 0), and
+  `booking.atTable.unverified` (scan the code instead); staff
+  `admission.confirmHeld` / `.rejectedHeldNotice` (the table goes back to the late
+  party it was held for), `.admitTable` / `.rejectTable` (button names with the
+  table), `.tableChanged`; admin `policy.example.approvalAll` now says "with a
+  verified number", `policy.example.unverifiedOff`, and the cap's why explains 0.
 
 The Russian bundle carries four plural categories (`one`/`few`/`many`/`other`)
 where Armenian and English carry two. That is correct CLDR, not duplication, and

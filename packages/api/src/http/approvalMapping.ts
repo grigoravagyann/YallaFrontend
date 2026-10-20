@@ -33,8 +33,7 @@ export type WireReservationWithApproval = ReservationView & WireApprovalFields;
 
 /**
  * `ApprovalTrigger`: 1 BranchApprovesEveryBooking, 2 LargeParty,
- * 3 NoShowHistory, 4 ShortNotice, 5 EarlierGuestConsent (booking times, ahead
- * of the generated schema).
+ * 3 NoShowHistory, 4 ShortNotice, 5 EarlierGuestConsent, 6 UnverifiedPhone.
  */
 const APPROVAL_TRIGGER: Readonly<Record<number, ApprovalTrigger>> = {
   1: 'branchApprovesEveryBooking',
@@ -42,6 +41,7 @@ const APPROVAL_TRIGGER: Readonly<Record<number, ApprovalTrigger>> = {
   3: 'noShowHistory',
   4: 'shortNotice',
   5: 'earlierGuestConsent',
+  6: 'unverifiedPhone',
 };
 
 export function approvalTrigger(value: number | null | undefined): ApprovalTrigger | null {

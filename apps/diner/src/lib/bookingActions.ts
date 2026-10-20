@@ -29,9 +29,12 @@ export function canCancel(status: BookingStatus): boolean {
  * screen does not offer it.
  */
 export function canKeepTable(
-  booking: Pick<Booking, 'status' | 'slotUtc' | 'endUtc'>,
+  booking: Pick<Booking, 'status' | 'slotUtc' | 'endUtc' | 'phoneUnverified'>,
   now: Date,
 ): boolean {
+  // Made without a proved number: the server refuses it until the number is
+  // proved (UG wire §2), so it is not offered.
+  if (booking.phoneUnverified === true) return false;
   const t = now.getTime();
   return (
     booking.status === 'confirmed' &&
@@ -60,6 +63,21 @@ export function canOpenTabForBooking(
 ): boolean {
   if (booking.status === 'seated') return true;
   return booking.status === 'confirmed' && now.getTime() < Date.parse(booking.endUtc);
+}
+
+/**
+ * What "I'm at my table" offers on this booking: the button (`open`), or —
+ * for a booking made without a proved number, whose tab the server will not
+ * open from the booking until the number is proved — the way that works
+ * instead, scanning the code on the table (`scanInstead`). `null` when the
+ * booking holds no table to sit at.
+ */
+export function atTableOffer(
+  booking: Pick<Booking, 'status' | 'endUtc' | 'phoneUnverified'>,
+  now: Date,
+): 'open' | 'scanInstead' | null {
+  if (!canOpenTabForBooking(booking, now)) return null;
+  return booking.phoneUnverified === true ? 'scanInstead' : 'open';
 }
 
 /** Each refusal of "keep my table", as its own sentence. */

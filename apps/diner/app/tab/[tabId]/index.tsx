@@ -3,7 +3,7 @@ import { HostCannotLeaveError, type DinerTabView } from '@yalla/api';
 import { formatDram, formatTime } from '@yalla/format';
 import { useLocale, useTranslation } from '@yalla/i18n';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Animated, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { Badge } from '../../../src/components/Badge';
 import { Button } from '../../../src/components/Button';
@@ -13,6 +13,7 @@ import { ConfirmSheet } from '../../../src/components/ConfirmSheet';
 import { IconButton } from '../../../src/components/IconButton';
 import { LiveBill } from '../../../src/components/LiveBill';
 import { Rise, riseDelay } from '../../../src/components/motion/Rise';
+import { useToast } from '../../../src/components/motion/Toast';
 import { SuccessMark } from '../../../src/components/motion/SuccessMark';
 import { usePressScale } from '../../../src/components/motion/usePressScale';
 import {
@@ -31,6 +32,7 @@ import { haptics } from '../../../src/lib/haptics';
 import { useTray } from '../../../src/order/TrayProvider';
 import { useActiveTab } from '../../../src/stores/tab';
 import { tabAccessCopy } from '../../../src/tab/access';
+import { admissionState, justAdmitted, type AdmissionState } from '../../../src/tab/admission';
 import { tabAccessGone } from '../../../src/tab/billRequest';
 import { canInvite } from '../../../src/tab/invite';
 import { orderingBlock, orderingBlockKey } from '../../../src/tab/ordering';
@@ -69,6 +71,12 @@ const POLL_MS = 8_000;
  * Everything here is read from the diner's own tab read (`GET /api/tabs/{id}`
  * with this phone's participant token): who is on the tab, the bill, and
  * whether this person can order right now.
+ *
+ * A tab a scan opened with no proved number waits for a waiter first
+ * (2026-10-20): the screen says a waiter is coming, the menu stays readable
+ * and a waiter callable, ordering and the bill wait. Let in, it says so once
+ * and ordering opens; turned away, the tab is closed and the screen says so
+ * plainly, with the way home — never the paid receipt.
  */
 export default function TabScreen() {
   const { t } = useTranslation('diner');
@@ -82,6 +90,7 @@ export default function TabScreen() {
   const [payOpen, setPayOpen] = useState(false);
   const [leaveOpen, setLeaveOpen] = useState(false);
   const [leaveError, setLeaveError] = useState<string | null>(null);
+  const showToast = useToast((state) => state.show);
 
   // Polling alongside the event stream, which refetches this same read when
   // somebody asks to join or the roster moves: the poll is what still lands
@@ -102,6 +111,21 @@ export default function TabScreen() {
   const { state: tray } = useTray();
 
   const lost = tabAccessCopy(error);
+  const admission = view ? admissionState(view) : null;
+  /*
+   * Let in by a waiter while this screen watched: said once, with a little
+   * lift. Read from the tab as it changes — the stream's event 21 refetches
+   * it, the poll is the backstop — so it is said whichever brings the news.
+   */
+  const lastAdmission = useRef<AdmissionState | null>(null);
+  useEffect(() => {
+    if (!admission) return;
+    if (justAdmitted(lastAdmission.current, admission)) {
+      haptics.success();
+      showToast(t('tab.admission.admitted'), 'restaurant-outline');
+    }
+    lastAdmission.current = admission;
+  }, [admission, showToast, t]);
   const over =
     lost !== null ||
     view?.me.status === 'removed' ||
@@ -215,6 +239,31 @@ export default function TabScreen() {
     );
   }
 
+  // Turned away by a waiter: closed, and nothing was ever ordered on it. A
+  // clear word and the way home, never the paid receipt.
+  if (admission === 'rejected') {
+    return (
+      <Shell>
+        <View style={styles.centered}>
+          <View style={styles.rejectedMark}>
+            <Ionicons name="close" size={iconSize.xl} color={colors.errorInk} />
+          </View>
+          <Text display style={styles.emptyTitle} accessibilityRole="header">
+            {t('tab.admission.rejectedTitle')}
+          </Text>
+          <Text style={styles.muted}>{t('tab.admission.rejectedBody')}</Text>
+          <Button
+            label={t('tab.admission.home')}
+            onPress={() => {
+              clearActive();
+              router.replace('/');
+            }}
+          />
+        </View>
+      </Shell>
+    );
+  }
+
   // Settled and closed by staff: the receipt, and a way to say how it was.
   if (view.status === 'closed') {
     return <PaidView view={view} onDone={() => router.replace('/')} />;
@@ -233,6 +282,7 @@ export default function TabScreen() {
   }
 
   const block = orderingBlock(view);
+  const awaiting = admission === 'awaiting';
   const goTo = (screen: 'invite' | 'people' | 'menu' | 'settle') =>
     router.push({ pathname: `/tab/[tabId]/${screen}`, params: { tabId: view.tabId } });
 
@@ -309,6 +359,23 @@ export default function TabScreen() {
           </Card>
         </Rise>
 
+        {/* Not let in yet: a waiter is coming. The menu and a call work meanwhile. */}
+        {awaiting ? (
+          <Rise delay={riseDelay(1)}>
+            <View style={styles.awaiting} accessibilityRole="summary">
+              <View style={styles.awaitingMark}>
+                <Ionicons name="hourglass-outline" size={iconSize.md} color={colors.infoInk} />
+              </View>
+              <View style={styles.awaitingText}>
+                <Text style={styles.awaitingTitle} accessibilityRole="header">
+                  {t('tab.admission.waitingTitle')}
+                </Text>
+                <Text style={styles.awaitingBody}>{t('order.blocked.awaitingAdmission')}</Text>
+              </View>
+            </View>
+          </Rise>
+        ) : null}
+
         {/* Somebody the tab only knows as "Guest 2" is offered a name, once. */}
         <TabNamePrompt tabId={view.tabId} currentName={view.me.displayName} />
 
@@ -360,10 +427,18 @@ export default function TabScreen() {
                 onPress={() => setPayOpen(true)}
               />
             ) : (
-              <ActionButton label={t('tab.settle')} tone="brand" onPress={() => setPayOpen(true)} />
+              <ActionButton
+                label={t('tab.settle')}
+                tone="brand"
+                // No bill before a waiter has let the table in: said above.
+                disabled={awaiting}
+                onPress={() => setPayOpen(true)}
+              />
             )}
           </View>
-          {block ? <Text style={styles.blocked}>{t(orderingBlockKey(block))}</Text> : null}
+          {block && !awaiting ? (
+            <Text style={styles.blocked}>{t(orderingBlockKey(block))}</Text>
+          ) : null}
         </Rise>
 
         <View style={styles.quiet}>
@@ -430,12 +505,14 @@ function ActionButton({
   tone,
   onPress,
   accessibilityLabel,
+  disabled = false,
 }: {
   readonly label: string;
   readonly icon?: IoniconName;
   readonly tone: 'glass' | 'brand' | 'success' | 'calm';
   readonly onPress: () => void;
   readonly accessibilityLabel?: string;
+  readonly disabled?: boolean;
 }) {
   const press = usePressScale();
   const ink =
@@ -452,6 +529,8 @@ function ActionButton({
       <Pressable
         accessibilityRole="button"
         accessibilityLabel={accessibilityLabel ?? label}
+        accessibilityState={{ disabled }}
+        disabled={disabled}
         onPress={onPress}
         onPressIn={press.onPressIn}
         onPressOut={press.onPressOut}
@@ -462,6 +541,7 @@ function ActionButton({
           tone === 'success' && styles.actionSuccess,
           pressed && glass && styles.actionGlassPressed,
           pressed && tone === 'brand' && styles.actionBrandPressed,
+          disabled && styles.actionDisabled,
         ]}
       >
         {icon ? <Ionicons name={icon} size={iconSize.sm + 1} color={ink} /> : null}
@@ -722,6 +802,36 @@ const styles = StyleSheet.create({
   },
   actionBrandPressed: { backgroundColor: colors.brandPressed },
   actionSuccess: { backgroundColor: colors.successStrong },
+  actionDisabled: { opacity: 0.45 },
+
+  awaiting: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: space.md,
+    padding: space.md,
+    borderRadius: radius.card,
+    backgroundColor: colors.infoSoft,
+  },
+  awaitingMark: {
+    width: layout.touchTarget,
+    height: layout.touchTarget,
+    borderRadius: radius.pill,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.surface,
+  },
+  awaitingText: { flex: 1, minWidth: 0, gap: space.xs },
+  awaitingTitle: { ...typography.body, fontWeight: fontWeight.bold, color: colors.text },
+  awaitingBody: { ...typography.body, color: colors.text },
+  rejectedMark: {
+    width: 64,
+    height: 64,
+    borderRadius: radius.pill,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.errorSoft,
+    marginBottom: space.sm,
+  },
   actionLabel: { ...typography.body, fontWeight: fontWeight.medium, flexShrink: 1 },
   actionLabelStrong: { fontWeight: fontWeight.bold },
   blocked: { ...typography.body, color: colors.textMuted, textAlign: 'center' },

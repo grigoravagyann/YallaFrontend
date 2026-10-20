@@ -44,6 +44,12 @@ export interface TableCardText {
    * rather than reading it as one still to come (live QA 2026-10-19).
    */
   readonly late?: boolean;
+  /**
+   * Something about the people rather than the table, in amber beside the
+   * state: a scan's tab waiting to be let in, or the booking made without a
+   * verified number (2026-10-20). Null or absent when there is nothing.
+   */
+  readonly flag?: string | null;
 }
 
 export interface TableCardInput {
@@ -65,6 +71,26 @@ export interface TableCardInput {
  * a tab's balance are not on the floor, so the card says what is.
  */
 export function tableCardText({
+  table,
+  detail,
+  debt,
+  now,
+  t,
+  time,
+  minutesSince,
+}: TableCardInput): TableCardText {
+  const card = cardText({ table, detail, debt, now, t, time, minutesSince });
+  const flag =
+    table.state === 'occupied' && detail?.openTabAwaitingAdmission
+      ? t('floor.card.awaitingAdmission')
+      : (table.state === 'reservedSoon' || table.state === 'held') &&
+          detail?.nextReservationPhoneUnverified
+        ? t('admission.unverified')
+        : null;
+  return flag ? { ...card, flag } : card;
+}
+
+function cardText({
   table,
   detail,
   debt,

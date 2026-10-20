@@ -1,4 +1,5 @@
 import type { components } from '../generated/schema';
+import { admissionFromWire, floorChangeSignal } from './admissionMapping';
 import type {
   AffectedReservation,
   PreconditionFailure,
@@ -240,6 +241,8 @@ const TAB_EVENT_TYPES: readonly TabEventType[] = [
   'tabClosing',
   'tabClosed',
   'tabAbandoned',
+  'tabAdmitted',
+  'tabAdmissionRejected',
 ];
 
 // --- Floor ------------------------------------------------------------------
@@ -275,6 +278,9 @@ export function staffFloorDetails(state: FloorState): readonly StaffTableDetail[
       // and the party sitting now.
       nextReservationPromisedFreeByUtc: instantOrNull(table.nextReservationPromisedFreeByUtc),
       sittingPromisedFreeByUtc: instantOrNull(table.sittingPromisedFreeByUtc),
+      // Unverified guests: a badge on the next booking, Admit / Reject on the tab.
+      nextReservationPhoneUnverified: table.nextReservationPhoneUnverified === true,
+      openTabAwaitingAdmission: table.openTabAwaitingAdmission === true,
     }),
   );
 }
@@ -406,6 +412,8 @@ export function floorChangePage(page: ChangePage): FloorChangePage {
       actor: ACTOR[change.actorType] ?? 'system',
       actorId: change.actorId ?? null,
       reason: change.reason,
+      tabId: change.tabId ?? null,
+      signal: floorChangeSignal(change.signal),
     })),
   };
 }
@@ -773,6 +781,7 @@ export function staffTabFromView(view: StaffView, baseUrl: string): StaffTab {
     linesKnown: true,
     adjustments: (view.adjustments ?? []).map(staffTabAdjustment),
     adjustmentsKnown: true,
+    admission: admissionFromWire(view.admission),
   };
 }
 

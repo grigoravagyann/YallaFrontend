@@ -15,7 +15,14 @@ import {
   PaymentExceedsRemainingError,
   ReservationNotStartedError,
   TableNotSeatedError,
+  TabAdmissionDecidedError,
 } from '../contracts/errors';
+import {
+  ADMITTED,
+  type FloorChangeSignal,
+  type TabAdmission,
+  type TabAwaitingAdmission,
+} from '../contracts/admission';
 import type {
   AffectedReservation,
   StaffFloor,
@@ -159,6 +166,14 @@ export interface StaffMockOptions {
    */
   readonly seedKitchen?: boolean;
   /**
+   * Unverified guests on the floor (2026-10-20): two tables a scan seated with
+   * no proved number, waiting for a waiter to let them order — table 8 six
+   * minutes ago, table 5 two — and a booking made without a verified number
+   * among the requests, at a branch that approves those first. For mock mode
+   * and for the admission tests; off otherwise.
+   */
+  readonly seedUnverifiedGuests?: boolean;
+  /**
    * Whether a staff session is signed in now. When given, every staff read
    * and write answers 401 without one, as the server does with no token — so
    * a test can see a request that went out under the PIN gate (FT4 review S6).
@@ -236,6 +251,10 @@ interface MockTab {
   settlementModeLocked: boolean;
   sequence: number;
   readonly events: TabEvent[];
+  /** Whether the table may order yet: a scan with no proved number waits for a waiter. */
+  admission: TabAdmission;
+  /** The scan itself seated the table: rejecting the tab frees it. */
+  readonly seatedByScan: boolean;
 }
 
 interface MockReservation {
@@ -247,6 +266,8 @@ interface MockReservation {
   readonly partySize: number;
   readonly startUtc: string;
   released: boolean;
+  /** Booked without a proved number: "number not verified" on the floor. */
+  readonly phoneUnverified?: boolean;
 }
 
 /**
@@ -281,6 +302,8 @@ interface MockAwaiting {
    * never the floor's to decide. Absent: the floor's.
    */
   readonly awaitsEarlierGuestAnswer?: boolean;
+  /** Booked without a proved number. */
+  readonly phoneUnverified?: boolean;
   status: 'pendingApproval' | 'confirmed' | 'cancelledByVenue';
   declinedBecause: DeclineReason | null;
   reason: string | null;
@@ -754,8 +777,67 @@ export function createStaffMockGateway(options: StaffMockOptions = {}): StaffGat
       settlementModeLocked: false,
       sequence: 1,
       events: [],
+      // The host scanned signed in with a proved number: let in on the spot.
+      admission: { ...ADMITTED, admittedBecause: 'verifiedHost', decidedAtUtc: iso(at) },
+      seatedByScan: false,
     };
     tabs.set(tab.id, tab);
+    return tab;
+  }
+
+  /**
+   * A table a scan seated with no proved number behind it: occupied by the
+   * scan, its tab waiting for a waiter. What a photographed QR code scanned
+   * from home looks like, and what a real party without a verified number
+   * looks like too — the waiter is the one who can tell them apart.
+   */
+  function seatByUnverifiedScan(
+    tableId: string,
+    at: Date,
+    people: readonly (string | null)[],
+  ): MockTab | null {
+    const state = tables.get(tableId);
+    if (!state || state.physicalStatus !== 'free') return null;
+    const participants = people.map((displayName, index): MockParticipant => ({
+      id: id('p'),
+      displayName,
+      isHost: index === 0,
+      status: 'approved',
+      photo: null,
+      paidDram: 0,
+    }));
+    const tab: MockTab = {
+      id: id('tab'),
+      tableId,
+      tableLabel: label(tableId),
+      status: 'open',
+      openedAtUtc: iso(at),
+      closedAtUtc: null,
+      paidDram: 0,
+      tipDram: 0,
+      lines: [],
+      adjustments: [],
+      participants,
+      hostParticipantId: participants[0]?.id ?? null,
+      settlementModeLocked: false,
+      sequence: 1,
+      events: [],
+      admission: {
+        status: 'awaiting',
+        admittedBecause: null,
+        decidedAtUtc: null,
+        decidedByStaffId: null,
+        tableFreed: null,
+      },
+      seatedByScan: true,
+    };
+    tabs.set(tab.id, tab);
+    state.physicalStatus = 'occupied';
+    state.sessionId = id('session');
+    state.seatedAtUtc = iso(at);
+    state.partySize = null;
+    state.tabId = tab.id;
+    state.version += 1;
     return tab;
   }
 
@@ -766,6 +848,39 @@ export function createStaffMockGateway(options: StaffMockOptions = {}): StaffGat
     const table = plan.tables.find((candidate) => candidate.id === tableId);
     const tab = openTab(tableId, table?.label ?? tableId, start);
     state.tabId = tab.id;
+  }
+
+  if (options.seedUnverifiedGuests) {
+    // Two phantom-or-real tables, oldest first on the rail.
+    seatByUnverifiedScan('t8', new Date(start.getTime() - 6 * 60_000), ['Արամ', null]);
+    seatByUnverifiedScan('t5', new Date(start.getTime() - 2 * 60_000), [null]);
+    // The booking nobody has turned up for was made without a verified number.
+    const late = tables.get('t6')?.nextReservationId;
+    const lateBooking = late ? reservations.get(late) : undefined;
+    if (lateBooking) reservations.set(lateBooking.id, { ...lateBooking, phoneUnverified: true });
+    // And a web booking without a verified number, waiting for the venue.
+    if (tables.has('t9')) {
+      awaiting.set('res-await-5', {
+        id: 'res-await-5',
+        code: 'Y3155',
+        tableId: 't9',
+        guestName: 'Էլեն Վարդանյան',
+        guestPhone: '+37498765432',
+        partySize: 4,
+        startUtc: minutesFrom(start, 180),
+        arrivesAtUtc: minutesFrom(start, -10),
+        // The sooner of a day after it was made and two hours before it starts.
+        approvalExpiresAtUtc: minutesFrom(start, 60),
+        because: 'unverifiedPhone',
+        phoneUnverified: true,
+        note: null,
+        previousBooking: null,
+        nextBooking: null,
+        status: 'pendingApproval',
+        declinedBecause: null,
+        reason: null,
+      });
+    }
   }
 
   const seededTab = [...tabs.values()][0];
@@ -1003,7 +1118,10 @@ export function createStaffMockGateway(options: StaffMockOptions = {}): StaffGat
         isHost: person.id === tab.hostParticipantId,
         status: person.status,
         canOrder: true,
-        canOrderNow: person.status === 'approved' && tab.status === 'open',
+        canOrderNow:
+          person.status === 'approved' &&
+          tab.status === 'open' &&
+          tab.admission.status !== 'awaiting',
         canSeeTableTotal: true,
         photo: person.photo,
       })),
@@ -1020,6 +1138,7 @@ export function createStaffMockGateway(options: StaffMockOptions = {}): StaffGat
       linesKnown: true,
       adjustments: [...tab.adjustments],
       adjustmentsKnown: true,
+      admission: tab.admission,
     };
   }
 
@@ -1036,7 +1155,16 @@ export function createStaffMockGateway(options: StaffMockOptions = {}): StaffGat
     }));
   }
 
-  function record(state: MockTableState, from: TableStatus, at: Date): void {
+  function record(
+    state: MockTableState,
+    from: TableStatus,
+    at: Date,
+    about?: {
+      readonly tabId: string;
+      readonly signal: FloorChangeSignal;
+      readonly reason?: string;
+    },
+  ): void {
     sequence += 1;
     changes.push({
       sequence,
@@ -1049,8 +1177,63 @@ export function createStaffMockGateway(options: StaffMockOptions = {}): StaffGat
       reservationId: state.nextReservationId,
       actor: 'staff',
       actorId: null,
-      reason: '',
+      reason: about?.reason ?? '',
+      ...(about ? { tabId: about.tabId, signal: about.signal } : {}),
     });
+  }
+
+  /** The id a waiter acts under in the mock: there is no signed-in person of its own. */
+  const MOCK_STAFF_ID = 'staff-mock-waiter';
+
+  /** Admission commands by command id: a retry answers the tab as it stands. */
+  const admissionCommands = new Map<string, { readonly kind: string; readonly tabId: string }>();
+
+  function admissionCommand(kind: 'admit' | 'reject', tabId: string, commandId: string): void {
+    const url = `/api/tabs/${tabId}/${kind}`;
+    if (!commandId) {
+      throw new ValidationError({
+        status: 400,
+        url,
+        problem: {
+          type: '',
+          title: 'Invalid request',
+          status: 400,
+          detail: 'clientCommandId is required.',
+          code: 'invalid-request',
+          traceId: 'mock',
+          context: { field: 'clientCommandId' },
+        },
+      });
+    }
+    const seen = admissionCommands.get(commandId);
+    if (seen && (seen.kind !== kind || seen.tabId !== tabId)) {
+      throw new ConcurrencyConflictError({
+        url,
+        problem: {
+          type: '',
+          title: 'Conflict',
+          status: 409,
+          detail: 'This command id was already used for another command.',
+          code: 'client-command-id-in-use',
+          traceId: 'mock',
+        },
+      });
+    }
+    admissionCommands.set(commandId, { kind, tabId });
+  }
+
+  /** Let a waiting tab order: a waiter's tap on Admit. */
+  function admit(tab: MockTab, because: 'waiter', at: Date): void {
+    tab.admission = {
+      status: 'admitted',
+      admittedBecause: because,
+      decidedAtUtc: iso(at),
+      decidedByStaffId: MOCK_STAFF_ID,
+      tableFreed: null,
+    };
+    pushEvent(tab, 'tabAdmitted', at);
+    const state = tables.get(tab.tableId);
+    if (state) record(state, state.physicalStatus, at, { tabId: tab.id, signal: 'tabAdmitted' });
   }
 
   function orderEntry(order: MockOrder): OrderQueueEntry {
@@ -1181,6 +1364,7 @@ export function createStaffMockGateway(options: StaffMockOptions = {}): StaffGat
       approvalExpiresAtUtc: pending ? request.approvalExpiresAtUtc : null,
       awaitsEarlierGuestAnswer: pending && request.awaitsEarlierGuestAnswer === true,
       note: request.note,
+      phoneUnverified: request.phoneUnverified === true,
     };
   }
 
@@ -1292,6 +1476,12 @@ export function createStaffMockGateway(options: StaffMockOptions = {}): StaffGat
           rowVersion: versionToken(table.id, state.version),
           nextReservationPromisedFreeByUtc: state.nextReservationPromisedFreeByUtc,
           sittingPromisedFreeByUtc: state.sittingPromisedFreeByUtc,
+          nextReservationPhoneUnverified:
+            (state.nextReservationId
+              ? reservations.get(state.nextReservationId)?.phoneUnverified
+              : undefined) === true,
+          openTabAwaitingAdmission:
+            state.tabId !== null && tabs.get(state.tabId)?.admission.status === 'awaiting',
         });
         return {
           ...table,
@@ -1648,6 +1838,7 @@ export function createStaffMockGateway(options: StaffMockOptions = {}): StaffGat
             ...localDateAndTime(request.startUtc, plan.timeZoneId),
             timeZoneId: plan.timeZoneId,
             note: request.note,
+            phoneUnverified: request.phoneUnverified === true,
             approvalExpiresAtUtc: request.approvalExpiresAtUtc,
             because: request.because,
             promisedFreeByUtc: request.promisedFreeByUtc ?? null,
@@ -1670,6 +1861,115 @@ export function createStaffMockGateway(options: StaffMockOptions = {}): StaffGat
     async rejectReservation(command): Promise<ConsoleBooking> {
       return settle(decideAwaiting(command, false));
     },
+
+    // --- Tables waiting to be let in ---------------------------------------
+
+    async listTabsAwaitingAdmission(): Promise<readonly TabAwaitingAdmission[]> {
+      requireSession(`/api/branches/${branchId}/tabs/awaiting-admission`);
+      return settle(
+        [...tabs.values()]
+          .filter((tab) => tab.status === 'open' && tab.admission.status === 'awaiting')
+          .sort((a, b) => a.openedAtUtc.localeCompare(b.openedAtUtc))
+          .map((tab) => {
+            const host = tab.participants.find((person) => person.id === tab.hostParticipantId);
+            return {
+              tabId: tab.id,
+              tableId: tab.tableId,
+              tableLabel: tab.tableLabel,
+              roomName:
+                plan.tables.find((table) => table.id === tab.tableId)?.floorAreaName ?? null,
+              openedAtUtc: tab.openedAtUtc,
+              hostDisplayName: host?.displayName ?? null,
+              participantCount: tab.participants.filter((person) => person.status !== 'removed')
+                .length,
+              sittingSeatedByScan: tab.seatedByScan,
+            };
+          }),
+      );
+    },
+
+    async admitTab({ tabId, clientCommandId }): Promise<StaffTab> {
+      requireSession(`/api/tabs/${tabId}/admit`);
+      const tab = requireTab(tabId);
+      admissionCommand('admit', tabId, clientCommandId);
+      if (tab.admission.status === 'rejected') {
+        throw new TabAdmissionDecidedError({
+          url: `/api/tabs/${tabId}/admit`,
+          tabId,
+          admission: 'rejected',
+        });
+      }
+      if (tab.admission.status === 'awaiting') admit(tab, 'waiter', now());
+      return settle(viewTab(tab));
+    },
+
+    async rejectTab({ tabId, clientCommandId }): Promise<StaffTab> {
+      requireSession(`/api/tabs/${tabId}/reject`);
+      const tab = requireTab(tabId);
+      admissionCommand('reject', tabId, clientCommandId);
+      if (tab.admission.status === 'admitted') {
+        throw new TabAdmissionDecidedError({
+          url: `/api/tabs/${tabId}/reject`,
+          tabId,
+          admission: 'admitted',
+        });
+      }
+      if (tab.admission.status === 'awaiting') {
+        // Orders keyed on it: somebody is there. The server refuses the reject.
+        if (tab.lines.length > 0) {
+          throw new ConcurrencyConflictError({
+            url: `/api/tabs/${tabId}/reject`,
+            problem: {
+              type: '',
+              title: 'Conflicting state',
+              status: 409,
+              detail: 'Orders were taken on this tab; admit it instead.',
+              code: 'conflicting-state',
+              traceId: 'mock',
+            },
+          });
+        }
+        const at = now();
+        const state = tables.get(tab.tableId);
+        const freesTable = tab.seatedByScan && state?.tabId === tab.id;
+        tab.admission = {
+          status: 'rejected',
+          admittedBecause: null,
+          decidedAtUtc: iso(at),
+          decidedByStaffId: MOCK_STAFF_ID,
+          tableFreed: freesTable,
+        };
+        tab.status = 'closed';
+        tab.closedAtUtc = iso(at);
+        // Its calls are answered by the waiter who turned it away.
+        for (const [requestId, request] of serviceRequests) {
+          if (request.tabId === tab.id && request.acknowledgedAtUtc === null) {
+            serviceRequests.set(requestId, { ...request, acknowledgedAtUtc: iso(at) });
+          }
+        }
+        pushEvent(tab, 'tabAdmissionRejected', at);
+        if (state && state.tabId === tab.id) {
+          const from = state.physicalStatus;
+          state.tabId = null;
+          if (freesTable) {
+            // The scan seated it, so nobody is there: the table goes free.
+            state.physicalStatus = 'free';
+            state.sessionId = null;
+            state.seatedAtUtc = null;
+            state.partySize = null;
+          }
+          state.version += 1;
+          record(state, from, at, {
+            tabId: tab.id,
+            signal: 'tabAdmissionRejected',
+            reason: freesTable ? 'phantom tab rejected' : '',
+          });
+        }
+      }
+      return settle(viewTab(tab));
+    },
+
+    // --- The tab ------------------------------------------------------------
 
     async getStaffTab(tabId): Promise<StaffTab | null> {
       const tab = tabs.get(tabId);
@@ -1721,6 +2021,14 @@ export function createStaffMockGateway(options: StaffMockOptions = {}): StaffGat
         settlementModeLocked: false,
         sequence: 1,
         events: [],
+        // A waiter opened it, standing at the table: admitted on the spot.
+        admission: {
+          ...ADMITTED,
+          admittedBecause: 'openedByStaff',
+          decidedAtUtc: iso(now()),
+          decidedByStaffId: MOCK_STAFF_ID,
+        },
+        seatedByScan: false,
       };
       tabs.set(tab.id, tab);
       state.tabId = tab.id;
@@ -1793,6 +2101,8 @@ export function createStaffMockGateway(options: StaffMockOptions = {}): StaffGat
           tabStatus: tab.status,
         });
       }
+      // A waiter's order on a waiting tab is taken, and admits nothing: only
+      // Admit lets the table in (review round, 2026-10-20).
 
       // Refused whole, as on the server: nothing is placed when one line is wrong.
       command.lines.forEach((line, index) => {

@@ -22,10 +22,20 @@ import type {
   VerifiedPhone,
 } from '../contracts/booking';
 import type { Photo } from '../contracts/menuAdmin';
+import { ADMITTED, type TabAdmission } from '../contracts/admission';
+import type { UnverifiedBookingCommand, UnverifiedBookingResult } from '../contracts/publicBranch';
 import type { ExtendHoldOutcome, ReservationState } from '../contracts/push';
 import {
   BookingOverlapsOwnError,
   BookingsNotAcceptedError,
+  BookingCommandInUseError,
+  DeviceHasActiveBookingError,
+  PhoneHasActiveBookingError,
+  ScanTurnedAwayError,
+  TabAwaitingAdmissionError,
+  UnverifiedPartyTooLargeError,
+  UnverifiedQueueFullError,
+  BranchRequiresVerifiedPhoneError,
   CannotReportOwnReviewError,
   InvalidCredentialsError,
   ReviewNeedsVisitError,
@@ -273,7 +283,25 @@ export interface MockGateway extends YallaGateway {
    * expired challenges are ignored, as the bot's press of a dead button is.
    */
   confirmTelegramVerification(challengeId: string, phoneE164: string): void;
+  /**
+   * The public page's booking without a proved number
+   * (`POST /api/public/branches/{branchId}/bookings`), in this world: the
+   * public mock answers `createUnverifiedBooking` through it, so the booking
+   * lands on the same floor and the manage link finds it.
+   */
+  bookWithoutProof(command: UnverifiedBookingCommand): Promise<UnverifiedBookingResult>;
+  /**
+   * What a waiter's Admit on the floor tablet does to a tab this world holds:
+   * a scan's tab waiting for a waiter may order from now on. The staff mock is
+   * another world, so tests (and the simulated waiter) admit from here.
+   */
+  admitTabAsWaiter(tabId: string): void;
+  /** A waiter's Reject: the tab closes, and the people on it are told. */
+  rejectTabAsWaiter(tabId: string): void;
 }
+
+/** The waiter the mock acts as when it plays the floor. */
+const MOCK_WAITER_ID = 'staff-mock-waiter';
 
 /** A pending Telegram challenge: the bot has not confirmed it yet. */
 interface TelegramPending {
@@ -393,6 +421,32 @@ export interface MockGatewayOptions {
    * drew and passes it back, so a replayed world keeps the codes it issued.
    */
   readonly codeSeed?: number | undefined;
+  /**
+   * Play the floor for a scan with no proved number: a waiter lets the table
+   * order this many milliseconds after the scan opened its tab. Absent, nobody
+   * comes — tests admit through {@link MockGateway.admitTabAsWaiter}.
+   */
+  readonly simulateAdmissionAfterMs?: number | undefined;
+  /** What that waiter decides: admit (the default) or turn the tab away. */
+  readonly simulateAdmissionOutcome?: 'admit' | 'reject' | undefined;
+  /** The branch's cap on a party booked without a proved number. 6 when absent. */
+  readonly unverifiedMaxPartySize?: number | undefined;
+  /** Whether such bookings wait for the venue. True when absent, as the server's default. */
+  readonly unverifiedBookingsNeedApproval?: boolean | undefined;
+  /**
+   * Every booking this world makes is as one made before one active booking
+   * per phone number (2026-10-20) — the server keeps such rows and judges only
+   * new bookings against them. For the tests of other rules that book one
+   * diner several times (both sides of a table, a sitting overlapping their
+   * own), as the backend's own tests mark theirs. Off by default.
+   */
+  readonly bookingsBeforeTheNumberRule?: boolean | undefined;
+  /**
+   * The branch setting: a scan with no proved number waits for a waiter. True
+   * when absent, as the server's default; false lets such scans order at once
+   * (`notRequired`).
+   */
+  readonly unverifiedScansNeedAdmission?: boolean | undefined;
 }
 
 /** The end and promise of a sitting: the turn, cut to a promise when it is sooner. */
@@ -540,6 +594,232 @@ export function createMockGateway(options: MockGatewayOptions = {}): MockGateway
     if (!signedInAccountId) return;
     const profile = accounts.profile(signedInAccountId);
     if (profile && !profile.phoneVerified) throw new PhoneNotVerifiedError({ url });
+  }
+
+  // --- Unverified guests (2026-10-20) ---------------------------------------
+
+  /** The branch's two settings for bookings without a proved number. */
+  const unverifiedMaxPartySize = options.unverifiedMaxPartySize ?? 6;
+  const unverifiedBookingsNeedApproval = options.unverifiedBookingsNeedApproval ?? true;
+  /** bookingId -> the number the one-active-booking rule keys it on. */
+  const bookerPhones = new Map<string, string>();
+  /** bookingId -> the browser an unverified web booking came from. */
+  const bookerDevices = new Map<string, string>();
+  /** An unverified web booking's command id -> the browser and the booking, for its replay. */
+  const deviceCommands = new Map<
+    string,
+    { readonly deviceId: string; readonly bookingId: string }
+  >();
+  /** tabId -> whether it may order yet. Absent: admitted, as every tab before admission. */
+  const admissions = new Map<string, TabAdmission>();
+  /** When a waiter last turned this phone's scan away: the next half hour of scans is refused. */
+  let turnedAwayAt: number | null = null;
+  /** How many unverified bookings a branch holds waiting for its answer, at most. */
+  const UNVERIFIED_QUEUE_MAX = 20;
+  /** A scan from a phone a waiter turned away is refused for this long. */
+  const TURNED_AWAY_MS = 30 * 60_000;
+
+  /** Who is booking, as the one-active-booking rule and the approval read it. */
+  interface BookingCaller {
+    /** No proved number behind it: flagged, capped, and approved first. */
+    readonly unverified: boolean;
+    /** The number the rule keys on; null exempts the booking (no account behind it). */
+    readonly phoneKey: string | null;
+    /** The browser of an anonymous web booking. */
+    readonly deviceId: string | null;
+  }
+
+  /** The signed-in account's number, proved or not; nobody signed in is exempt. */
+  function accountCaller(): BookingCaller {
+    const profile = signedInAccountId ? accounts.profile(signedInAccountId) : null;
+    return {
+      unverified: profile ? !profile.phoneVerified : false,
+      phoneKey: profile?.phoneE164 ?? null,
+      deviceId: null,
+    };
+  }
+
+  /** Whether this session's account proved its number: a scan by it is let in at once. */
+  function scannerIsProved(): boolean {
+    const profile = signedInAccountId ? accounts.profile(signedInAccountId) : null;
+    return profile?.phoneVerified === true;
+  }
+
+  /** Pending or confirmed, and not over. */
+  function isActiveBooking(booking: Booking): boolean {
+    return (
+      (booking.status === 'pendingApproval' || booking.status === 'confirmed') &&
+      Date.parse(booking.endUtc) > now().getTime()
+    );
+  }
+
+  /**
+   * One phone number, one active booking — for everybody, at any venue. The
+   * held booking is named only to the account that holds it.
+   */
+  /**
+   * One number, one active booking (2026-10-20). The browser's own limit is
+   * {@link refuseSecondFromBrowser}: the server checks the branch's queue
+   * between the two.
+   */
+  function refuseSecondActiveBooking(url: string, caller: BookingCaller, movingId?: string): void {
+    if (caller.phoneKey && !options.bookingsBeforeTheNumberRule) {
+      const held = [...bookings.values()].find(
+        (entry) =>
+          entry.id !== movingId &&
+          bookerPhones.get(entry.id) === caller.phoneKey &&
+          isActiveBooking(entry) &&
+          // A proved account is not held back by somebody else's unverified
+          // booking made with its number: it sees that one, and may cancel it.
+          !(!caller.unverified && entry.phoneUnverified && !isOwn(entry.id)),
+      );
+      if (held) {
+        const own = signedInAccountId !== null && bookingOwners.get(held.id) === signedInAccountId;
+        const local = localDateTime(held.slotUtc, held.timeZoneId);
+        throw new PhoneHasActiveBookingError({
+          url,
+          held: own
+            ? {
+                reservationId: held.id,
+                code: held.code,
+                startUtc: held.slotUtc,
+                localDate: local.date,
+                localStartTime: local.time,
+                venueName: held.venueName ?? '',
+                branchName: held.branchName,
+              }
+            : null,
+        });
+      }
+    }
+  }
+
+  /** One active unverified booking per browser, on the public page's door. */
+  function refuseSecondFromBrowser(url: string, caller: BookingCaller): void {
+    if (caller.deviceId) {
+      const held = [...bookings.values()].some(
+        (entry) => bookerDevices.get(entry.id) === caller.deviceId && isActiveBooking(entry),
+      );
+      if (held) throw new DeviceHasActiveBookingError({ url });
+    }
+  }
+
+  function isOwn(bookingId: string): boolean {
+    return signedInAccountId !== null && bookingOwners.get(bookingId) === signedInAccountId;
+  }
+
+  /**
+   * Somebody else's booking made without a proved number using this account's
+   * own number: listed to the account, apart, so it can cancel it.
+   */
+  function madeWithYourNumber(booking: Booking): boolean {
+    if (!booking.phoneUnverified || isOwn(booking.id) || !signedInAccountId) return false;
+    const profile = accounts.profile(signedInAccountId);
+    return Boolean(profile?.phoneVerified) && bookerPhones.get(booking.id) === profile?.phoneE164;
+  }
+
+  /** The sooner of a day after it was made and two hours before it starts. */
+  function unverifiedDeadline(slotUtc: string): string {
+    return new Date(
+      Math.min(now().getTime() + 24 * 3_600_000, Date.parse(slotUtc) - 2 * 3_600_000),
+    ).toISOString();
+  }
+
+  /** `guestPhone` as the server reads it: spaces, dashes and brackets dropped, E.164 or a 400. */
+  function e164(url: string, raw: string): string {
+    const compact = raw.replace(/[\s\-()]/gu, '');
+    if (!/^\+[1-9]\d{7,14}$/u.test(compact)) {
+      throw invalidRequest(url, 'guestPhone', 'Enter a phone number in international format.');
+    }
+    return compact;
+  }
+
+  /** A waiter let the table order: the tab's stream says so, and ordering opens. */
+  /** A waiter's Reject: the tab closes, the people on it are told, the phone is turned away. */
+  function turnAway(tabId: string): void {
+    if (admissions.get(tabId)?.status !== 'awaiting') return;
+    const at = now().toISOString();
+    admissions.set(tabId, {
+      status: 'rejected',
+      admittedBecause: null,
+      decidedAtUtc: at,
+      decidedByStaffId: MOCK_WAITER_ID,
+      tableFreed: true,
+    });
+    const tab = world.get(tabId);
+    if (tab) {
+      orders.record(tab, 'tabAdmissionRejected', 'staff', {
+        byStaffId: MOCK_WAITER_ID,
+        atUtc: at,
+        tableFreed: true,
+      });
+    }
+    world.close(tabId);
+    turnedAwayAt = now().getTime();
+  }
+
+  function admitTab(tabId: string, because: 'waiter' | 'booker'): void {
+    const current = admissions.get(tabId);
+    if (current?.status !== 'awaiting') return;
+    const at = now().toISOString();
+    admissions.set(tabId, {
+      status: 'admitted',
+      admittedBecause: because,
+      decidedAtUtc: at,
+      decidedByStaffId: because === 'waiter' ? MOCK_WAITER_ID : null,
+      tableFreed: null,
+    });
+    const tab = world.get(tabId);
+    if (tab) {
+      orders.record(tab, 'tabAdmitted', because === 'waiter' ? 'staff' : 'diner', {
+        admittedBecause: because === 'waiter' ? 1 : 4,
+        byStaffId: because === 'waiter' ? MOCK_WAITER_ID : null,
+        atUtc: at,
+      });
+    }
+  }
+
+  /** The admission a new tab gets: let in at once by a proved scanner, waiting otherwise. */
+  function admitOnOpen(tabId: string, because: 'scan' | 'booker'): void {
+    if (admissions.has(tabId)) return;
+    const at = now().toISOString();
+    if (
+      because === 'booker' ||
+      scannerIsProved() ||
+      options.unverifiedScansNeedAdmission === false
+    ) {
+      admissions.set(tabId, {
+        status: 'admitted',
+        admittedBecause:
+          because === 'booker' ? 'booker' : scannerIsProved() ? 'verifiedHost' : 'notRequired',
+        decidedAtUtc: at,
+        decidedByStaffId: null,
+        tableFreed: null,
+      });
+      return;
+    }
+    admissions.set(tabId, {
+      status: 'awaiting',
+      admittedBecause: null,
+      decidedAtUtc: null,
+      decidedByStaffId: null,
+      tableFreed: null,
+    });
+    // Mock mode: a waiter comes over and lets the table in — or, to walk
+    // that screen, turns it away.
+    if (options.simulateAdmissionAfterMs !== undefined) {
+      setTimeout(
+        () =>
+          options.simulateAdmissionOutcome === 'reject'
+            ? turnAway(tabId)
+            : admitTab(tabId, 'waiter'),
+        options.simulateAdmissionAfterMs,
+      );
+    }
+  }
+
+  function admissionOf(tabId: string): TabAdmission {
+    return admissions.get(tabId) ?? ADMITTED;
   }
 
   function me(): string {
@@ -1244,7 +1524,7 @@ export function createMockGateway(options: MockGatewayOptions = {}): MockGateway
   /** The tab as this device reads it — what `GET /api/tabs/{id}` answers. */
   function dinerViewOf(tab: TableTab): DinerTabView {
     orders.ensure(tab.id, tab.branchId);
-    return orders.dinerView(tab, tab.yourParticipantId);
+    return orders.dinerView(tab, tab.yourParticipantId, admissionOf(tab.id));
   }
 
   /** One participant, as a host action left them — `TabParticipantView`. */
@@ -2823,6 +3103,63 @@ export function createMockGateway(options: MockGatewayOptions = {}): MockGateway
       } satisfies TelegramClaimResult;
     },
 
+    async bookWithoutProof(command): Promise<UnverifiedBookingResult> {
+      const url = `${URL_TAG}/api/public/branches/${command.branchId}/bookings`;
+      requireClientCommandId(url, command.commandId);
+      if (!command.deviceId?.trim()) {
+        throw invalidRequest(url, 'deviceId', 'A device id is required.');
+      }
+      const phoneKey = e164(url, command.guestPhone);
+      // A retry from the same browser is the booking, without its token (only
+      // the hash is kept); the same id from another browser is somebody else's.
+      const replay = deviceCommands.get(command.commandId);
+      if (replay) {
+        if (replay.deviceId !== command.deviceId) throw new BookingCommandInUseError({ url });
+        const existing = bookings.get(replay.bookingId);
+        if (existing) {
+          return {
+            booking: { ...existing, manageToken: null },
+            manageToken: null,
+            wasReplay: true,
+          };
+        }
+      }
+      if (commandLog.has(command.commandId)) throw new BookingCommandInUseError({ url });
+      // Through the app's own booking, under the visitor's typed number and
+      // this browser: the same rules, the same floor, the same manage link.
+      const self = this as unknown as {
+        createBooking(command: CreateBookingCommand, as: BookingCaller): Promise<Booking>;
+      };
+      const booking = await self.createBooking(
+        {
+          branchId: command.branchId,
+          tableId: command.tableId,
+          slotUtc: command.slotUtc,
+          timeZoneId: command.timeZoneId,
+          partySize: command.partySize,
+          guestName: command.guestName,
+          guestPhone: phoneKey,
+          commandId: command.commandId,
+          channel: 'web',
+          note: command.note ?? null,
+          acceptsFreeByUtc: command.acceptsFreeByUtc ?? null,
+        },
+        { unverified: true, phoneKey, deviceId: command.deviceId },
+      );
+      deviceCommands.set(command.commandId, { deviceId: command.deviceId, bookingId: booking.id });
+      // Nobody's: an anonymous booking belongs to no account on this device.
+      bookingOwners.delete(booking.id);
+      return { booking, manageToken: booking.manageToken, wasReplay: false };
+    },
+
+    admitTabAsWaiter(tabId) {
+      admitTab(tabId, 'waiter');
+    },
+
+    rejectTabAsWaiter(tabId) {
+      turnAway(tabId);
+    },
+
     confirmTelegramVerification(challengeId, phoneE164) {
       const pending = telegramChallenges.get(challengeId);
       if (pending && now().getTime() <= pending.expiresAt) pending.phoneE164 = phoneE164;
@@ -2958,9 +3295,14 @@ export function createMockGateway(options: MockGatewayOptions = {}): MockGateway
       deletedAccounts.add(accountId);
     },
 
-    async createBooking(command: CreateBookingCommand) {
+    async createBooking(
+      command: CreateBookingCommand,
+      /** The public page's unverified door passes its own caller; the app's is the account. */
+      as?: BookingCaller,
+    ) {
       await wait();
-      const url = `${URL_TAG}/api/reservations`;
+      const caller = as ?? accountCaller();
+      const url = as ? `${URL_TAG}/api/public/branches/bookings` : `${URL_TAG}/api/reservations`;
       // The body binds first: a command id that is not a GUID never reaches the rules.
       requireClientCommandId(url, command.commandId);
       // The request's own validation runs before anything else, as on the server.
@@ -2975,7 +3317,8 @@ export function createMockGateway(options: MockGatewayOptions = {}): MockGateway
           },
         ]);
       }
-      requireVerifiedPhone(url);
+      // Since 2026-10-20 an account whose number is not proved books too —
+      // flagged, capped and approved first — rather than a 403.
 
       // Idempotency first: a retry of the same command must not book twice.
       const existingId = commandLog.get(command.commandId);
@@ -3019,8 +3362,19 @@ export function createMockGateway(options: MockGatewayOptions = {}): MockGateway
       // The branch-wide rules first, as the server applies them. Lead time:
       // the slot may have become too soon while they were deciding.
       refuseAtBranch(command.branchId, slot, command.partySize);
-      // Then the diner's own evening, before the table's, as the server's writer does.
-      refuseOverlapWithOwn(url, command.branchId, slot, policy.turnMinutes);
+      // A cap of 0: the branch takes none without a proved number — its own
+      // refusal, checked before the cap, the number and the budget (df6de66).
+      if (caller.unverified && unverifiedMaxPartySize <= 0) {
+        throw new BranchRequiresVerifiedPhoneError({ url });
+      }
+      // Without a proved number, at most the branch's cap: a refusal verifying lifts.
+      if (caller.unverified && command.partySize > unverifiedMaxPartySize) {
+        throw new UnverifiedPartyTooLargeError({
+          url,
+          partySize: command.partySize,
+          maxPartySize: unverifiedMaxPartySize,
+        });
+      }
 
       // Judged at the slot being booked, not at now — the same projection the
       // availability answer used. Judging it at now would refuse a Saturday
@@ -3066,6 +3420,27 @@ export function createMockGateway(options: MockGatewayOptions = {}): MockGateway
         });
       }
 
+      // The server's order after the table (UG wire §1): the diner's own
+      // evening (an overlap says so, with the booking), then one number, one
+      // active booking, then the branch's queue, then the browser. A booked
+      // table answers as taken whatever number is typed.
+      refuseOverlapWithOwn(url, command.branchId, slot, policy.turnMinutes);
+      refuseSecondActiveBooking(url, caller);
+      // At most so many bookings without a proved number waiting for one
+      // branch's answer — whatever they wait for, as the server counts them.
+      if (
+        caller.unverified &&
+        [...bookings.values()].filter(
+          (entry) =>
+            entry.branchId === command.branchId &&
+            entry.status === 'pendingApproval' &&
+            entry.phoneUnverified === true,
+        ).length >= UNVERIFIED_QUEUE_MAX
+      ) {
+        throw new UnverifiedQueueFullError({ url });
+      }
+      refuseSecondFromBrowser(url, caller);
+
       // Booking times: a sitting the next booking cuts short is taken only with
       // the promise to free the table by then — the very instant, or a 422.
       const timing = timingAt(table, slot);
@@ -3080,13 +3455,28 @@ export function createMockGateway(options: MockGatewayOptions = {}): MockGateway
 
       // A table somebody booked shortly before, another day: the guest before is
       // asked. Every other booking is decided as it always was.
-      const decision =
+      const decided =
         earlierGuestDecision(table, timing, command.slotUtc, found.branch.timeZoneId) ??
         decideApproval({
           partySize: command.partySize,
           slotUtc: command.slotUtc,
           timeZoneId: found.branch.timeZoneId,
         });
+      // The server's order: short notice and the guest before keep their clock;
+      // otherwise a booking without a proved number waits for the venue, with none.
+      const decision =
+        caller.unverified &&
+        unverifiedBookingsNeedApproval &&
+        decided.awaitingApprovalBecause !== 'shortNotice' &&
+        decided.awaitingApprovalBecause !== 'earlierGuestConsent'
+          ? {
+              ...decided,
+              status: 'pendingApproval' as const,
+              awaitingApprovalBecause: 'unverifiedPhone' as const,
+              // Hours, not minutes: unanswered, it is declined as unanswered.
+              approvalExpiresAtUtc: unverifiedDeadline(command.slotUtc),
+            }
+          : decided;
 
       const id = `bk_${sequence++}`;
       const booking: Booking = {
@@ -3112,6 +3502,7 @@ export function createMockGateway(options: MockGatewayOptions = {}): MockGateway
         cancelledAfterDeadline: false,
         note: note === '' ? null : note,
         declinedBecause: null,
+        phoneUnverified: caller.unverified,
         promisedFreeByUtc: cut,
         // The mock issues one for every booking, so the manage-booking page is
         // walkable from the app's own flow too. See `publicMock.ts` for what
@@ -3121,6 +3512,8 @@ export function createMockGateway(options: MockGatewayOptions = {}): MockGateway
 
       bookings.set(id, booking);
       commandLog.set(command.commandId, id);
+      if (caller.phoneKey) bookerPhones.set(id, caller.phoneKey);
+      if (caller.deviceId) bookerDevices.set(id, caller.deviceId);
       offerToFloor(booking);
       if (booking.awaitingApprovalBecause === 'earlierGuestConsent')
         askEarlierGuest(booking, timing);
@@ -3157,8 +3550,13 @@ export function createMockGateway(options: MockGatewayOptions = {}): MockGateway
       const past = all
         .filter((b) => !upcoming.includes(b))
         .sort((a, b) => Date.parse(b.slotUtc) - Date.parse(a.slotUtc));
-      // A later guest's request rides on the booking it is for.
-      return { upcoming: upcoming.map(withRequest), past: past.map(withRequest) };
+      // A later guest's request rides on the booking it is for; one made with
+      // this account's number by somebody else says so.
+      const listed = (booking: Booking) => {
+        const view = withRequest(booking);
+        return madeWithYourNumber(booking) ? { ...view, madeWithYourNumber: true } : view;
+      };
+      return { upcoming: upcoming.map(listed), past: past.map(listed) };
     },
 
     async getBooking(bookingId) {
@@ -3540,8 +3938,18 @@ export function createMockGateway(options: MockGatewayOptions = {}): MockGateway
     async scanTableCode(command: ScanTableCommand): Promise<ScanResult> {
       await wait();
       requireClientCommandId(`${URL_TAG}/api/tabs/open`, command.commandId);
+      // A waiter just turned this phone away: half an hour before it may scan again.
+      if (turnedAwayAt !== null && now().getTime() - turnedAwayAt < TURNED_AWAY_MS) {
+        throw new ScanTurnedAwayError({
+          url: `${URL_TAG}/api/tabs/open`,
+          retryAfterUtc: new Date(turnedAwayAt + TURNED_AWAY_MS).toISOString(),
+        });
+      }
       serveFloor();
       const result = world.scan(command);
+      // A tab this scan opened waits for a waiter unless the scanner proved
+      // their number. Joining somebody's tab changes nothing about it.
+      if (result.kind === 'tabOpened') admitOnOpen(result.tab.id, 'scan');
       linkParticipant(result.tab);
       return { kind: result.kind, tab: dinerViewOf(result.tab) };
     },
@@ -3619,6 +4027,11 @@ export function createMockGateway(options: MockGatewayOptions = {}): MockGateway
        */
       bookings.set(booking.id, { ...booking, status: 'seated' });
 
+      // The booker is let in: on a tab they opened, and on one a scan opened
+      // at their sitting that was waiting for a waiter.
+      if (result.kind === 'tabOpened') admitOnOpen(result.tab.id, 'booker');
+      else admitTab(result.tab.id, 'booker');
+
       linkParticipant(result.tab);
       return { kind: result.kind, tab: dinerViewOf(result.tab) };
     },
@@ -3691,6 +4104,14 @@ export function createMockGateway(options: MockGatewayOptions = {}): MockGateway
       // priced again against a bill that may have moved since.
       const replayed = world.findCall(input.commandId);
       if (replayed) return replayed;
+      // Water and napkins, yes — the waiter coming over is how the table gets
+      // let in. Never the bill: nothing is on a tab nobody admitted.
+      if (input.reason === 'bill' && admissionOf(input.tabId).status === 'awaiting') {
+        throw new TabAwaitingAdmissionError({
+          url: `${URL_TAG}/api/tabs/${input.tabId}/service-requests`,
+          tabId: input.tabId,
+        });
+      }
       const bill = input.bill ? billRequestFor(input.tabId, input.reason, input.bill) : null;
       const tab = world.get(input.tabId);
       const call = world.call({
@@ -3745,15 +4166,30 @@ export function createMockGateway(options: MockGatewayOptions = {}): MockGateway
       await wait();
       const tab = readableTab(command.tabId);
       if (!tab) throw new NotFoundError({ url: `/api/tabs/${command.tabId}/orders` });
-      // The ordering policy, as the server applies it: a bare 403 for anybody
-      // not approved, not allowed to order, or on a tab no longer open.
-      if (!dinerViewOf(tab).me.canOrderNow) {
-        throw new ForbiddenError({ url: `${URL_TAG}/api/tabs/${command.tabId}/orders` });
-      }
+      // The command id binds first, as on the server: a malformed one is a 400
+      // before any rule.
       requireClientCommandId(
         `${URL_TAG}/api/tabs/${command.tabId}/orders`,
         command.clientCommandId,
       );
+      // The ordering policy, as the server applies it: a bare 403 for anybody
+      // not approved, not allowed to order, or on a tab no longer open. Past
+      // it, a tab a waiter has not let in is the service's 409.
+      const view = dinerViewOf(tab);
+      if (
+        view.admission.status === 'awaiting' &&
+        view.me.status === 'approved' &&
+        view.me.canOrder &&
+        view.status === 'open'
+      ) {
+        throw new TabAwaitingAdmissionError({
+          url: `${URL_TAG}/api/tabs/${command.tabId}/orders`,
+          tabId: command.tabId,
+        });
+      }
+      if (!view.me.canOrderNow) {
+        throw new ForbiddenError({ url: `${URL_TAG}/api/tabs/${command.tabId}/orders` });
+      }
       // No clock gate: a seated party keeps ordering after closing time,
       // because the tab decides and last orders is Mark closing (the server's
       // OrderingTests pin it; docs/tabs.md "Ordering after closing time").
@@ -3775,7 +4211,7 @@ export function createMockGateway(options: MockGatewayOptions = {}): MockGateway
         throw new NotTabHostError({ url: `/api/tabs/${command.tabId}/settlement-mode` });
       }
       orders.setSettlementMode(tab, command.mode);
-      return orders.dinerView(tab, tab.yourParticipantId);
+      return dinerViewOf(tab);
     },
   };
 }

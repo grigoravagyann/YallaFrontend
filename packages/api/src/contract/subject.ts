@@ -143,7 +143,9 @@ export type ContractCapability =
   | 'consoleListing'
   | 'dinerJourney'
   | 'photoBytes'
-  | 'photoMarkers';
+  | 'photoMarkers'
+  /** The floor admitting or rejecting a phone's tab: both in one world. */
+  | 'admission';
 
 /**
  * The ids a suite needs to ask a real question.

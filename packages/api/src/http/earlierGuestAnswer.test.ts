@@ -41,6 +41,8 @@ const VIEW: ReservationView = {
   guestPhone: '+37493217788',
   wasReplay: false,
   awaitsEarlierGuestAnswer: false,
+  phoneUnverified: false,
+  madeWithYourNumber: false,
 };
 
 function waiting(extra: Record<string, unknown>): ReservationView {
