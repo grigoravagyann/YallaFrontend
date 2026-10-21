@@ -555,6 +555,8 @@ describe('the tablets', () => {
     await user.click(screen.getByRole('button', { name: 'Generate a code' }));
     const once = await screen.findByRole('dialog', { name: 'Tablet enrolment code' });
     expect(within(once).getByText(/connect it to Northern Avenue/u)).toBeTruthy();
+    // Two groups of five, as the tablet's field shows what is typed.
+    expect(within(once).getByText(/^[A-Z2-9]{5}-[A-Z2-9]{5}$/u)).toBeTruthy();
     await user.click(within(once).getByRole('button', { name: 'Written down' }));
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
   });

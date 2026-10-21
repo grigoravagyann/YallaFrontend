@@ -2,6 +2,7 @@ import type { StaffAuth } from '../auth/staffEndpoints';
 import { staffRoleToUserRole } from '../auth/endpoints';
 import {
   DeviceRevokedError,
+  EnrolmentCodeExpiredError,
   EnrolmentCodeSpentError,
   PinLockedError,
   PinRejectedError,
@@ -15,6 +16,7 @@ import type {
   StaffRosterEntry,
   StaffSignInResult,
 } from '../contracts/staffAuth';
+import { normalizeEnrolmentCode } from '../contracts/staffAuth';
 import { UnauthorizedError } from '../errors';
 import { mockRegistry, type MockRegistry } from './mockRegistry';
 import { MOCK_STAFF_PIN, fixtureStaffFor } from './staffFixture';
@@ -106,7 +108,7 @@ export function createMockStaffAuth(options: StaffAuthMockOptions = {}): StaffAu
 
   return {
     async enrol(command: EnrolDeviceCommand): Promise<DeviceEnrolment> {
-      const code = command.code.trim().toUpperCase();
+      const code = normalizeEnrolmentCode(command.code);
       const found = registry.enrolmentCodes.get(code);
       // StaffAuthService.EnrolAsync's order: unknown is 401, spent is the
       // 409 whatever the date, and only then past its day is 401.
@@ -117,7 +119,7 @@ export function createMockStaffAuth(options: StaffAuthMockOptions = {}): StaffAu
         throw new EnrolmentCodeSpentError({ url: `${URL_TAG}/enrol` });
       }
       if (Date.parse(found.expiresAtUtc) <= now().getTime()) {
-        throw new UnauthorizedError({ url: `${URL_TAG}/enrol` });
+        throw new EnrolmentCodeExpiredError({ url: `${URL_TAG}/enrol` });
       }
       const at = now().toISOString();
       registry.enrolmentCodes.set(code, { ...found, spentAtUtc: at });

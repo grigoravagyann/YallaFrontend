@@ -49,6 +49,23 @@ export function StaffRoute() {
    */
   const identity = snapshot.identity;
 
+  /**
+   * Enrolled on this screen, just now.
+   *
+   * Enrolling moves the session straight to `locked`, which would swap the
+   * enrolment screen for the keypad in the same frame. The staff get one look
+   * at the venue and branch the tablet is bound to first — the moment a tablet
+   * on the wrong branch is cheap to notice — and tap through. Adjusted during
+   * render rather than in an effect, so the keypad never flashes in between.
+   */
+  const [lastState, setLastState] = useState(snapshot.state);
+  const [justEnrolled, setJustEnrolled] = useState(false);
+  if (snapshot.state !== lastState) {
+    setLastState(snapshot.state);
+    if (lastState === 'unenrolled' && snapshot.state === 'locked') setJustEnrolled(true);
+    if (snapshot.state === 'unenrolled') setJustEnrolled(false);
+  }
+
   useEffect(() => {
     if (!staffSession) return;
     let cancelled = false;
@@ -82,7 +99,13 @@ export function StaffRoute() {
   // The tab bar says which screen this is — the floor, the kitchen, or the
   // PIN gate — rather than "Yalla" three times over.
   usePageTitle(
-    locked ? t('pin.prompt') : identity?.role === 'kitchen' ? t('kitchen.title') : t('floor.title'),
+    staffAuthAvailable && (snapshot.state === 'unenrolled' || justEnrolled)
+      ? t('enrol.title')
+      : locked
+        ? t('pin.prompt')
+        : identity?.role === 'kitchen'
+          ? t('kitchen.title')
+          : t('floor.title'),
     t('common:appName'),
   );
 
@@ -94,8 +117,18 @@ export function StaffRoute() {
     );
   }
 
-  if (staffAuthAvailable && snapshot.state === 'unenrolled') {
-    return <EnrolDeviceScreen reason={snapshot.lastSignOut === 'expired' ? 'revoked' : 'never'} />;
+  if (
+    staffAuthAvailable &&
+    (snapshot.state === 'unenrolled' ||
+      (justEnrolled && snapshot.state === 'locked' && snapshot.device))
+  ) {
+    return (
+      <EnrolDeviceScreen
+        reason={snapshot.lastSignOut === 'expired' ? 'revoked' : 'never'}
+        enrolled={justEnrolled ? snapshot.device : null}
+        onContinue={() => setJustEnrolled(false)}
+      />
+    );
   }
 
   return (

@@ -713,7 +713,12 @@ export type {
   StaffSignInResult,
   StaffSignOutReason,
 } from './contracts/staffAuth';
-export { isOnShiftAt } from './contracts/staffAuth';
+export {
+  ENROLMENT_CODE_ALPHABET,
+  ENROLMENT_CODE_LENGTH,
+  isOnShiftAt,
+  normalizeEnrolmentCode,
+} from './contracts/staffAuth';
 export {
   createStaffRosterMock,
   mockRosterShiftsAround,
@@ -727,6 +732,7 @@ export type {
 } from './mocks/staffRosterMock';
 export {
   DeviceRevokedError,
+  EnrolmentCodeExpiredError,
   EnrolmentCodeSpentError,
   LineAlreadyPaidError,
   MenuItemUnavailableError,

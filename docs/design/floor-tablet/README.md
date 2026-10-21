@@ -2,7 +2,7 @@
 
 Companion to `../console/` (platform admin) and `../venue-console/` (owner / GM / branch manager), made on 2026-10-19 in the same visual system: cream canvas, dark-brown bar, serif titles, brown CTA, red only for real failures.
 
-- **Live design:** https://claude.ai/artifact/3yC3gKSzFPmvtHfoznY2Fu (v12). Read it with the Artifact tool, `action: "read"`.
+- **Live design:** https://claude.ai/artifact/3yC3gKSzFPmvtHfoznY2Fu (v16; v15–16 added `Enrol`). Read it with the Artifact tool, `action: "read"`.
 - **Local copy:** `artboards/*.dc.html` + `artboards/canvas.json`. Each artboard's `DCLogic` script at the bottom is the interaction spec.
 - **Check:** `node vcheck.cjs artboards/Main.dc.html` renders the logic for every tweak value (`state`, `connection`) and verifies every template hole.
 
@@ -20,6 +20,7 @@ All artboards are 1280×800 landscape (a 10–11" tablet in a stand). The staff 
 | Kitchen | Counts fresh / waiting / late (late ≥ 12 min), sort by age or table, horizontal snap board of tickets with age badge, notes and allergen warnings, the only transition is InKitchen → Ready | `KitchenRoute.tsx`, `chime.ts` |
 | Pin | Gate over the blurred floor (tweak `state`: fresh, idleLock, wrong, locked, offline): people on shift, "Ուրիշ մեկը" with staff ID, dots, keypad, attempt counter and lock message | `auth/*`, `StaffRoute.tsx` |
 | Conflicts | Conflict cards (discard / "…այնուամենայնիվ"), sync queue, offline note | `ConflictList.tsx`, `commands/*`, `live/*` |
+| Enrol | First connection of a tablet (tweak `state`: fresh, filled, wrong, spent, expired, offline, revoked, working, done): steps with progress on the dark side (where the manager makes the code, the 24 h / single-use rule), a 10-character code field grouped `XXXXX-XXXXX` that drops look-alikes (O, I, L, U, 0, 1) and says so, name presets with no default, the refusal under the code field, success with venue · branch → PIN | `auth/EnrolDeviceScreen.tsx`, `StaffRoute.tsx` |
 
 ## Review (2026-10-19, v10)
 
