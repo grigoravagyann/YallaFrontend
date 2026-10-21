@@ -1,6 +1,7 @@
 import type { ApiClient } from '../client';
 import {
   DeviceRevokedError,
+  EnrolmentCodeExpiredError,
   EnrolmentCodeSpentError,
   PinLockedError,
   PinRejectedError,
@@ -72,6 +73,10 @@ export function createStaffAuth(client: ApiClient) {
       } catch (error) {
         if (error instanceof ApiError && error.status === 409) {
           throw new EnrolmentCodeSpentError({ url: error.url, requestId: error.requestId });
+        }
+        // Expired and mistyped are both 401; only the reason code tells them apart.
+        if (error instanceof ApiError && error.code === 'enrolment-code-expired') {
+          throw new EnrolmentCodeExpiredError({ url: error.url, requestId: error.requestId });
         }
         throw error;
       }

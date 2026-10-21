@@ -1900,6 +1900,350 @@
 }
 
 /* --------------------------------------------------------------------------
+ * Enrolment (floor-tablet `Enrol`): the PIN screen's frame, so the first
+ * screen a tablet shows and the one it shows every day look like one place.
+ * The dark side says where a code comes from; the light side takes it.
+ * -------------------------------------------------------------------------- */
+/* Nothing is behind this card yet: the floor's scrim would be a grey veil over
+   an empty page. */
+.staff-gate.ft-gate.ft-enrol {
+  background: var(--console-canvas);
+}
+
+.ft-enrol-title {
+  margin: 0;
+  font-family: var(--font-family-display);
+  font-size: 24px;
+  line-height: 1.25;
+  color: var(--console-sidebar-text-strong);
+  text-wrap: balance;
+}
+
+.ft-enrol-why {
+  margin: 0;
+  padding: var(--space-md) 14px;
+  border-left: 3px solid var(--console-red-line);
+  border-radius: var(--console-radius-floor-button);
+  background: var(--console-sidebar-panel);
+  color: var(--console-sidebar-focus);
+  font-size: var(--console-text-body);
+  line-height: 1.45;
+}
+
+.ft-enrol-steps {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.ft-enrol-steps li {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-md);
+  font-size: var(--console-text-nav);
+  line-height: 1.4;
+  color: var(--console-sidebar-text);
+}
+
+.ft-enrol-steps b {
+  font-weight: var(--font-weight-semibold);
+  color: var(--console-sidebar-text-strong);
+}
+
+.ft-enrol-step-mark {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: var(--console-sidebar-panel);
+  color: var(--console-sidebar-text-strong);
+  font-size: var(--console-text-body);
+  font-weight: var(--font-weight-bold);
+}
+
+.ft-enrol-steps li.is-current .ft-enrol-step-mark {
+  background: var(--console-sidebar-text-strong);
+  color: var(--console-sidebar);
+}
+
+.ft-enrol-steps li.is-done .ft-enrol-step-mark {
+  background: var(--console-green-bg);
+  color: var(--console-green);
+}
+
+.ft-enrol-step-text {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+  padding-top: 3px;
+}
+
+.ft-enrol-path {
+  align-self: flex-start;
+  padding: 3px var(--space-sm);
+  border-radius: var(--console-radius-small);
+  background: var(--console-floor-bar-tabs);
+  color: var(--console-sidebar-focus);
+  font-size: var(--console-text-body);
+}
+
+/* The rule sits at the foot of the dark side, where the PIN screen keeps its
+   note. */
+.ft-enrol-rule {
+  margin-top: auto;
+}
+
+.ft-enrol-rule svg,
+.ft-enrol-msg svg {
+  flex: none;
+  margin-top: 2px;
+}
+
+.ft-enrol-right {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  padding: 28px 32px;
+  overflow-y: auto;
+}
+
+.ft-enrol-form {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.ft-enrol-form h2,
+.ft-enrol-done h2 {
+  margin: 0;
+  font-family: var(--font-family-display);
+  font-size: 26px;
+  line-height: 1.25;
+}
+
+.ft-enrol-field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+}
+
+/* Read across a bar and typed with one finger: big, spaced, monospaced, and
+   in the two groups the console shows it in. */
+.ft-enrol-code {
+  width: 100%;
+  height: 84px;
+  border: 2px solid var(--console-button-edge);
+  border-radius: 16px;
+  background: var(--console-surface);
+  color: var(--console-ink);
+  font-family: ui-monospace, 'Cascadia Mono', Consolas, monospace;
+  font-size: 40px;
+  font-weight: var(--font-weight-bold);
+  letter-spacing: 0.16em;
+  text-align: center;
+  text-transform: uppercase;
+}
+
+.ft-enrol-code::placeholder {
+  color: var(--console-button-edge);
+}
+
+.ft-enrol-code:focus-visible {
+  outline: none;
+  border-color: var(--console-brand);
+  box-shadow: 0 0 0 3px var(--console-brand-tint);
+}
+
+.ft-enrol-code[aria-invalid='true'] {
+  border-color: var(--console-red);
+}
+
+.ft-enrol-meta {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-md);
+  font-size: var(--console-text-body);
+  color: var(--console-muted);
+}
+
+/* The count never breaks: "5 /" over "10" reads as a fraction. */
+.ft-enrol-meta > span:last-child {
+  flex: none;
+  white-space: nowrap;
+}
+
+.ft-enrol-meta .is-warning {
+  font-weight: var(--font-weight-semibold);
+  color: var(--console-amber);
+}
+
+.ft-enrol-label {
+  font-size: var(--console-text-nav);
+  font-weight: var(--font-weight-bold);
+}
+
+.ft-enrol-presets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+}
+
+.ft-enrol-preset {
+  min-height: var(--touch-staff);
+  padding: 0 14px;
+  border: 1.5px solid var(--console-button-edge);
+  border-radius: var(--console-radius-pill);
+  background: var(--console-surface);
+  color: var(--console-ink);
+  font: inherit;
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+  cursor: pointer;
+}
+
+.ft-enrol-preset[aria-pressed='true'] {
+  border-color: var(--console-brand);
+  background: var(--console-brand);
+  color: var(--console-brand-foreground);
+}
+
+.ft-enrol-name {
+  min-height: 52px;
+  padding: 0 14px;
+  border: 1.5px solid var(--console-button-edge);
+  border-radius: var(--console-radius-floor-button);
+  background: var(--console-surface);
+  color: var(--console-ink);
+  font: inherit;
+  font-size: var(--font-size-md);
+}
+
+.ft-enrol-name::placeholder {
+  color: var(--console-muted);
+}
+
+.ft-enrol-hint {
+  font-size: var(--console-text-body);
+  line-height: 1.4;
+  color: var(--console-muted);
+}
+
+.ft-enrol-msg {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin: 0;
+  padding: var(--space-md) 14px;
+  border-radius: var(--console-radius-floor-button);
+  font-size: var(--console-text-nav);
+  font-weight: var(--font-weight-semibold);
+  line-height: 1.4;
+}
+
+.ft-enrol-msg small {
+  display: block;
+  margin-top: 2px;
+  font-size: var(--console-text-body);
+  font-weight: var(--font-weight-medium);
+}
+
+.ft-enrol-msg.is-error {
+  background: var(--console-red-bg);
+  color: var(--console-red);
+}
+
+.ft-enrol-msg.is-offline {
+  background: var(--console-amber-bg);
+  color: var(--console-amber);
+}
+
+/* Kept at the foot, where it is on the PIN screen; the space above it is where
+   a refusal appears. */
+.ft-enrol-submit {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  margin-top: auto;
+}
+
+.ft-enrol-submit[aria-disabled='true'],
+.ft-enrol-submit[aria-disabled='true']:hover,
+.ft-enrol-submit[aria-disabled='true']:active {
+  border-color: var(--console-brand-tint);
+  background: var(--console-brand-tint);
+  color: var(--console-muted);
+  box-shadow: none;
+  transform: none;
+  cursor: not-allowed;
+}
+
+.ft-enrol-spin {
+  width: 22px;
+  height: 22px;
+  border: 3px solid var(--console-brand-tint);
+  border-top-color: var(--console-muted);
+  border-radius: 50%;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .ft-enrol-spin {
+    animation: ft-enrol-spin 1s linear infinite;
+  }
+}
+
+@keyframes ft-enrol-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.ft-enrol-done {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  text-align: center;
+}
+
+.ft-enrol-done p {
+  max-width: 44ch;
+  margin: 0;
+  font-size: var(--console-text-nav);
+  color: var(--console-muted);
+}
+
+.ft-enrol-done .ft-enrol-where {
+  font-size: var(--font-size-md);
+  font-weight: var(--font-weight-bold);
+  color: var(--console-ink);
+}
+
+.ft-enrol-ok {
+  display: grid;
+  place-items: center;
+  width: 96px;
+  height: 96px;
+  border-radius: 50%;
+  background: var(--console-green-bg);
+  color: var(--console-green);
+}
+
+.ft-enrol-continue {
+  min-width: 320px;
+  margin-top: var(--space-md);
+}
+
+/* --------------------------------------------------------------------------
  * Order entry, the tab and cash (floor-tablet `Order`, `Tab`, `Cash`): three
  * screens over the floor, each with its own bar — back, what it is about, and
  * the connection.

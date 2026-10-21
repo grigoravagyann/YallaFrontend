@@ -48,6 +48,31 @@ export interface EnrolledDevice {
   readonly lastSeenAtUtc: string | null;
 }
 
+/**
+ * The characters an enrolment code is drawn from: the server's
+ * `Secrets.ReadableAlphabet`. No I, L, O or U and no 0 or 1, so a code read
+ * across a bar never needs "letter O, not zero".
+ */
+export const ENROLMENT_CODE_ALPHABET = 'ABCDEFGHJKMNPQRSTVWXYZ23456789';
+
+/** How many characters a code has: `Secrets.NewEnrolmentCode`. */
+export const ENROLMENT_CODE_LENGTH = 10;
+
+/**
+ * A code as the server hashed it: upper case, readable characters only.
+ *
+ * The server hashes exactly what it is sent, so "h7kq2-mxp9d" typed on a
+ * keyboard without caps would never match "H7KQ2MXP9D". Characters outside the
+ * alphabet are dropped rather than refused: a dash, a space or a pasted line
+ * break is formatting, and a letter O was never part of any code.
+ */
+export function normalizeEnrolmentCode(raw: string): string {
+  return Array.from(raw.toUpperCase())
+    .filter((c) => ENROLMENT_CODE_ALPHABET.includes(c))
+    .join('')
+    .slice(0, ENROLMENT_CODE_LENGTH);
+}
+
 export interface EnrolDeviceCommand {
   /** The one-time code a manager generated for this branch. */
   readonly code: string;

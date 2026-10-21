@@ -16,9 +16,12 @@ export interface DevicesPanelProps {
   readonly locale: Locale;
 }
 
-/** "123 456": read out across a room in two halves, as the artboard shows it. */
+/**
+ * "H7KQ2-MXP9D": read out across a room in two halves, and grouped exactly as
+ * the tablet's code field groups what is typed into it.
+ */
 const spaced = (code: string) =>
-  code.length === 6 ? `${code.slice(0, 3)} ${code.slice(3)}` : code;
+  code.length === 10 ? `${code.slice(0, 5)}-${code.slice(5)}` : code;
 
 /**
  * The tablets a branch runs on, and the code that enrols one (Staff artboard,

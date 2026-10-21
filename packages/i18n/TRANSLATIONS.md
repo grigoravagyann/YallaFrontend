@@ -1353,6 +1353,18 @@ review every string in `src/locales/hy` and `src/locales/ru`.**
   `preOrder.menuUnavailable` (the link's branch is gone: not "no dishes"), and
   ru `preOrder.limit.quantity` now says «порций» («Не больше {{max}} порций
   одного блюда.»).
+- `staff` — tablet enrolment (2026-10-21, floor-tablet `Enrol`): the whole
+  `enrol.*` block was rewritten, provisional and **not** reviewed. New:
+  `titleRevoked`, `steps.*` (`steps.where` names the console path and must
+  follow admin `nav.staff` → `devices.title` → `devices.generate` if those
+  change), `stepDone`, `rule`, `codeHelp`, `codeSkipped` (lists the
+  look-alikes O, I, L, U, 0, 1 that no code contains), `codeCount`,
+  `deviceNameOwn`, `deviceNamePlaceholder`, `presets.*` (device names, so
+  they are the room names a floor uses), `remaining_*`, `needName`,
+  `failure.*` (wrong / spent / expired / offline / failed, each with a
+  `…Help` line) and `done.*`. Removed: `body`, `codeSpent`, `codeWrong`,
+  `offline`, `failed`. The tablet copy now says «մենեջեր» and «վահանակ»,
+  as the rest of the staff bundle does.
 
 The Russian bundle carries four plural categories (`one`/`few`/`many`/`other`)
 where Armenian and English carry two. That is correct CLDR, not duplication, and
