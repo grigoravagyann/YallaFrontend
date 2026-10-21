@@ -868,7 +868,7 @@
           "admin"
         ],
         "summary": "Save the branch's pre-order settings",
-        "description": "`acceptsPreOrders` (off by default), `minutesBefore` (when the waiter's card appears; 5 to 120, default 30 - never earlier than the guest's two-hour edit lock) and `excludedMenuItemIds`, the **whole** list of this branch's dishes guests may not pre-order (every other dish may be). Out of bounds, or a dish not on this branch's menu: 422 `validation-failed` naming `minutesBefore` or `excludedMenuItemIds`. Switching off keeps existing pre-orders working; guests may still clear them.",
+        "description": "`acceptsPreOrders` (off by default), `minutesBefore` (when the waiter's card appears; 5 to 120, default 30 - never earlier than the guest's two-hour edit lock) and `excludedMenuItemIds`, the **whole** list of this branch's dishes guests may not pre-order (every other dish may be). Out of bounds, or a dish not on this branch's menu: 422 `validation-failed` naming `minutesBefore` or `excludedMenuItemIds`. All three are required: one left out is 422 `validation-failed` naming it, never a silent reset. Switching off keeps existing pre-orders working; guests may still clear them. A save puts signal 6 on the change stream for the bookings whose rail card it reaches, so tablets re-read `pre-orders/due`.",
         "operationId": "putPreOrderSettings",
         "parameters": [
           {
@@ -890,7 +890,7 @@
                     "$ref": "#/components/schemas/Yalla.Api.Endpoints.PreOrderSettingsRequest"
                   }
                 ],
-                "description": "Body of `PUT /api/branches/{branchId}/pre-order-settings`."
+                "description": "Body of `PUT /api/branches/{branchId}/pre-order-settings`. All three are required."
               }
             }
           },
@@ -11830,7 +11830,7 @@
           "diner"
         ],
         "summary": "\"Yes, on my way\"",
-        "description": "The answer to the pre-order's question 45 minutes before - or any time before the booking ends. Recorded once (`guestConfirmedOnWayAtUtc` on the booking; the waiter's card says \"Guest confirmed\"); a second tap answers the first time, `wasReplay: true`. No body. \"Can't come\" is the booking's ordinary cancel. A booking not confirmed or seated, or over: **409 `on-my-way-not-open`**.",
+        "description": "The answer to the pre-order's question 45 minutes before - taken from two hours before the start until the booking ends. Recorded once (`guestConfirmedOnWayAtUtc` on the booking; the waiter's card says \"Guest confirmed\"); a second tap answers the first time, `wasReplay: true`. Moving the booking to another start forgets the answer. No body. \"Can't come\" is the booking's ordinary cancel. A booking not confirmed or seated, more than two hours away, or over: **409 `on-my-way-not-open`** (`context`: `reservationId`, `status`, `opensAtUtc`).",
         "operationId": "confirmOnMyWay",
         "parameters": [
           {
@@ -11895,7 +11895,7 @@
             }
           },
           "409": {
-            "description": "`on-my-way-not-open`: the booking is not expecting anybody.",
+            "description": "`on-my-way-not-open`: the booking is not expecting anybody, or not yet (`context.opensAtUtc`).",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -12240,7 +12240,7 @@
             }
           },
           "409": {
-            "description": "`on-my-way-not-open`: the booking is not expecting anybody.",
+            "description": "`on-my-way-not-open`: the booking is not expecting anybody, or not yet (`context.opensAtUtc`).",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -22343,10 +22343,12 @@
         "type": "object",
         "properties": {
           "acceptsPreOrders": {
-            "type": "boolean"
+            "type": "boolean",
+            "description": "Whether guests may pre-order."
           },
           "minutesBefore": {
             "type": "integer",
+            "description": "When the waiter's card appears, 5 to 120 minutes before the start.",
             "format": "int32"
           },
           "excludedMenuItemIds": {
@@ -22355,11 +22357,12 @@
               "type": "string",
               "format": "uuid"
             },
+            "description": "The whole list of dishes guests may not pre-order; empty for none.",
             "nullable": true
           }
         },
         "additionalProperties": false,
-        "description": "Body of `PUT /api/branches/{branchId}/pre-order-settings`."
+        "description": "Body of `PUT /api/branches/{branchId}/pre-order-settings`. All three are required."
       },
       "Yalla.Api.Endpoints.RaiseServiceRequest": {
         "required": [

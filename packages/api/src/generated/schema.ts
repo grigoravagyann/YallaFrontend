@@ -1035,7 +1035,7 @@ export interface paths {
         get: operations["getPreOrderSettings"];
         /**
          * Save the branch's pre-order settings
-         * @description `acceptsPreOrders` (off by default), `minutesBefore` (when the waiter's card appears; 5 to 120, default 30 - never earlier than the guest's two-hour edit lock) and `excludedMenuItemIds`, the **whole** list of this branch's dishes guests may not pre-order (every other dish may be). Out of bounds, or a dish not on this branch's menu: 422 `validation-failed` naming `minutesBefore` or `excludedMenuItemIds`. Switching off keeps existing pre-orders working; guests may still clear them.
+         * @description `acceptsPreOrders` (off by default), `minutesBefore` (when the waiter's card appears; 5 to 120, default 30 - never earlier than the guest's two-hour edit lock) and `excludedMenuItemIds`, the **whole** list of this branch's dishes guests may not pre-order (every other dish may be). Out of bounds, or a dish not on this branch's menu: 422 `validation-failed` naming `minutesBefore` or `excludedMenuItemIds`. All three are required: one left out is 422 `validation-failed` naming it, never a silent reset. Switching off keeps existing pre-orders working; guests may still clear them. A save puts signal 6 on the change stream for the bookings whose rail card it reaches, so tablets re-read `pre-orders/due`.
          */
         put: operations["putPreOrderSettings"];
         post?: never;
@@ -3169,7 +3169,7 @@ export interface paths {
         put?: never;
         /**
          * "Yes, on my way"
-         * @description The answer to the pre-order's question 45 minutes before - or any time before the booking ends. Recorded once (`guestConfirmedOnWayAtUtc` on the booking; the waiter's card says "Guest confirmed"); a second tap answers the first time, `wasReplay: true`. No body. "Can't come" is the booking's ordinary cancel. A booking not confirmed or seated, or over: **409 `on-my-way-not-open`**.
+         * @description The answer to the pre-order's question 45 minutes before - taken from two hours before the start until the booking ends. Recorded once (`guestConfirmedOnWayAtUtc` on the booking; the waiter's card says "Guest confirmed"); a second tap answers the first time, `wasReplay: true`. Moving the booking to another start forgets the answer. No body. "Can't come" is the booking's ordinary cancel. A booking not confirmed or seated, more than two hours away, or over: **409 `on-my-way-not-open`** (`context`: `reservationId`, `status`, `opensAtUtc`).
          */
         post: operations["confirmOnMyWay"];
         delete?: never;
@@ -4605,11 +4605,16 @@ export interface components {
              */
             quantity: number;
         };
-        /** @description Body of `PUT /api/branches/{branchId}/pre-order-settings`. */
+        /** @description Body of `PUT /api/branches/{branchId}/pre-order-settings`. All three are required. */
         "Yalla.Api.Endpoints.PreOrderSettingsRequest": {
+            /** @description Whether guests may pre-order. */
             acceptsPreOrders: boolean;
+            /** @description The whole list of dishes guests may not pre-order; empty for none. */
             excludedMenuItemIds?: string[] | null;
-            /** Format: int32 */
+            /**
+             * Format: int32
+             * @description When the waiter's card appears, 5 to 120 minutes before the start.
+             */
             minutesBefore: number;
         };
         /** @description A table asking for something. */
@@ -23235,7 +23240,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
                 };
             };
-            /** @description `on-my-way-not-open`: the booking is not expecting anybody. */
+            /** @description `on-my-way-not-open`: the booking is not expecting anybody, or not yet (`context.opensAtUtc`). */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -25188,7 +25193,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
                 };
             };
-            /** @description `on-my-way-not-open`: the booking is not expecting anybody. */
+            /** @description `on-my-way-not-open`: the booking is not expecting anybody, or not yet (`context.opensAtUtc`). */
             409: {
                 headers: {
                     [name: string]: unknown;
