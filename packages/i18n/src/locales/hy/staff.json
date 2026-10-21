@@ -136,7 +136,8 @@
       "party_one": "{{count}} հոգի",
       "party_other": "{{count}} հոգի",
       "late": "Ուշանում են · {{time}}",
-      "awaitingAdmission": "պետք է թույլատրել"
+      "awaitingAdmission": "պետք է թույլատրել",
+      "onTheWay": "Ճանապարհին են"
     },
     "heldMark": "սպասում է՝ {{name}}"
   },

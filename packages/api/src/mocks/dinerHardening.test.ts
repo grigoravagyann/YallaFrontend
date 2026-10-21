@@ -462,8 +462,13 @@ describe('the notifications feed in the mock (K12)', () => {
     }
     expect((await gateway.listNotifications()).items).toEqual([]);
 
+    // The middle booking's guest already said they are coming, so its "on
+    // your way" half hour asks nothing: this is about the reminders.
+    time.advance(4.6 * HOUR_MS);
+    await gateway.confirmOnMyWay(bookings[1]!.id);
+
     // Within two hours of the last, and before the first one's sitting ends.
-    time.advance(6.1 * HOUR_MS);
+    time.advance(1.5 * HOUR_MS);
     expect(await gateway.getUnreadNotificationCount()).toBe(3);
 
     const first = await gateway.listNotifications({ limit: 2 });

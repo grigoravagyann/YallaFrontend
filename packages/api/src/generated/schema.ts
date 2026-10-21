@@ -1976,7 +1976,7 @@ export interface paths {
          * The diner's notifications, newest first, with the unread count
          * @description `{ items, nextCursor, unreadCount }`. Each item is `{ notificationId, kind, params, branchId, branchName, reservationId, tabId, orderId, createdAtUtc, read }`.
          *
-         *     `kind` is `booking-reminder`, `booking-confirmed`, `booking-declined`, `booking-cancelled-by-venue`, `order-ready`, `review-hidden`, `review-replied` (the venue answered the diner's review; `params` as `review-hidden`), `table-request`, `table-request-decided`, `booking-changed-by-link`, `booking-cancelled-by-link`, `bookings-blocked-no-shows`, `booking-no-show`, `bookings-unblocked` or `booking-on-your-way` ("Are you on your way?" for a booking with a pre-order - answer with the booking's on-my-way or its cancel). **The server sends no prose**: the app writes the text from `kind` and the string values in `params`.
+         *     `kind` is `booking-reminder`, `booking-confirmed`, `booking-declined`, `booking-cancelled-by-venue`, `order-ready`, `review-hidden`, `review-replied` (the venue answered the diner's review; `params` as `review-hidden`), `table-request`, `table-request-decided`, `booking-changed-by-link`, `booking-cancelled-by-link`, `bookings-blocked-no-shows`, `booking-no-show`, `bookings-unblocked` or `booking-on-your-way` ("Are you on your way?" 30 minutes before a booking, 45 while its pre-order waits - answer with the booking's on-my-way or its cancel). **The server sends no prose**: the app writes the text from `kind` and the string values in `params`.
          *
          *     A reminder appears when it is due, not when the booking was made; cancelling the booking before then removes it. `unreadCount` covers the whole feed, not the page.
          *
@@ -3169,7 +3169,7 @@ export interface paths {
         put?: never;
         /**
          * "Yes, on my way"
-         * @description The answer to the pre-order's question 45 minutes before - taken from two hours before the start until the booking ends. Recorded once (`guestConfirmedOnWayAtUtc` on the booking; the waiter's card says "Guest confirmed"); a second tap answers the first time, `wasReplay: true`. Moving the booking to another start forgets the answer. No body. "Can't come" is the booking's ordinary cancel. A booking not confirmed or seated, more than two hours away, or over: **409 `on-my-way-not-open`** (`context`: `reservationId`, `status`, `opensAtUtc`).
+         * @description The answer to "are you on your way?", asked of every booking 30 minutes before (45 while a pre-order waits) - taken from two hours before the start until the booking ends. Recorded once (`guestConfirmedOnWayAtUtc` on the booking; the waiter's card says "Guest confirmed"); a second tap answers the first time, `wasReplay: true`. Moving the booking to another start forgets the answer. No body. "Can't come" is the booking's ordinary cancel. A booking not confirmed or seated, more than two hours away, or over: **409 `on-my-way-not-open`** (`context`: `reservationId`, `status`, `opensAtUtc`).
          */
         post: operations["confirmOnMyWay"];
         delete?: never;
@@ -7485,6 +7485,12 @@ export interface components {
             freeUntilUtc?: string | null;
             isBookable: boolean;
             label: string;
+            /**
+             * Format: date-time
+             * @description When the next booking's guest answered "yes, I'm on my way" - asked of every booking 30 minutes before (45 while
+             *     a pre-order waits). Set, the waiter does not call; `null` when they have not said.
+             */
+            nextReservationGuestConfirmedOnWayAtUtc?: string | null;
             /**
              * @description The next booking's guest record - as on the console's list, and under the same rule: a proved account behind
              *     it and the booking today or still to come. Absent otherwise. See Yalla.Application.Reservations.GuestRecord.

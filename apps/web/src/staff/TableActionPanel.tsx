@@ -202,9 +202,17 @@ export function TableActionPanel(props: TableActionPanelProps) {
   // seats nobody over it (QA 2026-10-16). The guest's promise to free the
   // table goes under it, smaller, as on the card.
   // Booked without a verified number: said beside it, wherever the booking is.
-  const bookingFlag = detail?.nextReservationPhoneUnverified ? (
-    <span className="badge badge-warn tp-flag">{t('admission.unverified')}</span>
-  ) : null;
+  // The guest said they are on their way: the waiter need not call.
+  const bookingFlag = (
+    <>
+      {detail?.nextReservationGuestConfirmedOnWayAtUtc ? (
+        <span className="badge badge-ok tp-flag">{t('preOrders.onTheWay')}</span>
+      ) : null}
+      {detail?.nextReservationPhoneUnverified ? (
+        <span className="badge badge-warn tp-flag">{t('admission.unverified')}</span>
+      ) : null}
+    </>
+  );
   const nextBooking = bookingStart ? (
     <>
       {bookingWhen}

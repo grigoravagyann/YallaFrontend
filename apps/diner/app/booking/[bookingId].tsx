@@ -292,8 +292,8 @@ function BookingDetail({
           </View>
         </Card>
 
-        {/* Forty-five minutes before, with a pre-order: "Are you on your way?"
-            "Can't come" is the cancel below, with its confirmation. */}
+        {/* Thirty minutes before (forty-five with a pre-order): "Are you on your
+            way?" "Can't come" is the cancel below, with its confirmation. */}
         <OnYourWayCard
           booking={booking}
           now={now}

@@ -1375,7 +1375,7 @@
       },
       "bookingOnYourWay": {
         "title": "Are you on your way?",
-        "body": "{{place}} is expecting you. Your pre-order is ready to go to the kitchen."
+        "body": "{{place}} is expecting you. Let them know you're coming."
       }
     },
     "yesterday": "Yesterday",
@@ -1506,11 +1506,13 @@
     "onYourWay": {
       "title": "Are you on your way?",
       "body": "{{place}} expects you at {{time}}. Your pre-order is ready to go to the kitchen.",
+      "bodyPlain": "{{place}} expects you at {{time}}. Say you're coming and nobody will need to call you.",
       "yes": "Yes, I'm on my way",
       "cantCome": "I can't come",
       "sending": "Sending…",
       "confirmedTitle": "The waiter knows",
-      "confirmedBody": "Your pre-order will be ready as you arrive."
+      "confirmedBody": "Your pre-order will be ready as you arrive.",
+      "confirmedBodyPlain": "Nobody will call you. See you soon."
     },
     "error": {
       "locked": "Pre-orders close 2 hours before your booking. Call the venue to change it.",

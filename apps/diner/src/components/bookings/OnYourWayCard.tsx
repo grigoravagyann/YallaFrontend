@@ -1,4 +1,4 @@
-import { onMyWayFailureLine, onYourWayView, type Booking } from '@yalla/api';
+import { onMyWayFailureLine, onYourWayView, preOrderWaiting, type Booking } from '@yalla/api';
 import { useConfirmOnMyWay } from '../../data/preOrderQueries';
 import { formatTime } from '@yalla/format';
 import { useLocale, useTranslation } from '@yalla/i18n';
@@ -11,10 +11,12 @@ import { Card } from '../Card';
 import { Text } from '../Text';
 
 /**
- * "Are you on your way?" (2026-10-21) — asked from 45 minutes before a
- * confirmed booking with a pre-order, by push, by the feed and here.
+ * "Are you on your way?" (2026-10-21) — asked of every confirmed booking from
+ * 30 minutes before (45 while a pre-order waits for the kitchen), by push, by
+ * the feed and here. The words say which: a waiting pre-order is "ready to go
+ * to the kitchen", any other booking is told nobody will need to call.
  *
- * "Yes, I'm on my way" tells the waiter, whose card then says the guest
+ * "Yes, I'm on my way" tells the waiter, whose floor then says the guest
  * confirmed, so nobody calls; the card here then says "The waiter knows".
  * "I can't come" is the ordinary cancel, with its confirmation and its rules
  * (`onCantCome` opens the booking's own cancel sheet).
@@ -45,6 +47,7 @@ export function OnYourWayCard({
   const { locale } = useLocale();
   const confirm = useConfirmOnMyWay();
   const view = onYourWayView({ ...booking, startUtc: booking.slotUtc }, now);
+  const withPreOrder = preOrderWaiting(booking.preOrder) || booking.preOrder?.state === 'sent';
   const decided = useRef(false);
 
   useEffect(() => {
@@ -64,7 +67,11 @@ export function OnYourWayCard({
             <Text style={[styles.title, styles.okTitle]}>
               {t('preOrder.onYourWay.confirmedTitle')}
             </Text>
-            <Text style={styles.body}>{t('preOrder.onYourWay.confirmedBody')}</Text>
+            <Text style={styles.body}>
+              {withPreOrder
+                ? t('preOrder.onYourWay.confirmedBody')
+                : t('preOrder.onYourWay.confirmedBodyPlain')}
+            </Text>
           </View>
         </View>
       </Card>
@@ -84,7 +91,7 @@ export function OnYourWayCard({
             {t('preOrder.onYourWay.title')}
           </Text>
           <Text style={styles.body}>
-            {t('preOrder.onYourWay.body', {
+            {t(withPreOrder ? 'preOrder.onYourWay.body' : 'preOrder.onYourWay.bodyPlain', {
               place,
               time: formatTime(booking.slotUtc, booking.timeZoneId, locale),
             })}

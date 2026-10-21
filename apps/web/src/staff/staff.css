@@ -629,6 +629,11 @@
   color: var(--console-amber);
 }
 
+/* Good news, not a warning: the next booking's guest is on their way. */
+.ft-table-flag.is-ok {
+  color: var(--console-green);
+}
+
 /* Done on this tablet, not yet on the server. */
 .ft-table-pending {
   position: absolute;

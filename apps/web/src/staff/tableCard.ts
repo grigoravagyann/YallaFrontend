@@ -45,11 +45,15 @@ export interface TableCardText {
    */
   readonly late?: boolean;
   /**
-   * Something about the people rather than the table, in amber beside the
-   * state: a scan's tab waiting to be let in, or the booking made without a
-   * verified number (2026-10-20). Null or absent when there is nothing.
+   * Something about the people rather than the table, beside the state: in
+   * amber a scan's tab waiting to be let in, or the booking made without a
+   * verified number (2026-10-20); in green the next booking's guest saying
+   * they are on their way (2026-10-21), which wins — the waiter need not
+   * call. Null or absent when there is nothing.
    */
   readonly flag?: string | null;
+  /** How the flag is said: `warn` (amber) or `ok` (green). */
+  readonly flagTone?: 'warn' | 'ok';
 }
 
 export interface TableCardInput {
@@ -80,14 +84,17 @@ export function tableCardText({
   minutesSince,
 }: TableCardInput): TableCardText {
   const card = cardText({ table, detail, debt, now, t, time, minutesSince });
+  const booked = table.state === 'reservedSoon' || table.state === 'held';
+  if (booked && detail?.nextReservationGuestConfirmedOnWayAtUtc) {
+    return { ...card, flag: t('floor.card.onTheWay'), flagTone: 'ok' };
+  }
   const flag =
     table.state === 'occupied' && detail?.openTabAwaitingAdmission
       ? t('floor.card.awaitingAdmission')
-      : (table.state === 'reservedSoon' || table.state === 'held') &&
-          detail?.nextReservationPhoneUnverified
+      : booked && detail?.nextReservationPhoneUnverified
         ? t('admission.unverified')
         : null;
-  return flag ? { ...card, flag } : card;
+  return flag ? { ...card, flag, flagTone: 'warn' } : card;
 }
 
 function cardText({

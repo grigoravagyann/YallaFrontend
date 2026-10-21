@@ -447,8 +447,8 @@ function ManagePage({
         </p>
       ) : null}
 
-      {/* Forty-five minutes before, with a pre-order: the server asks, the
-          page puts it first. "Can't come" is the cancel below, asked first. */}
+      {/* Thirty minutes before (forty-five with a pre-order): the server asks,
+          the page puts it first. "Can't come" is the cancel below, asked first. */}
       {live && !confirming ? (
         <OnYourWayQuestion
           token={token}

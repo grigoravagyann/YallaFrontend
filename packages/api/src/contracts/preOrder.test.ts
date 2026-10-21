@@ -25,6 +25,7 @@ import {
   canEditPreOrder,
   derivePreOrderState,
   draftFromPreOrder,
+  onYourWayFromUtc,
   preOrderActionFailure,
   preOrderDraftViolations,
   preOrderFailure,
@@ -120,20 +121,34 @@ describe('what to offer', () => {
     expect(canClearPreOrder({ preOrder: null }, before(200))).toBe(false);
   });
 
-  it('asks "on your way" from 45 minutes before, until answered or the start', () => {
+  it('asks "on your way" from 45 minutes before with a waiting pre-order, until answered or the start', () => {
     const confirmed = { status: 'confirmed' as const, startUtc: START, preOrder: PRE_ORDER };
     expect(asksOnYourWay(confirmed, before(46))).toBe(false);
     expect(asksOnYourWay(confirmed, before(45))).toBe(true);
     expect(asksOnYourWay(confirmed, before(0))).toBe(false);
     expect(asksOnYourWay({ ...confirmed, guestConfirmedOnWayAtUtc: 'x' }, before(30))).toBe(false);
     expect(asksOnYourWay({ ...confirmed, status: 'pendingApproval' }, before(30))).toBe(false);
-    expect(asksOnYourWay({ ...confirmed, preOrder: null }, before(30))).toBe(false);
     expect(
       asksOnYourWay({ ...confirmed, preOrder: { ...PRE_ORDER, state: 'sent' } }, before(30)),
     ).toBe(false);
     expect(
       asksOnYourWay({ ...confirmed, preOrder: { ...PRE_ORDER, state: 'notComing' } }, before(30)),
     ).toBe(true);
+  });
+
+  it('asks every booking without a pre-order from 30 minutes before (2026-10-21)', () => {
+    const bare = { status: 'confirmed' as const, startUtc: START, preOrder: null };
+    expect(asksOnYourWay(bare, before(31))).toBe(false);
+    expect(asksOnYourWay(bare, before(30))).toBe(true);
+    expect(asksOnYourWay(bare, before(0))).toBe(false);
+    expect(asksOnYourWay({ ...bare, guestConfirmedOnWayAtUtc: 'x' }, before(10))).toBe(false);
+    // A cleared or cancelled pre-order is asked like a booking without one.
+    const cancelled = { ...bare, preOrder: { ...PRE_ORDER, state: 'cancelled' as const } };
+    expect(asksOnYourWay(cancelled, before(31))).toBe(false);
+    expect(asksOnYourWay(cancelled, before(30))).toBe(true);
+    expect(onYourWayFromUtc(START, false)).toBe(
+      new Date(Date.parse(START) - 30 * 60_000).toISOString(),
+    );
   });
 
   it('reads the rail again on signals 6, 5 and 4 only', () => {

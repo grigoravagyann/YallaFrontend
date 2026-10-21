@@ -312,6 +312,13 @@ export interface StaffTableDetail {
    */
   readonly nextReservationPhoneUnverified?: boolean | undefined;
   /**
+   * When the next booking's guest answered "yes, I'm on my way" — asked of
+   * every booking 30 minutes before (45 with a pre-order). Set, the waiter
+   * need not call. Absent or `null` when they have not said, and from a
+   * server before every booking was asked.
+   */
+  readonly nextReservationGuestConfirmedOnWayAtUtc?: string | null | undefined;
+  /**
    * The open tab was opened by a scan with no proved number and waits for a
    * waiter to admit it: the table panel offers Admit and Reject. Absent from a
    * server before admission, which reads as admitted.

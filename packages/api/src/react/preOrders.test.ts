@@ -163,7 +163,9 @@ describe('the manage link', () => {
     expect(manageLinkPollMs({ ...link, preOrder: { ...PRE_ORDER, state: 'sent' } }, at(30))).toBe(
       false,
     );
-    expect(manageLinkPollMs({ ...link, preOrder: null }, at(30))).toBe(false);
+    // Every booking is asked (2026-10-21): without a pre-order, from 30 minutes before.
+    expect(manageLinkPollMs({ ...link, preOrder: null }, at(30))).toBe(MANAGE_LINK_SLOW_POLL_MS);
+    expect(manageLinkPollMs({ ...link, preOrder: null }, at(200))).toBe(false);
     expect(manageLinkPollMs(link, at(-1))).toBe(false);
   });
 });
