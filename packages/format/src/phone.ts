@@ -8,7 +8,7 @@
  * takes the stored E.164 value, never this.
  *
  * The public page's and the floor tablet's (live QA 2026-10-21: the rail's
- * pre-order cards wrote "+37499100221" where the page wrote it grouped).
+ * pre-order cards wrote the number ungrouped where the page grouped it).
  */
 export function formatPhone(e164: string): string {
   const match = /^\+374(\d{2})(\d{2})(\d{2})(\d{2})$/u.exec(e164);
