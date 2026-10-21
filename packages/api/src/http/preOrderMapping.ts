@@ -47,14 +47,12 @@ import { guestRecordFromWire } from './guestRecordMapping';
  * the pre-order on each booking read, the guest's answers, the floor's rail,
  * the kitchen's marker, the console's settings, and the refusals.
  *
- * ## Ahead of the generated schema
+ * ## The generated schema
  *
- * The backend is being built alongside this, so `generated/schema.ts` does
- * not have any of it yet. The shapes are declared here, as the wire says them,
- * and every new member on an existing view is optional — a server from before
+ * `generated/schema.ts` carries every pre-order member now, and the shapes
+ * below alias it. The few interfaces left name the members a mapper reads on
+ * a view shared with older code paths, each optional — a server from before
  * pre-orders reads as "no pre-order, nothing offered", never as a failure.
- * Once `pnpm api:generate` runs against the backend, the generated shapes
- * carry the same members and these collapse into them.
  *
  * Like `bookingTimesWire.ts`, this file imports no mapper that imports it
  * (only `guestRecordMapping.ts`, a leaf), so every mapper can import it.
@@ -102,19 +100,8 @@ export type WireDuePreOrders = Schemas['Yalla.Application.Reservations.DuePreOrd
 /** `KitchenPreOrder`, on `KitchenOrderView.preOrder`. */
 export type WireKitchenPreOrder = Schemas['Yalla.Application.Ordering.KitchenPreOrder'];
 
-/** The new members of `KitchenOrderView`: the held ticket has no tab yet. */
-export interface WireKitchenOrderPreOrderFields {
-  readonly tabId?: string | null;
-  readonly preOrder?: WireKitchenPreOrder | null;
-}
-
 /** `PreOrderSettingsView`. */
 export type WirePreOrderSettings = Schemas['Yalla.Application.Reservations.PreOrderSettingsView'];
-
-/** `MenuItemView.availableForPreOrder`, on the diner's menu and the console's. */
-export interface WireMenuItemPreOrderFields {
-  readonly availableForPreOrder?: boolean | null;
-}
 
 /** `PublicReservationPolicy.acceptsPreOrders`. */
 export interface WirePolicyPreOrderFields {
@@ -394,6 +381,7 @@ export function preOrderRefusal(error: unknown): ApiError | null {
         ...base,
         reservationId,
         bookingStatus: reservationStatusOf(context['status']),
+        opensAtUtc: text(context['opensAtUtc']),
       });
     case PRE_ORDER_NOT_SENDABLE_CODE:
       return new PreOrderNotSendableError({

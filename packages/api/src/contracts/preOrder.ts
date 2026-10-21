@@ -19,6 +19,8 @@ import {
   PreOrderLockedError,
   PreOrderNotSendableError,
   PreOrdersNotAcceptedError,
+  RateLimitedError,
+  ServiceRequestRateLimitedError,
   TabNotAcceptingOrdersError,
   TableBusyError,
   type UnavailablePreOrderItem,
@@ -277,8 +279,8 @@ export interface DuePreOrders {
   /** Soonest first, then by table. Includes sent and not-coming cards (render their state). */
   readonly items: readonly DuePreOrder[];
   /**
-   * When the next card appears: read the rail again then (and on change-stream
-   * signals `preOrderChanged` and `bookingChanged`). `null` when no confirmed
+   * When the next card appears: read the rail again then (and on the
+   * change-stream signals in `PRE_ORDER_RAIL_SIGNALS`). `null` when no confirmed
    * booking with a pre-order is still to come.
    */
   readonly nextDueAtUtc: string | null;
@@ -286,11 +288,15 @@ export interface DuePreOrders {
 
 /**
  * The change-stream signals on which the tablet reads the rail again:
- * `preOrderChanged` (6) and `bookingChanged` (5). Never folded into the floor.
+ * `preOrderChanged` (6), `bookingChanged` (5) and `bookingCancelledByBlock`
+ * (4) — a booking a no-show block cancelled gets only its signal-4 row, and
+ * its card must leave the rail then, not at the next poll. Never folded into
+ * the floor.
  */
 export const PRE_ORDER_RAIL_SIGNALS: readonly FloorChangeSignal[] = [
   'preOrderChanged',
   'bookingChanged',
+  'bookingCancelledByBlock',
 ];
 
 /** Whether a change-stream entry's signal asks for the rail to be read again. */
@@ -698,6 +704,9 @@ export function preOrderFailure(
  * - `alreadySent`: "Not coming" on a sent one; the card shows it sent.
  * - `tabClosing`: the party's bill is being settled; nothing more goes on it.
  * - `busy`: the table was locked a moment — tap again (same command id).
+ * - `changed`: the booking's table kept changing under the send (409
+ *   `concurrent-update`) — the rail is re-read; look, then tap again.
+ * - `rateLimited`: too many taps (429) — wait a moment.
  * - `unknown`: offline or the connection dropped: online only, nothing queued.
  */
 export type PreOrderActionFailure =
@@ -705,6 +714,8 @@ export type PreOrderActionFailure =
   | { readonly kind: 'alreadySent'; readonly line: CopyLine }
   | { readonly kind: 'tabClosing'; readonly line: CopyLine }
   | { readonly kind: 'busy'; readonly line: CopyLine }
+  | { readonly kind: 'changed'; readonly line: CopyLine }
+  | { readonly kind: 'rateLimited'; readonly line: CopyLine }
   | { readonly kind: 'notFound'; readonly line: CopyLine }
   | { readonly kind: 'forbidden'; readonly line: CopyLine }
   | { readonly kind: 'unknown'; readonly line: CopyLine }
@@ -722,6 +733,16 @@ export function preOrderActionFailure(error: unknown): PreOrderActionFailure {
   }
   if (error instanceof TableBusyError) {
     return { kind: 'busy', line: copy('preOrders.error.busy') };
+  }
+  if (error instanceof ConcurrencyConflictError) {
+    return { kind: 'changed', line: copy('preOrders.error.changed') };
+  }
+  if (
+    error instanceof TooManyRequestsError ||
+    error instanceof RateLimitedError ||
+    error instanceof ServiceRequestRateLimitedError
+  ) {
+    return { kind: 'rateLimited', line: copy('preOrders.error.rateLimited') };
   }
   if (error instanceof NotFoundError) {
     return { kind: 'notFound', line: copy('preOrders.error.notFound') };

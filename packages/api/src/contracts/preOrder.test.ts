@@ -1,8 +1,16 @@
 import { describe, expect, it } from 'vitest';
-import { ForbiddenError, NetworkError, NotFoundError, ValidationError } from '../errors';
+import {
+  ConcurrencyConflictError,
+  ForbiddenError,
+  NetworkError,
+  NotFoundError,
+  TooManyRequestsError,
+  ValidationError,
+} from '../errors';
 import {
   BookingNotChangeableError,
   OnMyWayNotOpenError,
+  RateLimitedError,
   PreOrderAlreadySentError,
   PreOrderItemsUnavailableError,
   PreOrderLockedError,
@@ -128,9 +136,12 @@ describe('what to offer', () => {
     ).toBe(true);
   });
 
-  it('reads the rail again on signals 6 and 5 only', () => {
+  it('reads the rail again on signals 6, 5 and 4 only', () => {
     expect(readsPreOrderRail('preOrderChanged')).toBe(true);
     expect(readsPreOrderRail('bookingChanged')).toBe(true);
+    // A block-cancel writes only signal 4: without it the cancelled booking's
+    // card stays sendable on the rail until the next poll (review S2).
+    expect(readsPreOrderRail('bookingCancelledByBlock')).toBe(true);
     expect(readsPreOrderRail('tabAdmitted')).toBe(false);
     expect(readsPreOrderRail(null)).toBe(false);
   });
@@ -245,6 +256,17 @@ describe('a refusal, as a sentence', () => {
       'preOrders.error.busy',
     );
     expect(preOrderActionFailure(new ForbiddenError({ url })).kind).toBe('forbidden');
+    // The booking's table kept changing under the send: the rail is re-read,
+    // and the copy says so rather than a bare "try again".
+    expect(preOrderActionFailure(new ConcurrencyConflictError({ url })).line.key).toBe(
+      'preOrders.error.changed',
+    );
+    expect(preOrderActionFailure(new TooManyRequestsError({ url })).line.key).toBe(
+      'preOrders.error.rateLimited',
+    );
+    expect(preOrderActionFailure(new RateLimitedError({ url, retryAtUtc: null })).kind).toBe(
+      'rateLimited',
+    );
     expect(preOrderActionFailure(new Error('?')).kind).toBe('generic');
   });
 });

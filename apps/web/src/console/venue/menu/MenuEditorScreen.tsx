@@ -306,21 +306,20 @@ export function MenuEditorScreen() {
 
   /**
    * In or out of pre-orders. The server keeps one list for the branch, so the
-   * whole list goes, as the server last answered it, with this dish changed.
-   * Pre-orders that already have the dish keep it (the waiter sees it flagged).
+   * whole list goes — read fresh just before (review S6), with this dish
+   * changed to what the switch was tapped to, and the rest as the server has
+   * it. Pre-orders that already have the dish keep it (the waiter sees it
+   * flagged).
    */
   function togglePreOrder(item: AdminMenuItem): void {
     if (!preOrders || preOrderFor !== null) return;
-    const excluded = preOrders.excludedMenuItemIds;
-    const offered = !excluded.includes(item.id);
+    // What the switch showed: the tap asks for the other.
+    const offered = !preOrders.excludedMenuItemIds.includes(item.id);
     setPreOrderFor(item.id);
     savePreOrders.mutate(
-      {
-        acceptsPreOrders: preOrders.acceptsPreOrders,
-        minutesBefore: preOrders.minutesBefore,
-        excludedMenuItemIds: offered
-          ? [...excluded, item.id]
-          : excluded.filter((id) => id !== item.id),
+      (fresh) => {
+        const others = fresh.excludedMenuItemIds.filter((id) => id !== item.id);
+        return { ...fresh, excludedMenuItemIds: offered ? [...others, item.id] : others };
       },
       {
         onSuccess: () =>

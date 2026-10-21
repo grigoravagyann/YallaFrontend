@@ -1309,6 +1309,13 @@ review every string in `src/locales/hy` and `src/locales/ru`.**
     staff `kitchen.ticket.preOrder` («Նախապատվեր · Սեղան {{label}} · {{time}}»)
     and `kitchen.ticket.withPreOrder` (the ticket's screen-reader name), and
     `kitchen.ticket.dueIn_*` (a pre-order ticket counts down to its booking).
+    Review fixes (2026-10-21): `kitchen.ticket.preOrderGuest` is the marker with
+    the party and the guest's first name (`{{party}}` a bare number, as the
+    wire's "· 4 · Anna"); `kitchen.ticket.dueInMinutes_*` is the screen-reader
+    form of `dueIn_*` and must say the same "in N"; staff `preOrders.stale`
+    (cards kept from the last read, which may be out of date), and
+    `preOrders.error.changed` (409 `concurrent-update`: the list was re-read,
+    look before tapping again) and `preOrders.error.rateLimited` (429).
   - admin `preOrders.*` (the Policy card, and a booking's pre-order in the
     requests): `rules.lock_*` must keep the **hours** and that the guest **calls
     the venue** after; `rules.ask` the minutes of the "on your way" question;

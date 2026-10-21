@@ -105,6 +105,7 @@ export {
   afterPreOrderSaved,
   afterPreOrderSettingsSaved,
   duePreOrdersPollMs,
+  savePreOrderSettingsFresh,
   useClearManagedPreOrder,
   useClearPreOrder,
   useConfirmManagedOnMyWay,
@@ -1718,6 +1719,12 @@ function useMenuMutation<TInput, TResult>(
       void queryClient.invalidateQueries({ queryKey: queryKeys.adminMenu(branchId ?? '') });
       // Categories, items and their completeness are three checklist lines.
       void queryClient.invalidateQueries({ queryKey: queryKeys.readiness(branchId ?? '') });
+      // The pre-order exclusions live on the dish rows: a deleted dish (or a
+      // category with its dishes) leaves the server's list, and a cached
+      // list still naming it is refused on the next save (review S5).
+      void queryClient.invalidateQueries({
+        queryKey: queryKeys.preOrderSettings(branchId ?? ''),
+      });
       // Unfinished dishes are the list's readiness line and Home's "not ready".
       refreshVenueViews(queryClient);
       refreshPlatformViews(queryClient);

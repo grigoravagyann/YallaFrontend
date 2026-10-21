@@ -66,6 +66,29 @@ describe('a pre-order ticket (2026-10-21)', () => {
     expect(ticketBand(preOrder(42))).toBe('late');
     expect(ticketBand(preOrder(50, 'ready'))).toBe('ready');
   });
+
+  // Review S4: the party came late and the waiter sent from the card after
+  // the start. The kitchen first saw it at the send, so it ages from then.
+  it('sent after its booking started, ages from the send, never late on arrival', () => {
+    const lateSend = (minutes: number) =>
+      ticket({
+        tabId: null,
+        placedAtUtc: '2026-10-21T15:25:00Z',
+        waitingMinutes: minutes,
+        preOrder: {
+          reservationId: 'r1',
+          startUtc: '2026-10-21T15:00:00Z',
+          localStartTime: '19:00',
+          partySize: 4,
+          guestName: 'Anna',
+        },
+      });
+    expect(ticketMinutesFromStart(lateSend(0))).toBe(0);
+    expect(ticketBand(lateSend(0))).toBe('fresh');
+    expect(ticketBand(lateSend(7))).toBe('waiting');
+    expect(ticketBand(lateSend(12))).toBe('late');
+    expect(kitchenCounts([lateSend(0)])).toEqual({ fresh: 1, waiting: 0, late: 0 });
+  });
 });
 
 describe('the band a ticket is in', () => {
@@ -122,6 +145,33 @@ describe('the order of the board', () => {
       placedAtUtc: '2026-10-19T14:29:00Z',
     }),
   ];
+
+  // Review S3: by the same minutes as the band. A pre-order sent long before
+  // its booking has waited longest but is not due yet; a late table is.
+  it('by wait: a pre-order not due yet sorts after a late ticket, by the minutes its band reads', () => {
+    const early = ticket({
+      orderId: 'pre-order',
+      tableLabel: '11',
+      tabId: null,
+      // Sent 115 minutes before a 15:00 booking; 95 minutes later it is due in 20.
+      placedAtUtc: '2026-10-21T13:05:00Z',
+      waitingMinutes: 95,
+      preOrder: {
+        reservationId: 'r1',
+        startUtc: '2026-10-21T15:00:00Z',
+        localStartTime: '19:00',
+        partySize: 4,
+        guestName: 'Anna',
+      },
+    });
+    const late = ticket({ orderId: 'late', tableLabel: '5', waitingMinutes: 14 });
+    const young = ticket({ orderId: 'young', tableLabel: '2', waitingMinutes: 4 });
+    expect(sortTickets([early, young, late], 'age').map((order) => order.orderId)).toEqual([
+      'late',
+      'young',
+      'pre-order',
+    ]);
+  });
 
   it('by wait: the oldest cooking on the left, then the unsent, ready ones last', () => {
     const withUnsent = [

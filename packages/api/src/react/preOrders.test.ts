@@ -1,7 +1,15 @@
-import { QueryClient } from '@tanstack/react-query';
-import { describe, expect, it } from 'vitest';
+import { MutationObserver, QueryClient, onlineManager } from '@tanstack/react-query';
+import { afterEach, describe, expect, it } from 'vitest';
 import type { Booking } from '../contracts/booking';
-import type { DuePreOrder, DuePreOrders, PreOrder } from '../contracts/preOrder';
+import type {
+  DuePreOrder,
+  DuePreOrders,
+  PreOrder,
+  PreOrderSettings,
+  PreOrderSettingsInput,
+} from '../contracts/preOrder';
+import type { ConsoleGateway } from '../consoleGateway';
+import { ValidationError } from '../errors';
 import type { ManagedBooking } from '../contracts/publicBranch';
 import { MANAGE_LINK_SLOW_POLL_MS, manageLinkPollMs, queryKeys } from './index';
 import {
@@ -12,6 +20,8 @@ import {
   afterPreOrderSaved,
   afterPreOrderSettingsSaved,
   duePreOrdersPollMs,
+  preOrderActionOptions,
+  savePreOrderSettingsFresh,
 } from './preOrders';
 
 /**
@@ -220,6 +230,35 @@ describe("the waiter's two actions", () => {
     expect(invalidated(queryClient, queryKeys.orderQueue(BRANCH))).toBe(true);
   });
 
+  describe('with the connection gone between the render and the tap', () => {
+    afterEach(() => onlineManager.setOnline(true));
+
+    // The tablet's client pauses an offline write and sends it on reconnect.
+    // A pre-order is online only, never queued: the tap fails there and then
+    // instead of turning into a kitchen ticket minutes later.
+    it('fails the tap at once, never pausing it to send later', async () => {
+      const queryClient = new QueryClient({
+        defaultOptions: { mutations: { networkMode: 'online', retry: false } },
+      });
+      onlineManager.setOnline(false);
+      let attempts = 0;
+      const observer = new MutationObserver(
+        queryClient,
+        preOrderActionOptions(queryClient, BRANCH, () => {
+          attempts += 1;
+          return Promise.reject(new Error('Network request failed'));
+        }),
+      );
+      const settled = observer
+        .mutate({ reservationId: RESERVATION, clientCommandId: 'c-1' })
+        .catch(() => undefined);
+      await Promise.race([settled, new Promise((resolve) => setTimeout(resolve, 50))]);
+      expect(observer.getCurrentResult().isPaused).toBe(false);
+      expect(attempts).toBe(1);
+      expect(observer.getCurrentResult().status).toBe('error');
+    });
+  });
+
   it('reads the rail again when the next card is due, and every minute at most', () => {
     const now = Date.parse('2026-10-22T14:00:00Z');
     expect(duePreOrdersPollMs({ items: [], nextDueAtUtc: '2026-10-22T14:00:20Z' }, now)).toBe(
@@ -228,8 +267,16 @@ describe("the waiter's two actions", () => {
     expect(duePreOrdersPollMs({ items: [], nextDueAtUtc: '2026-10-22T16:00:00Z' }, now)).toBe(
       60_000,
     );
+    // Past due — a tablet clock running ahead of the server's — or a moment
+    // away: never faster than every five seconds, or a skewed clock loops.
     expect(duePreOrdersPollMs({ items: [], nextDueAtUtc: '2026-10-22T13:00:00Z' }, now)).toBe(
-      1_000,
+      5_000,
+    );
+    expect(duePreOrdersPollMs({ items: [], nextDueAtUtc: '2026-10-22T13:59:59Z' }, now)).toBe(
+      5_000,
+    );
+    expect(duePreOrdersPollMs({ items: [], nextDueAtUtc: '2026-10-22T14:00:01Z' }, now)).toBe(
+      5_000,
     );
     expect(duePreOrdersPollMs({ items: [], nextDueAtUtc: null }, now)).toBe(60_000);
     expect(duePreOrdersPollMs(undefined, now)).toBe(60_000);
@@ -251,5 +298,118 @@ describe("the console's settings", () => {
     afterPreOrderSettingsSaved(queryClient, BRANCH, settings);
     expect(queryClient.getQueryData(queryKeys.preOrderSettings(BRANCH))).toEqual(settings);
     expect(invalidated(queryClient, queryKeys.adminMenu(BRANCH))).toBe(true);
+  });
+});
+
+describe("the console's save, read fresh first (review S5, S6)", () => {
+  const SETTINGS: PreOrderSettings = {
+    acceptsPreOrders: true,
+    minutesBefore: 30,
+    excludedMenuItemIds: ['gata'],
+    bounds: { minutesBeforeMin: 5, minutesBeforeMax: 120 },
+    editableUntilHoursBefore: 2,
+    onYourWayMinutesBefore: 45,
+  };
+
+  const refused = () =>
+    new ValidationError({
+      url: 'x',
+      status: 422,
+      problem: {
+        type: '',
+        title: 'Invalid',
+        status: 422,
+        detail: '',
+        code: 'validation-failed',
+        traceId: 't',
+        context: { fields: [{ field: 'excludedMenuItemIds', message: 'not on the menu' }] },
+      },
+    });
+
+  /** The server: settings as another session left them, a menu, a PUT to watch. */
+  function server(options: {
+    readonly reads: readonly PreOrderSettings[];
+    readonly menu?: readonly string[];
+    readonly saves: readonly (Error | null)[];
+  }) {
+    let read = 0;
+    let saved = 0;
+    const puts: PreOrderSettingsInput[] = [];
+    const gateway = {
+      getPreOrderSettings: async () => options.reads[Math.min(read++, options.reads.length - 1)]!,
+      getAdminMenu: async () => [{ id: 'c', items: (options.menu ?? []).map((id) => ({ id })) }],
+      savePreOrderSettings: async ({ settings }: { settings: PreOrderSettingsInput }) => {
+        puts.push(settings);
+        const outcome = options.saves[saved++];
+        if (outcome) throw outcome;
+        return { ...SETTINGS, ...settings };
+      },
+    } as unknown as ConsoleGateway;
+    return { gateway, puts, reads: () => read };
+  }
+
+  it("reads the settings fresh, past a cached copy, and changes only the surface's own field", async () => {
+    const queryClient = client();
+    // What this screen read minutes ago.
+    seed(queryClient, queryKeys.preOrderSettings(BRANCH), SETTINGS);
+    // What another manager has saved since.
+    const { gateway, puts } = server({
+      reads: [{ ...SETTINGS, minutesBefore: 60 }],
+      saves: [null],
+    });
+
+    await savePreOrderSettingsFresh(queryClient, gateway, BRANCH, (fresh) => ({
+      ...fresh,
+      excludedMenuItemIds: [...fresh.excludedMenuItemIds, 'cappuccino'],
+    }));
+
+    expect(puts).toEqual([
+      { acceptsPreOrders: true, minutesBefore: 60, excludedMenuItemIds: ['gata', 'cappuccino'] },
+    ]);
+  });
+
+  it('on a refused dish list, reads again and retries once, with only dishes still on the menu', async () => {
+    const queryClient = client();
+    const { gateway, puts, reads } = server({
+      reads: [SETTINGS, { ...SETTINGS, excludedMenuItemIds: ['gata', 'ghost'] }],
+      menu: ['gata', 'cappuccino'],
+      saves: [refused(), null],
+    });
+
+    await savePreOrderSettingsFresh(queryClient, gateway, BRANCH, (fresh) => ({
+      ...fresh,
+      excludedMenuItemIds: [...fresh.excludedMenuItemIds, 'cappuccino'],
+    }));
+
+    expect(reads()).toBe(2);
+    expect(puts.at(-1)).toEqual({
+      acceptsPreOrders: true,
+      minutesBefore: 30,
+      excludedMenuItemIds: ['gata', 'cappuccino'],
+    });
+  });
+
+  it('retries once only: a second refusal is the answer', async () => {
+    const queryClient = client();
+    const { gateway, puts } = server({
+      reads: [SETTINGS],
+      menu: ['gata'],
+      saves: [refused(), refused(), null],
+    });
+
+    await expect(
+      savePreOrderSettingsFresh(queryClient, gateway, BRANCH, (fresh) => fresh),
+    ).rejects.toBeInstanceOf(ValidationError);
+    expect(puts).toHaveLength(2);
+  });
+
+  it('does not retry any other refusal', async () => {
+    const queryClient = client();
+    const { gateway, puts } = server({ reads: [SETTINGS], saves: [new Error('500'), null] });
+
+    await expect(
+      savePreOrderSettingsFresh(queryClient, gateway, BRANCH, (fresh) => fresh),
+    ).rejects.toThrow('500');
+    expect(puts).toHaveLength(1);
   });
 });

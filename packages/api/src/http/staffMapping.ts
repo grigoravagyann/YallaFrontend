@@ -1,11 +1,7 @@
 import type { components } from '../generated/schema';
 import { admissionFromWire, floorChangeSignal } from './admissionMapping';
 import { guestRecordFromWire } from './guestRecordMapping';
-import {
-  kitchenPreOrderFromWire,
-  type WireKitchenOrderPreOrderFields,
-  type WireMenuItemPreOrderFields,
-} from './preOrderMapping';
+import { kitchenPreOrderFromWire } from './preOrderMapping';
 import type {
   AffectedReservation,
   PreconditionFailure,
@@ -56,12 +52,10 @@ type FloorState = Schemas['Yalla.Application.Floor.BranchFloorState'];
 type ChangeResult = Schemas['Yalla.Application.Tables.TableStateChangeResult'];
 type StaffView = Schemas['Yalla.Application.Tabs.TabStaffView'];
 /**
- * A kitchen ticket. Ahead of the generated schema (pre-orders, 2026-10-21): a
- * held pre-order ticket has no tab yet, and every pre-order ticket carries its
- * marker.
+ * A kitchen ticket. A held pre-order ticket has no tab yet, and every
+ * pre-order ticket carries its marker (pre-orders, 2026-10-21).
  */
-type KitchenOrder = Omit<Schemas['Yalla.Application.Ordering.KitchenOrderView'], 'tabId'> &
-  WireKitchenOrderPreOrderFields;
+type KitchenOrder = Schemas['Yalla.Application.Ordering.KitchenOrderView'];
 type OrderLine = Schemas['Yalla.Application.Ordering.OrderLineView'];
 type OrderView = Schemas['Yalla.Application.Ordering.OrderView'];
 type AdjustmentView = Schemas['Yalla.Application.Ordering.AdjustmentView'];
@@ -703,8 +697,8 @@ function completeItem(
     spiceLevel: SPICE[item.spiceLevel] ?? 'notSpicy',
     prepMinutes: item.prepMinutes,
     isAvailable: item.isAvailable,
-    // Ahead of the generated schema (pre-orders, 2026-10-21); absent is yes.
-    availableForPreOrder: (item as WireMenuItemPreOrderFields).availableForPreOrder !== false,
+    // Pre-orders (2026-10-21): absent — a server from before them — is yes.
+    availableForPreOrder: item.availableForPreOrder !== false,
     displayOrder: item.displayOrder,
   };
 }

@@ -473,8 +473,9 @@ export function FloorRoute({ identity, device = null, paused }: FloorRouteProps)
               });
             }
             // A pre-order changed anywhere (signal 6) — the branch's pre-order
-            // settings included — or a booking did (5): the rail's cards are
-            // read again, never patched from the row.
+            // settings included — or a booking did (5), or a block cancelled
+            // one (4, its only row): the rail's cards are read again, never
+            // patched from the row.
             if (unknownSignal || signalled.some((change) => readsPreOrderRail(change.signal))) {
               void queryClient.invalidateQueries({
                 queryKey: queryKeys.duePreOrders(branchId),
@@ -1376,6 +1377,7 @@ export function FloorRoute({ identity, device = null, paused }: FloorRouteProps)
               duePreOrders,
               selection.tableId,
               selectedDetail?.nextReservationId,
+              selectedDetail?.physicalStatus === 'occupied',
             )}
             onPreOrderDone={preOrderDone}
             branchId={branchId}

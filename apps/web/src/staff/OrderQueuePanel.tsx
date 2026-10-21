@@ -9,6 +9,7 @@ import {
   kitchenCounts,
   sortTickets,
   ticketBand,
+  ticketMinutes,
   ticketMinutesFromStart,
   type TicketSort,
 } from './kitchenBoard';
@@ -37,9 +38,9 @@ import { useBranchFormat } from './useBranchFormat';
  * it is waiting for. The waiter's tab keeps that send beside the ticket, so a
  * waiter who sees one they forgot does not have to go and find it.
  *
- * **A pre-order says so** (2026-10-21): "Pre-order · Table 11 · 19:30" over
- * its lines — cooked for the booking's time, and sent before the party sat,
- * so it may have no tab yet. It moves on with the same one action.
+ * **A pre-order says so** (2026-10-21): "Pre-order · Table 11 · 19:30 · 4 ·
+ * Anna" over its lines — cooked for the booking's time, and sent before the
+ * party sat, so it may have no tab yet. It moves on with the same one action.
  */
 
 export interface OrderQueuePanelProps {
@@ -188,15 +189,30 @@ export function OrderQueuePanel(props: OrderQueuePanelProps) {
             const sender = order.placedByName
               ? firstName(order.placedByName)
               : t('kitchen.fromApp');
+            // The wire's marker: the party and the guest's first name too,
+            // when the server named one — the strip wraps if it must.
+            const guest = order.preOrder ? firstName(order.preOrder.guestName) : '';
             const preOrder = order.preOrder
-              ? t('kitchen.ticket.preOrder', {
-                  label: order.tableLabel,
-                  time: order.preOrder.localStartTime,
-                })
+              ? guest
+                ? t('kitchen.ticket.preOrderGuest', {
+                    label: order.tableLabel,
+                    time: order.preOrder.localStartTime,
+                    party: order.preOrder.partySize,
+                    guest,
+                  })
+                : t('kitchen.ticket.preOrder', {
+                    label: order.tableLabel,
+                    time: order.preOrder.localStartTime,
+                  })
               : null;
             const name = t('kitchen.ticket.name', {
               label: order.tableLabel,
-              minutes: t('kitchen.ticket.minutes', { count: order.waitingMinutes }),
+              // What the timer shows: "in 20 minutes" before a pre-order's
+              // start, never the minutes since it was sent.
+              minutes:
+                fromStart !== null && fromStart < 0
+                  ? t('kitchen.ticket.dueInMinutes', { count: -fromStart })
+                  : t('kitchen.ticket.minutes', { count: ticketMinutes(order) }),
               band: t(`kitchen.band.${band}`),
               items: order.lines.map((line) => `${line.quantity} ${line.name}`).join(', '),
             });

@@ -1,10 +1,13 @@
 // @vitest-environment jsdom
 import 'fake-indexeddb/auto';
 import {
+  NetworkError,
   PreOrderNotSendableError,
+  TableBusyError,
   createQueryClient,
   createStaffMockGateway,
   newCommandId,
+  type DuePreOrder,
   type EnrolledDevice,
   type FloorChange,
   type StaffGateway,
@@ -14,13 +17,14 @@ import { formatDram } from '@yalla/format';
 import { GatewayProvider } from '@yalla/api/react';
 import { I18nextProvider, i18next } from '@yalla/i18n';
 import { QueryClientProvider } from '@tanstack/react-query';
-import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { act, cleanup, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { useSyncExternalStore } from 'react';
 import { MemoryRouter } from 'react-router-dom';
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { initConsoleTestI18n } from '../console/venue/reports/testHarness';
 import { applyFloorChanges } from './live/sequence';
+import { preOrderForTable } from './PreOrderPanel';
 import { resetCommandStore } from './testCommandStore';
 import type * as CurrentUserModule from '../auth/useCurrentUser';
 
@@ -244,8 +248,12 @@ describe('Coming → Send to kitchen', () => {
     const nine = await card('9');
     const button = within(nine).getByRole('button', { name: 'Coming → Send to kitchen, table 9' });
     expect(button.textContent).toBe('Coming → Send to kitchen');
-    fireEvent.click(button);
-    fireEvent.click(button);
+    // Both taps in one frame, before a render can disable the button: only
+    // the card's own guard stands between them and a second ticket.
+    act(() => {
+      button.click();
+      button.click();
+    });
 
     await waitFor(() => expect(send).toHaveBeenCalledTimes(1));
     expect(send.mock.calls[0]![0]).toMatchObject({
@@ -306,7 +314,139 @@ describe('Coming → Send to kitchen', () => {
   });
 });
 
+describe('a failure on the card', () => {
+  it('goes once the card has moved on: another tablet acted on it since', async () => {
+    const user = setupUser();
+    signIn();
+    const gateway = floorGateway();
+    const mark = gateway.markPreOrderNotComing.bind(gateway);
+    // The other tablet marks it while this one's send is refused.
+    vi.spyOn(gateway, 'sendPreOrder').mockImplementation(async (command) => {
+      await mark({ reservationId: command.reservationId, clientCommandId: newCommandId() });
+      throw new TableBusyError({ url: 'x' });
+    });
+    renderFloor(gateway);
+
+    const nine = await card('9');
+    await user.click(
+      within(nine).getByRole('button', { name: 'Coming → Send to kitchen, table 9' }),
+    );
+    // The rail is read again after the refusal, and the card is another one.
+    await waitFor(async () =>
+      expect(
+        within(await card('9')).getByText(/^Marked not coming at \d\d:\d\d by Ani Hakobyan$/u),
+      ).toBeTruthy(),
+    );
+    expect(within(await card('9')).queryByRole('alert')).toBeNull();
+  });
+
+  it('stays while the card is as it was', async () => {
+    const user = setupUser();
+    signIn();
+    const gateway = floorGateway();
+    const read = vi.spyOn(gateway, 'listDuePreOrders');
+    vi.spyOn(gateway, 'sendPreOrder').mockRejectedValue(new TableBusyError({ url: 'x' }));
+    renderFloor(gateway);
+
+    const nine = await card('9');
+    const before = read.mock.calls.length;
+    await user.click(
+      within(nine).getByRole('button', { name: 'Coming → Send to kitchen, table 9' }),
+    );
+    await waitFor(() => expect(read.mock.calls.length).toBeGreaterThan(before));
+    expect((await within(await card('9')).findByRole('alert')).textContent).toBe(
+      'The table is busy with another change. Tap again.',
+    );
+  });
+});
+
+describe('a rail that could not be read again', () => {
+  it('keeps the cards it has, and says they may be out of date', async () => {
+    const user = setupUser();
+    signIn();
+    const gateway = floorGateway();
+    const read = vi.spyOn(gateway, 'listDuePreOrders');
+    vi.spyOn(gateway, 'sendPreOrder').mockRejectedValue(new TableBusyError({ url: 'x' }));
+    renderFloor(gateway);
+
+    const nine = await card('9');
+    expect(
+      within(await section()).queryByText(
+        'The pre-orders could not be read again. These may be out of date.',
+      ),
+    ).toBeNull();
+    read.mockRejectedValue(new NetworkError({ url: 'x' }));
+    // A refusal reads the rail again; that read fails.
+    await user.click(
+      within(nine).getByRole('button', { name: 'Coming → Send to kitchen, table 9' }),
+    );
+
+    expect(
+      await within(await section()).findByText(
+        'The pre-orders could not be read again. These may be out of date.',
+      ),
+    ).toBeTruthy();
+    expect(await card('9')).toBeTruthy();
+  });
+});
+
+describe('a held ticket the kitchen voided', () => {
+  it('says so in a pill that is not the green of "in the kitchen", and no bill line', async () => {
+    signIn();
+    const gateway = floorGateway();
+    const list = gateway.listDuePreOrders.bind(gateway);
+    vi.spyOn(gateway, 'listDuePreOrders').mockImplementation(async (branchId) => {
+      const rail = await list(branchId);
+      return {
+        ...rail,
+        items: rail.items.map((item) =>
+          item.tableLabel === '11'
+            ? { ...item, preOrder: { ...item.preOrder, kitchenStatus: 'voided' as const } }
+            : item,
+        ),
+      };
+    });
+    renderFloor(gateway);
+
+    const eleven = await card('11');
+    const pill = within(eleven).getByText('Voided in the kitchen');
+    expect(pill.classList.contains('is-voided')).toBe(true);
+    expect(within(eleven).queryByText('It goes on their bill when they are seated.')).toBeNull();
+  });
+
+  it('still says a ticket in the kitchen goes on the bill', async () => {
+    signIn();
+    renderFloor(floorGateway());
+
+    const eleven = await card('11');
+    expect(within(eleven).getByText('In the kitchen').classList.contains('is-voided')).toBe(false);
+    expect(within(eleven).getByText('It goes on their bill when they are seated.')).toBeTruthy();
+  });
+});
+
 describe('Not coming / no answer', () => {
+  it('gives focus back to the button that asked, when the question closes', async () => {
+    const user = setupUser();
+    signIn();
+    renderFloor(floorGateway());
+
+    const nine = await card('9');
+    await user.click(within(nine).getByRole('button', { name: 'Not coming / no answer, table 9' }));
+    await user.click(within(nine).getByRole('button', { name: 'Cancel' }));
+    expect(document.activeElement).toBe(
+      within(nine).getByRole('button', { name: 'Not coming / no answer, table 9' }),
+    );
+
+    await user.click(within(nine).getByRole('button', { name: 'Not coming / no answer, table 9' }));
+    await user.click(within(nine).getByRole('button', { name: 'Yes, not coming' }));
+    // Marked: the asking button is gone, and Send is what is left to tap.
+    await waitFor(() =>
+      expect(document.activeElement).toBe(
+        within(nine).getByRole('button', { name: 'Coming → Send to kitchen, table 9' }),
+      ),
+    );
+  });
+
   it('asks first, keeps the card on Cancel, and once marked leaves it quieter but sendable', async () => {
     const user = setupUser();
     signIn();
@@ -373,6 +513,31 @@ describe("the table's panel", () => {
       within(preOrder).getByRole('button', { name: 'Coming → Send to kitchen, table 2' }),
     );
     await waitFor(() => expect(send).toHaveBeenCalledTimes(1));
+  });
+
+  describe("which booking's card a table shows (review S7)", () => {
+    // The rail's order: soonest first. A (19:00) sat with its pre-order unsent;
+    // B (20:30) is the table's next booking and due already.
+    const due = (reservationId: string, startUtc: string, status: DuePreOrder['status']) =>
+      ({ reservationId, tableId: 't5', startUtc, status }) as DuePreOrder;
+    const seatedA = due('r-a', '2026-10-21T15:00:00Z', 'seated');
+    const nextB = due('r-b', '2026-10-21T16:30:00Z', 'confirmed');
+    const items = [seatedA, nextB];
+
+    it("an occupied table shows the seated booking's card, never the next booking's", () => {
+      expect(preOrderForTable(items, 't5', 'r-b', true)).toBe(seatedA);
+    });
+
+    it("an occupied table with nobody seated on a booking (a walk-in) shows the next booking's", () => {
+      expect(preOrderForTable([nextB], 't5', 'r-b', true)).toBe(nextB);
+    });
+
+    it("a free table shows its next booking's card, then the earliest", () => {
+      const later = due('r-c', '2026-10-21T18:00:00Z', 'confirmed');
+      expect(preOrderForTable([nextB, later], 't5', 'r-c', false)).toBe(later);
+      expect(preOrderForTable([nextB, later], 't5', null, false)).toBe(nextB);
+      expect(preOrderForTable([nextB, later], 't9', null, false)).toBeNull();
+    });
   });
 
   it('shows none for a table whose booking has no pre-order due', async () => {
@@ -468,6 +633,8 @@ describe('the change stream', () => {
 });
 
 describe('the kitchen', () => {
+  const MARKER = /^Pre-order · Table 11 · \d\d:\d\d · \d+ · \S+$/u;
+
   it('marks a pre-order ticket with its table and time, and moves it on with the one action', async () => {
     const user = setupUser();
     signIn('kitchen');
@@ -475,13 +642,19 @@ describe('the kitchen', () => {
     const status = vi.spyOn(gateway, 'setOrderStatus');
     renderFloor(gateway);
 
-    const ticket = (
-      await screen.findByText(/^Pre-order · Table 11 · \d\d:\d\d$/u, undefined, { timeout: 5000 })
-    ).closest('li')!;
-    expect(ticket.getAttribute('aria-label')).toMatch(/^Pre-order · Table 11 · \d\d:\d\d\. /u);
+    // The wire's marker: the table, the time, the party and the guest's first name.
+    const ticket = (await screen.findByText(MARKER, undefined, { timeout: 5000 })).closest('li')!;
+    expect(ticket.getAttribute('aria-label')).toMatch(
+      /^Pre-order · Table 11 · \d\d:\d\d · \d+ · \S+\. /u,
+    );
     expect(within(ticket).getByText('Eggs on matnakash')).toBeTruthy();
     // Cooked for the booking: counted to its start, and not late before it.
-    expect(within(ticket).getByRole('timer').textContent).toMatch(/^in 1\d min$/u);
+    const due = within(ticket).getByRole('timer').textContent!;
+    expect(due).toMatch(/^in 1\d min$/u);
+    // A screen reader hears the same "in N" the timer shows, not the minutes
+    // since it was sent.
+    const minutes = /^in (\d+) min$/u.exec(due)![1]!;
+    expect(ticket.getAttribute('aria-label')).toContain(`Table 11, in ${minutes} minutes, new, `);
     expect(ticket.classList.contains('is-fresh')).toBe(true);
 
     await user.click(within(ticket).getByRole('button', { name: 'Ready · table 11' }));
@@ -496,8 +669,6 @@ describe('the kitchen', () => {
 
     await section();
     await user.click(screen.getByRole('button', { name: /^Kitchen/u }));
-    expect(
-      await screen.findByText(/^Pre-order · Table 11 · \d\d:\d\d$/u, undefined, { timeout: 5000 }),
-    ).toBeTruthy();
+    expect(await screen.findByText(MARKER, undefined, { timeout: 5000 })).toBeTruthy();
   });
 });

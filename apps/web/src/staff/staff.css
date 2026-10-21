@@ -3956,6 +3956,13 @@
   font-weight: var(--font-weight-bold);
 }
 
+/* Voided: it will not be cooked, and goes on nobody's bill — not the green of
+   a ticket on its way. Said in words as well. */
+.preorder-kitchen.is-voided {
+  background: var(--console-red-bg);
+  color: var(--console-red);
+}
+
 /* Not coming: quieter — no tint, the guest's line muted — and Send stays. */
 .preorder-card.is-quiet {
   background: var(--console-surface-muted);
@@ -3996,4 +4003,6 @@
   font-size: var(--console-text-nav);
   font-weight: var(--font-weight-bold);
   font-feature-settings: var(--font-feature-tabular);
+  /* A long guest name wraps inside the ticket rather than widening it. */
+  overflow-wrap: anywhere;
 }

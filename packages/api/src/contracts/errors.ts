@@ -2119,11 +2119,18 @@ export class OnMyWayNotOpenError extends ApiError {
   readonly reservationId: string | null;
   /** The booking's status as the server named it; `unknown` when unsaid. */
   readonly bookingStatus: ReservationStatusCode;
+  /**
+   * When the answer opens: the booking's start − 2 h, ISO-8601 UTC. The wire
+   * says it is always present; `null` only when an older server left it out,
+   * and the app then waits for the question rather than guessing a time.
+   */
+  readonly opensAtUtc: string | null;
 
   constructor(
     options: RefusalOptions & {
       reservationId?: string | null | undefined;
       bookingStatus?: ReservationStatusCode | undefined;
+      opensAtUtc?: string | null | undefined;
     },
   ) {
     super('This booking is not expecting anybody now.', {
@@ -2134,6 +2141,7 @@ export class OnMyWayNotOpenError extends ApiError {
     this.name = 'OnMyWayNotOpenError';
     this.reservationId = options.reservationId ?? null;
     this.bookingStatus = options.bookingStatus ?? 'unknown';
+    this.opensAtUtc = options.opensAtUtc ?? null;
   }
 }
 

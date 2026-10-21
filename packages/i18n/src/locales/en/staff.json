@@ -181,9 +181,12 @@
       "late": "{{age}} · late",
       "sent": "{{time}} · {{name}}",
       "preOrder": "Pre-order · Table {{label}} · {{time}}",
+      "preOrderGuest": "Pre-order · Table {{label}} · {{time}} · {{party}} · {{guest}}",
       "withPreOrder": "{{marker}}. {{name}}",
       "dueIn_one": "in {{count}} min",
-      "dueIn_other": "in {{count}} min"
+      "dueIn_other": "in {{count}} min",
+      "dueInMinutes_one": "in {{count}} minute",
+      "dueInMinutes_other": "in {{count}} minutes"
     },
     "fromApp": "From the app",
     "allergens": "Allergens: {{list}}",
@@ -900,6 +903,8 @@
       "alreadySent": "This pre-order is already in the kitchen.",
       "tabClosing": "This table's bill is being settled, so nothing more can go on it.",
       "busy": "The table is busy with another change. Tap again.",
+      "changed": "The table changed while this was being sent. The list has been refreshed. Check it, then try again.",
+      "rateLimited": "Too many taps at once. Wait a moment, then try again.",
       "notFound": "This booking has no pre-order any more.",
       "forbidden": "Only a waiter or a manager of this branch can do this.",
       "unknownOutcome": "The connection dropped. Check the list, then try again.",
@@ -942,6 +947,7 @@
     "notComingBy": "Marked not coming at {{time}} by {{name}}",
     "notComingAt": "Marked not coming at {{time}}",
     "unreachable": "The pre-orders could not be read. That is not the same as none being due.",
+    "stale": "The pre-orders could not be read again. These may be out of date.",
     "sentNotice": "Table {{label}}: pre-order sent to the kitchen.",
     "alreadySentNotice": "Table {{label}}: the pre-order was already in the kitchen.",
     "notComingNotice": "Table {{label}}: marked not coming. If they arrive, you can still send the pre-order."

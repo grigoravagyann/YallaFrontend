@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query';
+import type { ConsoleGateway } from '../consoleGateway';
 import type { Booking } from '../contracts/booking';
 import {
   preOrderMenu,
@@ -14,6 +15,7 @@ import {
   type ReplacePreOrderCommand,
 } from '../contracts/preOrder';
 import type { ManagedBooking } from '../contracts/publicBranch';
+import { ValidationError } from '../errors';
 import { staleTime } from '../queryClient';
 import {
   queryKeys,
@@ -136,9 +138,14 @@ export function afterPreOrderSettingsSaved(
   void queryClient.invalidateQueries({ queryKey: queryKeys.adminMenu(branchId) });
 }
 
-/** At most a minute between reads of the rail; never hammering a past due time. */
+/**
+ * At most a minute between reads of the rail; never hammering a past due time.
+ * The server's `nextDueAtUtc` is always in its future, so a tablet whose clock
+ * runs ahead reads it as past and would read again at once, get the same time
+ * back, and loop: five seconds is the floor.
+ */
 const RAIL_MAX_POLL_MS = 60_000;
-const RAIL_MIN_POLL_MS = 1_000;
+const RAIL_MIN_POLL_MS = 5_000;
 
 /**
  * When to read the rail again: just after `nextDueAtUtc` (the next card's
@@ -296,17 +303,33 @@ export function useDuePreOrders(branchId: string | undefined, enabled = true) {
   });
 }
 
+/**
+ * The waiter's two actions' mutation options, apart from the hook so the
+ * network rule is tested on a real `QueryClient`.
+ */
+export function preOrderActionOptions(
+  queryClient: QueryClient,
+  branchId: string,
+  act: (command: PreOrderStaffCommand) => Promise<DuePreOrder>,
+) {
+  return {
+    mutationFn: act,
+    retry: false,
+    // Online only, never queued. The tablet's client pauses an offline write
+    // and sends it on reconnect; a tap made as the wifi dropped would then be
+    // a kitchen ticket nobody saw go. It fails here instead.
+    networkMode: 'always' as const,
+    onSuccess: (card: DuePreOrder) => afterPreOrderAction(queryClient, branchId, card),
+    onError: () => afterPreOrderAction(queryClient, branchId, null),
+  };
+}
+
 function usePreOrderAction(
   branchId: string | undefined,
   act: (command: PreOrderStaffCommand) => Promise<DuePreOrder>,
 ) {
   const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: act,
-    retry: false,
-    onSuccess: (card: DuePreOrder) => afterPreOrderAction(queryClient, branchId ?? '', card),
-    onError: () => afterPreOrderAction(queryClient, branchId ?? '', null),
-  });
+  return useMutation(preOrderActionOptions(queryClient, branchId ?? '', act));
 }
 
 /** "Coming → Send to kitchen". Online only. Errors read with `preOrderActionFailure`. */
@@ -335,15 +358,94 @@ export function usePreOrderSettings(branchId: string | undefined) {
   });
 }
 
-/** Save all three. A 422 names `minutesBefore` or `excludedMenuItemIds` (`ValidationError`). */
+/**
+ * What one surface changes in the branch's settings: the rest is taken as the
+ * server has it now. The Policy card changes the switch and the minutes, a
+ * dish's row its own exclusion.
+ */
+export type PreOrderSettingsChange = (fresh: PreOrderSettings) => PreOrderSettingsInput;
+
+function refusedDishList(error: unknown): boolean {
+  return (
+    error instanceof ValidationError &&
+    error.violations.some((violation) => violation.field === 'excludedMenuItemIds')
+  );
+}
+
+/**
+ * The save, against the settings as the server has them **now**.
+ *
+ * The PUT carries all three and no version, and both writers build it from a
+ * cache that can be minutes old: a manager switching a dish off would put back
+ * the minutes another manager just changed (review S6). So the settings are
+ * read again right before the PUT and only the surface's own field is changed
+ * on that — the window shrinks from minutes to the read's round trip. The
+ * backend has no version to send; none is invented here.
+ *
+ * A dish in the list that is no longer on the menu (deleted since, here or in
+ * another tab) is refused 422 `excludedMenuItemIds`, and would be on every
+ * save after it (review S5). Then the settings and the menu are read again and
+ * the save is tried once more, with only dishes still on the menu. Once: a
+ * second refusal is the answer.
+ */
+export async function savePreOrderSettingsFresh(
+  queryClient: QueryClient,
+  gateway: ConsoleGateway,
+  branchId: string,
+  change: PreOrderSettingsChange,
+): Promise<PreOrderSettings> {
+  const read = () =>
+    queryClient.fetchQuery({
+      queryKey: queryKeys.preOrderSettings(branchId),
+      queryFn: () => gateway.getPreOrderSettings(branchId),
+      staleTime: 0,
+    });
+  // The three fields and nothing else: a change may hand back the read whole.
+  const save = ({ acceptsPreOrders, minutesBefore, excludedMenuItemIds }: PreOrderSettingsInput) =>
+    gateway.savePreOrderSettings({
+      branchId,
+      settings: { acceptsPreOrders, minutesBefore, excludedMenuItemIds },
+    });
+
+  try {
+    return await save(change(await read()));
+  } catch (error) {
+    if (!refusedDishList(error)) throw error;
+    const [fresh, menu] = await Promise.all([
+      read(),
+      queryClient.fetchQuery({
+        queryKey: queryKeys.adminMenu(branchId),
+        queryFn: () => gateway.getAdminMenu(branchId),
+        staleTime: 0,
+      }),
+    ]);
+    const onMenu = new Set(menu.flatMap((category) => category.items.map((item) => item.id)));
+    const next = change(fresh);
+    return save({
+      ...next,
+      excludedMenuItemIds: next.excludedMenuItemIds.filter((id) => onMenu.has(id)),
+    });
+  }
+}
+
+/**
+ * Save all three, read fresh first ({@link savePreOrderSettingsFresh}): the
+ * mutation takes what this surface changes, not a body. A 422 names
+ * `minutesBefore` or `excludedMenuItemIds` (`ValidationError`); on any
+ * failure the settings are read again, so the screen shows the server's.
+ */
 export function useSavePreOrderSettings(branchId: string | undefined) {
   const gateway = useConsoleGateway();
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (settings: PreOrderSettingsInput) =>
-      gateway.savePreOrderSettings({ branchId: branchId!, settings }),
+    mutationFn: (change: PreOrderSettingsChange) =>
+      savePreOrderSettingsFresh(queryClient, gateway, branchId!, change),
     retry: false,
     onSuccess: (settings: PreOrderSettings) =>
       afterPreOrderSettingsSaved(queryClient, branchId ?? '', settings),
+    onError: () =>
+      void queryClient.invalidateQueries({
+        queryKey: queryKeys.preOrderSettings(branchId ?? ''),
+      }),
   });
 }

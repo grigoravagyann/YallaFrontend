@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { ValidationError, createConsoleMockGateway, type ConsoleGateway } from '@yalla/api';
 import { formatDram } from '@yalla/format';
-import { cleanup, render, screen, waitFor, within } from '@testing-library/react';
+import { act, cleanup, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { ReactNode } from 'react';
 import { Outlet, Route, Routes } from 'react-router-dom';
@@ -10,6 +10,7 @@ import { ToastProvider } from '../ui/toast';
 import { MenuEditorScreen } from './menu/MenuEditorScreen';
 import { ApprovalsCard } from './overview/ApprovalsCard';
 import { ReservationPolicyScreen } from './policy/ReservationPolicyScreen';
+import { queryKeys } from '@yalla/api/react';
 import { createConsoleHarness, initConsoleTestI18n } from './reports/testHarness';
 
 /**
@@ -77,6 +78,27 @@ function renderAt(
       `/venue/${path}`,
     ),
   );
+  return harness;
+}
+
+/** Another manager's save, in another browser: this one's cache never hears of it. */
+async function savedElsewhere(
+  gateway: ConsoleGateway,
+  change: (settings: Awaited<ReturnType<ConsoleGateway['getPreOrderSettings']>>) => {
+    readonly minutesBefore?: number;
+    readonly excludedMenuItemIds?: readonly string[];
+  },
+): Promise<void> {
+  const now = await gateway.getPreOrderSettings(NORTH);
+  await gateway.savePreOrderSettings({
+    branchId: NORTH,
+    settings: {
+      acceptsPreOrders: now.acceptsPreOrders,
+      minutesBefore: now.minutesBefore,
+      excludedMenuItemIds: now.excludedMenuItemIds,
+      ...change(now),
+    },
+  });
 }
 
 async function preOrderCard(): Promise<HTMLElement> {
@@ -145,6 +167,54 @@ describe('the policy', () => {
     });
     expect(await screen.findByText('Pre-order settings saved')).toBeTruthy();
     expect((await gateway.getPreOrderSettings(NORTH)).minutesBefore).toBe(35);
+  });
+
+  // Review S6: the PUT has no version. The card reads the settings fresh just
+  // before it, and changes only its own two fields.
+  it('keeps the dishes another manager switched off since this card was read', async () => {
+    const user = userEvent.setup();
+    const gateway = gatewayWithPreOrders();
+    const save = vi.spyOn(gateway, 'savePreOrderSettings');
+    renderAt('policy', <ReservationPolicyScreen />, NORTH, gateway);
+
+    const card = await preOrderCard();
+    await within(card).findByRole('textbox', { name: 'When the waiter’s card appears' });
+    await savedElsewhere(gateway, (now) => ({
+      excludedMenuItemIds: [...now.excludedMenuItemIds, 'cappuccino'],
+    }));
+    save.mockClear();
+
+    await user.click(
+      within(card).getByRole('button', { name: 'Increase: When the waiter’s card appears' }),
+    );
+    await user.click(within(card).getByRole('button', { name: 'Save pre-order settings' }));
+
+    await waitFor(() => expect(save).toHaveBeenCalledTimes(1));
+    const { excludedMenuItemIds, ...rest } = save.mock.calls[0]![0].settings;
+    expect(rest).toEqual({ acceptsPreOrders: true, minutesBefore: 35 });
+    expect([...excludedMenuItemIds].sort()).toEqual(['cappuccino', 'gata']);
+    expect(await screen.findByText('Pre-order settings saved')).toBeTruthy();
+  });
+
+  // Review NIT 13: a re-read that brings another session's values is not a
+  // change this manager made.
+  it('takes in values read since, while untouched, without calling them unsaved', async () => {
+    const gateway = gatewayWithPreOrders();
+    const harness = renderAt('policy', <ReservationPolicyScreen />, NORTH, gateway);
+
+    const card = await preOrderCard();
+    const minutes = (await within(card).findByRole('textbox', {
+      name: 'When the waiter’s card appears',
+    })) as HTMLInputElement;
+    expect(minutes.value).toBe('30');
+
+    await savedElsewhere(gateway, () => ({ minutesBefore: 60 }));
+    await act(() =>
+      harness.queryClient.invalidateQueries({ queryKey: queryKeys.preOrderSettings(NORTH) }),
+    );
+
+    await waitFor(() => expect(minutes.value).toBe('60'));
+    expect(within(card).queryByText('Unsaved changes')).toBeNull();
   });
 
   it('marks minutes outside the bounds and sends nothing', async () => {
@@ -232,6 +302,84 @@ describe('the menu', () => {
     await user.click(toggle);
     await waitFor(() => expect(save).toHaveBeenCalledTimes(2));
     expect(save.mock.calls[1]![0].settings.excludedMenuItemIds).toEqual(excluded);
+  });
+
+  // Review S6: the minutes another manager set since this screen read them
+  // are what the switch sends, not the cached ones.
+  it('sends the settings as the server has them now, with only this dish changed', async () => {
+    const user = userEvent.setup();
+    const gateway = gatewayWithPreOrders();
+    const save = vi.spyOn(gateway, 'savePreOrderSettings');
+    renderAt('menu', <MenuEditorScreen />, NORTH, gateway);
+
+    const row = (
+      await screen.findByText('Cappuccino', { selector: '.yc-dn' }, { timeout: 5000 })
+    ).closest('tr')!;
+    const toggle = await within(row).findByRole('switch', {
+      name: 'Cappuccino: can be pre-ordered',
+    });
+    await savedElsewhere(gateway, () => ({ minutesBefore: 60 }));
+    save.mockClear();
+
+    await user.click(toggle);
+    await waitFor(() => expect(save).toHaveBeenCalledTimes(1));
+    expect(save.mock.calls[0]![0].settings).toEqual({
+      acceptsPreOrders: true,
+      minutesBefore: 60,
+      excludedMenuItemIds: ['gata', 'cappuccino'],
+    });
+  });
+
+  // Review S5: the exclusions live on the dish rows, so a deleted dish leaves
+  // the server's list — and a list still carrying it is refused.
+  it('switches another dish after a switched-off dish was deleted', async () => {
+    const user = userEvent.setup();
+    const gateway = gatewayWithPreOrders();
+    await savedElsewhere(gateway, (now) => ({
+      excludedMenuItemIds: [...now.excludedMenuItemIds, 'americano'],
+    }));
+    const save = vi.spyOn(gateway, 'savePreOrderSettings');
+    renderAt('menu', <MenuEditorScreen />, NORTH, gateway);
+
+    const row = (
+      await screen.findByText('Cappuccino', { selector: '.yc-dn' }, { timeout: 5000 })
+    ).closest('tr')!;
+    const toggle = await within(row).findByRole('switch', {
+      name: 'Cappuccino: can be pre-ordered',
+    });
+    // Deleted in another tab: this screen's cache still has the americano.
+    expect((await gateway.deleteMenuItem({ branchId: NORTH, itemId: 'americano' })).deleted).toBe(
+      true,
+    );
+
+    await user.click(toggle);
+    expect(
+      await screen.findByText(
+        '“Cappuccino” is no longer offered for pre-order. Pre-orders that already have it keep it.',
+      ),
+    ).toBeTruthy();
+    expect(save.mock.calls.at(-1)![0].settings.excludedMenuItemIds).toEqual(['gata', 'cappuccino']);
+  });
+
+  it('reads the pre-order settings again when a dish is deleted here', async () => {
+    const user = userEvent.setup();
+    const gateway = gatewayWithPreOrders();
+    const read = vi.spyOn(gateway, 'getPreOrderSettings');
+    renderAt('menu', <MenuEditorScreen />, NORTH, gateway);
+
+    const americano = (
+      await screen.findByText('Americano', { selector: '.yc-dn' }, { timeout: 5000 })
+    ).closest('tr')!;
+    await waitFor(() => expect(read).toHaveBeenCalled());
+    const before = read.mock.calls.length;
+    await user.click(within(americano).getByRole('button', { name: /^edit$/i }));
+    const drawer = screen.getByRole('dialog', { name: 'Edit: Americano' });
+    await user.click(within(drawer).getByRole('button', { name: /^delete$/i }));
+    const confirm = screen.getByRole('alertdialog', { name: 'Delete “Americano”?' });
+    await user.click(within(confirm).getByRole('button', { name: /^delete$/i }));
+
+    expect(await screen.findByText('“Americano” deleted')).toBeTruthy();
+    await waitFor(() => expect(read.mock.calls.length).toBeGreaterThan(before));
   });
 
   it('has no pre-order column where the branch does not take them', async () => {

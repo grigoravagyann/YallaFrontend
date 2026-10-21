@@ -25,8 +25,9 @@ const STEP = 5;
  * Its own card with its own save, because it is its own endpoint
  * (`PUT …/pre-order-settings`) and the policy's save bar does not send it. The
  * third setting — which dishes are not offered — is on the Menu, on each dish's
- * row; this card says how many and links there, and sends the list as the
- * server last had it, so a save here never undoes a switch made there.
+ * row; this card says how many and links there. A save reads the settings
+ * fresh first and changes only what was changed here, so it never undoes a
+ * switch made there, or another manager's save (review S6).
  *
  * The rules a manager cannot change are said too, because they are what the
  * staff will be asked about: the guest's two-hour lock, the "on your way"
@@ -81,6 +82,24 @@ function PreOrderForm({
   const [typing, setTyping] = useState<string | null>(null);
   /** The server refused the minutes although they looked fine here. */
   const [refused, setRefused] = useState(false);
+  /** The saved values the draft started from: what "changed here" is measured against. */
+  const [base, setBase] = useState({
+    accepts: saved.acceptsPreOrders,
+    minutes: saved.minutesBefore,
+  });
+
+  // A read brought other values: another manager's save, or this card's own.
+  // An untouched form takes them in — "Unsaved changes" the manager never
+  // made, which a save would then revert, is worse than none (review NIT 13).
+  // A touched one keeps what was typed.
+  if (saved.acceptsPreOrders !== base.accepts || saved.minutesBefore !== base.minutes) {
+    if (accepts === base.accepts && minutes === base.minutes) {
+      setAccepts(saved.acceptsPreOrders);
+      setMinutes(saved.minutesBefore);
+      setTyping(null);
+    }
+    setBase({ accepts: saved.acceptsPreOrders, minutes: saved.minutesBefore });
+  }
 
   const { minutesBeforeMin: min, minutesBeforeMax: max } = saved.bounds;
   const outOfBounds = minutes === null || minutes < min || minutes > max;
@@ -111,13 +130,16 @@ function PreOrderForm({
       toast.say(t('preOrders.noChanges'));
       return;
     }
-    const settings: PreOrderSettingsInput = {
-      acceptsPreOrders: accepts,
-      minutesBefore: minutes,
-      // The whole list, as the server has it: the Menu's switches are kept.
-      excludedMenuItemIds: saved.excludedMenuItemIds,
-    };
-    save.mutate(settings, {
+    const minutesBefore = minutes;
+    const from = base;
+    // On the settings as the server has them now: a field changed here wins,
+    // the rest — the Menu's switches included — is kept as it is there.
+    const change = (fresh: PreOrderSettings): PreOrderSettingsInput => ({
+      acceptsPreOrders: accepts !== from.accepts ? accepts : fresh.acceptsPreOrders,
+      minutesBefore: minutesBefore !== from.minutes ? minutesBefore : fresh.minutesBefore,
+      excludedMenuItemIds: fresh.excludedMenuItemIds,
+    });
+    save.mutate(change, {
       onSuccess: () => toast.say(t('preOrders.saved')),
       onError: (error) => {
         if (

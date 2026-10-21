@@ -593,16 +593,21 @@ describe("the guest's routes, from the app", () => {
     });
   }
 
-  it('reads on-my-way-not-open with the booking status', async () => {
+  it('reads on-my-way-not-open with the booking status and when it opens', async () => {
     const { gateway } = dinerOver({
       [`POST /api/reservations/${RESERVATION}/on-my-way`]: problemReply(409, 'on-my-way-not-open', {
         reservationId: RESERVATION,
         status: 6,
+        opensAtUtc: '2026-10-22T13:00:00Z',
       }),
     });
     const error = await gateway.confirmOnMyWay(RESERVATION).catch((caught: unknown) => caught);
     expect(error).toBeInstanceOf(OnMyWayNotOpenError);
-    expect(error).toMatchObject({ reservationId: RESERVATION, bookingStatus: 'cancelledByDiner' });
+    expect(error).toMatchObject({
+      reservationId: RESERVATION,
+      bookingStatus: 'cancelledByDiner',
+      opensAtUtc: '2026-10-22T13:00:00Z',
+    });
   });
 });
 

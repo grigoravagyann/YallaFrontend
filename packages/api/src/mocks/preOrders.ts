@@ -434,6 +434,8 @@ export function createMockPreOrderBook(options: MockPreOrderBookOptions) {
           url,
           reservationId: booking.id,
           bookingStatus: booking.status,
+          // The server's window: start − 2 h, always on the refusal.
+          opensAtUtc: new Date(Date.parse(booking.startUtc) - 2 * 60 * 60_000).toISOString(),
         });
       }
       const at = now().toISOString();

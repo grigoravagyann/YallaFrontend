@@ -36,15 +36,26 @@ export function preOrderNeedsAction(item: DuePreOrder): boolean {
   return (state === 'editable' || state === 'locked') && !sentAtUtc && !notComingAtUtc;
 }
 
-/** The pre-order of a table's booking, from the rail: its next booking's first. */
+/**
+ * The pre-order of a table's booking, from the rail.
+ *
+ * On an occupied table, the sitting's: the seated booking's card. The
+ * table's `nextReservationId` is then the booking *after* it, and its card
+ * under the waiter's thumb — with a primary Send — in the panel they opened
+ * to serve the party in front of them is the wrong one (review S7). Only when
+ * nobody sits on a booking (a walk-in) the next booking's. On a free table,
+ * its next booking's, then the earliest.
+ */
 export function preOrderForTable(
   items: readonly DuePreOrder[],
   tableId: string | null | undefined,
   reservationId: string | null | undefined,
+  occupied: boolean,
 ): DuePreOrder | null {
   if (!tableId) return null;
   const here = items.filter((item) => item.tableId === tableId);
-  return here.find((item) => item.reservationId === reservationId) ?? here[0] ?? null;
+  const seated = occupied ? here.find((item) => item.status === 'seated') : undefined;
+  return seated ?? here.find((item) => item.reservationId === reservationId) ?? here[0] ?? null;
 }
 
 /** What an action did, for the floor's notice. */
@@ -88,11 +99,16 @@ export function PreOrderSection(props: PreOrderSectionProps) {
       {props.failed && items.length === 0 ? (
         <p className="ft-rail-empty is-failed">{t('preOrders.unreachable')}</p>
       ) : (
-        <ul className="ft-items">
-          {items.map((item) => (
-            <RailCard key={item.reservationId} {...props} item={item} format={format} />
-          ))}
-        </ul>
+        <>
+          {/* The last read's cards, kept — but a read failed since, so they
+              may be out of date, and their buttons with them. */}
+          {props.failed ? <p className="ft-rail-empty is-failed">{t('preOrders.stale')}</p> : null}
+          <ul className="ft-items">
+            {items.map((item) => (
+              <RailCard key={item.reservationId} {...props} item={item} format={format} />
+            ))}
+          </ul>
+        </>
       )}
     </RailSection>
   );
@@ -202,21 +218,42 @@ export function PreOrderCard({
   const notComing = useMarkPreOrderNotComing(branchId);
   const titleId = useId();
   const [asking, setAsking] = useState(false);
-  const [failure, setFailure] = useState<string | null>(null);
+  /**
+   * A failed tap, said on the card — for the card as it was then (its
+   * `updatedAtUtc`). Once the card has moved on (sent from another tablet,
+   * marked, put on the tab), the failure is about a card that is gone, and
+   * is not shown (review NIT 10).
+   */
+  const [failure, setFailure] = useState<{ readonly text: string; readonly at: string } | null>(
+    null,
+  );
   /**
    * An action is under way. A ref, not the mutations' pending state: two taps
    * in one frame both run before that state reaches a render.
    */
   const acting = useRef(false);
   const questionRef = useRef<HTMLDivElement>(null);
+  const sendRef = useRef<HTMLButtonElement>(null);
+  const notComingRef = useRef<HTMLButtonElement>(null);
+  /** The question was open: when it closes, focus goes back to the buttons. */
+  const asked = useRef(false);
   const classes = BUTTONS[variant];
   const { preOrder } = item;
   const busy = send.isPending || notComing.isPending;
   const off = busy || !online;
+  const failureText = failure?.at === preOrder.updatedAtUtc ? failure.text : null;
 
-  // The question replaces the button that asked it: focus follows it there.
+  // The question replaces the button that asked it: focus follows it there,
+  // and back when it closes — to "Not coming" after a Cancel, or to Send once
+  // it is marked and "Not coming" is gone (review NIT 11).
   useEffect(() => {
-    if (asking) questionRef.current?.focus({ preventScroll: true });
+    if (asking) {
+      asked.current = true;
+      questionRef.current?.focus({ preventScroll: true });
+    } else if (asked.current) {
+      asked.current = false;
+      (notComingRef.current ?? sendRef.current)?.focus({ preventScroll: true });
+    }
   }, [asking]);
 
   const sent = preOrder.sentAtUtc !== null || preOrder.state === 'sent';
@@ -227,6 +264,7 @@ export function PreOrderCard({
     if (acting.current || !online) return;
     acting.current = true;
     setFailure(null);
+    const at = preOrder.updatedAtUtc;
     const run = kind === 'sent' ? send : notComing;
     run.mutate(
       { reservationId: item.reservationId, clientCommandId: newCommandId() },
@@ -239,7 +277,7 @@ export function PreOrderCard({
         onError: (error) => {
           acting.current = false;
           const { line } = preOrderActionFailure(error);
-          setFailure(t(line.key, line.params));
+          setFailure({ text: t(line.key, line.params), at });
         },
       },
     );
@@ -328,13 +366,22 @@ export function PreOrderCard({
               : t('preOrders.sentPlain')}
           </p>
           {preOrder.kitchenStatus ? (
-            <span className="preorder-kitchen">
+            <span
+              className={
+                preOrder.kitchenStatus === 'voided'
+                  ? 'preorder-kitchen is-voided'
+                  : 'preorder-kitchen'
+              }
+            >
               {preOrder.kitchenStatus === 'voided'
                 ? t('preOrders.voided')
                 : t(`panel.orders.status.${preOrder.kitchenStatus}`)}
             </span>
           ) : null}
-          {preOrder.onTab ? null : <p>{t('preOrders.waitsForTable')}</p>}
+          {/* A voided held ticket is never put on their bill: nothing is owed. */}
+          {preOrder.onTab || preOrder.kitchenStatus === 'voided' ? null : (
+            <p>{t('preOrders.waitsForTable')}</p>
+          )}
         </div>
       ) : gone ? (
         <p className="preorder-state">{t('preOrders.cancelled')}</p>
@@ -385,6 +432,7 @@ export function PreOrderCard({
           ) : (
             <div className={`${classes.row} preorder-actions`}>
               <button
+                ref={sendRef}
                 type="button"
                 className={markedNotComing ? classes.sendQuiet : classes.send}
                 disabled={off}
@@ -395,6 +443,7 @@ export function PreOrderCard({
               </button>
               {markedNotComing ? null : (
                 <button
+                  ref={notComingRef}
                   type="button"
                   className={classes.notComing}
                   disabled={off}
@@ -412,13 +461,13 @@ export function PreOrderCard({
           {!online ? <p className={classes.note}>{t('preOrders.needsOnline')}</p> : null}
         </>
       )}
-      {failure ? (
+      {failureText ? (
         <p
           className={classes.warn}
           data-tone={variant === 'panel' ? 'red' : undefined}
           role="alert"
         >
-          {failure}
+          {failureText}
         </p>
       ) : null}
     </div>

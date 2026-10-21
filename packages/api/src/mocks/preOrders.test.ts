@@ -461,7 +461,10 @@ describe('"Are you on your way?"', () => {
     await gateway.cancelBooking(other.id);
     const refused = await caught(gateway.confirmOnMyWay(other.id));
     expect(refused).toBeInstanceOf(OnMyWayNotOpenError);
-    expect(refused).toMatchObject({ bookingStatus: 'cancelledByDiner' });
+    expect(refused).toMatchObject({
+      bookingStatus: 'cancelledByDiner',
+      opensAtUtc: expect.any(String),
+    });
   });
 });
 

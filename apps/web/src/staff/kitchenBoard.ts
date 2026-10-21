@@ -30,28 +30,41 @@ export type TicketBand = 'fresh' | 'waiting' | 'late' | 'ready' | 'unsent';
 export function ticketBand(order: OrderQueueEntry): TicketBand {
   if (order.status === 'ready') return 'ready';
   if (order.status === 'new') return 'unsent';
-  // A pre-order is cooked for its booking: it ages from the start, not the send.
-  const minutes = ticketMinutesFromStart(order) ?? order.waitingMinutes;
+  const minutes = ticketMinutes(order);
   if (minutes >= TICKET_LATE_MINUTES) return 'late';
   if (minutes >= TICKET_WAITING_MINUTES) return 'waiting';
   return 'fresh';
 }
 
 /**
- * A pre-order ticket's minutes from its booking's start (2026-10-21): negative
- * before it — still to go — and how long past it after. Null for any other
- * ticket.
+ * A pre-order ticket's minutes from whichever came later, its booking's start
+ * or its send (2026-10-21): negative before the start — still to go — and how
+ * long the kitchen has had it after. Null for any other ticket.
+ *
+ * Sent before the start, it is cooked for the booking and ages from the start.
+ * Sent after it — the party came late — the kitchen first saw it at the send,
+ * so it ages from then like any order, and is not late on arrival (review S4).
  *
  * From the server's own count, as every age on the board: the ticket was
- * placed at `placedAtUtc` and the server says `waitingMinutes` have passed, so
- * the server's now is their sum, and the tablet's clock is not asked.
+ * placed (sent) at `placedAtUtc` and the server says `waitingMinutes` have
+ * passed, so the server's now is their sum, and the tablet's clock is not
+ * asked.
  */
 export function ticketMinutesFromStart(order: OrderQueueEntry): number | null {
   if (!order.preOrder) return null;
   const placed = Date.parse(order.placedAtUtc);
   const start = Date.parse(order.preOrder.startUtc);
   if (!Number.isFinite(placed) || !Number.isFinite(start)) return null;
-  return order.waitingMinutes - Math.round((start - placed) / 60_000);
+  return order.waitingMinutes - Math.max(0, Math.round((start - placed) / 60_000));
+}
+
+/**
+ * The minutes a ticket's band, timer and "by wait" place are read from: a
+ * pre-order's from its start (or send), any other ticket's wait. One number,
+ * so a pre-order not due yet never sorts ahead of a late table (review S3).
+ */
+export function ticketMinutes(order: OrderQueueEntry): number {
+  return ticketMinutesFromStart(order) ?? order.waitingMinutes;
 }
 
 export interface KitchenCounts {
@@ -87,9 +100,9 @@ export type TicketSort = 'age' | 'table';
 const byLabel = new Intl.Collator(undefined, { numeric: true, sensitivity: 'base' });
 
 /**
- * By wait, the oldest on the left and the ready ones at the end, where they
- * wait for a waiter and stop competing with what is still cooking; ties by
- * when they were sent. By table, in the order a person counts tables: 2
+ * By wait — the minutes the band reads (`ticketMinutes`) — the oldest on the
+ * left and the ready ones at the end, where they wait for a waiter and stop
+ * competing with what is still cooking; ties by when they were sent. By table, in the order a person counts tables: 2
  * before 12.
  */
 export function sortTickets(
@@ -103,7 +116,7 @@ export function sortTickets(
   return list.sort(
     (a, b) =>
       GROUP[a.status] - GROUP[b.status] ||
-      b.waitingMinutes - a.waitingMinutes ||
+      ticketMinutes(b) - ticketMinutes(a) ||
       a.placedAtUtc.localeCompare(b.placedAtUtc),
   );
 }
