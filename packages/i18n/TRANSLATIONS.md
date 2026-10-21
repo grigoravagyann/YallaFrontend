@@ -1283,6 +1283,16 @@ review every string in `src/locales/hy` and `src/locales/ru`.**
       `overview.bookings.done.guestBlocked` (appended to the no-show toast), and
       public `manage.cancelledByBlockBody` (the guest's own link: cancelled
       automatically, and when they can book again).
+- `diner` and `staff` — pre-orders on a booking, the shared API layer
+  (2026-10-21), provisional and **not** reviewed: diner `preOrder.error.*` (the
+  guest's refusals, said by `preOrderFailure` on the app and the manage link
+  alike; `locked`/`lockedAt` must keep naming the **2 hours** and sending the
+  guest to **call the venue**; `itemUnavailable`/`itemsUnavailable_*` must say
+  the dish is to be **removed** to save — never that the pre-order is gone),
+  `notifications.kind.bookingOnYourWay.*` ("Are you on your way?" — the body
+  takes only `{{place}}`), and staff `preOrders.error.*` (the waiter's Send and
+  Not coming, said by `preOrderActionFailure`). hy says «նախնական պատվեր» for
+  a pre-order and avoids gluing suffixes onto `{{place}}` and `{{name}}`.
 
 The Russian bundle carries four plural categories (`one`/`few`/`many`/`other`)
 where Armenian and English carry two. That is correct CLDR, not duplication, and

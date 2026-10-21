@@ -355,6 +355,9 @@ describe('deciding a pending booking over HTTP', () => {
         phoneUnverified: false,
         guestRecord: null,
         cancelledBecause: null,
+        // No pre-order on the row (2026-10-21), and no answer.
+        preOrder: null,
+        guestConfirmedOnWayAtUtc: null,
         id: 'r-1',
         code: 'K7M2',
         branchId: 'b-1',

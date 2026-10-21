@@ -172,6 +172,9 @@ describe('a request on the floor tablet', () => {
     expect(awaitingApprovalFromWire(AWAITING)).toEqual({
       phoneUnverified: false,
       guestRecord: null,
+      // No pre-order on this booking (2026-10-21), and no answer.
+      preOrder: null,
+      guestConfirmedOnWayAtUtc: null,
       id: VIEW.id,
       code: 'Y3107',
       branchId: BRANCH,

@@ -921,7 +921,8 @@ export function FloorRoute({ identity, device = null, paused }: FloorRouteProps)
       const clientCommandId = newCommandId();
       queue.enqueue({
         id: clientCommandId,
-        scope: order.tabId,
+        // A held pre-order ticket has no tab yet: its own id keeps its moves in order.
+        scope: order.tabId ?? order.orderId,
         precondition: null,
         // `KitchenOrderView` carries no table id. The label is what the rail
         // shows and what a conflict entry needs; a lookup by label could name

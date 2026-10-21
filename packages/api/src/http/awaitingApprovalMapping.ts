@@ -9,6 +9,7 @@ import {
 } from './bookingTimesWire';
 import { reservationStatus } from './dinerMapping';
 import { guestRecordFromWire } from './guestRecordMapping';
+import { bookingPreOrderFields, type WireBookingPreOrderFields } from './preOrderMapping';
 
 /**
  * The floor tablet's awaiting list, from the wire.
@@ -38,7 +39,9 @@ function blank(value: string | null | undefined): string | null {
 }
 
 export function awaitingApprovalFromWire(wire: WireAwaitingApproval): AwaitingApproval {
-  const view = wire.reservation;
+  // The pre-order rides on the booking (2026-10-21), ahead of the schema.
+  const view = wire.reservation as WireAwaitingApproval['reservation'] & WireBookingPreOrderFields;
+  const { preOrder, guestConfirmedOnWayAtUtc } = bookingPreOrderFields(view);
   const previous = wire.previousBooking as WirePreviousBooking | null | undefined;
   const previousBooking: PreviousBookingContext | null = previous
     ? {
@@ -92,5 +95,7 @@ export function awaitingApprovalFromWire(wire: WireAwaitingApproval): AwaitingAp
           partySize: wire.currentSitting.partySize ?? null,
         }
       : null,
+    preOrder,
+    guestConfirmedOnWayAtUtc,
   };
 }

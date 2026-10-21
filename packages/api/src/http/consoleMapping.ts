@@ -31,6 +31,7 @@ import {
 } from './approvalMapping';
 import { reviewReplyFromWire, reviewSummaryFromWire } from './reviewReplyMapping';
 import { cancellationCause, guestRecordFromWire } from './guestRecordMapping';
+import { bookingPreOrderFields, type WireBookingPreOrderFields } from './preOrderMapping';
 import { venueTypeFromCode } from './venueTypeMapping';
 
 type Schemas = components['schemas'];
@@ -263,7 +264,10 @@ const RESERVATION_STATUS: Readonly<Record<number, ReservationStatusCode>> = {
   8: 'noShow',
 };
 
-export function consoleBookingFromWire(view: WireReservationWithApproval): ConsoleBooking {
+export function consoleBookingFromWire(
+  view: WireReservationWithApproval & WireBookingPreOrderFields,
+): ConsoleBooking {
+  const { preOrder, guestConfirmedOnWayAtUtc } = bookingPreOrderFields(view);
   return {
     id: view.id,
     code: view.code,
@@ -282,6 +286,8 @@ export function consoleBookingFromWire(view: WireReservationWithApproval): Conso
     phoneUnverified: view.phoneUnverified === true,
     guestRecord: guestRecordFromWire(view.guestRecord),
     cancelledBecause: cancellationCause(view.cancelledBecause),
+    preOrder,
+    guestConfirmedOnWayAtUtc,
   };
 }
 

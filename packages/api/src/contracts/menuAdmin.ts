@@ -46,6 +46,12 @@ export interface AdminMenuItem {
   readonly prepMinutes: number;
   readonly photo: Photo;
   readonly isAvailable: boolean;
+  /**
+   * Guests may put it on a booking's pre-order (`MenuItemView.availableForPreOrder`,
+   * default true). Changed only through the pre-order settings'
+   * `excludedMenuItemIds`. Absent from a server before pre-orders: true.
+   */
+  readonly availableForPreOrder?: boolean | undefined;
   readonly displayOrder: number;
   /**
    * What still keeps it from diners, as the server derives it

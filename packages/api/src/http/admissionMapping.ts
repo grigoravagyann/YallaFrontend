@@ -52,6 +52,7 @@ const SIGNAL: Readonly<Record<number, FloorChangeSignal>> = {
   3: 'tabAdmissionRejected',
   4: 'bookingCancelledByBlock',
   5: 'bookingChanged',
+  6: 'preOrderChanged',
 };
 
 export function admissionStatus(value: number | null | undefined): TabAdmissionStatus {

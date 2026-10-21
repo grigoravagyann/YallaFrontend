@@ -152,6 +152,16 @@ import { createMockReports } from './reports';
 import { mockRegistry, mockTokenHash, type MockRegistry } from './mockRegistry';
 import { fixtureStaffFor } from './staffFixture';
 import { mockVenues } from './venues';
+import {
+  DEFAULT_PRE_ORDER_SETTINGS,
+  PRE_ORDER_MINUTES_BEFORE_MAX,
+  PRE_ORDER_MINUTES_BEFORE_MIN,
+  preOrderDueAtUtc,
+  preOrderLockedAtUtc,
+  type PreOrder,
+  type PreOrderSettings,
+  type PreOrderSettingsInput,
+} from '../contracts/preOrder';
 import { demoCoverThumbnail, demoVenues } from './consoleDemoVenues';
 import {
   LIFT_REASON_MAX,
@@ -242,6 +252,8 @@ interface MockItem {
   photoId: string | null;
   isAvailable: boolean;
   displayOrder: number;
+  /** Excluded from pre-orders by the branch's settings: the dish's own flag, as on the server. */
+  excludedFromPreOrder?: boolean;
 }
 
 interface MockCategory {
@@ -329,6 +341,12 @@ export interface ConsoleMockOptions {
    * find, across a reload. The shared browser-backed one when absent.
    */
   readonly registry?: MockRegistry | undefined;
+  /**
+   * Pre-orders (2026-10-21), for mock mode: Northern Avenue takes them (the
+   * gata excluded), and one of its bookings waiting for approval carries one.
+   * Off unless asked: every branch then starts at the server's default — off.
+   */
+  readonly seedPreOrders?: boolean | undefined;
 }
 
 /**
@@ -417,6 +435,31 @@ export function createConsoleMockGateway(options: ConsoleMockOptions = {}): Cons
   // --- The menu, the week and the policy, per branch ---------------------------
 
   const menus = new Map<string, MockCategory[]>();
+
+  /**
+   * Each branch's pre-order switch and minutes (2026-10-21). The exclusions
+   * live on the dishes (`excludedFromPreOrder`), as on the server, so a
+   * deleted dish needs no clean-up. Absent: off, 30 minutes.
+   */
+  const preOrderSwitches = new Map<
+    string,
+    Pick<PreOrderSettingsInput, 'acceptsPreOrders' | 'minutesBefore'>
+  >();
+  if (options.seedPreOrders) {
+    preOrderSwitches.set('b-lumen-north', { acceptsPreOrders: true, minutesBefore: 30 });
+  }
+
+  function preOrderSettingsOf(branchId: string): PreOrderSettings {
+    const switches = preOrderSwitches.get(branchId);
+    return {
+      ...DEFAULT_PRE_ORDER_SETTINGS,
+      ...switches,
+      excludedMenuItemIds: menuFor(branchId)
+        .flatMap((category) => category.items)
+        .filter((item) => item.excludedFromPreOrder === true)
+        .map((item) => item.id),
+    };
+  }
   const hours = new Map<string, WeeklyHours>();
   /** Special days per branch, history included, earliest first. */
   const specialDays = new Map<string, SpecialDay[]>();
@@ -513,6 +556,12 @@ export function createConsoleMockGateway(options: ConsoleMockOptions = {}): Cons
     // deactivates rather than removes, and its category cannot be deleted.
     const ordered = seeded[1]?.items[0];
     if (ordered) orderedItemIds.add(ordered.id);
+    // Mock mode's pre-order exclusion (2026-10-21): the gata at Northern Avenue.
+    if (options.seedPreOrders && branchId === 'b-lumen-north') {
+      for (const item of seeded.flatMap((category) => category.items)) {
+        if (item.id === 'gata') item.excludedFromPreOrder = true;
+      }
+    }
 
     menus.set(branchId, seeded);
     return seeded;
@@ -551,6 +600,7 @@ export function createConsoleMockGateway(options: ConsoleMockOptions = {}): Cons
       prepMinutes: item.prepMinutes,
       photo: item.photoId ? (photosById.get(item.photoId) ?? mockPhoto(item.photoId)) : NO_PHOTO,
       isAvailable: item.isAvailable,
+      availableForPreOrder: item.excludedFromPreOrder !== true,
       displayOrder: item.displayOrder,
     };
   }
@@ -1312,6 +1362,11 @@ export function createConsoleMockGateway(options: ConsoleMockOptions = {}): Cons
       'branchApprovesEveryBooking',
       { came: 11, noShows: 1 },
     );
+    if (options.seedPreOrders) {
+      // Ani's party of ten, waiting for the venue, has chosen dishes ahead.
+      const seeded = bookings.get('r-lumen-north-1');
+      if (seeded) bookings.set(seeded.id, { ...seeded, preOrder: seededPreOrder(seeded) });
+    }
     seed(
       'b-lumen-cascade',
       '1',
@@ -1336,6 +1391,50 @@ export function createConsoleMockGateway(options: ConsoleMockOptions = {}): Cons
       },
       'largeParty',
     );
+  }
+
+  /** Mock mode's pre-order on a pending booking: two dishes, editable until two hours before. */
+  function seededPreOrder(booking: ConsoleBooking): PreOrder {
+    const startUtc = new Date(
+      `${booking.localDate}T${booking.localStartTime.slice(0, 5)}:00+04:00`,
+    ).toISOString();
+    const lines = [
+      {
+        id: 'po-seed-l1',
+        menuItemId: 'cappuccino',
+        name: 'Cappuccino',
+        unitPriceDram: 1200,
+        quantity: 6,
+        note: null,
+      },
+      {
+        id: 'po-seed-l2',
+        menuItemId: 'cheesecake',
+        name: 'Cheesecake',
+        unitPriceDram: 2200,
+        quantity: 2,
+        note: 'With candles',
+      },
+    ].map((line) => ({
+      ...line,
+      lineTotalDram: line.unitPriceDram * line.quantity,
+      availableNow: true,
+    }));
+    return {
+      id: `po-${booking.id}`,
+      reservationId: booking.id,
+      state: 'editable',
+      lines,
+      note: 'Coffee as soon as we sit down',
+      totalDram: lines.reduce((sum, line) => sum + line.lineTotalDram, 0),
+      editableUntilUtc: preOrderLockedAtUtc(startUtc),
+      dueAtUtc: preOrderDueAtUtc(startUtc, preOrderSettingsOf(booking.branchId).minutesBefore),
+      sentAtUtc: null,
+      kitchenStatus: null,
+      onTab: false,
+      notComingAtUtc: null,
+      updatedAtUtc: now().toISOString(),
+    };
   }
 
   /**
@@ -4938,6 +5037,55 @@ export function createConsoleMockGateway(options: ConsoleMockOptions = {}): Cons
         affectedExistingReservations: affected.length,
         affectedReservationIds: affected,
       };
+    },
+
+    // --- Pre-orders (2026-10-21) ----------------------------------------------
+
+    async getPreOrderSettings(branchId): Promise<PreOrderSettings> {
+      await wait();
+      requireManagerAtBranch(branchId, `${URL_TAG}/branches/${branchId}/pre-order-settings`);
+      return preOrderSettingsOf(branchId);
+    },
+
+    async savePreOrderSettings({ branchId, settings }): Promise<PreOrderSettings> {
+      await wait();
+      const url = `${URL_TAG}/branches/${branchId}/pre-order-settings`;
+      requireManagerAtBranch(branchId, url);
+      const dishes = menuFor(branchId).flatMap((category) => category.items);
+      // Every field out of bounds named, nothing saved — as the server answers.
+      const violations: MockViolation[] = [];
+      if (
+        !Number.isInteger(settings.minutesBefore) ||
+        settings.minutesBefore < PRE_ORDER_MINUTES_BEFORE_MIN ||
+        settings.minutesBefore > PRE_ORDER_MINUTES_BEFORE_MAX
+      ) {
+        violations.push({
+          field: 'minutesBefore',
+          message: `minutesBefore must be between ${PRE_ORDER_MINUTES_BEFORE_MIN} and ${PRE_ORDER_MINUTES_BEFORE_MAX}.`,
+          bound: 'range',
+          min: PRE_ORDER_MINUTES_BEFORE_MIN,
+          max: PRE_ORDER_MINUTES_BEFORE_MAX,
+        });
+      }
+      const unknown = settings.excludedMenuItemIds.filter(
+        (id) => !dishes.some((dish) => dish.id === id),
+      );
+      if (unknown.length > 0) {
+        violations.push({
+          field: 'excludedMenuItemIds',
+          message: `Not on this branch's menu: ${unknown.join(', ')}.`,
+        });
+      }
+      if (violations.length > 0) throw validationFailed(url, violations);
+
+      preOrderSwitches.set(branchId, {
+        acceptsPreOrders: settings.acceptsPreOrders,
+        minutesBefore: settings.minutesBefore,
+      });
+      // The whole list: every dish not named becomes pre-orderable again.
+      const excluded = new Set(settings.excludedMenuItemIds);
+      for (const dish of dishes) dish.excludedFromPreOrder = excluded.has(dish.id);
+      return preOrderSettingsOf(branchId);
     },
   };
 }

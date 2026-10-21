@@ -1,3 +1,11 @@
+import type { DuePreOrder, DuePreOrders } from '../contracts/preOrder';
+import {
+  duePreOrderFromWire,
+  duePreOrdersFromWire,
+  rethrowPreOrderRefusal,
+  type WireDuePreOrder,
+  type WireDuePreOrders,
+} from './preOrderMapping';
 import type { ApiClient } from '../client';
 import type { ConsoleBooking } from '../contracts/approvals';
 import {
@@ -366,6 +374,43 @@ export function createStaffHttpGateway(client: ApiClient): StaffGateway {
         cancelledByBlockRefusal,
       );
       return consoleBookingFromWire(data);
+    },
+
+    // --- Pre-orders on the rail (2026-10-21) --------------------------------
+
+    async listDuePreOrders(branchId): Promise<DuePreOrders> {
+      // Soonest first, then by table, as the server orders it; kept as sent.
+      // gateway-schema: awaiting-route — pre-orders, PO wire §4 (backend feat/pre-orders)
+      const { data } = await client.get<WireDuePreOrders>(
+        `/api/branches/${branchId}/pre-orders/due`,
+      );
+      return duePreOrdersFromWire(data ?? {});
+    },
+
+    async sendPreOrder({ reservationId, clientCommandId }): Promise<DuePreOrder> {
+      try {
+        // gateway-schema: awaiting-route — pre-orders, PO wire §4 (backend feat/pre-orders)
+        const { data } = await client.post<WireDuePreOrder>(
+          `/api/reservations/${reservationId}/pre-order/send`,
+          { clientCommandId },
+        );
+        return duePreOrderFromWire(data);
+      } catch (error) {
+        rethrowPreOrderRefusal(error);
+      }
+    },
+
+    async markPreOrderNotComing({ reservationId, clientCommandId }): Promise<DuePreOrder> {
+      try {
+        // gateway-schema: awaiting-route — pre-orders, PO wire §4 (backend feat/pre-orders)
+        const { data } = await client.post<WireDuePreOrder>(
+          `/api/reservations/${reservationId}/pre-order/not-coming`,
+          { clientCommandId },
+        );
+        return duePreOrderFromWire(data);
+      } catch (error) {
+        rethrowPreOrderRefusal(error);
+      }
     },
 
     // --- Tables waiting to be let in ---------------------------------------

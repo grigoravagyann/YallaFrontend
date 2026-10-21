@@ -1371,6 +1371,10 @@
       },
       "bookingsUnblockedUndone": {
         "body": "A venue undid a no-show, so the pause on your bookings is lifted. Bookings it cancelled stay cancelled."
+      },
+      "bookingOnYourWay": {
+        "title": "Are you on your way?",
+        "body": "{{place}} is expecting you. Your pre-order is ready to go to the kitchen."
       }
     },
     "yesterday": "Yesterday",
@@ -1426,5 +1430,25 @@
   },
   "privacy": {
     "guestRecord": "Venues you book with see how many of your bookings in the last 12 months, at all venues, you kept, missed or cancelled late, and how many were not marked. While booking is paused after three missed bookings in three days, they see that too. Just the numbers, never where."
+  },
+  "preOrder": {
+    "error": {
+      "locked": "Pre-orders close 2 hours before your booking. Call the venue to change it.",
+      "lockedAt": "Pre-orders closed at {{time}}, 2 hours before your booking. Call the venue to change it.",
+      "alreadySent": "Your pre-order is already with the kitchen, so it can no longer be changed. Call the venue if something is wrong.",
+      "notAccepted": "This venue is not taking pre-orders right now.",
+      "itemUnavailable": "{{name}} can't be pre-ordered any more. Remove it to save your changes.",
+      "itemsUnavailable_one": "{{count}} dish can't be pre-ordered any more. Remove it to save your changes.",
+      "itemsUnavailable_other": "{{count}} dishes can't be pre-ordered any more. Remove them to save your changes.",
+      "notChangeable": "This booking can no longer be changed, so its pre-order can't be either.",
+      "onMyWayNotOpen": "This booking is not expecting you now.",
+      "invalid": "Check the marked fields and try again.",
+      "commandInUse": "That attempt could not be used. Try again.",
+      "conflict": "Your pre-order changed in the meantime. We have loaded the latest — check it and save again.",
+      "notFound": "We could not find this booking.",
+      "rateLimited": "Too many tries. Wait a moment and try again.",
+      "unknownOutcome": "The connection dropped before the venue answered. Try again — it will not be saved twice.",
+      "generic": "We could not save your pre-order. Try again."
+    }
   }
 }

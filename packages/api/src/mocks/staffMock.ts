@@ -17,7 +17,19 @@ import {
   TableNotSeatedError,
   TabAdmissionDecidedError,
   NoShowUndoWindowClosedError,
+  PreOrderAlreadySentError,
+  PreOrderNotSendableError,
 } from '../contracts/errors';
+import {
+  preOrderDueAtUtc,
+  preOrderLockedAtUtc,
+  type DuePreOrder,
+  type DuePreOrders,
+  type PreOrderStaffCommand,
+} from '../contracts/preOrder';
+import type { ReservationStatusCode } from '../contracts/push';
+import { createMockPreOrderBook } from './preOrders';
+import { requireClientCommandId } from './problems';
 import {
   ADMITTED,
   type FloorChangeSignal,
@@ -84,7 +96,7 @@ import { answerWindowClosed, approvalExpiryFor, localDateAndTime } from './appro
 import { NO_SHOW_BLOCK, noShowUndoableUntil, type GuestRecord } from '../contracts/guestRecord';
 import type { Photo } from '../contracts/menuAdmin';
 import { mockMenuFor } from './menu';
-import { mockBranchMenu, mockPhoto } from './menuDetail';
+import { mockBranchMenu, mockPhoto, publishedBranchMenu } from './menuDetail';
 import { computeBill, percentOf, type BillingLine } from './billing';
 
 /**
@@ -177,11 +189,45 @@ export interface StaffMockOptions {
    */
   readonly seedUnverifiedGuests?: boolean;
   /**
+   * Pre-orders on the floor (2026-10-21), for mock mode: a rail worth walking
+   * — a guest already on the way, one to call (a dish on it sold out since),
+   * one sent and held in the kitchen, and one still to come. Off in tests,
+   * which seed their own with {@link preOrderSeeds}.
+   */
+  readonly seedPreOrders?: boolean;
+  /** Bookings with a pre-order, for tests: exactly these, on top of the room. */
+  readonly preOrderSeeds?: readonly StaffPreOrderSeed[];
+  /** The branch's `minutesBefore`: when a card appears. 30 when absent. */
+  readonly preOrderMinutesBefore?: number;
+  /**
    * Whether a staff session is signed in now. When given, every staff read
    * and write answers 401 without one, as the server does with no token — so
    * a test can see a request that went out under the PIN gate (FT4 review S6).
    */
   readonly signedIn?: () => boolean;
+}
+
+/** A booking with a pre-order on the floor's mock, relative to the mock's start. */
+export interface StaffPreOrderSeed {
+  readonly reservationId?: string;
+  readonly code?: string;
+  readonly tableId: string;
+  /** Minutes from the mock's first clock reading; negative for one already started. */
+  readonly startsInMinutes: number;
+  readonly guestName: string;
+  readonly guestPhone?: string;
+  readonly partySize?: number;
+  readonly lines: readonly {
+    readonly menuItemId: string;
+    readonly quantity: number;
+    readonly note?: string;
+  }[];
+  readonly note?: string;
+  /** The guest already answered "on my way", ten minutes before the mock's start. */
+  readonly guestConfirmedOnWay?: boolean;
+  /** Sent already, five minutes before the mock's start: a held ticket in the kitchen. */
+  readonly sent?: boolean;
+  readonly guestRecord?: GuestRecord | null;
 }
 
 interface MockTableState {
@@ -206,7 +252,10 @@ interface MockTableState {
 
 interface MockOrder {
   readonly id: string;
-  readonly tabId: string;
+  /** Null while a pre-order's ticket is held: sent before the party sat. */
+  tabId: string | null;
+  /** The booking, when the ticket is a pre-order's — held or on the tab. */
+  readonly preOrderReservationId?: string;
   readonly tableLabel: string;
   status: OrderStatus;
   readonly placedAtUtc: string;
@@ -1174,9 +1223,11 @@ export function createStaffMockGateway(options: StaffMockOptions = {}): StaffGat
     from: TableStatus,
     at: Date,
     about?: {
-      readonly tabId: string;
+      readonly tabId: string | null;
       readonly signal: FloorChangeSignal;
       readonly reason?: string;
+      /** The booking the entry is about, when it is not the table's next one. */
+      readonly reservationId?: string;
     },
   ): void {
     sequence += 1;
@@ -1188,7 +1239,7 @@ export function createStaffMockGateway(options: StaffMockOptions = {}): StaffGat
       toStatus: state.physicalStatus,
       atUtc: iso(at),
       tableSessionId: state.sessionId,
-      reservationId: state.nextReservationId,
+      reservationId: about?.reservationId ?? state.nextReservationId,
       actor: 'staff',
       actorId: null,
       reason: about?.reason ?? '',
@@ -1251,7 +1302,7 @@ export function createStaffMockGateway(options: StaffMockOptions = {}): StaffGat
   }
 
   function orderEntry(order: MockOrder): OrderQueueEntry {
-    const tab = tabs.get(order.tabId);
+    const tab = order.tabId ? tabs.get(order.tabId) : undefined;
     const lines = (tab?.lines ?? []).filter((line) => order.lineIds.includes(line.id));
     const ticketLines =
       order.ticketLines ??
@@ -1278,6 +1329,7 @@ export function createStaffMockGateway(options: StaffMockOptions = {}): StaffGat
       ),
       lines: ticketLines,
       placedByName: order.placedByName,
+      preOrder: order.preOrderReservationId ? kitchenMarker(order.preOrderReservationId) : null,
     };
   }
 
@@ -1460,6 +1512,457 @@ export function createStaffMockGateway(options: StaffMockOptions = {}): StaffGat
       request.reason = command.reason?.trim() || null;
     }
     return decidedBooking(request);
+  }
+
+  // --- Pre-orders on the rail (2026-10-21) -------------------------------------
+  //
+  // The floor's own book of pre-orders: a booking's dishes, sent or not, and
+  // whether the guest said they are on the way. A card is on the rail from
+  // the branch's `minutesBefore` until the booking ends (a seated party's
+  // until it is on their tab). Send makes the pre-order a kitchen ticket at
+  // once — held, with no tab — and seating the booking puts it on the
+  // party's tab with the same id, its prices and its kitchen progress kept.
+
+  /** How long a sitting is booked for: a confirmed booking's card goes at its end. */
+  const PRE_ORDER_TURN_MINUTES = 105;
+  /** The book keys the floor's one branch by this, whichever id the room adopts. */
+  const FLOOR_BRANCH = 'floor';
+  const preOrderMinutesBefore = options.preOrderMinutesBefore ?? 30;
+  const staffName = options.staffName ?? 'Ani Hakobyan';
+  const preOrderBook = createMockPreOrderBook({
+    now,
+    menu: () => publishedBranchMenu(mockBranchMenu(branchId, 'cafe')),
+    branches: {
+      [FLOOR_BRANCH]: { acceptsPreOrders: true, minutesBefore: preOrderMinutesBefore },
+    },
+  });
+  /** Bookings a waiter seated here. */
+  const seatedBookings = new Set<string>();
+  /** reservationId -> the tab its pre-order went onto. */
+  const preOrderTabs = new Map<string, string>();
+
+  function bookingStatusOf(reservation: MockReservation): ReservationStatusCode {
+    if (reservation.released) {
+      return reservation.releasedAs === 'noShow' ? 'noShow' : 'cancelledByDiner';
+    }
+    return seatedBookings.has(reservation.id) ? 'seated' : 'confirmed';
+  }
+
+  function preOrderBookingOf(reservation: MockReservation) {
+    return {
+      id: reservation.id,
+      branchId: FLOOR_BRANCH,
+      status: bookingStatusOf(reservation),
+      startUtc: reservation.startUtc,
+      endUtc: minutesFrom(new Date(reservation.startUtc), PRE_ORDER_TURN_MINUTES),
+    };
+  }
+
+  /** "Pre-order · 19:30 · 4 · Anna" on a ticket, held or on the tab. */
+  function kitchenMarker(reservationId: string) {
+    const reservation = reservations.get(reservationId);
+    if (!reservation) return null;
+    return {
+      reservationId,
+      startUtc: reservation.startUtc,
+      localStartTime: localDateAndTime(reservation.startUtc, plan.timeZoneId).localStartTime.slice(
+        0,
+        5,
+      ),
+      partySize: reservation.partySize,
+      guestName: reservation.guestName,
+    };
+  }
+
+  /** Signal 6 on the change stream, at the booking's table: re-read the rail. */
+  function preOrderChanged(reservationId: string, at: Date): void {
+    const reservation = reservations.get(reservationId);
+    const state = reservation ? tables.get(reservation.tableId) : undefined;
+    if (!reservation || !state) return;
+    record(state, state.physicalStatus, at, {
+      tabId: preOrderTabs.get(reservationId) ?? null,
+      signal: 'preOrderChanged',
+      reservationId,
+    });
+  }
+
+  /** The kitchen moved a pre-order's ticket: its card reads the progress. */
+  function kitchenMoved(reservationId: string, status: OrderStatus): void {
+    const entry = preOrderBook.record(reservationId);
+    if (!entry) return;
+    entry.kitchenStatus = status;
+    entry.updatedAtUtc = iso(now());
+    preOrderChanged(reservationId, now());
+  }
+
+  /** The sitting's tab, or a new one as "Open tab" makes it: nobody on it, admitted. */
+  function sittingTab(state: MockTableState, at: Date): MockTab {
+    const existing = state.tabId ? tabs.get(state.tabId) : undefined;
+    if (existing) return existing;
+    const tab: MockTab = {
+      id: id('tab'),
+      tableId: state.tableId,
+      tableLabel: label(state.tableId),
+      status: 'open',
+      openedAtUtc: iso(at),
+      closedAtUtc: null,
+      paidDram: 0,
+      tipDram: 0,
+      lines: [],
+      adjustments: [],
+      participants: [],
+      hostParticipantId: null,
+      settlementModeLocked: false,
+      sequence: 1,
+      events: [],
+      admission: {
+        ...ADMITTED,
+        admittedBecause: 'openedByStaff',
+        decidedAtUtc: iso(at),
+        decidedByStaffId: MOCK_STAFF_ID,
+      },
+      seatedByScan: false,
+    };
+    tabs.set(tab.id, tab);
+    state.tabId = tab.id;
+    return tab;
+  }
+
+  /** The held ticket becomes the first order on the party's tab: same id, locked prices. */
+  function putPreOrderOnTab(reservation: MockReservation, order: MockOrder, at: Date): void {
+    const entry = preOrderBook.record(reservation.id);
+    const state = tables.get(reservation.tableId);
+    if (!entry || !state) return;
+    const tab = sittingTab(state, at);
+    for (const line of entry.lines) {
+      tab.lines.push({
+        id: line.id,
+        orderId: order.id,
+        menuItemId: line.menuItemId,
+        name: line.name,
+        quantity: line.quantity,
+        unitPriceDram: line.unitPriceDram,
+        lineTotalDram: line.unitPriceDram * line.quantity,
+        note: line.note,
+        isShared: false,
+        // The table's, placed by the waiter who sent it: never a diner's own.
+        isTableAttributed: true,
+        ownerParticipantId: null,
+        participantId: null,
+        orderedByName: null,
+        onBehalfOfParticipantId: null,
+        sharedWithCount: 0,
+        status: 'active',
+        voidReason: null,
+        voidedByName: null,
+        placedAtUtc: order.placedAtUtc,
+        orderStatus: order.status,
+      });
+      order.lineIds.push(line.id);
+    }
+    order.tabId = tab.id;
+    entry.onTab = true;
+    entry.updatedAtUtc = iso(at);
+    preOrderTabs.set(reservation.id, tab.id);
+    pushEvent(tab, 'orderPlaced', at);
+  }
+
+  /** A pre-order sent: its kitchen ticket, held until the party sits. */
+  function heldTicket(reservation: MockReservation, at: Date): MockOrder | undefined {
+    const entry = preOrderBook.record(reservation.id);
+    if (!entry) return undefined;
+    const order: MockOrder = {
+      id: entry.id,
+      tabId: null,
+      preOrderReservationId: reservation.id,
+      tableLabel: label(reservation.tableId),
+      status: 'inKitchen',
+      placedAtUtc: iso(at),
+      lineIds: [],
+      placedByName: entry.sentByName,
+      ticketLines: entry.lines.map((line) => ({
+        lineId: line.id,
+        menuItemId: line.menuItemId,
+        name: line.name,
+        quantity: line.quantity,
+        note: line.note,
+        onBehalfOfParticipantId: null,
+      })),
+    };
+    orders.set(order.id, order);
+    return order;
+  }
+
+  /** A booking seated here: its held pre-order joins the party's tab. */
+  function seatPreOrderParty(reservationId: string, state: MockTableState, at: Date): void {
+    const reservation = reservations.get(reservationId);
+    if (!reservation || reservation.tableId !== state.tableId) return;
+    seatedBookings.add(reservationId);
+    const entry = preOrderBook.record(reservationId);
+    if (!entry) return;
+    const order = orders.get(entry.id);
+    if (entry.sentAtUtc && !entry.onTab && order) putPreOrderOnTab(reservation, order, at);
+    preOrderChanged(reservationId, at);
+  }
+
+  function preOrderCard(reservation: MockReservation, wasReplay = false): DuePreOrder {
+    const booking = preOrderBookingOf(reservation);
+    const preOrder = preOrderBook.view(booking);
+    const entry = preOrderBook.record(reservation.id);
+    if (!preOrder || !entry) throw new NotFoundError({ url: '/api/pre-orders/due' });
+    return {
+      reservationId: reservation.id,
+      code: reservation.code,
+      tableId: reservation.tableId,
+      tableLabel: label(reservation.tableId),
+      roomName:
+        plan.tables.find((table) => table.id === reservation.tableId)?.floorAreaName ?? null,
+      startUtc: reservation.startUtc,
+      localStartTime: localDateAndTime(reservation.startUtc, plan.timeZoneId).localStartTime.slice(
+        0,
+        5,
+      ),
+      partySize: reservation.partySize,
+      status: booking.status,
+      guestName: reservation.guestName,
+      guestPhone: reservation.guestPhone.trim() || null,
+      guestConfirmedOnWayAtUtc: preOrderBook.onMyWayAt(reservation.id),
+      guestRecord: reservation.guestRecord ?? null,
+      dueAtUtc: preOrder.dueAtUtc,
+      preOrder,
+      sentByName: entry.sentByName,
+      notComingByName: entry.notComingByName,
+      tabId: entry.onTab ? (preOrderTabs.get(reservation.id) ?? null) : null,
+      wasReplay,
+    };
+  }
+
+  /** The rail as `GET /pre-orders/due` answers it. */
+  function dueRail(at: Date): DuePreOrders {
+    const t = at.getTime();
+    const due: MockReservation[] = [];
+    let next: number | null = null;
+    for (const entry of preOrderBook.records()) {
+      const reservation = reservations.get(entry.reservationId);
+      if (!reservation) continue;
+      const booking = preOrderBookingOf(reservation);
+      const dueAt = Date.parse(preOrderDueAtUtc(booking.startUtc, preOrderMinutesBefore));
+      if (booking.status === 'confirmed') {
+        if (t < dueAt) {
+          next = next === null ? dueAt : Math.min(next, dueAt);
+        } else if (t < Date.parse(booking.endUtc)) {
+          due.push(reservation);
+        }
+      } else if (booking.status === 'seated' && !entry.onTab) {
+        due.push(reservation);
+      }
+    }
+    due.sort(
+      (a, b) =>
+        Date.parse(a.startUtc) - Date.parse(b.startUtc) ||
+        label(a.tableId).localeCompare(label(b.tableId), undefined, { numeric: true }),
+    );
+    return {
+      items: due.map((reservation) => preOrderCard(reservation)),
+      nextDueAtUtc: next === null ? null : new Date(next).toISOString(),
+    };
+  }
+
+  /** The two actions' shared gate: the pre-order, and the booking's window. */
+  function preOrderTarget(command: PreOrderStaffCommand, action: 'send' | 'not-coming') {
+    const url = `/api/reservations/${command.reservationId}/pre-order/${action}`;
+    requireSession(url);
+    requireClientCommandId(url, command.clientCommandId);
+    const reservation = reservations.get(command.reservationId);
+    const entry = reservation ? preOrderBook.record(reservation.id) : undefined;
+    if (!reservation || !entry) throw new NotFoundError({ url });
+    const booking = preOrderBookingOf(reservation);
+    const notSendable = () =>
+      new PreOrderNotSendableError({
+        url,
+        reservationId: reservation.id,
+        bookingStatus: booking.status,
+        sendableFromUtc: preOrderLockedAtUtc(booking.startUtc),
+        endUtc: booking.endUtc,
+      });
+    return { url, reservation, entry, booking, notSendable };
+  }
+
+  function sendPreOrderNow(command: PreOrderStaffCommand): DuePreOrder {
+    const { url, reservation, entry, booking, notSendable } = preOrderTarget(command, 'send');
+    // Two tablets, one ticket: the second tap answers it as it stands.
+    if (entry.sentAtUtc) return preOrderCard(reservation, true);
+    const at = now();
+    const t = at.getTime();
+    const seated = booking.status === 'seated';
+    const state = tables.get(reservation.tableId);
+    if (
+      (booking.status !== 'confirmed' && !seated) ||
+      t < Date.parse(preOrderLockedAtUtc(booking.startUtc)) ||
+      (!seated && t >= Date.parse(booking.endUtc)) ||
+      (seated && state?.physicalStatus !== 'occupied')
+    ) {
+      throw notSendable();
+    }
+    const tab = seated && state?.tabId ? tabs.get(state.tabId) : undefined;
+    if (tab && tab.status !== 'open') {
+      throw new TabNotAcceptingOrdersError({ url, tabId: tab.id, tabStatus: tab.status });
+    }
+    preOrderBook.markSent(reservation.id, staffName);
+    const order = heldTicket(reservation, at);
+    if (seated && order) putPreOrderOnTab(reservation, order, at);
+    preOrderChanged(reservation.id, at);
+    return preOrderCard(reservation);
+  }
+
+  function markNotComingNow(command: PreOrderStaffCommand): DuePreOrder {
+    const { url, reservation, entry, booking, notSendable } = preOrderTarget(command, 'not-coming');
+    if (entry.sentAtUtc) {
+      throw new PreOrderAlreadySentError({
+        url,
+        reservationId: reservation.id,
+        sentAtUtc: entry.sentAtUtc,
+      });
+    }
+    if (entry.notComingAtUtc) return preOrderCard(reservation, true);
+    const at = now();
+    if (
+      booking.status !== 'confirmed' ||
+      at.getTime() < Date.parse(preOrderLockedAtUtc(booking.startUtc))
+    ) {
+      throw notSendable();
+    }
+    preOrderBook.markNotComing(reservation.id, staffName);
+    preOrderChanged(reservation.id, at);
+    return preOrderCard(reservation);
+  }
+
+  /** A booking with a pre-order, on a table, as a test or mock mode seeds it. */
+  function seedPreOrder(seed: StaffPreOrderSeed): void {
+    const startUtc = minutesFrom(start, seed.startsInMinutes);
+    const reservation: MockReservation = {
+      id: seed.reservationId ?? id('res'),
+      tableId: seed.tableId,
+      code: seed.code ?? `Y${5000 + reservations.size}`,
+      guestName: seed.guestName,
+      guestPhone: seed.guestPhone ?? '',
+      partySize: seed.partySize ?? 2,
+      startUtc,
+      released: false,
+      guestRecord: seed.guestRecord ?? null,
+    };
+    reservations.set(reservation.id, reservation);
+    const state = tables.get(seed.tableId);
+    const current = state?.nextReservationStartUtc ?? null;
+    if (
+      state &&
+      state.physicalStatus === 'free' &&
+      (current === null || Date.parse(current) < start.getTime() || startUtc < current)
+    ) {
+      state.nextReservationId = reservation.id;
+      state.nextReservationStartUtc = startUtc;
+      state.nextReservationPartySize = reservation.partySize;
+      state.freeUntilUtc = startUtc;
+    }
+    const dishes = new Map(
+      mockBranchMenu(branchId, 'cafe').categories.flatMap((category) =>
+        category.items.map((item) => [item.id, item] as const),
+      ),
+    );
+    const madeAt = minutesFrom(start, -24 * 60);
+    const entry = preOrderBook.seed({
+      reservationId: reservation.id,
+      branchId: FLOOR_BRANCH,
+      lines: seed.lines.map((line, index) => ({
+        id: `${reservation.id}-l${index + 1}`,
+        menuItemId: line.menuItemId,
+        name: dishes.get(line.menuItemId)?.name ?? line.menuItemId,
+        unitPriceDram: dishes.get(line.menuItemId)?.priceDram ?? 0,
+        quantity: line.quantity,
+        note: line.note ?? null,
+      })),
+      note: seed.note ?? null,
+      createdAtUtc: madeAt,
+      updatedAtUtc: madeAt,
+      sentAtUtc: null,
+      sentByName: null,
+      kitchenStatus: null,
+      onTab: false,
+      notComingAtUtc: null,
+      notComingByName: null,
+    });
+    if (seed.guestConfirmedOnWay) {
+      preOrderBook.seedOnMyWay(reservation.id, minutesFrom(start, -10));
+    }
+    if (seed.sent) {
+      const sentAt = new Date(start.getTime() - 5 * 60_000);
+      entry.sentAtUtc = iso(sentAt);
+      entry.sentByName = staffName;
+      entry.kitchenStatus = 'inKitchen';
+      heldTicket(reservation, sentAt);
+    }
+  }
+
+  /** Mock mode's rail: on the way, to call (a dish ran out), sent and held, and one to come. */
+  const PRE_ORDER_SHOWCASE: readonly StaffPreOrderSeed[] = [
+    {
+      tableId: 't2',
+      code: 'K7Q2LM',
+      startsInMinutes: 25,
+      guestName: 'Աննա Մելիքյան',
+      guestPhone: '+37499111222',
+      partySize: 2,
+      lines: [
+        { menuItemId: 'cappuccino', quantity: 2, note: 'Oat milk' },
+        { menuItemId: 'croissant', quantity: 2 },
+      ],
+      note: 'A birthday: the cake comes with us',
+      guestConfirmedOnWay: true,
+      guestRecord: seededRecord(6, 0, 0),
+    },
+    {
+      tableId: 't9',
+      code: 'M3V8PW',
+      startsInMinutes: 20,
+      guestName: 'Мария Петрова',
+      guestPhone: '+37477445566',
+      partySize: 4,
+      lines: [
+        { menuItemId: 'cold-brew', quantity: 2 },
+        { menuItemId: 'cheesecake', quantity: 1 },
+        { menuItemId: 'avocado-toast', quantity: 2, note: 'No chilli' },
+      ],
+    },
+    {
+      tableId: 't11',
+      code: 'R9T4HN',
+      startsInMinutes: 15,
+      guestName: 'Davit Sargsyan',
+      guestPhone: '+37491000111',
+      partySize: 6,
+      lines: [
+        { menuItemId: 'matnakash-eggs', quantity: 3 },
+        { menuItemId: 'americano', quantity: 6 },
+      ],
+      sent: true,
+      guestConfirmedOnWay: true,
+    },
+    {
+      tableId: 't4',
+      code: 'H2K7QX',
+      startsInMinutes: 75,
+      guestName: 'Նարե Պետրոսյան',
+      guestPhone: '+37493112233',
+      partySize: 3,
+      lines: [{ menuItemId: 'granola', quantity: 3 }],
+    },
+  ];
+
+  for (const seed of [
+    ...(options.preOrderSeeds ?? []),
+    ...(options.seedPreOrders ? PRE_ORDER_SHOWCASE : []),
+  ]) {
+    seedPreOrder(seed);
   }
 
   // --- The gateway ----------------------------------------------------------
@@ -1707,6 +2210,12 @@ export function createStaffMockGateway(options: StaffMockOptions = {}): StaffGat
       state.physicalStatus = transition.to;
       state.version += 1;
 
+      // The booking this seats, when it seats one: its held pre-order joins the tab.
+      const seating =
+        transition.to === 'occupied'
+          ? (command.reservationId ??
+            (command.kind === 'seatReservation' ? state.nextReservationId : null))
+          : null;
       if (transition.to === 'occupied') {
         state.sessionId = id('session');
         state.seatedAtUtc = iso(at);
@@ -1728,6 +2237,7 @@ export function createStaffMockGateway(options: StaffMockOptions = {}): StaffGat
 
       state.derived = derive(state, at);
       record(state, from, at);
+      if (seating) seatPreOrderParty(seating, state, at);
 
       const result: TableActionResult = {
         branchId,
@@ -1934,6 +2444,21 @@ export function createStaffMockGateway(options: StaffMockOptions = {}): StaffGat
     },
 
     // --- Tables waiting to be let in ---------------------------------------
+
+    // --- Pre-orders on the rail (2026-10-21) --------------------------------
+
+    async listDuePreOrders(): Promise<DuePreOrders> {
+      requireSession('/api/branches/pre-orders/due');
+      return settle(dueRail(now()));
+    },
+
+    async sendPreOrder(command: PreOrderStaffCommand): Promise<DuePreOrder> {
+      return settle(sendPreOrderNow(command));
+    },
+
+    async markPreOrderNotComing(command: PreOrderStaffCommand): Promise<DuePreOrder> {
+      return settle(markNotComingNow(command));
+    },
 
     async listTabsAwaitingAdmission(): Promise<readonly TabAwaitingAdmission[]> {
       requireSession(`/api/branches/${branchId}/tabs/awaiting-admission`);
@@ -2298,8 +2823,10 @@ export function createStaffMockGateway(options: StaffMockOptions = {}): StaffGat
       const order = orders.get(command.orderId);
       if (!order) throw new NotFoundError({ url: `/api/orders/${command.orderId}` });
       order.status = command.status;
-      const tab = tabs.get(order.tabId);
+      const tab = order.tabId ? tabs.get(order.tabId) : undefined;
       if (tab) pushEvent(tab, 'orderStatusChanged', now());
+      // A pre-order's ticket: its card reads the kitchen's progress (signal 6).
+      if (order.preOrderReservationId) kitchenMoved(order.preOrderReservationId, command.status);
       return settle(orderEntry(order));
     },
 

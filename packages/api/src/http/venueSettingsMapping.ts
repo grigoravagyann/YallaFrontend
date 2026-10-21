@@ -19,6 +19,7 @@ import type {
 } from '../contracts/menuAdmin';
 import type { SpiceLevel } from '../contracts/ordering';
 import type { components } from '../generated/schema';
+import type { WireMenuItemPreOrderFields } from './preOrderMapping';
 
 type Schemas = components['schemas'];
 type WireCategory = Schemas['Yalla.Application.Menus.MenuCategoryView'];
@@ -117,6 +118,9 @@ export function adminItem(view: WireItem): AdminMenuItem {
     prepMinutes: view.prepMinutes ?? 0,
     photo: view.photo ? photo(view.photo) : NO_PHOTO,
     isAvailable: view.isAvailable,
+    // Ahead of the generated schema (pre-orders, 2026-10-21); absent is yes.
+    availableForPreOrder:
+      (view as WireItem & WireMenuItemPreOrderFields).availableForPreOrder !== false,
     displayOrder: view.displayOrder,
     ...missingFieldsOf(view),
   };

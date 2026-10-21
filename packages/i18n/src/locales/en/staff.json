@@ -889,5 +889,17 @@
   "noShows": {
     "title": "No-shows marked here",
     "row": "Table {{label}} · can be undone until {{time}}"
+  },
+  "preOrders": {
+    "error": {
+      "notSendable": "This pre-order cannot be sent now. The list has been refreshed.",
+      "alreadySent": "This pre-order is already in the kitchen.",
+      "tabClosing": "This table's bill is being settled, so nothing more can go on it.",
+      "busy": "The table is busy with another change. Tap again.",
+      "notFound": "This booking has no pre-order any more.",
+      "forbidden": "Only a waiter or a manager of this branch can do this.",
+      "unknownOutcome": "The connection dropped. Check the list, then try again.",
+      "generic": "That did not work. Try again."
+    }
   }
 }

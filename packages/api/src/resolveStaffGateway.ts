@@ -38,6 +38,11 @@ export interface ResolveStaffGatewayOptions {
    * let in. See `StaffMockOptions.seedUnverifiedGuests`.
    */
   readonly mockUnverifiedGuests?: boolean | undefined;
+  /**
+   * Mock only: pre-order cards on the rail and a held ticket in the kitchen
+   * (2026-10-21). See `StaffMockOptions.seedPreOrders`.
+   */
+  readonly mockPreOrders?: boolean | undefined;
 }
 
 /**
@@ -60,6 +65,7 @@ export function resolveStaffGateway(options: ResolveStaffGatewayOptions): StaffG
       ...(options.mockBookingTimes ? { seedBookingTimes: true } : {}),
       ...(options.mockKitchen ? { seedKitchen: true } : {}),
       ...(options.mockUnverifiedGuests ? { seedUnverifiedGuests: true } : {}),
+      ...(options.mockPreOrders ? { seedPreOrders: true } : {}),
     };
     if (options.persist) {
       return persistMockGateway<StaffGateway>({

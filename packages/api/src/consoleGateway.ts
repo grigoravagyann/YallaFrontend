@@ -1,5 +1,6 @@
 import type { ConsoleBooking, DecideReservationCommand } from './contracts/approvals';
 import type { BookingBlock, LiftBookingBlockCommand } from './contracts/guestRecord';
+import type { PreOrderSettings, PreOrderSettingsInput } from './contracts/preOrder';
 import type {
   BranchOverview,
   ConsoleBookingActionCommand,
@@ -598,6 +599,32 @@ export interface ConsoleGateway {
     branchId: string;
     policy: ReservationPolicy;
   }): Promise<PolicyChangeResult>;
+
+  // --- Pre-orders (2026-10-21) ------------------------------------------------
+
+  /**
+   * Whether the branch takes pre-orders, when the waiter's card appears, and
+   * which dishes are excluded — with the bounds and the product's fixed
+   * numbers. `GET /api/branches/{branchId}/pre-order-settings`, manager or
+   * above at the branch. Default: off, 30 minutes, none excluded.
+   *
+   * @throws {ForbiddenError} not a manager of this branch.
+   */
+  getPreOrderSettings(branchId: string): Promise<PreOrderSettings>;
+
+  /**
+   * Save all three — `PUT /api/branches/{branchId}/pre-order-settings`.
+   * `excludedMenuItemIds` is the **whole** list. Turning it off keeps
+   * existing pre-orders working; new ones and edits are refused. Every
+   * dish's `availableForPreOrder` follows, so the menu is read again.
+   *
+   * @throws {ValidationError} `minutesBefore` outside 5–120, or an excluded id
+   * not on this branch's menu (`excludedMenuItemIds`).
+   */
+  savePreOrderSettings(input: {
+    readonly branchId: string;
+    readonly settings: PreOrderSettingsInput;
+  }): Promise<PreOrderSettings>;
 
   // --- Bookings waiting for approval ------------------------------------------
 

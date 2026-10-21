@@ -118,7 +118,8 @@ export function KitchenRoute({ identity, device, paused }: KitchenRouteProps) {
       const clientCommandId = newCommandId();
       queue.enqueue({
         id: clientCommandId,
-        scope: order.tabId,
+        // A held pre-order ticket has no tab yet: its own id keeps its moves in order.
+        scope: order.tabId ?? order.orderId,
         precondition: null,
         subject: { tableId: null, tableLabel: order.tableLabel, tabId: order.tabId },
         body: {

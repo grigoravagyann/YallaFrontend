@@ -38,6 +38,7 @@ const COPY_KEY: Readonly<Record<KnownDinerNotificationKind, string>> = {
   'bookings-blocked-no-shows': 'bookingsBlockedNoShows',
   'booking-no-show': 'bookingNoShow',
   'bookings-unblocked': 'bookingsUnblocked',
+  'booking-on-your-way': 'bookingOnYourWay',
 };
 
 /**

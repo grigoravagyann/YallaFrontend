@@ -1,4 +1,10 @@
 import type {
+  ClearManagedPreOrderCommand,
+  OnMyWayResult,
+  PreOrderResult,
+  ReplaceManagedPreOrderCommand,
+} from './contracts/preOrder';
+import type {
   ManagedBooking,
   PublicBranch,
   PublicPageMeta,
@@ -127,4 +133,24 @@ export interface PublicGateway {
    * table that is gone, which a fresh read of the link tells apart.
    */
   rescheduleManagedBooking(command: RescheduleManagedBookingCommand): Promise<ManagedBooking>;
+
+  /**
+   * Save the booking's pre-order from its link (2026-10-21) —
+   * `PUT /api/public/bookings/{token}/pre-order`. The app's
+   * `replacePreOrder`, for somebody holding only the link: the same rules,
+   * refusals and answer. The menu is the booking's `branchId`'s.
+   */
+  replaceManagedPreOrder(command: ReplaceManagedPreOrderCommand): Promise<PreOrderResult>;
+
+  /** Remove it — `POST /api/public/bookings/{token}/pre-order/clear`. */
+  clearManagedPreOrder(command: ClearManagedPreOrderCommand): Promise<PreOrderResult>;
+
+  /**
+   * "Yes, on my way" from the link — `POST /api/public/bookings/{token}/on-my-way`.
+   * Ask when the booking's `onYourWayAsked`; "Can't come" is
+   * {@link cancelManagedBooking}.
+   *
+   * @throws {OnMyWayNotOpenError} not confirmed or seated, or over.
+   */
+  confirmManagedOnMyWay(input: { readonly token: string }): Promise<OnMyWayResult>;
 }

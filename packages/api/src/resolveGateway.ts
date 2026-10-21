@@ -5,6 +5,7 @@ import type { YallaGateway } from './gateway';
 import { createHttpGateway, type GatewayAudience, type TabTokenStorage } from './http/httpGateway';
 import { createMockGateway, type MockGatewayOptions } from './mocks/mockGateway';
 import { persistMockGateway } from './mocks/persistence';
+import { MOCK_PRE_ORDER_BRANCHES } from './mocks/preOrders';
 import type { MockPersistence } from './resolveConsoleGateway';
 
 export interface ResolveGatewayOptions {
@@ -74,6 +75,12 @@ export interface ResolveGatewayOptions {
   readonly mockGuestRecord?: MockGatewayOptions['guestRecord'];
   /** Mock only: this diner is blocked for no-shows until then (ISO UTC). */
   readonly mockBlockedUntilUtc?: string | undefined;
+  /**
+   * Mock only: pre-orders on offer (2026-10-21) — Northern Avenue takes them,
+   * the gata excluded (`MOCK_PRE_ORDER_BRANCHES`). Absent: every branch is
+   * off, the server's default.
+   */
+  readonly mockPreOrders?: boolean | undefined;
   /** Mock only: keep the world across a reload (QA F2). */
   readonly persist?: MockPersistence | undefined;
   /** Where tab participant tokens are kept between launches. Real only. */
@@ -109,6 +116,7 @@ export function resolveGateway(options: ResolveGatewayOptions): YallaGateway {
       simulateAdmissionOutcome: options.mockAdmissionOutcome,
       guestRecord: options.mockGuestRecord,
       blockedUntilUtc: options.mockBlockedUntilUtc,
+      ...(options.mockPreOrders ? { preOrders: { branches: MOCK_PRE_ORDER_BRANCHES } } : {}),
     };
     if (options.persist) {
       return persistMockGateway<YallaGateway>({

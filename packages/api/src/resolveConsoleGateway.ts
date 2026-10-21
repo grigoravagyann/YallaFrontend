@@ -43,6 +43,11 @@ export interface ResolveConsoleGatewayOptions {
    * be walked in development without four accounts.
    */
   readonly mockRole?: UserRole | undefined;
+  /**
+   * Mock only: Northern Avenue takes pre-orders (the gata excluded) and a
+   * pending booking carries one (2026-10-21). See `ConsoleMockOptions.seedPreOrders`.
+   */
+  readonly mockPreOrders?: boolean | undefined;
   /** Mock only: keep the world across a reload. See {@link MockPersistence}. */
   readonly persist?: MockPersistence | undefined;
 }
@@ -56,7 +61,10 @@ export interface ResolveConsoleGatewayOptions {
  */
 export function resolveConsoleGateway(options: ResolveConsoleGatewayOptions): ConsoleGateway {
   if (options.dataSource === 'mock') {
-    const role = options.mockRole ? { role: options.mockRole } : {};
+    const role = {
+      ...(options.mockRole ? { role: options.mockRole } : {}),
+      ...(options.mockPreOrders ? { seedPreOrders: true } : {}),
+    };
     if (options.persist) {
       return persistMockGateway<ConsoleGateway>({
         key: options.persist.key,

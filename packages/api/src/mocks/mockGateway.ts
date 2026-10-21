@@ -160,6 +160,20 @@ import {
 } from './publicVenues';
 import { publicRooms } from './roomFloors';
 import { mockVenues, type Branch as MockBranch, type Venue as MockVenue } from './venues';
+import {
+  ON_YOUR_WAY_FEED_KIND,
+  asksOnYourWay,
+  onYourWayFromUtc,
+  type OnMyWayResult,
+  type PreOrderDraft,
+  type PreOrderResult,
+  type PreOrderSettingsInput,
+} from '../contracts/preOrder';
+import {
+  createMockPreOrderBook,
+  type MockPreOrderBooking,
+  type MockPreOrderBranch,
+} from './preOrders';
 
 const URL_TAG = 'mock://yalla';
 
@@ -302,10 +316,37 @@ export interface MockGateway extends YallaGateway {
   admitTabAsWaiter(tabId: string): void;
   /** A waiter's Reject: the tab closes, and the people on it are told. */
   rejectTabAsWaiter(tabId: string): void;
+
+  // --- Pre-orders: the venue's side, for tests and mock mode (2026-10-21) ---
+
+  /** The console's pre-order settings for a branch: on/off, minutes before, excluded dishes. */
+  setPreOrderSettingsAsVenue(branchId: string, settings: PreOrderSettingsInput): void;
+  /** The kitchen ran out of a dish (or has it again): `isAvailable` on the menu, `availableNow` on lines. */
+  setDishSoldOutAsVenue(branchId: string, menuItemId: string, soldOut: boolean): void;
+  /** A waiter's "Coming → Send to kitchen": the pre-order reads `sent`, in the kitchen. */
+  sendPreOrderAsVenue(bookingId: string): void;
+  /** A waiter's "Not coming / no answer". */
+  markPreOrderNotComingAsVenue(bookingId: string): void;
+
+  // --- Pre-orders: the manage link's door, for the public mock ---------------
+  //
+  // The link is the credential: no session, no owner check. The public mock
+  // resolves its token to the booking id and calls these.
+
+  replacePreOrderByLink(
+    command: PreOrderDraft & { readonly bookingId: string; readonly clientCommandId: string },
+  ): Promise<PreOrderResult>;
+  clearPreOrderByLink(command: {
+    readonly bookingId: string;
+    readonly clientCommandId: string;
+  }): Promise<PreOrderResult>;
+  confirmOnMyWayByLink(bookingId: string): Promise<OnMyWayResult>;
 }
 
 /** The waiter the mock acts as when it plays the floor. */
 const MOCK_WAITER_ID = 'staff-mock-waiter';
+/** …and their name, as a sent pre-order names whoever sent it. */
+const MOCK_WAITER_NAME = 'Davit';
 
 /** A pending Telegram challenge: the bot has not confirmed it yet. */
 interface TelegramPending {
@@ -449,6 +490,14 @@ export interface MockGatewayOptions {
   /** This device's diner is blocked for no-shows until then (ISO UTC). */
   readonly blockedUntilUtc?: string | undefined;
   /**
+   * Pre-orders (2026-10-21): each named branch's settings, as its console
+   * saved them, and the dishes its kitchen ran out of. A branch not named
+   * takes the server's default — **off**, 30 minutes, nothing excluded — so a
+   * world that does not ask has no pre-orders on offer anywhere.
+   */
+  readonly preOrders?:
+    { readonly branches?: Readonly<Record<string, MockPreOrderBranch>> | undefined } | undefined;
+  /**
    * The branch setting: a scan with no proved number waits for a waiter. True
    * when absent, as the server's default; false lets such scans order at once
    * (`notRequired`).
@@ -524,6 +573,50 @@ export function createMockGateway(options: MockGatewayOptions = {}): MockGateway
   // Mutable in-memory state. A real backend owns all of this.
   const floors = new Map<string, FloorPlanData>();
   const bookings = new Map<string, Booking>();
+
+  /**
+   * The pre-orders on this world's bookings (2026-10-21): what the guest
+   * chose, what the floor did, the branches' settings — the state derived on
+   * every read, as the server derives it. The menu is the diner menu
+   * (complete dishes), read when asked.
+   */
+  const preOrders = createMockPreOrderBook({
+    now,
+    menu: (branchId) => {
+      const type = venueTypeFor(branchId);
+      return type ? publishedBranchMenu(mockBranchMenu(branchId, type)) : null;
+    },
+    branches: options.preOrders?.branches,
+  });
+
+  /** A booking as the pre-order book reads it. */
+  function preOrderBooking(booking: Booking): MockPreOrderBooking {
+    return {
+      id: booking.id,
+      branchId: booking.branchId,
+      status: booking.status,
+      startUtc: booking.slotUtc,
+      endUtc: booking.endUtc,
+    };
+  }
+
+  /** The diner's own booking — somebody else's answers 404, as for a move. */
+  function ownBooking(url: string, bookingId: string): Booking {
+    requireVerifiedPhone(url);
+    const booking = bookings.get(bookingId);
+    const owner = booking ? (bookingOwners.get(booking.id) ?? null) : null;
+    if (!booking || (owner !== null && owner !== signedInAccountId)) {
+      throw new NotFoundError({ url });
+    }
+    return booking;
+  }
+
+  /** The booking behind a manage link: the link is the credential. */
+  function linkedBooking(url: string, bookingId: string): Booking {
+    const booking = bookings.get(bookingId);
+    if (!booking) throw new NotFoundError({ url });
+    return booking;
+  }
   /** pushToken -> deviceId. Idempotent on the token, as the server is. */
   const pushDevices = new Map<string, string>();
   /** reservationId -> the one extension it is allowed, and what claimed it. */
@@ -1028,6 +1121,8 @@ export function createMockGateway(options: MockGatewayOptions = {}): MockGateway
     const asking = booking.status === 'pendingApproval' ? openRequestOf(booking.id) : null;
     return {
       ...booking,
+      // The pre-order, the editor's window and "on my way" — only those with a value.
+      ...preOrders.fields(preOrderBooking(booking)),
       awaitsEarlierGuestAnswer: asking?.asksEarlierGuest ?? false,
       incomingTableRequest: request
         ? {
@@ -2601,6 +2696,40 @@ export function createMockGateway(options: MockGatewayOptions = {}): MockGateway
       });
     }
 
+    // "Are you on your way?" (pre-orders): 45 minutes before a booking with a
+    // pre-order not sent or cancelled, the guest not having answered.
+    for (const booking of bookings.values()) {
+      if (bookingOwners.get(booking.id) !== accountId) continue;
+      if (
+        feed.some((row) => row.kind === ON_YOUR_WAY_FEED_KIND && row.reservationId === booking.id)
+      ) {
+        continue;
+      }
+      const read = withRequest(booking);
+      // Not sent when a waiter already marked the party not coming (the link
+      // still asks: `onYourWayAsked`).
+      if (read.preOrder?.state === 'notComing') continue;
+      if (!asksOnYourWay({ ...read, startUtc: booking.slotUtc }, now())) continue;
+      const local = localDateTime(booking.slotUtc, booking.timeZoneId);
+      add({
+        kind: ON_YOUR_WAY_FEED_KIND,
+        params: {
+          venueName: booking.venueName,
+          branchName: booking.branchName,
+          date: local.date,
+          time: local.time,
+          partySize: String(booking.partySize),
+          reservationCode: booking.code,
+        },
+        branchId: booking.branchId,
+        branchName: booking.branchName,
+        reservationId: booking.id,
+        tabId: null,
+        orderId: null,
+        createdAtUtc: onYourWayFromUtc(booking.slotUtc),
+      });
+    }
+
     // What the floor answered a short-notice request: yes, or nobody in time.
     for (const [reservationId, decision] of venueDecisions) {
       const booking = bookings.get(reservationId);
@@ -3268,6 +3397,83 @@ export function createMockGateway(options: MockGatewayOptions = {}): MockGateway
       turnAway(tabId);
     },
 
+    // --- Pre-orders (2026-10-21) ------------------------------------------
+
+    async replacePreOrder(command): Promise<PreOrderResult> {
+      await wait();
+      const url = `${URL_TAG}/api/reservations/${command.reservationId}/pre-order`;
+      return preOrders.replace({
+        url,
+        booking: preOrderBooking(ownBooking(url, command.reservationId)),
+        draft: command,
+        clientCommandId: command.clientCommandId,
+        actor: callerGuest(),
+      });
+    },
+
+    async clearPreOrder({ reservationId, clientCommandId }): Promise<PreOrderResult> {
+      await wait();
+      const url = `${URL_TAG}/api/reservations/${reservationId}/pre-order/clear`;
+      return preOrders.clear({
+        url,
+        booking: preOrderBooking(ownBooking(url, reservationId)),
+        clientCommandId,
+        actor: callerGuest(),
+      });
+    },
+
+    async confirmOnMyWay(reservationId): Promise<OnMyWayResult> {
+      await wait();
+      const url = `${URL_TAG}/api/reservations/${reservationId}/on-my-way`;
+      return preOrders.confirmOnMyWay(url, preOrderBooking(ownBooking(url, reservationId)));
+    },
+
+    async replacePreOrderByLink(command): Promise<PreOrderResult> {
+      await wait();
+      const url = `${URL_TAG}/api/public/bookings/pre-order`;
+      return preOrders.replace({
+        url,
+        booking: preOrderBooking(linkedBooking(url, command.bookingId)),
+        draft: command,
+        clientCommandId: command.clientCommandId,
+        // The link's holder: whoever has it acts for the booking itself.
+        actor: `link:${command.bookingId}`,
+      });
+    },
+
+    async clearPreOrderByLink({ bookingId, clientCommandId }): Promise<PreOrderResult> {
+      await wait();
+      const url = `${URL_TAG}/api/public/bookings/pre-order/clear`;
+      return preOrders.clear({
+        url,
+        booking: preOrderBooking(linkedBooking(url, bookingId)),
+        clientCommandId,
+        actor: `link:${bookingId}`,
+      });
+    },
+
+    async confirmOnMyWayByLink(bookingId): Promise<OnMyWayResult> {
+      await wait();
+      const url = `${URL_TAG}/api/public/bookings/on-my-way`;
+      return preOrders.confirmOnMyWay(url, preOrderBooking(linkedBooking(url, bookingId)));
+    },
+
+    setPreOrderSettingsAsVenue(branchId, settings) {
+      preOrders.setSettings(branchId, settings);
+    },
+
+    setDishSoldOutAsVenue(branchId, menuItemId, soldOut) {
+      preOrders.setSoldOut(branchId, menuItemId, soldOut);
+    },
+
+    sendPreOrderAsVenue(bookingId) {
+      preOrders.markSent(bookingId, MOCK_WAITER_NAME);
+    },
+
+    markPreOrderNotComingAsVenue(bookingId) {
+      preOrders.markNotComing(bookingId, MOCK_WAITER_NAME);
+    },
+
     confirmTelegramVerification(challengeId, phoneE164) {
       const pending = telegramChallenges.get(challengeId);
       if (pending && now().getTime() <= pending.expiresAt) pending.phoneE164 = phoneE164;
@@ -3810,6 +4016,9 @@ export function createMockGateway(options: MockGatewayOptions = {}): MockGateway
       if ((booking.status !== 'pendingApproval' && booking.status !== 'confirmed') || started) {
         throw new BookingNotChangeableError({ url, reservationId: booking.id });
       }
+      // The kitchen has its pre-order: the booking stays where it is (it may
+      // still be cancelled). Otherwise "not coming" goes with the old time.
+      preOrders.beforeMove(url, booking.id);
 
       const floor = floors.get(booking.branchId);
       const table = floor?.tables.find((t) => t.id === command.tableId);
@@ -4208,7 +4417,9 @@ export function createMockGateway(options: MockGatewayOptions = {}): MockGateway
       // Complete items only. The server applies this and the mock did not, so
       // a screen built against the mock was being handed items with empty
       // allergen lists that production would never send.
-      return type ? publishedBranchMenu(mockBranchMenu(branchId, type)) : null;
+      return type
+        ? preOrders.decorateMenu(publishedBranchMenu(mockBranchMenu(branchId, type)))
+        : null;
     },
 
     async getDinerTab(tabId): Promise<DinerTabView | null> {

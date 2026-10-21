@@ -1,3 +1,12 @@
+import type { OnMyWayResult, PreOrderResult } from '../contracts/preOrder';
+import {
+  onMyWayResultFromWire,
+  preOrderResultFromWire,
+  replacePreOrderBody,
+  rethrowPreOrderRefusal,
+  type WireOnMyWayResult,
+  type WirePreOrderResult,
+} from './preOrderMapping';
 import type { FloorPlanData } from '../contracts/tableFloor';
 import { createDinerAuth, type DinerAuth } from '../auth/endpoints';
 import type { AuthSession } from '../auth/session';
@@ -1690,6 +1699,50 @@ export function createHttpGateway(client: ApiClient, options: HttpGatewayOptions
         });
       }
       return current;
+    },
+
+    // --- Pre-orders (2026-10-21) --------------------------------------------
+    //
+    // The diner's own booking only; somebody else's answers 404, as for an id
+    // that is no booking. Every refusal is read by `preOrderMapping.ts`.
+
+    async replacePreOrder(command): Promise<PreOrderResult> {
+      try {
+        // gateway-schema: awaiting-route — pre-orders, PO wire §2 (backend feat/pre-orders)
+        const { data } = await client.put<WirePreOrderResult>(
+          `/api/reservations/${command.reservationId}/pre-order`,
+          replacePreOrderBody(command, command.clientCommandId),
+        );
+        return preOrderResultFromWire(data);
+      } catch (error) {
+        rethrowPreOrderRefusal(error);
+      }
+    },
+
+    async clearPreOrder({ reservationId, clientCommandId }): Promise<PreOrderResult> {
+      try {
+        // gateway-schema: awaiting-route — pre-orders, PO wire §2 (backend feat/pre-orders)
+        const { data } = await client.post<WirePreOrderResult>(
+          `/api/reservations/${reservationId}/pre-order/clear`,
+          { clientCommandId },
+        );
+        return preOrderResultFromWire(data);
+      } catch (error) {
+        rethrowPreOrderRefusal(error);
+      }
+    },
+
+    async confirmOnMyWay(reservationId): Promise<OnMyWayResult> {
+      try {
+        // No body. "Can't come" is the booking's ordinary cancel.
+        // gateway-schema: awaiting-route — pre-orders, PO wire §3 (backend feat/pre-orders)
+        const { data } = await client.post<WireOnMyWayResult>(
+          `/api/reservations/${reservationId}/on-my-way`,
+        );
+        return onMyWayResultFromWire(data);
+      } catch (error) {
+        rethrowPreOrderRefusal(error);
+      }
     },
 
     // --- Notifications --------------------------------------------------------

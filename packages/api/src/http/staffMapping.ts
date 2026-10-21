@@ -1,6 +1,11 @@
 import type { components } from '../generated/schema';
 import { admissionFromWire, floorChangeSignal } from './admissionMapping';
 import { guestRecordFromWire } from './guestRecordMapping';
+import {
+  kitchenPreOrderFromWire,
+  type WireKitchenOrderPreOrderFields,
+  type WireMenuItemPreOrderFields,
+} from './preOrderMapping';
 import type {
   AffectedReservation,
   PreconditionFailure,
@@ -50,7 +55,13 @@ type Schemas = components['schemas'];
 type FloorState = Schemas['Yalla.Application.Floor.BranchFloorState'];
 type ChangeResult = Schemas['Yalla.Application.Tables.TableStateChangeResult'];
 type StaffView = Schemas['Yalla.Application.Tabs.TabStaffView'];
-type KitchenOrder = Schemas['Yalla.Application.Ordering.KitchenOrderView'];
+/**
+ * A kitchen ticket. Ahead of the generated schema (pre-orders, 2026-10-21): a
+ * held pre-order ticket has no tab yet, and every pre-order ticket carries its
+ * marker.
+ */
+type KitchenOrder = Omit<Schemas['Yalla.Application.Ordering.KitchenOrderView'], 'tabId'> &
+  WireKitchenOrderPreOrderFields;
 type OrderLine = Schemas['Yalla.Application.Ordering.OrderLineView'];
 type OrderView = Schemas['Yalla.Application.Ordering.OrderView'];
 type AdjustmentView = Schemas['Yalla.Application.Ordering.AdjustmentView'];
@@ -512,7 +523,8 @@ export function tabLinesFromOrders(
 export function orderQueueEntry(order: KitchenOrder): OrderQueueEntry {
   return {
     orderId: order.orderId,
-    tabId: order.tabId,
+    // Absent on a held pre-order ticket: sent before the party sat.
+    tabId: order.tabId?.trim() || null,
     tableLabel: order.tableLabel,
     status: orderStatus(order.status),
     placedAtUtc: order.placedAtUtc,
@@ -529,6 +541,8 @@ export function orderQueueEntry(order: KitchenOrder): OrderQueueEntry {
     })),
     // Absent on the wire for a diner's own order from the app (FT4 wire).
     placedByName: order.placedByName ?? null,
+    // A ticket from a booking's pre-order, held or on the tab (2026-10-21).
+    preOrder: kitchenPreOrderFromWire(order.preOrder),
   };
 }
 
@@ -689,6 +703,8 @@ function completeItem(
     spiceLevel: SPICE[item.spiceLevel] ?? 'notSpicy',
     prepMinutes: item.prepMinutes,
     isAvailable: item.isAvailable,
+    // Ahead of the generated schema (pre-orders, 2026-10-21); absent is yes.
+    availableForPreOrder: (item as WireMenuItemPreOrderFields).availableForPreOrder !== false,
     displayOrder: item.displayOrder,
   };
 }
