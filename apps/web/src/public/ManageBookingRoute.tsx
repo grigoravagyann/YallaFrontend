@@ -25,6 +25,7 @@ import { useLangPath } from './language';
 import { usePageTitle } from './meta';
 import { FailedPage, LoadingPage, pageState, StaleNotice } from './PageStates';
 import { formatPhone } from './phone';
+import { ManagePreOrder, OnYourWayQuestion } from './PreOrder';
 import { branchClock, branchToday } from './slots';
 
 /** The change: the booking card, the room and the room's renderer — none of it needed to read the page. */
@@ -251,6 +252,8 @@ function ManagePage({
   const cancel = useCancelManagedBooking(token);
   const [confirming, setConfirming] = useState(false);
   const [changing, setChanging] = useState(false);
+  /** The pre-order editor is open in place of the actions (2026-10-21). */
+  const [preOrdering, setPreOrdering] = useState(false);
   /** The link cannot change this booking any more (its account): said, with the venue's number. */
   const [locked, setLocked] = useState(false);
   /** What the last change came to, or why it could not be made — said once, and focused. */
@@ -444,6 +447,20 @@ function ManagePage({
         </p>
       ) : null}
 
+      {/* Forty-five minutes before, with a pre-order: the server asks, the
+          page puts it first. "Can't come" is the cancel below, asked first. */}
+      {live && !confirming ? (
+        <OnYourWayQuestion
+          token={token}
+          booking={booking}
+          onCantCome={() => {
+            setChanging(false);
+            setPreOrdering(false);
+            setConfirming(true);
+          }}
+        />
+      ) : null}
+
       {live ? (
         <div className={view === 'pending' ? 'pub-code is-pending' : 'pub-code'}>
           <p className="pub-code-label">{td('success.codeLabel')}</p>
@@ -521,6 +538,17 @@ function ManagePage({
       ) : null}
       {view === 'past' ? (
         <p className="pub-muted">{t('manage.pastBody', { venue: booking.venueName })}</p>
+      ) : null}
+
+      {/* The dishes chosen ahead, or the offer to choose them; and what became of them. */}
+      {!confirming && !changing && (live || booking.preOrder) ? (
+        <ManagePreOrder
+          token={token}
+          booking={booking}
+          now={now}
+          editing={preOrdering}
+          onEditing={setPreOrdering}
+        />
       ) : null}
 
       {locked ? (
@@ -611,7 +639,7 @@ function ManagePage({
         </Suspense>
       ) : null}
 
-      {live && !confirming && !changing ? (
+      {live && !confirming && !changing && !preOrdering ? (
         <div className="pub-manage-actions">
           <div className="pub-manage-row">
             {endUtc ? (

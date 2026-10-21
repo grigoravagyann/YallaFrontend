@@ -105,6 +105,10 @@ function publicRuntime(): PublicRuntime {
     // header, the gallery and "see all". Never in tests, which read a bare,
     // unreviewed branch unless they ask (the harness's `showcase`).
     mockShowcase: import.meta.env.MODE !== 'test',
+    // Mock only: Northern Avenue takes pre-orders (the gata excluded), as the
+    // diner app's mock does, so the done step and the manage link can be
+    // walked. Never in tests, which ask for it (the harness's `preOrders`).
+    mockPreOrders: import.meta.env.MODE !== 'test',
   });
 
   /** The unauthenticated half: slug resolution, the published profile, the manage link. */

@@ -54,6 +54,11 @@ export const gateway: YallaGateway = resolveGateway({
   // EXPO_PUBLIC_MOCK_BLOCKED_DAYS, a pause on booking that many days from now.
   mockGuestRecord: mockGuestRecord(process.env['EXPO_PUBLIC_MOCK_GUEST_RECORD']),
   mockBlockedUntilUtc: daysFromNow(process.env['EXPO_PUBLIC_MOCK_BLOCKED_DAYS']),
+  // Pre-orders, in mock mode: Northern Avenue takes them (the gata excluded),
+  // every other branch is off, as the server's default is. Off in tests, and
+  // with EXPO_PUBLIC_MOCK_PRE_ORDERS=0.
+  mockPreOrders:
+    process.env['EXPO_PUBLIC_MOCK_PRE_ORDERS'] !== '0' && process.env['NODE_ENV'] !== 'test',
   // On the web build the mock world survives a full page load (QA F2); a
   // phone keeps the app alive between screens and has no localStorage.
   persist:

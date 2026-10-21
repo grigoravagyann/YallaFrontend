@@ -3228,3 +3228,163 @@ a.pub-branch-card:hover {
     transform: none;
   }
 }
+
+/* --------------------------------------------------------------------------
+ * Pre-orders (2026-10-21): the done step's offer, the manage link's section,
+ * the editor and "Are you on your way?"
+ * -------------------------------------------------------------------------- */
+
+.pub-po,
+.pub-po-way {
+  gap: var(--space-md);
+}
+
+.pub-po h2,
+.pub-po-way h2 {
+  font-size: var(--console-text-public-section);
+}
+
+.pub-po h3 {
+  margin: 0;
+}
+
+.pub-po .pub-notice,
+.pub-po-way .pub-notice,
+.pub-po .pub-button-primary,
+.pub-po-way .pub-button-primary {
+  margin: 0;
+}
+
+.pub-po .pub-notice p {
+  margin: 0;
+}
+
+.pub-po .pub-notice p + p {
+  margin-top: var(--space-xs);
+}
+
+/* The question asked before the start: the brand's edge, as a thing to answer. */
+.pub-po-way {
+  display: flex;
+  flex-direction: column;
+  padding: 18px var(--space-lg);
+  border: 2px solid var(--console-brand);
+  border-radius: var(--console-radius-public-card);
+  background: var(--console-surface);
+}
+
+.pub-po-way h2,
+.pub-po-way p {
+  margin: 0;
+}
+
+.pub-po-chosen,
+.pub-po-menu,
+.pub-po-foot {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+}
+
+.pub-po-lines {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.pub-po-line {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  padding: var(--space-sm) 0;
+  border-bottom: 1px solid var(--console-line);
+}
+
+.pub-po-line-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-md);
+}
+
+.pub-po-name {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.pub-po-name .is-out {
+  color: var(--console-muted);
+  text-decoration: line-through;
+}
+
+.pub-po-name .pub-menu-soldout {
+  align-self: flex-start;
+}
+
+.pub-po-remove {
+  align-self: flex-start;
+  padding: 0;
+  border: 0;
+}
+
+.pub-po-stepper {
+  flex: none;
+  gap: var(--space-xs);
+}
+
+.pub-po-stepper output {
+  min-width: 2ch;
+  font-size: var(--console-text-public-body);
+}
+
+.pub-po .pub-step:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.pub-po-dish {
+  grid-template-columns: 1fr auto;
+  align-items: center;
+}
+
+.pub-po-note {
+  min-height: calc(2 * var(--console-size-public-control));
+  padding: var(--space-sm) var(--space-md);
+  font-size: max(16px, var(--console-text-public-input));
+  resize: vertical;
+}
+
+.pub-po-venue-note {
+  margin: 0;
+  font-size: var(--console-text-public-label);
+}
+
+.pub-po-total {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin: 0;
+  padding-top: var(--space-sm);
+  font-weight: var(--font-weight-bold);
+}
+
+.pub-po-total b {
+  font-size: var(--font-size-xl);
+}
+
+.pub-po .pub-chips {
+  margin-bottom: 0;
+}
+
+/* The editor's sub-headings read as labels, never as the sheet's display type. */
+.pub .pub-po h3.pub-field-label {
+  font-family: inherit;
+  font-size: var(--console-text-public-label);
+  line-height: 1.4;
+}
