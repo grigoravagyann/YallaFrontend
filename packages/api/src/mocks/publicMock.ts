@@ -256,7 +256,13 @@ export function createPublicMockGateway(options: PublicMockOptions): PublicGatew
    * gateway that has none, its own routes.
    */
   const door = gateway as Partial<
-    Pick<MockGateway, 'replacePreOrderByLink' | 'clearPreOrderByLink' | 'confirmOnMyWayByLink'>
+    Pick<
+      MockGateway,
+      | 'replacePreOrderByLink'
+      | 'clearPreOrderByLink'
+      | 'confirmOnMyWayByLink'
+      | 'acceptsPreOrdersAsVenue'
+    >
   >;
 
   /** The booking id behind a token, or the link's constant 404. */
@@ -341,7 +347,11 @@ export function createPublicMockGateway(options: PublicMockOptions): PublicGatew
         freeTables: counts.free,
         totalTables: counts.total,
         asOfUtc: now().toISOString(),
-        policy: DEFAULT_POLICY,
+        // The console mock's switch, so the page offers a pre-order exactly where the venue takes them.
+        policy: {
+          ...DEFAULT_POLICY,
+          acceptsPreOrders: door.acceptsPreOrdersAsVenue?.(branch.id) ?? false,
+        },
         bookingWindowDays: BOOKING_WINDOW_DAYS,
         acceptsWebBookings: fixture.acceptsWebBookings,
         rooms: branch.rooms

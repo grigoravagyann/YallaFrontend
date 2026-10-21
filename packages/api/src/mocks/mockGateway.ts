@@ -321,6 +321,8 @@ export interface MockGateway extends YallaGateway {
 
   /** The console's pre-order settings for a branch: on/off, minutes before, excluded dishes. */
   setPreOrderSettingsAsVenue(branchId: string, settings: PreOrderSettingsInput): void;
+  /** Whether the branch takes pre-orders now: the public page's `policy.acceptsPreOrders`. */
+  acceptsPreOrdersAsVenue(branchId: string): boolean;
   /** The kitchen ran out of a dish (or has it again): `isAvailable` on the menu, `availableNow` on lines. */
   setDishSoldOutAsVenue(branchId: string, menuItemId: string, soldOut: boolean): void;
   /** A waiter's "Coming → Send to kitchen": the pre-order reads `sent`, in the kitchen. */
@@ -3460,6 +3462,10 @@ export function createMockGateway(options: MockGatewayOptions = {}): MockGateway
 
     setPreOrderSettingsAsVenue(branchId, settings) {
       preOrders.setSettings(branchId, settings);
+    },
+
+    acceptsPreOrdersAsVenue(branchId) {
+      return preOrders.settings(branchId).acceptsPreOrders;
     },
 
     setDishSoldOutAsVenue(branchId, menuItemId, soldOut) {

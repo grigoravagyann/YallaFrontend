@@ -578,3 +578,23 @@ describe('the price lock', () => {
     expect(edited.preOrder?.totalDram).toBe(3 * 1000 + 750);
   });
 });
+
+describe('the public page mock follows the venue switch', () => {
+  it('publishes policy.acceptsPreOrders from the console mock, and follows a change', async () => {
+    const { gateway } = world();
+    const page = createPublicMockGateway({ gateway, now: () => new Date(START) });
+    const read = async (branchSlug: string) =>
+      (await page.resolveBranch({ venueSlug: 'lumen-coffee', branchSlug }))?.policy
+        .acceptsPreOrders;
+
+    expect(await read('northern-avenue')).toBe(true);
+    expect(await read('cascade')).toBe(false);
+
+    gateway.setPreOrderSettingsAsVenue(NORTH, {
+      acceptsPreOrders: false,
+      minutesBefore: 30,
+      excludedMenuItemIds: [],
+    });
+    expect(await read('northern-avenue')).toBe(false);
+  });
+});
