@@ -179,6 +179,10 @@ export function usePushNotifications({ projectId, signedIn }: PushOptions): void
     /** One path for all three states, so cold start cannot drift from the others. */
     async function handle(response: Notifications.NotificationResponse): Promise<void> {
       const data = response.notification.request.content.data as PushData | undefined;
+      // Handled once: the cold-start read keeps answering the same tap for the
+      // life of the process, so a re-run of this effect would route it again
+      // (and ask "I can't come"'s cancel question again).
+      Notifications.clearLastNotificationResponse();
       // A tap from a killed app never passed through the arrival listener.
       invalidateForPush(queryClient, data);
       const target = parsePushTarget(data);

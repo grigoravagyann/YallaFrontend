@@ -322,6 +322,11 @@ describe('are you on your way?', () => {
     });
     render(withQueries(<BookingDetailScreen />));
     await waitFor(() => expect(gateway.confirmOnMyWay).toHaveBeenCalledTimes(1));
+    // Settled — the answer's re-read landed and every render after it ran —
+    // and still once: `waitFor` alone passes the moment the first call lands.
+    await waitFor(() => expect(gateway.getBooking.mock.calls.length).toBeGreaterThan(1));
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(gateway.confirmOnMyWay).toHaveBeenCalledTimes(1);
   });
 
   it('the push\'s "can\'t come" opens the cancel question', async () => {

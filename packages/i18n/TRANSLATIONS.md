@@ -1345,6 +1345,14 @@ review every string in `src/locales/hy` and `src/locales/ru`.**
   `preOrder.unavailableSwap` asking to **remove or swap** the dish.
   `preOrder.onYourWay.yes` / `cantCome` are also the push's two button labels,
   so keep them short.
+  After review (2026-10-21): diner `book.changeError.preOrderSent` (a move
+  refused because the waiter already sent the pre-order — must say it is **in
+  the kitchen** and to **call the venue** to change the time),
+  `preOrder.error.onMyWayOpensAt` ("You can confirm from {{time}}", the
+  branch's clock; hy puts «ժամը» before the time so nothing is glued onto it),
+  `preOrder.menuUnavailable` (the link's branch is gone: not "no dishes"), and
+  ru `preOrder.limit.quantity` now says «порций» («Не больше {{max}} порций
+  одного блюда.»).
 
 The Russian bundle carries four plural categories (`one`/`few`/`many`/`other`)
 where Armenian and English carry two. That is correct CLDR, not duplication, and

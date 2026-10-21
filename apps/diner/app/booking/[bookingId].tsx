@@ -78,6 +78,15 @@ export default function BookingDetailScreen() {
       : undefined;
   const bookingQuery = useBooking(bookingId);
   const { data: booking, isLoading, isError, error, refetch } = bookingQuery;
+  // The "on your way" push's Yes is sent only from a booking read since
+  // landing: the cached copy may be of a booking moved on the web since the
+  // push, and its 19:00 question must not answer for 19:30. Read at once,
+  // joining a read already under way.
+  const landedOnYes = onMyWay === 'yes';
+  useEffect(() => {
+    if (landedOnYes) void refetch({ cancelRefetch: false });
+  }, [landedOnYes, refetch]);
+  const readSinceLanding = bookingQuery.isFetchedAfterMount && !bookingQuery.isFetching;
 
   const goBack = () => {
     if (router.canGoBack()) router.back();
@@ -133,6 +142,7 @@ export default function BookingDetailScreen() {
         booking={booking}
         autoAnswer={autoAnswer}
         onMyWay={onMyWay === 'yes' || onMyWay === 'cantCome' ? onMyWay : undefined}
+        readSinceLanding={readSinceLanding}
       />
     </Screen>
   );
@@ -142,10 +152,13 @@ function BookingDetail({
   booking,
   autoAnswer,
   onMyWay,
+  readSinceLanding = false,
 }: {
   readonly booking: Booking;
   readonly autoAnswer?: { readonly requestId: string; readonly accept: boolean } | undefined;
   readonly onMyWay?: 'yes' | 'cantCome' | undefined;
+  /** The booking was read from the server since this screen opened. */
+  readonly readSinceLanding?: boolean;
 }) {
   const { t } = useTranslation('diner');
   const { locale } = useLocale();
@@ -286,7 +299,7 @@ function BookingDetail({
           now={now}
           place={where}
           onCantCome={openCancel}
-          autoConfirm={onMyWay === 'yes'}
+          autoConfirm={onMyWay === 'yes' && readSinceLanding}
         />
 
         {/* Somebody would like this table after the diner: will they have left by then? */}

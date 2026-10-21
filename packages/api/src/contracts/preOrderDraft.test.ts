@@ -1,8 +1,12 @@
-import { PRE_ORDER_LIMITS, type BranchMenu, type PreOrder } from '@yalla/api';
+import { formatDram } from '@yalla/format';
 import { describe, expect, it } from 'vitest';
+import type { BranchMenu } from './ordering';
+import { PRE_ORDER_LIMITS, type PreOrder } from './preOrder';
 import {
   addOne,
+  addOneAt,
   canAddMore,
+  canAddMoreAt,
   draftCommand,
   emptyDraft,
   isDirty,
@@ -10,6 +14,10 @@ import {
   quantityOf,
   removeLine,
   removeOne,
+  removeOneAt,
+  preOrderLimitLine,
+  rememberDishes,
+  pricedLineText,
   setLineNote,
   setNote,
   startDraft,
@@ -186,5 +194,84 @@ describe('the price', () => {
     expect(
       priceDraft(draft, { preOrder: null, menu: MENU, refused: ['salad'] }).unavailable,
     ).toEqual(['salad']);
+  });
+});
+
+describe('a dish listed twice', () => {
+  // A pre-order saved elsewhere may list one dish on two lines, each with its note.
+  const twice = {
+    lines: [
+      { menuItemId: 'salad', quantity: 1, note: 'no onion' },
+      { menuItemId: 'salad', quantity: 2, note: 'extra lemon' },
+    ],
+    note: '',
+  };
+
+  it("changes the line whose − n + was pressed, never the dish's other line", () => {
+    expect(addOneAt(twice, 1).lines.map((line) => line.quantity)).toEqual([1, 3]);
+    expect(removeOneAt(twice, 1).lines.map((line) => line.quantity)).toEqual([1, 1]);
+    expect(removeOneAt(twice, 0).lines).toEqual([
+      { menuItemId: 'salad', quantity: 2, note: 'extra lemon' },
+    ]);
+  });
+
+  it('keeps each line inside the per-line and total bounds', () => {
+    const full = {
+      lines: [{ menuItemId: 'salad', quantity: PRE_ORDER_LIMITS.maxQuantity, note: '' }],
+      note: '',
+    };
+    expect(canAddMoreAt(full, 0)).toBe(false);
+    expect(addOneAt(full, 0)).toBe(full);
+    expect(canAddMoreAt(twice, 5)).toBe(false);
+    expect(removeOneAt(twice, 5)).toBe(twice);
+  });
+});
+
+describe('the words', () => {
+  it('prices a line: the total alone, or the locked price times the count', () => {
+    const dram = (amount: number) => formatDram(amount, 'en');
+    expect(pricedLineText({ unitPriceDram: 700, quantity: 1, lineTotalDram: 700 }, 'en')).toBe(
+      dram(700),
+    );
+    expect(pricedLineText({ unitPriceDram: 1200, quantity: 2, lineTotalDram: 2400 }, 'en')).toBe(
+      `${dram(1200)} × 2 · ${dram(2400)}`,
+    );
+  });
+
+  it('names the bound a draft is past, in the server’s field names', () => {
+    const at = (field: string, max: number) => preOrderLimitLine({ field, message: '', max });
+    expect(at('note', 500)).toEqual({ key: 'preOrder.limit.note', params: { max: 500 } });
+    expect(at('lines[0].note', 200)).toEqual({
+      key: 'preOrder.limit.lineNote',
+      params: { max: 200 },
+    });
+    expect(at('lines[2].quantity', 20)).toEqual({
+      key: 'preOrder.limit.quantity',
+      params: { max: 20 },
+    });
+    expect(at('lines', PRE_ORDER_LIMITS.maxTotalQuantity)).toEqual({
+      key: 'preOrder.limit.total',
+      params: { max: PRE_ORDER_LIMITS.maxTotalQuantity },
+    });
+    expect(at('lines', PRE_ORDER_LIMITS.maxLines)).toEqual({
+      key: 'preOrder.limit.lines',
+      params: { max: PRE_ORDER_LIMITS.maxLines },
+    });
+  });
+});
+
+describe('a dish that left the menu after it was chosen', () => {
+  it('keeps the name and price the menu said, from the dishes seen', () => {
+    const draft = addOne(emptyDraft, 'salad');
+    const seen = rememberDishes(new Map(), MENU);
+    const after = { ...MENU, categories: [] } as unknown as BranchMenu;
+    const priced = priceDraft(draft, { preOrder: null, menu: after, seen });
+    expect(priced.lines[0]).toMatchObject({
+      name: 'Salad',
+      unitPriceDram: 2400,
+      unavailable: true,
+    });
+    expect(priceDraft(draft, { preOrder: null, menu: after }).lines[0]?.name).toBe('');
+    expect(rememberDishes(seen, null)).toBe(seen);
   });
 });

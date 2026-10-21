@@ -117,6 +117,17 @@ export function BookingDone({ booking, branch, onClose, onChooseAnotherTime }: B
     : booking;
   const now = useNow(awaitsVenueAnswer(answerState) ? 1000 : 30_000);
   const preOrder = savedPreOrder === undefined ? (booking.preOrder ?? null) : savedPreOrder;
+  /*
+   * While the editor is open, the pre-order as the link now reads it: a save
+   * that lost a race to another tab (409 `concurrent-update`) reads the link
+   * again, and the editor takes the latest from here rather than from this
+   * sheet's own copy, which nothing else would ever change.
+   */
+  const linked = useManagedBooking(preOrdering ? (booking.manageToken ?? undefined) : undefined, {
+    venueSlug: branch.venue.slug,
+    branchSlug: branch.slug,
+  }).data;
+  const editorPreOrder = linked ? (linked.preOrder ?? null) : preOrder;
   // The booking's own window, which the server sends only while the branch
   // takes pre-orders; and a link to save it through.
   const canPreOrder =
@@ -291,7 +302,7 @@ export function BookingDone({ booking, branch, onClose, onChooseAnotherTime }: B
         {kind === 'done' && booking.manageToken && preOrdering ? (
           <PreOrderEditor
             token={booking.manageToken}
-            preOrder={preOrder}
+            preOrder={editorPreOrder}
             timeZoneId={booking.timeZoneId}
             menu={preOrderMenu}
             onSaved={(saved) => {

@@ -1,6 +1,13 @@
-import type { PreOrder } from '@yalla/api';
 import { describe, expect, it } from 'vitest';
-import { onYourWayView, preOrderView } from './preOrderView';
+import { OnMyWayNotOpenError } from './errors';
+import type { PreOrder } from './preOrder';
+import {
+  onMyWayFailureLine,
+  onYourWayView,
+  preOrderEditorClosedLine,
+  preOrderStateTone,
+  preOrderView,
+} from './preOrderView';
 
 /**
  * What a booking says about its pre-order (2026-10-21), decided from the
@@ -112,5 +119,70 @@ describe('onYourWayView', () => {
     expect(
       onYourWayView({ ...asked, preOrder: { ...PRE_ORDER, state: 'sent' as const } }, at(30)),
     ).toBe('none');
+  });
+});
+
+describe('preOrderEditorClosedLine', () => {
+  const key = (booking: Parameters<typeof preOrderEditorClosedLine>[0], now = NOW) =>
+    preOrderEditorClosedLine(booking, now)?.key ?? null;
+
+  it('is nothing while the editor may be open', () => {
+    expect(key({ preOrderEditableUntilUtc: UNTIL })).toBeNull();
+    expect(key({ preOrder: PRE_ORDER, preOrderEditableUntilUtc: UNTIL })).toBeNull();
+  });
+
+  it('says the window shut, for a first pre-order or a change', () => {
+    expect(key({ preOrderEditableUntilUtc: UNTIL }, new Date(UNTIL))).toBe('preOrder.error.locked');
+    expect(key({ preOrder: PRE_ORDER, preOrderEditableUntilUtc: UNTIL }, new Date(UNTIL))).toBe(
+      'preOrder.error.locked',
+    );
+  });
+
+  it('says the branch stopped taking them', () => {
+    expect(key({})).toBe('preOrder.error.notAccepted');
+    expect(key({ preOrder: PRE_ORDER })).toBe('preOrder.error.notAccepted');
+  });
+
+  it('says what became of it otherwise', () => {
+    const as = (state: PreOrder['state']) => key({ preOrder: { ...PRE_ORDER, state } });
+    expect(as('sent')).toBe('preOrder.error.alreadySent');
+    expect(as('locked')).toBe('preOrder.error.locked');
+    expect(as('cancelled')).toBe('preOrder.error.notChangeable');
+    expect(as('notComing')).toBe('preOrder.error.notChangeable');
+  });
+});
+
+describe('onMyWayFailureLine', () => {
+  const OPENS = '2026-10-22T15:00:00Z';
+
+  it('says from when the answer opens when it is still to open', () => {
+    const error = new OnMyWayNotOpenError({ url: 'mock://test', opensAtUtc: OPENS });
+    expect(onMyWayFailureLine(error, 'Asia/Yerevan', 'en', NOW)).toEqual({
+      key: 'preOrder.error.onMyWayOpensAt',
+      params: { time: '19:00' },
+    });
+  });
+
+  it('falls back to the plain refusal once that time is past, or unsaid', () => {
+    const late = new OnMyWayNotOpenError({ url: 'mock://test', opensAtUtc: OPENS });
+    expect(
+      onMyWayFailureLine(late, 'Asia/Yerevan', 'en', new Date('2026-10-22T20:00:00Z')).key,
+    ).toBe('preOrder.error.onMyWayNotOpen');
+    expect(
+      onMyWayFailureLine(new OnMyWayNotOpenError({ url: 'mock://test' }), 'Asia/Yerevan', 'en', NOW)
+        .key,
+    ).toBe('preOrder.error.onMyWayNotOpen');
+  });
+});
+
+describe('preOrderStateTone', () => {
+  const sent = { kind: 'sent' as const, preOrder: PRE_ORDER };
+
+  it('says a ticket the venue took off plainly, never as a success', () => {
+    expect(preOrderStateTone(sent, 'voided')).toBe('neutral');
+    expect(preOrderStateTone(sent, 'ready')).toBe('ok');
+    expect(preOrderStateTone({ kind: 'notComing', preOrder: PRE_ORDER }, null)).toBe('wait');
+    expect(preOrderStateTone({ kind: 'cancelled', preOrder: PRE_ORDER }, null)).toBe('off');
+    expect(preOrderStateTone({ kind: 'none' }, null)).toBeNull();
   });
 });

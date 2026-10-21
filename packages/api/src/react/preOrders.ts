@@ -14,7 +14,9 @@ import {
   type PreOrderStaffCommand,
   type ReplacePreOrderCommand,
 } from '../contracts/preOrder';
+import type { BranchMenu } from '../contracts/ordering';
 import type { ManagedBooking } from '../contracts/publicBranch';
+import type { YallaGateway } from '../gateway';
 import { ValidationError } from '../errors';
 import { staleTime } from '../queryClient';
 import {
@@ -164,21 +166,33 @@ export function duePreOrdersPollMs(
 
 // --- The diner app ------------------------------------------------------------
 
+/*
+ * Each of the app's hooks is its options, built from a gateway and a query
+ * client, and a one-line hook over them. The diner app's own hooks
+ * (`apps/diner/src/data/preOrderQueries.ts`) are the same one line over the
+ * same options, through the app's `useGateway` — which its screen tests
+ * replace, and which this module's internal one is not — so the two cannot
+ * drift: there is one definition of each query and mutation, here.
+ */
+
 /**
  * The dishes the pre-order picker offers at a branch: the diner menu narrowed
  * to `isAvailable && availableForPreOrder`, no empty category left. Shares the
  * menu's cache entry with the public page's menu; a short stale time, since a
  * dish selling out is exactly what this screen must not miss.
  */
-export function usePreOrderMenu(branchId: string | null | undefined) {
-  const gateway = useGateway();
-  return useQuery({
+export function preOrderMenuOptions(gateway: YallaGateway, branchId: string | null | undefined) {
+  return {
     queryKey: queryKeys.publicMenu(branchId ?? ''),
     queryFn: () => gateway.getBranchMenuDetail(branchId!),
     enabled: Boolean(branchId),
     staleTime: staleTime.frequent,
-    select: (menu) => (menu ? preOrderMenu(menu) : null),
-  });
+    select: (menu: BranchMenu | null) => (menu ? preOrderMenu(menu) : null),
+  };
+}
+
+export function usePreOrderMenu(branchId: string | null | undefined) {
+  return useQuery(preOrderMenuOptions(useGateway(), branchId));
 }
 
 /**
@@ -186,39 +200,59 @@ export function usePreOrderMenu(branchId: string | null | undefined) {
  * `clientCommandId` on a deliberate retry answers the pre-order as it stands.
  * Errors read with `preOrderFailure`.
  */
-export function useReplacePreOrder() {
-  const gateway = useGateway();
-  const queryClient = useQueryClient();
-  return useMutation({
+export function replacePreOrderOptions(queryClient: QueryClient, gateway: YallaGateway) {
+  return {
     mutationFn: (command: ReplacePreOrderCommand) => gateway.replacePreOrder(command),
     retry: false,
     onSuccess: (result: PreOrderResult) => afterPreOrderSaved(queryClient, result),
-    onError: (_error, command) => invalidateBooking(queryClient, command.reservationId),
-  });
+    onError: (_error: unknown, command: ReplacePreOrderCommand) =>
+      invalidateBooking(queryClient, command.reservationId),
+  };
 }
 
-/** Remove it. As {@link useReplacePreOrder}. */
-export function useClearPreOrder() {
-  const gateway = useGateway();
-  const queryClient = useQueryClient();
-  return useMutation({
+export function useReplacePreOrder() {
+  return useMutation(replacePreOrderOptions(useQueryClient(), useGateway()));
+}
+
+/** Remove it. As {@link replacePreOrderOptions}. */
+export function clearPreOrderOptions(queryClient: QueryClient, gateway: YallaGateway) {
+  return {
     mutationFn: (command: ClearPreOrderCommand) => gateway.clearPreOrder(command),
     retry: false,
     onSuccess: (result: PreOrderResult) => afterPreOrderSaved(queryClient, result),
-    onError: (_error, command) => invalidateBooking(queryClient, command.reservationId),
-  });
+    onError: (_error: unknown, command: ClearPreOrderCommand) =>
+      invalidateBooking(queryClient, command.reservationId),
+  };
 }
 
-/** "Yes, on my way", from the booking screen, the feed row or the push's action. */
-export function useConfirmOnMyWay() {
-  const gateway = useGateway();
-  const queryClient = useQueryClient();
-  return useMutation({
+export function useClearPreOrder() {
+  return useMutation(clearPreOrderOptions(useQueryClient(), useGateway()));
+}
+
+/**
+ * "Yes, on my way", from the booking screen, the feed row or the push's
+ * action. `onAnswered` runs after the cache work on a success — the app reads
+ * its notifications feed again there, whose keys are its own.
+ */
+export function confirmOnMyWayOptions(
+  queryClient: QueryClient,
+  gateway: YallaGateway,
+  onAnswered?: () => void,
+) {
+  return {
     mutationFn: (reservationId: string) => gateway.confirmOnMyWay(reservationId),
     retry: false,
-    onSuccess: (result: OnMyWayResult) => afterOnMyWay(queryClient, result),
-    onError: (_error, reservationId) => invalidateBooking(queryClient, reservationId),
-  });
+    onSuccess: (result: OnMyWayResult) => {
+      afterOnMyWay(queryClient, result);
+      onAnswered?.();
+    },
+    onError: (_error: unknown, reservationId: string) =>
+      invalidateBooking(queryClient, reservationId),
+  };
+}
+
+export function useConfirmOnMyWay() {
+  return useMutation(confirmOnMyWayOptions(useQueryClient(), useGateway()));
 }
 
 // --- The manage link ------------------------------------------------------------

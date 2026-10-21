@@ -788,7 +788,8 @@ function BookingForm({ place, rooms, params, change, title, onBack }: BookingFor
       setOutcomeUnknown(failure.kind === 'unknown');
       // The pause's end on the phone's clock, as the note and the banner say it.
       const line: CopyLine =
-        pauseRefusalLine(failure, locale) ?? (change ? changeFailureLine(failure) : failure.line);
+        pauseRefusalLine(failure, locale) ??
+        (change ? changeFailureLine(failure, error) : failure.line);
       setErrorText(t(line.key, line.params));
     },
     [

@@ -948,6 +948,43 @@ export type {
   ReplaceManagedPreOrderCommand,
   ReplacePreOrderCommand,
 } from './contracts/preOrder';
+// The guest's editor and what a booking says about its pre-order: one copy for
+// the diner app and the manage link.
+export {
+  addOne,
+  addOneAt,
+  canAddMore,
+  canAddMoreAt,
+  draftCommand,
+  emptyDraft,
+  isDirty,
+  preOrderLimitLine,
+  priceDraft,
+  pricedLineText,
+  quantityOf,
+  rememberDishes,
+  removeLine,
+  removeOne,
+  removeOneAt,
+  setLineNote,
+  setNote,
+  startDraft,
+} from './contracts/preOrderDraft';
+export type {
+  DraftLine,
+  EditorDraft,
+  PricedDraft,
+  PricedLine,
+  SeenDishes,
+} from './contracts/preOrderDraft';
+export {
+  onMyWayFailureLine,
+  onYourWayView,
+  preOrderEditorClosedLine,
+  preOrderStateTone,
+  preOrderView,
+} from './contracts/preOrderView';
+export type { PreOrderViewState } from './contracts/preOrderView';
 export {
   ON_MY_WAY_NOT_OPEN_CODE,
   OnMyWayNotOpenError,

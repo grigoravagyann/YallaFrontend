@@ -1,83 +1,50 @@
 import {
-  preOrderMenu,
-  staleTime,
-  type ClearPreOrderCommand,
-  type OnMyWayResult,
-  type PreOrderResult,
-  type ReplacePreOrderCommand,
-} from '@yalla/api';
-import { afterOnMyWay, afterPreOrderSaved, queryKeys, useGateway } from '@yalla/api/react';
-import { useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query';
-import { bookingKeys } from './bookingKeys';
+  clearPreOrderOptions,
+  confirmOnMyWayOptions,
+  preOrderMenuOptions,
+  replacePreOrderOptions,
+  useGateway,
+} from '@yalla/api/react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { NOTIFICATIONS_KEY } from './notifications';
 
 /**
- * Pre-orders on a booking (2026-10-21), as the app reaches them: through the
- * app's own `useGateway`, like every other query here, with the cache work the
- * API layer shares (`afterPreOrderSaved`, `afterOnMyWay`) — so the booking,
- * the list and the notification landing read the pre-order again together.
+ * Pre-orders on a booking (2026-10-21), as the app reaches them.
  *
- * Every mutation is online only and never retried: a deliberate retry reuses
- * its `clientCommandId` and the server answers the pre-order as it stands.
+ * Why the app has these at all, and not `@yalla/api/react`'s hooks of the same
+ * names: those reach the gateway through that module's own `useGateway`, which
+ * the screen tests cannot replace (they mock the module's exported one, as
+ * every other screen test here does). These are the same one line each over
+ * the **same** options (`preOrderMenuOptions`, `replacePreOrderOptions`,
+ * `clearPreOrderOptions`, `confirmOnMyWayOptions`), through the app's
+ * `useGateway` — one definition of each query, mutation and its cache work, so
+ * the two cannot drift.
+ *
+ * The one thing the app adds: "Yes, I'm on my way" also reads the
+ * notifications feed again, whose row has now been answered.
  */
 
-/** A refusal means the screen is what is stale: read the booking again. */
-function rereadBooking(queryClient: QueryClient, reservationId: string): void {
-  void queryClient.invalidateQueries({ queryKey: bookingKeys.booking(reservationId) });
-  void queryClient.invalidateQueries({ queryKey: bookingKeys.bookings });
-  void queryClient.invalidateQueries({ queryKey: bookingKeys.reservationState(reservationId) });
-}
-
-/**
- * The dishes the picker offers: the diner menu narrowed to what may be
- * pre-ordered now. Shares the menu's cache entry; a short stale time, since a
- * dish selling out is what this screen must not miss.
- */
+/** The dishes the picker offers: the diner menu narrowed to what may be pre-ordered now. */
 export function usePreOrderMenu(branchId: string | null | undefined) {
-  const gateway = useGateway();
-  return useQuery({
-    queryKey: queryKeys.publicMenu(branchId ?? ''),
-    queryFn: () => gateway.getBranchMenuDetail(branchId!),
-    enabled: Boolean(branchId),
-    staleTime: staleTime.frequent,
-    select: (menu) => (menu ? preOrderMenu(menu) : null),
-  });
+  return useQuery(preOrderMenuOptions(useGateway(), branchId));
 }
 
 /** Save the whole pre-order. Errors read with `preOrderFailure`. */
 export function useReplacePreOrder() {
-  const gateway = useGateway();
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: (command: ReplacePreOrderCommand) => gateway.replacePreOrder(command),
-    retry: false,
-    onSuccess: (result: PreOrderResult) => afterPreOrderSaved(queryClient, result),
-    onError: (_error, command) => rereadBooking(queryClient, command.reservationId),
-  });
+  return useMutation(replacePreOrderOptions(useQueryClient(), useGateway()));
 }
 
 /** Remove it. */
 export function useClearPreOrder() {
-  const gateway = useGateway();
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: (command: ClearPreOrderCommand) => gateway.clearPreOrder(command),
-    retry: false,
-    onSuccess: (result: PreOrderResult) => afterPreOrderSaved(queryClient, result),
-    onError: (_error, command) => rereadBooking(queryClient, command.reservationId),
-  });
+  return useMutation(clearPreOrderOptions(useQueryClient(), useGateway()));
 }
 
 /** "Yes, I'm on my way": the waiter's card says so, and the feed row has been answered. */
 export function useConfirmOnMyWay() {
-  const gateway = useGateway();
   const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: (reservationId: string) => gateway.confirmOnMyWay(reservationId),
-    retry: false,
-    onSuccess: (result: OnMyWayResult) => {
-      afterOnMyWay(queryClient, result);
-      void queryClient.invalidateQueries({ queryKey: ['notifications'] });
-    },
-    onError: (_error, reservationId) => rereadBooking(queryClient, reservationId),
-  });
+  return useMutation(
+    confirmOnMyWayOptions(queryClient, useGateway(), () => {
+      void queryClient.invalidateQueries({ queryKey: NOTIFICATIONS_KEY });
+    }),
+  );
 }

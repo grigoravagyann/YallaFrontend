@@ -3255,6 +3255,12 @@ a.pub-branch-card:hover {
   margin: 0;
 }
 
+/* What the venue did that is neither good news nor a failure — a ticket it
+   took off: the plain card, in the quiet ink. */
+.pub-notice-neutral {
+  color: var(--console-muted);
+}
+
 .pub-po .pub-notice p {
   margin: 0;
 }

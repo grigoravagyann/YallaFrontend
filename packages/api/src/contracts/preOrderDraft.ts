@@ -1,21 +1,25 @@
+import { formatDram, type Locale } from '@yalla/format';
+import type { FieldViolation } from '../errors';
+import type { BranchMenu, MenuItemDetail } from './ordering';
 import {
   PRE_ORDER_LIMITS,
   isPreOrderable,
   preOrderNote,
-  type BranchMenu,
-  type MenuItemDetail,
   type PreOrder,
   type PreOrderDraft,
-} from '@yalla/api';
+} from './preOrder';
+import type { CopyLine } from './reservation';
 
 /**
  * The pre-order editor's draft (2026-10-21): the **whole** pre-order the guest
- * is building, as the next save will send it.
+ * is building, as the next save will send it. One module for the app's editor
+ * and the manage link's, so a rule fixed here is fixed on both.
  *
  * One line per dish as the picker adds them, in the order they were added; a
- * pre-order saved elsewhere with a dish twice keeps both lines. Notes are kept
- * as typed and trimmed only when sent (`draftCommand`), so the cursor never
- * jumps while somebody types a space.
+ * pre-order saved elsewhere with a dish twice keeps both lines, and each
+ * line's own − n + changes that line (`addOneAt`, `removeOneAt`). Notes are
+ * kept as typed and trimmed only when sent (`draftCommand`), so the cursor
+ * never jumps while somebody types a space.
  *
  * Pure, so the rules are tested without a screen.
  */
@@ -73,12 +77,7 @@ export function addOne(draft: EditorDraft, menuItemId: string): EditorDraft {
   if (index < 0) {
     return { ...draft, lines: [...draft.lines, { menuItemId, quantity: 1, note: '' }] };
   }
-  return {
-    ...draft,
-    lines: draft.lines.map((line, at) =>
-      at === index ? { ...line, quantity: line.quantity + 1 } : line,
-    ),
-  };
+  return addOneAt(draft, index);
 }
 
 /** One fewer: off the dish's last line; a line at nought goes. */
@@ -87,8 +86,34 @@ export function removeOne(draft: EditorDraft, menuItemId: string): EditorDraft {
   draft.lines.forEach((line, at) => {
     if (line.menuItemId === menuItemId) index = at;
   });
-  if (index < 0) return draft;
-  const line = draft.lines[index]!;
+  return index < 0 ? draft : removeOneAt(draft, index);
+}
+
+/** Whether one more on the line at `index` stays inside the bounds. */
+export function canAddMoreAt(draft: EditorDraft, index: number): boolean {
+  const line = draft.lines[index];
+  return (
+    line !== undefined &&
+    line.quantity < PRE_ORDER_LIMITS.maxQuantity &&
+    totalQuantity(draft) < PRE_ORDER_LIMITS.maxTotalQuantity
+  );
+}
+
+/** One more on the line at `index` — that line, even when the dish is listed twice. */
+export function addOneAt(draft: EditorDraft, index: number): EditorDraft {
+  if (!canAddMoreAt(draft, index)) return draft;
+  return {
+    ...draft,
+    lines: draft.lines.map((line, at) =>
+      at === index ? { ...line, quantity: line.quantity + 1 } : line,
+    ),
+  };
+}
+
+/** One fewer on the line at `index`; at nought the line goes. */
+export function removeOneAt(draft: EditorDraft, index: number): EditorDraft {
+  const line = draft.lines[index];
+  if (!line) return draft;
   if (line.quantity <= 1) return removeLine(draft, index);
   return {
     ...draft,
@@ -150,12 +175,31 @@ export interface PricedDraft {
   readonly unavailable: readonly string[];
 }
 
+/** The dishes an editor has seen on the picker's menu, by id: kept as the menu is read again. */
+export type SeenDishes = ReadonlyMap<string, Pick<MenuItemDetail, 'name' | 'priceDram'>>;
+
+/**
+ * `seen` with every dish on `menu` added: what a dish was called and cost
+ * when the guest chose it, for a line whose dish has left the menu since —
+ * sold out between the guest's tap and the save, and the menu read again.
+ */
+export function rememberDishes(seen: SeenDishes, menu: BranchMenu | null | undefined): SeenDishes {
+  if (!menu) return seen;
+  const next = new Map(seen);
+  for (const category of menu.categories) {
+    for (const item of category.items)
+      next.set(item.id, { name: item.name, priceDram: item.priceDram });
+  }
+  return next;
+}
+
 /**
  * The draft priced as the server will price it: a dish already on the
  * pre-order keeps the price it was locked at; a new one costs what the menu
- * says now. A dish is flagged when the server said it is not available now,
- * when the loaded menu no longer offers it for pre-ordering, or when the last
- * save was refused for it (`refused`).
+ * says now (or said, from `seen`, once it has left the menu). A dish is
+ * flagged when the server said it is not available now, when the loaded menu
+ * no longer offers it for pre-ordering, or when the last save was refused for
+ * it (`refused`).
  */
 export function priceDraft(
   draft: EditorDraft,
@@ -163,6 +207,7 @@ export function priceDraft(
     readonly preOrder: PreOrder | null | undefined;
     readonly menu: BranchMenu | null | undefined;
     readonly refused?: readonly string[] | undefined;
+    readonly seen?: SeenDishes | undefined;
   },
 ): PricedDraft {
   const saved = new Map(context.preOrder?.lines.map((line) => [line.menuItemId, line]) ?? []);
@@ -175,7 +220,8 @@ export function priceDraft(
   const lines = draft.lines.map((line, index): PricedLine => {
     const kept = saved.get(line.menuItemId);
     const item = offered.get(line.menuItemId);
-    const unitPriceDram = kept?.unitPriceDram ?? item?.priceDram ?? 0;
+    const known = item ?? context.seen?.get(line.menuItemId);
+    const unitPriceDram = kept?.unitPriceDram ?? known?.priceDram ?? 0;
     const unavailable =
       refused.has(line.menuItemId) ||
       kept?.availableNow === false ||
@@ -183,7 +229,7 @@ export function priceDraft(
     return {
       index,
       menuItemId: line.menuItemId,
-      name: kept?.name ?? item?.name ?? '',
+      name: kept?.name ?? known?.name ?? '',
       unitPriceDram,
       quantity: line.quantity,
       lineTotalDram: unitPriceDram * line.quantity,
@@ -197,4 +243,30 @@ export function priceDraft(
     totalDram: lines.reduce((sum, line) => sum + line.lineTotalDram, 0),
     unavailable: [...new Set(lines.filter((line) => line.unavailable).map((l) => l.menuItemId))],
   };
+}
+
+/** "700 ֏", or "1,200 ֏ × 2 · 2,400 ֏" for more than one: the locked price and the line's total. */
+export function pricedLineText(
+  line: Pick<PricedLine, 'unitPriceDram' | 'quantity' | 'lineTotalDram'>,
+  locale: Locale,
+): string {
+  return line.quantity > 1
+    ? `${formatDram(line.unitPriceDram, locale)} × ${line.quantity} · ${formatDram(line.lineTotalDram, locale)}`
+    : formatDram(line.lineTotalDram, locale);
+}
+
+/**
+ * A bound the draft is past (`preOrderDraftViolations`), in the guest's
+ * words: keys in the **`diner`** namespace (`preOrder.limit.*`).
+ */
+export function preOrderLimitLine(violation: FieldViolation): CopyLine {
+  const max = violation.max ?? 0;
+  if (violation.field === 'note') return { key: 'preOrder.limit.note', params: { max } };
+  if (violation.field.endsWith('.note')) return { key: 'preOrder.limit.lineNote', params: { max } };
+  if (violation.field.endsWith('.quantity')) {
+    return { key: 'preOrder.limit.quantity', params: { max } };
+  }
+  return max === PRE_ORDER_LIMITS.maxTotalQuantity
+    ? { key: 'preOrder.limit.total', params: { max } }
+    : { key: 'preOrder.limit.lines', params: { max: PRE_ORDER_LIMITS.maxLines } };
 }

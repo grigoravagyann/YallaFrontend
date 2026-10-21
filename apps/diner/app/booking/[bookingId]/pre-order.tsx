@@ -1,24 +1,52 @@
 import { Ionicons } from '@expo/vector-icons';
 import {
+  addOne,
+  addOneAt,
+  canAddMore,
+  canAddMoreAt,
+  canClearPreOrder,
   canEditPreOrder,
+  draftCommand,
+  draftQuantity,
+  isDirty,
   newCommandId,
   PRE_ORDER_LIMITS,
   preOrderDraftViolations,
   preOrderFailure,
   PreOrderItemsUnavailableError,
+  preOrderLimitLine,
+  preOrderView,
+  priceDraft,
+  pricedLineText,
+  quantityOf,
+  rememberDishes,
+  removeLine,
+  removeOne,
+  removeOneAt,
+  setLineNote,
+  setNote,
+  startDraft,
   type Booking,
-  type FieldViolation,
+  type EditorDraft,
   type MenuItemDetail,
+  type SeenDishes,
 } from '@yalla/api';
 import { isOfflinePaused } from '@yalla/api/react';
 import { formatDram } from '@yalla/format';
 import { useLocale, useTranslation } from '@yalla/i18n';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import {
+  ActivityIndicator,
+  KeyboardAvoidingView,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  View,
+} from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { editableUntilWords, PRE_ORDER_ICON } from '../../../src/components/bookings/PreOrderCard';
-import { preOrderView } from '../../../src/components/bookings/preOrderView';
 import { Button } from '../../../src/components/Button';
 import { Card } from '../../../src/components/Card';
 import { Chip } from '../../../src/components/Chip';
@@ -36,20 +64,6 @@ import {
 } from '../../../src/data/preOrderQueries';
 import { useBooking } from '../../../src/data/queries';
 import { useNow } from '../../../src/hooks/useNow';
-import {
-  addOne,
-  canAddMore,
-  draftCommand,
-  isDirty,
-  priceDraft,
-  quantityOf,
-  removeLine,
-  removeOne,
-  setLineNote,
-  setNote,
-  startDraft,
-  type EditorDraft,
-} from '../../../src/lib/preOrderDraft';
 import {
   actionIcon,
   colors,
@@ -76,7 +90,12 @@ import {
  * A dish sold out since is marked and must be removed or swapped before the
  * save — the server refuses a save that keeps it, and so does this screen.
  * Every refusal is said (`preOrderFailure`); a save whose answer was lost is
- * resent with the same command id, so it is never saved twice.
+ * resent with the same command id, so it is never saved twice. The rules are
+ * the manage link's too (`@yalla/api`'s editor draft), so they cannot drift.
+ *
+ * The list and its footer share a `KeyboardAvoidingView`, as the booking
+ * screens do: the footer is in the flow under the list, never over it, so a
+ * note typed at the foot stays in view and a long failure line covers nothing.
  */
 export default function PreOrderScreen() {
   const { t } = useTranslation('diner');
@@ -152,12 +171,22 @@ function Editor({ booking, onDone }: { readonly booking: Booking; readonly onDon
   const [draft, setDraft] = useState<EditorDraft>(() => startDraft(saved));
   /** The dishes the last save was refused for. */
   const [refused, setRefused] = useState<readonly string[]>([]);
+  /** Every dish the picker has offered, so one that sells out keeps its name on the list. */
+  const [seen, setSeen] = useState<SeenDishes>(() => rememberDishes(new Map(), menu));
+  const [seenMenu, setSeenMenu] = useState(menu);
+  // Each menu read adds its dishes, adjusted during render rather than in an effect.
+  if (menu !== seenMenu) {
+    setSeenMenu(menu);
+    setSeen(rememberDishes(seen, menu));
+  }
   const [confirmingClear, setConfirmingClear] = useState(false);
   const [categoryId, setCategoryId] = useState<string | null>(null);
   /** After "it changed in the meantime": take the pre-order as it now reads. */
   const resync = useRef(false);
   /** One command id per draft sent: a resend of the same draft is the same command. */
   const attempt = useRef<{ readonly key: string; readonly id: string } | null>(null);
+  /** The removal's own command id, kept across a retry of it — never a save's. */
+  const clearId = useRef<string | null>(null);
 
   useEffect(() => {
     if (!resync.current) return;
@@ -167,8 +196,8 @@ function Editor({ booking, onDone }: { readonly booking: Booking; readonly onDon
   }, [booking.preOrder?.updatedAtUtc, booking.preOrder]);
 
   const priced = useMemo(
-    () => priceDraft(draft, { preOrder: saved, menu, refused }),
-    [draft, saved, menu, refused],
+    () => priceDraft(draft, { preOrder: saved, menu, refused, seen }),
+    [draft, saved, menu, refused, seen],
   );
   const categories = menu?.categories ?? [];
   const activeCategory = categoryId ?? categories[0]?.id ?? null;
@@ -192,19 +221,31 @@ function Editor({ booking, onDone }: { readonly booking: Booking; readonly onDon
     ? preOrderFailure(replace.error, booking.timeZoneId, locale, {
         dishName: priced.lines.find((line) => line.menuItemId === refusedOne)?.name,
       })
-    : clear.isError
-      ? preOrderFailure(clear.error, booking.timeZoneId, locale)
-      : null;
+    : null;
+  // The removal's own failure, said in its sheet — never a save's.
+  const clearFailure = clear.isError
+    ? preOrderFailure(clear.error, booking.timeZoneId, locale)
+    : null;
   const violationText = (field: string): string | null => {
     const found = violations.find((violation) => violation.field === field);
-    return found ? limitCopy(found, t) : null;
+    if (!found) return null;
+    const limit = preOrderLimitLine(found);
+    return t(limit.key, limit.params);
   };
 
+  /**
+   * Any change clears the last save's failure, except a sold-out refusal while
+   * a dish it named is still on the list: that sentence stays until the dish
+   * goes, then goes with it.
+   */
   const edit = (next: EditorDraft) => {
     setDraft(next);
-    if (replace.isError && !(replace.error instanceof PreOrderItemsUnavailableError)) {
-      replace.reset();
-    }
+    if (!replace.isError) return;
+    const error = replace.error;
+    const stillRefused =
+      error instanceof PreOrderItemsUnavailableError &&
+      next.lines.some((line) => error.items.some((item) => item.menuItemId === line.menuItemId));
+    if (!stillRefused) replace.reset();
   };
 
   const save = () => {
@@ -221,6 +262,9 @@ function Editor({ booking, onDone }: { readonly booking: Booking; readonly onDon
         onError: (error) => {
           if (error instanceof PreOrderItemsUnavailableError) {
             setRefused(error.items.map((item) => item.menuItemId));
+            // The picker's menu is what was stale: read it again, so a dish
+            // sold out since cannot be added straight back.
+            void menuQuery.refetch();
           }
           if (preOrderFailure(error, booking.timeZoneId, locale).kind === 'conflict') {
             resync.current = true;
@@ -231,12 +275,12 @@ function Editor({ booking, onDone }: { readonly booking: Booking; readonly onDon
   };
 
   const doClear = () => {
-    attempt.current ??= { key: 'clear', id: newCommandId() };
+    clearId.current ??= newCommandId();
     clear.mutate(
-      { reservationId: booking.id, clientCommandId: attempt.current.id },
+      { reservationId: booking.id, clientCommandId: clearId.current },
       {
         onSuccess: () => {
-          attempt.current = null;
+          clearId.current = null;
           setConfirmingClear(false);
           onDone();
         },
@@ -251,208 +295,197 @@ function Editor({ booking, onDone }: { readonly booking: Booking; readonly onDon
 
   return (
     <>
-      <ScrollView
-        contentContainerStyle={[styles.body, { paddingBottom: FOOTER_CLEARANCE + insets.bottom }]}
-        keyboardShouldPersistTaps="handled"
+      <KeyboardAvoidingView
+        style={styles.flex}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
-        {until ? (
-          <Text style={styles.muted}>{t('preOrder.editableUntil', { when: until })}</Text>
-        ) : null}
+        <ScrollView
+          style={styles.flex}
+          contentContainerStyle={styles.body}
+          keyboardShouldPersistTaps="handled"
+        >
+          {until ? (
+            <Text style={styles.muted}>{t('preOrder.editableUntil', { when: until })}</Text>
+          ) : null}
 
-        <Card style={styles.chosen}>
-          <SectionHeader
-            label={t('preOrder.chosen')}
-            icon={PRE_ORDER_ICON}
-            {...(empty ? {} : { hint: t('preOrder.dishes', { count: quantityTotal(draft) }) })}
-          />
-          {empty ? <Text style={styles.muted}>{t('preOrder.empty')}</Text> : null}
-          {priced.lines.map((line) => {
-            const name = line.name || t('preOrder.title');
-            const noteError = violationText(`lines[${line.index}].note`);
-            const quantityError = violationText(`lines[${line.index}].quantity`);
-            return (
-              <View key={`${line.menuItemId}-${line.index}`} style={styles.line}>
-                <View style={styles.lineTop}>
-                  <View style={styles.lineText}>
-                    <Text style={[styles.lineName, line.unavailable && styles.lineOut]}>
-                      {name}
-                    </Text>
-                    <Text style={styles.linePrice}>
-                      {line.quantity > 1
-                        ? `${formatDram(line.unitPriceDram, locale)} × ${line.quantity} · ${formatDram(line.lineTotalDram, locale)}`
-                        : formatDram(line.lineTotalDram, locale)}
-                    </Text>
+          <Card style={styles.chosen}>
+            <SectionHeader
+              label={t('preOrder.chosen')}
+              icon={PRE_ORDER_ICON}
+              {...(empty ? {} : { hint: t('preOrder.dishes', { count: draftQuantity(draft) }) })}
+            />
+            {empty ? <Text style={styles.muted}>{t('preOrder.empty')}</Text> : null}
+            {priced.lines.map((line) => {
+              const name = line.name || t('preOrder.title');
+              const noteError = violationText(`lines[${line.index}].note`);
+              const quantityError = violationText(`lines[${line.index}].quantity`);
+              return (
+                <View key={`${line.menuItemId}-${line.index}`} style={styles.line}>
+                  <View style={styles.lineTop}>
+                    <View style={styles.lineText}>
+                      <Text style={[styles.lineName, line.unavailable && styles.lineOut]}>
+                        {name}
+                      </Text>
+                      <Text style={styles.linePrice}>{pricedLineText(line, locale)}</Text>
+                      {line.unavailable ? (
+                        <Text style={styles.outBadge}>{t('preOrder.unavailableNow')}</Text>
+                      ) : null}
+                    </View>
                     {line.unavailable ? (
-                      <Text style={styles.outBadge}>{t('preOrder.unavailableNow')}</Text>
-                    ) : null}
+                      <Button
+                        label={t('preOrder.removeLine')}
+                        accessibilityLabel={t('preOrder.removeLineNamed', { name })}
+                        variant="secondary"
+                        size="small"
+                        fullWidth={false}
+                        disabled={pending}
+                        onPress={() => {
+                          edit(removeLine(draft, line.index));
+                          setRefused(refused.filter((id) => id !== line.menuItemId));
+                        }}
+                      />
+                    ) : (
+                      <Stepper
+                        name={name}
+                        quantity={line.quantity}
+                        canAdd={canAddMoreAt(draft, line.index)}
+                        disabled={pending}
+                        onAdd={() => edit(addOneAt(draft, line.index))}
+                        onRemove={() => edit(removeOneAt(draft, line.index))}
+                      />
+                    )}
                   </View>
-                  {line.unavailable ? (
-                    <Button
-                      label={t('preOrder.removeLine')}
-                      accessibilityLabel={t('preOrder.removeLineNamed', { name })}
-                      variant="secondary"
-                      size="small"
-                      fullWidth={false}
-                      disabled={pending}
-                      onPress={() => {
-                        edit(removeLine(draft, line.index));
-                        setRefused(refused.filter((id) => id !== line.menuItemId));
-                      }}
-                    />
-                  ) : (
-                    <Stepper
-                      name={name}
-                      quantity={line.quantity}
-                      canAdd={canAddMore(draft, line.menuItemId)}
-                      disabled={pending}
-                      onAdd={() => edit(addOne(draft, line.menuItemId))}
-                      onRemove={() =>
-                        edit(
-                          line.quantity <= 1
-                            ? removeLine(draft, line.index)
-                            : {
-                                ...draft,
-                                lines: draft.lines.map((entry, at) =>
-                                  at === line.index
-                                    ? { ...entry, quantity: entry.quantity - 1 }
-                                    : entry,
-                                ),
-                              },
-                        )
-                      }
+                  {quantityError ? <Text style={styles.fieldError}>{quantityError}</Text> : null}
+                  {line.unavailable ? null : (
+                    <TextInput
+                      style={styles.input}
+                      value={line.note}
+                      onChangeText={(value) => edit(setLineNote(draft, line.index, value))}
+                      placeholder={t('preOrder.lineNotePlaceholder')}
+                      accessibilityLabel={t('preOrder.lineNoteLabel', { name })}
+                      maxLength={PRE_ORDER_LIMITS.maxLineNote}
+                      editable={!pending}
                     />
                   )}
+                  {noteError ? <Text style={styles.fieldError}>{noteError}</Text> : null}
+                  {line.unavailable ? null : (
+                    <Pressable
+                      accessibilityRole="button"
+                      accessibilityLabel={t('preOrder.removeLineNamed', { name })}
+                      onPress={() => edit(removeLine(draft, line.index))}
+                      disabled={pending}
+                      style={styles.removeLink}
+                    >
+                      <Text style={styles.removeText}>{t('preOrder.removeLine')}</Text>
+                    </Pressable>
+                  )}
                 </View>
-                {quantityError ? <Text style={styles.fieldError}>{quantityError}</Text> : null}
-                {line.unavailable ? null : (
-                  <TextInput
-                    style={styles.input}
-                    value={line.note}
-                    onChangeText={(value) => edit(setLineNote(draft, line.index, value))}
-                    placeholder={t('preOrder.lineNotePlaceholder')}
-                    accessibilityLabel={t('preOrder.lineNoteLabel', { name })}
-                    maxLength={PRE_ORDER_LIMITS.maxLineNote}
-                    editable={!pending}
-                  />
-                )}
-                {noteError ? <Text style={styles.fieldError}>{noteError}</Text> : null}
-                {line.unavailable ? null : (
-                  <Pressable
-                    accessibilityRole="button"
-                    accessibilityLabel={t('preOrder.removeLineNamed', { name })}
-                    onPress={() => edit(removeLine(draft, line.index))}
-                    disabled={pending}
-                    style={styles.removeLink}
-                  >
-                    <Text style={styles.removeText}>{t('preOrder.removeLine')}</Text>
-                  </Pressable>
-                )}
-              </View>
-            );
-          })}
-          {swap ? (
-            <Text style={styles.warn}>{t('preOrder.unavailableSwap', { name: swap.name })}</Text>
-          ) : null}
-          {violationText('lines') ? (
-            <Text style={styles.fieldError}>{violationText('lines')}</Text>
-          ) : null}
+              );
+            })}
+            {swap ? (
+              <Text style={styles.warn}>{t('preOrder.unavailableSwap', { name: swap.name })}</Text>
+            ) : null}
+            {violationText('lines') ? (
+              <Text style={styles.fieldError}>{violationText('lines')}</Text>
+            ) : null}
 
-          <Text style={styles.label}>{t('preOrder.noteLabel')}</Text>
-          <TextInput
-            style={[styles.input, styles.noteInput]}
-            value={draft.note}
-            onChangeText={(value) => edit(setNote(draft, value))}
-            placeholder={t('preOrder.notePlaceholder')}
-            accessibilityLabel={t('preOrder.noteLabel')}
-            maxLength={PRE_ORDER_LIMITS.maxNote}
-            multiline
-            editable={!pending}
-          />
-          {violationText('note') ? (
-            <Text style={styles.fieldError}>{violationText('note')}</Text>
-          ) : null}
-          <Text style={styles.muted}>{t('preOrder.priceNote')}</Text>
-        </Card>
-
-        <SectionHeader label={t('preOrder.menuTitle')} />
-        {menuQuery.isLoading ? (
-          <ActivityIndicator color={colors.primary} />
-        ) : menuQuery.isError ? (
-          <View style={styles.menuState}>
-            <Text style={styles.muted}>{t('preOrder.menuError')}</Text>
-            <Button
-              label={t('preOrder.retry')}
-              variant="outline"
-              fullWidth={false}
-              onPress={() => void menuQuery.refetch()}
+            <Text style={styles.label}>{t('preOrder.noteLabel')}</Text>
+            <TextInput
+              style={[styles.input, styles.noteInput]}
+              value={draft.note}
+              onChangeText={(value) => edit(setNote(draft, value))}
+              placeholder={t('preOrder.notePlaceholder')}
+              accessibilityLabel={t('preOrder.noteLabel')}
+              maxLength={PRE_ORDER_LIMITS.maxNote}
+              multiline
+              editable={!pending}
             />
-          </View>
-        ) : categories.length === 0 ? (
-          <Text style={styles.muted}>{t('preOrder.noMenu')}</Text>
-        ) : (
-          <>
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.chips}
-            >
-              {categories.map((category) => (
-                <Chip
-                  key={category.id}
-                  label={category.name}
-                  selected={category.id === activeCategory}
-                  accessibilityRole="tab"
-                  onPress={() => setCategoryId(category.id)}
+            {violationText('note') ? (
+              <Text style={styles.fieldError}>{violationText('note')}</Text>
+            ) : null}
+            <Text style={styles.muted}>{t('preOrder.priceNote')}</Text>
+          </Card>
+
+          <SectionHeader label={t('preOrder.menuTitle')} />
+          {menuQuery.isLoading ? (
+            <ActivityIndicator color={colors.primary} />
+          ) : menuQuery.isError ? (
+            <View style={styles.menuState}>
+              <Text style={styles.muted}>{t('preOrder.menuError')}</Text>
+              <Button
+                label={t('preOrder.retry')}
+                variant="outline"
+                fullWidth={false}
+                onPress={() => void menuQuery.refetch()}
+              />
+            </View>
+          ) : categories.length === 0 ? (
+            <Text style={styles.muted}>{t('preOrder.noMenu')}</Text>
+          ) : (
+            <>
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.chips}
+              >
+                {categories.map((category) => (
+                  <Chip
+                    key={category.id}
+                    label={category.name}
+                    selected={category.id === activeCategory}
+                    accessibilityRole="tab"
+                    onPress={() => setCategoryId(category.id)}
+                  />
+                ))}
+              </ScrollView>
+              {items.map((item) => (
+                <DishRow
+                  key={item.id}
+                  item={item}
+                  quantity={quantityOf(draft, item.id)}
+                  canAdd={canAddMore(draft, item.id)}
+                  disabled={pending}
+                  onAdd={() => edit(addOne(draft, item.id))}
+                  onRemove={() => edit(removeOne(draft, item.id))}
                 />
               ))}
-            </ScrollView>
-            {items.map((item) => (
-              <DishRow
-                key={item.id}
-                item={item}
-                quantity={quantityOf(draft, item.id)}
-                canAdd={canAddMore(draft, item.id)}
-                disabled={pending}
-                onAdd={() => edit(addOne(draft, item.id))}
-                onRemove={() => edit(removeOne(draft, item.id))}
-              />
-            ))}
-          </>
-        )}
-      </ScrollView>
+            </>
+          )}
+        </ScrollView>
 
-      <View style={[styles.footer, { paddingBottom: insets.bottom + space.sm }]}>
-        {failure ? (
-          <Text style={styles.failure} accessibilityRole="alert">
-            {t(failure.line.key, failure.line.params)}
-          </Text>
-        ) : null}
-        <View style={styles.totalRow}>
-          <Text style={styles.totalLabel}>{t('preOrder.total')}</Text>
-          <Text style={styles.total} accessibilityLiveRegion="polite">
-            {formatDram(priced.totalDram, locale)}
-          </Text>
+        <View style={[styles.footer, { paddingBottom: insets.bottom + space.sm }]}>
+          {failure ? (
+            <Text style={styles.failure} accessibilityRole="alert">
+              {t(failure.line.key, failure.line.params)}
+            </Text>
+          ) : null}
+          <View style={styles.totalRow}>
+            <Text style={styles.totalLabel}>{t('preOrder.total')}</Text>
+            <Text style={styles.total} accessibilityLiveRegion="polite">
+              {formatDram(priced.totalDram, locale)}
+            </Text>
+          </View>
+          {empty && saved ? (
+            <Button
+              label={t('preOrder.remove')}
+              variant="destructive"
+              disabled={pending}
+              onPress={() => {
+                clear.reset();
+                setConfirmingClear(true);
+              }}
+            />
+          ) : (
+            <Button
+              label={replace.isPending ? t('preOrder.saving') : t('preOrder.save')}
+              size="large"
+              busy={replace.isPending}
+              disabled={empty || blocked || pending || (!dirty && !replace.isError)}
+              onPress={save}
+            />
+          )}
         </View>
-        {empty && saved ? (
-          <Button
-            label={t('preOrder.remove')}
-            variant="destructive"
-            disabled={pending}
-            onPress={() => {
-              clear.reset();
-              setConfirmingClear(true);
-            }}
-          />
-        ) : (
-          <Button
-            label={replace.isPending ? t('preOrder.saving') : t('preOrder.save')}
-            size="large"
-            busy={replace.isPending}
-            disabled={empty || blocked || pending || (!dirty && !replace.isError)}
-            onPress={save}
-          />
-        )}
-      </View>
+      </KeyboardAvoidingView>
 
       <ConfirmSheet
         visible={confirmingClear}
@@ -462,7 +495,7 @@ function Editor({ booking, onDone }: { readonly booking: Booking; readonly onDon
         cancelLabel={t('preOrder.removeKeep')}
         busyLabel={t('preOrder.removing')}
         busy={clear.isPending}
-        error={clear.isError && failure ? t(failure.line.key, failure.line.params) : null}
+        error={clearFailure ? t(clearFailure.line.key, clearFailure.line.params) : null}
         destructive
         onConfirm={doClear}
         onCancel={() => setConfirmingClear(false)}
@@ -471,24 +504,11 @@ function Editor({ booking, onDone }: { readonly booking: Booking; readonly onDon
   );
 }
 
-function quantityTotal(draft: EditorDraft): number {
-  return draft.lines.reduce((sum, line) => sum + line.quantity, 0);
-}
-
-type Translate = ReturnType<typeof useTranslation>['t'];
-
-/** A bound the draft is past, in the guest's words. */
-function limitCopy(violation: FieldViolation, t: Translate): string {
-  const max = violation.max ?? 0;
-  if (violation.field === 'note') return t('preOrder.limit.note', { max });
-  if (violation.field.endsWith('.note')) return t('preOrder.limit.lineNote', { max });
-  if (violation.field.endsWith('.quantity')) return t('preOrder.limit.quantity', { max });
-  return max === PRE_ORDER_LIMITS.maxTotalQuantity
-    ? t('preOrder.limit.total', { max })
-    : t('preOrder.limit.lines', { max: PRE_ORDER_LIMITS.maxLines });
-}
-
-/** Past the window, sent, or the branch stopped taking them: said, with the way back. */
+/**
+ * Past the window, sent, or the branch stopped taking them: said, with the way
+ * back — and, while the pre-order may still be cleared (the branch stopped
+ * taking them, its window still open), "Remove", asked first, as the body says.
+ */
 function Closed({
   booking,
   now,
@@ -499,7 +519,29 @@ function Closed({
   readonly onDone: () => void;
 }) {
   const { t } = useTranslation('diner');
+  const { locale } = useLocale();
+  const clear = useClearPreOrder();
+  const [confirming, setConfirming] = useState(false);
+  /** One command id per removal, kept across a retry of the same one. */
+  const clearId = useRef<string | null>(null);
   const view = preOrderView(booking, now);
+  const clearable = canClearPreOrder(booking, now);
+  const clearFailure = clear.isError
+    ? preOrderFailure(clear.error, booking.timeZoneId, locale)
+    : null;
+  const remove = () => {
+    clearId.current ??= newCommandId();
+    clear.mutate(
+      { reservationId: booking.id, clientCommandId: clearId.current },
+      {
+        onSuccess: () => {
+          clearId.current = null;
+          setConfirming(false);
+          onDone();
+        },
+      },
+    );
+  };
   const body =
     view.kind === 'sent'
       ? t('preOrder.error.alreadySent')
@@ -517,7 +559,30 @@ function Closed({
         {t('preOrder.closedTitle')}
       </Text>
       <Text style={styles.closedBody}>{body}</Text>
+      {clearable ? (
+        <Button
+          label={t('preOrder.remove')}
+          variant="destructive"
+          onPress={() => {
+            clear.reset();
+            setConfirming(true);
+          }}
+        />
+      ) : null}
       <Button label={t('preOrder.back')} variant="secondary" onPress={onDone} />
+      <ConfirmSheet
+        visible={confirming && clearable}
+        title={t('preOrder.removeTitle')}
+        body={t('preOrder.removeBody')}
+        confirmLabel={t('preOrder.removeConfirm')}
+        cancelLabel={t('preOrder.removeKeep')}
+        busyLabel={t('preOrder.removing')}
+        busy={clear.isPending}
+        error={clearFailure ? t(clearFailure.line.key, clearFailure.line.params) : null}
+        destructive
+        onConfirm={remove}
+        onCancel={() => setConfirming(false)}
+      />
     </View>
   );
 }
@@ -647,9 +712,6 @@ function RoundPress({
   );
 }
 
-/** Room under the list for the total and the save. */
-const FOOTER_CLEARANCE = 168;
-
 const styles = StyleSheet.create({
   header: {
     flexDirection: 'row',
@@ -661,8 +723,14 @@ const styles = StyleSheet.create({
   headerText: { flex: 1, minWidth: 0 },
   title: { fontSize: 20, lineHeight: 26, color: colors.text },
   where: { ...typography.caption, color: colors.textMuted },
+  flex: { flex: 1 },
   centered: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  body: { paddingHorizontal: layout.screenPadding, paddingTop: space.xs, gap: space.md },
+  body: {
+    paddingHorizontal: layout.screenPadding,
+    paddingTop: space.xs,
+    paddingBottom: space.lg,
+    gap: space.md,
+  },
   muted: { ...typography.caption, color: colors.textMuted },
   warn: { ...typography.caption, color: colors.warningInk },
   chosen: { gap: space.md },
@@ -755,10 +823,6 @@ const styles = StyleSheet.create({
   roundDisabled: { opacity: 0.4 },
   roundPressed: { opacity: 0.8 },
   footer: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    bottom: 0,
     gap: space.sm,
     paddingHorizontal: layout.screenPadding,
     paddingTop: space.md,

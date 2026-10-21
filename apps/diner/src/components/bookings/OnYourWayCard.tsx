@@ -1,4 +1,4 @@
-import { preOrderFailure, type Booking } from '@yalla/api';
+import { onMyWayFailureLine, onYourWayView, type Booking } from '@yalla/api';
 import { useConfirmOnMyWay } from '../../data/preOrderQueries';
 import { formatTime } from '@yalla/format';
 import { useLocale, useTranslation } from '@yalla/i18n';
@@ -9,7 +9,6 @@ import { colors, fontWeight, iconSize, radius, space, typography } from '../../t
 import { Button } from '../Button';
 import { Card } from '../Card';
 import { Text } from '../Text';
-import { onYourWayView } from './preOrderView';
 
 /**
  * "Are you on your way?" (2026-10-21) — asked from 45 minutes before a
@@ -21,8 +20,10 @@ import { onYourWayView } from './preOrderView';
  * (`onCantCome` opens the booking's own cancel sheet).
  *
  * `autoConfirm`: the push's "Yes" button opened the app here (see
- * `registerCategories`); it is sent once, from the booking as it stands —
- * never if the question is no longer asked.
+ * `registerCategories`), and the booking has been read since (the screen
+ * passes it only then: a cached copy may be of a booking moved since the
+ * push). Decided once, on that read: sent if the question is asked, and
+ * never later — a question asked an hour on is the guest's to answer.
  */
 export function OnYourWayCard({
   booking,
@@ -44,12 +45,12 @@ export function OnYourWayCard({
   const { locale } = useLocale();
   const confirm = useConfirmOnMyWay();
   const view = onYourWayView({ ...booking, startUtc: booking.slotUtc }, now);
-  const sent = useRef(false);
+  const decided = useRef(false);
 
   useEffect(() => {
-    if (!autoConfirm || sent.current || view !== 'ask') return;
-    sent.current = true;
-    confirm.mutate(booking.id);
+    if (!autoConfirm || decided.current) return;
+    decided.current = true;
+    if (view === 'ask') confirm.mutate(booking.id);
   }, [autoConfirm, view, booking.id, confirm]);
 
   if (view === 'none') return null;
@@ -71,7 +72,7 @@ export function OnYourWayCard({
   }
 
   const failure = confirm.isError
-    ? preOrderFailure(confirm.error, booking.timeZoneId, locale).line
+    ? onMyWayFailureLine(confirm.error, booking.timeZoneId, locale, now)
     : null;
 
   return (

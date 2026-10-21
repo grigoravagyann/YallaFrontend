@@ -1113,7 +1113,8 @@
       "notChangeable": "This booking can no longer be changed.",
       "generic": "We could not save that. Your booking is unchanged.",
       "unknownOutcome": "The connection dropped before the venue answered, so we cannot tell yet whether your booking moved. Check again — it will not change twice.",
-      "approvalExpired": "Too late to change — the venue's answer window has closed."
+      "approvalExpired": "Too late to change — the venue's answer window has closed.",
+      "preOrderSent": "Your pre-order is already in the kitchen; call the venue to change the time."
     },
     "wheel": {
       "snapped": "No free table at {{busy}} — {{time}} suggested",
@@ -1520,7 +1521,9 @@
       "notFound": "We could not find this booking.",
       "rateLimited": "Too many tries. Wait a moment and try again.",
       "unknownOutcome": "The connection dropped before the venue answered. Try again — it will not be saved twice.",
-      "generic": "We could not save your pre-order. Try again."
-    }
+      "generic": "We could not save your pre-order. Try again.",
+      "onMyWayOpensAt": "You can confirm from {{time}}."
+    },
+    "menuUnavailable": "The menu isn't available here right now."
   }
 }

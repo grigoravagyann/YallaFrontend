@@ -1,13 +1,37 @@
 import {
+  addOne,
+  addOneAt,
+  canAddMore,
+  canAddMoreAt,
+  draftCommand,
+  draftQuantity,
+  isDirty,
   newCommandId,
+  onMyWayFailureLine,
   PRE_ORDER_LIMITS,
   preOrderDraftViolations,
+  preOrderEditorClosedLine,
   preOrderFailure,
   PreOrderItemsUnavailableError,
+  preOrderLimitLine,
+  preOrderStateTone,
+  preOrderView,
+  priceDraft,
+  pricedLineText,
+  quantityOf,
+  rememberDishes,
+  removeLine,
+  removeOne,
+  removeOneAt,
+  setLineNote,
+  setNote,
+  startDraft,
   type BranchMenu,
-  type FieldViolation,
+  type EditorDraft,
   type ManagedBooking,
   type PreOrder,
+  type PreOrderViewState,
+  type SeenDishes,
 } from '@yalla/api';
 import {
   useClearManagedPreOrder,
@@ -19,21 +43,6 @@ import { formatDram, type Locale } from '@yalla/format';
 import { useLocale, useTranslation } from '@yalla/i18n';
 import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { dayWords } from './dayNames';
-import {
-  addOne,
-  canAddMore,
-  draftCommand,
-  isDirty,
-  priceDraft,
-  quantityOf,
-  removeLine,
-  removeOne,
-  setLineNote,
-  setNote,
-  startDraft,
-  type EditorDraft,
-} from './preOrderDraft';
-import { preOrderView, type PreOrderViewState } from './preOrderView';
 import { branchClock, branchToday } from './slots';
 
 /**
@@ -52,6 +61,8 @@ export interface PreOrderMenuState {
   readonly data: BranchMenu | null | undefined;
   readonly isLoading: boolean;
   readonly isError: boolean;
+  /** The link's branch is gone (its slug changed or it was removed): no menu to offer. */
+  readonly isGone?: boolean | undefined;
   readonly refetch: () => unknown;
 }
 
@@ -92,17 +103,32 @@ export function PreOrderEditor({
   const clear = useClearManagedPreOrder(token);
   const [draft, setDraft] = useState<EditorDraft>(() => startDraft(preOrder));
   const [refused, setRefused] = useState<readonly string[]>([]);
+  /** Every dish the picker has offered, so one that sells out keeps its name on the list. */
+  const [seen, setSeen] = useState<SeenDishes>(() => rememberDishes(new Map(), menu.data));
+  const [seenMenu, setSeenMenu] = useState(menu.data);
+  // Each menu read adds its dishes, adjusted during render as the page's other
+  // derived state is.
+  if (menu.data !== seenMenu) {
+    setSeenMenu(menu.data);
+    setSeen(rememberDishes(seen, menu.data));
+  }
   const [categoryId, setCategoryId] = useState<string | null>(null);
   const [confirmingClear, setConfirmingClear] = useState(false);
   const attempt = useRef<{ readonly key: string; readonly id: string } | null>(null);
+  /** The removal's own command id, kept across a retry of it — never a save's. */
+  const clearId = useRef<string | null>(null);
   const resync = useRef(false);
   const heading = useRef<HTMLHeadingElement>(null);
+  const confirmHeading = useRef<HTMLHeadingElement>(null);
   const headingId = useId();
   const noteId = useId();
 
   useEffect(() => {
     heading.current?.focus();
   }, []);
+  useEffect(() => {
+    if (confirmingClear) confirmHeading.current?.focus();
+  }, [confirmingClear]);
   // "It changed in the meantime": the pre-order as it now reads, once it arrives.
   useEffect(() => {
     if (!resync.current) return;
@@ -112,8 +138,8 @@ export function PreOrderEditor({
   }, [preOrder]);
 
   const priced = useMemo(
-    () => priceDraft(draft, { preOrder, menu: menu.data, refused }),
-    [draft, preOrder, menu.data, refused],
+    () => priceDraft(draft, { preOrder, menu: menu.data, refused, seen }),
+    [draft, preOrder, menu.data, refused, seen],
   );
   const categories = menu.data?.categories ?? [];
   const activeCategory = categoryId ?? categories[0]?.id ?? null;
@@ -134,19 +160,29 @@ export function PreOrderEditor({
     ? preOrderFailure(replace.error, timeZoneId, locale, {
         dishName: priced.lines.find((line) => line.menuItemId === refusedOne)?.name,
       })
-    : clear.isError
-      ? preOrderFailure(clear.error, timeZoneId, locale)
-      : null;
+    : null;
+  // The removal's own failure, said in its question — never a save's.
+  const clearFailure = clear.isError ? preOrderFailure(clear.error, timeZoneId, locale) : null;
   const violationText = (field: string): string | null => {
     const found = violations.find((violation) => violation.field === field);
-    return found ? limitCopy(found, t) : null;
+    if (!found) return null;
+    const line = preOrderLimitLine(found);
+    return t(line.key, line.params);
   };
 
+  /**
+   * Any change clears the last save's failure, except a sold-out refusal while
+   * a dish it named is still on the list: that sentence stays until the dish
+   * goes, then goes with it.
+   */
   const edit = (next: EditorDraft) => {
     setDraft(next);
-    if (replace.isError && !(replace.error instanceof PreOrderItemsUnavailableError)) {
-      replace.reset();
-    }
+    if (!replace.isError) return;
+    const error = replace.error;
+    const stillRefused =
+      error instanceof PreOrderItemsUnavailableError &&
+      next.lines.some((line) => error.items.some((item) => item.menuItemId === line.menuItemId));
+    if (!stillRefused) replace.reset();
   };
 
   const save = () => {
@@ -163,6 +199,9 @@ export function PreOrderEditor({
         onError: (error) => {
           if (error instanceof PreOrderItemsUnavailableError) {
             setRefused(error.items.map((item) => item.menuItemId));
+            // The picker's menu is what was stale: read it again, so a dish
+            // sold out since cannot be added straight back.
+            void menu.refetch();
           }
           if (preOrderFailure(error, timeZoneId, locale).kind === 'conflict') {
             resync.current = true;
@@ -173,10 +212,10 @@ export function PreOrderEditor({
   };
 
   const doClear = () => {
-    attempt.current ??= { key: 'clear', id: newCommandId() };
-    clear.mutate(attempt.current.id, {
+    clearId.current ??= newCommandId();
+    clear.mutate(clearId.current, {
       onSuccess: () => {
-        attempt.current = null;
+        clearId.current = null;
         onSaved(null);
       },
     });
@@ -194,7 +233,7 @@ export function PreOrderEditor({
         <h3 className="pub-field-label">
           {t('preOrder.chosen')}
           {empty ? null : (
-            <span className="pub-muted">{` · ${t('preOrder.dishes', { count: quantityTotal(draft) })}`}</span>
+            <span className="pub-muted">{` · ${t('preOrder.dishes', { count: draftQuantity(draft) })}`}</span>
           )}
         </h3>
         {empty ? <p className="pub-muted">{t('preOrder.empty')}</p> : null}
@@ -209,7 +248,7 @@ export function PreOrderEditor({
                 <div className="pub-po-line-top">
                   <p className="pub-po-name">
                     <b className={line.unavailable ? 'is-out' : undefined}>{name}</b>
-                    <span className="pub-muted num">{linePrice(line, locale)}</span>
+                    <span className="pub-muted num">{pricedLineText(line, locale)}</span>
                     {line.unavailable ? (
                       <span className="pub-menu-soldout">{t('preOrder.unavailableNow')}</span>
                     ) : null}
@@ -218,10 +257,10 @@ export function PreOrderEditor({
                     <Stepper
                       name={name}
                       quantity={line.quantity}
-                      canAdd={canAddMore(draft, line.menuItemId)}
+                      canAdd={canAddMoreAt(draft, line.index)}
                       disabled={pending}
-                      onAdd={() => edit(addOne(draft, line.menuItemId))}
-                      onRemove={() => edit(removeOne(draft, line.menuItemId))}
+                      onAdd={() => edit(addOneAt(draft, line.index))}
+                      onRemove={() => edit(removeOneAt(draft, line.index))}
                     />
                   )}
                 </div>
@@ -285,6 +324,8 @@ export function PreOrderEditor({
         <h3 className="pub-field-label">{t('preOrder.menuTitle')}</h3>
         {menu.isLoading ? (
           <div className="pub-skeleton-card" aria-hidden="true" />
+        ) : menu.isGone ? (
+          <p className="pub-muted">{t('preOrder.menuUnavailable')}</p>
         ) : menu.isError ? (
           <div className="pub-section-failed">
             <p className="pub-muted">{t('preOrder.menuError')}</p>
@@ -367,8 +408,15 @@ export function PreOrderEditor({
         </p>
         {confirmingClear ? (
           <div className="pub-manage-confirm" role="group" aria-labelledby={`${headingId}-clear`}>
-            <h3 id={`${headingId}-clear`}>{t('preOrder.removeTitle')}</h3>
+            <h3 id={`${headingId}-clear`} ref={confirmHeading} tabIndex={-1}>
+              {t('preOrder.removeTitle')}
+            </h3>
             <p className="pub-muted">{t('preOrder.removeBody')}</p>
+            {clearFailure ? (
+              <p className="pub-error" role="alert">
+                {t(clearFailure.line.key, clearFailure.line.params)}
+              </p>
+            ) : null}
             <button
               type="button"
               className="pub-button pub-button-danger pub-button-wide"
@@ -417,35 +465,6 @@ export function PreOrderEditor({
       </div>
     </section>
   );
-}
-
-/** "700 ֏", or "1,200 ֏ × 2 · 2,400 ֏" for more than one: the locked price and the line's total. */
-function linePrice(
-  line: {
-    readonly unitPriceDram: number;
-    readonly quantity: number;
-    readonly lineTotalDram: number;
-  },
-  locale: Locale,
-): string {
-  return line.quantity > 1
-    ? `${formatDram(line.unitPriceDram, locale)} × ${line.quantity} · ${formatDram(line.lineTotalDram, locale)}`
-    : formatDram(line.lineTotalDram, locale);
-}
-
-function quantityTotal(draft: EditorDraft): number {
-  return draft.lines.reduce((sum, line) => sum + line.quantity, 0);
-}
-
-/** A bound the draft is past, in the guest's words. */
-function limitCopy(violation: FieldViolation, t: Translate): string {
-  const max = violation.max ?? 0;
-  if (violation.field === 'note') return t('preOrder.limit.note', { max });
-  if (violation.field.endsWith('.note')) return t('preOrder.limit.lineNote', { max });
-  if (violation.field.endsWith('.quantity')) return t('preOrder.limit.quantity', { max });
-  return max === PRE_ORDER_LIMITS.maxTotalQuantity
-    ? t('preOrder.limit.total', { max })
-    : t('preOrder.limit.lines', { max: PRE_ORDER_LIMITS.maxLines });
 }
 
 function Stepper({
@@ -527,7 +546,11 @@ export function PreOrderLines({ preOrder }: { readonly preOrder: PreOrder }) {
   );
 }
 
-/** What became of it: green for on its way or ready, amber for waiting, grey for cancelled. */
+/**
+ * What became of it: green for on its way or ready, amber for waiting, grey
+ * for cancelled — and plain for a ticket the venue took off, which is neither
+ * good news nor a failure of the guest's.
+ */
 export function PreOrderState({
   view,
   kitchen,
@@ -548,7 +571,13 @@ export function PreOrderState({
       );
     case 'sent':
       return (
-        <div className="pub-notice pub-notice-ok">
+        <div
+          className={
+            preOrderStateTone(view, kitchen) === 'neutral'
+              ? 'pub-notice pub-notice-neutral'
+              : 'pub-notice pub-notice-ok'
+          }
+        >
           <p>
             <b>{t('preOrder.state.sentTitle')}</b>
           </p>
@@ -596,28 +625,61 @@ export function ManagePreOrder({
   const { t: tp } = useTranslation('public');
   const { locale } = useLocale();
   const view = preOrderView(booking, now);
-  const { menu } = useManagedPreOrderMenu(editing ? booking : null);
+  const { branch, menu } = useManagedPreOrderMenu(editing ? booking : null);
   const clear = useClearManagedPreOrder(token);
-  const [said, setSaid] = useState<string | null>(null);
+  /** What the last save, removal or closing came to — said once, and focused. */
+  const [said, setSaid] = useState<{ readonly text: string; readonly tone: string } | null>(null);
   const [confirming, setConfirming] = useState(false);
   const commandId = useRef<string | null>(null);
   const saidRef = useRef<HTMLParagraphElement>(null);
+  const confirmHeading = useRef<HTMLHeadingElement>(null);
   const headingId = useId();
+  // Why the editor may not be open now: the window shut while the guest
+  // chose, or a save's 409 was followed by a read that says why.
+  const closedLine = preOrderEditorClosedLine(booking, now);
+  const closedKey = closedLine?.key ?? null;
 
   useEffect(() => {
     if (said) saidRef.current?.focus();
   }, [said]);
+  useEffect(() => {
+    if (confirming) confirmHeading.current?.focus();
+  }, [confirming]);
+  // The editor closed under the guest: the page says why the draft went
+  // (once per closing, adjusted during render), and the link's actions come
+  // back — the page hides them while the editor is open.
+  const [saidClosed, setSaidClosed] = useState<string | null>(null);
+  if (editing && closedKey !== null && saidClosed !== closedKey) {
+    setSaidClosed(closedKey);
+    setSaid({ text: t(closedKey), tone: 'pub-notice-alert' });
+  }
+  useEffect(() => {
+    if (editing && closedKey !== null) onEditing(false);
+  }, [editing, closedKey, onEditing]);
 
-  if (editing && (view.kind === 'offer' || (view.kind === 'editable' && view.canEdit))) {
+  // The menu, through the branch the link names: loading or failed while
+  // either read is, and failed when the branch is gone — never "no dishes".
+  const menuState: PreOrderMenuState = {
+    data: menu.data,
+    isLoading: branch.isLoading || menu.isLoading,
+    isError: branch.isError || menu.isError,
+    isGone: branch.data === null,
+    refetch: () => (branch.isError ? branch.refetch() : menu.refetch()),
+  };
+
+  if (editing && closedLine === null) {
     return (
       <PreOrderEditor
         token={token}
         preOrder={booking.preOrder ?? null}
         timeZoneId={booking.timeZoneId}
-        menu={menu}
+        menu={menuState}
         onSaved={(saved) => {
           onEditing(false);
-          setSaid(t(saved ? 'preOrder.saved' : 'preOrder.removed'));
+          setSaid({
+            text: t(saved ? 'preOrder.saved' : 'preOrder.removed'),
+            tone: 'pub-notice-ok',
+          });
         }}
         onCancel={() => onEditing(false)}
       />
@@ -625,8 +687,8 @@ export function ManagePreOrder({
   }
 
   const notice = said ? (
-    <p className="pub-notice pub-notice-ok" role="status" tabIndex={-1} ref={saidRef}>
-      {said}
+    <p className={`pub-notice ${said.tone}`} role="status" tabIndex={-1} ref={saidRef}>
+      {said.text}
     </p>
   ) : null;
   if (view.kind === 'none') return notice;
@@ -648,6 +710,7 @@ export function ManagePreOrder({
           className="pub-button pub-button-primary"
           onClick={() => {
             setSaid(null);
+            setSaidClosed(null);
             onEditing(true);
           }}
         >
@@ -665,7 +728,7 @@ export function ManagePreOrder({
       onSuccess: () => {
         commandId.current = null;
         setConfirming(false);
-        setSaid(t('preOrder.removed'));
+        setSaid({ text: t('preOrder.removed'), tone: 'pub-notice-ok' });
       },
     });
   };
@@ -693,7 +756,9 @@ export function ManagePreOrder({
           )}
           {confirming ? (
             <div className="pub-manage-confirm" role="group" aria-labelledby={`${headingId}-clear`}>
-              <h3 id={`${headingId}-clear`}>{t('preOrder.removeTitle')}</h3>
+              <h3 id={`${headingId}-clear`} ref={confirmHeading} tabIndex={-1}>
+                {t('preOrder.removeTitle')}
+              </h3>
               <p className="pub-muted">{t('preOrder.removeBody')}</p>
               {failure ? (
                 <p className="pub-error" role="alert">
@@ -724,6 +789,7 @@ export function ManagePreOrder({
                   className="pub-button pub-button-wide"
                   onClick={() => {
                     setSaid(null);
+                    setSaidClosed(null);
                     onEditing(true);
                   }}
                 >
@@ -788,7 +854,7 @@ export function OnYourWayQuestion({
   if (!booking.onYourWayAsked) return null;
 
   const failure = confirm.isError
-    ? preOrderFailure(confirm.error, booking.timeZoneId, locale)
+    ? onMyWayFailureLine(confirm.error, booking.timeZoneId, locale)
     : null;
   return (
     <section className="pub-card pub-po-way" aria-labelledby={headingId}>
@@ -801,7 +867,7 @@ export function OnYourWayQuestion({
       </p>
       {failure ? (
         <p className="pub-notice pub-notice-alert" role="alert">
-          {t(failure.line.key, failure.line.params)}
+          {t(failure.key, failure.params)}
         </p>
       ) : null}
       <button

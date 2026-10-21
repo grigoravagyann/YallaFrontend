@@ -1,4 +1,4 @@
-import { awaitsVenueAnswer, type Booking, type BookingStatus } from '@yalla/api';
+import { awaitsVenueAnswer, preOrderView, type Booking, type BookingStatus } from '@yalla/api';
 import { formatDate, formatDayAndTime } from '@yalla/format';
 import { useLocale, useTranslation } from '@yalla/i18n';
 import { Ionicons } from '@expo/vector-icons';
@@ -39,7 +39,6 @@ import { Skeleton } from '../Skeleton';
 import { Text } from '../Text';
 import { tableWithRoom } from './bookingText';
 import { PRE_ORDER_ICON, PreOrderSummaryLine } from './PreOrderCard';
-import { preOrderView } from './preOrderView';
 import { PromiseNote, promiseCopy } from './PromiseNote';
 import { TableRequestCard } from './TableRequestCard';
 import { useVenueAnswer, VenueAnswerNote } from './VenueAnswer';

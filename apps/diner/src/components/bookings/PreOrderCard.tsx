@@ -1,4 +1,13 @@
-import { newCommandId, preOrderFailure, type Booking, type PreOrder } from '@yalla/api';
+import {
+  newCommandId,
+  onYourWayView,
+  preOrderFailure,
+  preOrderStateTone,
+  preOrderView,
+  type Booking,
+  type PreOrder,
+  type PreOrderViewState,
+} from '@yalla/api';
 import { useClearPreOrder } from '../../data/preOrderQueries';
 import { formatDayAndTime, formatDram, type Locale } from '@yalla/format';
 import { useLocale, useTranslation } from '@yalla/i18n';
@@ -20,7 +29,6 @@ import { Card } from '../Card';
 import { ConfirmSheet } from '../ConfirmSheet';
 import { SectionHeader } from '../SectionHeader';
 import { Text } from '../Text';
-import { onYourWayView, preOrderView, type PreOrderViewState } from './preOrderView';
 
 /** The pre-order's glyph: a plate and cutlery, as the menu's. */
 export const PRE_ORDER_ICON: IoniconName = 'restaurant-outline';
@@ -241,7 +249,11 @@ function dishCount(preOrder: PreOrder): number {
   return preOrder.lines.reduce((sum, line) => sum + line.quantity, 0);
 }
 
-/** What has become of it, in one title and a sentence. Editable says nothing: the dates do. */
+/**
+ * What has become of it, in one title and a sentence, in the tone
+ * `preOrderStateTone` gives it — a ticket the venue took off is said plainly,
+ * never in the green of good news. Editable says nothing: the dates do.
+ */
 function PreOrderStateNote({
   view,
   kitchen,
@@ -253,21 +265,18 @@ function PreOrderStateNote({
 }) {
   const note: {
     readonly icon: IoniconName;
-    readonly tone: 'ok' | 'wait' | 'off';
     readonly title: string;
     readonly body: string;
   } | null =
     view.kind === 'locked'
       ? {
           icon: 'checkmark-circle-outline',
-          tone: 'ok',
           title: t('preOrder.state.lockedTitle'),
           body: t('preOrder.state.lockedBody'),
         }
       : view.kind === 'sent'
         ? {
-            icon: 'flame-outline',
-            tone: 'ok',
+            icon: kitchen === 'voided' ? 'remove-circle-outline' : 'flame-outline',
             title: t('preOrder.state.sentTitle'),
             body:
               kitchen && kitchen !== 'inKitchen' && kitchen !== 'new'
@@ -277,36 +286,28 @@ function PreOrderStateNote({
         : view.kind === 'notComing'
           ? {
               icon: 'alert-circle-outline',
-              tone: 'wait',
               title: t('preOrder.state.notComingTitle'),
               body: t('preOrder.state.notComingBody'),
             }
           : view.kind === 'cancelled'
             ? {
                 icon: 'close-circle-outline',
-                tone: 'off',
                 title: t('preOrder.state.cancelledBody'),
                 body: '',
               }
             : null;
-  if (!note) return null;
+  const tone = preOrderStateTone(view, kitchen);
+  if (!note || !tone) return null;
   const ink =
-    note.tone === 'ok'
-      ? colors.successInk
-      : note.tone === 'wait'
-        ? colors.warningInk
-        : colors.textMuted;
+    tone === 'ok' ? colors.successInk : tone === 'wait' ? colors.warningInk : colors.textMuted;
   return (
     <View
       style={[
         styles.state,
-        note.tone === 'ok'
-          ? styles.stateOk
-          : note.tone === 'wait'
-            ? styles.stateWait
-            : styles.stateOff,
+        tone === 'ok' ? styles.stateOk : tone === 'wait' ? styles.stateWait : styles.stateOff,
       ]}
       accessibilityLiveRegion="polite"
+      testID={`pre-order-state-${tone}`}
     >
       <Ionicons name={note.icon} size={iconSize.sm} color={ink} />
       <View style={styles.stateText}>
