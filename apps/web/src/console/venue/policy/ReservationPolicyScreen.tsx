@@ -14,6 +14,7 @@ import { PageHeader } from '../../ui/PageHeader';
 import { useToast } from '../../ui/toast';
 import { useUnsavedChangesGuard } from '../useUnsavedChangesGuard';
 import { useVenueOutlet } from '../VenueLayout';
+import { PRE_ORDER_CARD_ID, PreOrderSettingsCard } from './PreOrderSettingsCard';
 import {
   EXAMPLE_START,
   POLICY_GROUPS,
@@ -287,6 +288,10 @@ function PolicyForm({
               </a>
             );
           })}
+          {/* Saved on its own (its own endpoint), but read with the rest. */}
+          <a href={`#${PRE_ORDER_CARD_ID}`}>
+            <span>{t('preOrders.title')}</span>
+          </a>
         </nav>
 
         <div className="yc-pol-groups">
@@ -325,6 +330,7 @@ function PolicyForm({
               </p>
             </section>
           ))}
+          <PreOrderSettingsCard branchId={branchId} />
         </div>
       </div>
 

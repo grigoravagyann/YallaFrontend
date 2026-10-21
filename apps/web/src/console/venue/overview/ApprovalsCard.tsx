@@ -22,6 +22,7 @@ import {
   isAnsweredElsewhere,
   isAwaitingEarlierGuest,
 } from './decisionFailure';
+import { BookingPreOrder } from './BookingPreOrder';
 import { GuestRecordLine } from './GuestRecordLine';
 
 /** Under five minutes left the clock turns amber; under one, red (the Main artboard). */
@@ -294,6 +295,9 @@ function ApprovalRow({
           <b>{t('reservations.note')}</b> {booking.note}
         </p>
       ) : null}
+
+      {/* Dishes the guest chose ahead (2026-10-21): part of what is decided on. */}
+      <BookingPreOrder booking={booking} />
 
       {expired ? (
         <div className="yc-ap-foot">

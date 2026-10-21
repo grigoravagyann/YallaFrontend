@@ -19,9 +19,11 @@ import {
   useCreateMenuItem,
   useDeleteCategory,
   useDeleteMenuItem,
+  usePreOrderSettings,
   useReorderMenuCategories,
   useReorderMenuItems,
   useRemoveMenuItemPhoto,
+  useSavePreOrderSettings,
   useSetMenuItemAvailability,
   useUpdateCategory,
   useUpdateMenuItem,
@@ -83,6 +85,10 @@ type Deleting =
  * - **A one-off edit in March.** The same person comes back to mark the trout
  *   sold out, and remembers nothing: the switch is on the row.
  *
+ * Where the branch takes pre-orders (2026-10-21), a dish can be switched off
+ * for them on its row too: the policy's pre-order settings keep the whole
+ * list, and the switch sends it with this dish in or out.
+ *
  * A table rather than cards: somebody scanning eighty dishes for the one with
  * the wrong price needs density. The search looks through every category.
  * Categories and dishes move with the arrows (and by dragging); the order is
@@ -124,6 +130,12 @@ export function MenuEditorScreen() {
   );
   /** The dish whose sold-out switch is on its way to the server. */
   const [availabilityFor, setAvailabilityFor] = useState<string | null>(null);
+  /** The dish whose pre-order switch is being saved: one at a time, as availability. */
+  const [preOrderFor, setPreOrderFor] = useState<string | null>(null);
+  const preOrderQuery = usePreOrderSettings(branchId ?? undefined);
+  const savePreOrders = useSavePreOrderSettings(branchId ?? undefined);
+  /** The branch's pre-order settings, while it takes them: the column is there only then. */
+  const preOrders = preOrderQuery.data?.acceptsPreOrders ? preOrderQuery.data : null;
   /** A reorder in flight: its orders are computed from the list as it was. */
   const [moving, setMoving] = useState(false);
 
@@ -288,6 +300,37 @@ export function MenuEditorScreen() {
           ),
         onError: () => failed(t('menu.dish.availabilityFailed')),
         onSettled: () => setAvailabilityFor(null),
+      },
+    );
+  }
+
+  /**
+   * In or out of pre-orders. The server keeps one list for the branch, so the
+   * whole list goes, as the server last answered it, with this dish changed.
+   * Pre-orders that already have the dish keep it (the waiter sees it flagged).
+   */
+  function togglePreOrder(item: AdminMenuItem): void {
+    if (!preOrders || preOrderFor !== null) return;
+    const excluded = preOrders.excludedMenuItemIds;
+    const offered = !excluded.includes(item.id);
+    setPreOrderFor(item.id);
+    savePreOrders.mutate(
+      {
+        acceptsPreOrders: preOrders.acceptsPreOrders,
+        minutesBefore: preOrders.minutesBefore,
+        excludedMenuItemIds: offered
+          ? [...excluded, item.id]
+          : excluded.filter((id) => id !== item.id),
+      },
+      {
+        onSuccess: () =>
+          toast.say(
+            offered
+              ? t('menu.dish.preOrderOff', { name: item.name })
+              : t('menu.dish.preOrderOn', { name: item.name }),
+          ),
+        onError: () => failed(t('menu.dish.preOrderFailed')),
+        onSettled: () => setPreOrderFor(null),
       },
     );
   }
@@ -697,7 +740,7 @@ export function MenuEditorScreen() {
             </div>
           ) : (
             <div className="yc-tscroll">
-              <table className="yc-tbl yc-mn-tbl">
+              <table className={preOrders ? 'yc-tbl yc-mn-tbl has-preorder' : 'yc-tbl yc-mn-tbl'}>
                 <thead>
                   <tr>
                     <th scope="col">{t('menu.column.dish')}</th>
@@ -705,6 +748,11 @@ export function MenuEditorScreen() {
                       {t('menu.column.price')}
                     </th>
                     <th scope="col">{t('menu.column.available')}</th>
+                    {preOrders ? (
+                      <th scope="col" className="yc-mn-po">
+                        {t('menu.column.preOrder')}
+                      </th>
+                    ) : null}
                     <th scope="col">{t('menu.column.status')}</th>
                     <th scope="col">
                       <span className="yc-sr">{t('menu.column.actions')}</span>
@@ -781,6 +829,26 @@ export function MenuEditorScreen() {
                             {item.isAvailable ? t('menu.available') : t('menu.soldOut')}
                           </span>
                         </td>
+                        {preOrders ? (
+                          <td className="yc-mn-po">
+                            {/* The switch alone: the column says what it is,
+                                its knob and its name say which way it is. */}
+                            <button
+                              type="button"
+                              className="yc-sw"
+                              role="switch"
+                              aria-checked={!preOrders.excludedMenuItemIds.includes(item.id)}
+                              aria-label={t('menu.dish.preOrderAria', { name: item.name })}
+                              aria-disabled={preOrderFor !== null}
+                              title={
+                                preOrders.excludedMenuItemIds.includes(item.id)
+                                  ? t('menu.preOrderNo')
+                                  : t('menu.preOrderYes')
+                              }
+                              onClick={() => togglePreOrder(item)}
+                            />
+                          </td>
+                        ) : null}
                         <td>
                           {gaps.length > 0 ? (
                             <span className="yc-pill yc-pill-amber">

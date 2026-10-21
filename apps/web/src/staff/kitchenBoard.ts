@@ -30,9 +30,28 @@ export type TicketBand = 'fresh' | 'waiting' | 'late' | 'ready' | 'unsent';
 export function ticketBand(order: OrderQueueEntry): TicketBand {
   if (order.status === 'ready') return 'ready';
   if (order.status === 'new') return 'unsent';
-  if (order.waitingMinutes >= TICKET_LATE_MINUTES) return 'late';
-  if (order.waitingMinutes >= TICKET_WAITING_MINUTES) return 'waiting';
+  // A pre-order is cooked for its booking: it ages from the start, not the send.
+  const minutes = ticketMinutesFromStart(order) ?? order.waitingMinutes;
+  if (minutes >= TICKET_LATE_MINUTES) return 'late';
+  if (minutes >= TICKET_WAITING_MINUTES) return 'waiting';
   return 'fresh';
+}
+
+/**
+ * A pre-order ticket's minutes from its booking's start (2026-10-21): negative
+ * before it — still to go — and how long past it after. Null for any other
+ * ticket.
+ *
+ * From the server's own count, as every age on the board: the ticket was
+ * placed at `placedAtUtc` and the server says `waitingMinutes` have passed, so
+ * the server's now is their sum, and the tablet's clock is not asked.
+ */
+export function ticketMinutesFromStart(order: OrderQueueEntry): number | null {
+  if (!order.preOrder) return null;
+  const placed = Date.parse(order.placedAtUtc);
+  const start = Date.parse(order.preOrder.startUtc);
+  if (!Number.isFinite(placed) || !Number.isFinite(start)) return null;
+  return order.waitingMinutes - Math.round((start - placed) / 60_000);
 }
 
 export interface KitchenCounts {

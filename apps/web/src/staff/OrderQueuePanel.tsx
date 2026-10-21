@@ -9,6 +9,7 @@ import {
   kitchenCounts,
   sortTickets,
   ticketBand,
+  ticketMinutesFromStart,
   type TicketSort,
 } from './kitchenBoard';
 import { useBranchFormat } from './useBranchFormat';
@@ -35,6 +36,10 @@ import { useBranchFormat } from './useBranchFormat';
  * is what is coming, but only a waiter can send it, so the kitchen is told what
  * it is waiting for. The waiter's tab keeps that send beside the ticket, so a
  * waiter who sees one they forgot does not have to go and find it.
+ *
+ * **A pre-order says so** (2026-10-21): "Pre-order · Table 11 · 19:30" over
+ * its lines — cooked for the booking's time, and sent before the party sat,
+ * so it may have no tab yet. It moves on with the same one action.
  */
 
 export interface OrderQueuePanelProps {
@@ -174,21 +179,35 @@ export function OrderQueuePanel(props: OrderQueuePanelProps) {
             const band = ticketBand(order);
             const queued = pending.has(order.orderId);
             const heldBy = props.heldOrders?.get(order.orderId);
-            const age = t('kitchen.ticket.age', { count: order.waitingMinutes });
+            // A pre-order counts to its booking's start, then from it.
+            const fromStart = ticketMinutesFromStart(order);
+            const age =
+              fromStart !== null && fromStart < 0
+                ? t('kitchen.ticket.dueIn', { count: -fromStart })
+                : t('kitchen.ticket.age', { count: fromStart ?? order.waitingMinutes });
             const sender = order.placedByName
               ? firstName(order.placedByName)
               : t('kitchen.fromApp');
+            const preOrder = order.preOrder
+              ? t('kitchen.ticket.preOrder', {
+                  label: order.tableLabel,
+                  time: order.preOrder.localStartTime,
+                })
+              : null;
+            const name = t('kitchen.ticket.name', {
+              label: order.tableLabel,
+              minutes: t('kitchen.ticket.minutes', { count: order.waitingMinutes }),
+              band: t(`kitchen.band.${band}`),
+              items: order.lines.map((line) => `${line.quantity} ${line.name}`).join(', '),
+            });
 
             return (
               <li
                 key={order.orderId}
-                className={`ft-ticket is-${band}`}
-                aria-label={t('kitchen.ticket.name', {
-                  label: order.tableLabel,
-                  minutes: t('kitchen.ticket.minutes', { count: order.waitingMinutes }),
-                  band: t(`kitchen.band.${band}`),
-                  items: order.lines.map((line) => `${line.quantity} ${line.name}`).join(', '),
-                })}
+                className={`ft-ticket is-${band}${preOrder ? ' is-preorder' : ''}`}
+                aria-label={
+                  preOrder ? t('kitchen.ticket.withPreOrder', { marker: preOrder, name }) : name
+                }
               >
                 <div className="ft-ticket-head">
                   <span className="ft-ticket-label" aria-hidden="true">
@@ -209,6 +228,8 @@ export function OrderQueuePanel(props: OrderQueuePanelProps) {
                     {band === 'late' ? t('kitchen.ticket.late', { age }) : age}
                   </span>
                 </div>
+
+                {preOrder ? <p className="ft-ticket-preorder">{preOrder}</p> : null}
 
                 <ul className="ft-ticket-lines">
                   {order.lines.map((line) => {

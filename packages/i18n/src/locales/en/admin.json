@@ -772,7 +772,8 @@
       "available": "In stock",
       "actions": "Actions",
       "dish": "Dish",
-      "status": "Status"
+      "status": "Status",
+      "preOrder": "Pre-order"
     },
     "incomplete": {
       "showOnly": "Show only these",
@@ -896,8 +897,14 @@
       "deactivatedInstead": "“{{name}}” has been ordered, so it was kept and marked sold out instead",
       "deleteFailed": "Could not delete the dish. Try again.",
       "photoRemoved": "“{{name}}” has no photo now, so guests do not see it",
-      "photoRemoveFailed": "Could not remove the photo. Try again."
-    }
+      "photoRemoveFailed": "Could not remove the photo. Try again.",
+      "preOrderAria": "{{name}}: can be pre-ordered",
+      "preOrderOn": "“{{name}}” can be pre-ordered again",
+      "preOrderOff": "“{{name}}” is no longer offered for pre-order. Pre-orders that already have it keep it.",
+      "preOrderFailed": "Could not change that. Try again."
+    },
+    "preOrderYes": "Offered",
+    "preOrderNo": "Not offered"
   },
   "hours": {
     "unsaved": "Unsaved changes",
@@ -2396,5 +2403,52 @@
     "unmarked": "{{count}} not marked",
     "newGuest": "New guest",
     "blockedUntil": "Blocked until {{date}}, {{time}}"
+  },
+  "preOrders": {
+    "title": "Pre-orders",
+    "body": "Guests with a booking can choose dishes ahead, at the prices of the moment they choose them. Nothing is cooked until a waiter says the party is coming.",
+    "accept": {
+      "label": "We accept pre-orders",
+      "why": "Guests add dishes to a booking in the app or from their booking link. Turning it off stops new pre-orders and changes; the ones already made stay, and waiters still see and send them."
+    },
+    "minutesBefore": {
+      "label": "When the waiter’s card appears",
+      "why": "How long before the booking the pre-order appears on the floor tablet, with the guest’s number to call unless they have said they are on the way.",
+      "unit": "min before"
+    },
+    "rules": {
+      "title": "How it works",
+      "lock_one": "Guests can change a pre-order until {{count}} hour before the booking. After that it is locked: to change it, they call you.",
+      "lock_other": "Guests can change a pre-order until {{count}} hours before the booking. After that it is locked: to change it, they call you.",
+      "ask": "{{minutes}} minutes before, a guest with a pre-order is asked whether they are on the way. A “yes” shows on the waiter’s card, so nobody has to phone.",
+      "waiter": "Nothing goes to the kitchen until a waiter taps “Coming → Send to kitchen”. “Not coming” keeps it out of the kitchen; it can still be sent if they arrive.",
+      "price": "A dish keeps the price it had when it was chosen. A pre-order sent to the kitchen for a party that never comes is recorded as a no-show."
+    },
+    "dishes_one": "{{count}} dish is not offered for pre-order.",
+    "dishes_other": "{{count}} dishes are not offered for pre-order.",
+    "dishesAll": "Every dish on the menu can be pre-ordered. Switch off the ones that cannot on the Menu, on each dish’s row.",
+    "dishesLink": "Open the menu",
+    "save": "Save pre-order settings",
+    "saved": "Pre-order settings saved",
+    "saveFailed": "Could not save the pre-order settings.",
+    "noChanges": "Nothing has changed.",
+    "unsaved": "Unsaved changes",
+    "booking": {
+      "title": "Pre-order",
+      "dishes": "Pre-order dishes",
+      "quantity": "{{count}}×",
+      "soldOutNow": "sold out now",
+      "onTheWay": "On the way",
+      "note": "Note:",
+      "total": "Total {{amount}}"
+    },
+    "state": {
+      "editable": "The guest can still change it",
+      "locked": "Locked: the guest calls to change it",
+      "sent": "Sent to the kitchen",
+      "notComing": "Marked not coming",
+      "cancelled": "Cancelled",
+      "unknown": "Status unknown"
+    }
   }
 }

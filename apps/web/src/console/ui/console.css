@@ -7845,3 +7845,121 @@ textarea.yc-ctl {
     grid-template-columns: 110px minmax(0, 1fr) 96px;
   }
 }
+
+/* --------------------------------------------------------------------------
+ * Pre-orders on a booking (2026-10-21): the Policy card's rules and its own
+ * save, and a booking's pre-order where the console lists the booking.
+ * -------------------------------------------------------------------------- */
+.yc-po-rules {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  padding: var(--space-lg) 20px;
+  border-bottom: 1px solid var(--console-line-soft);
+  font-size: var(--console-text-label);
+}
+
+.yc-po-rules ul {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0;
+  padding-left: 1.2em;
+  color: var(--console-muted);
+}
+
+.yc-po-rules p {
+  margin: 0;
+}
+
+.yc-po-save {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  padding: var(--space-md) 20px;
+  color: var(--console-muted);
+  font-size: var(--console-text-label);
+}
+
+.yc-po {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: var(--space-sm);
+  padding: var(--space-md) 14px;
+  border: 1px solid var(--console-line-soft);
+  border-radius: var(--console-radius-control);
+  background: var(--console-surface-muted);
+  font-size: var(--console-text-label);
+}
+
+.yc-po-h {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-sm);
+}
+
+.yc-po-h b {
+  font-weight: var(--font-weight-semibold);
+}
+
+.yc-po-lines {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.yc-po-lines li {
+  display: grid;
+  grid-template-columns: 2.5rem minmax(0, 1fr) auto;
+  gap: var(--space-sm);
+  align-items: baseline;
+  padding: 4px 0;
+  border-bottom: 1px solid var(--console-line-soft);
+}
+
+.yc-po-qty,
+.yc-po-sum {
+  font-variant-numeric: tabular-nums;
+  font-weight: var(--font-weight-semibold);
+}
+
+.yc-po-dish {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px var(--space-sm);
+}
+
+.yc-po-note {
+  flex-basis: 100%;
+  color: var(--console-muted);
+}
+
+.yc-po-text,
+.yc-po-total {
+  margin: 0;
+}
+
+.yc-po-total {
+  font-variant-numeric: tabular-nums;
+  font-weight: var(--font-weight-semibold);
+}
+
+/* The menu's pre-order column: a switch under a short heading, and room made
+   for it in the dish column, so the row's actions stay in view at 1440. */
+.yc-tbl .yc-mn-po {
+  padding-inline: var(--space-sm);
+  text-align: center;
+}
+
+/* The heading may break where the copy allows (a soft hyphen in hy and ru). */
+.yc-tbl th.yc-mn-po {
+  white-space: normal;
+  hyphens: manual;
+}
+
+.yc-mn-tbl.has-preorder .yc-dish {
+  min-width: 170px;
+}

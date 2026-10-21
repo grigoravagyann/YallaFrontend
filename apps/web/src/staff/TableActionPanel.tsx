@@ -1,6 +1,7 @@
 import type {
   AffectedReservation,
   DerivedTableState,
+  DuePreOrder,
   FloorTable,
   GuestRecord,
   ReleaseOutcome,
@@ -17,6 +18,7 @@ import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import { GuestRecordLine } from '../console/venue/overview/GuestRecordLine';
 import { AdmissionDecision, type AdmissionOutcome, type AdmissionSubject } from './AdmissionPanel';
 import { billRequestText } from './billRequestText';
+import { PreOrderCard, type PreOrderOutcome } from './PreOrderPanel';
 import { seatedMinutes } from './seatedMinutes';
 import { tableCardText, tableTone } from './tableCard';
 import { useBranchFormat } from './useBranchFormat';
@@ -95,6 +97,12 @@ export interface TableActionPanelProps {
   readonly admission?: AdmissionSubject | null | undefined;
   readonly branchId?: string | null | undefined;
   readonly onAdmissionDecided?: ((outcome: AdmissionOutcome) => void) | undefined;
+  /**
+   * The pre-order of this table's booking, while it is on the rail: the same
+   * card and the same two actions (online only).
+   */
+  readonly preOrder?: DuePreOrder | null | undefined;
+  readonly onPreOrderDone?: ((outcome: PreOrderOutcome) => void) | undefined;
   readonly onOrder: () => void;
   readonly onClose: () => void;
 }
@@ -279,6 +287,22 @@ export function TableActionPanel(props: TableActionPanelProps) {
       </header>
 
       <div className="tp-body">
+        {/* First, whatever the table's state: the kitchen is waiting on the
+            answer, and it is what the waiter opened the table for. */}
+        {props.preOrder && props.branchId ? (
+          <section className="tp-preorder" aria-labelledby={`${headingId}-po`}>
+            <h3 id={`${headingId}-po`}>{t('preOrders.panelTitle')}</h3>
+            <PreOrderCard
+              branchId={props.branchId}
+              item={props.preOrder}
+              timeZoneId={timeZoneId}
+              online={online}
+              variant="panel"
+              onDone={(outcome) => props.onPreOrderDone?.(outcome)}
+            />
+          </section>
+        ) : null}
+
         {/* --- Free ---------------------------------------------------------- */}
         {status === 'free' ? (
           <>

@@ -106,9 +106,22 @@ export function applyFloorChanges(
     // cancelled, a no-show marked or withdrawn (signal 5). The row's status is
     // what the save saw, not a transition: only a read of the floor says what
     // the table's next booking is now (wire §0a).
-    if (change.signal === 'bookingCancelledByBlock' || change.signal === 'bookingChanged') {
+    //
+    // A signal this build does not know: read, never guessed at — and never
+    // folded as an admission, which would clear a scan's waiting flag.
+    if (
+      change.signal === 'bookingCancelledByBlock' ||
+      change.signal === 'bookingChanged' ||
+      change.signal === 'unknown'
+    ) {
       return { kind: 'gap', expected: floor.lastSequence + 1, received: change.sequence };
     }
+    // A pre-order at this table's booking changed (signal 6): created, edited,
+    // sent, marked not coming, put on the tab, its ticket moved, the guest on
+    // the way. A same-status row about the booking, not the table: the rail is
+    // read again (`readsPreOrderRail`) and the table is left as it is — the
+    // admission fold below would clear a scan's waiting flag.
+    if (change.signal === 'preOrderChanged') continue;
     if (change.signal) {
       const awaiting = change.signal === 'tabAwaitingAdmission';
       const sameStatus = change.fromStatus === change.toStatus;

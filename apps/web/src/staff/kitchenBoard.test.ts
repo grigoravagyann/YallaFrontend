@@ -10,6 +10,7 @@ import {
   projectOrders,
   sortTickets,
   ticketBand,
+  ticketMinutesFromStart,
 } from './kitchenBoard';
 import type { QueuedCommand } from './commands/types';
 
@@ -33,6 +34,39 @@ function ticket(overrides: Partial<OrderQueueEntry> = {}): OrderQueueEntry {
     ...overrides,
   };
 }
+
+describe('a pre-order ticket (2026-10-21)', () => {
+  /** Sent 30 minutes before a 15:00 booking; the server counts `minutes` since then. */
+  const preOrder = (minutes: number, status: OrderQueueEntry['status'] = 'inKitchen') =>
+    ticket({
+      tabId: null,
+      status,
+      placedAtUtc: '2026-10-21T14:30:00Z',
+      waitingMinutes: minutes,
+      preOrder: {
+        reservationId: 'r1',
+        startUtc: '2026-10-21T15:00:00Z',
+        localStartTime: '19:00',
+        partySize: 4,
+        guestName: 'Anna',
+      },
+    });
+
+  it("is timed to its booking, by the server's count: minutes to go before, late after", () => {
+    expect(ticketMinutesFromStart(preOrder(10))).toBe(-20);
+    expect(ticketMinutesFromStart(preOrder(30))).toBe(0);
+    expect(ticketMinutesFromStart(preOrder(45))).toBe(15);
+    expect(ticketMinutesFromStart(ticket())).toBeNull();
+  });
+
+  it('is fresh until the booking starts, then ages from the start', () => {
+    expect(ticketBand(preOrder(25))).toBe('fresh');
+    expect(ticketBand(preOrder(35))).toBe('fresh');
+    expect(ticketBand(preOrder(36))).toBe('waiting');
+    expect(ticketBand(preOrder(42))).toBe('late');
+    expect(ticketBand(preOrder(50, 'ready'))).toBe('ready');
+  });
+});
 
 describe('the band a ticket is in', () => {
   it('is fresh under 6 minutes, waiting from 6, late from 12', () => {

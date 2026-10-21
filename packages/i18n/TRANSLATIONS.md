@@ -1293,6 +1293,34 @@ review every string in `src/locales/hy` and `src/locales/ru`.**
   takes only `{{place}}`), and staff `preOrders.error.*` (the waiter's Send and
   Not coming, said by `preOrderActionFailure`). hy says «նախնական պատվեր» for
   a pre-order and avoids gluing suffixes onto `{{place}}` and `{{name}}`.
+- `staff` and `admin` — pre-orders on the floor tablet and in the venue
+  console (2026-10-21), provisional and **not** reviewed. hy says «նախապատվեր»
+  (the lead's word for the rail section «Նախապատվերներ»), and staff
+  `preOrders.error.notSendable` / `alreadySent` / `notFound` were changed from
+  «նախնական պատվեր» to match; the diner bundle keeps its own wording until it
+  is aligned. Never glue a suffix onto `{{label}}`, `{{name}}` or `{{time}}`.
+  - staff `preOrders.*` (the rail's card and the table panel's section):
+    `send` / `notComing` are the approved labels «Գալիս են → Ուղարկել խոհանոց» and
+    «Չեն գալիս / չեն պատասխանում» (`sendTable` / `notComingTable` are the same
+    with the table, for screen readers, and must start with the visible label);
+    `onTheWay` «Հյուրը հաստատել է, որ ճանապարհին է»; `confirmBody` and
+    `notComingNotice` must keep saying it can **still be sent** if they arrive;
+    `soldOutNow` flags a dish sold out since it was chosen — it is still on the
+    pre-order; `waitsForTable` says a sent one joins the bill when they sit.
+    staff `kitchen.ticket.preOrder` («Նախապատվեր · Սեղան {{label}} · {{time}}»)
+    and `kitchen.ticket.withPreOrder` (the ticket's screen-reader name), and
+    `kitchen.ticket.dueIn_*` (a pre-order ticket counts down to its booking).
+  - admin `preOrders.*` (the Policy card, and a booking's pre-order in the
+    requests): `rules.lock_*` must keep the **hours** and that the guest **calls
+    the venue** after; `rules.ask` the minutes of the "on your way" question;
+    `rules.waiter` that **nothing is cooked** until a waiter sends it and that
+    "not coming" can still be sent; `rules.price` the locked price and that a
+    sent, never-collected pre-order is a **no-show**; `accept.why` that turning
+    it off **keeps** the pre-orders already made. admin `menu.column.preOrder`,
+    `menu.preOrderYes` / `preOrderNo`, `menu.dish.preOrder*` (`preOrderOff` must
+    say pre-orders that already have the dish **keep** it). hy and ru
+    `menu.column.preOrder` carry a soft hyphen (U+00AD) so the column heading
+    can break and the menu table keeps its row actions in view; keep one there.
 
 The Russian bundle carries four plural categories (`one`/`few`/`many`/`other`)
 where Armenian and English carry two. That is correct CLDR, not duplication, and
