@@ -1291,14 +1291,13 @@ review every string in `src/locales/hy` and `src/locales/ru`.**
   the dish is to be **removed** to save — never that the pre-order is gone),
   `notifications.kind.bookingOnYourWay.*` ("Are you on your way?" — the body
   takes only `{{place}}`), and staff `preOrders.error.*` (the waiter's Send and
-  Not coming, said by `preOrderActionFailure`). hy says «նախնական պատվեր» for
+  Not coming, said by `preOrderActionFailure`). hy says «նախապատվեր» for
   a pre-order and avoids gluing suffixes onto `{{place}}` and `{{name}}`.
 - `staff` and `admin` — pre-orders on the floor tablet and in the venue
   console (2026-10-21), provisional and **not** reviewed. hy says «նախապատվեր»
   (the lead's word for the rail section «Նախապատվերներ»), and staff
   `preOrders.error.notSendable` / `alreadySent` / `notFound` were changed from
-  «նախնական պատվեր» to match; the diner bundle keeps its own wording until it
-  is aligned. Never glue a suffix onto `{{label}}`, `{{name}}` or `{{time}}`.
+  «նախնական պատվեր» to match, as were the diner bundle's. Never glue a suffix onto `{{label}}`, `{{name}}` or `{{time}}`.
   - staff `preOrders.*` (the rail's card and the table panel's section):
     `send` / `notComing` are the approved labels «Գալիս են → Ուղարկել խոհանոց» and
     «Չեն գալիս / չեն պատասխանում» (`sendTable` / `notComingTable` are the same
@@ -1330,7 +1329,7 @@ review every string in `src/locales/hy` and `src/locales/ru`.**
   before booking where the branch takes pre-orders). hy now says «նախապատվեր»
   for a pre-order **everywhere**, the user's word — the guest-facing
   `preOrder.error.*` and `notifications.kind.bookingOnYourWay.body` were moved
-  to it from «նախնական պատվեր» (the line above predates that); ru «предзаказ».
+  to it from «նախնական պատվեր»; ru «предзаказ».
   A reviewer must keep: `preOrder.state.lockedBody` naming the **2 hours** and
   **call the venue**; `preOrder.state.notComingBody` saying the waiter **can
   still send it** when the guest arrives; `preOrder.onYourWay.cantCome` being a
