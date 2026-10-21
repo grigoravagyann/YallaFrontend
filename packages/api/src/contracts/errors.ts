@@ -788,6 +788,24 @@ export class EnrolmentCodeSpentError extends ApiError {
 }
 
 /**
+ * The enrolment code was real but its 24 hours are up.
+ *
+ * Told apart from a mistyped code because the fix differs: retyping an expired
+ * code never works, so the screen sends the staff to a manager for a new one
+ * instead of having them check each character again.
+ */
+export class EnrolmentCodeExpiredError extends ApiError {
+  constructor(options: { url: string; requestId?: string | undefined }) {
+    super('That enrolment code has expired.', {
+      status: 401,
+      url: options.url,
+      requestId: options.requestId,
+    });
+    this.name = 'EnrolmentCodeExpiredError';
+  }
+}
+
+/**
  * Those four digits were not recognised.
  *
  * Deliberately says nothing more. Wrong PIN, unknown staff member and somebody

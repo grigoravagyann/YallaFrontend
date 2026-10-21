@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   DeviceRevokedError,
+  EnrolmentCodeExpiredError,
   EnrolmentCodeSpentError,
   PinLockedError,
   PinRejectedError,
@@ -251,5 +252,18 @@ describe('F13 — a mock tablet enrols with a console code, signs in by PIN, and
     expect(
       await caught(later.enrol({ code, deviceId: 'dev-9', deviceName: 'Late' })),
     ).toBeInstanceOf(EnrolmentCodeSpentError);
+  });
+
+  it('calls an unused code past its day expired, not mistyped', async () => {
+    const registry = createMockRegistry(() => null);
+    const console_ = createConsoleMockGateway({ role: 'owner', registry, now: () => T0 });
+    const { code } = await console_.createEnrolmentCode('b-lumen-north');
+    const later = createMockStaffAuth({
+      registry,
+      now: () => new Date(T0.getTime() + 25 * 60 * 60_000),
+    });
+    expect(
+      await caught(later.enrol({ code, deviceId: 'dev-9', deviceName: 'Late' })),
+    ).toBeInstanceOf(EnrolmentCodeExpiredError);
   });
 });

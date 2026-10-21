@@ -1,23 +1,121 @@
 {
   "v": 3,
-  "createdOnFiles": { "v": 1, "at": "2026-10-19T08:40:00Z" },
+  "createdOnFiles": {
+    "v": 1,
+    "at": "2026-10-19T08:40:00Z"
+  },
   "title": "Yalla Floor Tablet",
-  "launch": { "view": "canvas" },
+  "launch": {
+    "view": "canvas"
+  },
   "pages": [],
   "boards": {
-    "Main.dc.html": { "x": 0, "y": 0, "w": 1280, "h": 800, "title": "Սրահ", "is_interactive": true },
-    "Table.dc.html": { "x": 1360, "y": 0, "w": 1280, "h": 800, "title": "Սեղան", "is_interactive": true },
-    "Order.dc.html": { "x": 2720, "y": 0, "w": 1280, "h": 800, "title": "Պատվեր", "is_interactive": true },
-    "Tab.dc.html": { "x": 4080, "y": 0, "w": 1280, "h": 800, "title": "Հաշիվ", "is_interactive": true },
-    "Cash.dc.html": { "x": 0, "y": 920, "w": 1280, "h": 800, "title": "Կանխիկ", "is_interactive": true },
-    "Kitchen.dc.html": { "x": 1360, "y": 920, "w": 1280, "h": 800, "title": "Խոհանոց", "is_interactive": true },
-    "Pin.dc.html": { "x": 2720, "y": 920, "w": 1280, "h": 800, "title": "PIN մուտք", "is_interactive": true },
-    "Conflicts.dc.html": { "x": 4080, "y": 920, "w": 1280, "h": 800, "title": "Օֆլայն և որոշումներ", "is_interactive": true }
+    "Main.dc.html": {
+      "x": 0,
+      "y": 0,
+      "w": 1280,
+      "h": 800,
+      "title": "Սրահ",
+      "is_interactive": true
+    },
+    "Table.dc.html": {
+      "x": 1360,
+      "y": 0,
+      "w": 1280,
+      "h": 800,
+      "title": "Սեղան",
+      "is_interactive": true
+    },
+    "Order.dc.html": {
+      "x": 2720,
+      "y": 0,
+      "w": 1280,
+      "h": 800,
+      "title": "Պատվեր",
+      "is_interactive": true
+    },
+    "Tab.dc.html": {
+      "x": 4080,
+      "y": 0,
+      "w": 1280,
+      "h": 800,
+      "title": "Հաշիվ",
+      "is_interactive": true
+    },
+    "Cash.dc.html": {
+      "x": 0,
+      "y": 920,
+      "w": 1280,
+      "h": 800,
+      "title": "Կանխիկ",
+      "is_interactive": true
+    },
+    "Kitchen.dc.html": {
+      "x": 1360,
+      "y": 920,
+      "w": 1280,
+      "h": 800,
+      "title": "Խոհանոց",
+      "is_interactive": true
+    },
+    "Pin.dc.html": {
+      "x": 2720,
+      "y": 920,
+      "w": 1280,
+      "h": 800,
+      "title": "PIN մուտք",
+      "is_interactive": true
+    },
+    "Conflicts.dc.html": {
+      "x": 4080,
+      "y": 920,
+      "w": 1280,
+      "h": 800,
+      "title": "Օֆլայն և որոշումներ",
+      "is_interactive": true
+    },
+    "Enrol.dc.html": {
+      "x": 0,
+      "y": 1840,
+      "w": 1280,
+      "h": 800,
+      "title": "Պլանշետի միացում",
+      "is_interactive": true
+    }
   },
-  "order": ["Main.dc.html", "Table.dc.html", "Order.dc.html", "Tab.dc.html", "Cash.dc.html", "Kitchen.dc.html", "Pin.dc.html", "Conflicts.dc.html"],
+  "order": [
+    "Main.dc.html",
+    "Table.dc.html",
+    "Order.dc.html",
+    "Tab.dc.html",
+    "Cash.dc.html",
+    "Kitchen.dc.html",
+    "Pin.dc.html",
+    "Conflicts.dc.html",
+    "Enrol.dc.html"
+  ],
   "notes": {
-    "row1": { "x": 0, "y": -300, "text": "Սրահի պլանշետ · մատուցողի հոսքը", "kind": "title1", "maxW": 5360 },
-    "row2": { "x": 0, "y": 620, "text": "Վճարում, խոհանոց, մուտք և օֆլայն", "kind": "title1", "maxW": 5360 }
+    "row1": {
+      "x": 0,
+      "y": -300,
+      "text": "Սրահի պլանշետ · մատուցողի հոսքը",
+      "kind": "title1",
+      "maxW": 5360
+    },
+    "row2": {
+      "x": 0,
+      "y": 620,
+      "text": "Վճարում, խոհանոց, մուտք և օֆլայն",
+      "kind": "title1",
+      "maxW": 5360
+    },
+    "row3": {
+      "x": 0,
+      "y": 1540,
+      "text": "Պլանշետի առաջին միացում",
+      "kind": "title1",
+      "maxW": 5360
+    }
   },
   "designSystems": []
 }

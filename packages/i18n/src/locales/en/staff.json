@@ -737,18 +737,54 @@
     "body": "Open the browser menu and choose Install. It then opens straight to the floor, and starts without a network."
   },
   "enrol": {
-    "title": "Set this tablet up",
-    "body": "A manager generates a one-time code in the console. Type it here, once. After that the tablet remembers its branch and never shows this screen again.",
-    "revoked": "This tablet is no longer enrolled. A manager can revoke one from the console — if a device was lost, for instance. Ask for a new code.",
+    "title": "Connect this tablet to your venue",
+    "titleRevoked": "This tablet is no longer connected",
+    "revoked": "A manager disconnected this tablet from the console — if it was lost, for instance. Connecting it again needs a new code.",
+    "steps": {
+      "ask": "A manager generates a code",
+      "where": "Console → Staff → Tablets → Generate a code",
+      "type": "Type the 10-character code",
+      "name": "Name the tablet"
+    },
+    "stepDone": "Done:",
+    "rule": "A code works for 24 hours, and once. After that staff sign in with their own PIN and this screen does not come back.",
     "code": "One-time code",
+    "codeHelp": "Letters and digits only, upper or lower case",
+    "codeSkipped": "No code contains “{{char}}”: look-alikes (O, I, L, U, 0, 1) are left out",
+    "codeCount": "{{count}} / {{total}}",
     "deviceName": "What to call this device",
-    "deviceNameWhy": "This is the name a manager picks it out by in the device list.",
-    "submit": "Set up",
-    "working": "Setting up…",
-    "codeSpent": "That code has already been used. Ask for a new one — a code works exactly once.",
-    "codeWrong": "That code was not recognised. Check it and type it again.",
-    "offline": "No connection. Setting up needs the server.",
-    "failed": "Could not set this device up."
+    "deviceNameOwn": "Device name",
+    "deviceNamePlaceholder": "Or your own, e.g. Patio",
+    "deviceNameWhy": "A manager finds the tablet in the device list by this name, and can disconnect it there.",
+    "presets": {
+      "hall1": "Hall 1",
+      "hall2": "Hall 2",
+      "terrace": "Terrace",
+      "kitchen": "Kitchen",
+      "bar": "Bar"
+    },
+    "remaining_one": "{{count}} character to go",
+    "remaining_other": "{{count}} characters to go",
+    "needName": "Pick a name for the device",
+    "submit": "Connect the tablet",
+    "working": "Connecting…",
+    "failure": {
+      "wrong": "That code was not recognised.",
+      "wrongHelp": "Check each character against the manager's screen and try again.",
+      "spent": "That code has already been used.",
+      "spentHelp": "A code works exactly once. Ask the manager for a new one.",
+      "expired": "That code has expired.",
+      "expiredHelp": "A code lasts 24 hours. Ask the manager for a new one.",
+      "offline": "No connection.",
+      "offlineHelp": "Connecting needs the internet. The code stays in the field.",
+      "failed": "Could not connect this device.",
+      "failedHelp": "Try again in a few seconds. The code stays in the field."
+    },
+    "done": {
+      "title": "The tablet is connected",
+      "body": "As “{{name}}”. Staff can now sign in with their PIN.",
+      "continue": "Go to the PIN pad"
+    }
   },
   "pin": {
     "branchUnknown": "Branch unknown",

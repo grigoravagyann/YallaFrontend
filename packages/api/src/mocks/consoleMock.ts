@@ -65,6 +65,7 @@ const GENERAL_MANAGER_HAS_NO_BRANCH =
   'A general manager runs every branch, so leave the branch empty.';
 import type { StaffDevice, StaffMember, StaffShift, StaffSignInLink } from '../contracts/staff';
 import type { BranchPublicProfile } from '../contracts/publicProfile';
+import { ENROLMENT_CODE_ALPHABET, ENROLMENT_CODE_LENGTH } from '../contracts/staffAuth';
 import type { BranchReadiness } from '../contracts/readiness';
 import {
   MAX_MODERATION_TEXT,
@@ -4833,8 +4834,8 @@ export function createConsoleMockGateway(options: ConsoleMockOptions = {}): Cons
        * have let a client built against it meet a real code it had never been
        * laid out for.
        */
-      const alphabet = 'ABCDEFGHJKMNPQRSTVWXYZ23456789';
-      const code = Array.from({ length: 10 }, () => {
+      const alphabet = ENROLMENT_CODE_ALPHABET;
+      const code = Array.from({ length: ENROLMENT_CODE_LENGTH }, () => {
         sequence = (sequence * 1103515245 + 12345) % 2147483648;
         return alphabet[sequence % alphabet.length];
       }).join('');
