@@ -159,6 +159,25 @@ export function TableActionPanel(props: TableActionPanelProps) {
   const bookingLate = lateBy !== null && status === 'free';
   const lateOpen = bookingLate && !bookingLetGo;
   const reservationId = detail?.nextReservationId ?? null;
+  /**
+   * The table's next booking, when its pre-order card is on the rail: the
+   * party may walk in up to two hours early, their food already cooking, and
+   * must be seated on the booking so it reaches their tab (live QA 2026-10-21,
+   * bug 3). The server seats a confirmed booking whenever it is asked to; the
+   * floor's own `reservedSoon` window is only when the tablet offers it
+   * unprompted.
+   */
+  const preOrderParty =
+    props.preOrder &&
+    reservationId !== null &&
+    props.preOrder.reservationId === reservationId &&
+    props.preOrder.status === 'confirmed'
+      ? props.preOrder
+      : null;
+  const offerSeatBooking =
+    reservationId !== null &&
+    Boolean(bookingStart) &&
+    (table.state === 'reservedSoon' || preOrderParty !== null);
   /** The booking's start, dated when it is not today. */
   const bookingWhen = bookingStart ? nextBookingText(t, format.dayAndTime(bookingStart)) : null;
 
@@ -372,13 +391,18 @@ export function TableActionPanel(props: TableActionPanelProps) {
                   >
                     {t('table.action.seatWalkIn')}
                   </button>
-                  {table.state === 'reservedSoon' && reservationId && bookingStart ? (
+                  {offerSeatBooking && bookingStart ? (
                     <button
                       type="button"
                       className="tp-btn tp-sec"
                       onClick={() => onAct('seatReservation', bookedParty(detail))}
                     >
-                      {t('table.action.seatBooking', { time: format.time(bookingStart) })}
+                      {preOrderParty
+                        ? t('table.action.seatBookingGuest', {
+                            name: preOrderParty.guestName,
+                            time: format.time(bookingStart),
+                          })
+                        : t('table.action.seatBooking', { time: format.time(bookingStart) })}
                     </button>
                   ) : null}
                   <button type="button" className="tp-btn tp-sec" onClick={() => onAct('hold')}>

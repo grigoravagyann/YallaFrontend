@@ -933,6 +933,17 @@ textarea.yc-ctl {
   transform: translateX(-50%);
 }
 
+/* A page with a sticky save bar (Policy, Hours, Rooms) has it at the same
+   foot: the toast is said just above it, never over its Save (live QA
+   2026-10-21). The bar's furthest offset from the foot — at the end of the
+   page it rests on the main column's bottom padding — its height (a small
+   button and its padding), and a gap. */
+body:has(.yc-savebar) .yc-toast-region {
+  bottom: calc(
+    var(--space-xxxl) + var(--console-size-button-small) + 2 * var(--space-md) + var(--space-sm)
+  );
+}
+
 .yc-toast {
   display: flex;
   align-items: center;

@@ -34,6 +34,7 @@
       "outOfService": "Out of service",
       "returnToService": "Return to service",
       "seatBooking": "Seat the booking · {{time}}",
+      "seatBookingGuest": "Seat the booking · {{name}} · {{time}}",
       "cash": "Take cash · {{amount}}"
     },
     "warn": {
@@ -965,6 +966,7 @@
     "call": "Not confirmed they are on the way. Call:",
     "callLabel": "Call {{name}}, {{phone}}",
     "notConfirmed": "The guest has not confirmed they are on the way.",
+    "askAt": "We'll ask the guest at {{time}}.",
     "send": "Coming → Send to kitchen",
     "sendTable": "Coming → Send to kitchen, table {{label}}",
     "notComing": "Not coming / no answer",
@@ -972,6 +974,7 @@
     "confirmTitle": "Table {{label}}: not coming?",
     "confirmBody": "Nothing goes to the kitchen. If they arrive after all, you can still send it from here.",
     "confirmNotComing": "Yes, not coming",
+    "confirmKeep": "No",
     "sending": "Sending…",
     "needsOnline": "Sending a pre-order needs a connection.",
     "sentBy": "Sent to the kitchen at {{time}} by {{name}}",

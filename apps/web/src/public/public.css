@@ -3285,8 +3285,7 @@ a.pub-branch-card:hover {
 }
 
 .pub-po-chosen,
-.pub-po-menu,
-.pub-po-foot {
+.pub-po-menu {
   display: flex;
   flex-direction: column;
   gap: var(--space-sm);
@@ -3393,4 +3392,79 @@ a.pub-branch-card:hover {
   font-family: inherit;
   font-size: var(--console-text-public-label);
   line-height: 1.4;
+}
+
+/*
+ * The editor's total and Save (live QA 2026-10-21): on a phone the list of
+ * dishes runs two screens long, and a Save at its end was out of sight while
+ * the way out was not. On the manage link the bar sticks to the bottom of the
+ * screen while the editor is in view; on the done step it sits in the sheet's
+ * foot, which never scrolls.
+ */
+.pub-po-bar {
+  position: sticky;
+  bottom: 0;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  margin: 0 calc(-1 * var(--space-lg));
+  padding: var(--space-md) var(--space-lg);
+  border-top: 1px solid var(--console-line);
+  background: var(--console-surface);
+}
+
+.pub-sheet-foot .pub-po-bar {
+  position: static;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+}
+
+.pub-po-bar .pub-notice {
+  margin: 0;
+}
+
+/* One row where the two fit; on a phone the total takes its own line and Save
+   the full width under it (the label is long in Armenian). The total's huge
+   grow factor keeps Save at its own width while they share a row. */
+.pub-po-bar-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-sm) var(--space-md);
+}
+
+.pub-po-bar-total {
+  display: flex;
+  flex: 1000 0 auto;
+  align-items: baseline;
+  gap: var(--space-sm);
+  margin: 0;
+  font-size: var(--console-text-public-label);
+}
+
+.pub-po-bar-total b {
+  font-size: var(--font-size-xl);
+  line-height: 1.2;
+}
+
+.pub .pub-po-bar-row .pub-button {
+  flex: 1 0 auto;
+  width: auto;
+  max-width: 100%;
+  margin: 0;
+}
+
+/* The questions the editor asks — remove it, or drop the changes — read as
+   the link's own questions: no heading margin on top of their gap. */
+.pub-po-bar .pub-manage-confirm h3,
+.pub-po-discard h3 {
+  margin: 0;
+}
+
+/* The sheet's foot holds the bar above its own way out. */
+.pub-po-foot-bar:empty {
+  display: none;
 }

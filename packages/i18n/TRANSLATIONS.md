@@ -1353,6 +1353,21 @@ review every string in `src/locales/hy` and `src/locales/ru`.**
   `preOrder.menuUnavailable` (the link's branch is gone: not "no dishes"), and
   ru `preOrder.limit.quantity` now says «порций» («Не больше {{max}} порций
   одного блюда.»).
+  After live QA (2026-10-21), provisional and **not** reviewed: diner
+  `preOrder.noteShown` (the label before the guest's note in a read-only
+  pre-order, «Նշում՝» as the tablet and console write it — replaces
+  "`noteLabel`: "), `preOrder.discard.*` (asked before a way out drops a
+  pre-order not saved: `confirm` must say the changes are **dropped**, `keep`
+  that the guest goes on choosing; hy avoids «Չեղարկել», which next to a
+  booking reads as cancelling it); staff `preOrders.askAt` (before the "on your
+  way?" question goes out, 45 minutes before: **when** the guest will be asked
+  — never "call them"; hy «…{{time}}-ին», the lead's wording),
+  `preOrders.confirmKeep` («Ոչ» / «Нет» / "No": the not-coming question's way
+  back — never «Չեղարկել»), `table.action.seatBookingGuest` (seat the party on
+  its booking, with the guest's name and time); admin
+  `policy.bar.unsavedPreOrders` and `policy.bar.unsavedWithPreOrders_*` (the
+  Policy page's save bar naming the pre-order card's unsaved changes; its Save
+  saves them too).
 - `staff` — tablet enrolment (2026-10-21, floor-tablet `Enrol`): the whole
   `enrol.*` block was rewritten, provisional and **not** reviewed. New:
   `titleRevoked`, `steps.*` (`steps.where` names the console path and must

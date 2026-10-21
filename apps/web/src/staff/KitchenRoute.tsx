@@ -219,6 +219,7 @@ export function KitchenRoute({ identity, device, paused }: KitchenRouteProps) {
       <div className="kitchen-body">
         <OrderQueuePanel
           orders={board.orders}
+          now={minute}
           pendingOrderIds={board.pendingOrderIds}
           heldOrders={heldMarks.orders}
           onUnknownDish={menu.refetch}

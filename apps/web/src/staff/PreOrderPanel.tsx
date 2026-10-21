@@ -1,7 +1,13 @@
-import { newCommandId, preOrderActionFailure, type DuePreOrder } from '@yalla/api';
+import {
+  newCommandId,
+  onYourWayFromUtc,
+  preOrderActionFailure,
+  type DuePreOrder,
+} from '@yalla/api';
 import { useMarkPreOrderNotComing, useSendPreOrder } from '@yalla/api/react';
+import { formatPhone } from '@yalla/format';
 import { useTranslation } from '@yalla/i18n';
-import { useEffect, useId, useRef, useState } from 'react';
+import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { GuestRecordLine } from '../console/venue/overview/GuestRecordLine';
 import { ICONS, RailSection } from './FloorRail';
 import { useBranchFormat } from './useBranchFormat';
@@ -34,6 +40,18 @@ import { useBranchFormat } from './useBranchFormat';
 export function preOrderNeedsAction(item: DuePreOrder): boolean {
   const { state, sentAtUtc, notComingAtUtc } = item.preOrder;
   return (state === 'editable' || state === 'locked') && !sentAtUtc && !notComingAtUtc;
+}
+
+/**
+ * The rail's order: the cards still waiting for a waiter first, then the ones
+ * sent or marked not coming — each group as the server sorts it, by start and
+ * then table (live QA 2026-10-21: a card marked not coming stayed on top).
+ */
+export function railOrder(items: readonly DuePreOrder[]): readonly DuePreOrder[] {
+  const waiting = items.filter(preOrderNeedsAction);
+  return waiting.length === items.length
+    ? items
+    : [...waiting, ...items.filter((item) => !preOrderNeedsAction(item))];
 }
 
 /**
@@ -86,6 +104,7 @@ export function PreOrderSection(props: PreOrderSectionProps) {
   const { t } = useTranslation(['staff', 'common']);
   const format = useBranchFormat(props.timeZoneId);
   const { items } = props;
+  const ordered = useMemo(() => railOrder(items), [items]);
 
   if (props.loading || (items.length === 0 && !props.failed)) return null;
 
@@ -104,7 +123,7 @@ export function PreOrderSection(props: PreOrderSectionProps) {
               may be out of date, and their buttons with them. */}
           {props.failed ? <p className="ft-rail-empty is-failed">{t('preOrders.stale')}</p> : null}
           <ul className="ft-items">
-            {items.map((item) => (
+            {ordered.map((item) => (
               <RailCard key={item.reservationId} {...props} item={item} format={format} />
             ))}
           </ul>
@@ -284,6 +303,25 @@ export function PreOrderCard({
   }
 
   const guest = t('preOrders.guest', { name: item.guestName, count: item.partySize });
+  /**
+   * When "on your way?" goes out: the server's 45 minutes before the start
+   * (the rail does not carry the setting). Before then nobody has asked the
+   * guest anything, and a card telling the waiter to phone is wrong.
+   */
+  const askAtUtc = onYourWayFromUtc(item.startUtc);
+  const notAskedYet = new Date() < new Date(askAtUtc);
+  // Grouped as the public page writes a number; dialled as stored.
+  const shownPhone = item.guestPhone ? formatPhone(item.guestPhone) : null;
+  const phone =
+    item.guestPhone && shownPhone ? (
+      <a
+        className="approval-call"
+        href={`tel:${item.guestPhone.replace(/\s+/gu, '')}`}
+        aria-label={t('preOrders.callLabel', { name: item.guestName, phone: shownPhone })}
+      >
+        {shownPhone}
+      </a>
+    ) : null;
 
   return (
     <div className={`preorder preorder-${variant}`}>
@@ -323,7 +361,10 @@ export function PreOrderCard({
         {t('preOrders.total', { amount: format.dram(preOrder.totalDram) })}
       </p>
 
-      {/* Whether anybody has to phone: the guest said yes, or here is the number. */}
+      {/* Whether anybody has to phone: the guest said yes; or "on your way?"
+          has not gone out yet (45 minutes before), so nobody is told to call
+          — it says when it will, with the number to hand; or marked not
+          coming, the number alone; or here is the number to call. */}
       {sent || gone ? null : item.guestConfirmedOnWayAtUtc ? (
         <p className="preorder-onway">
           <svg className="ft-icon" viewBox="0 0 24 24" aria-hidden="true">
@@ -338,16 +379,18 @@ export function PreOrderCard({
           </svg>
           <span>{t('preOrders.onTheWay')}</span>
         </p>
-      ) : item.guestPhone ? (
+      ) : markedNotComing ? (
+        phone ? (
+          <p className="preorder-call is-plain">{phone}</p>
+        ) : null
+      ) : notAskedYet ? (
+        <p className="preorder-call is-plain">
+          <span>{t('preOrders.askAt', { time: format.time(askAtUtc) })}</span>
+          {phone ? <> {phone}</> : null}
+        </p>
+      ) : phone ? (
         <p className="preorder-call">
-          <span>{t('preOrders.call')}</span>{' '}
-          <a
-            className="approval-call"
-            href={`tel:${item.guestPhone.replace(/\s+/gu, '')}`}
-            aria-label={t('preOrders.callLabel', { name: item.guestName, phone: item.guestPhone })}
-          >
-            {item.guestPhone}
-          </a>
+          <span>{t('preOrders.call')}</span> {phone}
         </p>
       ) : (
         <p className="preorder-call">{t('preOrders.notConfirmed')}</p>
@@ -417,7 +460,7 @@ export function PreOrderCard({
                     setFailure(null);
                   }}
                 >
-                  {t('common:action.cancel')}
+                  {t('preOrders.confirmKeep')}
                 </button>
                 <button
                   type="button"

@@ -1,4 +1,5 @@
 import type { Menu, OrderQueueEntry } from '@yalla/api';
+import { minutesBetween } from '@yalla/format';
 import { describe, expect, it } from 'vitest';
 import {
   ageOrders,
@@ -10,6 +11,7 @@ import {
   projectOrders,
   sortTickets,
   ticketBand,
+  ticketMinutes,
   ticketMinutesFromStart,
 } from './kitchenBoard';
 import type { QueuedCommand } from './commands/types';
@@ -88,6 +90,65 @@ describe('a pre-order ticket (2026-10-21)', () => {
     expect(ticketBand(lateSend(7))).toBe('waiting');
     expect(ticketBand(lateSend(12))).toBe('late');
     expect(kitchenCounts([lateSend(0)])).toEqual({ fresh: 1, waiting: 0, late: 0 });
+  });
+});
+
+describe('a pre-order ticket, live QA 2026-10-21', () => {
+  const marker = {
+    reservationId: 'r1',
+    startUtc: '2026-10-21T18:00:00Z',
+    localStartTime: '22:00',
+    partySize: 2,
+    guestName: 'Gohar',
+  };
+
+  // Bug 2: the party sat at 20:01 for a 22:00 booking, and at 20:13 the ticket
+  // still said "in 107 min". On their tab it is their food: timed as any order.
+  it('on a seated party’s tab never counts down, and seated early is fresh, not late', () => {
+    const onTab = ticket({
+      tabId: 'tab-6',
+      placedAtUtc: '2026-10-21T16:00:30Z',
+      waitingMinutes: 13,
+      preOrder: marker,
+    });
+    expect(ticketMinutesFromStart(onTab, Date.parse('2026-10-21T16:13:40Z'))).toBe(0);
+    expect(ticketMinutes(onTab)).toBe(0);
+    expect(ticketBand(onTab)).toBe('fresh');
+    // After the start it ages from the start like a held one.
+    const later = { ...onTab, waitingMinutes: 135 };
+    expect(ticketMinutes(later)).toBe(minutesBetween(marker.startUtc, '2026-10-21T18:15:30Z'));
+  });
+
+  // The rail said "in 118 min" while the kitchen said "in 119 min" at the
+  // same moment: one rule now, the rail's whole minutes to the start.
+  it('counts down to the start in the same whole minutes as the rail', () => {
+    const held = ticket({
+      tabId: null,
+      placedAtUtc: '2026-10-21T16:00:30Z',
+      waitingMinutes: 1,
+      preOrder: marker,
+    });
+    for (const at of ['2026-10-21T16:01:40Z', '2026-10-21T16:01:59Z', '2026-10-21T16:02:20Z']) {
+      const now = Date.parse(at);
+      const waited = Math.trunc((now - Date.parse(held.placedAtUtc)) / 60_000);
+      const order = { ...held, waitingMinutes: waited };
+      expect(ticketMinutesFromStart(order, now)).toBe(minutesBetween(marker.startUtc, at));
+    }
+  });
+
+  it("never trusts a tablet clock beyond the server's own minute", () => {
+    const held = ticket({
+      tabId: null,
+      placedAtUtc: '2026-10-21T16:00:30Z',
+      waitingMinutes: 1,
+      preOrder: marker,
+    });
+    // The server's minute is 16:01:30–16:02:30, 117½ to 118½ minutes before
+    // the start: a pass tablet three hours out still reads 117 or 118.
+    const ahead = ticketMinutesFromStart(held, Date.parse('2026-10-21T19:00:00Z'))!;
+    const behind = ticketMinutesFromStart(held, Date.parse('2026-10-21T13:00:00Z'))!;
+    expect(ahead).toBe(-117);
+    expect(behind).toBe(-118);
   });
 });
 

@@ -267,6 +267,53 @@ describe('the policy', () => {
     ).toBeTruthy();
     expect(await screen.findByText('Could not save the pre-order settings.')).toBeTruthy();
   });
+
+  /*
+   * Live QA 2026-10-21, bug 5: the card said "Unsaved changes" while the
+   * page's bar said "Saved", and the bar's Save sent nothing ("No changes").
+   * The bar now names the card and saves it too.
+   */
+  describe("the page's save bar", () => {
+    async function changed() {
+      const user = userEvent.setup();
+      const gateway = gatewayWithPreOrders();
+      const save = vi.spyOn(gateway, 'savePreOrderSettings');
+      renderAt('policy', <ReservationPolicyScreen />, NORTH, gateway);
+      const card = await preOrderCard();
+      await within(card).findByRole('textbox', { name: 'When the waiter’s card appears' });
+      await user.click(
+        within(card).getByRole('button', { name: 'Increase: When the waiter’s card appears' }),
+      );
+      return { user, gateway, save, card, bar: screen.getByRole('region', { name: 'Saving' }) };
+    }
+
+    it('names the pre-order card while it holds changes, and saves it', async () => {
+      const { user, gateway, save, bar } = await changed();
+      expect(within(bar).getByText('Unsaved changes in Pre-orders')).toBeTruthy();
+
+      await user.click(within(bar).getByRole('button', { name: 'Save the policy' }));
+      await waitFor(() => expect(save).toHaveBeenCalledTimes(1));
+      expect(save.mock.calls[0]![0].settings.minutesBefore).toBe(35);
+      expect(await screen.findByText('Pre-order settings saved')).toBeTruthy();
+      expect(screen.queryByText('No changes')).toBeNull();
+      expect((await gateway.getPreOrderSettings(NORTH)).minutesBefore).toBe(35);
+      await waitFor(() => expect(within(bar).queryByText(/Pre-orders/u)).toBeNull());
+    });
+
+    it("discards the card's changes with the page's", async () => {
+      const { user, save, card, bar } = await changed();
+      await user.click(within(bar).getByRole('button', { name: 'Discard changes' }));
+      expect(
+        (
+          within(card).getByRole('textbox', {
+            name: 'When the waiter’s card appears',
+          }) as HTMLInputElement
+        ).value,
+      ).toBe('30');
+      expect(within(bar).queryByText(/Pre-orders/u)).toBeNull();
+      expect(save).not.toHaveBeenCalled();
+    });
+  });
 });
 
 describe('the menu', () => {

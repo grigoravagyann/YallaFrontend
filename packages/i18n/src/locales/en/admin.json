@@ -1157,6 +1157,9 @@
       "outOfBounds": "The fields marked in red are out of bounds",
       "unsaved_one": "{{count}} unsaved change",
       "unsaved_other": "{{count}} unsaved changes",
+      "unsavedPreOrders": "Unsaved changes in Pre-orders",
+      "unsavedWithPreOrders_one": "{{count}} unsaved change, and Pre-orders",
+      "unsavedWithPreOrders_other": "{{count}} unsaved changes, and Pre-orders",
       "saved": "Saved",
       "unreviewed": "Not confirmed yet: save to confirm these rules"
     },

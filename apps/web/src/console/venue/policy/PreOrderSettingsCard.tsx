@@ -6,7 +6,7 @@ import {
 } from '@yalla/api';
 import { usePreOrderSettings, useSavePreOrderSettings } from '@yalla/api/react';
 import { useTranslation } from '@yalla/i18n';
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { QueryFailureNotice } from '../../../components/QueryFailureNotice';
 import { useToast } from '../../ui/toast';
@@ -14,6 +14,20 @@ import { useUnsavedChangesGuard } from '../useUnsavedChangesGuard';
 
 /** The card's anchor, for the policy's contents. */
 export const PRE_ORDER_CARD_ID = 'pol-preorders';
+
+/**
+ * The card's draft, as the page's save bar needs it (live QA 2026-10-21): the
+ * bar says when the card holds changes, and its Save and Discard act on the
+ * card too, so the page never has two save buttons that disagree.
+ */
+export interface PreOrderCardDraft {
+  readonly dirty: boolean;
+  /** The minutes are out of bounds: nothing would be sent. */
+  readonly invalid: boolean;
+  /** As the card's own Save. False when it sent nothing — it has said why. */
+  readonly save: () => boolean;
+  readonly discard: () => void;
+}
 
 /** The minutes' step, as the policy's own steppers move. */
 const STEP = 5;
@@ -33,7 +47,14 @@ const STEP = 5;
  * staff will be asked about: the guest's two-hour lock, the "on your way"
  * question, and that nothing is cooked until a waiter says the party is coming.
  */
-export function PreOrderSettingsCard({ branchId }: { readonly branchId: string }) {
+export function PreOrderSettingsCard({
+  branchId,
+  onDraft,
+}: {
+  readonly branchId: string;
+  /** Told the card's draft as it changes, and `null` while there is no form. */
+  readonly onDraft?: ((draft: PreOrderCardDraft | null) => void) | undefined;
+}) {
   const { t } = useTranslation(['admin', 'common']);
   const query = usePreOrderSettings(branchId);
   const titleId = `${PRE_ORDER_CARD_ID}-h`;
@@ -54,7 +75,7 @@ export function PreOrderSettingsCard({ branchId }: { readonly branchId: string }
         </div>
       ) : query.data ? (
         // Another branch is another form: nothing typed carries over.
-        <PreOrderForm key={branchId} branchId={branchId} saved={query.data} />
+        <PreOrderForm key={branchId} branchId={branchId} saved={query.data} onDraft={onDraft} />
       ) : (
         <p className="yc-empty-line" role="status">
           {t('loading')}
@@ -67,10 +88,12 @@ export function PreOrderSettingsCard({ branchId }: { readonly branchId: string }
 function PreOrderForm({
   branchId,
   saved,
+  onDraft,
 }: {
   readonly branchId: string;
   /** As the server last answered: what the draft started from and what a save keeps. */
   readonly saved: PreOrderSettings;
+  readonly onDraft?: ((draft: PreOrderCardDraft | null) => void) | undefined;
 }) {
   const { t } = useTranslation(['admin', 'common']);
   const toast = useToast();
@@ -114,21 +137,43 @@ function PreOrderForm({
       : null;
   const excluded = saved.excludedMenuItemIds.length;
 
+  // The page's bar acts through the latest of these, whichever render it holds.
+  const actions = useRef({ save: (): boolean => false, discard: () => {} });
+  useEffect(() => {
+    actions.current = { save: onSave, discard: onDiscard };
+  });
+  useEffect(() => {
+    onDraft?.({
+      dirty,
+      invalid: dirty && outOfBounds,
+      save: () => actions.current.save(),
+      discard: () => actions.current.discard(),
+    });
+  }, [dirty, outOfBounds, onDraft]);
+  useEffect(() => () => onDraft?.(null), [onDraft]);
+
+  function onDiscard() {
+    setAccepts(saved.acceptsPreOrders);
+    setMinutes(saved.minutesBefore);
+    setTyping(null);
+    setRefused(false);
+  }
+
   function changeMinutes(next: number | null) {
     setMinutes(next);
     setRefused(false);
   }
 
-  function onSave() {
-    if (save.isPending) return;
+  function onSave(): boolean {
+    if (save.isPending) return false;
     if (outOfBounds || minutes === null) {
       toast.say(t('policy.fixFirst'), { tone: 'error' });
       document.getElementById('po-minutes')?.focus();
-      return;
+      return false;
     }
     if (!dirty) {
       toast.say(t('preOrders.noChanges'));
-      return;
+      return false;
     }
     const minutesBefore = minutes;
     const from = base;
@@ -151,6 +196,7 @@ function PreOrderForm({
         toast.say(t('preOrders.saveFailed'), { tone: 'error' });
       },
     });
+    return true;
   }
 
   return (

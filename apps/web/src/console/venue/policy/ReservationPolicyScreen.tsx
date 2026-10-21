@@ -14,7 +14,11 @@ import { PageHeader } from '../../ui/PageHeader';
 import { useToast } from '../../ui/toast';
 import { useUnsavedChangesGuard } from '../useUnsavedChangesGuard';
 import { useVenueOutlet } from '../VenueLayout';
-import { PRE_ORDER_CARD_ID, PreOrderSettingsCard } from './PreOrderSettingsCard';
+import {
+  PRE_ORDER_CARD_ID,
+  PreOrderSettingsCard,
+  type PreOrderCardDraft,
+} from './PreOrderSettingsCard';
 import {
   EXAMPLE_START,
   POLICY_GROUPS,
@@ -164,6 +168,13 @@ function PolicyForm({
 
   const dirtyKeys = changedFields(draft, saved);
   const dirty = dirtyKeys.length > 0;
+  /**
+   * The pre-order card's draft. Its own endpoint and its own button, but the
+   * bar at the foot is the page's: it says the card holds changes, and its
+   * Save and Discard take the card's with the policy's (live QA 2026-10-21).
+   */
+  const [preOrders, setPreOrders] = useState<PreOrderCardDraft | null>(null);
+  const preOrdersDirty = preOrders?.dirty ?? false;
   useUnsavedChangesGuard(dirty);
   const invalid = outOfBounds(draft, fields);
   const fromDefault = differsFromDefaults(draft, defaults);
@@ -188,11 +199,14 @@ function PolicyForm({
       document.getElementById(inputId(first))?.focus();
       return;
     }
+    // The card's changes go with the page's; a card that would send nothing
+    // (its minutes out of bounds) has said why, and holds the policy back too.
+    if (preOrders?.dirty && !preOrders.save()) return;
     // Unchanged, the save still has a use while nobody has confirmed the
     // policy: it is what ticks "policy reviewed" for a venue happy with the
     // defaults, which otherwise could only get there by changing something.
     if (!dirty && !unreviewed) {
-      toast.say(t('policy.noChanges'));
+      if (!preOrders?.dirty) toast.say(t('policy.noChanges'));
       return;
     }
     setRefused(new Set());
@@ -215,13 +229,17 @@ function PolicyForm({
   }
 
   const barText =
-    invalid.length > 0
+    invalid.length > 0 || preOrders?.invalid
       ? t('policy.bar.outOfBounds')
-      : dirty
-        ? t('policy.bar.unsaved', { count: dirtyKeys.length })
-        : unreviewed
-          ? t('policy.bar.unreviewed')
-          : t('policy.bar.saved');
+      : dirty && preOrdersDirty
+        ? t('policy.bar.unsavedWithPreOrders', { count: dirtyKeys.length })
+        : preOrdersDirty
+          ? t('policy.bar.unsavedPreOrders')
+          : dirty
+            ? t('policy.bar.unsaved', { count: dirtyKeys.length })
+            : unreviewed
+              ? t('policy.bar.unreviewed')
+              : t('policy.bar.saved');
 
   return (
     <div className="yc-page yc-pol-page">
@@ -330,7 +348,7 @@ function PolicyForm({
               </p>
             </section>
           ))}
-          <PreOrderSettingsCard branchId={branchId} />
+          <PreOrderSettingsCard branchId={branchId} onDraft={setPreOrders} />
         </div>
       </div>
 
@@ -338,7 +356,7 @@ function PolicyForm({
         <span className="yc-grow" aria-live="polite">
           {barText}
         </span>
-        {dirty ? (
+        {dirty || preOrdersDirty ? (
           <button
             type="button"
             className="yc-btn yc-btn-sec yc-btn-sm"
@@ -346,6 +364,7 @@ function PolicyForm({
             onClick={() => {
               setDraft(saved);
               setRefused(new Set());
+              preOrders?.discard();
               toast.say(t('policy.discarded'));
             }}
           >

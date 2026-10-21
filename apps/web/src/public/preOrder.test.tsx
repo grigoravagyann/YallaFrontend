@@ -88,6 +88,8 @@ describe('the manage link', () => {
     const section = await screen.findByRole('region', { name: 'Pre-order' });
     expect(within(section).getByText('2 × Espresso')).toBeTruthy();
     expect(within(section).getByText('Coffee first')).toBeTruthy();
+    // Labelled as the tablet and the console label it (live QA: «Նշում՝ …»).
+    expect(within(section).getByText('Note:')).toBeTruthy();
 
     await user.click(within(section).getByRole('button', { name: 'Remove pre-order' }));
     expect(await screen.findByText('Remove the pre-order?')).toBeTruthy();
@@ -199,6 +201,116 @@ describe('the done step', () => {
     render(harness.wrap(<BookingDone booking={booking} branch={branch} />));
     await screen.findByText(booking.code);
     expect(screen.queryByRole('button', { name: 'Add a pre-order' })).toBeNull();
+  });
+});
+
+/*
+ * Live QA 2026-10-21, bug 1: at 390×844 Save sat two screens below the dishes,
+ * while the always-visible footer left the editor and dropped the dishes with
+ * no word. Save and the total now stay in view, and every way out asks first
+ * while there are changes.
+ */
+describe('an unsaved pre-order', () => {
+  const DISCARD = 'Discard your pre-order changes?';
+
+  it('keeps Save and the total in a bar that stays in view on the manage link', async () => {
+    const harness = createHarness({ preOrders: true });
+    const { token } = await bookedTomorrow(harness);
+    const user = userEvent.setup();
+    render(harness.wrap(<PublicApp />, `/booking/${token}`));
+
+    await user.click(await screen.findByRole('button', { name: 'Add a pre-order' }));
+    await user.click(await screen.findByRole('button', { name: 'Add Espresso' }));
+    const bar = screen.getByRole('button', { name: 'Save pre-order' }).closest('.pub-po-bar');
+    expect(bar).not.toBeNull();
+    expect(within(bar as HTMLElement).getByText('Total')).toBeTruthy();
+  });
+
+  it('asks before "Back to the booking" drops the changes, and keeps them on "Keep editing"', async () => {
+    const harness = createHarness({ preOrders: true });
+    const { token } = await bookedTomorrow(harness);
+    const user = userEvent.setup();
+    render(harness.wrap(<PublicApp />, `/booking/${token}`));
+
+    await user.click(await screen.findByRole('button', { name: 'Add a pre-order' }));
+    await user.click(await screen.findByRole('button', { name: 'Add Espresso' }));
+    await user.click(screen.getByRole('button', { name: 'Back to the booking' }));
+
+    const question = screen.getByRole('group', { name: DISCARD });
+    expect(document.activeElement).toBe(within(question).getByRole('heading', { name: DISCARD }));
+    await user.click(within(question).getByRole('button', { name: 'Keep editing' }));
+    expect(screen.queryByRole('group', { name: DISCARD })).toBeNull();
+    expect(screen.getAllByRole('button', { name: 'One more Espresso' }).length).toBeGreaterThan(0);
+
+    await user.click(screen.getByRole('button', { name: 'Back to the booking' }));
+    await user.click(screen.getByRole('button', { name: 'Discard changes' }));
+    expect(await screen.findByRole('button', { name: 'Add a pre-order' })).toBeTruthy();
+    expect((await harness.publicGateway.getManagedBooking({ token }))?.preOrder ?? null).toBeNull();
+  });
+
+  it('leaves at once when nothing was changed', async () => {
+    const harness = createHarness({ preOrders: true });
+    const { token } = await bookedTomorrow(harness);
+    const user = userEvent.setup();
+    render(harness.wrap(<PublicApp />, `/booking/${token}`));
+
+    await user.click(await screen.findByRole('button', { name: 'Add a pre-order' }));
+    await screen.findByRole('button', { name: 'Add Espresso' });
+    await user.click(screen.getByRole('button', { name: 'Back to the booking' }));
+    expect(screen.queryByRole('group', { name: DISCARD })).toBeNull();
+    expect(await screen.findByRole('button', { name: 'Add a pre-order' })).toBeTruthy();
+  });
+
+  it("puts Save and the total in the sheet's foot on the done step", async () => {
+    const harness = createHarness({ preOrders: true });
+    const { branch, booking } = await bookedTomorrow(harness);
+    const user = userEvent.setup();
+    const { container } = render(
+      harness.wrap(<BookingDone booking={booking} branch={branch} onClose={() => {}} />),
+    );
+
+    await user.click(await screen.findByRole('button', { name: 'Add a pre-order' }));
+    await user.click(await screen.findByRole('button', { name: 'Add Espresso' }));
+    const foot = container.querySelector('.pub-sheet-foot') as HTMLElement;
+    expect(within(foot).getByRole('button', { name: 'Save pre-order' })).toBeTruthy();
+    expect(within(foot).getByText('Total')).toBeTruthy();
+  });
+
+  it.each([
+    ['Back to the venue page', 'the footer'],
+    ['Close', 'the sheet’s close button'],
+  ])('asks before "%s" (%s) closes the sheet over changes', async (name) => {
+    const harness = createHarness({ preOrders: true });
+    const { branch, booking } = await bookedTomorrow(harness);
+    const onClose = vi.fn();
+    const user = userEvent.setup();
+    render(harness.wrap(<BookingDone booking={booking} branch={branch} onClose={onClose} />));
+
+    await user.click(await screen.findByRole('button', { name: 'Add a pre-order' }));
+    await user.click(await screen.findByRole('button', { name: 'Add Espresso' }));
+    await user.click(screen.getByRole('button', { name }));
+    expect(onClose).not.toHaveBeenCalled();
+    const question = screen.getByRole('group', { name: DISCARD });
+    await user.click(within(question).getByRole('button', { name: 'Keep editing' }));
+    expect(onClose).not.toHaveBeenCalled();
+    expect(screen.getAllByRole('button', { name: 'One more Espresso' }).length).toBeGreaterThan(0);
+
+    await user.click(screen.getByRole('button', { name }));
+    await user.click(screen.getByRole('button', { name: 'Discard changes' }));
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it('closes the sheet at once while the editor holds no changes', async () => {
+    const harness = createHarness({ preOrders: true });
+    const { branch, booking } = await bookedTomorrow(harness);
+    const onClose = vi.fn();
+    const user = userEvent.setup();
+    render(harness.wrap(<BookingDone booking={booking} branch={branch} onClose={onClose} />));
+
+    await user.click(await screen.findByRole('button', { name: 'Add a pre-order' }));
+    await screen.findByRole('button', { name: 'Add Espresso' });
+    await user.click(screen.getByRole('button', { name: 'Back to the venue page' }));
+    expect(onClose).toHaveBeenCalledTimes(1);
   });
 });
 

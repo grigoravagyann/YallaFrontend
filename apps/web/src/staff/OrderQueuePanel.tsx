@@ -61,6 +61,11 @@ export interface OrderQueuePanelProps {
   readonly sounds?: boolean | undefined;
   /** A ticket names a dish the menu does not have: read the menu again. */
   readonly onUnknownDish?: (() => void) | undefined;
+  /**
+   * The screen's minute clock: a held pre-order counts down to its booking's
+   * start on it, as the rail does. Without it, the server's own minute.
+   */
+  readonly now?: Date | undefined;
 }
 
 /** Minutes at which a call stops being fresh, and then stops being acceptable. */
@@ -180,8 +185,9 @@ export function OrderQueuePanel(props: OrderQueuePanelProps) {
             const band = ticketBand(order);
             const queued = pending.has(order.orderId);
             const heldBy = props.heldOrders?.get(order.orderId);
-            // A pre-order counts to its booking's start, then from it.
-            const fromStart = ticketMinutesFromStart(order);
+            // A pre-order not on a tab yet counts to its booking's start, then
+            // from it — in the rail's whole minutes, on the screen's clock.
+            const fromStart = ticketMinutesFromStart(order, props.now?.getTime());
             const age =
               fromStart !== null && fromStart < 0
                 ? t('kitchen.ticket.dueIn', { count: -fromStart })
@@ -212,7 +218,7 @@ export function OrderQueuePanel(props: OrderQueuePanelProps) {
               minutes:
                 fromStart !== null && fromStart < 0
                   ? t('kitchen.ticket.dueInMinutes', { count: -fromStart })
-                  : t('kitchen.ticket.minutes', { count: ticketMinutes(order) }),
+                  : t('kitchen.ticket.minutes', { count: fromStart ?? ticketMinutes(order) }),
               band: t(`kitchen.band.${band}`),
               items: order.lines.map((line) => `${line.quantity} ${line.name}`).join(', '),
             });

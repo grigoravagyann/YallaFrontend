@@ -19,7 +19,7 @@ import { bookingIcs, downloadIcs, icsDescription } from './calendarFile';
 import { freeCancellationDated, freeCancellationWords, whenWords } from './dayNames';
 import { Icon } from './icons';
 import { useLangPath } from './language';
-import { PreOrderEditor, PreOrderLines } from './PreOrder';
+import { DiscardPreOrderQuestion, PreOrderEditor, PreOrderLines } from './PreOrder';
 import { SheetHead } from './SheetParts';
 
 /**
@@ -80,6 +80,11 @@ export function BookingDone({ booking, branch, onClose, onChooseAnotherTime }: B
   const [preOrdering, setPreOrdering] = useState(false);
   /** The pre-order as last saved here: `undefined` until then, `null` once removed. */
   const [savedPreOrder, setSavedPreOrder] = useState<PreOrder | null | undefined>(undefined);
+  /** The editor holds dishes not saved: closing the sheet asks first (live QA 1). */
+  const [preOrderDirty, setPreOrderDirty] = useState(false);
+  const [askingClose, setAskingClose] = useState(false);
+  /** The foot, where the editor puts its total and Save: always in view. */
+  const [footBar, setFootBar] = useState<HTMLDivElement | null>(null);
   const preOrderMenu = usePreOrderMenu(preOrdering ? branch.id : undefined);
   const savedNotice = useRef<HTMLParagraphElement>(null);
   // Saved or removed: said, and the sheet scrolls to it.
@@ -234,15 +239,24 @@ export function BookingDone({ booking, branch, onClose, onChooseAnotherTime }: B
     </dl>
   );
 
-  const backToPage = onClose ? (
-    <button type="button" className="pub-button pub-button-ghost" onClick={onClose}>
-      {t('sheet.done.back')}
-    </button>
-  ) : null;
+  // Closing over a pre-order not saved yet asks first: the sheet's Close and
+  // its footer both. The editor's own Back asks for itself.
+  const editing = kind === 'done' && preOrdering;
+  const close = onClose
+    ? () => (editing && preOrderDirty ? setAskingClose(true) : onClose())
+    : undefined;
+  const backToPage =
+    onClose && editing && askingClose ? (
+      <DiscardPreOrderQuestion onDiscard={onClose} onKeep={() => setAskingClose(false)} />
+    ) : close ? (
+      <button type="button" className="pub-button pub-button-ghost" onClick={close}>
+        {t('sheet.done.back')}
+      </button>
+    ) : null;
 
   return (
     <div className="pub-sheet-step">
-      <SheetHead title={t(`sheet.title.${kind}`)} headingRef={heading} onClose={onClose} />
+      <SheetHead title={t(`sheet.title.${kind}`)} headingRef={heading} onClose={close} />
       <div className="pub-sheet-body pub-done">
         <div className={`pub-done-mark is-${kind}`} aria-hidden="true">
           <Icon name={kind === 'done' ? 'check' : kind === 'pending' ? 'clock' : 'close'} />
@@ -308,8 +322,14 @@ export function BookingDone({ booking, branch, onClose, onChooseAnotherTime }: B
             onSaved={(saved) => {
               setSavedPreOrder(saved);
               setPreOrdering(false);
+              setAskingClose(false);
             }}
-            onCancel={() => setPreOrdering(false)}
+            onCancel={() => {
+              setPreOrdering(false);
+              setAskingClose(false);
+            }}
+            onDirtyChange={setPreOrderDirty}
+            barHost={footBar}
           />
         ) : kind === 'done' && (canPreOrder || preOrder) ? (
           <section className="pub-card pub-po" aria-labelledby={`${linkId}-po`}>
@@ -414,6 +434,7 @@ export function BookingDone({ booking, branch, onClose, onChooseAnotherTime }: B
       </div>
 
       <div className="pub-sheet-foot">
+        {editing ? <div className="pub-po-foot-bar" ref={setFootBar} /> : null}
         {kind === 'done' && !preOrdering ? (
           // The reminder they would otherwise never get.
           <button type="button" className="pub-button pub-button-primary" onClick={addToCalendar}>

@@ -42,6 +42,7 @@ import {
 import { formatDram, type Locale } from '@yalla/format';
 import { useLocale, useTranslation } from '@yalla/i18n';
 import { useEffect, useId, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { dayWords } from './dayNames';
 import { branchClock, branchToday } from './slots';
 
@@ -88,6 +89,8 @@ export function PreOrderEditor({
   menu,
   onSaved,
   onCancel,
+  onDirtyChange,
+  barHost,
 }: {
   readonly token: string;
   readonly preOrder: PreOrder | null;
@@ -95,7 +98,19 @@ export function PreOrderEditor({
   readonly menu: PreOrderMenuState;
   /** The pre-order as saved, or `null` once removed. */
   readonly onSaved: (preOrder: PreOrder | null) => void;
+  /** Back to the booking: asked first while the draft holds changes. */
   readonly onCancel: () => void;
+  /**
+   * Whether the draft holds changes not saved, so the page can ask before its
+   * own ways out (the sheet's Close and footer) drop them. `false` once the
+   * editor closes.
+   */
+  readonly onDirtyChange?: ((dirty: boolean) => void) | undefined;
+  /**
+   * Where the total and Save go: the sheet's foot, which never scrolls away.
+   * Absent, they stick to the bottom of the screen under the dishes.
+   */
+  readonly barHost?: HTMLElement | null | undefined;
 }) {
   const { t } = useTranslation('diner');
   const { locale } = useLocale();
@@ -114,6 +129,8 @@ export function PreOrderEditor({
   }
   const [categoryId, setCategoryId] = useState<string | null>(null);
   const [confirmingClear, setConfirmingClear] = useState(false);
+  /** "Back to the booking" over changes: the question in its place. */
+  const [askingDiscard, setAskingDiscard] = useState(false);
   const attempt = useRef<{ readonly key: string; readonly id: string } | null>(null);
   /** The removal's own command id, kept across a retry of it — never a save's. */
   const clearId = useRef<string | null>(null);
@@ -151,6 +168,20 @@ export function PreOrderEditor({
   const blocked = priced.unavailable.length > 0 || violations.length > 0;
   const pending = replace.isPending || clear.isPending;
   const dirty = isDirty(draft, preOrder);
+
+  // The page's own ways out ask while this holds changes; it is told when
+  // they go, and when the editor does.
+  useEffect(() => {
+    onDirtyChange?.(dirty);
+  }, [dirty, onDirtyChange]);
+  useEffect(() => () => onDirtyChange?.(false), [onDirtyChange]);
+  // A reload or the browser's Back, which no button here sees.
+  useEffect(() => {
+    if (!dirty) return;
+    const warn = (event: BeforeUnloadEvent) => event.preventDefault();
+    window.addEventListener('beforeunload', warn);
+    return () => window.removeEventListener('beforeunload', warn);
+  }, [dirty]);
 
   const refusedOne =
     replace.error instanceof PreOrderItemsUnavailableError && replace.error.items.length === 1
@@ -222,6 +253,75 @@ export function PreOrderEditor({
   };
 
   const swap = priced.lines.find((line) => line.unavailable);
+
+  const bar = (
+    <div className="pub-po-bar">
+      {failure ? (
+        <p className="pub-notice pub-notice-error" role="alert">
+          {t(failure.line.key, failure.line.params)}
+        </p>
+      ) : null}
+      {confirmingClear ? (
+        <div className="pub-manage-confirm" role="group" aria-labelledby={`${headingId}-clear`}>
+          <h3 id={`${headingId}-clear`} ref={confirmHeading} tabIndex={-1}>
+            {t('preOrder.removeTitle')}
+          </h3>
+          <p className="pub-muted">{t('preOrder.removeBody')}</p>
+          {clearFailure ? (
+            <p className="pub-error" role="alert">
+              {t(clearFailure.line.key, clearFailure.line.params)}
+            </p>
+          ) : null}
+          <button
+            type="button"
+            className="pub-button pub-button-danger pub-button-wide"
+            disabled={clear.isPending}
+            onClick={doClear}
+          >
+            {clear.isPending ? t('preOrder.removing') : t('preOrder.removeConfirm')}
+          </button>
+          <button
+            type="button"
+            className="pub-button pub-button-wide"
+            onClick={() => setConfirmingClear(false)}
+          >
+            {t('preOrder.removeKeep')}
+          </button>
+        </div>
+      ) : (
+        <div className="pub-po-bar-row">
+          <p className="pub-po-bar-total">
+            <span>{t('preOrder.total')}</span>
+            <b className="num" aria-live="polite">
+              {formatDram(priced.totalDram, locale)}
+            </b>
+          </p>
+          {empty && preOrder ? (
+            <button
+              type="button"
+              className="pub-button pub-button-redline"
+              disabled={pending}
+              onClick={() => {
+                clear.reset();
+                setConfirmingClear(true);
+              }}
+            >
+              {t('preOrder.remove')}
+            </button>
+          ) : (
+            <button
+              type="button"
+              className="pub-button pub-button-primary"
+              disabled={empty || blocked || pending || (!dirty && !replace.isError)}
+              onClick={save}
+            >
+              {replace.isPending ? t('preOrder.saving') : t('preOrder.save')}
+            </button>
+          )}
+        </div>
+      )}
+    </div>
+  );
 
   return (
     <section className="pub-card pub-po" aria-labelledby={headingId}>
@@ -394,75 +494,21 @@ export function PreOrderEditor({
         )}
       </div>
 
-      <div className="pub-po-foot">
-        {failure ? (
-          <p className="pub-notice pub-notice-error" role="alert">
-            {t(failure.line.key, failure.line.params)}
-          </p>
-        ) : null}
-        <p className="pub-po-total">
-          <span>{t('preOrder.total')}</span>
-          <b className="num" aria-live="polite">
-            {formatDram(priced.totalDram, locale)}
-          </b>
-        </p>
-        {confirmingClear ? (
-          <div className="pub-manage-confirm" role="group" aria-labelledby={`${headingId}-clear`}>
-            <h3 id={`${headingId}-clear`} ref={confirmHeading} tabIndex={-1}>
-              {t('preOrder.removeTitle')}
-            </h3>
-            <p className="pub-muted">{t('preOrder.removeBody')}</p>
-            {clearFailure ? (
-              <p className="pub-error" role="alert">
-                {t(clearFailure.line.key, clearFailure.line.params)}
-              </p>
-            ) : null}
-            <button
-              type="button"
-              className="pub-button pub-button-danger pub-button-wide"
-              disabled={clear.isPending}
-              onClick={doClear}
-            >
-              {clear.isPending ? t('preOrder.removing') : t('preOrder.removeConfirm')}
-            </button>
-            <button
-              type="button"
-              className="pub-button pub-button-wide"
-              onClick={() => setConfirmingClear(false)}
-            >
-              {t('preOrder.removeKeep')}
-            </button>
-          </div>
-        ) : empty && preOrder ? (
-          <button
-            type="button"
-            className="pub-button pub-button-wide pub-button-redline"
-            disabled={pending}
-            onClick={() => {
-              clear.reset();
-              setConfirmingClear(true);
-            }}
-          >
-            {t('preOrder.remove')}
-          </button>
-        ) : (
-          <button
-            type="button"
-            className="pub-button pub-button-primary"
-            disabled={empty || blocked || pending || (!dirty && !replace.isError)}
-            onClick={save}
-          >
-            {replace.isPending ? t('preOrder.saving') : t('preOrder.save')}
-          </button>
-        )}
+      {/* The total and Save, in view however long the list: under the dishes
+          on the manage link, in the sheet's foot on the done step. */}
+      {barHost ? createPortal(bar, barHost) : bar}
+
+      {askingDiscard ? (
+        <DiscardPreOrderQuestion onDiscard={onCancel} onKeep={() => setAskingDiscard(false)} />
+      ) : (
         <button
           type="button"
           className="pub-button pub-button-quiet pub-button-wide"
-          onClick={onCancel}
+          onClick={() => (dirty ? setAskingDiscard(true) : onCancel())}
         >
           {t('preOrder.back')}
         </button>
-      </div>
+      )}
     </section>
   );
 }
@@ -508,6 +554,52 @@ function Stepper({
   );
 }
 
+/**
+ * "Discard your pre-order changes?" — asked in place of the way out that was
+ * tapped (the editor's Back, or the sheet's Close and footer), and focused, so
+ * a guest who tapped it by mistake keeps the dishes they chose.
+ */
+export function DiscardPreOrderQuestion({
+  onDiscard,
+  onKeep,
+}: {
+  readonly onDiscard: () => void;
+  readonly onKeep: () => void;
+}) {
+  const { t } = useTranslation('diner');
+  const headingId = useId();
+  const heading = useRef<HTMLHeadingElement>(null);
+  const group = useRef<HTMLDivElement>(null);
+  // The whole question in view, its two answers too — not just its heading.
+  useEffect(() => {
+    heading.current?.focus({ preventScroll: true });
+    group.current?.scrollIntoView?.({ block: 'nearest' });
+  }, []);
+  return (
+    <div
+      ref={group}
+      className="pub-manage-confirm pub-po-discard"
+      role="group"
+      aria-labelledby={headingId}
+    >
+      <h3 id={headingId} ref={heading} tabIndex={-1}>
+        {t('preOrder.discard.title')}
+      </h3>
+      <p className="pub-muted">{t('preOrder.discard.body')}</p>
+      <button
+        type="button"
+        className="pub-button pub-button-danger pub-button-wide"
+        onClick={onDiscard}
+      >
+        {t('preOrder.discard.confirm')}
+      </button>
+      <button type="button" className="pub-button pub-button-wide" onClick={onKeep}>
+        {t('preOrder.discard.keep')}
+      </button>
+    </div>
+  );
+}
+
 /** The dishes, read-only: "2 × Espresso", each note under its dish, the note for the venue, the total. */
 export function PreOrderLines({ preOrder }: { readonly preOrder: PreOrder }) {
   const { t } = useTranslation('diner');
@@ -534,7 +626,7 @@ export function PreOrderLines({ preOrder }: { readonly preOrder: PreOrder }) {
       </ul>
       {preOrder.note ? (
         <p className="pub-po-venue-note">
-          <b>{`${t('preOrder.noteLabel')}: `}</b>
+          <b>{`${t('preOrder.noteShown')} `}</b>
           <span>{preOrder.note}</span>
         </p>
       ) : null}

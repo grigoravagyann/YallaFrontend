@@ -167,7 +167,7 @@ afterEach(() => {
 });
 
 describe('the rail', () => {
-  it('lists the due pre-orders by start, after the bookings, and counts the ones to act on', async () => {
+  it('lists the cards waiting for a waiter first, then the sent ones, and counts the ones to act on', async () => {
     signIn();
     renderFloor(floorGateway());
 
@@ -178,10 +178,12 @@ describe('the rail', () => {
     expect(regions.indexOf(preOrders)).toBe(1);
 
     const cards = within(preOrders).getAllByRole('listitem', { name: /^Table \d+/u });
+    // Live QA 2026-10-21: the ones still waiting for a tap first, by start;
+    // table 11 is in the kitchen already, so it goes after them.
     expect(cards.map((entry) => within(entry).getByText(/^Table \d+$/u).textContent)).toEqual([
-      'Table 11',
       'Table 9',
       'Table 2',
+      'Table 11',
     ]);
     // Table 11 is in the kitchen already: two left to act on.
     expect(within(preOrders).getByText('2', { selector: '.ft-badge' })).toBeTruthy();
@@ -214,7 +216,9 @@ describe('the rail', () => {
     renderFloor(floorGateway());
 
     const nine = await card('9');
-    const call = within(nine).getByRole('link', { name: 'Call Мария Петрова, +37477445566' });
+    // Grouped as the public page writes a number (live QA); dialled as stored.
+    const call = within(nine).getByRole('link', { name: 'Call Мария Петрова, +374 77 44 55 66' });
+    expect(call.textContent).toBe('+374 77 44 55 66');
     expect(call.getAttribute('href')).toBe('tel:+37477445566');
     expect(within(nine).getByText('Not confirmed they are on the way. Call:')).toBeTruthy();
 
@@ -432,7 +436,7 @@ describe('Not coming / no answer', () => {
 
     const nine = await card('9');
     await user.click(within(nine).getByRole('button', { name: 'Not coming / no answer, table 9' }));
-    await user.click(within(nine).getByRole('button', { name: 'Cancel' }));
+    await user.click(within(nine).getByRole('button', { name: 'No' }));
     expect(document.activeElement).toBe(
       within(nine).getByRole('button', { name: 'Not coming / no answer, table 9' }),
     );
@@ -447,7 +451,7 @@ describe('Not coming / no answer', () => {
     );
   });
 
-  it('asks first, keeps the card on Cancel, and once marked leaves it quieter but sendable', async () => {
+  it('asks first, keeps the card on No, and once marked leaves it quieter but sendable', async () => {
     const user = setupUser();
     signIn();
     const gateway = floorGateway();
@@ -465,7 +469,9 @@ describe('Not coming / no answer', () => {
     ).toBeTruthy();
     expect(notComing).not.toHaveBeenCalled();
 
-    await user.click(within(question).getByRole('button', { name: 'Cancel' }));
+    // "No", never "Cancel": beside a booking that reads as cancelling it (live QA).
+    expect(within(question).queryByRole('button', { name: 'Cancel' })).toBeNull();
+    await user.click(within(question).getByRole('button', { name: 'No' }));
     await user.click(within(nine).getByRole('button', { name: 'Not coming / no answer, table 9' }));
     await user.click(within(nine).getByRole('button', { name: 'Yes, not coming' }));
 
@@ -484,6 +490,14 @@ describe('Not coming / no answer', () => {
     );
     expect(marked.classList.contains('is-quiet')).toBe(true);
     expect(within(marked).queryByRole('button', { name: /^Not coming \/ no answer/u })).toBeNull();
+    // Nobody is told to call a party already marked (live QA): the number stays.
+    expect(within(marked).queryByText('Not confirmed they are on the way. Call:')).toBeNull();
+    expect(within(marked).getByRole('link', { name: /^Call Мария Петрова/u })).toBeTruthy();
+    // And it goes after the cards still waiting for a tap.
+    const order = within(await section())
+      .getAllByRole('listitem', { name: /^Table \d+/u })
+      .map((entry) => within(entry).getByText(/^Table \d+$/u).textContent);
+    expect(order).toEqual(['Table 2', 'Table 11', 'Table 9']);
     // Not counted any more: only table 2 is left to act on.
     expect(within(await section()).getByText('1', { selector: '.ft-badge' })).toBeTruthy();
 
@@ -491,6 +505,69 @@ describe('Not coming / no answer', () => {
       within(marked).getByRole('button', { name: 'Coming → Send to kitchen, table 9' }),
     );
     await waitFor(() => expect(send).toHaveBeenCalledTimes(1));
+  });
+});
+
+/**
+ * Live QA 2026-10-21, bug 4: with the card up 120 minutes before, it told the
+ * waiter to call a guest who had not been asked yet — "on your way?" goes out
+ * 45 minutes before the start.
+ */
+describe('before the guest is asked', () => {
+  /** Table 4's booking 100 minutes out, its card up from 120 minutes before. */
+  function earlyGateway(): StaffGateway {
+    return createStaffMockGateway({
+      latencyMs: 0,
+      branchId: BRANCH,
+      preOrderMinutesBefore: 120,
+      preOrderSeeds: [
+        {
+          tableId: 't4',
+          code: 'H2K7QX',
+          startsInMinutes: 100,
+          guestName: 'Նարե Պետրոսյան',
+          guestPhone: '+37493112233',
+          partySize: 3,
+          lines: [{ menuItemId: 'granola', quantity: 3 }],
+        },
+      ],
+    });
+  }
+
+  it('says when the guest will be asked, with the number to hand, and no "call them"', async () => {
+    signIn();
+    renderFloor(earlyGateway());
+
+    const four = await card('4');
+    expect(within(four).getByText(/^We'll ask the guest at \d\d:\d\d\.$/u)).toBeTruthy();
+    expect(within(four).queryByText('Not confirmed they are on the way. Call:')).toBeNull();
+    const call = within(four).getByRole('link', { name: 'Call Նարե Պետրոսյան, +374 93 11 22 33' });
+    expect(call.getAttribute('href')).toBe('tel:+37493112233');
+  });
+
+  // Bug 3: a party 60–120 minutes early could only be seated as a walk-in,
+  // and their pre-order, already cooking, never reached their tab.
+  it("offers to seat the party on its booking from the table's panel, early", async () => {
+    const user = setupUser();
+    signIn();
+    const gateway = earlyGateway();
+    const act = vi.spyOn(gateway, 'applyTableAction');
+    renderFloor(gateway);
+
+    await card('4');
+    await user.click(await screen.findByRole('button', { name: /^Table 4, /u }));
+    const panel = screen.getByRole('dialog', { name: 'Actions for table 4' });
+    await user.click(
+      within(panel).getByRole('button', {
+        name: /^Seat the booking · Նարե Պետրոսյան · \d\d:\d\d$/u,
+      }),
+    );
+    await waitFor(() => expect(act).toHaveBeenCalledTimes(1));
+    expect(act.mock.calls[0]![0]).toMatchObject({
+      kind: 'seatReservation',
+      tableId: 't4',
+      reservationId: await reservationAt(gateway, '4'),
+    });
   });
 });
 
@@ -660,6 +737,27 @@ describe('the kitchen', () => {
     await user.click(within(ticket).getByRole('button', { name: 'Ready · table 11' }));
     await waitFor(() => expect(status).toHaveBeenCalledTimes(1));
     expect(status.mock.calls[0]![0]).toMatchObject({ status: 'ready' });
+  });
+
+  // Live QA 2026-10-21, bug 2: seated, the ticket still counted down to the
+  // booking's start. On their tab it is timed from its send, as any order.
+  it('times a seated party’s pre-order from its send, never "in N min"', async () => {
+    signIn('kitchen');
+    const gateway = floorGateway();
+    const reservationId = await reservationAt(gateway, '11');
+    await gateway.applyTableAction({
+      kind: 'seatReservation',
+      branchId: BRANCH,
+      tableId: 't11',
+      reservationId,
+      clientCommandId: newCommandId(),
+    });
+    renderFloor(gateway);
+
+    const ticket = (await screen.findByText(MARKER, undefined, { timeout: 5000 })).closest('li')!;
+    const timer = within(ticket).getByRole('timer').textContent!;
+    expect(timer).not.toMatch(/^in /u);
+    expect(ticket.getAttribute('aria-label')).not.toMatch(/, in \d+ minutes, /u);
   });
 
   it("marks it the same on the waiter's Kitchen tab", async () => {

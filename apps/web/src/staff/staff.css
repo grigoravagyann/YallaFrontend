@@ -4280,6 +4280,14 @@
   font-feature-settings: var(--font-feature-tabular);
 }
 
+/* Nothing to chase yet — the guest has not been asked, or is marked not
+   coming: the ordinary ink, never the amber of "call them". */
+.ft-item .preorder .preorder-call.is-plain,
+.preorder-call.is-plain {
+  color: var(--console-ink);
+  font-weight: var(--font-weight-regular);
+}
+
 .preorder-state {
   display: flex;
   flex-wrap: wrap;

@@ -25,5 +25,7 @@ export type { IcsEventInput } from './calendar';
 
 export { formatNameList } from './names';
 
+export { formatPhone } from './phone';
+
 export { formatTableLabel, formatSeatCount } from './table';
 export type { TableLabelInput } from './table';

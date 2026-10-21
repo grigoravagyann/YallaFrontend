@@ -1267,6 +1267,7 @@ export function FloorRoute({ identity, device = null, paused }: FloorRouteProps)
         <div className="kitchen-body">
           <OrderQueuePanel
             orders={board.orders}
+            now={minute}
             pendingOrderIds={board.pendingOrderIds}
             heldOrders={heldMarks.orders}
             onUnknownDish={menu.refetch}

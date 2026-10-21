@@ -345,7 +345,7 @@ export function PreOrderLines({
       ))}
       {preOrder.note ? (
         <Text style={styles.bookingNote}>
-          <Text style={styles.bookingNoteLabel}>{`${t('preOrder.noteLabel')}: `}</Text>
+          <Text style={styles.bookingNoteLabel}>{`${t('preOrder.noteShown')} `}</Text>
           {preOrder.note}
         </Text>
       ) : null}
