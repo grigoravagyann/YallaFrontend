@@ -136,7 +136,8 @@
       "party_one": "{{count}} guest",
       "party_other": "{{count}} guests",
       "late": "Late · booked {{time}}",
-      "awaitingAdmission": "waiting to be let in"
+      "awaitingAdmission": "waiting to be let in",
+      "onTheWay": "On their way"
     },
     "heldMark": "waiting for {{name}}"
   },

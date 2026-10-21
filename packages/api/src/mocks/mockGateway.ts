@@ -163,6 +163,7 @@ import { mockVenues, type Branch as MockBranch, type Venue as MockVenue } from '
 import {
   ON_YOUR_WAY_FEED_KIND,
   asksOnYourWay,
+  onYourWayAskedFromUtc,
   onYourWayFromUtc,
   type OnMyWayResult,
   type PreOrderDraft,
@@ -2698,8 +2699,8 @@ export function createMockGateway(options: MockGatewayOptions = {}): MockGateway
       });
     }
 
-    // "Are you on your way?" (pre-orders): 45 minutes before a booking with a
-    // pre-order not sent or cancelled, the guest not having answered.
+    // "Are you on your way?": every confirmed booking, 30 minutes before (45
+    // while a pre-order waits), the guest not having answered.
     for (const booking of bookings.values()) {
       if (bookingOwners.get(booking.id) !== accountId) continue;
       if (
@@ -2728,7 +2729,9 @@ export function createMockGateway(options: MockGatewayOptions = {}): MockGateway
         reservationId: booking.id,
         tabId: null,
         orderId: null,
-        createdAtUtc: onYourWayFromUtc(booking.slotUtc),
+        createdAtUtc:
+          onYourWayAskedFromUtc({ startUtc: booking.slotUtc, preOrder: read.preOrder }) ??
+          onYourWayFromUtc(booking.slotUtc),
       });
     }
 

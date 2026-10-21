@@ -286,6 +286,10 @@ export function staffFloorDetails(state: FloorState): readonly StaffTableDetail[
       sittingPromisedFreeByUtc: instantOrNull(table.sittingPromisedFreeByUtc),
       // Unverified guests: a badge on the next booking, Admit / Reject on the tab.
       nextReservationPhoneUnverified: table.nextReservationPhoneUnverified === true,
+      // "On my way": the waiter need not call the next booking's guest.
+      nextReservationGuestConfirmedOnWayAtUtc: instantOrNull(
+        table.nextReservationGuestConfirmedOnWayAtUtc,
+      ),
       openTabAwaitingAdmission: table.openTabAwaitingAdmission === true,
       // Guest record (wire §0a): the next booking's guest, and the party sitting now.
       nextReservationGuestRecord: guestRecordFromWire(table.nextReservationGuestRecord),

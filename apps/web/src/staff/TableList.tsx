@@ -164,7 +164,11 @@ export function TableList({
                     {card.state}
                   </span>
                   {card.sub ? <span className="ft-table-sub">{card.sub}</span> : null}
-                  {card.flag ? <span className="ft-table-flag">{card.flag}</span> : null}
+                  {card.flag ? (
+                    <span className={`ft-table-flag${card.flagTone === 'ok' ? ' is-ok' : ''}`}>
+                      {card.flag}
+                    </span>
+                  ) : null}
                 </span>
                 {pending ? <span className="ft-table-pending">{mark}</span> : null}
               </button>

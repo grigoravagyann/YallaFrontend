@@ -1999,6 +1999,9 @@ export function createStaffMockGateway(options: StaffMockOptions = {}): StaffGat
             (state.nextReservationId
               ? reservations.get(state.nextReservationId)?.phoneUnverified
               : undefined) === true,
+          nextReservationGuestConfirmedOnWayAtUtc: state.nextReservationId
+            ? preOrderBook.onMyWayAt(state.nextReservationId)
+            : null,
           openTabAwaitingAdmission:
             state.tabId !== null && tabs.get(state.tabId)?.admission.status === 'awaiting',
           // Wire §0a: the next booking's guest, while it is still to come.

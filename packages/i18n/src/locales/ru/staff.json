@@ -160,7 +160,8 @@
       "party_many": "{{count}} гостей",
       "party_other": "{{count}} гостя",
       "late": "Опаздывают · {{time}}",
-      "awaitingAdmission": "ждёт разрешения"
+      "awaitingAdmission": "ждёт разрешения",
+      "onTheWay": "Уже в пути"
     },
     "heldMark": "ждёт: {{name}}"
   },

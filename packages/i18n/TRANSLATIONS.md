@@ -1381,6 +1381,13 @@ review every string in `src/locales/hy` and `src/locales/ru`.**
   `offline`, `failed`. The tablet copy now says «մենեջեր» and «վահանակ»,
   as the rest of the staff bundle does.
 
+- `diner` / `staff` — "on your way?" for every booking (2026-10-21), provisional
+  and **not** reviewed: `preOrder.onYourWay.bodyPlain` and `confirmedBodyPlain`
+  (a booking without a pre-order: nobody will need to call, no word about the
+  kitchen), `notifications.kind.bookingOnYourWay.body` reworded to fit both
+  (the feed entry does not know about the pre-order), and staff
+  `floor.card.onTheWay` (the green flag on a table whose next guest said yes).
+
 The Russian bundle carries four plural categories (`one`/`few`/`many`/`other`)
 where Armenian and English carry two. That is correct CLDR, not duplication, and
 `pnpm i18n:check` verifies each language has exactly the categories

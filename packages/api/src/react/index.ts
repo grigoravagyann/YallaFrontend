@@ -59,7 +59,7 @@ import {
   type DecideReservationCommand,
 } from '../contracts/approvals';
 import type { BranchOverview, ConsoleBookingActionCommand } from '../contracts/branchOverview';
-import { ON_YOUR_WAY_MINUTES_BEFORE } from '../contracts/preOrder';
+import { onYourWayAskedFromUtc } from '../contracts/preOrder';
 import type { ManagedBooking, RescheduleManagedBookingCommand } from '../contracts/publicBranch';
 import type { AdmitTabCommand, RejectTabCommand } from '../contracts/admission';
 import type { ReportQuery, ReportSection } from '../contracts/reports';
@@ -2712,15 +2712,15 @@ export function manageLinkPollMs(
   now: number = Date.now(),
 ): number | false {
   if (booking?.status === 'confirmed') {
-    // The "on your way" question: a pre-order still to go to the kitchen, not
-    // answered, the start ahead, and the question near or open.
+    // The "on your way" question, asked of every booking: not answered, the
+    // pre-order (if any) not in the kitchen, the start ahead, and the question
+    // near or open (45 minutes before with a pre-order, 30 otherwise).
     const start = Date.parse(booking.slotUtc ?? '');
-    const pending =
-      booking.preOrder &&
-      booking.preOrder.state !== 'sent' &&
-      booking.preOrder.state !== 'cancelled' &&
-      !booking.guestConfirmedOnWayAtUtc;
-    const askedFrom = start - ON_YOUR_WAY_MINUTES_BEFORE * 60_000;
+    const from = booking.slotUtc
+      ? onYourWayAskedFromUtc({ startUtc: booking.slotUtc, preOrder: booking.preOrder })
+      : null;
+    const pending = from !== null && !booking.guestConfirmedOnWayAtUtc;
+    const askedFrom = from ? Date.parse(from) : Number.NaN;
     return pending &&
       Number.isFinite(start) &&
       now < start &&

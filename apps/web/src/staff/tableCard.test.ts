@@ -86,6 +86,25 @@ describe('a free table', () => {
 });
 
 describe('a booked or held table', () => {
+  it('says in green that the next guest is on their way, so nobody calls (2026-10-21)', () => {
+    const t = table({ state: 'reservedSoon', nextReservationStartUtc: '2026-10-19T15:30:00Z' });
+    const onTheWay = detail({ nextReservationGuestConfirmedOnWayAtUtc: '2026-10-19T15:02:00Z' });
+    expect(card(t, onTheWay)).toMatchObject({ flag: 'On their way', flagTone: 'ok' });
+    // Good news wins the one flag over a number not verified; the panel says both.
+    expect(card(t, { ...onTheWay, nextReservationPhoneUnverified: true })).toMatchObject({
+      flag: 'On their way',
+      flagTone: 'ok',
+    });
+    expect(card(t, detail({ nextReservationPhoneUnverified: true }))).toMatchObject({
+      flag: 'number not verified',
+      flagTone: 'warn',
+    });
+    // Not on a table whose party is already sitting.
+    expect(
+      card(table({ state: 'occupied', occupiedSinceUtc: minutesAgo(10) }), onTheWay).flag,
+    ).toBeUndefined();
+  });
+
   it('says when the booking is, and the party when the server sends it', () => {
     const t = table({ state: 'reservedSoon', nextReservationStartUtc: '2026-10-19T15:30:00Z' });
     expect(card(t, detail({ nextReservationPartySize: 3 }))).toEqual({

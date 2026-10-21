@@ -8,6 +8,7 @@ import {
   isDirty,
   newCommandId,
   onMyWayFailureLine,
+  preOrderWaiting,
   PRE_ORDER_LIMITS,
   preOrderDraftViolations,
   preOrderEditorClosedLine,
@@ -911,8 +912,10 @@ export function ManagePreOrder({
 
 /**
  * "Are you on your way?" on the manage link — only when the server asks
- * (`onYourWayAsked`). "Yes" tells the waiter; the page then says the waiter
- * knows. "I can't come" is the page's own cancel, which asks first.
+ * (`onYourWayAsked`: every booking from 30 minutes before, 45 while a
+ * pre-order waits). "Yes" tells the waiter; the page then says the waiter
+ * knows. "I can't come" is the page's own cancel, which asks first. The words
+ * mention the kitchen only when a pre-order is going there.
  */
 export function OnYourWayQuestion({
   token,
@@ -928,18 +931,19 @@ export function OnYourWayQuestion({
   const confirm = useConfirmManagedOnMyWay(token);
   const headingId = useId();
 
-  const answered =
-    Boolean(booking.guestConfirmedOnWayAtUtc) &&
-    booking.status === 'confirmed' &&
-    booking.preOrder != null &&
-    booking.preOrder.state !== 'cancelled';
+  const withPreOrder = preOrderWaiting(booking.preOrder) || booking.preOrder?.state === 'sent';
+  const answered = Boolean(booking.guestConfirmedOnWayAtUtc) && booking.status === 'confirmed';
   if (answered) {
     return (
       <div className="pub-notice pub-notice-ok" role="status">
         <p>
           <b>{t('preOrder.onYourWay.confirmedTitle')}</b>
         </p>
-        <p>{t('preOrder.onYourWay.confirmedBody')}</p>
+        <p>
+          {withPreOrder
+            ? t('preOrder.onYourWay.confirmedBody')
+            : t('preOrder.onYourWay.confirmedBodyPlain')}
+        </p>
       </div>
     );
   }
@@ -952,7 +956,7 @@ export function OnYourWayQuestion({
     <section className="pub-card pub-po-way" aria-labelledby={headingId}>
       <h2 id={headingId}>{t('preOrder.onYourWay.title')}</h2>
       <p className="pub-card-text">
-        {t('preOrder.onYourWay.body', {
+        {t(withPreOrder ? 'preOrder.onYourWay.body' : 'preOrder.onYourWay.bodyPlain', {
           place: booking.venueName,
           time: branchClock(new Date(booking.slotUtc), booking.timeZoneId),
         })}

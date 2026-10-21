@@ -346,6 +346,37 @@ describe('are you on your way?', () => {
     expect(screen.queryByRole('button', { name: 'preOrder.onYourWay.yes' })).toBeNull();
   });
 
+  it('asks a booking without a pre-order from 30 minutes, without a word about the kitchen (2026-10-21)', async () => {
+    gateway.getBooking.mockResolvedValue(
+      bookingAt(Date.now() + 20 * MINUTE_MS, { preOrder: null }),
+    );
+    render(withQueries(<BookingDetailScreen />));
+    expect(await screen.findByText('preOrder.onYourWay.title')).toBeTruthy();
+    expect(screen.getByText(/^preOrder\.onYourWay\.bodyPlain/)).toBeTruthy();
+    expect(screen.queryByText(/^preOrder\.onYourWay\.body(?!Plain)/)).toBeNull();
+  });
+
+  it('does not ask a booking without a pre-order before 30 minutes', async () => {
+    gateway.getBooking.mockResolvedValue(
+      bookingAt(Date.now() + 40 * MINUTE_MS, { preOrder: null }),
+    );
+    render(withQueries(<BookingDetailScreen />));
+    await screen.findByRole('button', { name: 'bookings.detail.cancel' });
+    expect(screen.queryByText('preOrder.onYourWay.title')).toBeNull();
+  });
+
+  it('says the waiter knows, and nobody will call, once a booking without a pre-order is answered', async () => {
+    gateway.getBooking.mockResolvedValue(
+      bookingAt(Date.now() + 20 * MINUTE_MS, {
+        preOrder: null,
+        guestConfirmedOnWayAtUtc: new Date().toISOString(),
+      }),
+    );
+    render(withQueries(<BookingDetailScreen />));
+    expect(await screen.findByText('preOrder.onYourWay.confirmedTitle')).toBeTruthy();
+    expect(screen.getByText('preOrder.onYourWay.confirmedBodyPlain')).toBeTruthy();
+  });
+
   it('is not asked before 45 minutes', async () => {
     gateway.getBooking.mockResolvedValue({
       ...ASKED,

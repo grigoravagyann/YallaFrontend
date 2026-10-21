@@ -122,21 +122,14 @@ export function preOrderStateTone(
 }
 
 /**
- * "Are you on your way?" on the booking: `ask` from 45 minutes before
- * (`asksOnYourWay`), `confirmed` once the guest said yes and the booking is
- * still to be sat ("the waiter knows"), and nothing otherwise.
+ * "Are you on your way?" on the booking — every booking's, from 30 minutes
+ * before (45 while a pre-order waits; `asksOnYourWay`): `ask`, `confirmed`
+ * once the guest said yes and the booking is still to be sat ("the waiter
+ * knows"), and nothing otherwise.
  */
 export function onYourWayView(booking: OnYourWayInput, now: Date): 'ask' | 'confirmed' | 'none' {
   if (asksOnYourWay(booking, now)) return 'ask';
-  const preOrder = booking.preOrder;
-  if (
-    booking.guestConfirmedOnWayAtUtc &&
-    booking.status === 'confirmed' &&
-    preOrder &&
-    preOrder.state !== 'cancelled'
-  ) {
-    return 'confirmed';
-  }
+  if (booking.guestConfirmedOnWayAtUtc && booking.status === 'confirmed') return 'confirmed';
   return 'none';
 }
 

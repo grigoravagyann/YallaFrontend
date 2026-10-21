@@ -55,8 +55,18 @@ import type { CopyLine } from './reservation';
 
 /** Pre-orders close this many hours before the start (`PreOrderRules.EditableUntilHoursBefore`). */
 export const PRE_ORDER_EDITABLE_HOURS_BEFORE = 2;
-/** "Are you on your way?" is asked this many minutes before the start. */
+/**
+ * "Are you on your way?" is asked this many minutes before the start of a
+ * booking whose pre-order is still waiting: the kitchen needs the answer
+ * earlier than the floor does (`PreOrderRules.OnYourWayMinutesBefore`).
+ */
 export const ON_YOUR_WAY_MINUTES_BEFORE = 45;
+/**
+ * …and this many before every other confirmed booking (2026-10-21: every
+ * booking is asked, so the waiter does not call a guest who said yes;
+ * `PreOrderRules.OnYourWayMinutesBeforeWithoutPreOrder`).
+ */
+export const ON_YOUR_WAY_MINUTES_BEFORE_WITHOUT_PRE_ORDER = 30;
 /** The waiter's card appears this long before the start, by default (branch setting). */
 export const PRE_ORDER_MINUTES_BEFORE_DEFAULT = 30;
 /** The branch setting's bounds; 120 so the card never shows while the guest can still edit. */
@@ -367,7 +377,7 @@ export const DEFAULT_PRE_ORDER_SETTINGS: PreOrderSettings = {
 // Notifications
 // ---------------------------------------------------------------------------
 
-/** The feed entry, appearing 45 minutes before the start. Params as every booking entry. */
+/** The feed entry, appearing when the question is asked (30 or 45 minutes before). Params as every booking entry. */
 export const ON_YOUR_WAY_FEED_KIND = 'booking-on-your-way';
 /** The push's `data.kind`. Outbox type `reservation.on-your-way`. */
 export const ON_YOUR_WAY_PUSH_KIND = 'reservation-on-your-way';
@@ -394,9 +404,45 @@ export function preOrderDueAtUtc(startUtc: string, minutesBefore: number): strin
   return shift(startUtc, -minutesBefore);
 }
 
-/** When "Are you on your way?" is asked. */
-export function onYourWayFromUtc(startUtc: string): string {
-  return shift(startUtc, -ON_YOUR_WAY_MINUTES_BEFORE);
+/**
+ * A pre-order still waiting for the kitchen — editable or locked, not sent and
+ * not marked not coming. Its booking is asked "on your way?" at 45 minutes
+ * rather than 30.
+ */
+export function preOrderWaiting(preOrder: { readonly state: string } | null | undefined): boolean {
+  return preOrder?.state === 'editable' || preOrder?.state === 'locked';
+}
+
+/**
+ * The booking is asked on the pre-order's clock (45 minutes): it has a
+ * pre-order that is not cancelled. One marked not coming is still asked in
+ * the app and on the link — a guest who is coming after all says so.
+ */
+function onPreOrderClock(preOrder: { readonly state: string } | null | undefined): boolean {
+  return preOrder != null && preOrder.state !== 'cancelled';
+}
+
+/**
+ * When the booking is asked "on your way?", or `null` when it is not: never
+ * once its pre-order went to the kitchen.
+ */
+export function onYourWayAskedFromUtc(booking: {
+  readonly startUtc: string;
+  readonly preOrder?: { readonly state: string } | null | undefined;
+}): string | null {
+  if (booking.preOrder?.state === 'sent') return null;
+  return onYourWayFromUtc(booking.startUtc, onPreOrderClock(booking.preOrder));
+}
+
+/**
+ * When "Are you on your way?" is asked: 45 minutes before while a pre-order
+ * waits for the kitchen, 30 otherwise.
+ */
+export function onYourWayFromUtc(startUtc: string, waiting = true): string {
+  return shift(
+    startUtc,
+    -(waiting ? ON_YOUR_WAY_MINUTES_BEFORE : ON_YOUR_WAY_MINUTES_BEFORE_WITHOUT_PRE_ORDER),
+  );
 }
 
 /** What the server derives a pre-order's state from. */
@@ -460,19 +506,20 @@ export interface OnYourWayInput extends BookingPreOrderFields {
 }
 
 /**
- * Whether to ask "Are you on your way? [Yes, on my way] [Can't come]": from
- * 45 minutes before the start while the booking is confirmed, has a pre-order
- * that is not sent or cancelled, and the guest has not answered. The manage
- * link is told by the server (`onYourWayAsked`); this is the same rule for
- * the app's booking screen and the mocks.
+ * Whether to ask "Are you on your way? [Yes, on my way] [Can't come]": of
+ * every confirmed booking (2026-10-21), from 30 minutes before the start — 45
+ * with a pre-order — until it starts, unless the guest has answered or the
+ * pre-order already went to the kitchen. The manage link is told by the
+ * server (`onYourWayAsked`); this is the same rule for the app's booking
+ * screen and the mocks.
  */
 export function asksOnYourWay(booking: OnYourWayInput, now: Date): boolean {
   if (booking.status !== 'confirmed') return false;
   if (booking.guestConfirmedOnWayAtUtc) return false;
-  const preOrder = booking.preOrder;
-  if (!preOrder || preOrder.state === 'sent' || preOrder.state === 'cancelled') return false;
+  const from = onYourWayAskedFromUtc(booking);
+  if (!from) return false;
   const t = now.getTime();
-  return t >= Date.parse(onYourWayFromUtc(booking.startUtc)) && t < Date.parse(booking.startUtc);
+  return t >= Date.parse(from) && t < Date.parse(booking.startUtc);
 }
 
 /** A dish the pre-order picker offers: not sold out, and not excluded by the venue. */
