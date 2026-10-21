@@ -1,4 +1,5 @@
 import { parseAllergens, type AllergenPreset, type Menu, type OrderQueueEntry } from '@yalla/api';
+import { minutesBetween } from '@yalla/format';
 import type { QueuedCommand } from './commands/types';
 
 /**
@@ -30,9 +31,51 @@ export type TicketBand = 'fresh' | 'waiting' | 'late' | 'ready' | 'unsent';
 export function ticketBand(order: OrderQueueEntry): TicketBand {
   if (order.status === 'ready') return 'ready';
   if (order.status === 'new') return 'unsent';
-  if (order.waitingMinutes >= TICKET_LATE_MINUTES) return 'late';
-  if (order.waitingMinutes >= TICKET_WAITING_MINUTES) return 'waiting';
+  const minutes = ticketMinutes(order);
+  if (minutes >= TICKET_LATE_MINUTES) return 'late';
+  if (minutes >= TICKET_WAITING_MINUTES) return 'waiting';
   return 'fresh';
+}
+
+/**
+ * A held pre-order ticket's minutes from whichever came later, its booking's
+ * start or its send (2026-10-21): negative before the start — still to go —
+ * and how long the kitchen has had it after. Null for any other ticket.
+ *
+ * Sent before the start, it is cooked for the booking and ages from the start.
+ * Sent after it — the party came late — the kitchen first saw it at the send,
+ * so it ages from then like any order, and is not late on arrival (review S4).
+ * On the party's tab (`tabId` set: they are seated) it never counts down —
+ * never "in 107 min" with the guests at the table (live QA 2026-10-21, bug 2):
+ * seated before the start it reads 0, fresh, rather than "late" for having
+ * been sent two hours ahead; after the start it ages from the start (or the
+ * send, if later) as above.
+ *
+ * The server's count decides: the ticket was placed (sent) at `placedAtUtc`
+ * and the server says `waitingMinutes` have passed, so the server's now is in
+ * that minute. Within it, the tablet's own clock places the instant (`nowMs`),
+ * so the countdown turns over on the same second as the rail's, which counts
+ * whole minutes to the start the same way (`minutesBetween`); a tablet clock
+ * outside that minute is not believed. Without `nowMs`, the minute's start.
+ */
+export function ticketMinutesFromStart(order: OrderQueueEntry, nowMs?: number): number | null {
+  if (!order.preOrder) return null;
+  const placed = Date.parse(order.placedAtUtc);
+  const start = Date.parse(order.preOrder.startUtc);
+  if (!Number.isFinite(placed) || !Number.isFinite(start)) return null;
+  const counted = placed + order.waitingMinutes * 60_000;
+  const now = nowMs === undefined ? counted : Math.min(Math.max(nowMs, counted), counted + 59_999);
+  const minutes = minutesBetween(Math.max(start, placed), now);
+  return order.tabId ? Math.max(0, minutes) : minutes;
+}
+
+/**
+ * The minutes a ticket's band, timer and "by wait" place are read from: a
+ * pre-order's from its start (or send), any other ticket's wait. One number,
+ * so a pre-order not due yet never sorts ahead of a late table (review S3).
+ */
+export function ticketMinutes(order: OrderQueueEntry): number {
+  return ticketMinutesFromStart(order) ?? order.waitingMinutes;
 }
 
 export interface KitchenCounts {
@@ -68,9 +111,9 @@ export type TicketSort = 'age' | 'table';
 const byLabel = new Intl.Collator(undefined, { numeric: true, sensitivity: 'base' });
 
 /**
- * By wait, the oldest on the left and the ready ones at the end, where they
- * wait for a waiter and stop competing with what is still cooking; ties by
- * when they were sent. By table, in the order a person counts tables: 2
+ * By wait — the minutes the band reads (`ticketMinutes`) — the oldest on the
+ * left and the ready ones at the end, where they wait for a waiter and stop
+ * competing with what is still cooking; ties by when they were sent. By table, in the order a person counts tables: 2
  * before 12.
  */
 export function sortTickets(
@@ -84,7 +127,7 @@ export function sortTickets(
   return list.sort(
     (a, b) =>
       GROUP[a.status] - GROUP[b.status] ||
-      b.waitingMinutes - a.waitingMinutes ||
+      ticketMinutes(b) - ticketMinutes(a) ||
       a.placedAtUtc.localeCompare(b.placedAtUtc),
   );
 }

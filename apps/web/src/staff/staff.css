@@ -4164,3 +4164,197 @@
 .ft-conf-toast:empty {
   display: none;
 }
+
+/* --- Pre-orders on a booking (2026-10-21) -------------------------------------
+   The rail's card and the table panel's section share one body (`.preorder`):
+   the guest, the dishes, the note and the total, then who has to phone, then
+   the two actions. Marked "not coming", the card goes quiet but keeps Send. */
+
+.preorder {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+}
+
+.preorder p,
+.tp .preorder p {
+  margin: 0;
+}
+
+.preorder-time {
+  font-weight: var(--font-weight-bold);
+  font-feature-settings: var(--font-feature-tabular);
+}
+
+.ft-item .preorder .preorder-guest,
+.preorder-guest {
+  color: var(--console-ink);
+  font-weight: var(--font-weight-semibold);
+}
+
+.preorder-lines {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border-top: 1px solid var(--console-line-soft);
+}
+
+.preorder-lines li {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--console-line-soft);
+}
+
+.preorder-qty {
+  min-width: 2.25rem;
+  font-weight: var(--font-weight-bold);
+  font-feature-settings: var(--font-feature-tabular);
+}
+
+.preorder-dish {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px 8px;
+  min-width: 0;
+}
+
+.preorder-dish b {
+  font-size: var(--console-text-nav);
+  font-weight: var(--font-weight-semibold);
+}
+
+/* Sold out since the guest chose it: still promised, said in words. */
+.preorder-lines li.is-gone .preorder-dish b {
+  color: var(--console-muted);
+}
+
+.preorder-dish .badge {
+  font-size: var(--console-text-label);
+  font-weight: var(--font-weight-bold);
+}
+
+.preorder-line-note {
+  flex-basis: 100%;
+  color: var(--console-amber);
+  font-size: var(--console-text-label);
+  font-weight: var(--font-weight-semibold);
+}
+
+.ft-item .preorder .preorder-note,
+.preorder-note {
+  color: var(--console-ink);
+}
+
+.ft-item .preorder .preorder-total,
+.preorder-total {
+  color: var(--console-ink);
+  font-weight: var(--font-weight-bold);
+  font-feature-settings: var(--font-feature-tabular);
+}
+
+.ft-item .preorder .preorder-onway,
+.preorder-onway {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  color: var(--console-green);
+  font-weight: var(--font-weight-semibold);
+}
+
+.ft-item .preorder .preorder-call,
+.preorder-call {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-xs) var(--space-sm);
+  color: var(--console-amber);
+  font-weight: var(--font-weight-semibold);
+}
+
+.preorder-call .approval-call {
+  font-feature-settings: var(--font-feature-tabular);
+}
+
+/* Nothing to chase yet — the guest has not been asked, or is marked not
+   coming: the ordinary ink, never the amber of "call them". */
+.ft-item .preorder .preorder-call.is-plain,
+.preorder-call.is-plain {
+  color: var(--console-ink);
+  font-weight: var(--font-weight-regular);
+}
+
+.preorder-state {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-xs) var(--space-sm);
+  color: var(--console-muted);
+}
+
+.preorder-kitchen {
+  display: inline-flex;
+  align-items: center;
+  min-height: 26px;
+  padding: 0 10px;
+  border-radius: var(--console-radius-pill);
+  background: var(--console-green-bg);
+  color: var(--console-green);
+  font-size: var(--console-text-label);
+  font-weight: var(--font-weight-bold);
+}
+
+/* Voided: it will not be cooked, and goes on nobody's bill — not the green of
+   a ticket on its way. Said in words as well. */
+.preorder-kitchen.is-voided {
+  background: var(--console-red-bg);
+  color: var(--console-red);
+}
+
+/* Not coming: quieter — no tint, the guest's line muted — and Send stays. */
+.preorder-card.is-quiet {
+  background: var(--console-surface-muted);
+}
+
+.preorder-card.is-quiet .preorder-guest,
+.preorder-card.is-quiet .preorder-total {
+  color: var(--console-muted);
+}
+
+/* The table panel's section: first in the panel, under its own heading. */
+.tp-preorder {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: var(--space-md);
+  border: 1.5px solid var(--console-line);
+  border-radius: var(--console-radius-floor-button);
+}
+
+.tp-preorder h3 {
+  margin: 0;
+  font-size: var(--console-text-nav);
+  font-weight: var(--font-weight-bold);
+}
+
+.tp-preorder .preorder-actions {
+  flex-direction: column;
+}
+
+/* The kitchen's ticket: said above its lines, cooked for the booking's time. */
+.ft-ticket-preorder {
+  margin: 0;
+  padding: 8px 14px;
+  border-bottom: 1px solid var(--console-line-soft);
+  background: var(--console-brand-tint);
+  color: var(--console-text-brand);
+  font-size: var(--console-text-nav);
+  font-weight: var(--font-weight-bold);
+  font-feature-settings: var(--font-feature-tabular);
+  /* A long guest name wraps inside the ticket rather than widening it. */
+  overflow-wrap: anywhere;
+}

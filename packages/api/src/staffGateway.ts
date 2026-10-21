@@ -8,6 +8,7 @@ import type {
   RejectTabCommand,
   TabAwaitingAdmission,
 } from './contracts/admission';
+import type { DuePreOrder, DuePreOrders, PreOrderStaffCommand } from './contracts/preOrder';
 import type { ReservationStatusCode } from './contracts/push';
 import type { Menu } from './contracts/menu';
 import type { StaffFloor, TableActionCommand, TableActionResult } from './contracts/service';
@@ -163,6 +164,40 @@ export interface StaffGateway {
    * changed the table at the same moment; read the floor again.
    */
   rejectTab(command: RejectTabCommand): Promise<StaffTab>;
+
+  // --- Pre-orders on the "Հիմա" rail (2026-10-21) --------------------------
+
+  /**
+   * The branch's pre-order cards — `GET /api/branches/{branchId}/pre-orders/due`,
+   * waiter or above at this branch (a cook is refused). A confirmed booking's
+   * card from its `dueAtUtc` until its end; a seated party's until the
+   * pre-order is on their tab. Read again at `nextDueAtUtc` and on the change
+   * stream's `preOrderChanged` and `bookingChanged`.
+   */
+  listDuePreOrders(branchId: string): Promise<DuePreOrders>;
+
+  /**
+   * "Coming → Send to kitchen" — `POST /api/reservations/{id}/pre-order/send`.
+   * Online only. Not seated yet: a held kitchen ticket at once (`tabId`
+   * absent on the queue), the first order on their tab when they sit; seated:
+   * straight onto the tab. A second tap or tablet answers `wasReplay`.
+   *
+   * @throws {PreOrderNotSendableError} not confirmed or seated, before the
+   * start less two hours, or after its end.
+   * @throws {TabNotAcceptingOrdersError} the party's tab is closing.
+   * @throws {TableBusyError} the table was busy — tap again.
+   * @throws {NotFoundError} the booking has no pre-order.
+   */
+  sendPreOrder(command: PreOrderStaffCommand): Promise<DuePreOrder>;
+
+  /**
+   * "Not coming / no answer" — `POST /api/reservations/{id}/pre-order/not-coming`.
+   * Nothing is sent; the card stays and Send stays allowed until the end.
+   *
+   * @throws {PreOrderAlreadySentError} it was sent already.
+   * @throws {PreOrderNotSendableError} not confirmed, or before the start less two hours.
+   */
+  markPreOrderNotComing(command: PreOrderStaffCommand): Promise<DuePreOrder>;
 
   // --- The tab ------------------------------------------------------------
 

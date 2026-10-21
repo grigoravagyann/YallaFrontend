@@ -17,6 +17,7 @@ import { usePressScale } from '../../src/components/motion/usePressScale';
 import { PhotoImage } from '../../src/components/PhotoImage';
 import { bookingShareLine, tableWithRoom } from '../../src/components/bookings/bookingText';
 import { anotherTimeRoute } from '../../src/components/bookings/changeBooking';
+import { PreOrderCard } from '../../src/components/bookings/PreOrderCard';
 import { VenueAnswerNote } from '../../src/components/bookings/VenueAnswer';
 import { directionsUrl } from '../../src/components/place/PlaceActions';
 import { QueryErrorState } from '../../src/components/QueryErrorState';
@@ -24,6 +25,7 @@ import { Screen } from '../../src/components/Screen';
 import { Skeleton } from '../../src/components/Skeleton';
 import { Text } from '../../src/components/Text';
 import { useBooking } from '../../src/data/queries';
+import { useNow } from '../../src/hooks/useNow';
 import { usePlace } from '../../src/places/hooks';
 import { ReminderOptIn } from '../../src/push/ReminderOptIn';
 import {
@@ -65,6 +67,7 @@ export default function SuccessScreen() {
   // The place's photo, address and location, when this phone can read them.
   const { data: place } = usePlace(booking?.branchId);
   const [copied, setCopied] = useState(false);
+  const now = useNow();
 
   /*
    * Every state said, never a spinner that waits for ever.
@@ -261,6 +264,23 @@ export default function SuccessScreen() {
             ) : null}
             <Tile icon={actionIcon.share} label={t('success.share')} onPress={share} />
           </Rise>
+        )}
+
+        {/* The dishes, chosen ahead (2026-10-21): offered while the branch
+            takes pre-orders and the booking is more than two hours away. */}
+        {declinedTitle ? null : (
+          <View style={styles.stretch}>
+            <PreOrderCard
+              booking={booking}
+              now={now}
+              onEdit={() =>
+                router.push({
+                  pathname: '/booking/[bookingId]/pre-order',
+                  params: { bookingId: booking.id },
+                })
+              }
+            />
+          </View>
         )}
 
         {/* What the code is actually for once they are standing there — only

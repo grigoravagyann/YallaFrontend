@@ -2,6 +2,8 @@ import { createMockGateway, isHoldAlreadyExtended, actionIsLive, canExtendHold }
 import { describe, expect, it } from 'vitest';
 import {
   actionFor,
+  onYourWayAnswer,
+  onYourWayRoute,
   parsePushTarget,
   PUSH_ACTIONS,
   routeFor,
@@ -479,5 +481,51 @@ describe('a no-show, and the pause on booking', () => {
       expect(target).toEqual({ kind: 'bookings' });
       expect(routeFor(target)).toEqual({ pathname: '/(tabs)/bookings' });
     }
+  });
+});
+
+/**
+ * "Are you on your way?" (pre-orders, 2026-10-21): 45 minutes before a booking
+ * with a pre-order. It lands on the booking, which asks again from the booking
+ * as it stands; its two buttons open the app there — "Yes" is sent by the
+ * booking's card, "Can't come" opens the ordinary cancel, which asks first.
+ */
+describe('are you on your way?', () => {
+  const data = {
+    kind: 'reservation-on-your-way',
+    reservationId: RESERVATION,
+    code: 'K7Q2LM',
+    actions: 'on-my-way,cancel',
+  };
+
+  it('lands on the booking it is about', () => {
+    const target = parsePushTarget(data);
+    expect(target).toEqual({
+      kind: 'booking',
+      reservationId: RESERVATION,
+      action: null,
+      extensionMinutes: null,
+    });
+    expect(routeFor(target)).toEqual({
+      pathname: '/booking/[bookingId]',
+      params: { bookingId: RESERVATION },
+    });
+  });
+
+  it('is not routable without its booking', () => {
+    expect(parsePushTarget({ kind: 'reservation-on-your-way' })).toEqual({ kind: 'unknown' });
+  });
+
+  it('its buttons open the booking carrying the answer, never answering unseen', () => {
+    expect(actionFor(PUSH_ACTIONS.onMyWay)).toBe(PUSH_ACTIONS.onMyWay);
+    expect(onYourWayAnswer(actionFor(PUSH_ACTIONS.onMyWay))).toBe('yes');
+    expect(onYourWayAnswer(actionFor(PUSH_ACTIONS.cantCome))).toBe('cantCome');
+    expect(onYourWayAnswer(actionFor(PUSH_ACTIONS.cancel))).toBeNull();
+    expect(onYourWayAnswer(null)).toBeNull();
+    expect(onYourWayRoute(RESERVATION, 'yes')).toEqual({
+      pathname: '/booking/[bookingId]',
+      params: { bookingId: RESERVATION, onMyWay: 'yes' },
+    });
+    expect(onYourWayRoute(RESERVATION, 'cantCome').params.onMyWay).toBe('cantCome');
   });
 });

@@ -4,6 +4,7 @@ import {
   type BookingPlace,
   BookingsNotAcceptedError,
   MAX_BOOKING_NOTE,
+  PreOrderAlreadySentError,
   ValidationError,
   isApprovalExpired,
   overlapIsElsewhere,
@@ -55,8 +56,15 @@ export function bookingRefusal(error: unknown): CopyLine | null {
  * a booking that already exists, reads as if it were gone; those get words of
  * their own. Every other line (the table taken, too soon, a rule) is as true
  * of a move as of a new booking.
+ *
+ * `error` is the refusal itself, for what `bookingFailure` has no kind for: a
+ * booking whose pre-order the waiter already sent (start − 30 min) cannot
+ * move — the kitchen is cooking for this time — and the guest is told to call.
  */
-export function changeFailureLine(failure: BookingFailure): CopyLine {
+export function changeFailureLine(failure: BookingFailure, error?: unknown): CopyLine {
+  if (error instanceof PreOrderAlreadySentError) {
+    return { key: 'book.changeError.preOrderSent', params: {} };
+  }
   if (failure.kind === 'generic') return { key: 'book.changeError.generic', params: {} };
   if (failure.kind === 'unknown') return { key: 'book.changeError.unknownOutcome', params: {} };
   return failure.line;

@@ -1,3 +1,12 @@
+import type { OnMyWayResult, PreOrderResult } from '../contracts/preOrder';
+import {
+  onMyWayResultFromWire,
+  preOrderResultFromWire,
+  replacePreOrderBody,
+  rethrowPreOrderRefusal,
+  type WireOnMyWayResult,
+  type WirePreOrderResult,
+} from './preOrderMapping';
 import type { ApiClient } from '../client';
 import type {
   ManagedBooking,
@@ -214,6 +223,51 @@ export function createPublicHttpGateway(client: ApiClient): PublicGateway {
           tableId: command.tableId,
           partySize: command.partySize,
         });
+      }
+    },
+
+    // --- Pre-orders from the link (2026-10-21) ------------------------------
+    //
+    // The app's three routes behind the token, with no session: the same
+    // bodies, refusals and answers. A dead link is the usual 404.
+
+    async replaceManagedPreOrder(command): Promise<PreOrderResult> {
+      try {
+        const { data } = await client.put<WirePreOrderResult>(
+          `/api/public/bookings/${encodeURIComponent(command.token)}/pre-order`,
+          replacePreOrderBody(command, command.clientCommandId),
+          anonymous,
+        );
+        return preOrderResultFromWire(data);
+      } catch (error) {
+        rethrowPreOrderRefusal(error);
+      }
+    },
+
+    async clearManagedPreOrder({ token, clientCommandId }): Promise<PreOrderResult> {
+      try {
+        const { data } = await client.post<WirePreOrderResult>(
+          `/api/public/bookings/${encodeURIComponent(token)}/pre-order/clear`,
+          { clientCommandId },
+          anonymous,
+        );
+        return preOrderResultFromWire(data);
+      } catch (error) {
+        rethrowPreOrderRefusal(error);
+      }
+    },
+
+    async confirmManagedOnMyWay({ token }): Promise<OnMyWayResult> {
+      try {
+        // No body: the link is the whole request.
+        const { data } = await client.post<WireOnMyWayResult>(
+          `/api/public/bookings/${encodeURIComponent(token)}/on-my-way`,
+          undefined,
+          anonymous,
+        );
+        return onMyWayResultFromWire(data);
+      } catch (error) {
+        rethrowPreOrderRefusal(error);
       }
     },
   };

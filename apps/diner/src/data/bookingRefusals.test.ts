@@ -4,6 +4,7 @@ import {
   ConcurrencyConflictError,
   BookingsNotAcceptedError,
   MAX_BOOKING_NOTE,
+  PreOrderAlreadySentError,
   ValidationError,
   bookingFailure,
   type BookingFailure,
@@ -83,6 +84,14 @@ describe('changeFailureLine', () => {
     };
     expect(changeFailureLine(unknown)).toEqual({
       key: 'book.changeError.unknownOutcome',
+      params: {},
+    });
+  });
+
+  it('says a pre-order already in the kitchen, and to call the venue', () => {
+    const error = new PreOrderAlreadySentError({ url: '/api/reservations/r-1/reschedule' });
+    expect(changeFailureLine(bookingFailure(error, 'Asia/Yerevan', 'en'), error)).toEqual({
+      key: 'book.changeError.preOrderSent',
       params: {},
     });
   });

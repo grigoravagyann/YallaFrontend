@@ -59,6 +59,7 @@ import {
   type DecideReservationCommand,
 } from '../contracts/approvals';
 import type { BranchOverview, ConsoleBookingActionCommand } from '../contracts/branchOverview';
+import { ON_YOUR_WAY_MINUTES_BEFORE } from '../contracts/preOrder';
 import type { ManagedBooking, RescheduleManagedBookingCommand } from '../contracts/publicBranch';
 import type { AdmitTabCommand, RejectTabCommand } from '../contracts/admission';
 import type { ReportQuery, ReportSection } from '../contracts/reports';
@@ -96,6 +97,33 @@ import { staleTime } from '../queryClient';
 export { describeFailure } from '../errors';
 export type { FailureKind } from '../errors';
 export { useTelegramVerification } from './telegram';
+export {
+  afterManagedOnMyWay,
+  afterManagedPreOrderSaved,
+  afterOnMyWay,
+  afterPreOrderAction,
+  afterPreOrderSaved,
+  afterPreOrderSettingsSaved,
+  clearPreOrderOptions,
+  confirmOnMyWayOptions,
+  duePreOrdersPollMs,
+  preOrderMenuOptions,
+  replacePreOrderOptions,
+  savePreOrderSettingsFresh,
+  useClearManagedPreOrder,
+  useClearPreOrder,
+  useConfirmManagedOnMyWay,
+  useConfirmOnMyWay,
+  useDuePreOrders,
+  useManagedPreOrderMenu,
+  useMarkPreOrderNotComing,
+  usePreOrderMenu,
+  usePreOrderSettings,
+  useReplaceManagedPreOrder,
+  useReplacePreOrder,
+  useSavePreOrderSettings,
+  useSendPreOrder,
+} from './preOrders';
 export type {
   TelegramVerification,
   TelegramVerificationStatus,
@@ -295,6 +323,11 @@ export const queryKeys = {
   serviceRequests: (branchId: string) => ['staff', 'serviceRequests', branchId] as const,
   /** Bookings waiting for the floor's yes or no. */
   awaitingApproval: (branchId: string) => ['staff', 'awaitingApproval', branchId] as const,
+  /**
+   * The floor's pre-order cards (2026-10-21). Invalidate on the change
+   * stream's `preOrderChanged` and `bookingChanged`.
+   */
+  duePreOrders: (branchId: string) => ['staff', 'preOrders', branchId] as const,
   /** Tables a scan seated with no proved number, waiting for a waiter to let them order. */
   tabsAwaitingAdmission: (branchId: string) =>
     ['staff', 'tabsAwaitingAdmission', branchId] as const,
@@ -319,6 +352,8 @@ export const queryKeys = {
   publicProfile: (branchId: string) => ['console', 'publicProfile', branchId] as const,
   branchListing: (branchId: string) => ['console', 'listing', branchId] as const,
   pendingReservations: (branchId: string) => ['console', 'pendingReservations', branchId] as const,
+  /** Whether the branch takes pre-orders, when the card appears, which dishes are excluded. */
+  preOrderSettings: (branchId: string) => ['console', 'preOrderSettings', branchId] as const,
   /** A branch's today: Overview's cards, chart and bookings. */
   branchOverview: (branchId: string) => ['console', 'branchOverview', branchId] as const,
   /*
@@ -1688,6 +1723,12 @@ function useMenuMutation<TInput, TResult>(
       void queryClient.invalidateQueries({ queryKey: queryKeys.adminMenu(branchId ?? '') });
       // Categories, items and their completeness are three checklist lines.
       void queryClient.invalidateQueries({ queryKey: queryKeys.readiness(branchId ?? '') });
+      // The pre-order exclusions live on the dish rows: a deleted dish (or a
+      // category with its dishes) leaves the server's list, and a cached
+      // list still naming it is refused on the next save (review S5).
+      void queryClient.invalidateQueries({
+        queryKey: queryKeys.preOrderSettings(branchId ?? ''),
+      });
       // Unfinished dishes are the list's readiness line and Home's "not ready".
       refreshVenueViews(queryClient);
       refreshPlatformViews(queryClient);
@@ -2651,12 +2692,42 @@ export const MANAGE_LINK_SLOW_POLL_MS = 60_000;
  */
 export const MANAGE_LINK_FAST_POLL_WITHIN_MS = 60 * 60_000;
 
+/**
+ * How far ahead of "Are you on your way?" a confirmed link with a pre-order
+ * starts reading itself, once a minute, so the question is on the page within
+ * a minute of being asked (pre-orders, 2026-10-21).
+ */
+export const MANAGE_LINK_ON_YOUR_WAY_LEAD_MS = 60 * 60_000;
+
 /** The manage link's poll for a booking as it stands: `false` once nothing waits. */
 export function manageLinkPollMs(
   booking:
-    { readonly status: string; readonly approvalExpiresAtUtc: string | null } | null | undefined,
+    | ({ readonly status: string; readonly approvalExpiresAtUtc: string | null } & {
+        readonly slotUtc?: string | undefined;
+        readonly preOrder?: { readonly state: string } | null | undefined;
+        readonly guestConfirmedOnWayAtUtc?: string | null | undefined;
+      })
+    | null
+    | undefined,
   now: number = Date.now(),
 ): number | false {
+  if (booking?.status === 'confirmed') {
+    // The "on your way" question: a pre-order still to go to the kitchen, not
+    // answered, the start ahead, and the question near or open.
+    const start = Date.parse(booking.slotUtc ?? '');
+    const pending =
+      booking.preOrder &&
+      booking.preOrder.state !== 'sent' &&
+      booking.preOrder.state !== 'cancelled' &&
+      !booking.guestConfirmedOnWayAtUtc;
+    const askedFrom = start - ON_YOUR_WAY_MINUTES_BEFORE * 60_000;
+    return pending &&
+      Number.isFinite(start) &&
+      now < start &&
+      now >= askedFrom - MANAGE_LINK_ON_YOUR_WAY_LEAD_MS
+      ? MANAGE_LINK_SLOW_POLL_MS
+      : false;
+  }
   if (!booking || booking.status !== 'pendingApproval') return false;
   if (!awaitsVenueAnswer(booking)) return MANAGE_LINK_SLOW_POLL_MS;
   const left = Date.parse(booking.approvalExpiresAtUtc ?? '') - now;

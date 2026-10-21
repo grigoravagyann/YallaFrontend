@@ -28,6 +28,7 @@ import {
   type WireReservationTimes,
 } from './bookingTimesWire';
 import { cancellationCause } from './guestRecordMapping';
+import { bookingPreOrderFields, type WireBookingPreOrderFields } from './preOrderMapping';
 import { absolutePhoto } from './photoUrl';
 import { orderStatus, totals } from './staffMapping';
 import { photo } from './venueSettingsMapping';
@@ -273,7 +274,8 @@ export function dinerTab(view: TabView, fetchedAtUtc: string, baseUrl: string): 
 /** With the booking-approval and booking-times fields the generated schema does not have yet. */
 type ReservationViewWire = Schemas['Yalla.Application.Reservations.ReservationView'] &
   WireApprovalFields &
-  WireReservationTimes;
+  WireReservationTimes &
+  WireBookingPreOrderFields;
 
 /**
  * `ReservationStatus`: 1 PendingApproval, 2 Confirmed, 4 Seated, 5 Completed,
@@ -336,6 +338,8 @@ export function booking(view: ReservationViewWire, venueName: string | null): Bo
     manageToken: view.manageToken ?? null,
     promisedFreeByUtc: instantOrNull(view.promisedFreeByUtc),
     incomingTableRequest: incomingTableRequestFromWire(view.incomingTableRequest),
+    // Pre-orders (2026-10-21): the pre-order, the editor's window, the answer.
+    ...bookingPreOrderFields(view),
   };
 }
 

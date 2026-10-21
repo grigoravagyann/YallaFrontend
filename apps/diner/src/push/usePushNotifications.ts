@@ -9,6 +9,8 @@ import { newCommandId } from '../lib/commandId';
 import { invalidateForPush } from './invalidation';
 import {
   actionFor,
+  onYourWayAnswer,
+  onYourWayRoute,
   parsePushTarget,
   PUSH_ACTIONS,
   routeFor,
@@ -111,6 +113,8 @@ export function usePushNotifications({ projectId, signedIn }: PushOptions): void
       extendHold: t('push.action.extendHold'),
       tableRequestYes: t('booking.tableRequest.yes'),
       tableRequestNo: t('booking.tableRequest.no'),
+      onMyWay: t('preOrder.onYourWay.yes'),
+      cantCome: t('preOrder.onYourWay.cantCome'),
     });
   }, [t]);
 
@@ -175,6 +179,10 @@ export function usePushNotifications({ projectId, signedIn }: PushOptions): void
     /** One path for all three states, so cold start cannot drift from the others. */
     async function handle(response: Notifications.NotificationResponse): Promise<void> {
       const data = response.notification.request.content.data as PushData | undefined;
+      // Handled once: the cold-start read keeps answering the same tap for the
+      // life of the process, so a re-run of this effect would route it again
+      // (and ask "I can't come"'s cancel question again).
+      Notifications.clearLastNotificationResponse();
       // A tap from a killed app never passed through the arrival listener.
       invalidateForPush(queryClient, data);
       const target = parsePushTarget(data);
@@ -186,6 +194,13 @@ export function usePushNotifications({ projectId, signedIn }: PushOptions): void
       const accept = tableRequestAnswer(action);
       if (accept !== null && target.kind === 'tableRequest') {
         if (!cancelled) router.push(tableRequestRoute(target, accept));
+        return;
+      }
+
+      // "Yes, I'm on my way" or "I can't come": the booking, carrying the answer.
+      const onMyWay = onYourWayAnswer(action);
+      if (onMyWay !== null && target.kind === 'booking') {
+        if (!cancelled) router.push(onYourWayRoute(target.reservationId, onMyWay));
         return;
       }
 

@@ -20,6 +20,8 @@ import {
   type PublicBranchFixture,
 } from './publicVenues';
 import { mockVenues, type Branch, type Venue } from './venues';
+import { asksOnYourWay, type OnMyWayResult, type PreOrderResult } from '../contracts/preOrder';
+import type { MockGateway } from './mockGateway';
 
 /**
  * The public page's data, without a backend.
@@ -239,7 +241,45 @@ export function createPublicMockGateway(options: PublicMockOptions): PublicGatew
         booking.phoneUnverified !== true &&
         (booking.status === 'confirmed' || booking.status === 'pendingApproval') &&
         Date.parse(booking.slotUtc) > now().getTime(),
+      // Pre-orders (2026-10-21): the pre-order as the booking carries it, and
+      // whether to ask "on your way". No branch id, as the link publishes none.
+      preOrder: booking.preOrder ?? null,
+      preOrderEditableUntilUtc: booking.preOrderEditableUntilUtc ?? null,
+      guestConfirmedOnWayAtUtc: booking.guestConfirmedOnWayAtUtc ?? null,
+      onYourWayAsked: asksOnYourWay({ ...booking, startUtc: booking.slotUtc }, now()),
     };
+  }
+
+  /**
+   * The diner mock's own door for a link (`MockGateway`'s `…ByLink`), so the
+   * link edits the very booking the page made, with no session — or, over a
+   * gateway that has none, its own routes.
+   */
+  const door = gateway as Partial<
+    Pick<
+      MockGateway,
+      | 'replacePreOrderByLink'
+      | 'clearPreOrderByLink'
+      | 'confirmOnMyWayByLink'
+      | 'acceptsPreOrdersAsVenue'
+    >
+  >;
+
+  /** The booking id behind a token, or the link's constant 404. */
+  function linked(token: string, route: string): string {
+    const bookingId = bookingIdFromToken(token);
+    if (bookingId) return bookingId;
+    throw new NotFoundError({
+      url: `${URL_TAG}/api/public/bookings/${route}`,
+      problem: {
+        type: 'about:blank',
+        title: 'Not found',
+        status: 404,
+        detail: 'This booking link is not valid.',
+        code: 'not-found',
+        traceId: 'mock',
+      },
+    });
   }
 
   /*
@@ -307,7 +347,11 @@ export function createPublicMockGateway(options: PublicMockOptions): PublicGatew
         freeTables: counts.free,
         totalTables: counts.total,
         asOfUtc: now().toISOString(),
-        policy: DEFAULT_POLICY,
+        // The console mock's switch, so the page offers a pre-order exactly where the venue takes them.
+        policy: {
+          ...DEFAULT_POLICY,
+          acceptsPreOrders: door.acceptsPreOrdersAsVenue?.(branch.id) ?? false,
+        },
         bookingWindowDays: BOOKING_WINDOW_DAYS,
         acceptsWebBookings: fixture.acceptsWebBookings,
         rooms: branch.rooms
@@ -423,6 +467,39 @@ export function createPublicMockGateway(options: PublicMockOptions): PublicGatew
           acceptsFreeByUtc: command.acceptsFreeByUtc,
         }),
       );
+    },
+
+    async replaceManagedPreOrder(command): Promise<PreOrderResult> {
+      await wait();
+      const bookingId = linked(command.token, 'pre-order');
+      const draft = { lines: command.lines, note: command.note };
+      return door.replacePreOrderByLink
+        ? door.replacePreOrderByLink({
+            ...draft,
+            bookingId,
+            clientCommandId: command.clientCommandId,
+          })
+        : gateway.replacePreOrder({
+            ...draft,
+            reservationId: bookingId,
+            clientCommandId: command.clientCommandId,
+          });
+    },
+
+    async clearManagedPreOrder({ token, clientCommandId }): Promise<PreOrderResult> {
+      await wait();
+      const bookingId = linked(token, 'pre-order/clear');
+      return door.clearPreOrderByLink
+        ? door.clearPreOrderByLink({ bookingId, clientCommandId })
+        : gateway.clearPreOrder({ reservationId: bookingId, clientCommandId });
+    },
+
+    async confirmManagedOnMyWay({ token }): Promise<OnMyWayResult> {
+      await wait();
+      const bookingId = linked(token, 'on-my-way');
+      return door.confirmOnMyWayByLink
+        ? door.confirmOnMyWayByLink(bookingId)
+        : gateway.confirmOnMyWay(bookingId);
     },
   };
 }

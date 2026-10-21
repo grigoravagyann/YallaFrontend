@@ -214,3 +214,45 @@ describe('a booking event at a table (signal 5)', () => {
     expect(result.kind).toBe('gap');
   });
 });
+
+describe('a pre-order row (signal 6)', () => {
+  it('leaves a free table with its booking coming as it is, without reading the floor (review S1)', () => {
+    // A pre-order's table is normally free with that booking next until the
+    // party sits: a read of the whole floor for every guest edit, send or
+    // kitchen move would cost every tablet a request each time.
+    const booked: StaffFloor = {
+      ...floor,
+      details: floor.details.map((row) =>
+        row.tableId === 't2'
+          ? {
+              ...row,
+              physicalStatus: 'free',
+              nextReservationId: 'r-po',
+              nextReservationStartUtc: '2026-09-04T15:30:00Z',
+              nextReservationPartySize: 4,
+            }
+          : row,
+      ),
+    };
+    const result = applyFloorChanges(booked, [
+      {
+        ...change(41, 't2', 'free'),
+        fromStatus: 'free',
+        reservationId: 'r-po',
+        signal: 'preOrderChanged',
+      },
+    ]);
+    expect(result.kind).toBe('applied');
+    if (result.kind !== 'applied') return;
+    expect(result.floor.details).toEqual(booked.details);
+    expect(result.floor.plan).toEqual(booked.plan);
+    expect(result.floor.lastSequence).toBe(41);
+  });
+
+  it('is skipped even for a table this screen has never seen', () => {
+    const result = applyFloorChanges(floor, [
+      { ...change(41, 't-new', 'free'), signal: 'preOrderChanged' },
+    ]);
+    expect(result.kind).toBe('applied');
+  });
+});

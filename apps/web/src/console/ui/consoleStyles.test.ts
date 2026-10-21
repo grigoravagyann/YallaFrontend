@@ -151,6 +151,23 @@ describe('the console stylesheet keeps its contrast', () => {
   });
 });
 
+describe('a toast on a page with a save bar', () => {
+  // Live QA 2026-10-21 (Policy, c09): "Pre-order settings saved" sat on top of
+  // the sticky save bar, over its own Save button. Both are at the foot; on a
+  // page with the bar, the toast is said above it.
+  it('is lifted clear of the bar', () => {
+    const lifted = consoleRules().find(
+      (rule) =>
+        rule.selector.includes(':has(.yc-savebar)') && rule.selector.endsWith('.yc-toast-region'),
+    );
+    // The bar's furthest offset (resting on the main column's padding at the
+    // end of the page), its height (a small button and its padding), a gap.
+    expect(lifted?.body).toMatch(
+      /bottom:\s*calc\(\s*var\(--space-xxxl\)\s*\+\s*var\(--console-size-button-small\)\s*\+\s*2 \* var\(--space-md\)\s*\+\s*var\(--space-sm\)\s*\)/u,
+    );
+  });
+});
+
 describe('the console sidebar', () => {
   // QA, venue console phase 1: on a long page the person at the foot — My
   // account and sign-out — scrolled away with the page.

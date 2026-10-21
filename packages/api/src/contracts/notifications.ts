@@ -38,6 +38,11 @@ export const DINER_NOTIFICATION_KINDS = [
   // The block is over early: liftedBecause "1" a platform admin lifted it,
   // "2" a no-show was undone and the guest is under the threshold again.
   'bookings-unblocked',
+  // Pre-orders (2026-10-21): "Are you on your way?" 45 minutes before a
+  // booking with a pre-order — params as every booking entry (venueName,
+  // branchName, date, time, partySize, reservationCode), `reservationId` set.
+  // Answers: on my way (`confirmOnMyWay`) or the ordinary cancel.
+  'booking-on-your-way',
 ] as const;
 
 export type KnownDinerNotificationKind = (typeof DINER_NOTIFICATION_KINDS)[number];

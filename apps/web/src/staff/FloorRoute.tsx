@@ -7,6 +7,7 @@ import {
   ReservationNotStartedError,
   newCommandId,
   noShowUndoableUntil,
+  readsPreOrderRail,
   tableDetail,
   type AdjustmentKind,
   type AffectedReservation,
@@ -32,6 +33,7 @@ import {
   useAwaitingApproval,
   useBeginClosing,
   useCompLine,
+  useDuePreOrders,
   useOpenTabForStaff,
   useOrderQueue,
   useRecordCashPayment,
@@ -68,6 +70,12 @@ import type { LiveStream } from '@yalla/realtime';
 import { FloorRail, type UnresolvedTab } from './FloorRail';
 import type { CashOutcome } from './CashKeypad';
 import { OrderEntry, type OrderSent } from './OrderEntry';
+import {
+  PreOrderSection,
+  preOrderForTable,
+  preOrderNeedsAction,
+  type PreOrderOutcome,
+} from './PreOrderPanel';
 import { ageOrders, projectOrders } from './kitchenBoard';
 import { useMinuteClock } from './useMinuteClock';
 import { useBehindHeldNotice, useCancelReadsWhileLocked, useHeldMarks } from './useHandover';
@@ -456,10 +464,21 @@ export function FloorRoute({ identity, device = null, paused }: FloorRouteProps)
               (change) => change.signal === 'bookingCancelledByBlock',
             );
             // A booking made, approved, declined, moved or cancelled anywhere
-            // (signal 5): the requests may have changed too.
-            if (signalled.some((change) => change.signal === 'bookingChanged')) {
+            // (signal 5): the requests may have changed too. A signal this
+            // build does not know reads them (and the pre-orders) again too.
+            const unknownSignal = signalled.some((change) => change.signal === 'unknown');
+            if (unknownSignal || signalled.some((change) => change.signal === 'bookingChanged')) {
               void queryClient.invalidateQueries({
                 queryKey: queryKeys.awaitingApproval(branchId),
+              });
+            }
+            // A pre-order changed anywhere (signal 6) — the branch's pre-order
+            // settings included — or a booking did (5), or a block cancelled
+            // one (4, its only row): the rail's cards are read again, never
+            // patched from the row.
+            if (unknownSignal || signalled.some((change) => readsPreOrderRail(change.signal))) {
+              void queryClient.invalidateQueries({
+                queryKey: queryKeys.duePreOrders(branchId),
               });
             }
             if (byBlock.length > 0) {
@@ -510,6 +529,7 @@ export function FloorRoute({ identity, device = null, paused }: FloorRouteProps)
           void queryClient.invalidateQueries({
             queryKey: queryKeys.tabsAwaitingAdmission(branchId),
           });
+          void queryClient.invalidateQueries({ queryKey: queryKeys.duePreOrders(branchId) });
         },
         onError: () => {
           // Reported through the header's chip, which is the one place a
@@ -622,6 +642,13 @@ export function FloorRoute({ identity, device = null, paused }: FloorRouteProps)
   /** Tables that scanned with no verified number, waiting to be let in. */
   const admissionQuery = useTabsAwaitingAdmission(branchId, active);
   const waitingTables = useMemo(() => admissionQuery.data ?? [], [admissionQuery.data]);
+  /**
+   * Bookings with a pre-order, from the branch's `minutesBefore` until they
+   * end or it is on their tab. Read again at the next card's time, on the
+   * change stream's pre-order and booking signals, and after every action.
+   */
+  const preOrdersQuery = useDuePreOrders(branchId, active);
+  const duePreOrders = useMemo(() => preOrdersQuery.data?.items ?? [], [preOrdersQuery.data]);
 
   // Browsers allow sound only after a gesture, and suspend it again when the
   // tablet sleeps or the tab is hidden. Every tap on the floor wakes the
@@ -675,6 +702,20 @@ export function FloorRoute({ identity, device = null, paused }: FloorRouteProps)
         clockMs,
       ),
     [floorQuery.data, clockMs],
+  );
+
+  const preOrderDone = useCallback(
+    (outcome: PreOrderOutcome) =>
+      setNotice({
+        kind: 'info',
+        text:
+          outcome.kind === 'notComing'
+            ? t('preOrders.notComingNotice', { label: outcome.tableLabel })
+            : outcome.wasReplay
+              ? t('preOrders.alreadySentNotice', { label: outcome.tableLabel })
+              : t('preOrders.sentNotice', { label: outcome.tableLabel }),
+      }),
+    [t],
   );
 
   const admissionDecided = useCallback(
@@ -921,7 +962,8 @@ export function FloorRoute({ identity, device = null, paused }: FloorRouteProps)
       const clientCommandId = newCommandId();
       queue.enqueue({
         id: clientCommandId,
-        scope: order.tabId,
+        // A held pre-order ticket has no tab yet: its own id keeps its moves in order.
+        scope: order.tabId ?? order.orderId,
         precondition: null,
         // `KitchenOrderView` carries no table id. The label is what the rail
         // shows and what a conflict entry needs; a lookup by label could name
@@ -1170,6 +1212,7 @@ export function FloorRoute({ identity, device = null, paused }: FloorRouteProps)
         floorWaiting={
           (awaitingQuery.data?.length ?? 0) +
           waitingTables.length +
+          duePreOrders.filter(preOrderNeedsAction).length +
           (requestsQuery.data?.length ?? 0)
         }
         onSelectView={(next) => {
@@ -1224,6 +1267,7 @@ export function FloorRoute({ identity, device = null, paused }: FloorRouteProps)
         <div className="kitchen-body">
           <OrderQueuePanel
             orders={board.orders}
+            now={minute}
             pendingOrderIds={board.pendingOrderIds}
             heldOrders={heldMarks.orders}
             onUnknownDish={menu.refetch}
@@ -1329,6 +1373,14 @@ export function FloorRoute({ identity, device = null, paused }: FloorRouteProps)
               setSelection(null);
             }}
             admission={selectedAdmission}
+            // The booking's pre-order, while it is on the rail: the same card.
+            preOrder={preOrderForTable(
+              duePreOrders,
+              selection.tableId,
+              selectedDetail?.nextReservationId,
+              selectedDetail?.physicalStatus === 'occupied',
+            )}
+            onPreOrderDone={preOrderDone}
             branchId={branchId}
             onAdmissionDecided={admissionDecided}
             onStartTab={() => startTab(selection.tableId)}
@@ -1372,6 +1424,22 @@ export function FloorRoute({ identity, device = null, paused }: FloorRouteProps)
                 online={queue.online}
                 timeZoneId={timeZoneId}
                 onSettled={(noShow, outcome) => undoSettled(noShow.reservationId, outcome)}
+              />
+            ) : null
+          }
+          preOrders={
+            branchId ? (
+              <PreOrderSection
+                branchId={branchId}
+                items={duePreOrders}
+                timeZoneId={timeZoneId}
+                loading={preOrdersQuery.isLoading && !isOfflinePaused(preOrdersQuery)}
+                failed={
+                  preOrdersQuery.isError ||
+                  (isOfflinePaused(preOrdersQuery) && !preOrdersQuery.data)
+                }
+                online={queue.online}
+                onDone={preOrderDone}
               />
             ) : null
           }

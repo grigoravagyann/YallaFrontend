@@ -1,6 +1,7 @@
 import { branchDayKey, formatCountdown, type Locale, type TimeZone } from '@yalla/format';
 import { ApiError } from '../errors';
 import type { CancellationCause, GuestRecord } from './guestRecord';
+import type { BookingPreOrderFields } from './preOrder';
 import type { ReservationStatusCode } from './push';
 
 /**
@@ -16,8 +17,14 @@ import type { ReservationStatusCode } from './push';
  * party of ten on a Friday needs the name, the phone to ring, and *why* the
  * booking is waiting — three fields `ReservationView` has and the diner's
  * shape leaves out.
+ *
+ * With the booking's pre-order and "on my way" answer (2026-10-21), when the
+ * list carries them.
  */
-export interface ConsoleBooking {
+export interface ConsoleBooking extends Pick<
+  BookingPreOrderFields,
+  'preOrder' | 'guestConfirmedOnWayAtUtc'
+> {
   readonly id: string;
   /** The short code quoted at the door. */
   readonly code: string;
@@ -265,7 +272,11 @@ export function isApprovalExpired(error: unknown): boolean {
  * after it. The three context fields are that, and the server answers them in
  * the same read so the tablet does not ask table by table.
  */
-export interface AwaitingApproval {
+/** With the booking's pre-order (2026-10-21), when it has one. */
+export interface AwaitingApproval extends Pick<
+  BookingPreOrderFields,
+  'preOrder' | 'guestConfirmedOnWayAtUtc'
+> {
   readonly id: string;
   readonly code: string;
   readonly branchId: string;

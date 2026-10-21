@@ -34,6 +34,12 @@ import type {
   NotificationPageQuery,
 } from './contracts/notifications';
 import type { ReportReviewCommand } from './contracts/reviews';
+import type {
+  ClearPreOrderCommand,
+  OnMyWayResult,
+  PreOrderResult,
+  ReplacePreOrderCommand,
+} from './contracts/preOrder';
 import type { Photo } from './contracts/menuAdmin';
 import type {
   BranchDetail,
@@ -537,6 +543,48 @@ export interface YallaGateway {
    * @throws {NotFoundError} no booking of the diner's has that id.
    */
   answerTableRequest(command: AnswerTableRequestCommand): Promise<Booking>;
+
+  // --- Pre-orders (2026-10-21) --------------------------------------------
+
+  /**
+   * Save the pre-order of the diner's own booking, whole —
+   * `PUT /api/reservations/{reservationId}/pre-order`. Offer it while
+   * `canEditPreOrder(booking)`; at booking time, book first and then save
+   * (a booking made less than two hours ahead cannot have one). Idempotent
+   * on `clientCommandId`: a replay answers the pre-order as it stands.
+   * The menu is {@link getBranchMenuDetail} narrowed by `preOrderMenu`.
+   *
+   * @throws {PreOrderLockedError} two hours before the start or later.
+   * @throws {PreOrderAlreadySentError} a waiter sent it to the kitchen.
+   * @throws {PreOrdersNotAcceptedError} the branch does not take pre-orders.
+   * @throws {PreOrderItemsUnavailableError} dishes not on the menu, sold out
+   * or excluded — every one named; nothing saved.
+   * @throws {BookingNotChangeableError} not pending or confirmed, or started.
+   * @throws {ValidationError} a bound (`lines`, `lines[i].quantity`,
+   * `lines[i].note`, `note`); see `preOrderDraftViolations`.
+   * @throws {BookingCommandInUseError} the command id was used for something else.
+   * @throws {ConcurrencyConflictError} two saves at once — read again and retry.
+   * @throws {NotFoundError} not the diner's booking.
+   */
+  replacePreOrder(command: ReplacePreOrderCommand): Promise<PreOrderResult>;
+
+  /**
+   * Remove the pre-order — `POST /api/reservations/{id}/pre-order/clear`.
+   * Under the same window as saving, whether or not the branch still takes
+   * pre-orders; a booking with none answers with none. Same refusals as
+   * {@link replacePreOrder}, less the branch switch and the dishes.
+   */
+  clearPreOrder(command: ClearPreOrderCommand): Promise<PreOrderResult>;
+
+  /**
+   * "Yes, on my way" — `POST /api/reservations/{id}/on-my-way`. Recorded
+   * once: a second tap answers the first time, `wasReplay`. "Can't come" is
+   * {@link cancelBooking}.
+   *
+   * @throws {OnMyWayNotOpenError} not confirmed or seated, or over.
+   * @throws {NotFoundError} not the diner's booking.
+   */
+  confirmOnMyWay(reservationId: string): Promise<OnMyWayResult>;
 
   // --- Notifications ------------------------------------------------------
 

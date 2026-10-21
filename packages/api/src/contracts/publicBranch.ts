@@ -2,6 +2,7 @@ import type { ApprovalTrigger, DeclineReason } from './approvals';
 import type { VenueType } from './booking';
 import type { SpecialDay, WeeklyHours } from './branchSettings';
 import type { CancellationCause } from './guestRecord';
+import type { BookingPreOrderFields } from './preOrder';
 
 /**
  * What a stranger with a link can see, and nothing more.
@@ -67,6 +68,13 @@ export interface PublicBranchPolicy {
   readonly minLeadMinutes: number;
   /** Cancelling later than this is still allowed, but recorded as late. */
   readonly cancellationDeadlineMinutes: number;
+  /**
+   * Whether the branch takes pre-orders on a booking (2026-10-21): mention
+   * pre-ordering before and after booking. The page's cached plan — it may lag
+   * a settings change by its cache time; a booking's own
+   * `preOrderEditableUntilUtc` is the answer for that booking. Absent: false.
+   */
+  readonly acceptsPreOrders?: boolean | undefined;
 }
 
 /**
@@ -237,8 +245,14 @@ export interface PublicPageMeta {
  * one-tap cancel, so without this link the only way out of a booking is not
  * turning up, and the page becomes a no-show generator for the venue that
  * printed it on a card.
+ *
+ * And, since pre-orders (2026-10-21), its pre-order: editable from the link
+ * like the app's, with the "on my way" question when `onYourWayAsked`. The
+ * link publishes **no branch id**: the picker's menu is found from
+ * `venueSlug`/`branchSlug` (the branch page names its id) — see
+ * `useManagedPreOrderMenu`.
  */
-export interface ManagedBooking {
+export interface ManagedBooking extends BookingPreOrderFields {
   /**
    * The booking's id. It opens nothing anonymously; the change screen passes it
    * as `excludeReservationId` on the day-of-slots and room reads, so the table
@@ -331,6 +345,13 @@ export interface ManagedBooking {
    * from an older server, which reads as true (the change itself then says no).
    */
   readonly canChange?: boolean | undefined;
+  /**
+   * Ask "Are you on your way? [Yes, on my way] [Can't come]": true from 45
+   * minutes before the start while the booking is confirmed, has a pre-order
+   * that is not sent or cancelled, and the guest has not answered. The
+   * server's answer; absent reads as false.
+   */
+  readonly onYourWayAsked?: boolean | undefined;
 }
 
 /**

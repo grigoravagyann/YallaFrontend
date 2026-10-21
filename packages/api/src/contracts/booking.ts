@@ -2,6 +2,7 @@ import type { FloorPlanData } from './tableFloor';
 import type { ApprovalTrigger, DeclineReason } from './approvals';
 import type { OpenState } from './publicBranch';
 import type { CancellationCause, GuestRecord } from './guestRecord';
+import type { BookingPreOrderFields } from './preOrder';
 import type { ReservationStatusCode } from './push';
 
 /**
@@ -356,8 +357,12 @@ export type BookingStatus = ReservationStatusCode;
  * stayed on the mock. Now every field is one the server sends, except
  * `venueName`, which the view lacks and the gateway fills from the browse list
  * when it has read it.
+ *
+ * The pre-order fields (`preOrder`, `preOrderEditableUntilUtc`,
+ * `guestConfirmedOnWayAtUtc`) come from {@link BookingPreOrderFields}; see
+ * `canEditPreOrder` for when to offer the editor.
  */
-export interface Booking {
+export interface Booking extends BookingPreOrderFields {
   readonly id: string;
   /** Short human code. Staff ask for it and it gets read aloud over the phone. */
   readonly code: string;

@@ -55,6 +55,8 @@ export async function registerCategories(labels: {
   readonly extendHold: string;
   readonly tableRequestYes: string;
   readonly tableRequestNo: string;
+  readonly onMyWay: string;
+  readonly cantCome: string;
 }): Promise<void> {
   await Notifications.setNotificationCategoryAsync('reservation-reminder', [
     {
@@ -98,6 +100,20 @@ export async function registerCategories(labels: {
       identifier: PUSH_ACTIONS.tableRequestNo,
       buttonTitle: labels.tableRequestNo,
       options: answer,
+    },
+  ]);
+
+  /*
+   * Pre-orders: "Are you on your way?" Both open the app, unlocked, for the
+   * same reasons: the booking's card sends the Yes and says the waiter knows,
+   * and "I can't come" is a cancellation, which the booking asks about first.
+   */
+  await Notifications.setNotificationCategoryAsync('on-your-way', [
+    { identifier: PUSH_ACTIONS.onMyWay, buttonTitle: labels.onMyWay, options: answer },
+    {
+      identifier: PUSH_ACTIONS.cantCome,
+      buttonTitle: labels.cantCome,
+      options: { ...answer, isDestructive: true },
     },
   ]);
 }

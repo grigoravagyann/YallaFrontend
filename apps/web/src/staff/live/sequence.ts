@@ -70,6 +70,16 @@ export function applyFloorChanges(
   const changed = new Set<string>();
 
   for (const change of ordered) {
+    // A pre-order at this table's booking changed (signal 6): created, edited,
+    // sent, marked not coming, put on the tab, its ticket moved, the guest on
+    // the way. A same-status row about the booking, not the table, and it
+    // carries nothing the floor folds: the rail is read again
+    // (`readsPreOrderRail`) and the table is left as it is. First, before the
+    // checks below: a pre-order's table is usually free with that booking
+    // next, and a whole-floor read per guest edit or kitchen move is the
+    // flood S9 removed (review S1). The admission fold would also clear a
+    // scan's waiting flag.
+    if (change.signal === 'preOrderChanged') continue;
     const detail = details.get(change.tableId);
     // A table the client has never seen means the plan itself changed under us
     // — a table was added in the editor. Geometry does not arrive on this
@@ -106,7 +116,14 @@ export function applyFloorChanges(
     // cancelled, a no-show marked or withdrawn (signal 5). The row's status is
     // what the save saw, not a transition: only a read of the floor says what
     // the table's next booking is now (wire §0a).
-    if (change.signal === 'bookingCancelledByBlock' || change.signal === 'bookingChanged') {
+    //
+    // A signal this build does not know: read, never guessed at — and never
+    // folded as an admission, which would clear a scan's waiting flag.
+    if (
+      change.signal === 'bookingCancelledByBlock' ||
+      change.signal === 'bookingChanged' ||
+      change.signal === 'unknown'
+    ) {
       return { kind: 'gap', expected: floor.lastSequence + 1, received: change.sequence };
     }
     if (change.signal) {

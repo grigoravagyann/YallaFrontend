@@ -1,3 +1,5 @@
+import { ON_YOUR_WAY_PUSH_KIND } from '@yalla/api';
+
 /**
  * What a notification means, and where it lands.
  *
@@ -24,6 +26,7 @@
  * | `booking-no-show`         | `reservationId` — a venue marked the booking a no-show |
  * | `bookings-blocked-no-shows` | `blockedUntilUtc` — three no-shows in three days: booking paused for a week |
  * | `bookings-unblocked`      | `liftedBecause` ("1" lifted, "2" a no-show undone) — the pause ended early |
+ * | `reservation-on-your-way` | `reservationId`, `code`, `actions` — "Are you on your way?", 45 minutes before a booking with a pre-order; Yes / Can't come buttons |
  *
  * `expired` is `"true"` on the decision nobody made: a short-notice request
  * the floor did not answer in its fifteen minutes, declined by the server with
@@ -119,6 +122,7 @@ export function parsePushTarget(data: PushData | null | undefined): PushTarget {
     case 'reservation-changed-by-link':
     case 'reservation-cancelled-by-link':
     case NO_SHOW_PUSH_KIND:
+    case ON_YOUR_WAY_PUSH_KIND: // "Are you on your way?" (pre-orders): the booking asks it again.
     case 'table-request-decided': {
       const reservationId = str(data, 'reservationId');
       // A booking notification with no booking id is not routable. Landing on
@@ -178,6 +182,11 @@ export type PushRoute =
          */
         answer?: 'yes' | 'no';
         requestId?: string;
+        /**
+         * The "on your way" push's Yes or Can't come: the booking's card sends
+         * the Yes, and Can't come opens the cancel question.
+         */
+        onMyWay?: OnYourWayAnswer;
       };
     }
   | { readonly pathname: '/tab/[tabId]'; readonly params: { tabId: string } }
@@ -237,6 +246,9 @@ export const PUSH_ACTIONS = {
   /** The `table-request` category's two answers: "Yes, I'll have left" and "No". */
   tableRequestYes: 'table-request-yes',
   tableRequestNo: 'table-request-no',
+  /** The `on-your-way` category's two answers: "Yes, I'm on my way" and "I can't come". */
+  onMyWay: 'on-my-way',
+  cantCome: 'on-your-way-cant-come',
 } as const;
 
 export type PushActionId = (typeof PUSH_ACTIONS)[keyof typeof PUSH_ACTIONS];
@@ -258,4 +270,29 @@ export function tableRequestAnswer(action: PushActionId | null): boolean | null 
   if (action === PUSH_ACTIONS.tableRequestYes) return true;
   if (action === PUSH_ACTIONS.tableRequestNo) return false;
   return null;
+}
+
+/** What an "on your way" button said. */
+export type OnYourWayAnswer = 'yes' | 'cantCome';
+
+/** The answer an `on-your-way` button gives, or `null` for any other button. */
+export function onYourWayAnswer(action: PushActionId | null): OnYourWayAnswer | null {
+  if (action === PUSH_ACTIONS.onMyWay) return 'yes';
+  if (action === PUSH_ACTIONS.cantCome) return 'cantCome';
+  return null;
+}
+
+/**
+ * Where an "on your way" button goes: the booking, carrying the answer. Both
+ * open the app, for the reasons `tableRequestRoute` gives — and "Can't come"
+ * cancels a table, which is asked, never done from a lock screen.
+ */
+export function onYourWayRoute(
+  reservationId: string,
+  answer: OnYourWayAnswer,
+): Extract<PushRoute, { pathname: '/booking/[bookingId]' }> {
+  return {
+    pathname: '/booking/[bookingId]',
+    params: { bookingId: reservationId, onMyWay: answer },
+  };
 }

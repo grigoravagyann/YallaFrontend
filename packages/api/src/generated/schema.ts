@@ -1024,6 +1024,49 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/branches/{branchId}/pre-order-settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Whether the branch takes pre-orders, when the waiter sees them, and which dishes are excluded */
+        get: operations["getPreOrderSettings"];
+        /**
+         * Save the branch's pre-order settings
+         * @description `acceptsPreOrders` (off by default), `minutesBefore` (when the waiter's card appears; 5 to 120, default 30 - never earlier than the guest's two-hour edit lock) and `excludedMenuItemIds`, the **whole** list of this branch's dishes guests may not pre-order (every other dish may be). Out of bounds, or a dish not on this branch's menu: 422 `validation-failed` naming `minutesBefore` or `excludedMenuItemIds`. All three are required: one left out is 422 `validation-failed` naming it, never a silent reset. Switching off keeps existing pre-orders working; guests may still clear them. A save puts signal 6 on the change stream for the bookings whose rail card it reaches, so tablets re-read `pre-orders/due`.
+         */
+        put: operations["putPreOrderSettings"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/branches/{branchId}/pre-orders/due": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The pre-order rail: the cards due now
+         * @description Bookings of this branch with a pre-order: **confirmed** from `dueAtUtc` (the start minus the branch's `minutesBefore`) until the booking ends, or **seated** while the pre-order is not yet on their tab. Soonest first. Each card: table, time, party, guest name and `guestPhone` to call (empty for a platform admin), `guestConfirmedOnWayAtUtc` ("Guest confirmed" - no call needed), the guest record (as on the awaiting cards), the pre-order, who sent it or marked the party not coming, and the tab once it is on one.
+         *
+         *     `nextDueAtUtc`: when the next card appears - read again then. Read again on change-stream signal 6 (`PreOrderChanged`) and 5. Waiter or above at the branch, from the stored staff row.
+         */
+        get: operations["listDuePreOrders"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/branches/{branchId}/public-profile": {
         parameters: {
             query?: never;
@@ -1933,7 +1976,7 @@ export interface paths {
          * The diner's notifications, newest first, with the unread count
          * @description `{ items, nextCursor, unreadCount }`. Each item is `{ notificationId, kind, params, branchId, branchName, reservationId, tabId, orderId, createdAtUtc, read }`.
          *
-         *     `kind` is `booking-reminder`, `booking-confirmed`, `booking-declined`, `booking-cancelled-by-venue`, `order-ready`, `review-hidden`, `review-replied` (the venue answered the diner's review; `params` as `review-hidden`), `table-request` or `table-request-decided`. **The server sends no prose**: the app writes the text from `kind` and the string values in `params`.
+         *     `kind` is `booking-reminder`, `booking-confirmed`, `booking-declined`, `booking-cancelled-by-venue`, `order-ready`, `review-hidden`, `review-replied` (the venue answered the diner's review; `params` as `review-hidden`), `table-request`, `table-request-decided`, `booking-changed-by-link`, `booking-cancelled-by-link`, `bookings-blocked-no-shows`, `booking-no-show`, `bookings-unblocked` or `booking-on-your-way` ("Are you on your way?" for a booking with a pre-order - answer with the booking's on-my-way or its cancel). **The server sends no prose**: the app writes the text from `kind` and the string values in `params`.
          *
          *     A reminder appears when it is due, not when the booking was made; cancelling the booking before then removes it. `unreadCount` covers the whole feed, not the page.
          *
@@ -2569,6 +2612,65 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/public/bookings/{token}/on-my-way": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * "Yes, on my way" from the manage link
+         * @description As `confirmOnMyWay`. The link's read says when to ask: `onYourWayAsked`. "Can't come" is the link's cancel.
+         */
+        post: operations["confirmPublicBookingOnMyWay"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/public/bookings/{token}/pre-order": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Save a booking's pre-order from its manage link
+         * @description The app's `replacePreOrder` for somebody holding nothing but the link - the same rules, refusals and answer. The menu is the branch's (`GET /api/public/branches/{branchId}/menu`), its id from the branch page the link's `venueSlug`/`branchSlug` name.
+         *
+         *     `preOrder.state`: 1 Editable (until `editableUntilUtc`, two hours before the start), 2 Locked, 3 Sent (the kitchen has it - whatever the booking does next), 4 NotComing (a waiter marked the party not coming; still sendable), 5 Cancelled (the booking was cancelled, declined or blocked, or ended without a send - undoing a no-show brings it back). Prices are **locked**: a dish keeps the price it had when it first entered the pre-order. A line whose dish has since sold out or been excluded reads `availableNow: false`.
+         */
+        put: operations["replacePublicBookingPreOrder"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/public/bookings/{token}/pre-order/clear": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Remove a booking's pre-order from its manage link */
+        post: operations["clearPublicBookingPreOrder"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/public/bookings/{token}/reschedule": {
         parameters: {
             query?: never;
@@ -3050,6 +3152,114 @@ export interface paths {
          *     Already withdrawn: `200` with the booking as it stands. **Online only** - not for the offline queue.
          */
         post: operations["undoReservationNoShow"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/reservations/{reservationId}/on-my-way": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * "Yes, on my way"
+         * @description The answer to the pre-order's question 45 minutes before - taken from two hours before the start until the booking ends. Recorded once (`guestConfirmedOnWayAtUtc` on the booking; the waiter's card says "Guest confirmed"); a second tap answers the first time, `wasReplay: true`. Moving the booking to another start forgets the answer. No body. "Can't come" is the booking's ordinary cancel. A booking not confirmed or seated, more than two hours away, or over: **409 `on-my-way-not-open`** (`context`: `reservationId`, `status`, `opensAtUtc`).
+         */
+        post: operations["confirmOnMyWay"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/reservations/{reservationId}/pre-order": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Save the booking's pre-order: the whole list of dishes, and a note
+         * @description Replaces the pre-order with `lines` (1 to 30, in display order; `quantity` 1 to 20, at most 60 dishes in all; a line's `note` at most 200 characters) and `note` (at most 500). The guest's own booking only - anybody else's is 404, as for an id that is no booking. Until **two hours before the start**. Idempotent on `clientCommandId`: a retry answers the pre-order as it stands, `wasReplay: true`.
+         *
+         *     Dishes: on this branch's menu as a diner sees it, not sold out, not excluded from pre-orders (`availableForPreOrder` on the menu). Anything else is **422 `pre-order-items-unavailable`** with `context.items[]` = `{ menuItemId, reason }` for every one (1 NotOnMenu, 2 SoldOut, 3 NotForPreOrder), and nothing is saved. Bounds are 422 `validation-failed` naming `lines`, `lines[i].quantity`, `lines[i].note` or `note`.
+         *
+         *     The first save schedules **"Are you on your way?"** 45 minutes before the start (push `reservation.on-your-way` and feed `booking-on-your-way`); clearing withdraws it.
+         *
+         *     `preOrder.state`: 1 Editable (until `editableUntilUtc`, two hours before the start), 2 Locked, 3 Sent (the kitchen has it - whatever the booking does next), 4 NotComing (a waiter marked the party not coming; still sendable), 5 Cancelled (the booking was cancelled, declined or blocked, or ended without a send - undoing a no-show brings it back). Prices are **locked**: a dish keeps the price it had when it first entered the pre-order. A line whose dish has since sold out or been excluded reads `availableNow: false`.
+         */
+        put: operations["replacePreOrder"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/reservations/{reservationId}/pre-order/clear": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Remove the booking's pre-order
+         * @description Under the same window as saving, and allowed whether or not the branch still takes pre-orders. Clearing a booking with none answers 200 with no `preOrder`. Idempotent on `clientCommandId`.
+         */
+        post: operations["clearPreOrder"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/reservations/{reservationId}/pre-order/not-coming": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * "Not coming / no answer"
+         * @description Nothing is sent; the card stays (`preOrder.state` 4) and **send stays possible** until the booking ends. A confirmed booking from two hours before its start until it ends; otherwise 409 `pre-order-not-sendable`. Sent already: 409 `pre-order-already-sent`. Marked already: 200 `wasReplay: true`. A party that was sent a pre-order and never comes is marked a no-show as always.
+         */
+        post: operations["markPreOrderNotComing"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/reservations/{reservationId}/pre-order/send": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * "Coming - send to kitchen"
+         * @description The pre-order becomes a kitchen ticket at once (`kitchenStatus` 2 InKitchen, like a waiter's order). **Party not seated yet:** a held ticket on the kitchen screen with the table and a `preOrder` marker and no `tabId`; when the party is seated on the booking it becomes the first order on their tab - same id, locked prices, its kitchen progress kept (a tab is opened for the sitting if it has none). **Already seated:** straight onto their tab.
+         *
+         *     From two hours before the start until the booking ends (confirmed), or while the party's sitting is open (seated); otherwise **409 `pre-order-not-sendable`** (`context`: `reservationId`, `status`, `sendableFromUtc`, `endUtc`). Already sent: 200 `wasReplay: true` - two tablets make one ticket. The party's tab closing: 409 `tab-not-accepting-orders`. Takes the table's lock, as seating does: 503 `table-lock-timeout` is retryable. Waiter or above at the booking's branch. Online only.
+         */
+        post: operations["sendPreOrder"];
         delete?: never;
         options?: never;
         head?: never;
@@ -4375,6 +4585,38 @@ export interface components {
              */
             onBehalfOfParticipantId?: string | null;
         };
+        /** @description Body of the pre-order's other commands: clear, send, not coming. */
+        "Yalla.Api.Endpoints.PreOrderCommandRequest": {
+            /** Format: uuid */
+            clientCommandId: string;
+        };
+        /** @description One dish on a pre-order. */
+        "Yalla.Api.Endpoints.PreOrderLineRequest": {
+            /**
+             * Format: uuid
+             * @description The dish, from the branch's menu.
+             */
+            menuItemId: string;
+            /** @description For the kitchen, at most 200 characters. */
+            note?: string | null;
+            /**
+             * Format: int32
+             * @description 1 to 20.
+             */
+            quantity: number;
+        };
+        /** @description Body of `PUT /api/branches/{branchId}/pre-order-settings`. All three are required. */
+        "Yalla.Api.Endpoints.PreOrderSettingsRequest": {
+            /** @description Whether guests may pre-order. */
+            acceptsPreOrders: boolean;
+            /** @description The whole list of dishes guests may not pre-order; empty for none. */
+            excludedMenuItemIds?: string[] | null;
+            /**
+             * Format: int32
+             * @description When the waiter's card appears, 5 to 120 minutes before the start.
+             */
+            minutesBefore: number;
+        };
         /** @description A table asking for something. */
         "Yalla.Api.Endpoints.RaiseServiceRequest": {
             /**
@@ -4519,6 +4761,18 @@ export interface components {
              *     thirty minutes of inactivity.
              */
             renewalToken: string;
+        };
+        /** @description Body of `PUT .../pre-order`: the whole pre-order. */
+        "Yalla.Api.Endpoints.ReplacePreOrderRequest": {
+            /**
+             * Format: uuid
+             * @description Idempotency key; reuse it only to retry this same save.
+             */
+            clientCommandId: string;
+            /** @description The dishes, in display order. Bounds are the service's, named per field. */
+            lines?: components["schemas"]["Yalla.Api.Endpoints.PreOrderLineRequest"][] | null;
+            /** @description A booking-level note for the kitchen, at most 500 characters. */
+            note?: string | null;
         };
         /** @description Body of the venue's reply route. */
         "Yalla.Api.Endpoints.ReplyToReviewRequest": {
@@ -6873,7 +7127,9 @@ export interface components {
             /**
              * @description `booking-reminder`, `booking-confirmed`, `booking-declined`,
              *                 `booking-cancelled-by-venue`, `order-ready`, `review-hidden`, `review-replied`,
-             *                 `table-request` or `table-request-decided`. The app writes the text.
+             *                 `table-request`, `table-request-decided`, `booking-changed-by-link`,
+             *                 `booking-cancelled-by-link`, `bookings-blocked-no-shows`, `booking-no-show`,
+             *                 `bookings-unblocked` or `booking-on-your-way`. The app writes the text.
              */
             kind: string;
             /**
@@ -7137,9 +7393,11 @@ export interface components {
              */
             sequence: number;
             /**
-             * @description Set when the entry is about the table's tab rather than the table: 1 a scan's tab is waiting to be let in,
-             *     2 it was admitted, 3 it was turned away (on the Occupied-to-Free row when that freed the table). Absent
-             *     on every ordinary change. A tablet refetches its awaiting-admission list on any of them.
+             * @description Set when the entry is about more than the table's status: 1 a scan's tab is waiting to be let in, 2 it was
+             *     admitted, 3 it was turned away (on the Occupied-to-Free row when that freed the table) - refetch the
+             *     awaiting-admission list; 4 a booking the platform cancelled for a no-show block and 5 any other booking event -
+             *     re-read the floor; 6 a booking's pre-order changed - re-read the pre-order rail. Absent on every ordinary
+             *     change. A same-status row (4 to 6) is never folded.
              */
             signal?: components["schemas"]["Yalla.Domain.Enums.TableChangeSignal"] | null;
             /**
@@ -7404,6 +7662,7 @@ export interface components {
         /** @description One menu item as a client reads it. */
         "Yalla.Application.Menus.MenuItemView": {
             allergens?: string | null;
+            availableForPreOrder: boolean;
             /** Format: uuid */
             categoryId: string;
             description?: string | null;
@@ -7625,7 +7884,7 @@ export interface components {
             lines: components["schemas"]["Yalla.Application.Ordering.OrderLineView"][];
             /**
              * Format: uuid
-             * @description The order.
+             * @description The order. For a booking's pre-order, the pre-order's id - the same before and after the party sits.
              */
             orderId: string;
             /**
@@ -7639,13 +7898,19 @@ export interface components {
              *     app. Read as the staff member is now: a rename shows, and a waiter no longer active still sent it.
              */
             placedByName?: string | null;
+            /**
+             * @description Set when this is a booking's pre-order - held or on the tab it became: whose, and when they are due, so the kitchen
+             *     times the cooking. Absent on every other order.
+             */
+            preOrder?: components["schemas"]["Yalla.Application.Ordering.KitchenPreOrder"] | null;
             /** @description Kitchen-facing progress of one order placed against a tab. */
             status: components["schemas"]["Yalla.Domain.Enums.TabOrderStatus"];
             /**
              * Format: uuid
-             * @description Its tab.
+             * @description Its tab. <b>Absent</b> on a pre-order sent before the party sat: a held ticket, cooked ahead, on no bill until they
+             *     arrive - it then reappears under the same OrderId with the tab.
              */
-            tabId: string;
+            tabId?: string | null;
             /** @description Which table to take it to. */
             tableLabel: string;
             /**
@@ -7653,6 +7918,31 @@ export interface components {
              * @description How long it has been waiting, at the moment of reading.
              */
             waitingMinutes: number;
+        };
+        /** @description The booking a kitchen ticket was pre-ordered for. */
+        "Yalla.Application.Ordering.KitchenPreOrder": {
+            /** @description Who booked - a name, never a number. */
+            guestName: string;
+            /**
+             * Format: time
+             * @description The same, on the branch's wall clock - "pre-order for 19:30".
+             */
+            localStartTime: string;
+            /**
+             * Format: int32
+             * @description How many.
+             */
+            partySize: number;
+            /**
+             * Format: uuid
+             * @description The booking.
+             */
+            reservationId: string;
+            /**
+             * Format: date-time
+             * @description When the party is due.
+             */
+            startUtc: string;
         };
         /** @description One line as it was placed, for the order confirmation and the kitchen queue. */
         "Yalla.Application.Ordering.OrderLineView": {
@@ -9041,6 +9331,11 @@ export interface components {
              */
             declinedBecause?: components["schemas"]["Yalla.Domain.Enums.DeclineReason"] | null;
             /**
+             * Format: date-time
+             * @description When the guest answered "Yes, on my way".
+             */
+            guestConfirmedOnWayAtUtc?: string | null;
+            /**
              * Format: date
              * @description The booked date, as the diner reads it off the confirmation.
              */
@@ -9056,6 +9351,11 @@ export interface components {
              */
             note?: string | null;
             /**
+             * @description Ask "Are you on your way?" now: from 45 minutes before the start, for a confirmed booking whose pre-order is waiting
+             *     (not sent, not marked not coming, not cancelled) and whose guest has not answered.
+             */
+            onYourWayAsked: boolean;
+            /**
              * Format: int32
              * @description How many people.
              */
@@ -9065,6 +9365,14 @@ export interface components {
              *     never changed from the link - cancelled and booked again instead.
              */
             phoneUnverified: boolean;
+            /** @description The booking's pre-order, with its state. Absent when it has none. */
+            preOrder?: components["schemas"]["Yalla.Application.Reservations.PreOrderView"] | null;
+            /**
+             * Format: date-time
+             * @description Until when a pre-order may be added or changed (two hours before the start). Present only where the branch takes
+             *     pre-orders and the booking is pending or confirmed and still to come.
+             */
+            preOrderEditableUntilUtc?: string | null;
             /**
              * Format: uuid
              * @description The booking's id - for one thing: the page that changes the booking sends it as
@@ -9458,6 +9766,11 @@ export interface components {
         };
         /** @description The reservation rules a diner needs in order to book, and nothing else. */
         "Yalla.Application.Public.PublicReservationPolicy": {
+            /**
+             * @description Whether a booking here can carry a pre-order - dishes chosen ahead, editable until two hours before. Published:
+             *     it is an offer to the diner, like the turn time.
+             */
+            acceptsPreOrders: boolean;
             /**
              * Format: int32
              * @description How long before the start a diner may still cancel freely. On the page because a deadline
@@ -10273,6 +10586,81 @@ export interface components {
              */
             unavailableReason?: components["schemas"]["Yalla.Domain.Occupancy.ReservationRejectionReason"] | null;
         };
+        /** @description One card on the floor tablet's pre-order rail - and the answer to the waiter's two actions. */
+        "Yalla.Application.Reservations.DuePreOrder": {
+            /** @description Its door code. */
+            code: string;
+            /**
+             * Format: date-time
+             * @description When this card appeared (or will).
+             */
+            dueAtUtc: string;
+            /**
+             * Format: date-time
+             * @description "Yes, on my way" - no need to call. Absent until they say it.
+             */
+            guestConfirmedOnWayAtUtc?: string | null;
+            /** @description Who booked. */
+            guestName: string;
+            /** @description Their number, to call. Empty for a platform admin: the venue's to call. */
+            guestPhone: string;
+            /** @description The guest's record, under the console list's rule. Absent where not shown. */
+            guestRecord?: components["schemas"]["Yalla.Application.Reservations.GuestRecord"] | null;
+            /**
+             * Format: time
+             * @description The same, on the branch's wall clock.
+             */
+            localStartTime: string;
+            /** @description The waiter who marked the party not coming. Absent unless marked. */
+            notComingByName?: string | null;
+            /**
+             * Format: int32
+             * @description How many.
+             */
+            partySize: number;
+            /** @description The pre-order. */
+            preOrder: components["schemas"]["Yalla.Application.Reservations.PreOrderView"];
+            /**
+             * Format: uuid
+             * @description The booking.
+             */
+            reservationId: string;
+            /** @description The table's room. Absent when none. */
+            roomName?: string | null;
+            /** @description The waiter who sent it, as the PIN roster names them. Absent until sent. */
+            sentByName?: string | null;
+            /**
+             * Format: date-time
+             * @description When the booking starts.
+             */
+            startUtc: string;
+            /** @description Lifecycle of a booking. Every member is the result of somebody doing something. */
+            status: components["schemas"]["Yalla.Domain.Enums.ReservationStatus"];
+            /**
+             * Format: uuid
+             * @description The party's tab, once it is an order on it.
+             */
+            tabId?: string | null;
+            /**
+             * Format: uuid
+             * @description Its table.
+             */
+            tableId: string;
+            /** @description The table, as printed on it. */
+            tableLabel: string;
+            /** @description On an action's answer: it had been done already, and nothing changed this time. */
+            wasReplay: boolean;
+        };
+        /** @description The branch's pre-order rail. */
+        "Yalla.Application.Reservations.DuePreOrders": {
+            /** @description The cards due now, soonest first. */
+            items: components["schemas"]["Yalla.Application.Reservations.DuePreOrder"][];
+            /**
+             * Format: date-time
+             * @description When the next card will appear - read the rail again then. Absent when no other booking with a pre-order is coming.
+             */
+            nextDueAtUtc?: string | null;
+        };
         /** @description What extending the hold did. */
         "Yalla.Application.Reservations.ExtendHoldResult": {
             /**
@@ -10386,6 +10774,148 @@ export interface components {
             /** @description Bookings that have not finished yet, soonest first. */
             upcoming: components["schemas"]["Yalla.Application.Reservations.ReservationView"][];
         };
+        /** @description The answer to "Yes, on my way". */
+        "Yalla.Application.Reservations.OnMyWayResult": {
+            /**
+             * Format: date-time
+             * @description When the guest first said so.
+             */
+            guestConfirmedOnWayAtUtc: string;
+            /**
+             * Format: uuid
+             * @description The booking.
+             */
+            reservationId: string;
+            /** @description They had said so already; this changed nothing. */
+            wasReplay: boolean;
+        };
+        "Yalla.Application.Reservations.PreOrderLineView": {
+            /**
+             * @description False when the dish has since sold out, been excluded from pre-orders or left the menu. It stays on the pre-order -
+             *     it was promised - but a save that keeps it is refused.
+             */
+            availableNow: boolean;
+            /**
+             * Format: uuid
+             * @description The line.
+             */
+            id: string;
+            /**
+             * Format: int64
+             * @description UnitPriceAmd times Quantity.
+             */
+            lineTotalAmd: number;
+            /**
+             * Format: uuid
+             * @description The dish.
+             */
+            menuItemId: string;
+            /** @description Its name when it was ordered. */
+            name: string;
+            /** @description For the kitchen. Absent when none. */
+            note?: string | null;
+            /**
+             * Format: int32
+             * @description How many, 1 to 20.
+             */
+            quantity: number;
+            /**
+             * Format: int64
+             * @description Its locked price.
+             */
+            unitPriceAmd: number;
+        };
+        /** @description The answer to saving or clearing a pre-order. */
+        "Yalla.Application.Reservations.PreOrderResult": {
+            /** @description The pre-order as it stands. Absent after clearing. */
+            preOrder?: components["schemas"]["Yalla.Application.Reservations.PreOrderView"] | null;
+            /**
+             * Format: uuid
+             * @description The booking.
+             */
+            reservationId: string;
+            /** @description The same command arrived before; nothing changed this time. */
+            wasReplay: boolean;
+        };
+        /** @description What `minutesBefore` may be. */
+        "Yalla.Application.Reservations.PreOrderSettingsBounds": {
+            /** Format: int32 */
+            minutesBeforeMax: number;
+            /** Format: int32 */
+            minutesBeforeMin: number;
+        };
+        /** @description The settings with the bounds and the product's fixed numbers, for the console's form. */
+        "Yalla.Application.Reservations.PreOrderSettingsView": {
+            acceptsPreOrders: boolean;
+            /** @description What `minutesBefore` may be. */
+            bounds: components["schemas"]["Yalla.Application.Reservations.PreOrderSettingsBounds"];
+            /** Format: int32 */
+            editableUntilHoursBefore: number;
+            excludedMenuItemIds: string[];
+            /** Format: int32 */
+            minutesBefore: number;
+            /** Format: int32 */
+            onYourWayMinutesBefore: number;
+        };
+        /** @description A booking's pre-order, as every read gives it - the guest's, the waiter's and the console's alike. */
+        "Yalla.Application.Reservations.PreOrderView": {
+            /**
+             * Format: date-time
+             * @description When the waiter's card appears: the branch's minutes before the start.
+             */
+            dueAtUtc: string;
+            /**
+             * Format: date-time
+             * @description Two hours before the start: the guest may change it until then.
+             */
+            editableUntilUtc: string;
+            /**
+             * Format: uuid
+             * @description The pre-order - and its kitchen ticket, and the order on the party's tab it becomes.
+             */
+            id: string;
+            /**
+             * @description Where its ticket is on the kitchen rail once sent (2 InKitchen, 3 Ready, 4 Served, 5 Voided) - the held ticket's
+             *     until the party sits, then the tab order's.
+             */
+            kitchenStatus?: components["schemas"]["Yalla.Domain.Enums.TabOrderStatus"] | null;
+            /** @description The dishes, as the guest listed them, at their locked prices. */
+            lines: components["schemas"]["Yalla.Application.Reservations.PreOrderLineView"][];
+            /**
+             * Format: date-time
+             * @description A waiter marked the party "not coming / no answer".
+             */
+            notComingAtUtc?: string | null;
+            /** @description The booking-level note. Absent when none. */
+            note?: string | null;
+            /** @description It is an order on the party's tab. */
+            onTab: boolean;
+            /**
+             * Format: uuid
+             * @description Its booking.
+             */
+            reservationId: string;
+            /**
+             * Format: date-time
+             * @description When a waiter sent it to the kitchen. Absent until then.
+             */
+            sentAtUtc?: string | null;
+            /**
+             * @description Where a pre-order stands, as every read says it. Persisted nowhere - derived by M:Yalla.Domain.Occupancy.PreOrderRules.StateOf(Yalla.Domain.Enums.ReservationStatus,System.DateTime,System.Boolean,System.Boolean,System.DateTime) -
+             *     but pinned like every wire enum.
+             */
+            state: components["schemas"]["Yalla.Domain.Occupancy.PreOrderState"];
+            /**
+             * Format: int64
+             * @description The lines at their locked prices. No service charge: that is the tab's.
+             */
+            totalAmd: number;
+            /**
+             * Format: date-time
+             * @description Last changed.
+             */
+            updatedAtUtc: string;
+        };
         /**
          * Format: int32
          * @description Why a booking was let go, and whether it counts against the diner.
@@ -10485,6 +11015,11 @@ export interface components {
              * @description Start plus the branch's turn time, fixed when the booking was made.
              */
             endUtc: string;
+            /**
+             * Format: date-time
+             * @description When the guest answered "Yes, on my way". Absent until they do.
+             */
+            guestConfirmedOnWayAtUtc?: string | null;
             guestName: string;
             guestPhone: string;
             /**
@@ -10525,6 +11060,18 @@ export interface components {
              *     not verified" beside such a booking while its account has still not proved its number.
              */
             phoneUnverified: boolean;
+            /**
+             * @description The booking's pre-order, with its state (1 editable, 2 locked, 3 sent, 4 not coming, 5 cancelled). Absent when
+             *     it has none. On every read of a booking - the guest's, the floor's and the console's.
+             */
+            preOrder?: components["schemas"]["Yalla.Application.Reservations.PreOrderView"] | null;
+            /**
+             * Format: date-time
+             * @description Until when the guest may add or change a pre-order: two hours before the start. Present only where the branch
+             *     takes pre-orders and the booking is pending or confirmed and still to start - offer "Pre-order" while it is in
+             *     the future.
+             */
+            preOrderEditableUntilUtc?: string | null;
             /**
              * Format: date-time
              * @description The time the guest promised to have left the table by, or absent.
@@ -11769,10 +12316,10 @@ export interface components {
          * @description What a branch change-stream entry signals beyond the table's status, when it is about the tab on the
          *     table rather than the table itself. Persisted as its number on `TableStateChanges.Signal`.
          *
-         *     Values: 1 TabAwaitingAdmission, 2 TabAdmitted, 3 TabAdmissionRejected, 4 BookingCancelledByBlock, 5 BookingChanged.
+         *     Values: 1 TabAwaitingAdmission, 2 TabAdmitted, 3 TabAdmissionRejected, 4 BookingCancelledByBlock, 5 BookingChanged, 6 PreOrderChanged.
          * @enum {integer}
          */
-        "Yalla.Domain.Enums.TableChangeSignal": 1 | 2 | 3 | 4 | 5;
+        "Yalla.Domain.Enums.TableChangeSignal": 1 | 2 | 3 | 4 | 5 | 6;
         /**
          * Format: int32
          * @description How a party came to occupy a table.
@@ -11839,6 +12386,15 @@ export interface components {
          * @enum {integer}
          */
         "Yalla.Domain.Occupancy.CancellationCause": 1;
+        /**
+         * Format: int32
+         * @description Where a pre-order stands, as every read says it. Persisted nowhere - derived by M:Yalla.Domain.Occupancy.PreOrderRules.StateOf(Yalla.Domain.Enums.ReservationStatus,System.DateTime,System.Boolean,System.Boolean,System.DateTime) -
+         *     but pinned like every wire enum.
+         *
+         *     Values: 1 Editable, 2 Locked, 3 Sent, 4 NotComing, 5 Cancelled.
+         * @enum {integer}
+         */
+        "Yalla.Domain.Occupancy.PreOrderState": 1 | 2 | 3 | 4 | 5;
         /**
          * Format: int32
          * @description Why a table cannot be booked for a particular slot.
@@ -15688,6 +16244,247 @@ export interface operations {
                 };
             };
             /** @description `rate-limited`: more than the `diner-write` budget - ten uploads a minute per signed-in caller by default. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description Unexpected failure. Quote the traceId from the body. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+        };
+    };
+    getPreOrderSettings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                branchId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Yalla.Application.Reservations.PreOrderSettingsView"];
+                };
+            };
+            /** @description The request violated a domain rule or arrived malformed. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description No usable token was presented, or the one presented was rejected. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description The caller is authenticated but not allowed to perform this action. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description No such branch. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description Too many requests in the window, or a one-time credential is out of attempts. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description Unexpected failure. Quote the traceId from the body. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+        };
+    };
+    putPreOrderSettings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                branchId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["Yalla.Api.Endpoints.PreOrderSettingsRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Yalla.Application.Reservations.PreOrderSettingsView"];
+                };
+            };
+            /** @description The request violated a domain rule or arrived malformed. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description No usable token was presented, or the one presented was rejected. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description The caller is authenticated but not allowed to perform this action. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description No such branch. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description `context.fields` names each. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.ValidationFailedProblem"];
+                };
+            };
+            /** @description Too many requests in the window, or a one-time credential is out of attempts. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description Unexpected failure. Quote the traceId from the body. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+        };
+    };
+    listDuePreOrders: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                branchId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Yalla.Application.Reservations.DuePreOrders"];
+                };
+            };
+            /** @description The request violated a domain rule or arrived malformed. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description No usable token was presented, or the one presented was rejected. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description Not floor staff at this branch. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description No such branch. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description Too many requests in the window, or a one-time credential is out of attempts. */
             429: {
                 headers: {
                     [name: string]: unknown;
@@ -22387,6 +23184,278 @@ export interface operations {
             };
         };
     };
+    confirmPublicBookingOnMyWay: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                token: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Yalla.Application.Reservations.OnMyWayResult"];
+                };
+            };
+            /** @description The request violated a domain rule or arrived malformed. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description No usable token was presented, or the one presented was rejected. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description The caller is authenticated but not allowed to perform this action. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description The link is not valid. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description `on-my-way-not-open`: the booking is not expecting anybody, or not yet (`context.opensAtUtc`). */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description Too many requests in the window, or a one-time credential is out of attempts. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description Unexpected failure. Quote the traceId from the body. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+        };
+    };
+    replacePublicBookingPreOrder: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                token: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["Yalla.Api.Endpoints.ReplacePreOrderRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Yalla.Application.Reservations.PreOrderResult"];
+                };
+            };
+            /** @description The request violated a domain rule or arrived malformed. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description No usable token was presented, or the one presented was rejected. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description The caller is authenticated but not allowed to perform this action. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description The link is not valid. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description `409 reservation-not-changeable` (not pending/confirmed, or started); `409 pre-order-already-sent`; `409 pre-order-locked` (`context.lockedAtUtc`: two hours before the start); `409 pre-orders-not-accepted` (`context.branchId`; saving only - clearing is always allowed); `409 client-command-id-in-use`; `409 concurrent-update` (two saves at once - read and retry). */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description A bound broken, or dishes that cannot be pre-ordered. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description Too many requests in the window, or a one-time credential is out of attempts. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description Unexpected failure. Quote the traceId from the body. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+        };
+    };
+    clearPublicBookingPreOrder: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                token: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["Yalla.Api.Endpoints.PreOrderCommandRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Yalla.Application.Reservations.PreOrderResult"];
+                };
+            };
+            /** @description The request violated a domain rule or arrived malformed. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description No usable token was presented, or the one presented was rejected. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description The caller is authenticated but not allowed to perform this action. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description The link is not valid. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description `409 reservation-not-changeable` (not pending/confirmed, or started); `409 pre-order-already-sent`; `409 pre-order-locked` (`context.lockedAtUtc`: two hours before the start); `409 pre-orders-not-accepted` (`context.branchId`; saving only - clearing is always allowed); `409 client-command-id-in-use`; `409 concurrent-update` (two saves at once - read and retry). */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description Too many requests in the window, or a one-time credential is out of attempts. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description Unexpected failure. Quote the traceId from the body. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+        };
+    };
     reschedulePublicBooking: {
         parameters: {
             query?: never;
@@ -24058,6 +25127,465 @@ export interface operations {
                 };
             };
             /** @description The table's booking lock could not be had in time. `context.retryable` is true: unlike the 409, this one is worth retrying - with the same `clientCommandId`, so a retry that crosses with a late-committing original is recognised as a replay. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.LockTimeoutProblem"];
+                };
+            };
+        };
+    };
+    confirmOnMyWay: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                reservationId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Yalla.Application.Reservations.OnMyWayResult"];
+                };
+            };
+            /** @description The request violated a domain rule or arrived malformed. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description No usable token was presented, or the one presented was rejected. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description The caller is authenticated but not allowed to perform this action. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description No such booking of yours. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description `on-my-way-not-open`: the booking is not expecting anybody, or not yet (`context.opensAtUtc`). */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description Too many requests in the window, or a one-time credential is out of attempts. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description Unexpected failure. Quote the traceId from the body. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+        };
+    };
+    replacePreOrder: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                reservationId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["Yalla.Api.Endpoints.ReplacePreOrderRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Yalla.Application.Reservations.PreOrderResult"];
+                };
+            };
+            /** @description The request violated a domain rule or arrived malformed. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description No usable token was presented, or the one presented was rejected. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description The caller is authenticated but not allowed to perform this action. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description No such booking of yours. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description `409 reservation-not-changeable` (not pending/confirmed, or started); `409 pre-order-already-sent`; `409 pre-order-locked` (`context.lockedAtUtc`: two hours before the start); `409 pre-orders-not-accepted` (`context.branchId`; saving only - clearing is always allowed); `409 client-command-id-in-use`; `409 concurrent-update` (two saves at once - read and retry). */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description A bound broken, or dishes that cannot be pre-ordered. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description Too many requests in the window, or a one-time credential is out of attempts. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description Unexpected failure. Quote the traceId from the body. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+        };
+    };
+    clearPreOrder: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                reservationId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["Yalla.Api.Endpoints.PreOrderCommandRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Yalla.Application.Reservations.PreOrderResult"];
+                };
+            };
+            /** @description The request violated a domain rule or arrived malformed. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description No usable token was presented, or the one presented was rejected. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description The caller is authenticated but not allowed to perform this action. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description No such booking of yours. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description `409 reservation-not-changeable` (not pending/confirmed, or started); `409 pre-order-already-sent`; `409 pre-order-locked` (`context.lockedAtUtc`: two hours before the start); `409 pre-orders-not-accepted` (`context.branchId`; saving only - clearing is always allowed); `409 client-command-id-in-use`; `409 concurrent-update` (two saves at once - read and retry). */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description Too many requests in the window, or a one-time credential is out of attempts. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description Unexpected failure. Quote the traceId from the body. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+        };
+    };
+    markPreOrderNotComing: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                reservationId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["Yalla.Api.Endpoints.PreOrderCommandRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Yalla.Application.Reservations.DuePreOrder"];
+                };
+            };
+            /** @description The request violated a domain rule or arrived malformed. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description No usable token was presented, or the one presented was rejected. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description Not floor staff at this booking's branch. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description No such booking, or it has no pre-order. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description `pre-order-not-sendable` or `pre-order-already-sent`. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description Too many requests in the window, or a one-time credential is out of attempts. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description Unexpected failure. Quote the traceId from the body. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+        };
+    };
+    sendPreOrder: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                reservationId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["Yalla.Api.Endpoints.PreOrderCommandRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Yalla.Application.Reservations.DuePreOrder"];
+                };
+            };
+            /** @description The request violated a domain rule or arrived malformed. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description No usable token was presented, or the one presented was rejected. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description Not floor staff at this booking's branch. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description No such booking, or it has no pre-order. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description `pre-order-not-sendable` or `tab-not-accepting-orders`. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description Too many requests in the window, or a one-time credential is out of attempts. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description Unexpected failure. Quote the traceId from the body. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description The table is busy; retry. */
             503: {
                 headers: {
                     [name: string]: unknown;

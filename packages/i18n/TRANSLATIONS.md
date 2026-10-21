@@ -1283,6 +1283,91 @@ review every string in `src/locales/hy` and `src/locales/ru`.**
       `overview.bookings.done.guestBlocked` (appended to the no-show toast), and
       public `manage.cancelledByBlockBody` (the guest's own link: cancelled
       automatically, and when they can book again).
+- `diner` and `staff` — pre-orders on a booking, the shared API layer
+  (2026-10-21), provisional and **not** reviewed: diner `preOrder.error.*` (the
+  guest's refusals, said by `preOrderFailure` on the app and the manage link
+  alike; `locked`/`lockedAt` must keep naming the **2 hours** and sending the
+  guest to **call the venue**; `itemUnavailable`/`itemsUnavailable_*` must say
+  the dish is to be **removed** to save — never that the pre-order is gone),
+  `notifications.kind.bookingOnYourWay.*` ("Are you on your way?" — the body
+  takes only `{{place}}`), and staff `preOrders.error.*` (the waiter's Send and
+  Not coming, said by `preOrderActionFailure`). hy says «նախապատվեր» for
+  a pre-order and avoids gluing suffixes onto `{{place}}` and `{{name}}`.
+- `staff` and `admin` — pre-orders on the floor tablet and in the venue
+  console (2026-10-21), provisional and **not** reviewed. hy says «նախապատվեր»
+  (the lead's word for the rail section «Նախապատվերներ»), and staff
+  `preOrders.error.notSendable` / `alreadySent` / `notFound` were changed from
+  «նախնական պատվեր» to match, as were the diner bundle's. Never glue a suffix onto `{{label}}`, `{{name}}` or `{{time}}`.
+  - staff `preOrders.*` (the rail's card and the table panel's section):
+    `send` / `notComing` are the approved labels «Գալիս են → Ուղարկել խոհանոց» and
+    «Չեն գալիս / չեն պատասխանում» (`sendTable` / `notComingTable` are the same
+    with the table, for screen readers, and must start with the visible label);
+    `onTheWay` «Հյուրը հաստատել է, որ ճանապարհին է»; `confirmBody` and
+    `notComingNotice` must keep saying it can **still be sent** if they arrive;
+    `soldOutNow` flags a dish sold out since it was chosen — it is still on the
+    pre-order; `waitsForTable` says a sent one joins the bill when they sit.
+    staff `kitchen.ticket.preOrder` («Նախապատվեր · Սեղան {{label}} · {{time}}»)
+    and `kitchen.ticket.withPreOrder` (the ticket's screen-reader name), and
+    `kitchen.ticket.dueIn_*` (a pre-order ticket counts down to its booking).
+    Review fixes (2026-10-21): `kitchen.ticket.preOrderGuest` is the marker with
+    the party and the guest's first name (`{{party}}` a bare number, as the
+    wire's "· 4 · Anna"); `kitchen.ticket.dueInMinutes_*` is the screen-reader
+    form of `dueIn_*` and must say the same "in N"; staff `preOrders.stale`
+    (cards kept from the last read, which may be out of date), and
+    `preOrders.error.changed` (409 `concurrent-update`: the list was re-read,
+    look before tapping again) and `preOrders.error.rateLimited` (429).
+  - admin `preOrders.*` (the Policy card, and a booking's pre-order in the
+    requests): `rules.lock_*` must keep the **hours** and that the guest **calls
+    the venue** after; `rules.ask` the minutes of the "on your way" question;
+    `rules.waiter` that **nothing is cooked** until a waiter sends it and that
+    "not coming" can still be sent; `rules.price` the locked price and that a
+    sent, never-collected pre-order is a **no-show**; `accept.why` that turning
+    it off **keeps** the pre-orders already made. admin `menu.column.preOrder`,
+    `menu.preOrderYes` / `preOrderNo`, `menu.dish.preOrder*` (`preOrderOff` must
+    say pre-orders that already have the dish **keep** it). hy and ru
+    `menu.column.preOrder` carry a soft hyphen (U+00AD) so the column heading
+    can break and the menu table keeps its row actions in view; keep one there.
+
+- `diner` and `public` — pre-orders on a booking, the guest's screens (the
+  app's booking, editor and bookings list; the public page's done step and
+  manage link) (2026-10-21), provisional and **not** reviewed: every diner
+  `preOrder.*` key outside `preOrder.error.*` (one set of words for the app and
+  the link, which loads `diner`), and public `sheet.name.preOrders` (said
+  before booking where the branch takes pre-orders). hy now says «նախապատվեր»
+  for a pre-order **everywhere**, the user's word — the guest-facing
+  `preOrder.error.*` and `notifications.kind.bookingOnYourWay.body` were moved
+  to it from «նախնական պատվեր»; ru «предзаказ».
+  A reviewer must keep: `preOrder.state.lockedBody` naming the **2 hours** and
+  **call the venue**; `preOrder.state.notComingBody` saying the waiter **can
+  still send it** when the guest arrives; `preOrder.onYourWay.cantCome` being a
+  **cancellation** (the booking's own cancel follows, with its confirmation);
+  `preOrder.priceNote` saying a price is **fixed when the dish is added**;
+  `preOrder.unavailableSwap` asking to **remove or swap** the dish.
+  `preOrder.onYourWay.yes` / `cantCome` are also the push's two button labels,
+  so keep them short.
+  After review (2026-10-21): diner `book.changeError.preOrderSent` (a move
+  refused because the waiter already sent the pre-order — must say it is **in
+  the kitchen** and to **call the venue** to change the time),
+  `preOrder.error.onMyWayOpensAt` ("You can confirm from {{time}}", the
+  branch's clock; hy puts «ժամը» before the time so nothing is glued onto it),
+  `preOrder.menuUnavailable` (the link's branch is gone: not "no dishes"), and
+  ru `preOrder.limit.quantity` now says «порций» («Не больше {{max}} порций
+  одного блюда.»).
+  After live QA (2026-10-21), provisional and **not** reviewed: diner
+  `preOrder.noteShown` (the label before the guest's note in a read-only
+  pre-order, «Նշում՝» as the tablet and console write it — replaces
+  "`noteLabel`: "), `preOrder.discard.*` (asked before a way out drops a
+  pre-order not saved: `confirm` must say the changes are **dropped**, `keep`
+  that the guest goes on choosing; hy avoids «Չեղարկել», which next to a
+  booking reads as cancelling it); staff `preOrders.askAt` (before the "on your
+  way?" question goes out, 45 minutes before: **when** the guest will be asked
+  — never "call them"; hy «…{{time}}-ին», the lead's wording),
+  `preOrders.confirmKeep` («Ոչ» / «Нет» / "No": the not-coming question's way
+  back — never «Չեղարկել»), `table.action.seatBookingGuest` (seat the party on
+  its booking, with the guest's name and time); admin
+  `policy.bar.unsavedPreOrders` and `policy.bar.unsavedWithPreOrders_*` (the
+  Policy page's save bar naming the pre-order card's unsaved changes; its Save
+  saves them too).
 - `staff` — tablet enrolment (2026-10-21, floor-tablet `Enrol`): the whole
   `enrol.*` block was rewritten, provisional and **not** reviewed. New:
   `titleRevoked`, `steps.*` (`steps.where` names the console path and must

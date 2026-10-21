@@ -28,6 +28,7 @@
 
 import type { FloorChangeSignal, TabAdmission } from './admission';
 import type { Photo } from './menuAdmin';
+import type { KitchenPreOrder } from './preOrder';
 import type { TabParticipantRole } from './tab';
 import type {
   SettlementMode,
@@ -85,6 +86,13 @@ export interface MenuItemDetail {
   readonly prepMinutes: number;
   /** False when the kitchen has run out. Still listed, visibly marked. */
   readonly isAvailable: boolean;
+  /**
+   * Guests may put it on a booking's pre-order: the venue excludes dishes in
+   * its pre-order settings. The picker offers `isAvailable &&
+   * availableForPreOrder` (`isPreOrderable`). Absent reads as true — the
+   * server's default, and every fixture from before pre-orders.
+   */
+  readonly availableForPreOrder?: boolean | undefined;
   readonly displayOrder: number;
 }
 
@@ -208,7 +216,13 @@ export interface OrderQueueLine {
 /** One order as the counter panel lists it. `Yalla.Application.Ordering.KitchenOrderView`. */
 export interface OrderQueueEntry {
   readonly orderId: string;
-  readonly tabId: string;
+  /**
+   * The party's tab — `null` on a **held** pre-order ticket: a pre-order sent
+   * before the party sat. Its `orderId` is the pre-order's id, and when the
+   * party is seated the same `orderId` comes back with the tab set. It moves
+   * along the rail like any ticket.
+   */
+  readonly tabId: string | null;
   /**
    * Which table, by label only.
    *
@@ -231,6 +245,12 @@ export interface OrderQueueEntry {
    * fixtures written before it existed.
    */
   readonly placedByName?: string | null | undefined;
+  /**
+   * Present on a ticket that came from a booking's pre-order — held, or the
+   * tab order it became: "Pre-order · 19:30 · 4 · Anna", cooked for
+   * `startUtc`. Absent on every other ticket.
+   */
+  readonly preOrder?: KitchenPreOrder | null | undefined;
 }
 
 // ---------------------------------------------------------------------------

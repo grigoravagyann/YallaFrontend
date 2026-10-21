@@ -5,6 +5,7 @@ import {
   BranchUnavailableError,
   ConcurrencyConflictError,
   NotFoundError,
+  PreOrderAlreadySentError,
   TooManyRequestsError,
   bookingFailure,
   isApprovalExpired,
@@ -297,6 +298,14 @@ export default function ManageChange({
     if (error instanceof ConcurrencyConflictError) {
       void onReread();
       alert(td('book.changeError.generic'));
+      return;
+    }
+    // The waiter sent the pre-order (start − 30 min): the kitchen is cooking
+    // for this time, so it cannot move from here. The link reads again and
+    // shows the pre-order as sent.
+    if (error instanceof PreOrderAlreadySentError) {
+      void onReread();
+      alert(td('book.changeError.preOrderSent'));
       return;
     }
     // A dead link and a table that is gone both answer 404: read the link

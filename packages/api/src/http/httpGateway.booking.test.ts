@@ -140,6 +140,10 @@ describe('creating a booking', () => {
     expect(booking).toEqual({
       phoneUnverified: false,
       cancelledBecause: null,
+      // A server that sends no pre-order fields (2026-10-21): none, none offered.
+      preOrder: null,
+      preOrderEditableUntilUtc: null,
+      guestConfirmedOnWayAtUtc: null,
       id: VIEW.id,
       code: '482913',
       status: 'confirmed',

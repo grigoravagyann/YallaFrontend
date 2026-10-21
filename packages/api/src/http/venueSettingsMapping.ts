@@ -117,6 +117,8 @@ export function adminItem(view: WireItem): AdminMenuItem {
     prepMinutes: view.prepMinutes ?? 0,
     photo: view.photo ? photo(view.photo) : NO_PHOTO,
     isAvailable: view.isAvailable,
+    // Pre-orders (2026-10-21): absent — a server from before them — is yes.
+    availableForPreOrder: view.availableForPreOrder !== false,
     displayOrder: view.displayOrder,
     ...missingFieldsOf(view),
   };

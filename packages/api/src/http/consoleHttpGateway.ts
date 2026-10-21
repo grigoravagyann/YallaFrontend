@@ -1,3 +1,9 @@
+import type { PreOrderSettings } from '../contracts/preOrder';
+import {
+  preOrderSettingsBody,
+  preOrderSettingsFromWire,
+  type WirePreOrderSettings,
+} from './preOrderMapping';
 import { staffRoleToUserRole, type VenueUserIdentity } from '../auth/endpoints';
 import { claimString, decodeJwtPayload } from '../auth/jwt';
 import type { AuthSession, TokenPair } from '../auth/session';
@@ -1680,6 +1686,25 @@ export function createConsoleHttpGateway(
         }
         throw error;
       }
+    },
+
+    // --- Pre-orders (2026-10-21) ----------------------------------------------
+
+    async getPreOrderSettings(branchId: string): Promise<PreOrderSettings> {
+      const { data } = await client.get<WirePreOrderSettings>(
+        `${BRANCHES}/${branchId}/pre-order-settings`,
+      );
+      return preOrderSettingsFromWire(data);
+    },
+
+    async savePreOrderSettings({ branchId, settings }): Promise<PreOrderSettings> {
+      // A `422 validation-failed` naming `minutesBefore` or
+      // `excludedMenuItemIds` stays the client's `ValidationError`.
+      const { data } = await client.put<WirePreOrderSettings>(
+        `${BRANCHES}/${branchId}/pre-order-settings`,
+        preOrderSettingsBody(settings),
+      );
+      return preOrderSettingsFromWire(data);
     },
   };
 }

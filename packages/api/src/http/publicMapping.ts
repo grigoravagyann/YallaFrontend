@@ -31,6 +31,11 @@ import { absolutePhotoUrl } from './photoUrl';
 import { specialDaysFromWire } from './venueSettingsMapping';
 import { venueTypeFromCode } from './venueTypeMapping';
 import { cancellationCause } from './guestRecordMapping';
+import {
+  bookingPreOrderFields,
+  type WirePolicyPreOrderFields,
+  type WirePublicBookingPreOrderFields,
+} from './preOrderMapping';
 
 type Schemas = components['schemas'];
 export type WirePublicBranch = Schemas['Yalla.Application.Public.PublicBranchPage'];
@@ -43,7 +48,8 @@ export type WirePublicBranchMeta = Schemas['Yalla.Application.Public.PublicBranc
  */
 export type WirePublicBooking = Schemas['Yalla.Application.Public.PublicBookingView'] &
   WireApprovalFields &
-  WirePublicBookingTimes;
+  WirePublicBookingTimes &
+  WirePublicBookingPreOrderFields;
 
 /**
  * The public wire shapes to the public page's contract types.
@@ -197,6 +203,9 @@ function policyFromWire(wire: WirePublicBranch['policy']): PublicBranchPolicy {
     turnTimeMinutes: wire?.turnTimeMinutes ?? 0,
     minLeadMinutes: wire?.minLeadMinutes ?? 0,
     cancellationDeadlineMinutes: wire?.cancellationDeadlineMinutes ?? 0,
+    // Pre-orders (2026-10-21), ahead of the generated schema: absent is no.
+    acceptsPreOrders:
+      (wire as WirePolicyPreOrderFields | null | undefined)?.acceptsPreOrders === true,
   };
 }
 
@@ -510,6 +519,10 @@ export function managedBookingFromWire(
     phoneUnverified: wire.phoneUnverified === true,
     // Unsaid, "Change" is offered and the change itself answers.
     canChange: wire.canChange ?? true,
+    // Pre-orders (2026-10-21): the pre-order, the editor's window, the
+    // answer, and whether to ask. No branch id: the menu is found by slugs.
+    ...bookingPreOrderFields(wire),
+    onYourWayAsked: wire.onYourWayAsked === true,
   };
 }
 

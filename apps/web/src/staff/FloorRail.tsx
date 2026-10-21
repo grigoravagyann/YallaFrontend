@@ -23,6 +23,11 @@ export interface FloorRailProps {
    * them order: `AdmissionSection`, right after the bookings.
    */
   readonly admissions?: ReactNode;
+  /**
+   * Bookings due soon with dishes chosen ahead, waiting for "coming" or "not
+   * coming": `PreOrderSection`, after the tables waiting — it has a clock on it.
+   */
+  readonly preOrders?: ReactNode;
   /** No-shows this tablet marked, still undoable: `NoShowSection`, after the tables waiting. */
   readonly noShows?: ReactNode;
   readonly requests: readonly ServiceRequest[];
@@ -47,7 +52,8 @@ export interface FloorRailProps {
  * Main artboard's rail).
  *
  * In the order a waiter should look: bookings with a clock on them, tables
- * that cannot order until somebody lets them, people calling, food going cold
+ * that cannot order until somebody lets them, pre-orders waiting for a yes
+ * before the kitchen starts, people calling, food going cold
  * on the pass, then money left on a freed table.
  * Each section folds, says how many, and says plainly when it is empty —
  * "nobody is waiting" and "we could not ask" are different sentences.
@@ -76,6 +82,8 @@ export function FloorRail(props: FloorRailProps) {
         {props.approvals}
 
         {props.admissions}
+
+        {props.preOrders}
 
         {props.noShows}
 
@@ -327,6 +335,12 @@ export const ICONS = {
     <Icon>
       <circle cx="12" cy="12" r="10" />
       <path d="M12 8v4M12 16h.01" />
+    </Icon>
+  ),
+  clipboard: (
+    <Icon>
+      <rect width="8" height="4" x="8" y="2" rx="1" />
+      <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2M12 11h4M12 16h4M8 11h.01M8 16h.01" />
     </Icon>
   ),
   scan: (

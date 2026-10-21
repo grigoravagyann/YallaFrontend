@@ -45,6 +45,8 @@ export function consoleGatewayFor(role: UserRole): ConsoleGateway {
       dataSource: 'mock',
       mockLatencyMs: 200,
       mockRole: role,
+      // Mock only: Northern Avenue takes pre-orders, and a pending booking has one.
+      mockPreOrders: import.meta.env.MODE !== 'test',
       persist: mockPersistence(`console.${role}`),
     });
     mockConsoles.set(role, mock);
@@ -99,6 +101,9 @@ export const staffDataGateway: StaffGateway = resolveStaffGateway({
   mockKitchen: import.meta.env.MODE !== 'test',
   // Mock only: tables waiting for a waiter to let them in.
   mockUnverifiedGuests: import.meta.env.MODE !== 'test',
+  // Mock only: pre-orders on the rail (one on the way, one to call, one sent
+  // and held in the kitchen) and one still to come.
+  mockPreOrders: import.meta.env.MODE !== 'test',
   persist: mockPersistence('staff'),
 });
 
