@@ -2,6 +2,7 @@ import {
   createMockGateway,
   createPublicMockGateway,
   createQueryClient,
+  MOCK_PRE_ORDER_BRANCHES,
   type Booking,
   type MockGateway,
   type MockReviewStore,
@@ -98,6 +99,11 @@ export interface HarnessOptions {
   readonly showcase?: boolean;
   /** A review store of the test's own, for a branch with a known set of reviews. */
   readonly reviews?: MockReviewStore;
+  /**
+   * Pre-orders as mock mode has them: Northern Avenue takes them, the gata
+   * excluded. Off by default, the server's default.
+   */
+  readonly preOrders?: boolean;
 }
 
 export function createHarness(options: HarnessOptions = {}): Harness {
@@ -113,6 +119,7 @@ export function createHarness(options: HarnessOptions = {}): Harness {
     simulateVenueApprovalAfterMs: options.simulateVenueApprovalAfterMs,
     showcase: options.showcase ?? false,
     ...(options.reviews ? { reviews: options.reviews } : {}),
+    ...(options.preOrders ? { preOrders: { branches: MOCK_PRE_ORDER_BRANCHES } } : {}),
   });
   const publicGateway = createPublicMockGateway({
     gateway,
@@ -173,7 +180,11 @@ export function stubIntersectionObserverAsNeverVisible(): void {
  */
 export async function bookAtLumen(
   harness: Harness,
-  options: { readonly partySize?: number } = {},
+  options: {
+    readonly partySize?: number;
+    /** How far ahead to look for the slot: two hours by default; a pre-order needs more. */
+    readonly hoursAhead?: number;
+  } = {},
 ): Promise<{ readonly branch: PublicBranch; readonly booking: Booking }> {
   const branch = (await harness.publicGateway.resolveBranch({
     venueSlug: 'lumen-coffee',
@@ -181,11 +192,15 @@ export async function bookAtLumen(
   })) as PublicBranch;
   const partySize = options.partySize ?? 2;
   const selection = {
-    ...defaultSelection(branch.timeZoneId, new Date(Date.now() + 2 * 60 * 60_000), {
-      minLeadMinutes: branch.policy.minLeadMinutes,
-      turnTimeMinutes: branch.policy.turnTimeMinutes,
-      weeklyHours: branch.weeklyHours,
-    }),
+    ...defaultSelection(
+      branch.timeZoneId,
+      new Date(Date.now() + (options.hoursAhead ?? 2) * 60 * 60_000),
+      {
+        minLeadMinutes: branch.policy.minLeadMinutes,
+        turnTimeMinutes: branch.policy.turnTimeMinutes,
+        weeklyHours: branch.weeklyHours,
+      },
+    ),
     partySize,
   };
   const slotUtc = slotInstant(selection, branch.timeZoneId)!.toISOString();

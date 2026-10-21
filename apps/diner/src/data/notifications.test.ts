@@ -474,3 +474,39 @@ describe('no-shows and the pause on booking, in the feed', () => {
     }
   });
 });
+
+describe('are you on your way?, in the feed', () => {
+  const asked = row({ kind: 'booking-on-your-way', reservationId: 'r-way' });
+
+  it('opens the booking, which asks the question', () => {
+    expect(notificationRoute(asked)).toEqual({
+      pathname: '/booking/[bookingId]',
+      params: { bookingId: 'r-way' },
+    });
+    expect(notificationRoute({ ...asked, reservationId: null })).toEqual({
+      pathname: '/place/[placeId]',
+      params: { placeId: 'b1' },
+    });
+  });
+
+  it('reads the booking again on the way in', () => {
+    expect(bookingKeysForRow(asked)).toEqual([
+      ['bookings'],
+      ['booking', 'r-way'],
+      ['reservationState', 'r-way'],
+    ]);
+  });
+
+  it('has its copy in every language', () => {
+    const copy = notificationCopy(asked);
+    expect(copy.titleKey).toBe('notifications.kind.bookingOnYourWay.title');
+    for (const bundle of [
+      dinerResources.en.diner,
+      dinerResources.hy.diner,
+      dinerResources.ru.diner,
+    ]) {
+      expect(typeof lookup(bundle, copy.titleKey)).toBe('string');
+      expect(typeof lookup(bundle, copy.bodyKey)).toBe('string');
+    }
+  });
+});

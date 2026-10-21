@@ -632,6 +632,11 @@ export default function BookingSheet({
                     record — counts over twelve months, never where (guest record). */}
                 <div className="pub-sheet-terms">
                   <p className="pub-muted">{tp('sheet.name.record')}</p>
+                  {/* The page's cached plan: whether this branch takes pre-orders
+                      (2026-10-21). The done step offers one once booked. */}
+                  {branch.policy.acceptsPreOrders ? (
+                    <p className="pub-muted">{tp('sheet.name.preOrders')}</p>
+                  ) : null}
                 </div>
 
                 {errorText ? (

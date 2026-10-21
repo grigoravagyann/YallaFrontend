@@ -90,6 +90,8 @@ export default function BookingsScreen() {
   // "Change" moves this booking — same code, same booking — on the booking
   // screen opened on it; "Book again" is a fresh booking at the same place.
   const changeBooking = (booking: Booking) => router.push(changeBookingRoute(booking));
+  const editPreOrder = (booking: Booking) =>
+    router.push({ pathname: '/booking/[bookingId]/pre-order', params: { bookingId: booking.id } });
   const bookPlace = (booking: Booking) =>
     router.push({ pathname: '/book/[placeId]', params: { placeId: booking.branchId } });
 
@@ -229,6 +231,7 @@ export default function BookingsScreen() {
                   onOpen={() => openDetail(hero)}
                   {...(heroChangeable ? { onChange: () => changeBooking(hero) } : {})}
                   onCancel={() => openCancel(hero)}
+                  onPreOrder={() => editPreOrder(hero)}
                   {...(justCancelled ? { onBookAgain: () => bookPlace(hero) } : {})}
                 />
                 {rows.length > 0 ? (

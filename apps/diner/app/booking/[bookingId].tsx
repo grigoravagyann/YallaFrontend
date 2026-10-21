@@ -4,7 +4,7 @@ import { formatDate, formatTime } from '@yalla/format';
 import { useLocale, useTranslation } from '@yalla/i18n';
 import { Ionicons } from '@expo/vector-icons';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { ScrollView, Share, StyleSheet, View } from 'react-native';
 import { AtMyTableAction } from '../../src/components/AtMyTableAction';
 import { BookingBadge, NoShowBlockReason } from '../../src/components/bookings/BookingCard';
@@ -14,6 +14,8 @@ import {
   tableWithRoom,
 } from '../../src/components/bookings/bookingText';
 import { anotherTimeRoute, changeBookingRoute } from '../../src/components/bookings/changeBooking';
+import { OnYourWayCard } from '../../src/components/bookings/OnYourWayCard';
+import { PreOrderCard } from '../../src/components/bookings/PreOrderCard';
 import { PromiseNote } from '../../src/components/bookings/PromiseNote';
 import { TableRequestCard } from '../../src/components/bookings/TableRequestCard';
 import { VenueAnswerNote } from '../../src/components/bookings/VenueAnswer';
@@ -62,10 +64,13 @@ export default function BookingDetailScreen() {
   const router = useRouter();
   // `answer` and `requestId`: a lock-screen Yes or No to a table request,
   // which opened the app here for the card to send (see `registerCategories`).
-  const { bookingId, answer, requestId } = useLocalSearchParams<{
+  // `onMyWay`: the "on your way" push's Yes or Can't come, which opened the
+  // app here; the booking's own card sends the Yes, the cancel sheet asks first.
+  const { bookingId, answer, requestId, onMyWay } = useLocalSearchParams<{
     bookingId: string;
     answer?: string;
     requestId?: string;
+    onMyWay?: string;
   }>();
   const autoAnswer =
     requestId && (answer === 'yes' || answer === 'no')
@@ -124,7 +129,11 @@ export default function BookingDetailScreen() {
     <Screen edges={['top', 'left', 'right', 'bottom']}>
       <Stack.Screen options={{ headerShown: false }} />
       {header}
-      <BookingDetail booking={booking} autoAnswer={autoAnswer} />
+      <BookingDetail
+        booking={booking}
+        autoAnswer={autoAnswer}
+        onMyWay={onMyWay === 'yes' || onMyWay === 'cantCome' ? onMyWay : undefined}
+      />
     </Screen>
   );
 }
@@ -132,9 +141,11 @@ export default function BookingDetailScreen() {
 function BookingDetail({
   booking,
   autoAnswer,
+  onMyWay,
 }: {
   readonly booking: Booking;
   readonly autoAnswer?: { readonly requestId: string; readonly accept: boolean } | undefined;
+  readonly onMyWay?: 'yes' | 'cantCome' | undefined;
 }) {
   const { t } = useTranslation('diner');
   const { locale } = useLocale();
@@ -196,6 +207,21 @@ function BookingDetail({
   const cancellable = canCancel(booking.status);
   const sheetOpen = confirming && cancellable && !cancel.isSuccess;
 
+  const openCancel = () => {
+    cancel.reset();
+    setConfirming(true);
+  };
+  // The push's "Can't come": the cancel question, asked once on landing.
+  const askedCantCome = useRef(false);
+  useEffect(() => {
+    if (onMyWay !== 'cantCome' || askedCantCome.current || !cancellable) return;
+    askedCantCome.current = true;
+    setConfirming(true);
+  }, [onMyWay, cancellable]);
+
+  const editPreOrder = () =>
+    router.push({ pathname: '/booking/[bookingId]/pre-order', params: { bookingId: booking.id } });
+
   return (
     <>
       <ScrollView contentContainerStyle={styles.body} showsVerticalScrollIndicator={false}>
@@ -253,6 +279,16 @@ function BookingDetail({
           </View>
         </Card>
 
+        {/* Forty-five minutes before, with a pre-order: "Are you on your way?"
+            "Can't come" is the cancel below, with its confirmation. */}
+        <OnYourWayCard
+          booking={booking}
+          now={now}
+          place={where}
+          onCantCome={openCancel}
+          autoConfirm={onMyWay === 'yes'}
+        />
+
         {/* Somebody would like this table after the diner: will they have left by then? */}
         <TableRequestCard booking={booking} autoAnswer={autoAnswer} />
 
@@ -295,6 +331,9 @@ function BookingDetail({
                 : t('success.codeHint')}
           </Text>
         </Card>
+
+        {/* The dishes chosen ahead, or the offer to choose them (2026-10-21). */}
+        <PreOrderCard booking={booking} now={now} onEdit={editPreOrder} />
 
         {note ? (
           <Card style={styles.noteCard}>
@@ -350,10 +389,7 @@ function BookingDetail({
             <Button
               label={t('bookings.detail.cancel')}
               variant="destructive"
-              onPress={() => {
-                cancel.reset();
-                setConfirming(true);
-              }}
+              onPress={openCancel}
             />
           ) : null}
         </View>

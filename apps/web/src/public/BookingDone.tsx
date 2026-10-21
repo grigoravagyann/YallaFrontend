@@ -1,14 +1,16 @@
 import {
   approvalCountdown,
   awaitsVenueAnswer,
+  canEditPreOrder,
   declinedCopy,
   pendingReasonCopy,
   venueAnswerCopy,
   type Booking,
+  type PreOrder,
   type PublicBranch,
   type VenueAnswerState,
 } from '@yalla/api';
-import { useManagedBooking, useNow } from '@yalla/api/react';
+import { useManagedBooking, useNow, usePreOrderMenu } from '@yalla/api/react';
 import { formatDuration, formatTime } from '@yalla/format';
 import { useLocale, useTranslation } from '@yalla/i18n';
 import { useEffect, useId, useRef, useState } from 'react';
@@ -17,6 +19,7 @@ import { bookingIcs, downloadIcs, icsDescription } from './calendarFile';
 import { freeCancellationDated, freeCancellationWords, whenWords } from './dayNames';
 import { Icon } from './icons';
 import { useLangPath } from './language';
+import { PreOrderEditor, PreOrderLines } from './PreOrder';
 import { SheetHead } from './SheetParts';
 
 /**
@@ -41,6 +44,10 @@ import { SheetHead } from './SheetParts';
  *    worse for the venue than no page at all.
  * 3. **Get the app**, described as what it *adds* rather than as a download.
  *    Rendered only when there is an app to get — see `appUrl`.
+ *
+ * A booking more than two hours away, at a branch that takes pre-orders, is
+ * offered one here (2026-10-21): the dishes, chosen in the sheet and saved
+ * through the booking's manage link, as the link itself would.
  *
  * A booking for tonight is a request first: the venue's floor has fifteen
  * minutes to answer. With no push channel, this page is where the answer
@@ -69,6 +76,16 @@ export function BookingDone({ booking, branch, onClose, onChooseAnotherTime }: B
   const linkId = useId();
   /** "Copied" turning back into "Copy": cleared if the sheet goes first (review N13). */
   const copiedTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  /** The pre-order editor, open in the sheet. */
+  const [preOrdering, setPreOrdering] = useState(false);
+  /** The pre-order as last saved here: `undefined` until then, `null` once removed. */
+  const [savedPreOrder, setSavedPreOrder] = useState<PreOrder | null | undefined>(undefined);
+  const preOrderMenu = usePreOrderMenu(preOrdering ? branch.id : undefined);
+  const savedNotice = useRef<HTMLParagraphElement>(null);
+  // Saved or removed: said, and the sheet scrolls to it.
+  useEffect(() => {
+    if (savedPreOrder !== undefined) savedNotice.current?.focus();
+  }, [savedPreOrder]);
   useEffect(() => () => clearTimeout(copiedTimer.current), []);
 
   /* Resolved here rather than at import: see `gateways.ts`. */
@@ -99,6 +116,11 @@ export function BookingDone({ booking, branch, onClose, onChooseAnotherTime }: B
       }
     : booking;
   const now = useNow(awaitsVenueAnswer(answerState) ? 1000 : 30_000);
+  const preOrder = savedPreOrder === undefined ? (booking.preOrder ?? null) : savedPreOrder;
+  // The booking's own window, which the server sends only while the branch
+  // takes pre-orders; and a link to save it through.
+  const canPreOrder =
+    Boolean(booking.manageToken) && canEditPreOrder({ ...booking, preOrder }, now);
   const answer = venueAnswerCopy(answerState, now, locale);
   const countdown = approvalCountdown(answerState.approvalExpiresAtUtc, now, locale);
   const declinedTitle = declinedCopy(answerState.declinedBecause, 'title');
@@ -266,7 +288,46 @@ export function BookingDone({ booking, branch, onClose, onChooseAnotherTime }: B
 
         {summary}
 
-        {kind === 'done' ? (
+        {kind === 'done' && booking.manageToken && preOrdering ? (
+          <PreOrderEditor
+            token={booking.manageToken}
+            preOrder={preOrder}
+            timeZoneId={booking.timeZoneId}
+            menu={preOrderMenu}
+            onSaved={(saved) => {
+              setSavedPreOrder(saved);
+              setPreOrdering(false);
+            }}
+            onCancel={() => setPreOrdering(false)}
+          />
+        ) : kind === 'done' && (canPreOrder || preOrder) ? (
+          <section className="pub-card pub-po" aria-labelledby={`${linkId}-po`}>
+            <h4 className="pub-field-label" id={`${linkId}-po`}>
+              {td('preOrder.title')}
+            </h4>
+            {savedPreOrder !== undefined ? (
+              <p className="pub-notice pub-notice-ok" role="status" tabIndex={-1} ref={savedNotice}>
+                {td(savedPreOrder ? 'preOrder.saved' : 'preOrder.removed')}
+              </p>
+            ) : null}
+            {preOrder ? (
+              <PreOrderLines preOrder={preOrder} />
+            ) : (
+              <p className="pub-card-text">{td('preOrder.offerBody')}</p>
+            )}
+            {canPreOrder ? (
+              <button
+                type="button"
+                className="pub-button pub-button-wide"
+                onClick={() => setPreOrdering(true)}
+              >
+                {td(preOrder ? 'preOrder.edit' : 'preOrder.add')}
+              </button>
+            ) : null}
+          </section>
+        ) : null}
+
+        {kind === 'done' && !preOrdering ? (
           <>
             {booking.promisedFreeByUtc ? (
               <p className="pub-muted">
@@ -342,7 +403,7 @@ export function BookingDone({ booking, branch, onClose, onChooseAnotherTime }: B
       </div>
 
       <div className="pub-sheet-foot">
-        {kind === 'done' ? (
+        {kind === 'done' && !preOrdering ? (
           // The reminder they would otherwise never get.
           <button type="button" className="pub-button pub-button-primary" onClick={addToCalendar}>
             <Icon name="calendar" />

@@ -359,6 +359,7 @@ export function notificationRoute(
     case 'booking-confirmed':
     case 'booking-declined':
     case 'booking-cancelled-by-venue':
+    case 'booking-on-your-way': // "Are you on your way?": the booking asks it (pre-orders).
       return bookingRoute(reservationId) ?? placeRoute(branchId);
     case 'order-ready':
       return orderRoute(orderId) ?? tabRoute(tabId) ?? placeRoute(branchId);

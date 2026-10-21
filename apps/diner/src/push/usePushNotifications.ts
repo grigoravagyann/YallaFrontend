@@ -9,6 +9,8 @@ import { newCommandId } from '../lib/commandId';
 import { invalidateForPush } from './invalidation';
 import {
   actionFor,
+  onYourWayAnswer,
+  onYourWayRoute,
   parsePushTarget,
   PUSH_ACTIONS,
   routeFor,
@@ -111,6 +113,8 @@ export function usePushNotifications({ projectId, signedIn }: PushOptions): void
       extendHold: t('push.action.extendHold'),
       tableRequestYes: t('booking.tableRequest.yes'),
       tableRequestNo: t('booking.tableRequest.no'),
+      onMyWay: t('preOrder.onYourWay.yes'),
+      cantCome: t('preOrder.onYourWay.cantCome'),
     });
   }, [t]);
 
@@ -186,6 +190,13 @@ export function usePushNotifications({ projectId, signedIn }: PushOptions): void
       const accept = tableRequestAnswer(action);
       if (accept !== null && target.kind === 'tableRequest') {
         if (!cancelled) router.push(tableRequestRoute(target, accept));
+        return;
+      }
+
+      // "Yes, I'm on my way" or "I can't come": the booking, carrying the answer.
+      const onMyWay = onYourWayAnswer(action);
+      if (onMyWay !== null && target.kind === 'booking') {
+        if (!cancelled) router.push(onYourWayRoute(target.reservationId, onMyWay));
         return;
       }
 

@@ -1322,6 +1322,24 @@ review every string in `src/locales/hy` and `src/locales/ru`.**
     `menu.column.preOrder` carry a soft hyphen (U+00AD) so the column heading
     can break and the menu table keeps its row actions in view; keep one there.
 
+- `diner` and `public` — pre-orders on a booking, the guest's screens (the
+  app's booking, editor and bookings list; the public page's done step and
+  manage link) (2026-10-21), provisional and **not** reviewed: every diner
+  `preOrder.*` key outside `preOrder.error.*` (one set of words for the app and
+  the link, which loads `diner`), and public `sheet.name.preOrders` (said
+  before booking where the branch takes pre-orders). hy now says «նախապատվեր»
+  for a pre-order **everywhere**, the user's word — the guest-facing
+  `preOrder.error.*` and `notifications.kind.bookingOnYourWay.body` were moved
+  to it from «նախնական պատվեր» (the line above predates that); ru «предзаказ».
+  A reviewer must keep: `preOrder.state.lockedBody` naming the **2 hours** and
+  **call the venue**; `preOrder.state.notComingBody` saying the waiter **can
+  still send it** when the guest arrives; `preOrder.onYourWay.cantCome` being a
+  **cancellation** (the booking's own cancel follows, with its confirmation);
+  `preOrder.priceNote` saying a price is **fixed when the dish is added**;
+  `preOrder.unavailableSwap` asking to **remove or swap** the dish.
+  `preOrder.onYourWay.yes` / `cantCome` are also the push's two button labels,
+  so keep them short.
+
 The Russian bundle carries four plural categories (`one`/`few`/`many`/`other`)
 where Armenian and English carry two. That is correct CLDR, not duplication, and
 `pnpm i18n:check` verifies each language has exactly the categories

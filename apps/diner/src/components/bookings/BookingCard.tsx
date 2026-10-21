@@ -38,6 +38,8 @@ import { PhotoImage } from '../PhotoImage';
 import { Skeleton } from '../Skeleton';
 import { Text } from '../Text';
 import { tableWithRoom } from './bookingText';
+import { PRE_ORDER_ICON, PreOrderSummaryLine } from './PreOrderCard';
+import { preOrderView } from './preOrderView';
 import { PromiseNote, promiseCopy } from './PromiseNote';
 import { TableRequestCard } from './TableRequestCard';
 import { useVenueAnswer, VenueAnswerNote } from './VenueAnswer';
@@ -171,6 +173,11 @@ export interface BookingHeroCardProps {
   readonly onCancel: () => void;
   /** Just cancelled here: the card stays, says so, and offers the place again. */
   readonly onBookAgain?: () => void;
+  /**
+   * The pre-order editor (2026-10-21), offered while one may be added or
+   * changed — the server's window, read through `preOrderView`.
+   */
+  readonly onPreOrder?: (() => void) | undefined;
   readonly style?: StyleProp<ViewStyle>;
 }
 
@@ -186,6 +193,7 @@ export function BookingHeroCard({
   onChange,
   onCancel,
   onBookAgain,
+  onPreOrder,
   style,
 }: BookingHeroCardProps) {
   const { t } = useTranslation('diner');
@@ -204,6 +212,15 @@ export function BookingHeroCard({
     .join(', ');
   const countdown = active ? bookingCountdown(booking.slotUtc, now) : null;
   const coords = facts.place?.coords ?? null;
+  const preOrder = preOrderView(booking, now);
+  const preOrderAction =
+    onPreOrder && !onBookAgain
+      ? preOrder.kind === 'offer'
+        ? 'preOrder.add'
+        : preOrder.kind === 'editable' && preOrder.canEdit
+          ? 'preOrder.edit'
+          : null
+      : null;
 
   return (
     <Card padded={false} radiusToken="hero" style={[styles.hero, style]}>
@@ -246,7 +263,21 @@ export function BookingHeroCard({
         <VenueAnswerNote booking={booking} style={styles.answer} />
         {/* The guest's own yes to the guest after them, for good. */}
         <PromiseNote booking={booking} style={styles.answer} />
+        {/* The dishes chosen ahead, and what became of them; or "are you on your way?". */}
+        <PreOrderSummaryLine booking={booking} now={now} style={styles.answer} />
       </Pressable>
+
+      {preOrderAction && onPreOrder ? (
+        <View style={styles.request}>
+          <Button
+            label={t(preOrderAction)}
+            icon={PRE_ORDER_ICON}
+            variant="secondary"
+            size="small"
+            onPress={onPreOrder}
+          />
+        </View>
+      ) : null}
 
       {/* Outside the pressable: its Yes and No are buttons of their own. */}
       <TableRequestCard booking={booking} style={styles.request} />
@@ -376,6 +407,7 @@ export function BookingRow({ booking, now, onOpen, style }: BookingRowProps) {
           {awaitsVenueAnswer(booking) ? (
             <VenueAnswerNote booking={booking} style={styles.rowAnswer} />
           ) : null}
+          <PreOrderSummaryLine booking={booking} now={now} />
           {/* Somebody is asking for this table: answered on the booking itself. */}
           {booking.incomingTableRequest ? (
             <Text numberOfLines={1} style={styles.rowRequest}>
