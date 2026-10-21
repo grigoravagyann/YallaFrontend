@@ -380,7 +380,6 @@ export function createStaffHttpGateway(client: ApiClient): StaffGateway {
 
     async listDuePreOrders(branchId): Promise<DuePreOrders> {
       // Soonest first, then by table, as the server orders it; kept as sent.
-      // gateway-schema: awaiting-route — pre-orders, PO wire §4 (backend feat/pre-orders)
       const { data } = await client.get<WireDuePreOrders>(
         `/api/branches/${branchId}/pre-orders/due`,
       );
@@ -389,7 +388,6 @@ export function createStaffHttpGateway(client: ApiClient): StaffGateway {
 
     async sendPreOrder({ reservationId, clientCommandId }): Promise<DuePreOrder> {
       try {
-        // gateway-schema: awaiting-route — pre-orders, PO wire §4 (backend feat/pre-orders)
         const { data } = await client.post<WireDuePreOrder>(
           `/api/reservations/${reservationId}/pre-order/send`,
           { clientCommandId },
@@ -402,7 +400,6 @@ export function createStaffHttpGateway(client: ApiClient): StaffGateway {
 
     async markPreOrderNotComing({ reservationId, clientCommandId }): Promise<DuePreOrder> {
       try {
-        // gateway-schema: awaiting-route — pre-orders, PO wire §4 (backend feat/pre-orders)
         const { data } = await client.post<WireDuePreOrder>(
           `/api/reservations/${reservationId}/pre-order/not-coming`,
           { clientCommandId },

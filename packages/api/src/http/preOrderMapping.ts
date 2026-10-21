@@ -39,6 +39,7 @@ import {
 } from '../contracts/preOrder';
 import type { ReservationStatusCode } from '../contracts/push';
 import { ApiError } from '../errors';
+import type { components } from '../generated/schema';
 import { guestRecordFromWire } from './guestRecordMapping';
 
 /**
@@ -63,36 +64,13 @@ import { guestRecordFromWire } from './guestRecordMapping';
 // The wire
 // ---------------------------------------------------------------------------
 
-/** `PreOrderLineView`. */
-export interface WirePreOrderLine {
-  readonly id: string;
-  readonly menuItemId: string;
-  readonly name: string;
-  readonly unitPriceAmd: number;
-  readonly quantity: number;
-  readonly lineTotalAmd: number;
-  readonly note?: string | null;
-  readonly availableNow?: boolean | null;
-}
+type Schemas = components['schemas'];
 
-/** `PreOrderView`. */
-export interface WirePreOrder {
-  readonly id: string;
-  readonly reservationId: string;
-  /** 1 Editable, 2 Locked, 3 Sent, 4 NotComing, 5 Cancelled. */
-  readonly state: number;
-  readonly lines?: readonly WirePreOrderLine[] | null;
-  readonly note?: string | null;
-  readonly totalAmd: number;
-  readonly editableUntilUtc: string;
-  readonly dueAtUtc: string;
-  readonly sentAtUtc?: string | null;
-  /** `TabOrderStatus`: 2 InKitchen, 3 Ready, 4 Served, 5 Voided. */
-  readonly kitchenStatus?: number | null;
-  readonly onTab?: boolean | null;
-  readonly notComingAtUtc?: string | null;
-  readonly updatedAtUtc: string;
-}
+/** `PreOrderLineView`. */
+export type WirePreOrderLine = Schemas['Yalla.Application.Reservations.PreOrderLineView'];
+
+/** `PreOrderView`: state 1 Editable, 2 Locked, 3 Sent, 4 NotComing, 5 Cancelled. */
+export type WirePreOrder = Schemas['Yalla.Application.Reservations.PreOrderView'];
 
 /** The new members of `ReservationView`. */
 export interface WireBookingPreOrderFields {
@@ -110,62 +88,19 @@ export interface WirePublicBookingPreOrderFields extends WireBookingPreOrderFiel
 }
 
 /** `PreOrderResult`. */
-export interface WirePreOrderResult {
-  readonly reservationId: string;
-  readonly preOrder?: WirePreOrder | null;
-  readonly wasReplay?: boolean | null;
-}
+export type WirePreOrderResult = Schemas['Yalla.Application.Reservations.PreOrderResult'];
 
 /** `OnMyWayResult`. */
-export interface WireOnMyWayResult {
-  readonly reservationId: string;
-  readonly guestConfirmedOnWayAtUtc: string;
-  readonly wasReplay?: boolean | null;
-}
+export type WireOnMyWayResult = Schemas['Yalla.Application.Reservations.OnMyWayResult'];
 
-/** `GuestRecord`, as `guestRecordMapping.ts` reads it. */
-type WireGuestRecord = Parameters<typeof guestRecordFromWire>[0];
-
-/** `DuePreOrder`. */
-export interface WireDuePreOrder {
-  readonly reservationId: string;
-  readonly code: string;
-  readonly tableId: string;
-  readonly tableLabel: string;
-  readonly roomName?: string | null;
-  readonly startUtc: string;
-  /** `TimeOnly`, "19:30:00". */
-  readonly localStartTime: string;
-  readonly partySize: number;
-  /** `ReservationStatus`: 2 Confirmed or 4 Seated on the rail. */
-  readonly status: number;
-  readonly guestName: string;
-  /** "" for a platform admin. */
-  readonly guestPhone?: string | null;
-  readonly guestConfirmedOnWayAtUtc?: string | null;
-  readonly guestRecord?: WireGuestRecord;
-  readonly dueAtUtc: string;
-  readonly preOrder: WirePreOrder;
-  readonly sentByName?: string | null;
-  readonly notComingByName?: string | null;
-  readonly tabId?: string | null;
-  readonly wasReplay?: boolean | null;
-}
+/** `DuePreOrder`; the phone is "" for a platform admin. */
+export type WireDuePreOrder = Schemas['Yalla.Application.Reservations.DuePreOrder'];
 
 /** `DuePreOrders`. */
-export interface WireDuePreOrders {
-  readonly items?: readonly WireDuePreOrder[] | null;
-  readonly nextDueAtUtc?: string | null;
-}
+export type WireDuePreOrders = Schemas['Yalla.Application.Reservations.DuePreOrders'];
 
 /** `KitchenPreOrder`, on `KitchenOrderView.preOrder`. */
-export interface WireKitchenPreOrder {
-  readonly reservationId: string;
-  readonly startUtc: string;
-  readonly localStartTime: string;
-  readonly partySize: number;
-  readonly guestName: string;
-}
+export type WireKitchenPreOrder = Schemas['Yalla.Application.Ordering.KitchenPreOrder'];
 
 /** The new members of `KitchenOrderView`: the held ticket has no tab yet. */
 export interface WireKitchenOrderPreOrderFields {
@@ -174,17 +109,7 @@ export interface WireKitchenOrderPreOrderFields {
 }
 
 /** `PreOrderSettingsView`. */
-export interface WirePreOrderSettings {
-  readonly acceptsPreOrders: boolean;
-  readonly minutesBefore: number;
-  readonly excludedMenuItemIds?: readonly string[] | null;
-  readonly bounds?: {
-    readonly minutesBeforeMin: number;
-    readonly minutesBeforeMax: number;
-  } | null;
-  readonly editableUntilHoursBefore?: number | null;
-  readonly onYourWayMinutesBefore?: number | null;
-}
+export type WirePreOrderSettings = Schemas['Yalla.Application.Reservations.PreOrderSettingsView'];
 
 /** `MenuItemView.availableForPreOrder`, on the diner's menu and the console's. */
 export interface WireMenuItemPreOrderFields {
@@ -197,15 +122,7 @@ export interface WirePolicyPreOrderFields {
 }
 
 /** `ReplacePreOrderRequest`: the whole pre-order, lines in display order. */
-export interface WireReplacePreOrderRequest {
-  readonly lines: readonly {
-    readonly menuItemId: string;
-    readonly quantity: number;
-    readonly note: string | null;
-  }[];
-  readonly note: string | null;
-  readonly clientCommandId: string;
-}
+export type WireReplacePreOrderRequest = Schemas['Yalla.Api.Endpoints.ReplacePreOrderRequest'];
 
 // ---------------------------------------------------------------------------
 // Reading it

@@ -203,7 +203,8 @@ describe('the pre-order on the wire', () => {
 
   it('reads each state, and a state this build does not know as unknown', () => {
     const states = [1, 2, 3, 4, 5, 9].map(
-      (state) => preOrderFromWire({ ...WIRE_PRE_ORDER, state }).state,
+      (state) =>
+        preOrderFromWire({ ...WIRE_PRE_ORDER, state: state as WirePreOrder['state'] }).state,
     );
     expect(states).toEqual(['editable', 'locked', 'sent', 'notComing', 'cancelled', 'unknown']);
   });
@@ -341,7 +342,8 @@ describe('menus and the branch page', () => {
     const item = MENU.categories[0]?.items[0] as unknown as Parameters<typeof adminItem>[0];
     expect(adminItem(item).availableForPreOrder).toBe(false);
     expect(
-      adminItem({ ...item, availableForPreOrder: undefined } as typeof item).availableForPreOrder,
+      adminItem({ ...item, availableForPreOrder: undefined } as unknown as typeof item)
+        .availableForPreOrder,
     ).toBe(true);
   });
 
@@ -404,7 +406,7 @@ describe('the kitchen and the change stream', () => {
       ...TICKET,
       tabId: 'tab-1',
       preOrder: undefined,
-    } as typeof TICKET);
+    } as unknown as typeof TICKET);
     expect(entry.tabId).toBe('tab-1');
     expect(entry.preOrder).toBeNull();
   });

@@ -1708,7 +1708,6 @@ export function createHttpGateway(client: ApiClient, options: HttpGatewayOptions
 
     async replacePreOrder(command): Promise<PreOrderResult> {
       try {
-        // gateway-schema: awaiting-route — pre-orders, PO wire §2 (backend feat/pre-orders)
         const { data } = await client.put<WirePreOrderResult>(
           `/api/reservations/${command.reservationId}/pre-order`,
           replacePreOrderBody(command, command.clientCommandId),
@@ -1721,7 +1720,6 @@ export function createHttpGateway(client: ApiClient, options: HttpGatewayOptions
 
     async clearPreOrder({ reservationId, clientCommandId }): Promise<PreOrderResult> {
       try {
-        // gateway-schema: awaiting-route — pre-orders, PO wire §2 (backend feat/pre-orders)
         const { data } = await client.post<WirePreOrderResult>(
           `/api/reservations/${reservationId}/pre-order/clear`,
           { clientCommandId },
@@ -1735,7 +1733,6 @@ export function createHttpGateway(client: ApiClient, options: HttpGatewayOptions
     async confirmOnMyWay(reservationId): Promise<OnMyWayResult> {
       try {
         // No body. "Can't come" is the booking's ordinary cancel.
-        // gateway-schema: awaiting-route — pre-orders, PO wire §3 (backend feat/pre-orders)
         const { data } = await client.post<WireOnMyWayResult>(
           `/api/reservations/${reservationId}/on-my-way`,
         );
