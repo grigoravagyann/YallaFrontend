@@ -6,9 +6,9 @@ import { space } from '../../theme';
  */
 export const tabBarMetrics = {
   /** Height of the pill. */
-  height: 58,
+  height: 68,
   /** Its corner radius: fully round ends. */
-  radius: 29,
+  radius: 34,
   /** Inset from the left and right screen edges. */
   inset: 14,
   /**
@@ -22,23 +22,23 @@ export const tabBarMetrics = {
   /** Padding inside the pill's two ends, so the outer labels clear its curve. */
   sidePadding: 4,
   /** Room under the labels: all five sit on this one baseline. */
-  labelBottom: 7,
+  labelBottom: 9,
   /** The label: one line, the same size on every tab. */
   labelSize: 11.5,
   labelLine: 14,
   /** Between the glyph's box and its label. */
-  labelGap: 2,
+  labelGap: 3,
   /** The box a glyph sits in; the active tab fills it with the soft highlight. */
   iconBoxWidth: 40,
-  iconBoxHeight: 26,
+  iconBoxHeight: 30,
   /** Glyph size inside that box. */
-  iconSize: 22,
+  iconSize: 23,
   /** The raised Scan circle. */
-  scanSize: 54,
+  scanSize: 60,
   /** The QR glyph inside it. */
-  scanGlyph: 26,
+  scanGlyph: 30,
   /** Where the Scan circle's lower edge sits, above the pill's lower edge. */
-  scanBottom: 24,
+  scanBottom: 30,
 } as const;
 
 /**
