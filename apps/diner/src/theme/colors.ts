@@ -49,6 +49,8 @@ export const colors = {
    * shows through.
    */
   navBar: 'rgba(255,255,255,0.72)',
+  /** The thinner white wash over the blur where the platform blurs (iOS, web). */
+  navGlassWash: 'rgba(255,255,255,0.55)',
   /**
    * An idle tab's label: a step warmer and darker than `textMuted`, so 11.5 px
    * on the bar still reads at arm's length, over any photo scrolling under it.

@@ -4,6 +4,7 @@ import { colors, radius } from '../../theme';
 import { Text } from '../Text';
 import { tabBarMetrics } from './metrics';
 import { MAX_NAV_LABEL_SCALE, navLabelActiveStyle, navLabelStyle } from './navLabel';
+import { GlassFill } from './GlassFill';
 import { NavGlyph } from './NavGlyph';
 
 export interface ScanFabProps {
@@ -69,6 +70,7 @@ export function ScanFab({
       style={[styles.slot, style]}
     >
       <Animated.View style={[styles.circle, { transform: [{ scale }] }]}>
+        <GlassFill />
         <NavGlyph routeName="scan" size={tabBarMetrics.scanGlyph} color={colors.accent} />
       </Animated.View>
       <Text
@@ -97,8 +99,8 @@ const styles = StyleSheet.create({
     height: tabBarMetrics.scanSize,
     marginBottom: CIRCLE_TO_LABEL,
     borderRadius: radius.pill,
-    // The same see-through glass as the bar it rises out of.
-    backgroundColor: colors.navBar,
+    // The same frosted glass as the bar it rises out of.
+    overflow: 'hidden',
     borderWidth: 1,
     borderColor: colors.navBorder,
     alignItems: 'center',

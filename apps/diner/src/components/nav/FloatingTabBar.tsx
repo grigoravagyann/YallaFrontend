@@ -7,6 +7,7 @@ import { colors, fontWeight, radius, shadows, type NavRouteName } from '../../th
 import { Text } from '../Text';
 import { SCAN_RISE, navBottomOffset, tabBarMetrics } from './metrics';
 import { MAX_NAV_LABEL_SCALE, navLabelActiveStyle, navLabelStyle } from './navLabel';
+import { GlassFill } from './GlassFill';
 import { NavGlyph } from './NavGlyph';
 import { ScanFab } from './ScanFab';
 
@@ -51,7 +52,11 @@ export function FloatingTabBar({ state, descriptors, navigation }: BottomTabBarP
           take touches, so the transparent band beside the Scan circle lets taps
           and scrolls through to the screen underneath. */}
       <View pointerEvents="box-none" style={styles.stage}>
-        <View style={styles.pill} />
+        <View style={styles.pill}>
+          <View style={styles.pillGlass}>
+            <GlassFill />
+          </View>
+        </View>
         <View pointerEvents="box-none" style={styles.row}>
           {state.routes.map((route, index) => {
             const descriptor = descriptors[route.key];
@@ -214,10 +219,15 @@ const styles = StyleSheet.create({
     bottom: 0,
     height: tabBarMetrics.height,
     borderRadius: tabBarMetrics.radius,
-    backgroundColor: colors.navBar,
     borderWidth: 1,
     borderColor: colors.navBorder,
     ...shadows.float,
+  },
+  // The glass is clipped to the pill in its own layer, so the pill keeps its shadow.
+  pillGlass: {
+    ...StyleSheet.absoluteFill,
+    borderRadius: tabBarMetrics.radius,
+    overflow: 'hidden',
   },
   row: {
     flexDirection: 'row',

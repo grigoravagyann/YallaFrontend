@@ -145,6 +145,10 @@ describe('text', () => {
     // The bar is glass by the user's choice: over a dark photo the label can
     // dip, so the claim is made for the grounds the bar mostly floats over.
     for (const under of ['#FFFFFF', colors.exploreGround, colors.border]) {
+      // The blurred wash (iOS, web) and the plain glass (Android).
+      expect(
+        contrastRatio(colors.navLabel, over(colors.navGlassWash, under)),
+      ).toBeGreaterThanOrEqual(AA_TEXT);
       expect(contrastRatio(colors.navLabel, over(colors.navBar, under))).toBeGreaterThanOrEqual(
         AA_TEXT,
       );

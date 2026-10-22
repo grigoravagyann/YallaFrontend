@@ -29,6 +29,7 @@
     "@yalla/realtime": "workspace:*",
     "@yalla/tokens": "workspace:*",
     "expo": "~57.0.20",
+    "expo-blur": "~57.0.3",
     "expo-camera": "~57.0.4",
     "expo-clipboard": "~57.0.1",
     "expo-constants": "~57.0.17",

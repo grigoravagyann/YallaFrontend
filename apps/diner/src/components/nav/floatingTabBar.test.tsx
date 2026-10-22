@@ -97,28 +97,24 @@ describe('the bottom navigation', () => {
     expect(new Set(sizes).size).toBe(1);
   });
 
-  it('paints the bar and the Scan circle in the same see-through glass', () => {
+  it('frosts the bar and the Scan circle with the same glass', () => {
     render(<FloatingTabBar {...props(ENGLISH)} />);
-    const pill = [...document.querySelectorAll<HTMLElement>('div')].find(
-      (node) => getComputedStyle(node).borderTopLeftRadius === `${tabBarMetrics.radius}px`,
-    )!;
-    const circle = screen.getByRole('tab', { name: 'Scan' }).firstElementChild as HTMLElement;
-    const glass = getComputedStyle(pill).backgroundColor;
-    expect(getComputedStyle(circle).backgroundColor).toBe(glass);
+    // One glass layer in the pill, one in the circle, washed alike.
+    const washes = screen.getAllByTestId('nav-glass');
+    expect(washes).toHaveLength(2);
+    const [bar, circle] = washes.map((node) => getComputedStyle(node).backgroundColor);
+    expect(circle).toBe(bar);
     // See-through, but white enough to read on.
-    expect(alphaOf(glass)).toBeLessThan(0.9);
-    expect(alphaOf(glass)).toBeGreaterThanOrEqual(0.6);
+    expect(alphaOf(bar!)).toBeLessThan(0.9);
+    expect(alphaOf(bar!)).toBeGreaterThanOrEqual(0.5);
   });
 
-  it('keeps an idle label readable on the bar over the app light grounds', () => {
+  it('keeps an idle label readable on the glass over the app light grounds', () => {
     render(<FloatingTabBar {...props(ENGLISH)} />);
-    const pill = [...document.querySelectorAll<HTMLElement>('div')].find(
-      (node) => getComputedStyle(node).borderTopLeftRadius === `${tabBarMetrics.radius}px`,
-    )!;
+    const wash = getComputedStyle(screen.getAllByTestId('nav-glass')[0]!).backgroundColor;
     const ink = toHex(screen.getByText('Bookings').style.color);
     for (const under of ['#FFFFFF', '#F7F6F1']) {
-      const ground = over(getComputedStyle(pill).backgroundColor, under);
-      expect(contrastRatio(ink, ground), under).toBeGreaterThanOrEqual(4.5);
+      expect(contrastRatio(ink, over(wash, under)), under).toBeGreaterThanOrEqual(4.5);
     }
   });
 });
