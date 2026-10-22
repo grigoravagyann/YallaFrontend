@@ -10,6 +10,7 @@ import { useTranslation } from '@yalla/i18n';
 import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { GuestRecordLine } from '../console/venue/overview/GuestRecordLine';
 import { ICONS, RailSection } from './FloorRail';
+import { OnMyWayAsk } from './OnMyWayAsk';
 import { useBranchFormat } from './useBranchFormat';
 
 /**
@@ -309,7 +310,6 @@ export function PreOrderCard({
    * guest anything, and a card telling the waiter to phone is wrong.
    */
   const askAtUtc = onYourWayFromUtc(item.startUtc);
-  const notAskedYet = new Date() < new Date(askAtUtc);
   // Grouped as the public page writes a number; dialled as stored.
   const shownPhone = item.guestPhone ? formatPhone(item.guestPhone) : null;
   const phone =
@@ -361,39 +361,34 @@ export function PreOrderCard({
         {t('preOrders.total', { amount: format.dram(preOrder.totalDram) })}
       </p>
 
-      {/* Whether anybody has to phone: the guest said yes; or "on your way?"
-          has not gone out yet (45 minutes before), so nobody is told to call
-          — it says when it will, with the number to hand; or marked not
-          coming, the number alone; or here is the number to call. */}
-      {sent || gone ? null : item.guestConfirmedOnWayAtUtc ? (
-        <p className="preorder-onway">
-          <svg className="ft-icon" viewBox="0 0 24 24" aria-hidden="true">
-            <path
-              d="M20 6 9 17l-5-5"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2.6"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-          </svg>
-          <span>{t('preOrders.onTheWay')}</span>
-        </p>
-      ) : markedNotComing ? (
+      {/* Where "are you coming?" stands (2026-10-22, the Ask artboard): not
+          asked yet, asked and waiting, the guest's answer, or nobody
+          answering — with "Ask now" and, when nobody answers, the number to
+          call. Marked not coming, the number alone. */}
+      {sent || gone ? null : markedNotComing ? (
         phone ? (
           <p className="preorder-call is-plain">{phone}</p>
         ) : null
-      ) : notAskedYet ? (
-        <p className="preorder-call is-plain">
-          <span>{t('preOrders.askAt', { time: format.time(askAtUtc) })}</span>
-          {phone ? <> {phone}</> : null}
-        </p>
-      ) : phone ? (
-        <p className="preorder-call">
-          <span>{t('preOrders.call')}</span> {phone}
-        </p>
       ) : (
-        <p className="preorder-call">{t('preOrders.notConfirmed')}</p>
+        <OnMyWayAsk
+          branchId={branchId}
+          timeZoneId={timeZoneId}
+          online={online}
+          variant={variant}
+          subject={{
+            reservationId: item.reservationId,
+            status: item.status,
+            startUtc: item.startUtc,
+            guestName: item.guestName,
+            guestPhone: item.guestPhone,
+            guestConfirmedOnWayAtUtc: item.guestConfirmedOnWayAtUtc,
+            guestRunningLateMinutes: item.guestRunningLateMinutes,
+            guestRunningLateAtUtc: item.guestRunningLateAtUtc,
+            staffAskedOnMyWayAtUtc: item.staffAskedOnMyWayAtUtc,
+            autoAskAtUtc: askAtUtc,
+            preOrderWaiting: true,
+          }}
+        />
       )}
 
       {sent ? (

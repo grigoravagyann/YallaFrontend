@@ -43,6 +43,7 @@ import {
   useStaffGateway,
   useStaffTab,
   useNow,
+  useTakeawayOrders,
   useTabsAwaitingAdmission,
   useVoidLine,
 } from '@yalla/api/react';
@@ -67,7 +68,7 @@ import { applyFloorChanges } from './live/sequence';
 import { createPollingLiveStream } from './live/stream';
 import { blockCancelledNews, type BlockCancelled } from './live/blockCancelled';
 import type { LiveStream } from '@yalla/realtime';
-import { FloorRail, type UnresolvedTab } from './FloorRail';
+import { FloorRail, ICONS, type UnresolvedTab } from './FloorRail';
 import type { CashOutcome } from './CashKeypad';
 import { OrderEntry, type OrderSent } from './OrderEntry';
 import {
@@ -88,6 +89,9 @@ import { TabPanel } from './TabPanel';
 import { useBranchFormat } from './useBranchFormat';
 import { useCachedMenu } from './useCachedMenu';
 import { useConnectionState } from './useConnectionState';
+import { TakeawayRailSection } from './takeaway/TakeawayAccept';
+import { TakeawayCounter } from './takeaway/TakeawayCounter';
+import { useTakeawayReady } from './takeaway/useTakeawayReady';
 import {
   NoShowSection,
   UndoNoShowNotice,
@@ -649,6 +653,25 @@ export function FloorRoute({ identity, device = null, paused }: FloorRouteProps)
    */
   const preOrdersQuery = useDuePreOrders(branchId, active);
   const duePreOrders = useMemo(() => preOrdersQuery.data?.items ?? [], [preOrdersQuery.data]);
+  /**
+   * The takeaway counter (2026-10-22): the rail's "Takeaway · accept" cards,
+   * the Takeaway page and its tab's count. Polled every ten seconds, in the
+   * background too — an order nobody answers is declined in five minutes.
+   */
+  const takeawayQuery = useTakeawayOrders(branchId, active);
+  const takeawayCounter = takeawayQuery.data ?? null;
+  /**
+   * Whether the branch has takeaway today: an order active or finished. A
+   * venue that never took one is shown no tab, and no failure to read a
+   * counter it does not have.
+   */
+  const takeawayInUse =
+    takeawayCounter !== null &&
+    (takeawayCounter.active.length > 0 || takeawayCounter.finishedToday.length > 0);
+  const takeawayToAnswer = useMemo(
+    () => (takeawayCounter?.active ?? []).filter((order) => order.status === 'sent'),
+    [takeawayCounter],
+  );
 
   // Browsers allow sound only after a gesture, and suspend it again when the
   // tablet sleeps or the tab is hidden. Every tap on the floor wakes the
@@ -658,6 +681,11 @@ export function FloorRoute({ identity, device = null, paused }: FloorRouteProps)
     document.addEventListener('pointerdown', wake);
     return () => document.removeEventListener('pointerdown', wake);
   }, []);
+
+  const say = useCallback((text: string) => setNotice({ kind: 'info', text }), []);
+  const takeawayTime = useCallback((iso: string) => format.time(iso), [format]);
+  // The Kitchen tab's "Ready" on a takeaway ticket: online only, never queued.
+  const takeawayReady = useTakeawayReady(branchId, say, takeawayTime);
 
   const voidLine = useVoidLine();
   const compLine = useCompLine();
@@ -1188,7 +1216,13 @@ export function FloorRoute({ identity, device = null, paused }: FloorRouteProps)
   return (
     <div className="floor" data-surface="staff">
       <StaffHeader
-        title={view === 'kitchen' ? t('kitchen.title') : t('floor.title')}
+        title={
+          view === 'kitchen'
+            ? t('kitchen.title')
+            : view === 'takeaway'
+              ? t('takeaway.title')
+              : t('floor.title')
+        }
         place={place}
         timeZoneId={timeZoneId}
         who={identity.fullName}
@@ -1209,6 +1243,13 @@ export function FloorRoute({ identity, device = null, paused }: FloorRouteProps)
         onRefresh={() => void floorQuery.refetch()}
         view={view}
         kitchenWaiting={kitchenWaiting(orders)}
+        // The counter's tab once the branch has a takeaway order today (or it
+        // is on screen): a venue that never took one is not shown an empty tab.
+        takeawayWaiting={
+          takeawayCounter && (takeawayInUse || view === 'takeaway')
+            ? takeawayCounter.sentCount + takeawayCounter.readyCount
+            : undefined
+        }
         floorWaiting={
           (awaitingQuery.data?.length ?? 0) +
           waitingTables.length +
@@ -1231,13 +1272,13 @@ export function FloorRoute({ identity, device = null, paused }: FloorRouteProps)
           noShow={notice.undo}
           text={notice.text}
           online={queue.online}
-          wide={view === 'kitchen'}
+          wide={view !== 'floor'}
           timeZoneId={timeZoneId}
           onSettled={(outcome) => undoSettled(notice.undo!.reservationId, outcome)}
         />
       ) : notice && !paused ? (
         <p
-          className={`floor-notice notice-${notice.kind}${view === 'kitchen' ? ' is-wide' : ''}`}
+          className={`floor-notice notice-${notice.kind}${view !== 'floor' ? ' is-wide' : ''}`}
           role="status"
         >
           {notice.blockCancelled?.length === 1
@@ -1277,6 +1318,25 @@ export function FloorRoute({ identity, device = null, paused }: FloorRouteProps)
             onAdvance={advanceOrder}
             loading={ordersLoading}
             failed={ordersFailed}
+            onTakeawayReady={takeawayReady.markReady}
+            takeawayMarking={takeawayReady.marking}
+            online={queue.online}
+          />
+        </div>
+      ) : null}
+
+      {view === 'takeaway' && branchId ? (
+        <div className="kitchen-body">
+          <TakeawayCounter
+            branchId={branchId}
+            counter={takeawayCounter}
+            timeZoneId={timeZoneId}
+            online={queue.online}
+            loading={takeawayQuery.isLoading && !isOfflinePaused(takeawayQuery)}
+            failed={
+              takeawayQuery.isError || (isOfflinePaused(takeawayQuery) && !takeawayQuery.data)
+            }
+            onRetry={() => void takeawayQuery.refetch()}
           />
         </div>
       ) : null}
@@ -1284,7 +1344,7 @@ export function FloorRoute({ identity, device = null, paused }: FloorRouteProps)
       {/* Hidden, not unmounted, while the kitchen shows: a half-typed decline,
           an answer in flight and its notice all live in here, and a trip to
           the kitchen must not cost any of them. */}
-      <div className="ft-body" hidden={view === 'kitchen'} data-panel={panelOpen || undefined}>
+      <div className="ft-body" hidden={view !== 'floor'} data-panel={panelOpen || undefined}>
         <section className="ft-floor" aria-label={t('floor.tables')}>
           {!branchId ? (
             <p className="floor-note">{t('floor.noBranch')}</p>
@@ -1381,6 +1441,11 @@ export function FloorRoute({ identity, device = null, paused }: FloorRouteProps)
               selectedDetail?.physicalStatus === 'occupied',
             )}
             onPreOrderDone={preOrderDone}
+            nextBookingAwaiting={
+              awaitingQuery.data?.some(
+                (request) => request.id === selectedDetail?.nextReservationId,
+              ) ?? false
+            }
             branchId={branchId}
             onAdmissionDecided={admissionDecided}
             onStartTab={() => startTab(selection.tableId)}
@@ -1462,6 +1527,18 @@ export function FloorRoute({ identity, device = null, paused }: FloorRouteProps)
           }
           unresolved={unresolvedList}
           onSettle={settleUnresolved}
+          takeaway={
+            branchId ? (
+              <TakeawayRailSection
+                branchId={branchId}
+                orders={takeawayToAnswer}
+                timeZoneId={timeZoneId}
+                online={queue.online}
+                failed={takeawayInUse && takeawayQuery.isError}
+                icon={ICONS.bag}
+              />
+            ) : null
+          }
           approvals={
             branchId ? (
               <ApprovalPanel

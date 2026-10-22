@@ -1,15 +1,17 @@
-import type {
-  AffectedReservation,
-  DerivedTableState,
-  DuePreOrder,
-  FloorTable,
-  GuestRecord,
-  ReleaseOutcome,
-  ServiceRequest,
-  StaffTab,
-  StaffTableDetail,
-  TableActionKind,
-  TableStatus,
+import {
+  ON_MY_WAY_WINDOW_HOURS,
+  onYourWayFromUtc,
+  type AffectedReservation,
+  type DerivedTableState,
+  type DuePreOrder,
+  type FloorTable,
+  type GuestRecord,
+  type ReleaseOutcome,
+  type ServiceRequest,
+  type StaffTab,
+  type StaffTableDetail,
+  type TableActionKind,
+  type TableStatus,
 } from '@yalla/api';
 import type { DayAndTime } from '@yalla/format';
 import { useTranslation } from '@yalla/i18n';
@@ -18,6 +20,7 @@ import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import { GuestRecordLine } from '../console/venue/overview/GuestRecordLine';
 import { AdmissionDecision, type AdmissionOutcome, type AdmissionSubject } from './AdmissionPanel';
 import { billRequestText } from './billRequestText';
+import { OnMyWayAsk } from './OnMyWayAsk';
 import { PreOrderCard, type PreOrderOutcome } from './PreOrderPanel';
 import { seatedMinutes } from './seatedMinutes';
 import { tableCardText, tableTone } from './tableCard';
@@ -42,6 +45,8 @@ import { useBranchFormat } from './useBranchFormat';
 
 /** The server's bound on a party (`[Range(1, 100)]` on every seat request). */
 const MAX_PARTY = 100;
+/** "Are you coming?" may be asked from two hours before a booking's start. */
+const ASK_WINDOW_MINUTES = ON_MY_WAY_WINDOW_HOURS * 60;
 
 export interface TableActionPanelProps {
   readonly table: FloorTable;
@@ -103,6 +108,11 @@ export interface TableActionPanelProps {
    */
   readonly preOrder?: DuePreOrder | null | undefined;
   readonly onPreOrderDone?: ((outcome: PreOrderOutcome) => void) | undefined;
+  /**
+   * The next booking still waits for the floor's yes (it is on the awaiting
+   * list): not confirmed, so nobody asks whether the guest is coming.
+   */
+  readonly nextBookingAwaiting?: boolean | undefined;
   readonly onOrder: () => void;
   readonly onClose: () => void;
 }
@@ -160,6 +170,21 @@ export function TableActionPanel(props: TableActionPanelProps) {
   const lateOpen = bookingLate && !bookingLetGo;
   const reservationId = detail?.nextReservationId ?? null;
   /**
+   * "Ask: are you coming?" for the next booking (2026-10-22), when its
+   * pre-order card — which asks the same — is not on this panel: from two
+   * hours before its start until the start, and after it only while the
+   * guest's "running late" has not run out.
+   */
+  const askLate = detail?.nextReservationGuestRunningLateMinutes ?? null;
+  const askOpen =
+    reservationId !== null &&
+    Boolean(bookingStart) &&
+    props.preOrder?.reservationId !== reservationId &&
+    !props.nextBookingAwaiting &&
+    status !== 'outOfService' &&
+    format.minutesSince(bookingStart!) >= -ASK_WINDOW_MINUTES &&
+    format.minutesSince(bookingStart!) < (askLate ?? 0);
+  /**
    * The table's next booking, when its pre-order card is on the rail: the
    * party may walk in up to two hours early, their food already cooking, and
    * must be seated on the booking so it reaches their tab (live QA 2026-10-21,
@@ -205,7 +230,11 @@ export function TableActionPanel(props: TableActionPanelProps) {
   // The guest said they are on their way: the waiter need not call.
   const bookingFlag = (
     <>
-      {detail?.nextReservationGuestConfirmedOnWayAtUtc ? (
+      {detail?.nextReservationGuestRunningLateMinutes != null ? (
+        <span className="badge badge-warn tp-flag">
+          {t('floor.card.runningLate', { count: detail.nextReservationGuestRunningLateMinutes })}
+        </span>
+      ) : detail?.nextReservationGuestConfirmedOnWayAtUtc ? (
         <span className="badge badge-ok tp-flag">{t('preOrders.onTheWay')}</span>
       ) : null}
       {detail?.nextReservationPhoneUnverified ? (
@@ -326,6 +355,33 @@ export function TableActionPanel(props: TableActionPanelProps) {
               online={online}
               variant="panel"
               onDone={(outcome) => props.onPreOrderDone?.(outcome)}
+            />
+          </section>
+        ) : null}
+
+        {/* Whether the next booking's guest is coming, and "Ask now", for a
+            booking with no pre-order card here (the Ask artboard). */}
+        {askOpen && props.branchId && reservationId && bookingStart ? (
+          <section className="tp-ask" aria-labelledby={`${headingId}-ask`}>
+            <h3 id={`${headingId}-ask`}>
+              {t('onMyWay.panelTitle', { time: format.time(bookingStart) })}
+            </h3>
+            <OnMyWayAsk
+              branchId={props.branchId}
+              timeZoneId={timeZoneId}
+              online={online}
+              variant="panel"
+              subject={{
+                reservationId,
+                status: 'confirmed',
+                startUtc: bookingStart,
+                guestName: null,
+                guestPhone: null,
+                guestConfirmedOnWayAtUtc: detail?.nextReservationGuestConfirmedOnWayAtUtc,
+                guestRunningLateMinutes: detail?.nextReservationGuestRunningLateMinutes,
+                staffAskedOnMyWayAtUtc: detail?.nextReservationStaffAskedOnMyWayAtUtc,
+                autoAskAtUtc: onYourWayFromUtc(bookingStart, false),
+              }}
             />
           </section>
         ) : null}

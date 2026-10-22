@@ -137,7 +137,9 @@
       "party_other": "{{count}} guests",
       "late": "Late · booked {{time}}",
       "awaitingAdmission": "waiting to be let in",
-      "onTheWay": "On their way"
+      "onTheWay": "On their way",
+      "runningLate_one": "Running late {{count}} min",
+      "runningLate_other": "Running late {{count}} min"
     },
     "heldMark": "waiting for {{name}}"
   },
@@ -204,7 +206,17 @@
     "readyNotice": "Table {{label}} · ready, the waiter can see it",
     "readyQueued": "Table {{label}} · ready · it will be sent when the connection is back",
     "arrived": "New in the kitchen at {{time}}: table {{labels}}",
-    "allergensUnknown": "Allergens: check before plating"
+    "allergensUnknown": "Allergens: check before plating",
+    "takeaway": {
+      "band": "TAKEAWAY",
+      "name": "Takeaway {{code}}, ready at {{time}}, {{guest}}, {{items}}",
+      "readyAt": "Ready at {{time}}",
+      "readyName": "Ready · takeaway {{code}}",
+      "readyDone": "Ready · the guest has been told",
+      "atCounter": "Handed over at the counter",
+      "readyNotice": "{{code}} · ready, the guest has been told",
+      "needsOnline": "Marking takeaway ready needs a connection."
+    }
   },
   "notice": {
     "race": "Table {{label}} was taken by someone else just now.",
@@ -851,7 +863,9 @@
     "kitchenWaiting_one": "{{count}} order waiting in the kitchen",
     "kitchenWaiting_other": "{{count}} orders waiting in the kitchen",
     "floorWaiting_one": "{{count}} waiting on the floor",
-    "floorWaiting_other": "{{count}} waiting on the floor"
+    "floorWaiting_other": "{{count}} waiting on the floor",
+    "takeawayWaiting_one": "{{count}} takeaway order waiting",
+    "takeawayWaiting_other": "{{count}} takeaway orders waiting"
   },
   "rail": {
     "label": "Needs attention",
@@ -964,10 +978,7 @@
     "note": "Note:",
     "total": "Total {{amount}}",
     "onTheWay": "The guest confirmed they are on the way",
-    "call": "Not confirmed they are on the way. Call:",
     "callLabel": "Call {{name}}, {{phone}}",
-    "notConfirmed": "The guest has not confirmed they are on the way.",
-    "askAt": "We'll ask the guest at {{time}}.",
     "send": "Coming → Send to kitchen",
     "sendTable": "Coming → Send to kitchen, table {{label}}",
     "notComing": "Not coming / no answer",
@@ -991,5 +1002,149 @@
     "sentNotice": "Table {{label}}: pre-order sent to the kitchen.",
     "alreadySentNotice": "Table {{label}}: the pre-order was already in the kitchen.",
     "notComingNotice": "Table {{label}}: marked not coming. If they arrive, you can still send the pre-order."
+  },
+  "takeaway": {
+    "title": "Takeaway",
+    "railTitle": "Takeaway · accept",
+    "orderLabel": "Takeaway order {{code}}",
+    "answerWithin": "answer ·",
+    "leftLabel": "{{time}} left to answer",
+    "timeUp": "No answer in time: the order is being declined and the guest told.",
+    "callName": "Call {{name}}, {{phone}}",
+    "call": "Call",
+    "dishes": "Dishes",
+    "line": "{{qty}} × {{name}}",
+    "note": "“{{note}}”",
+    "wants": "The guest wants it:",
+    "asap": "as soon as possible",
+    "at": "at {{time}}",
+    "readyAt": "Ready at",
+    "earlier": "5 minutes earlier",
+    "later": "5 minutes later",
+    "decline": "Decline",
+    "declineName": "Decline {{code}}",
+    "accept": "Accept",
+    "acceptName": "Accept {{code}}, ready at {{time}}",
+    "acceptHint": "Once accepted, the order goes straight to the kitchen and the guest sees the time.",
+    "declineTitle": "Decline {{code}}?",
+    "declineReason": "Why, for the guest (optional)",
+    "declineHint": "The guest is told the order was declined, with your reason if you give one.",
+    "keep": "No",
+    "confirmDecline": "Yes, decline",
+    "sending": "Sending…",
+    "needsOnline": "Takeaway needs a connection.",
+    "accepted": "{{code}} accepted · in the kitchen · ready at {{time}}",
+    "declined": "{{code}} declined · the guest has been told",
+    "unreachable": "The takeaway orders could not be read. That is not the same as none waiting.",
+    "stale": "The takeaway orders could not be read again. These may be out of date.",
+    "column": {
+      "ready": "Ready · waiting",
+      "preparing": "Being prepared",
+      "toAnswer": "Waiting for an answer",
+      "done_one": "Handed over today · {{count}}",
+      "done_other": "Handed over today · {{count}}"
+    },
+    "empty": {
+      "ready": "Nothing waiting at the counter.",
+      "preparing": "Nothing being prepared.",
+      "done": "Nothing handed over yet today."
+    },
+    "readySince": "ready since {{time}}",
+    "readyFor": "ready at {{time}}",
+    "waiting_one": "waiting {{count}} min",
+    "waiting_other": "waiting {{count}} min",
+    "who_one": "{{name}} · {{count}} item",
+    "who_other": "{{name}} · {{count}} items",
+    "whoTotal_one": "{{name}} · {{count}} item · {{amount}}",
+    "whoTotal_other": "{{name}} · {{count}} items · {{amount}}",
+    "toPay": "{{amount}} · to pay",
+    "paidWith": "{{amount}} · {{method}}",
+    "method": {
+      "cash": "cash",
+      "card": "card"
+    },
+    "handOver": "Hand over",
+    "handOverName": "Hand over {{code}}",
+    "noShow": "No-show",
+    "noShowName": "No-show · {{code}}",
+    "noShowFrom": "“No-show” can be marked from {{time}}.",
+    "noShowTitle": "Mark {{code}} as no-show?",
+    "noShowBody": "It goes on the guest’s record, like a booking they did not come to.",
+    "noShowConfirm": "Yes, no-show",
+    "noShowDone": "{{code}} marked no-show",
+    "handed": "{{code}} handed over · {{amount}} · {{method}}",
+    "pay": {
+      "title": "{{code}} · hand over",
+      "due": "To pay",
+      "method": "Paid with",
+      "cash": "Cash",
+      "card": "Card (terminal)",
+      "hint": "The receipt comes from the venue’s own till. {{app}} only records the payment.",
+      "back": "Back",
+      "confirm": "Paid, handed over"
+    },
+    "finished": {
+      "collected": "{{code}} · {{time}}",
+      "noShow": "{{code}} · no-show",
+      "declined": "{{code}} · declined",
+      "noAnswer": "{{code}} · no answer in time"
+    },
+    "error": {
+      "moved": "This order has moved on. The list has been refreshed.",
+      "noShowTooEarly": "Too early for no-show: it can be marked from {{time}}.",
+      "noShowTooEarlyPlain": "Too early for no-show.",
+      "invalid": "That ready time cannot be used. Pick another.",
+      "offline": "No connection. Try again when it is back.",
+      "generic": "That did not work. Try again."
+    }
+  },
+  "onMyWay": {
+    "panelTitle": "Booking at {{time}}: is the guest coming?",
+    "ask": "Ask: are you coming?",
+    "asking": "Asking…",
+    "askHint": "The guest gets a notification with “I’m coming / Running late / Not coming”. You can ask from 2 hours before the booking, once every {{minutes}} minutes.",
+    "needsOnline": "Asking needs a connection.",
+    "done": "Asked. The guest has been sent the question.",
+    "notNotified": "The guest has no app to notify. Call instead.",
+    "call": "Call · {{phone}}",
+    "callLabel": "Call {{name}}, {{phone}}",
+    "status": {
+      "idleTitle": "Not asked yet",
+      "idleBody": "You can ask now, without waiting for {{time}}.",
+      "idleLaterBody": "We’ll ask automatically at {{time}}.",
+      "askedTitle": "Asked at {{time}} · waiting",
+      "askedAutoTitle": "Asked automatically at {{time}} · waiting",
+      "askedBody": "The answer will show here and on the Now rail.",
+      "comingTitle": "Coming · said at {{time}}",
+      "comingBody": "Time to send the pre-order to the kitchen.",
+      "comingBodyPlain": "No need to call.",
+      "lateTitle_one": "Running late {{count}} min · {{time}}",
+      "lateTitle_other": "Running late {{count}} min · {{time}}",
+      "lateBody": "Expected around {{time}}.",
+      "lateBodyPreOrder": "Expected around {{time}}. Send the pre-order at about {{send}}.",
+      "silentTitle_one": "{{count}} min, no answer",
+      "silentTitle_other": "{{count}} min, no answer",
+      "silentBody": "You can call or ask again.",
+      "sentTitle": "Pre-order in the kitchen · {{time}}",
+      "sentPlain": "Pre-order in the kitchen",
+      "sentBody": "It will be ready when the guest arrives."
+    },
+    "blocked": {
+      "notConfirmed": "Only a confirmed booking can be asked.",
+      "started": "The booking has started.",
+      "tooEarly": "You can ask from {{time}}.",
+      "askedRecently": "You can ask again at {{time}}.",
+      "answered": "The guest has already answered."
+    },
+    "error": {
+      "tooEarly": "Too early: you can ask from {{time}}.",
+      "tooEarlyPlain": "Too early to ask.",
+      "notOpen": "This booking can no longer be asked.",
+      "answered": "The guest has already answered.",
+      "askedRecently": "Asked a moment ago. You can ask again at {{time}}.",
+      "askedRecentlyPlain": "Asked a moment ago.",
+      "offline": "No connection. Try again when it is back.",
+      "generic": "That did not work. Try again."
+    }
   }
 }

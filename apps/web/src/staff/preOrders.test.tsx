@@ -207,20 +207,28 @@ describe('the rail', () => {
     expect(within(dishes).getAllByText('2×')).toHaveLength(2);
     expect(within(two).getByText('A birthday: the cake comes with us')).toBeTruthy();
     expect(within(two).getByText(spaced(`Total ${dram(4600)}`))).toBeTruthy();
-    expect(within(two).getByText('The guest confirmed they are on the way')).toBeTruthy();
+    // Her answer, in the Ask block's words (2026-10-22): nobody need call.
+    expect(within(two).getByText(/^Coming · said at \d\d:\d\d$/u)).toBeTruthy();
+    expect(within(two).getByText('Time to send the pre-order to the kitchen.')).toBeTruthy();
+    expect(within(two).queryByRole('button', { name: 'Ask: are you coming?' })).toBeNull();
     expect(within(two).queryByRole('link')).toBeNull();
   });
 
-  it("gives the guest's number to call while they have not answered, and flags a dish sold out since", async () => {
+  it('says the guest is running late, and flags a dish sold out since', async () => {
     signIn();
     renderFloor(floorGateway());
 
     const nine = await card('9');
-    // Grouped as the public page writes a number (live QA); dialled as stored.
-    const call = within(nine).getByRole('link', { name: 'Call Мария Петрова, +374 77 44 55 66' });
-    expect(call.textContent).toBe('+374 77 44 55 66');
-    expect(call.getAttribute('href')).toBe('tel:+37477445566');
-    expect(within(nine).getByText('Not confirmed they are on the way. Call:')).toBeTruthy();
+    // She said "running late 15" in the app (2026-10-22): when to expect her,
+    // and when to send the pre-order — no "ask" and no call.
+    expect(within(nine).getByText(/^Running late 15 min · \d\d:\d\d$/u)).toBeTruthy();
+    expect(
+      within(nine).getByText(
+        /^Expected around \d\d:\d\d\. Send the pre-order at about \d\d:\d\d\.$/u,
+      ),
+    ).toBeTruthy();
+    expect(within(nine).queryByRole('button', { name: 'Ask: are you coming?' })).toBeNull();
+    expect(within(nine).queryByRole('link')).toBeNull();
 
     const coldBrew = within(nine).getByText('Cold brew').closest('li')!;
     expect(within(coldBrew).getByText('sold out now')).toBeTruthy();
@@ -490,8 +498,8 @@ describe('Not coming / no answer', () => {
     );
     expect(marked.classList.contains('is-quiet')).toBe(true);
     expect(within(marked).queryByRole('button', { name: /^Not coming \/ no answer/u })).toBeNull();
-    // Nobody is told to call a party already marked (live QA): the number stays.
-    expect(within(marked).queryByText('Not confirmed they are on the way. Call:')).toBeNull();
+    // Nobody is asked about a party already marked (live QA): the number stays.
+    expect(within(marked).queryByRole('button', { name: 'Ask: are you coming?' })).toBeNull();
     expect(within(marked).getByRole('link', { name: /^Call Мария Петрова/u })).toBeTruthy();
     // And it goes after the cards still waiting for a tap.
     const order = within(await section())
@@ -534,13 +542,16 @@ describe('before the guest is asked', () => {
     });
   }
 
-  it('says when the guest will be asked, with the number to hand, and no "call them"', async () => {
+  it('says nobody has asked yet and when it will be asked, with the number to hand', async () => {
     signIn();
     renderFloor(earlyGateway());
 
     const four = await card('4');
-    expect(within(four).getByText(/^We'll ask the guest at \d\d:\d\d\.$/u)).toBeTruthy();
-    expect(within(four).queryByText('Not confirmed they are on the way. Call:')).toBeNull();
+    expect(within(four).getByText('Not asked yet')).toBeTruthy();
+    expect(
+      within(four).getByText(/^You can ask now, without waiting for \d\d:\d\d\.$/u),
+    ).toBeTruthy();
+    expect(within(four).getByRole('button', { name: 'Ask: are you coming?' })).toBeTruthy();
     const call = within(four).getByRole('link', { name: 'Call Նարե Պետրոսյան, +374 93 11 22 33' });
     expect(call.getAttribute('href')).toBe('tel:+37493112233');
   });
@@ -584,7 +595,7 @@ describe("the table's panel", () => {
     const panel = screen.getByRole('dialog', { name: 'Actions for table 2' });
     const preOrder = within(panel).getByRole('region', { name: 'Pre-order' });
     expect(within(preOrder).getByText('Cappuccino')).toBeTruthy();
-    expect(within(preOrder).getByText('The guest confirmed they are on the way')).toBeTruthy();
+    expect(within(preOrder).getByText(/^Coming · said at \d\d:\d\d$/u)).toBeTruthy();
 
     await user.click(
       within(preOrder).getByRole('button', { name: 'Coming → Send to kitchen, table 2' }),

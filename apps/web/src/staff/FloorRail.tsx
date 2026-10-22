@@ -19,6 +19,12 @@ export interface FloorRailProps {
   /** The bookings waiting for an answer: `ApprovalPanel`, first in the rail. */
   readonly approvals: ReactNode;
   /**
+   * Takeaway orders waiting for an answer (2026-10-22): `TakeawayRailSection`,
+   * right after the bookings — an order nobody answers is declined in five
+   * minutes.
+   */
+  readonly takeaway?: ReactNode;
+  /**
    * Tables that scanned with no verified number, waiting for a waiter to let
    * them order: `AdmissionSection`, right after the bookings.
    */
@@ -66,8 +72,11 @@ export function FloorRail(props: FloorRailProps) {
   const { t } = useTranslation(['staff', 'common']);
   const format = useBranchFormat(props.timeZoneId);
 
-  const toSend = props.orders.filter((order) => order.status === 'new');
-  const ready = props.orders.filter((order) => order.status === 'ready');
+  // A takeaway order is handed over at the counter, never served at a table:
+  // it is the Takeaway page's, not the rail's (2026-10-22).
+  const tableOrders = props.orders.filter((order) => !order.takeaway);
+  const toSend = tableOrders.filter((order) => order.status === 'new');
+  const ready = tableOrders.filter((order) => order.status === 'ready');
   const dishes = (order: OrderQueueEntry) =>
     order.lines.reduce((sum, line) => sum + line.quantity, 0);
 
@@ -80,6 +89,8 @@ export function FloorRail(props: FloorRailProps) {
 
       <div className="ft-rail-body">
         {props.approvals}
+
+        {props.takeaway}
 
         {props.admissions}
 
@@ -341,6 +352,12 @@ export const ICONS = {
     <Icon>
       <rect width="8" height="4" x="8" y="2" rx="1" />
       <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2M12 11h4M12 16h4M8 11h.01M8 16h.01" />
+    </Icon>
+  ),
+  bag: (
+    <Icon>
+      <path d="M6 8h12l-1 12H7z" />
+      <path d="M9 8V6a3 3 0 0 1 6 0v2" />
     </Icon>
   ),
   scan: (
