@@ -20,12 +20,6 @@
     "loading": "Որոնվում են մոտակա վայրերը…",
     "mapButton": "Բացել քարտեզը",
     "clearFilters": "Մաքրել զտիչները",
-    "map": "Քարտեզ",
-    "greeting": {
-      "morning": "Բարի լույս,",
-      "afternoon": "Բարի օր,",
-      "evening": "Բարի երեկո,"
-    },
     "quick": {
       "openNow": "Հիմա բաց",
       "nearby": "Մոտակայքում"

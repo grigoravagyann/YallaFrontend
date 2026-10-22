@@ -58,6 +58,8 @@ export function ExploreSearch({
           <Ionicons name={actionIcon.close} size={20} color={colors.text} />
         </Pressable>
       ) : null}
+      {/* A hairline between the words and the filters, as the design draws it. */}
+      <View pointerEvents="none" style={styles.rule} />
       <Pressable
         accessibilityRole="button"
         accessibilityLabel={activeFilters > 0 ? `${filtersLabel}, ${activeFilters}` : filtersLabel}
@@ -111,6 +113,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  rule: { width: 1, height: 24, marginRight: -space.xs, backgroundColor: colors.controlBorder },
   pressed: { backgroundColor: colors.primarySoft },
   count: {
     position: 'absolute',

@@ -20,12 +20,6 @@
     "loading": "Ищем места рядом…",
     "mapButton": "Открыть карту",
     "clearFilters": "Сбросить фильтры",
-    "map": "Карта",
-    "greeting": {
-      "morning": "Доброе утро,",
-      "afternoon": "Добрый день,",
-      "evening": "Добрый вечер,"
-    },
     "quick": {
       "openNow": "Открыто сейчас",
       "nearby": "Рядом"

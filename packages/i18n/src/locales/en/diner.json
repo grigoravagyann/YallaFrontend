@@ -20,12 +20,6 @@
     "loading": "Finding places nearby…",
     "mapButton": "Open map",
     "clearFilters": "Clear filters",
-    "map": "Map",
-    "greeting": {
-      "morning": "Good morning,",
-      "afternoon": "Good afternoon,",
-      "evening": "Good evening,"
-    },
     "quick": {
       "openNow": "Open now",
       "nearby": "Nearby"
