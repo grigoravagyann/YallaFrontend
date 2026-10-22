@@ -74,6 +74,8 @@ const styles = StyleSheet.create({
     left: layout.screenPadding,
     right: layout.screenPadding,
     backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
     borderRadius: radius.card,
     ...shadows.float,
   },

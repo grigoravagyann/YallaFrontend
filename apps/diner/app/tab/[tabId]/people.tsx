@@ -7,19 +7,13 @@ import {
 import { useTranslation } from '@yalla/i18n';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useState } from 'react';
-import {
-  ActivityIndicator,
-  SafeAreaView,
-  ScrollView,
-  StyleSheet,
-  Switch,
-  View,
-} from 'react-native';
+import { ActivityIndicator, SafeAreaView, ScrollView, StyleSheet, View } from 'react-native';
 import { Button } from '../../../src/components/Button';
 import { Card } from '../../../src/components/Card';
 import { ConfirmSheet } from '../../../src/components/ConfirmSheet';
 import { ParticipantRow } from '../../../src/components/Participants';
 import { Text } from '../../../src/components/Text';
+import { Toggle } from '../../../src/components/Toggle';
 import { tabAccessCopy } from '../../../src/tab/access';
 import { useDinerTab } from '../../../src/data/orderQueries';
 import {
@@ -313,15 +307,11 @@ function PersonPermissions({
       {(['canOrder', 'canSeeTableTotal', 'canPay'] as const).map((key) => (
         <View key={key} style={styles.toggleRow}>
           <Text style={styles.toggleLabel}>{t(`people.${key}`)}</Text>
-          <Switch
+          {/* A white thumb on the brand track when on, on the grey one when off. */}
+          <Toggle
             value={draft[key]}
             disabled={busy}
             onValueChange={(value) => toggle(key, value)}
-            // On is the amber thumb on the brand track; off is a muted thumb
-            // on the dim one. Position and colour both say which.
-            trackColor={{ true: colors.brand, false: colors.surfaceMuted }}
-            ios_backgroundColor={colors.surfaceMuted}
-            thumbColor={draft[key] ? colors.primary : colors.textSubtle}
             accessibilityLabel={t(`people.${key}`)}
           />
         </View>
@@ -355,6 +345,8 @@ const styles = StyleSheet.create({
     padding: space.md,
     borderRadius: radius.card,
     backgroundColor: colors.surfaceMuted,
+    borderWidth: 1,
+    borderColor: colors.border,
     gap: space.xs,
   },
   noticeText: { ...typography.body, color: colors.text },

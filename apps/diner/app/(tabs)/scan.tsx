@@ -19,6 +19,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Button } from '../../src/components/Button';
+import { FocusedStatusBar } from '../../src/components/FocusedStatusBar';
 import { IconButton } from '../../src/components/IconButton';
 import { SheetModal } from '../../src/components/motion/SheetModal';
 import { usePressScale } from '../../src/components/motion/usePressScale';
@@ -205,6 +206,8 @@ export default function ScanScreen() {
 
   return (
     <View style={styles.stage} onLayout={onStageLayout}>
+      {/* A light clock and battery on the dark stage, while Scan is in front. */}
+      <FocusedStatusBar style="light" />
       {showCamera ? (
         <CameraView
           style={StyleSheet.absoluteFill}
@@ -497,7 +500,7 @@ function Outcome({
     <>
       {isWorking ? (
         <View style={styles.working} accessibilityRole="progressbar">
-          <ActivityIndicator color={colors.primary} />
+          <ActivityIndicator color={colors.onImage} />
           <Text style={styles.workingText}>{t('scan.working')}</Text>
         </View>
       ) : null}
@@ -565,7 +568,7 @@ function ManualEntrySheet({
           <IconButton
             icon={actionIcon.close}
             accessibilityLabel={closeLabel}
-            variant="ghost"
+            variant="surface"
             onPress={onClose}
           />
         </View>
@@ -701,13 +704,14 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: space.xs + 2,
   },
+  // The camera stays dark in the light app: what sits on it is cream.
   aiming: {
     ...typography.bodyLg,
     fontWeight: fontWeight.medium,
-    color: colors.text,
+    color: colors.onImage,
     textAlign: 'center',
   },
-  aimingHint: { ...typography.caption, color: colors.textMuted, textAlign: 'center' },
+  aimingHint: { ...typography.caption, color: colors.onImageMuted, textAlign: 'center' },
   stateWrap: {
     position: 'absolute',
     left: layout.screenPadding,
@@ -736,7 +740,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: space.sm + 2,
   },
-  title: { ...typography.h3, color: colors.text, flex: 1, textAlign: 'center' },
+  title: { ...typography.h3, color: colors.onImage, flex: 1, textAlign: 'center' },
   topSpacer: { width: layout.touchTarget, height: layout.touchTarget },
   round: {
     width: layout.touchTarget,
@@ -746,7 +750,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   torchOff: { backgroundColor: colors.glass },
-  torchOn: { backgroundColor: colors.text },
+  torchOn: { backgroundColor: colors.onImage },
   bottom: {
     position: 'absolute',
     left: layout.screenPadding,
@@ -760,7 +764,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: space.sm,
   },
-  workingText: { ...typography.body, color: colors.textMuted },
+  workingText: { ...typography.body, color: colors.onImageMuted },
   error: {
     padding: space.md,
     borderRadius: radius.card,

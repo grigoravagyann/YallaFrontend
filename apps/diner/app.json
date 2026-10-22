@@ -1,13 +1,14 @@
 {
   "expo": {
-    "name": "Yalla",
+    "name": "SHURJ",
     "slug": "yalla-diner",
     "owner": "grigoravagyan",
     "version": "0.1.0",
     "icon": "./assets/images/icon.png",
     "scheme": "yalla",
     "orientation": "portrait",
-    "userInterfaceStyle": "dark",
+    "userInterfaceStyle": "light",
+    "backgroundColor": "#FFFFFF",
     "newArchEnabled": true,
     "ios": {
       "supportsTablet": false,
@@ -58,24 +59,24 @@
         "expo-splash-screen",
         {
           "image": "./assets/images/splash-icon.png",
-          "imageWidth": 200,
+          "imageWidth": 240,
           "resizeMode": "contain",
-          "backgroundColor": "#1E0E07"
+          "backgroundColor": "#F8F3E9"
         }
       ],
       "expo-localization",
       [
         "expo-location",
         {
-          "locationWhenInUsePermission": "Yalla uses your location to show cafés and restaurants near you.",
-          "locationAlwaysAndWhenInUsePermission": "Yalla uses your location to show cafés and restaurants near you.",
+          "locationWhenInUsePermission": "SHURJ uses your location to show cafés and restaurants near you.",
+          "locationAlwaysAndWhenInUsePermission": "SHURJ uses your location to show cafés and restaurants near you.",
           "isAndroidBackgroundLocationEnabled": false
         }
       ],
       [
         "expo-camera",
         {
-          "cameraPermission": "Yalla uses the camera to read the code on your table.",
+          "cameraPermission": "SHURJ uses the camera to read the code on your table.",
           "recordAudioAndroid": false
         }
       ]

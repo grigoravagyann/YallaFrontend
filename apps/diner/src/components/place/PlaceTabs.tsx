@@ -111,7 +111,7 @@ const styles = StyleSheet.create({
   tab: { minHeight: layout.touchTarget, justifyContent: 'center' },
   pressed: { opacity: 0.7 },
   label: { fontSize: 13, lineHeight: 18, fontWeight: fontWeight.regular, color: colors.textMuted },
-  labelActive: { fontWeight: fontWeight.bold, color: colors.onPrimary },
+  labelActive: { fontWeight: fontWeight.bold, color: colors.primary },
   track: {
     position: 'absolute',
     left: 0,

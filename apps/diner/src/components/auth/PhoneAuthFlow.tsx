@@ -1089,7 +1089,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: space.xs - 1,
   },
-  pastePressed: { backgroundColor: colors.surfaceMuted, borderColor: colors.borderStrong },
+  pastePressed: { borderColor: colors.borderStrong, opacity: 0.7 },
   pasteDisabled: { opacity: 0.45 },
   pasteText: { ...typography.caption, color: colors.text },
   pending: { alignSelf: 'flex-start' },
@@ -1125,6 +1125,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: space.md + 2,
     borderRadius: radius.tile,
     backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
   },
   whyBody: { ...typography.caption, color: colors.textMuted },
   devBanner: {

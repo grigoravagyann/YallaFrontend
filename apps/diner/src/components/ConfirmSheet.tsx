@@ -120,7 +120,12 @@ export function ConfirmSheet({
 const styles = StyleSheet.create({
   titleRow: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
   title: { ...typography.h3, fontSize: 19, color: colors.text, flex: 1 },
-  close: { backgroundColor: colors.surface, borderRadius: radius.pill },
+  close: {
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.pill,
+  },
   summary: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -128,6 +133,8 @@ const styles = StyleSheet.create({
     padding: space.md - 2,
     borderRadius: radius.card,
     backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
   },
   body: { ...typography.body, fontSize: 13, color: colors.textMuted },
   error: { ...typography.body, color: colors.errorInk },

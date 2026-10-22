@@ -143,12 +143,15 @@ const styles = StyleSheet.create({
   },
   cell: {
     borderRadius: radius.pill,
+    // A 1px edge on every cell, transparent on the chosen one: no shift.
+    borderWidth: 1,
+    borderColor: 'transparent',
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: space.xs,
   },
-  cellIdle: { backgroundColor: colors.surface },
-  cellPressed: { backgroundColor: colors.surfaceMuted },
+  cellIdle: { backgroundColor: colors.surface, borderColor: colors.border },
+  cellPressed: { borderColor: colors.borderStrong },
   cellDisabled: { opacity: 0.45 },
   label: { fontSize: 12.5, lineHeight: 16, ...tabularNumbers, color: colors.textMuted },
   labelOn: { fontWeight: fontWeight.bold, color: colors.onPrimary },

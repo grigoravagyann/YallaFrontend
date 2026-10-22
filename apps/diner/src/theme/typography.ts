@@ -24,8 +24,6 @@ export const typography = {
   button: { fontSize: 16, lineHeight: 20, fontWeight: fontWeight.bold },
   /** Quieter button label (secondary / text variants). */
   buttonMedium: { fontSize: 16, lineHeight: 20, fontWeight: fontWeight.medium },
-  /** Tab bar labels, always visible. */
-  navLabel: { fontSize: 11, lineHeight: 14, fontWeight: fontWeight.medium },
   /**
    * The one figure read from further away than anything else — what is left
    * to pay, on the settle screen. Set with `tabularNumbers`.

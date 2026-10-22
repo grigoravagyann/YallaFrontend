@@ -16,7 +16,7 @@ import { Text } from './Text';
 
 export interface ChipProps {
   readonly label: string;
-  /** Brown fill with a white label; unselected is white with a thin border. */
+  /** Burgundy fill with a cream label; unselected is white with the hairline. */
   readonly selected?: boolean;
   readonly onPress?: () => void;
   /** Glyph before the label — the fork on "Restaurant", the cup on "Cafe". */
@@ -27,9 +27,10 @@ export interface ChipProps {
   readonly disabled?: boolean;
   /**
    * What a pressable chip is to a screen reader. `button` by default; a
-   * category strip is a row of `tab`s. Ignored without `onPress`.
+   * category strip is a row of `tab`s; a filter that is on or off on its own
+   * is a `switch`. Ignored without `onPress`.
    */
-  readonly accessibilityRole?: 'button' | 'tab' | 'radio';
+  readonly accessibilityRole?: 'button' | 'tab' | 'radio' | 'switch';
   readonly accessibilityLabel?: string;
   readonly style?: StyleProp<ViewStyle>;
 }
@@ -61,15 +62,19 @@ export function Chip({
   const interactive = onPress !== undefined && !disabled;
   const press = usePressScale();
   const placed = splitStyle(style);
+  const checkable = accessibilityRole === 'radio' || accessibilityRole === 'switch';
   return (
     <Animated.View style={[styles.wrap, press.style, placed.outer]}>
       <Pressable
         accessibilityRole={onPress ? accessibilityRole : 'text'}
-        accessibilityState={{ selected, disabled }}
+        accessibilityState={
+          checkable ? { selected, checked: selected, disabled } : { selected, disabled }
+        }
         // The web build reads none of accessibilityState: say "chosen" in the
-        // terms of the role, a selected tab or a checked radio (QA B5).
+        // terms of the role, a selected tab, a checked radio or a switch that
+        // is on (QA B5).
         {...(onPress && accessibilityRole === 'tab' ? { 'aria-selected': selected } : {})}
-        {...(onPress && accessibilityRole === 'radio' ? { 'aria-checked': selected } : {})}
+        {...(onPress && checkable ? { 'aria-checked': selected } : {})}
         {...(accessibilityLabel ? { accessibilityLabel } : {})}
         disabled={!interactive}
         hitSlop={Math.max(0, (layout.touchTarget - chipHeight[size]) / 2)}
@@ -112,7 +117,7 @@ const styles = StyleSheet.create({
   md: { minHeight: chipHeight.md, paddingHorizontal: space.lg },
   sm: { minHeight: chipHeight.sm, paddingHorizontal: space.md },
   idle: { backgroundColor: colors.surface, borderColor: colors.border },
-  idlePressed: { backgroundColor: colors.surfaceMuted, borderColor: colors.borderStrong },
+  idlePressed: { borderColor: colors.borderStrong, opacity: 0.85 },
   selected: { backgroundColor: colors.brand, borderColor: colors.brand },
   selectedPressed: { backgroundColor: colors.brandPressed, borderColor: colors.brandPressed },
   disabled: { opacity: 0.45 },

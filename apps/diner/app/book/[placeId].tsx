@@ -1739,9 +1739,12 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingHorizontal: space.xs,
     borderRadius: radius.pill,
+    // Transparent on the chosen day, so the thumb under it shows no edge.
+    borderWidth: 1,
+    borderColor: 'transparent',
   },
-  dayIdle: { backgroundColor: colors.surface },
-  dayPressed: { backgroundColor: colors.surfaceMuted },
+  dayIdle: { backgroundColor: colors.surface, borderColor: colors.border },
+  dayPressed: { borderColor: colors.borderStrong },
   dayLabel: { fontSize: 12.5, lineHeight: 16, color: colors.textMuted },
   dayLabelOn: { fontWeight: fontWeight.bold, color: colors.onPrimary },
 
@@ -1777,6 +1780,8 @@ const styles = StyleSheet.create({
   partyCard: {
     borderRadius: radius.card,
     backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
     paddingLeft: space.md + 2,
     paddingRight: space.xs + 2,
     paddingVertical: space.xs + 2,
@@ -1811,6 +1816,8 @@ const styles = StyleSheet.create({
     padding: space.md,
     borderRadius: radius.card,
     backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
   },
   tableIcon: {
     width: 36,

@@ -33,8 +33,8 @@ export function Stars({ rating, size = iconSize.sm }: { rating: number; size?: n
           key={step}
           name={step <= whole ? 'star' : 'star-outline'}
           size={size}
-          // The ink, not the bright orange: a lone glyph owes 3:1 on white.
-          color={colors.warningInk}
+          // The honey star, not the bright orange: a lone glyph owes 3:1 on white.
+          color={colors.ratingStar}
         />
       ))}
     </View>

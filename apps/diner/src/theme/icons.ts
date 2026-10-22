@@ -9,16 +9,9 @@ export const iconSize = {
   md: 20,
   lg: 24,
   xl: 28,
-  /** Tab bar glyphs. */
-  nav: 24,
-  /** The QR glyph inside the Scan FAB. */
-  fab: 26,
 } as const;
 
 export type IconSizeToken = keyof typeof iconSize;
-
-/** The Scan FAB: a circle this wide, its top rising above the tab bar pill. */
-export const fabSize = 60;
 
 export interface IconPair {
   readonly outline: IoniconName;
