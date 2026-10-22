@@ -5,7 +5,9 @@ import { actionIcon, colors, layout, radius, space } from '../../theme';
 import { usePressScale } from '../motion/usePressScale';
 
 /** The logo's SHURJ wordmark, 844 × 188 trimmed to its ink. */
-const WORDMARK_HEIGHT = 36;
+const WORDMARK_HEIGHT = 28;
+/** The capitals fill rows 2–154 of the 188: their middle sits this share above the image's. */
+const CAPS_LIFT = (94 - 78) / 188;
 const WORDMARK_WIDTH = Math.round((WORDMARK_HEIGHT * 844) / 188);
 /** The unread dot on the bell, and the white ring round it. */
 const DOT = 9;
@@ -82,8 +84,13 @@ const styles = StyleSheet.create({
     paddingTop: 0,
   },
   brand: { flex: 1, minWidth: 0, alignItems: 'center' },
-  // Nudged down: the J's tail weighs the ink low, so the capitals sit level with the buttons' middles.
-  wordmark: { width: WORDMARK_WIDTH, height: WORDMARK_HEIGHT, marginTop: 4 },
+  // The R's and J's tails hang below the capitals: moved down by that much, the
+  // capitals' middle is level with the map's and the bell's.
+  wordmark: {
+    width: WORDMARK_WIDTH,
+    height: WORDMARK_HEIGHT,
+    transform: [{ translateY: Math.round(WORDMARK_HEIGHT * CAPS_LIFT * 10) / 10 }],
+  },
   round: {
     width: layout.touchTarget,
     height: layout.touchTarget,
