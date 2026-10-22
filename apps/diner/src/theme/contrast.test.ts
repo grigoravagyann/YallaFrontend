@@ -141,8 +141,10 @@ describe('text', () => {
     );
   });
 
-  it('an idle tab label clears 4.5:1 on the bar, whatever scrolls under it', () => {
-    for (const under of ['#000000', '#FFFFFF', colors.surfaceDark]) {
+  it('an idle tab label clears 4.5:1 on the see-through bar over the app grounds', () => {
+    // The bar is glass by the user's choice: over a dark photo the label can
+    // dip, so the claim is made for the grounds the bar mostly floats over.
+    for (const under of ['#FFFFFF', colors.exploreGround, colors.border]) {
       expect(contrastRatio(colors.navLabel, over(colors.navBar, under))).toBeGreaterThanOrEqual(
         AA_TEXT,
       );

@@ -97,9 +97,8 @@ const styles = StyleSheet.create({
     height: tabBarMetrics.scanSize,
     marginBottom: CIRCLE_TO_LABEL,
     borderRadius: radius.pill,
-    // Solid white over the bar's hairline: a translucent circle let the pill's
-    // edge and its Android elevation shadow show through as a seam.
-    backgroundColor: colors.surface,
+    // The same see-through glass as the bar it rises out of.
+    backgroundColor: colors.navBar,
     borderWidth: 1,
     borderColor: colors.navBorder,
     alignItems: 'center',

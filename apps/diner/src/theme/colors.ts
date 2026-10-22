@@ -43,11 +43,12 @@ export const colors = {
   /** A switch's thumb, on the brand track or the `borderStrong` one. */
   toggleThumb: '#FFFFFF',
   /**
-   * The floating tab bar. There is no blur in the app, so the "glass" is all
-   * but opaque: at 80% a card's serif and photo ran straight through the
-   * labels. The Scan circle above it is solid `surface`.
+   * The floating tab bar and the Scan circle rising out of it: see-through
+   * white glass, the content scrolling under it visible (the user's choice,
+   * 2026-10-22). There is no blur in the app, so this alpha alone sets how much
+   * shows through.
    */
-  navBar: 'rgba(255,255,255,0.96)',
+  navBar: 'rgba(255,255,255,0.72)',
   /**
    * An idle tab's label: a step warmer and darker than `textMuted`, so 11.5 px
    * on the bar still reads at arm's length, over any photo scrolling under it.
