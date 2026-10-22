@@ -1,9 +1,17 @@
 import { useState } from 'react';
-import { Animated, Pressable, StyleSheet, type StyleProp, type ViewStyle } from 'react-native';
-import { colors, radius, shadows } from '../../theme';
+import {
+  Animated,
+  Pressable,
+  StyleSheet,
+  View,
+  type StyleProp,
+  type ViewStyle,
+} from 'react-native';
+import { colors, radius } from '../../theme';
 import { Text } from '../Text';
 import { tabBarMetrics } from './metrics';
 import { MAX_NAV_LABEL_SCALE, navLabelActiveStyle, navLabelStyle } from './navLabel';
+import { GlassFill } from './GlassFill';
 import { NavGlyph } from './NavGlyph';
 
 export interface ScanFabProps {
@@ -69,7 +77,12 @@ export function ScanFab({
       style={[styles.slot, style]}
     >
       <Animated.View style={[styles.circle, { transform: [{ scale }] }]}>
-        <NavGlyph routeName="scan" size={tabBarMetrics.scanGlyph} color={colors.accent} />
+        <GlassFill />
+        {/* Above the glass: on the web an absolutely placed layer paints over
+            in-flow siblings, which blurred the glyph under the frost. */}
+        <View style={styles.glyph}>
+          <NavGlyph routeName="scan" size={tabBarMetrics.scanGlyph} color={colors.accent} />
+        </View>
       </Animated.View>
       <Text
         numberOfLines={1}
@@ -97,14 +110,14 @@ const styles = StyleSheet.create({
     height: tabBarMetrics.scanSize,
     marginBottom: CIRCLE_TO_LABEL,
     borderRadius: radius.pill,
-    // Solid white over the bar's hairline: a translucent circle let the pill's
-    // edge and its Android elevation shadow show through as a seam.
-    backgroundColor: colors.surface,
+    // The same frosted glass as the bar it rises out of.
+    overflow: 'hidden',
     borderWidth: 1,
     borderColor: colors.navBorder,
     alignItems: 'center',
     justifyContent: 'center',
-    ...shadows.fab,
+    // Flat, like the four tabs beside it: the hairline is its only edge.
   },
+  glyph: { zIndex: 1 },
   label: { ...navLabelStyle, maxWidth: '100%' },
 });

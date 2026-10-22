@@ -162,7 +162,7 @@ export default function SuccessScreen() {
           />
         </View>
 
-        {/* Pending must never look confirmed: the blue clock, not the green check.
+        {/* Pending must never look confirmed: the burgundy clock, not the green check.
             Keyed by the outcome, so the answer arriving pops a new mark in. */}
         <SuccessMark key={tone} tone={tone} style={styles.mark} />
         <Rise key={`title-${tone}`} delay={120}>

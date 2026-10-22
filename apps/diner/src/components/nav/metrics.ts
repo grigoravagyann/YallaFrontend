@@ -6,13 +6,19 @@ import { space } from '../../theme';
  */
 export const tabBarMetrics = {
   /** Height of the pill. */
-  height: 68,
+  height: 63,
   /** Its corner radius: fully round ends. */
-  radius: 34,
+  radius: 31.5,
   /** Inset from the left and right screen edges. */
   inset: 14,
-  /** Gap between the pill and the bottom safe edge. */
-  bottomGap: 26,
+  /**
+   * The pill tucks into the home-indicator area instead of floating a full gap
+   * above it: it sits this much lower than the bottom safe edge (on an iPhone,
+   * 34 − 8 = 26 pt off the screen's edge, as the design draws it)…
+   */
+  homeTuck: 8,
+  /** …and never closer than this to the screen's edge (no inset, Android 3-button bars). */
+  minBottom: 12,
   /** Padding inside the pill's two ends, so the outer labels clear its curve. */
   sidePadding: 4,
   /** Room under the labels: all five sit on this one baseline. */
@@ -32,19 +38,30 @@ export const tabBarMetrics = {
   /** The QR glyph inside it. */
   scanGlyph: 30,
   /** Where the Scan circle's lower edge sits, above the pill's lower edge. */
-  scanBottom: 30,
+  scanBottom: 25,
 } as const;
+
+/**
+ * How far the pill's lower edge sits above the screen's bottom edge, given the
+ * bottom safe-area inset (live QA on an iPhone, 2026-10-22: a full 26 pt gap
+ * above the 34 pt inset left the bar floating far too high).
+ */
+export function navBottomOffset(insetBottom: number): number {
+  return Math.max(insetBottom - tabBarMetrics.homeTuck, tabBarMetrics.minBottom);
+}
 
 /** How far the Scan circle rises above the pill's top edge. */
 export const SCAN_RISE = tabBarMetrics.scanBottom + tabBarMetrics.scanSize - tabBarMetrics.height;
 
 /**
- * Padding a tab screen adds under its content so the last card never hides
- * behind the bar: whichever reaches higher, the pill or the Scan circle rising
- * out of it, plus its gap from the safe edge and a breath of ground above it.
- * The safe-area inset itself is added at runtime — see `useNavClearance` in
+ * Padding a tab screen adds under its content, measured from the pill's lower
+ * edge, so the last card never hides behind the bar: whichever reaches higher,
+ * the pill or the Scan circle rising out of it, plus a breath of ground above
+ * it. Where the pill's lower edge sits depends on the safe-area inset, so the
+ * screen adds `navBottomOffset` at runtime — see `useNavClearance` in
  * `components/Screen.tsx`.
  */
-export const NAV_CLEARANCE =
-  tabBarMetrics.bottomGap +
-  Math.max(tabBarMetrics.height + space.lg, tabBarMetrics.height + SCAN_RISE + space.sm);
+export const NAV_CLEARANCE = Math.max(
+  tabBarMetrics.height + space.lg,
+  tabBarMetrics.height + SCAN_RISE + space.sm,
+);

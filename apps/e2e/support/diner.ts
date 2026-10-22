@@ -23,19 +23,20 @@ export async function logIn(
 }
 
 /**
- * Signs in from Profile's own "Log in" button, without a page load, so whatever
- * the app still holds in memory from the diner before is still there to leak.
+ * Signs in from the welcome, the first screen a signed-out diner sees (the tabs
+ * are behind an account), without a page load, so whatever the app still holds
+ * in memory from the diner before is still there to leak. Lands on Explore.
  */
-export async function logInFromProfile(
+export async function logInFromWelcome(
   page: Page,
   diner: Pick<Diner, 'username' | 'password' | 'displayName'>,
 ): Promise<void> {
-  await openTab(page, 'Profile');
   await page.getByRole('button', { name: 'Log in', exact: true }).click();
   await page.getByLabel('Username or email').fill(diner.username);
   await page.getByLabel('Password', { exact: true }).fill(diner.password);
   await page.getByRole('button', { name: 'Log in', exact: true }).click();
-  await expect(page.getByText(diner.displayName, { exact: true }).first()).toBeVisible();
+  await page.waitForURL((url) => !url.pathname.startsWith('/auth'));
+  await expect(page.getByRole('tab', { name: 'Explore', exact: true })).toBeVisible();
 }
 
 /**
@@ -71,8 +72,10 @@ export async function openTab(
   await tab.click();
 }
 
+/** Logs out from Profile; a signed-out diner is back on the welcome, with no tabs. */
 export async function logOut(page: Page): Promise<void> {
   await openTab(page, 'Profile');
   await page.getByRole('button', { name: 'Log Out' }).click();
-  await expect(page.getByRole('button', { name: 'Log in', exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Create account', exact: true })).toBeVisible();
+  await expect(page.getByRole('tab', { name: 'Explore', exact: true })).toHaveCount(0);
 }

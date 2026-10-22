@@ -1,6 +1,7 @@
 import { MAX_BRANCH_SEARCH_LENGTH } from '@yalla/api';
 import { isOfflinePaused } from '@yalla/api/react';
 import { useTranslation } from '@yalla/i18n';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import { useCallback, useMemo, useState } from 'react';
 import { FlatList, Pressable, RefreshControl, StyleSheet, View } from 'react-native';
@@ -25,11 +26,9 @@ import { Rise, riseDelay } from '../../src/components/motion/Rise';
 import { Screen, useNavClearance } from '../../src/components/Screen';
 import { Skeleton } from '../../src/components/Skeleton';
 import { Text } from '../../src/components/Text';
-import { useDinerProfile } from '../../src/data/accountQueries';
 import { useNotificationCount } from '../../src/hooks/useNotificationCount';
 import { usePlaces } from '../../src/places/hooks';
 import type { Place, PlaceType } from '../../src/places/model';
-import { useSession } from '../../src/stores/session';
 import { useActiveTab } from '../../src/stores/tab';
 import {
   actionIcon,
@@ -37,7 +36,6 @@ import {
   displayWeight,
   fontWeight,
   layout,
-  shadows,
   space,
   typography,
 } from '../../src/theme';
@@ -61,18 +59,10 @@ const CATEGORIES: readonly { readonly key: Category; readonly labelKey: string }
   { key: 'bar', labelKey: 'explore.filter.bars' },
 ];
 
-/** Morning until noon, afternoon until six, evening after — and through the night. */
-function dayPeriod(hour: number): 'morning' | 'afternoon' | 'evening' {
-  if (hour >= 5 && hour < 12) return 'morning';
-  if (hour >= 12 && hour < 18) return 'afternoon';
-  return 'evening';
-}
-
 /**
  * Explore — the first screen anyone sees.
  *
- * On the ivory ground: the diner's initial, a greeting over their name, the
- * Map pill and the bell. Below it a white sheet with a rounded top carries the
+ * On white: the SHURJ wordmark from the logo, the Map pill and the bell. Below it a white sheet with a rounded top carries the
  * search field (its filter button opens Open now / Nearby), the category chips
  * — All, Cafés, Restaurants, Bars — and "Discover places", nearest first, as
  * full-width photo cards. The top stays put while the list scrolls under it,
@@ -86,13 +76,7 @@ export default function ExploreScreen() {
   const router = useRouter();
   const navClearance = useNavClearance();
 
-  const signedIn = useSession((s) => s.signedIn);
-  const guestName = useSession((s) => s.guestName);
-  const profile = useSession((s) => s.profile);
   const unread = useNotificationCount();
-  // The greeting names the account, so read it here too: Explore is where a
-  // restored session lands, before Profile has ever been opened.
-  useDinerProfile();
 
   const [query, setQuery] = useState('');
   // Every place nearby to start with; a chip narrows the list to one kind.
@@ -161,11 +145,6 @@ export default function ExploreScreen() {
     [t],
   );
 
-  const name = signedIn ? (profile?.displayName ?? guestName) : null;
-  const ownName = name?.trim();
-  const shownName = ownName || t('explore.brandName');
-  const photoUrl = signedIn ? profile?.photo?.thumbnailUrl : undefined;
-  const greeting = t(`explore.greeting.${dayPeriod(new Date().getHours())}`);
   const unreadLabel = unread > 99 ? '99+' : String(unread);
   const bellLabel =
     unread > 0 ? `${t('profile.notifications')}, ${unreadLabel}` : t('profile.notifications');
@@ -179,11 +158,7 @@ export default function ExploreScreen() {
   return (
     <Screen backgroundColor={colors.exploreGround}>
       <ExploreHeader
-        greeting={greeting}
-        name={shownName}
-        nameIsBrand={!ownName}
-        photoUrl={photoUrl}
-        mapLabel={t('explore.map')}
+        brandName={t('explore.brandName')}
         mapAccessibilityLabel={t('explore.mapButton')}
         onMap={() => router.push('/map')}
         bellLabel={bellLabel}
@@ -192,6 +167,15 @@ export default function ExploreScreen() {
       />
 
       <View style={styles.sheet}>
+        {/* The line between the header and the search, in the logo's burgundy: full in the middle,
+            fading out towards both sides. */}
+        <LinearGradient
+          pointerEvents="none"
+          colors={[colors.logoInkClear, colors.logoInk, colors.logoInkClear]}
+          start={{ x: 0, y: 0.5 }}
+          end={{ x: 1, y: 0.5 }}
+          style={styles.sheetEdge}
+        />
         {/* A way back to a tab you wandered off. Not a persistent bar: it only
             exists while there is somewhere to go back to. */}
         {activeTabId ? (
@@ -314,6 +298,14 @@ function SkeletonCards() {
 }
 
 const styles = StyleSheet.create({
+  sheetEdge: {
+    position: 'absolute',
+    // A little below the sheet's top, closer to the header than to the search.
+    top: 4,
+    left: layout.screenPadding,
+    right: layout.screenPadding,
+    height: 1,
+  },
   sheet: {
     flex: 1,
     marginTop: space.sm,
@@ -321,8 +313,6 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: SHEET_RADIUS,
     borderTopRightRadius: SHEET_RADIUS,
     backgroundColor: colors.surface,
-    // Its faint lift off the ivory: 0 -6 20 at 5%, upward.
-    ...shadows.sheetTop,
   },
   resume: {
     marginHorizontal: layout.screenPadding,
@@ -345,7 +335,7 @@ const styles = StyleSheet.create({
     lineHeight: 30,
     letterSpacing: -0.2,
     fontWeight: displayWeight.bold,
-    color: colors.text,
+    color: colors.brand,
     marginBottom: GAP,
   },
   stale: { opacity: 0.6 },

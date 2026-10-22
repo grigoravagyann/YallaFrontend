@@ -933,10 +933,13 @@ export function createStaffMockGateway(options: StaffMockOptions = {}): StaffGat
 
   // Both occupied tables in the fixture already have a tab, one of them with
   // items on it, so the tab panel has something real to draw on first load.
+  // Opened when the party sat, not at load: the bill shows each round's time,
+  // and the seeded round below must not predate the tab it is on.
   for (const [tableId, state] of tables) {
     if (state.physicalStatus !== 'occupied') continue;
     const table = plan.tables.find((candidate) => candidate.id === tableId);
-    const tab = openTab(tableId, table?.label ?? tableId, start);
+    const openedAt = state.seatedAtUtc ? new Date(state.seatedAtUtc) : start;
+    const tab = openTab(tableId, table?.label ?? tableId, openedAt);
     state.tabId = tab.id;
   }
 

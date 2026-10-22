@@ -156,3 +156,25 @@ describe('a send the server would refuse whole', () => {
     expect(again).toMatchObject({ orderId: first.orderId, wasReplay: true });
   });
 });
+
+describe('the time on each line of the staff tab', () => {
+  it("is its order's, the seeded round's and a round placed later alike", async () => {
+    const { gateway, tabId, tab, items } = await seeded();
+    // As `TabLineView.orderedAtUtc`: the time the line's order was placed.
+    expect(tab.lines.length).toBeGreaterThan(0);
+    const seededAt = tab.lines[0]!.placedAtUtc;
+    expect(seededAt).not.toBeNull();
+    expect(tab.lines.every((line) => line.placedAtUtc === seededAt)).toBe(true);
+    // The bill shows it beside "open since": never a round from before the tab opened.
+    expect(Date.parse(seededAt!)).toBeGreaterThanOrEqual(Date.parse(tab.openedAtUtc));
+
+    const placed = await gateway.placeOrder({
+      tabId,
+      clientCommandId: '77777777-7777-4777-8777-777777777777',
+      lines: [{ menuItemId: items[0]!.id, quantity: 1, isShared: false, participantId: null }],
+    });
+    const after = (await gateway.getStaffTab(tabId))!;
+    const fresh = after.lines.filter((line) => line.orderId === placed.orderId);
+    expect(fresh.map((line) => line.placedAtUtc)).toEqual([placed.placedAtUtc]);
+  });
+});

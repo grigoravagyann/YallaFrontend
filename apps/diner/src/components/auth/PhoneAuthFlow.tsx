@@ -57,7 +57,7 @@ import { accountKeys, useSetDinerPassword } from '../../data/accountQueries';
 import { AuthHeader } from './AuthHeader';
 import { BookingSummary } from './BookingSummary';
 import { Field, FieldInput, PasswordInput } from './Field';
-import { FROM_WELCOME, useAuthFinish, type AuthRouteParams } from './useAuthFinish';
+import { FROM_START, FROM_WELCOME, useAuthFinish, type AuthRouteParams } from './useAuthFinish';
 
 const DEFAULT_PREFIX = '+374';
 const CODE_LENGTH = 6;
@@ -70,7 +70,7 @@ const MAX_RESEND_WAIT_SECONDS = 120;
 
 export type AuthMode = 'login' | 'signup';
 
-export { FROM_WELCOME, type AuthRouteParams };
+export { FROM_START, FROM_WELCOME, type AuthRouteParams };
 
 /** Seconds until the server lets a code be resent: whole, non-negative, capped. */
 function secondsUntil(isoUtc: string): number {
