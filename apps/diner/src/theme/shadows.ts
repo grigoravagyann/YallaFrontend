@@ -47,8 +47,6 @@ export const shadows = {
   card: shadow({ y: 1, blur: 2, opacity: 0.05, elevation: 1 }),
   /** The tab bar, bottom cards. */
   float: shadow({ y: 10, blur: 30, opacity: 0.14, elevation: 6 }),
-  /** The Scan circle, raised out of the bar. */
-  fab: shadow({ y: 4, blur: 12, opacity: 0.1, elevation: 4 }),
   /** A brand-filled button or chip: a soft burgundy lift. */
   brand: shadow({ y: 6, blur: 20, opacity: 0.16, elevation: 3, color: colors.brandGlow }),
   /** A bottom sheet, lifted off the page under it. */

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Animated, Pressable, StyleSheet, type StyleProp, type ViewStyle } from 'react-native';
-import { colors, radius, shadows } from '../../theme';
+import { colors, radius } from '../../theme';
 import { Text } from '../Text';
 import { tabBarMetrics } from './metrics';
 import { MAX_NAV_LABEL_SCALE, navLabelActiveStyle, navLabelStyle } from './navLabel';
@@ -104,7 +104,7 @@ const styles = StyleSheet.create({
     borderColor: colors.navBorder,
     alignItems: 'center',
     justifyContent: 'center',
-    ...shadows.fab,
+    // Flat, like the four tabs beside it: the hairline is its only edge.
   },
   label: { ...navLabelStyle, maxWidth: '100%' },
 });
