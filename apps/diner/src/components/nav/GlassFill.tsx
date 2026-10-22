@@ -30,4 +30,4 @@ export function GlassFill() {
 }
 
 /** How strongly the content under the bar is blurred (expo-blur's 1–100). */
-export const GLASS_BLUR = 40;
+export const GLASS_BLUR = 20;
