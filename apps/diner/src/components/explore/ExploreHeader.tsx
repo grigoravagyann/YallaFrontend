@@ -175,7 +175,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: space.md,
     paddingHorizontal: layout.screenPadding,
-    paddingTop: space.sm,
+    // Right under the status bar: on a phone the row sat a full step lower and looked dropped.
+    paddingTop: 0,
   },
   avatar: {
     width: AVATAR,
