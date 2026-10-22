@@ -50,6 +50,7 @@ const VIEW: StaffView = {
       orderStatus: 4,
       sharedWithCount: 0,
       note: 'Medium',
+      orderedAtUtc: '2026-10-19T12:31:00Z',
     },
     {
       lineId: 'l-latte',
@@ -66,6 +67,7 @@ const VIEW: StaffView = {
       placedByDisplayName: 'Ani',
       orderStatus: 2,
       sharedWithCount: 0,
+      orderedAtUtc: '2026-10-19T12:44:00Z',
     },
     {
       lineId: 'l-negroni',
@@ -147,5 +149,14 @@ describe('the tab staff read', () => {
 
   it('takes the service percentage the tab carries, not one worked out from its totals', async () => {
     expect((await read()).serviceChargePercent).toBe(15);
+  });
+
+  it("puts each line's order time on it, and none when the server sends none", async () => {
+    // The Negroni's view is from a server that predates the field.
+    expect((await read()).lines.map((line) => line.placedAtUtc)).toEqual([
+      '2026-10-19T12:31:00Z',
+      '2026-10-19T12:44:00Z',
+      null,
+    ]);
   });
 });

@@ -22,7 +22,8 @@ import { useMinuteClock } from './useMinuteClock';
  * The tab, for staff (floor-tablet `Tab`).
  *
  * Left, what was ordered: every line with where it is (in the kitchen, ready,
- * served, voided), who it is for and its note. Right, the money: what the table
+ * served, voided), who it is for, when its order went in (the branch's clock,
+ * as the diner's bill says it) and its note. Right, the money: what the table
  * asked to pay from the app, the totals down to what is still to pay, and the
  * actions. The number a waiter needs at a glance is **still to pay**, so it
  * closes the totals in the largest type.
@@ -367,7 +368,18 @@ export function TabPanel(props: TabPanelProps) {
                                 ? ` · ${line.voidReason}`
                                 : ''}
                             </span>
-                            {who ? <span>{who}</span> : null}
+                            {who || line.placedAtUtc ? (
+                              // "Ani · 19:08": who, then when its order went in.
+                              <span>
+                                {who}
+                                {who && line.placedAtUtc ? ' · ' : null}
+                                {line.placedAtUtc ? (
+                                  <time dateTime={line.placedAtUtc}>
+                                    {format.time(line.placedAtUtc)}
+                                  </time>
+                                ) : null}
+                              </span>
+                            ) : null}
                             {line.note ? <span>{`“${line.note}”`}</span> : null}
                             {lineAdjustments(line).map((adjustment) => (
                               <span key={adjustment.id} className="tab-line-adjusted">

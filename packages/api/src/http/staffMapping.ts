@@ -825,8 +825,9 @@ export function staffTabLine(line: StaffLineView): TabLine {
     voidReason: line.voidReason ?? null,
     // No view names the member of staff.
     voidedByName: null,
-    // The snapshot lists lines in the order they were placed and carries no time.
-    placedAtUtc: null,
+    // Its order's `placedAtUtc`, on every line. Null from a server that does not
+    // send it yet: the snapshot still lists lines in the order they were placed.
+    placedAtUtc: line.orderedAtUtc ?? null,
     orderStatus: orderStatus(line.orderStatus),
   };
 }
