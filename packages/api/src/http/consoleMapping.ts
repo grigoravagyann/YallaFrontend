@@ -267,7 +267,13 @@ const RESERVATION_STATUS: Readonly<Record<number, ReservationStatusCode>> = {
 export function consoleBookingFromWire(
   view: WireReservationWithApproval & WireBookingPreOrderFields,
 ): ConsoleBooking {
-  const { preOrder, guestConfirmedOnWayAtUtc } = bookingPreOrderFields(view);
+  const {
+    preOrder,
+    guestConfirmedOnWayAtUtc,
+    guestRunningLateMinutes,
+    guestRunningLateAtUtc,
+    staffAskedOnMyWayAtUtc,
+  } = bookingPreOrderFields(view);
   return {
     id: view.id,
     code: view.code,
@@ -288,6 +294,9 @@ export function consoleBookingFromWire(
     cancelledBecause: cancellationCause(view.cancelledBecause),
     preOrder,
     guestConfirmedOnWayAtUtc,
+    guestRunningLateMinutes,
+    guestRunningLateAtUtc,
+    staffAskedOnMyWayAtUtc,
   };
 }
 

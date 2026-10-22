@@ -2,6 +2,7 @@ import type { components } from '../generated/schema';
 import { admissionFromWire, floorChangeSignal } from './admissionMapping';
 import { guestRecordFromWire } from './guestRecordMapping';
 import { kitchenPreOrderFromWire } from './preOrderMapping';
+import { kitchenTakeawayFromWire } from './takeawayMapping';
 import type {
   AffectedReservation,
   PreconditionFailure,
@@ -290,6 +291,14 @@ export function staffFloorDetails(state: FloorState): readonly StaffTableDetail[
       nextReservationGuestConfirmedOnWayAtUtc: instantOrNull(
         table.nextReservationGuestConfirmedOnWayAtUtc,
       ),
+      // "I'm coming" (2026-10-22): the guest's lateness and the venue's last ask.
+      nextReservationGuestRunningLateMinutes:
+        typeof table.nextReservationGuestRunningLateMinutes === 'number'
+          ? table.nextReservationGuestRunningLateMinutes
+          : null,
+      nextReservationStaffAskedOnMyWayAtUtc: instantOrNull(
+        table.nextReservationStaffAskedOnMyWayAtUtc,
+      ),
       openTabAwaitingAdmission: table.openTabAwaitingAdmission === true,
       // Guest record (wire §0a): the next booking's guest, and the party sitting now.
       nextReservationGuestRecord: guestRecordFromWire(table.nextReservationGuestRecord),
@@ -541,6 +550,8 @@ export function orderQueueEntry(order: KitchenOrder): OrderQueueEntry {
     placedByName: order.placedByName ?? null,
     // A ticket from a booking's pre-order, held or on the tab (2026-10-21).
     preOrder: kitchenPreOrderFromWire(order.preOrder),
+    // A takeaway order the venue accepted: the "TAKEAWAY" band (2026-10-22).
+    takeaway: kitchenTakeawayFromWire(order.takeaway),
   };
 }
 
@@ -703,6 +714,8 @@ function completeItem(
     isAvailable: item.isAvailable,
     // Pre-orders (2026-10-21): absent — a server from before them — is yes.
     availableForPreOrder: item.availableForPreOrder !== false,
+    // Takeaway (2026-10-22): absent — a server from before it — is yes.
+    availableForTakeaway: item.availableForTakeaway !== false,
     displayOrder: item.displayOrder,
   };
 }

@@ -1021,4 +1021,120 @@ export {
 } from './contracts/errors';
 export { MOCK_PRE_ORDER_BRANCHES, createMockPreOrderBook } from './mocks/preOrders';
 export type { MockPreOrderBranch } from './mocks/preOrders';
-export type { StaffPreOrderSeed } from './mocks/staffMock';
+export type { StaffPreOrderSeed, StaffTakeawaySeed } from './mocks/staffMock';
+
+// "I'm coming" on a booking (2026-10-22): running late, the venue's ask, and
+// the rules the booking screen and the tablet decide their buttons by.
+export {
+  ON_MY_WAY_WINDOW_HOURS,
+  RUNNING_LATE_MINUTES,
+  STAFF_ASK_INTERVAL_MINUTES,
+  askOnMyWayBlock,
+  canAnswerOnMyWay,
+  guestAnswered,
+  guestAnsweredAtUtc,
+  isRunningLateMinutes,
+  onMyWayOpensAtUtc,
+  venueIsAsking,
+} from './contracts/onMyWay';
+export type {
+  AskOnMyWayBlock,
+  AskOnMyWayInput,
+  AskOnMyWayResult,
+  BookingAnswerFields,
+  OnMyWayAnswerInput,
+  ReportManagedRunningLateCommand,
+  ReportRunningLateCommand,
+  RunningLateMinutes,
+  RunningLateResult,
+} from './contracts/onMyWay';
+export {
+  ASK_ON_MY_WAY_ASKED_RECENTLY_CODE,
+  ASK_ON_MY_WAY_NOT_OPEN_CODE,
+  ASK_ON_MY_WAY_TOO_EARLY_CODE,
+  AskOnMyWayAskedRecentlyError,
+  AskOnMyWayNotOpenError,
+  AskOnMyWayTooEarlyError,
+  GUEST_ALREADY_ANSWERED_CODE,
+  GuestAlreadyAnsweredError,
+  isAskOnMyWayAskedRecently,
+  isAskOnMyWayNotOpen,
+  isAskOnMyWayTooEarly,
+  isGuestAlreadyAnswered,
+} from './contracts/errors';
+
+// Takeaway (2026-10-22): order from the menu, pick up and pay at the counter.
+export {
+  DEFAULT_TAKEAWAY_SETTINGS,
+  NO_TAKEAWAY,
+  TAKEAWAY_ACCEPT_WINDOW_MINUTES,
+  TAKEAWAY_FEED_KINDS,
+  TAKEAWAY_LIMITS,
+  TAKEAWAY_NO_SHOW_AFTER_MINUTES,
+  TAKEAWAY_PUSH_KINDS,
+  TAKEAWAY_READY_STEP_MINUTES,
+  TAKEAWAY_SETTINGS_BOUNDS,
+  TAKEAWAY_SLOT_STEP_MINUTES,
+  canMarkTakeawayNoShow,
+  defaultTakeawayReadyAtUtc,
+  isTakeawayActive,
+  isTakeawayInProgress,
+  isTakeawayNotificationKind,
+  isTakeawayable,
+  stepTakeawayReadyAtUtc,
+  takeawayItemCount,
+  takeawayNoShowFromUtc,
+  takeawayNote,
+  takeawayOrderViolations,
+  takeawaySettingsViolations,
+} from './contracts/takeaway';
+export type {
+  AcceptTakeawayOrderCommand,
+  BranchTakeawayOrders,
+  CollectTakeawayOrderCommand,
+  DeclineTakeawayOrderCommand,
+  DinerTakeawaySummary,
+  KitchenTakeaway,
+  PlaceTakeawayOrderCommand,
+  PublicTakeawayInfo,
+  StaffTakeawayOrder,
+  TakeawayAvailability,
+  TakeawayDeclineCause,
+  TakeawayFeedKind,
+  TakeawayLine,
+  TakeawayLineInput,
+  TakeawayOrder,
+  TakeawayPaymentMethod,
+  TakeawayPickup,
+  TakeawaySettings,
+  TakeawaySettingsBounds,
+  TakeawaySettingsInput,
+  TakeawayStatus,
+} from './contracts/takeaway';
+export {
+  TAKEAWAY_BUSY_CODE,
+  TAKEAWAY_CLOSED_CODE,
+  TAKEAWAY_ITEMS_UNAVAILABLE_CODE,
+  TAKEAWAY_NOT_ACCEPTED_CODE,
+  TAKEAWAY_NO_SHOW_TOO_EARLY_CODE,
+  TAKEAWAY_SLOT_UNAVAILABLE_CODE,
+  TAKEAWAY_STATUS_CONFLICT_CODE,
+  TakeawayBusyError,
+  TakeawayClosedError,
+  TakeawayItemsUnavailableError,
+  TakeawayNoShowTooEarlyError,
+  TakeawayNotAcceptedError,
+  TakeawaySlotUnavailableError,
+  TakeawayStatusConflictError,
+  isTakeawayBusy,
+  isTakeawayClosed,
+  isTakeawayItemsUnavailable,
+  isTakeawayNoShowTooEarly,
+  isTakeawayNotAccepted,
+  isTakeawaySlotUnavailable,
+  isTakeawayStatusConflict,
+  type TakeawayItemUnavailableReason,
+  type UnavailableTakeawayItem,
+} from './contracts/errors';
+export { MOCK_TAKEAWAY_BRANCHES, createMockTakeawayBook } from './mocks/takeaway';
+export type { MockTakeawayBranch, MockTakeawayPlace } from './mocks/takeaway';

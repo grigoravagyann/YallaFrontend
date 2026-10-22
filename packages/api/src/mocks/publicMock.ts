@@ -21,6 +21,7 @@ import {
 } from './publicVenues';
 import { mockVenues, type Branch, type Venue } from './venues';
 import { asksOnYourWay, type OnMyWayResult, type PreOrderResult } from '../contracts/preOrder';
+import { venueIsAsking, type RunningLateResult } from '../contracts/onMyWay';
 import type { MockGateway } from './mockGateway';
 
 /**
@@ -246,7 +247,14 @@ export function createPublicMockGateway(options: PublicMockOptions): PublicGatew
       preOrder: booking.preOrder ?? null,
       preOrderEditableUntilUtc: booking.preOrderEditableUntilUtc ?? null,
       guestConfirmedOnWayAtUtc: booking.guestConfirmedOnWayAtUtc ?? null,
-      onYourWayAsked: asksOnYourWay({ ...booking, startUtc: booking.slotUtc }, now()),
+      // "I'm coming" (2026-10-22): the guest's lateness, the venue's ask, the window.
+      guestRunningLateMinutes: booking.guestRunningLateMinutes ?? null,
+      staffAskedOnMyWayAtUtc: booking.staffAskedOnMyWayAtUtc ?? null,
+      onMyWayOpensAtUtc: booking.onMyWayOpensAtUtc ?? null,
+      // Asked automatically, or by the venue from its tablet and not answered yet.
+      onYourWayAsked:
+        asksOnYourWay({ ...booking, startUtc: booking.slotUtc }, now()) ||
+        (booking.status === 'confirmed' && venueIsAsking(booking)),
     };
   }
 
@@ -261,6 +269,7 @@ export function createPublicMockGateway(options: PublicMockOptions): PublicGatew
       | 'replacePreOrderByLink'
       | 'clearPreOrderByLink'
       | 'confirmOnMyWayByLink'
+      | 'reportRunningLateByLink'
       | 'acceptsPreOrdersAsVenue'
     >
   >;
@@ -500,6 +509,14 @@ export function createPublicMockGateway(options: PublicMockOptions): PublicGatew
       return door.confirmOnMyWayByLink
         ? door.confirmOnMyWayByLink(bookingId)
         : gateway.confirmOnMyWay(bookingId);
+    },
+
+    async reportManagedRunningLate({ token, minutes }): Promise<RunningLateResult> {
+      await wait();
+      const bookingId = linked(token, 'running-late');
+      return door.reportRunningLateByLink
+        ? door.reportRunningLateByLink({ bookingId, minutes })
+        : gateway.reportRunningLate({ reservationId: bookingId, minutes });
     },
   };
 }

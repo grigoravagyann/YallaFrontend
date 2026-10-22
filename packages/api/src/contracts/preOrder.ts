@@ -29,6 +29,7 @@ import type { FloorChangeSignal } from './admission';
 import type { GuestRecord } from './guestRecord';
 import type { BranchMenu, MenuItemDetail, OrderStatus } from './ordering';
 import type { ReservationStatusCode } from './push';
+import type { BookingAnswerFields } from './onMyWay';
 import type { CopyLine } from './reservation';
 
 /**
@@ -161,9 +162,10 @@ export interface PreOrder {
  * The pre-order fields a booking read carries — `ReservationView` (the app's
  * `/mine`, every booking answer, the console list and the floor's awaiting
  * list) and the manage link's `PublicBookingView`. Optional so a fixture or a
- * server from before them reads as "no pre-order, none offered".
+ * server from before them reads as "no pre-order, none offered". With them,
+ * the guest's answers and the venue's ask ({@link BookingAnswerFields}).
  */
-export interface BookingPreOrderFields {
+export interface BookingPreOrderFields extends BookingAnswerFields {
   /** The booking's pre-order; absent or `null` when it has none. */
   readonly preOrder?: PreOrder | null | undefined;
   /**
@@ -174,8 +176,6 @@ export interface BookingPreOrderFields {
    * read-only and may be cleared.
    */
   readonly preOrderEditableUntilUtc?: string | null | undefined;
-  /** When the guest answered "Yes, on my way"; absent or `null` until then. */
-  readonly guestConfirmedOnWayAtUtc?: string | null | undefined;
 }
 
 // ---------------------------------------------------------------------------
@@ -270,6 +270,15 @@ export interface DuePreOrder {
   readonly guestPhone: string | null;
   /** Present: "Guest confirmed" — no call needed. */
   readonly guestConfirmedOnWayAtUtc: string | null;
+  /**
+   * "Running late": 10, 15 or 30 minutes, the guest's latest answer
+   * (2026-10-22). Absent or `null` unless they said it, and from older fixtures.
+   */
+  readonly guestRunningLateMinutes?: number | null | undefined;
+  /** When they said it. */
+  readonly guestRunningLateAtUtc?: string | null | undefined;
+  /** When somebody at the venue last asked "are you coming?" from the tablet. */
+  readonly staffAskedOnMyWayAtUtc?: string | null | undefined;
   /** As on the awaiting cards; `null` where not shown. */
   readonly guestRecord: GuestRecord | null;
   readonly dueAtUtc: string;

@@ -29,6 +29,7 @@
 import type { FloorChangeSignal, TabAdmission } from './admission';
 import type { Photo } from './menuAdmin';
 import type { KitchenPreOrder } from './preOrder';
+import type { KitchenTakeaway } from './takeaway';
 import type { TabParticipantRole } from './tab';
 import type {
   SettlementMode,
@@ -93,6 +94,12 @@ export interface MenuItemDetail {
    * server's default, and every fixture from before pre-orders.
    */
   readonly availableForPreOrder?: boolean | undefined;
+  /**
+   * Guests may order it to take away (2026-10-22): false is "Only in the hall
+   * · not for takeaway", greyed out on the takeaway menu (`isTakeawayable`).
+   * Absent reads as true — the server's default.
+   */
+  readonly availableForTakeaway?: boolean | undefined;
   readonly displayOrder: number;
 }
 
@@ -251,6 +258,13 @@ export interface OrderQueueEntry {
    * `startUtc`. Absent on every other ticket.
    */
   readonly preOrder?: KitchenPreOrder | null | undefined;
+  /**
+   * Present on an accepted (or ready) takeaway order — the "TAKEAWAY" band:
+   * code, ready time, whose, the note. Its `tableLabel` is the code and
+   * `tabId` is `null`; the kitchen's Ready is `markTakeawayOrderReady`, never
+   * `moveOrderStatus` (which refuses it, so the guest is always told).
+   */
+  readonly takeaway?: KitchenTakeaway | null | undefined;
 }
 
 // ---------------------------------------------------------------------------

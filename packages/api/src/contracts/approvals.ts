@@ -18,12 +18,17 @@ import type { ReservationStatusCode } from './push';
  * booking is waiting — three fields `ReservationView` has and the diner's
  * shape leaves out.
  *
- * With the booking's pre-order and "on my way" answer (2026-10-21), when the
- * list carries them.
+ * With the booking's pre-order and "on my way" answer (2026-10-21), and the
+ * guest's "running late" and the venue's last ask (2026-10-22), when the list
+ * carries them.
  */
 export interface ConsoleBooking extends Pick<
   BookingPreOrderFields,
-  'preOrder' | 'guestConfirmedOnWayAtUtc'
+  | 'preOrder'
+  | 'guestConfirmedOnWayAtUtc'
+  | 'guestRunningLateMinutes'
+  | 'guestRunningLateAtUtc'
+  | 'staffAskedOnMyWayAtUtc'
 > {
   readonly id: string;
   /** The short code quoted at the door. */
@@ -272,10 +277,14 @@ export function isApprovalExpired(error: unknown): boolean {
  * after it. The three context fields are that, and the server answers them in
  * the same read so the tablet does not ask table by table.
  */
-/** With the booking's pre-order (2026-10-21), when it has one. */
+/** With the booking's pre-order (2026-10-21) and the guest's answers (2026-10-22), when it has them. */
 export interface AwaitingApproval extends Pick<
   BookingPreOrderFields,
-  'preOrder' | 'guestConfirmedOnWayAtUtc'
+  | 'preOrder'
+  | 'guestConfirmedOnWayAtUtc'
+  | 'guestRunningLateMinutes'
+  | 'guestRunningLateAtUtc'
+  | 'staffAskedOnMyWayAtUtc'
 > {
   readonly id: string;
   readonly code: string;

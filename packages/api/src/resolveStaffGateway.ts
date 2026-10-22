@@ -43,6 +43,12 @@ export interface ResolveStaffGatewayOptions {
    * (2026-10-21). See `StaffMockOptions.seedPreOrders`.
    */
   readonly mockPreOrders?: boolean | undefined;
+  /**
+   * Mock only: takeaway orders at the counter — one to answer, one being
+   * prepared, two ready, one handed over (2026-10-22). See
+   * `StaffMockOptions.seedTakeaway`.
+   */
+  readonly mockTakeaway?: boolean | undefined;
 }
 
 /**
@@ -66,6 +72,7 @@ export function resolveStaffGateway(options: ResolveStaffGatewayOptions): StaffG
       ...(options.mockKitchen ? { seedKitchen: true } : {}),
       ...(options.mockUnverifiedGuests ? { seedUnverifiedGuests: true } : {}),
       ...(options.mockPreOrders ? { seedPreOrders: true } : {}),
+      ...(options.mockTakeaway ? { seedTakeaway: true } : {}),
     };
     if (options.persist) {
       return persistMockGateway<StaffGateway>({

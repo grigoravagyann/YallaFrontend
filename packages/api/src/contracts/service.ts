@@ -319,6 +319,13 @@ export interface StaffTableDetail {
    */
   readonly nextReservationGuestConfirmedOnWayAtUtc?: string | null | undefined;
   /**
+   * The next booking's guest said they are running late: 10, 15 or 30 minutes
+   * (2026-10-22). Absent or `null` when they have not.
+   */
+  readonly nextReservationGuestRunningLateMinutes?: number | null | undefined;
+  /** When somebody at the venue last asked the next booking's guest "are you coming?". */
+  readonly nextReservationStaffAskedOnMyWayAtUtc?: string | null | undefined;
+  /**
    * The open tab was opened by a scan with no proved number and waits for a
    * waiter to admit it: the table panel offers Admit and Reject. Absent from a
    * server before admission, which reads as admitted.

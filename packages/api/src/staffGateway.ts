@@ -9,6 +9,14 @@ import type {
   TabAwaitingAdmission,
 } from './contracts/admission';
 import type { DuePreOrder, DuePreOrders, PreOrderStaffCommand } from './contracts/preOrder';
+import type { AskOnMyWayResult } from './contracts/onMyWay';
+import type {
+  AcceptTakeawayOrderCommand,
+  BranchTakeawayOrders,
+  CollectTakeawayOrderCommand,
+  DeclineTakeawayOrderCommand,
+  StaffTakeawayOrder,
+} from './contracts/takeaway';
 import type { ReservationStatusCode } from './contracts/push';
 import type { Menu } from './contracts/menu';
 import type { StaffFloor, TableActionCommand, TableActionResult } from './contracts/service';
@@ -198,6 +206,71 @@ export interface StaffGateway {
    * @throws {PreOrderNotSendableError} not confirmed, or before the start less two hours.
    */
   markPreOrderNotComing(command: PreOrderStaffCommand): Promise<DuePreOrder>;
+
+  /**
+   * "Ask: are you coming?" (2026-10-22) —
+   * `POST /api/reservations/{id}/ask-on-my-way`, waiter or above at the
+   * booking's branch. Sends the automatic question's push and feed entry now.
+   * `notified: false` when no live account stands behind the booking: call.
+   *
+   * @throws {AskOnMyWayTooEarlyError} more than two hours before the start.
+   * @throws {AskOnMyWayNotOpenError} not confirmed, or started.
+   * @throws {GuestAlreadyAnsweredError} the guest said on my way or late.
+   * @throws {AskOnMyWayAskedRecentlyError} asked within fifteen minutes.
+   */
+  askOnMyWay(reservationId: string): Promise<AskOnMyWayResult>;
+
+  // --- Takeaway at the counter (2026-10-22) ------------------------------
+
+  /**
+   * The counter — `GET /api/branches/{branchId}/takeaway-orders`, waiter or
+   * above at the branch: the active orders (sent, accepted, ready; each sent
+   * one with its answer countdown) and today's finished ones. Polled: takeaway
+   * writes nothing to the change stream.
+   */
+  listTakeawayOrders(branchId: string): Promise<BranchTakeawayOrders>;
+
+  /**
+   * "Accept" with the ready time — `POST /api/takeaway-orders/{id}/accept`.
+   * The order goes to the kitchen and the guest is told the time.
+   *
+   * @throws {TakeawayStatusConflictError} not sent any more.
+   * @throws {ValidationError} `readyAt` in the past or more than 12 h on.
+   */
+  acceptTakeawayOrder(command: AcceptTakeawayOrderCommand): Promise<StaffTakeawayOrder>;
+
+  /**
+   * "Decline" — `POST /api/takeaway-orders/{id}/decline`; the reason is shown
+   * to the guest.
+   *
+   * @throws {TakeawayStatusConflictError} not sent any more.
+   */
+  declineTakeawayOrder(command: DeclineTakeawayOrderCommand): Promise<StaffTakeawayOrder>;
+
+  /**
+   * "Ready" — `POST /api/takeaway-orders/{id}/ready`, the kitchen (Kitchen
+   * role allowed) or the floor. The guest is told to come.
+   *
+   * @throws {TakeawayStatusConflictError} not accepted.
+   */
+  markTakeawayOrderReady(orderId: string): Promise<StaffTakeawayOrder>;
+
+  /**
+   * "Paid, handed over" — `POST /api/takeaway-orders/{id}/collect` with cash
+   * or card. The amount recorded is the total; no receipt is issued here.
+   *
+   * @throws {TakeawayStatusConflictError} not ready.
+   */
+  collectTakeawayOrder(command: CollectTakeawayOrderCommand): Promise<StaffTakeawayOrder>;
+
+  /**
+   * "No-show" — `POST /api/takeaway-orders/{id}/no-show`, from thirty minutes
+   * after ready (`noShowFromUtc`).
+   *
+   * @throws {TakeawayNoShowTooEarlyError} less than thirty minutes after ready.
+   * @throws {TakeawayStatusConflictError} not ready.
+   */
+  markTakeawayOrderNoShow(orderId: string): Promise<StaffTakeawayOrder>;
 
   // --- The tab ------------------------------------------------------------
 

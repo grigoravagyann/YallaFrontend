@@ -175,6 +175,15 @@ import {
   type MockPreOrderBooking,
   type MockPreOrderBranch,
 } from './preOrders';
+import { createMockTakeawayBook, type MockTakeawayBranch } from './takeaway';
+import {
+  isTakeawayActive,
+  type TakeawayAvailability,
+  type TakeawayOrder,
+  type TakeawayPaymentMethod,
+  type TakeawaySettingsInput,
+} from '../contracts/takeaway';
+import type { AskOnMyWayResult, RunningLateMinutes, RunningLateResult } from '../contracts/onMyWay';
 
 const URL_TAG = 'mock://yalla';
 
@@ -344,7 +353,35 @@ export interface MockGateway extends YallaGateway {
     readonly clientCommandId: string;
   }): Promise<PreOrderResult>;
   confirmOnMyWayByLink(bookingId: string): Promise<OnMyWayResult>;
+  /** "I'm running late" from the link (2026-10-22). */
+  reportRunningLateByLink(command: {
+    readonly bookingId: string;
+    readonly minutes: RunningLateMinutes;
+  }): Promise<RunningLateResult>;
+
+  // --- "I'm coming" and takeaway: the venue's side (2026-10-22) -------------
+  //
+  // The staff mock is another world, so tests (and mock mode) act for the
+  // floor here, as for pre-orders.
+
+  /** The tablet's "Ask: are you coming?": the banner and the feed row appear. */
+  askOnMyWayAsVenue(bookingId: string): AskOnMyWayResult;
+  /** The console's takeaway settings for a branch. */
+  setTakeawaySettingsAsVenue(branchId: string, settings: TakeawaySettingsInput): void;
+  /** The per-dish "for takeaway" switch: false is "only in the hall". */
+  setDishForTakeawayAsVenue(branchId: string, menuItemId: string, available: boolean): void;
+  /** Accept, ready at `readyAtUtc` — the requested time when absent. */
+  acceptTakeawayAsVenue(orderId: string, readyAtUtc?: string): void;
+  /** Decline, with the reason shown to the guest. */
+  declineTakeawayAsVenue(orderId: string, reason?: string): void;
+  /** The kitchen's "Ready". */
+  markTakeawayReadyAsVenue(orderId: string): void;
+  /** "Paid, handed over". */
+  collectTakeawayAsVenue(orderId: string, method: TakeawayPaymentMethod): void;
 }
+
+/** Where mock mode's takeaway orders and "I'm coming" booking are (2026-10-22). */
+const TAKEAWAY_SEED_BRANCH = 'b-lumen-north';
 
 /** The waiter the mock acts as when it plays the floor. */
 const MOCK_WAITER_ID = 'staff-mock-waiter';
@@ -501,6 +538,26 @@ export interface MockGatewayOptions {
   readonly preOrders?:
     { readonly branches?: Readonly<Record<string, MockPreOrderBranch>> | undefined } | undefined;
   /**
+   * Takeaway (2026-10-22): each named branch's settings and hall-only dishes.
+   * A branch not named takes the server's default — **off**. `seedOrders`
+   * gives the seeded account (`SEEDED_ACCOUNT`) one order being prepared at
+   * Northern Avenue and one collected yesterday, for the Orders tab and the
+   * status screen.
+   */
+  readonly takeaway?:
+    | {
+        readonly branches?: Readonly<Record<string, MockTakeawayBranch>> | undefined;
+        readonly seedOrders?: boolean | undefined;
+      }
+    | undefined;
+  /**
+   * "I'm coming" (2026-10-22): the seeded account (`SEEDED_ACCOUNT`) has a
+   * confirmed booking at Northern Avenue starting in forty minutes, with a
+   * pre-order — inside the on-my-way window, so the booking screen's "I'm
+   * coming", "Late 10 / 15 / 30" and "Not coming" can be walked. Off unless asked.
+   */
+  readonly seedComingBooking?: boolean | undefined;
+  /**
    * The branch setting: a scan with no proved number waits for a waiter. True
    * when absent, as the server's default; false lets such scans order at once
    * (`notRequired`).
@@ -590,6 +647,37 @@ export function createMockGateway(options: MockGatewayOptions = {}): MockGateway
       return type ? publishedBranchMenu(mockBranchMenu(branchId, type)) : null;
     },
     branches: options.preOrders?.branches,
+  });
+
+  /**
+   * Takeaway in this world (2026-10-22): the orders, the branches' settings
+   * and hall-only dishes. The menu is the diner menu with what the kitchen
+   * ran out of; the place is the public fixture's address and hours.
+   */
+  const takeaway = createMockTakeawayBook({
+    now,
+    menu: (branchId) => {
+      const type = venueTypeFor(branchId);
+      return type
+        ? preOrders.decorateMenu(publishedBranchMenu(mockBranchMenu(branchId, type)))
+        : null;
+    },
+    place: (branchId) => {
+      const found = findBranch(branchId);
+      const fixture = publicBranchFixtures[branchId];
+      if (!found || !fixture) return null;
+      return {
+        venueName: found.venue.name,
+        branchName: found.branch.name,
+        branchAddress: fixture.addressLine,
+        branchPhoneE164: fixture.phoneE164,
+        latitude: fixture.latitude ?? 0,
+        longitude: fixture.longitude ?? 0,
+        timeZoneId: found.branch.timeZoneId,
+        weeklyHours: fixture.weeklyHours,
+      };
+    },
+    branches: options.takeaway?.branches,
   });
 
   /** A booking as the pre-order book reads it. */
@@ -2735,6 +2823,85 @@ export function createMockGateway(options: MockGatewayOptions = {}): MockGateway
       });
     }
 
+    // The venue's "Ask: are you coming?" (2026-10-22): the same entry, now,
+    // once per ask, while the guest has not answered.
+    for (const booking of bookings.values()) {
+      if (bookingOwners.get(booking.id) !== accountId) continue;
+      const asked = preOrders.staffAskedAt(booking.id);
+      if (!asked) continue;
+      if (
+        feed.some(
+          (row) =>
+            row.kind === ON_YOUR_WAY_FEED_KIND &&
+            row.reservationId === booking.id &&
+            row.params['askedByVenue'] === 'true' &&
+            row.createdAtUtc === asked,
+        )
+      ) {
+        continue;
+      }
+      const local = localDateTime(booking.slotUtc, booking.timeZoneId);
+      add({
+        kind: ON_YOUR_WAY_FEED_KIND,
+        params: {
+          venueName: booking.venueName,
+          branchName: booking.branchName,
+          date: local.date,
+          time: local.time,
+          partySize: String(booking.partySize),
+          reservationCode: booking.code,
+          askedByVenue: 'true',
+        },
+        branchId: booking.branchId,
+        branchName: booking.branchName,
+        reservationId: booking.id,
+        tabId: null,
+        orderId: null,
+        createdAtUtc: asked,
+      });
+    }
+
+    // Takeaway (2026-10-22): accepted (with the ready time), ready, declined.
+    for (const record of takeaway.records()) {
+      if (record.actor !== accountId) continue;
+      const found = findBranch(record.branchId);
+      const zone = found?.branch.timeZoneId ?? 'Asia/Yerevan';
+      const venueName = found?.venue.name ?? '';
+      const branchName = found?.branch.name ?? '';
+      const steps = [
+        { kind: 'takeaway-accepted', at: record.readyAtUtc ? record.acceptedAtUtc : null },
+        { kind: 'takeaway-ready', at: record.readyMarkedAtUtc },
+        { kind: 'takeaway-declined', at: record.declinedAtUtc },
+      ];
+      for (const step of steps) {
+        if (!step.at) continue;
+        if (feed.some((row) => row.kind === step.kind && row.orderId === record.id)) continue;
+        add({
+          kind: step.kind,
+          params:
+            step.kind === 'takeaway-declined'
+              ? {
+                  code: record.code,
+                  noAnswer: record.declinedBecause === 'noAnswer' ? 'true' : 'false',
+                  ...(record.declineReason ? { reason: record.declineReason } : {}),
+                }
+              : {
+                  venueName,
+                  branchName,
+                  code: record.code,
+                  readyTime: record.readyAtUtc ? localDateTime(record.readyAtUtc, zone).time : '',
+                  readyAtUtc: record.readyAtUtc ?? '',
+                },
+          branchId: record.branchId,
+          branchName,
+          reservationId: null,
+          tabId: null,
+          orderId: record.id,
+          createdAtUtc: step.at,
+        });
+      }
+    }
+
     // What the floor answered a short-notice request: yes, or nobody in time.
     for (const [reservationId, decision] of venueDecisions) {
       const booking = bookings.get(reservationId);
@@ -2944,6 +3111,139 @@ export function createMockGateway(options: MockGatewayOptions = {}): MockGateway
     return `${URL_TAG}/api/diner/branches/${branchId}/review`;
   }
 
+  // --- Mock mode's takeaway and "I'm coming" (2026-10-22) ----------------------
+
+  if (options.takeaway?.seedOrders) seedTakeawayOrders();
+  if (options.seedComingBooking) seedComingBooking();
+
+  /** The seeded account's order being prepared now, and one it collected yesterday. */
+  function seedTakeawayOrders(): void {
+    const t = now().getTime();
+    const minutes = (value: number) => new Date(t + value * 60_000).toISOString();
+    const dish = (menuItemId: string) =>
+      mockMenuItem(TAKEAWAY_SEED_BRANCH, 'cafe', menuItemId) ?? null;
+    const line = (menuItemId: string, quantity: number, index: number) => ({
+      id: `seed-${menuItemId}-${index}`,
+      menuItemId,
+      name: dish(menuItemId)?.name ?? menuItemId,
+      unitPriceDram: dish(menuItemId)?.priceDram ?? 0,
+      quantity,
+    });
+    const guest = {
+      branchId: TAKEAWAY_SEED_BRANCH,
+      actor: SEEDED_ACCOUNT.id,
+      guestName: SEEDED_ACCOUNT.displayName,
+      guestPhone: SEEDED_ACCOUNT.phoneE164,
+      acceptedByName: MOCK_WAITER_NAME,
+      cancelledAtUtc: null,
+      noShowAtUtc: null,
+      declinedAtUtc: null,
+      declinedBecause: null,
+      declineReason: null,
+    } as const;
+    takeaway.seed({
+      ...guest,
+      lines: [line('cappuccino', 2, 1), line('croissant', 2, 2), line('cheesecake', 1, 3)],
+      note: 'No sugar, a separate bag for the cake',
+      pickupAsap: true,
+      requestedPickupUtc: minutes(12),
+      status: 'accepted',
+      sentAtUtc: minutes(-8),
+      readyAtUtc: minutes(12),
+      acceptedAtUtc: minutes(-7),
+      readyMarkedAtUtc: null,
+      collectedAtUtc: null,
+      paymentMethod: null,
+      paidAmountDram: null,
+    });
+    takeaway.seed({
+      ...guest,
+      lines: [line('flat-white', 1, 1), line('napoleon', 1, 2)],
+      note: null,
+      pickupAsap: false,
+      requestedPickupUtc: minutes(-24 * 60),
+      status: 'collected',
+      sentAtUtc: minutes(-24 * 60 - 30),
+      readyAtUtc: minutes(-24 * 60),
+      acceptedAtUtc: minutes(-24 * 60 - 28),
+      readyMarkedAtUtc: minutes(-24 * 60 - 3),
+      collectedAtUtc: minutes(-24 * 60 + 6),
+      paymentMethod: 'card',
+      paidAmountDram: (dish('flat-white')?.priceDram ?? 0) + (dish('napoleon')?.priceDram ?? 0),
+    });
+  }
+
+  /**
+   * A confirmed booking of the seeded account at Northern Avenue, forty
+   * minutes out, with a pre-order: inside the on-my-way window, so "I'm
+   * coming", "Late 10 / 15 / 30" and "Not coming" show on its screen.
+   */
+  function seedComingBooking(): void {
+    const found = findBranch(TAKEAWAY_SEED_BRANCH);
+    const floor = floors.get(TAKEAWAY_SEED_BRANCH);
+    const table = floor ? offeredTables(floor)[0] : undefined;
+    if (!found || !table) return;
+    const t = now().getTime();
+    const start = new Date(Math.ceil((t + 40 * 60_000) / (15 * 60_000)) * 15 * 60_000);
+    const id = 'bk_coming';
+    const booking: Booking = {
+      id,
+      code: mintBookingCode(),
+      status: 'confirmed',
+      awaitingApprovalBecause: null,
+      approvalExpiresAtUtc: null,
+      venueName: found.venue.name,
+      branchId: found.branch.id,
+      branchName: found.branch.name,
+      timeZoneId: found.branch.timeZoneId,
+      tableId: table.id,
+      tableLabel: table.label,
+      roomId: table.floorAreaId,
+      roomName: table.floorAreaName,
+      partySize: 2,
+      slotUtc: start.toISOString(),
+      endUtc: new Date(start.getTime() + DEFAULT_POLICY.turnMinutes * 60_000).toISOString(),
+      freeCancellationUntilUtc: new Date(
+        start.getTime() - DEFAULT_POLICY.freeCancellationMinutes * 60_000,
+      ).toISOString(),
+      cancelledAtUtc: null,
+      cancelledAfterDeadline: false,
+      note: null,
+      declinedBecause: null,
+      phoneUnverified: false,
+      promisedFreeByUtc: null,
+      manageToken: `mbk_${id}`,
+    };
+    bookings.set(id, booking);
+    bookingOwners.set(id, SEEDED_ACCOUNT.id);
+    const madeAt = new Date(t - 24 * 3_600_000).toISOString();
+    const dish = (menuItemId: string) => mockMenuItem(TAKEAWAY_SEED_BRANCH, 'cafe', menuItemId);
+    preOrders.seed({
+      reservationId: id,
+      branchId: TAKEAWAY_SEED_BRANCH,
+      lines: [
+        { menuItemId: 'cappuccino', quantity: 2, note: 'Oat milk' },
+        { menuItemId: 'croissant', quantity: 2, note: null },
+      ].map((entry, index) => ({
+        id: `${id}-l${index + 1}`,
+        menuItemId: entry.menuItemId,
+        name: dish(entry.menuItemId)?.name ?? entry.menuItemId,
+        unitPriceDram: dish(entry.menuItemId)?.priceDram ?? 0,
+        quantity: entry.quantity,
+        note: entry.note,
+      })),
+      note: null,
+      createdAtUtc: madeAt,
+      updatedAtUtc: madeAt,
+      sentAtUtc: null,
+      sentByName: null,
+      kitchenStatus: null,
+      onTab: false,
+      notComingAtUtc: null,
+      notComingByName: null,
+    });
+  }
+
   return {
     async listBranches(query) {
       await wait();
@@ -2986,6 +3286,8 @@ export function createMockGateway(options: MockGatewayOptions = {}): MockGateway
         ratingCounts: starCounts(reviewStore.visible(branchId)),
         // The same rooms `getBranchRooms` serves, with live pins.
         rooms: found ? publicRooms(found.branch.rooms, floors.get(branchId)?.tables ?? []) : [],
+        // Takeaway (2026-10-22): the button and the info card.
+        takeaway: takeaway.publicInfo(branchId),
         asOfUtc: now().toISOString(),
       };
     },
@@ -3216,18 +3518,62 @@ export function createMockGateway(options: MockGatewayOptions = {}): MockGateway
       }
     },
 
-    async listDinerOrders(): Promise<readonly DinerOrder[]> {
+    async listDinerOrders(segment): Promise<readonly DinerOrder[]> {
       await wait();
-      me();
-      // The mock keeps no per-diner order history; the app's Orders tab runs on
-      // its own mock repository. An honest empty list, not invented receipts.
-      return [];
+      // The mock keeps no dine-in order history (the app's Orders tab runs on
+      // its own mock repository for those); the takeaway orders this diner
+      // placed are real here (2026-10-22), the ones still moving first.
+      const orders = takeaway.dinerOrders(me());
+      if (!segment) return orders;
+      return orders.filter(
+        (order) =>
+          (order.takeaway ? isTakeawayActive(order.takeaway.status) : false) ===
+          (segment === 'active'),
+      );
     },
 
-    async getDinerOrder(): Promise<DinerOrder | null> {
+    async getDinerOrder(orderId): Promise<DinerOrder | null> {
+      await wait();
+      return takeaway.dinerOrders(me()).find((order) => order.orderId === orderId) ?? null;
+    },
+
+    // --- Takeaway (2026-10-22) --------------------------------------------------
+
+    async getTakeawayAvailability(branchId): Promise<TakeawayAvailability> {
       await wait();
       me();
-      return null;
+      if (!findBranch(branchId)) {
+        throw new NotFoundError({ url: `${URL_TAG}/api/diner/branches/${branchId}/takeaway` });
+      }
+      return takeaway.availability(branchId);
+    },
+
+    async placeTakeawayOrder(command): Promise<TakeawayOrder> {
+      await wait();
+      const url = `${URL_TAG}/api/diner/takeaway-orders`;
+      const accountId = me();
+      // A proved phone, as for booking: the venue may call the number.
+      requireVerifiedPhone(url);
+      if (!findBranch(command.branchId)) throw new NotFoundError({ url });
+      const profile = accounts.profile(accountId);
+      return takeaway.place({
+        url,
+        command,
+        actor: accountId,
+        guestName: profile?.displayName ?? profile?.username ?? 'Guest',
+        guestPhone: profile?.phoneE164 ?? '',
+      });
+    },
+
+    async getTakeawayOrder(orderId): Promise<TakeawayOrder | null> {
+      await wait();
+      return takeaway.guestOrder(orderId, me());
+    },
+
+    async cancelTakeawayOrder(orderId): Promise<TakeawayOrder> {
+      await wait();
+      const url = `${URL_TAG}/api/diner/takeaway-orders/${orderId}/cancel`;
+      return takeaway.cancel(url, orderId, me());
     },
 
     async listVenues() {
@@ -3431,6 +3777,73 @@ export function createMockGateway(options: MockGatewayOptions = {}): MockGateway
       await wait();
       const url = `${URL_TAG}/api/reservations/${reservationId}/on-my-way`;
       return preOrders.confirmOnMyWay(url, preOrderBooking(ownBooking(url, reservationId)));
+    },
+
+    async reportRunningLate({ reservationId, minutes }): Promise<RunningLateResult> {
+      await wait();
+      const url = `${URL_TAG}/api/reservations/${reservationId}/running-late`;
+      return preOrders.reportRunningLate(
+        url,
+        preOrderBooking(ownBooking(url, reservationId)),
+        minutes,
+      );
+    },
+
+    async reportRunningLateByLink({ bookingId, minutes }): Promise<RunningLateResult> {
+      await wait();
+      const url = `${URL_TAG}/api/public/bookings/running-late`;
+      return preOrders.reportRunningLate(
+        url,
+        preOrderBooking(linkedBooking(url, bookingId)),
+        minutes,
+      );
+    },
+
+    askOnMyWayAsVenue(bookingId): AskOnMyWayResult {
+      const url = `${URL_TAG}/api/reservations/${bookingId}/ask-on-my-way`;
+      const booking = linkedBooking(url, bookingId);
+      const owner = bookingOwners.get(bookingId);
+      return preOrders.askOnMyWay(
+        url,
+        preOrderBooking(booking),
+        owner !== undefined && !deletedAccounts.has(owner),
+      );
+    },
+
+    setTakeawaySettingsAsVenue(branchId, settings) {
+      takeaway.setSettings(
+        `${URL_TAG}/api/branches/${branchId}/takeaway-settings`,
+        branchId,
+        settings,
+      );
+    },
+
+    setDishForTakeawayAsVenue(branchId, menuItemId, available) {
+      takeaway.setAvailableForTakeaway(branchId, menuItemId, available);
+    },
+
+    acceptTakeawayAsVenue(orderId, readyAtUtc) {
+      const record = takeaway.record(orderId);
+      if (!record) return;
+      takeaway.accept(
+        `${URL_TAG}/api/takeaway-orders/${orderId}/accept`,
+        orderId,
+        readyAtUtc ??
+          new Date(Math.max(Date.parse(record.requestedPickupUtc), now().getTime())).toISOString(),
+        MOCK_WAITER_NAME,
+      );
+    },
+
+    declineTakeawayAsVenue(orderId, reason) {
+      takeaway.decline(`${URL_TAG}/api/takeaway-orders/${orderId}/decline`, orderId, reason);
+    },
+
+    markTakeawayReadyAsVenue(orderId) {
+      takeaway.ready(`${URL_TAG}/api/takeaway-orders/${orderId}/ready`, orderId);
+    },
+
+    collectTakeawayAsVenue(orderId, method) {
+      takeaway.collect(`${URL_TAG}/api/takeaway-orders/${orderId}/collect`, orderId, method);
     },
 
     async replacePreOrderByLink(command): Promise<PreOrderResult> {
@@ -4427,7 +4840,9 @@ export function createMockGateway(options: MockGatewayOptions = {}): MockGateway
       // a screen built against the mock was being handed items with empty
       // allergen lists that production would never send.
       return type
-        ? preOrders.decorateMenu(publishedBranchMenu(mockBranchMenu(branchId, type)))
+        ? takeaway.decorateMenu(
+            preOrders.decorateMenu(publishedBranchMenu(mockBranchMenu(branchId, type))),
+          )
         : null;
     },
 

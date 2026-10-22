@@ -80,6 +80,12 @@ import {
 } from '../contracts/reviews';
 import { createMockReviewStore, type MockReviewStore, type StoredReview } from './reviewStore';
 import { invalidRequest, validationFailed, type MockViolation } from './problems';
+import {
+  DEFAULT_TAKEAWAY_SETTINGS,
+  takeawaySettingsViolations,
+  type TakeawaySettings,
+  type TakeawaySettingsInput,
+} from '../contracts/takeaway';
 import { addDayKeys, createMockShiftStore } from './shiftStore';
 import { approvalExpiryFor, localDateAndTime } from './approvalWindow';
 import {
@@ -255,6 +261,8 @@ interface MockItem {
   displayOrder: number;
   /** Excluded from pre-orders by the branch's settings: the dish's own flag, as on the server. */
   excludedFromPreOrder?: boolean;
+  /** "Only in the hall": `availableForTakeaway: false` (2026-10-22). */
+  notForTakeaway?: boolean;
 }
 
 interface MockCategory {
@@ -348,6 +356,12 @@ export interface ConsoleMockOptions {
    * Off unless asked: every branch then starts at the server's default — off.
    */
   readonly seedPreOrders?: boolean | undefined;
+  /**
+   * Takeaway (2026-10-22), for mock mode: Northern Avenue takes takeaway
+   * orders (staff accept, 20 min, 30 min, 5 at once) and its matnakash eggs
+   * are "only in the hall". Off unless asked: every branch starts off.
+   */
+  readonly seedTakeaway?: boolean | undefined;
 }
 
 /**
@@ -448,6 +462,25 @@ export function createConsoleMockGateway(options: ConsoleMockOptions = {}): Cons
   >();
   if (options.seedPreOrders) {
     preOrderSwitches.set('b-lumen-north', { acceptsPreOrders: true, minutesBefore: 30 });
+  }
+
+  /**
+   * Each branch's takeaway settings (2026-10-22). The hall-only dishes live on
+   * the dishes (`notForTakeaway`), as on the server. Absent: the default, off.
+   */
+  const takeawaySettings = new Map<string, TakeawaySettingsInput>();
+  if (options.seedTakeaway) {
+    takeawaySettings.set('b-lumen-north', {
+      enabled: true,
+      autoAccept: false,
+      prepMinutes: 20,
+      lastOrderMinutes: 30,
+      maxInProgress: 5,
+    });
+  }
+
+  function takeawaySettingsOf(branchId: string): TakeawaySettings {
+    return { ...DEFAULT_TAKEAWAY_SETTINGS, ...takeawaySettings.get(branchId) };
   }
 
   function preOrderSettingsOf(branchId: string): PreOrderSettings {
@@ -563,6 +596,12 @@ export function createConsoleMockGateway(options: ConsoleMockOptions = {}): Cons
         if (item.id === 'gata') item.excludedFromPreOrder = true;
       }
     }
+    // Mock mode's hall-only dish (2026-10-22): the matnakash eggs at Northern Avenue.
+    if (options.seedTakeaway && branchId === 'b-lumen-north') {
+      for (const item of seeded.flatMap((category) => category.items)) {
+        if (item.id === 'matnakash-eggs') item.notForTakeaway = true;
+      }
+    }
 
     menus.set(branchId, seeded);
     return seeded;
@@ -602,6 +641,7 @@ export function createConsoleMockGateway(options: ConsoleMockOptions = {}): Cons
       photo: item.photoId ? (photosById.get(item.photoId) ?? mockPhoto(item.photoId)) : NO_PHOTO,
       isAvailable: item.isAvailable,
       availableForPreOrder: item.excludedFromPreOrder !== true,
+      availableForTakeaway: item.notForTakeaway !== true,
       displayOrder: item.displayOrder,
     };
   }
@@ -3678,6 +3718,9 @@ export function createConsoleMockGateway(options: ConsoleMockOptions = {}): Cons
       if (patch.prepMinutes !== undefined) item.prepMinutes = patch.prepMinutes;
       if (patch.photoId !== undefined) item.photoId = patch.photoId;
       if (patch.displayOrder !== undefined) item.displayOrder = patch.displayOrder;
+      if (patch.availableForTakeaway !== undefined) {
+        item.notForTakeaway = !patch.availableForTakeaway;
+      }
       return toItem(item);
     },
 
@@ -5087,6 +5130,42 @@ export function createConsoleMockGateway(options: ConsoleMockOptions = {}): Cons
       const excluded = new Set(settings.excludedMenuItemIds);
       for (const dish of dishes) dish.excludedFromPreOrder = excluded.has(dish.id);
       return preOrderSettingsOf(branchId);
+    },
+
+    // --- Takeaway (2026-10-22) ------------------------------------------------
+
+    async getTakeawaySettings(branchId): Promise<TakeawaySettings> {
+      await wait();
+      requireManagerAtBranch(branchId, `${URL_TAG}/branches/${branchId}/takeaway-settings`);
+      return takeawaySettingsOf(branchId);
+    },
+
+    async saveTakeawaySettings({ branchId, settings }): Promise<TakeawaySettings> {
+      await wait();
+      const url = `${URL_TAG}/branches/${branchId}/takeaway-settings`;
+      requireManagerAtBranch(branchId, url);
+      // Every field out of bounds or off its step named, nothing saved.
+      const violations = takeawaySettingsViolations(settings);
+      if (violations.length > 0) {
+        throw validationFailed(
+          url,
+          violations.map((violation) => ({
+            field: violation.field,
+            message: violation.message,
+            ...(violation.bound !== undefined ? { bound: violation.bound } : {}),
+            ...(violation.min !== undefined ? { min: violation.min } : {}),
+            ...(violation.max !== undefined ? { max: violation.max } : {}),
+          })),
+        );
+      }
+      takeawaySettings.set(branchId, {
+        enabled: settings.enabled,
+        autoAccept: settings.autoAccept,
+        prepMinutes: settings.prepMinutes,
+        lastOrderMinutes: settings.lastOrderMinutes,
+        maxInProgress: settings.maxInProgress,
+      });
+      return takeawaySettingsOf(branchId);
     },
   };
 }

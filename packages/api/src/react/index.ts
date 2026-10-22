@@ -98,18 +98,24 @@ export { describeFailure } from '../errors';
 export type { FailureKind } from '../errors';
 export { useTelegramVerification } from './telegram';
 export {
+  afterAskOnMyWay,
   afterManagedOnMyWay,
   afterManagedPreOrderSaved,
+  afterManagedRunningLate,
   afterOnMyWay,
   afterPreOrderAction,
   afterPreOrderSaved,
   afterPreOrderSettingsSaved,
+  afterRunningLate,
+  askOnMyWayOptions,
   clearPreOrderOptions,
   confirmOnMyWayOptions,
   duePreOrdersPollMs,
   preOrderMenuOptions,
   replacePreOrderOptions,
+  reportRunningLateOptions,
   savePreOrderSettingsFresh,
+  useAskOnMyWay,
   useClearManagedPreOrder,
   useClearPreOrder,
   useConfirmManagedOnMyWay,
@@ -121,9 +127,38 @@ export {
   usePreOrderSettings,
   useReplaceManagedPreOrder,
   useReplacePreOrder,
+  useReportManagedRunningLate,
+  useReportRunningLate,
   useSavePreOrderSettings,
   useSendPreOrder,
 } from './preOrders';
+export {
+  TAKEAWAY_AVAILABILITY_POLL_MS,
+  TAKEAWAY_COUNTER_POLL_MS,
+  TAKEAWAY_ORDER_ACTIVE_POLL_MS,
+  TAKEAWAY_ORDER_SENT_POLL_MS,
+  afterTakeawayAction,
+  afterTakeawayOrderChanged,
+  afterTakeawaySettingsSaved,
+  cancelTakeawayOrderOptions,
+  placeTakeawayOrderOptions,
+  takeawayActionOptions,
+  takeawayAvailabilityOptions,
+  takeawayOrderOptions,
+  takeawayOrderPollMs,
+  useAcceptTakeawayOrder,
+  useCancelTakeawayOrder,
+  useCollectTakeawayOrder,
+  useDeclineTakeawayOrder,
+  useMarkTakeawayOrderNoShow,
+  useMarkTakeawayOrderReady,
+  usePlaceTakeawayOrder,
+  useSaveTakeawaySettings,
+  useTakeawayAvailability,
+  useTakeawayOrder,
+  useTakeawayOrders,
+  useTakeawaySettings,
+} from './takeaway';
 export type {
   TelegramVerification,
   TelegramVerificationStatus,
@@ -328,6 +363,15 @@ export const queryKeys = {
    * stream's `preOrderChanged` and `bookingChanged`.
    */
   duePreOrders: (branchId: string) => ['staff', 'preOrders', branchId] as const,
+  /**
+   * The counter's takeaway orders, active and finished today (2026-10-22).
+   * Polled; takeaway writes nothing to the change stream.
+   */
+  takeawayOrders: (branchId: string) => ['staff', 'takeaway', branchId] as const,
+  /** Whether a branch takes takeaway now, and its pickup slots: the checkout. */
+  takeawayAvailability: (branchId: string) => ['takeaway', 'availability', branchId] as const,
+  /** One takeaway order: the guest's status screen. */
+  takeawayOrder: (orderId: string) => ['takeaway', 'order', orderId] as const,
   /** Tables a scan seated with no proved number, waiting for a waiter to let them order. */
   tabsAwaitingAdmission: (branchId: string) =>
     ['staff', 'tabsAwaitingAdmission', branchId] as const,
@@ -354,6 +398,8 @@ export const queryKeys = {
   pendingReservations: (branchId: string) => ['console', 'pendingReservations', branchId] as const,
   /** Whether the branch takes pre-orders, when the card appears, which dishes are excluded. */
   preOrderSettings: (branchId: string) => ['console', 'preOrderSettings', branchId] as const,
+  /** The branch's takeaway settings (2026-10-22). */
+  takeawaySettings: (branchId: string) => ['console', 'takeawaySettings', branchId] as const,
   /** A branch's today: Overview's cards, chart and bookings. */
   branchOverview: (branchId: string) => ['console', 'branchOverview', branchId] as const,
   /*

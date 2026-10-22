@@ -29,6 +29,18 @@ import {
 } from '../contracts/preOrder';
 import type { ReservationStatusCode } from '../contracts/push';
 import { createMockPreOrderBook } from './preOrders';
+import { createMockTakeawayBook } from './takeaway';
+import { publicBranchFixtures } from './publicVenues';
+import type { AskOnMyWayResult } from '../contracts/onMyWay';
+import type {
+  AcceptTakeawayOrderCommand,
+  BranchTakeawayOrders,
+  CollectTakeawayOrderCommand,
+  DeclineTakeawayOrderCommand,
+  StaffTakeawayOrder,
+  TakeawayPaymentMethod,
+  TakeawayStatus,
+} from '../contracts/takeaway';
 import { requireClientCommandId } from './problems';
 import {
   ADMITTED,
@@ -200,6 +212,18 @@ export interface StaffMockOptions {
   /** The branch's `minutesBefore`: when a card appears. 30 when absent. */
   readonly preOrderMinutesBefore?: number;
   /**
+   * Takeaway at the counter (2026-10-22), for mock mode: one waiting for an
+   * answer (the rail's card and its countdown), one being prepared (a kitchen
+   * ticket with the TAKEAWAY band), one ready a moment ago, one ready long
+   * enough for "No-show", and one handed over today. Off in tests, which seed
+   * their own with {@link takeawaySeeds}.
+   */
+  readonly seedTakeaway?: boolean;
+  /** Takeaway orders, for tests: exactly these. */
+  readonly takeawaySeeds?: readonly StaffTakeawaySeed[];
+  /** The branch's takeaway auto-accept: off (staff accept) when absent. */
+  readonly takeawayAutoAccept?: boolean;
+  /**
    * Whether a staff session is signed in now. When given, every staff read
    * and write answers 401 without one, as the server does with no token — so
    * a test can see a request that went out under the PIN gate (FT4 review S6).
@@ -228,6 +252,33 @@ export interface StaffPreOrderSeed {
   /** Sent already, five minutes before the mock's start: a held ticket in the kitchen. */
   readonly sent?: boolean;
   readonly guestRecord?: GuestRecord | null;
+  /** The guest said "running late" by this many minutes, four minutes before the mock's start. */
+  readonly runningLateMinutes?: number;
+  /** The venue asked "are you coming?" this many minutes before the mock's start. */
+  readonly staffAskedMinutesAgo?: number;
+}
+
+/** A takeaway order at the counter, relative to the mock's start (2026-10-22). */
+export interface StaffTakeawaySeed {
+  readonly id?: string;
+  readonly code?: string;
+  readonly status: TakeawayStatus;
+  readonly guestName: string;
+  readonly guestPhone?: string;
+  readonly lines: readonly { readonly menuItemId: string; readonly quantity: number }[];
+  readonly note?: string;
+  /** Minutes before the mock's start it was sent. */
+  readonly sentMinutesAgo: number;
+  /** Minutes from the mock's start the guest asked for (negative: past). */
+  readonly pickupInMinutes: number;
+  readonly pickupAsap?: boolean;
+  /** Minutes from the mock's start it was promised for, once accepted. The pickup when absent. */
+  readonly readyInMinutes?: number;
+  /** Minutes before the mock's start the kitchen marked it ready. */
+  readonly readyMarkedMinutesAgo?: number;
+  /** Minutes before the mock's start it was handed over. */
+  readonly collectedMinutesAgo?: number;
+  readonly paymentMethod?: TakeawayPaymentMethod;
 }
 
 interface MockTableState {
@@ -1541,6 +1592,31 @@ export function createStaffMockGateway(options: StaffMockOptions = {}): StaffGat
   });
   /** Bookings a waiter seated here. */
   const seatedBookings = new Set<string>();
+
+  /**
+   * Takeaway at this counter (2026-10-22): keyed by the floor's one branch,
+   * whichever id the room adopts; Northern Avenue's address and hours.
+   */
+  const takeawayBook = createMockTakeawayBook({
+    now,
+    menu: () => publishedBranchMenu(mockBranchMenu(branchId, 'cafe')),
+    place: () => {
+      const fixture = publicBranchFixtures['b-lumen-north'];
+      return {
+        venueName: 'Lumen Coffee',
+        branchName: 'Northern Avenue',
+        branchAddress: fixture?.addressLine ?? '',
+        branchPhoneE164: fixture?.phoneE164 ?? null,
+        latitude: fixture?.latitude ?? 0,
+        longitude: fixture?.longitude ?? 0,
+        timeZoneId: plan.timeZoneId,
+        weeklyHours: fixture?.weeklyHours ?? [],
+      };
+    },
+    branches: {
+      [FLOOR_BRANCH]: { enabled: true, autoAccept: options.takeawayAutoAccept ?? false },
+    },
+  });
   /** reservationId -> the tab its pre-order went onto. */
   const preOrderTabs = new Map<string, string>();
 
@@ -1730,6 +1806,9 @@ export function createStaffMockGateway(options: StaffMockOptions = {}): StaffGat
       guestName: reservation.guestName,
       guestPhone: reservation.guestPhone.trim() || null,
       guestConfirmedOnWayAtUtc: preOrderBook.onMyWayAt(reservation.id),
+      guestRunningLateMinutes: preOrderBook.runningLateOf(reservation.id)?.minutes ?? null,
+      guestRunningLateAtUtc: preOrderBook.runningLateOf(reservation.id)?.atUtc ?? null,
+      staffAskedOnMyWayAtUtc: preOrderBook.staffAskedAt(reservation.id),
       guestRecord: reservation.guestRecord ?? null,
       dueAtUtc: preOrder.dueAtUtc,
       preOrder,
@@ -1897,6 +1976,12 @@ export function createStaffMockGateway(options: StaffMockOptions = {}): StaffGat
     if (seed.guestConfirmedOnWay) {
       preOrderBook.seedOnMyWay(reservation.id, minutesFrom(start, -10));
     }
+    if (seed.runningLateMinutes !== undefined) {
+      preOrderBook.seedRunningLate(reservation.id, seed.runningLateMinutes, minutesFrom(start, -4));
+    }
+    if (seed.staffAskedMinutesAgo !== undefined) {
+      preOrderBook.seedStaffAsked(reservation.id, minutesFrom(start, -seed.staffAskedMinutesAgo));
+    }
     if (seed.sent) {
       const sentAt = new Date(start.getTime() - 5 * 60_000);
       entry.sentAtUtc = iso(sentAt);
@@ -1935,6 +2020,8 @@ export function createStaffMockGateway(options: StaffMockOptions = {}): StaffGat
         { menuItemId: 'cheesecake', quantity: 1 },
         { menuItemId: 'avocado-toast', quantity: 2, note: 'No chilli' },
       ],
+      // "I'm coming" (2026-10-22): late by a quarter of an hour.
+      runningLateMinutes: 15,
     },
     {
       tableId: 't11',
@@ -1958,8 +2045,138 @@ export function createStaffMockGateway(options: StaffMockOptions = {}): StaffGat
       guestPhone: '+37493112233',
       partySize: 3,
       lines: [{ menuItemId: 'granola', quantity: 3 }],
+      // Asked a moment ago, no answer yet: "Ask" comes back in nine minutes.
+      staffAskedMinutesAgo: 6,
     },
   ];
+
+  /** A takeaway order at the counter, as a test or mock mode seeds it. */
+  function seedTakeaway(seed: StaffTakeawaySeed): void {
+    const dishes = new Map(
+      mockBranchMenu(branchId, 'cafe').categories.flatMap((category) =>
+        category.items.map((item) => [item.id, item] as const),
+      ),
+    );
+    const at = (minutes: number | undefined) =>
+      minutes === undefined ? null : minutesFrom(start, minutes);
+    const accepted =
+      seed.status !== 'sent' && !(seed.status === 'declined' || seed.status === 'cancelled');
+    const ready =
+      seed.status === 'ready' || seed.status === 'collected' || seed.status === 'noShow';
+    const pickup = minutesFrom(start, seed.pickupInMinutes);
+    const lines = seed.lines.map((line, index) => ({
+      id: `${seed.id ?? seed.guestName}-l${index + 1}`,
+      menuItemId: line.menuItemId,
+      name: dishes.get(line.menuItemId)?.name ?? line.menuItemId,
+      unitPriceDram: dishes.get(line.menuItemId)?.priceDram ?? 0,
+      quantity: line.quantity,
+    }));
+    const total = lines.reduce((sum, line) => sum + line.unitPriceDram * line.quantity, 0);
+    takeawayBook.seed({
+      ...(seed.id ? { id: seed.id } : {}),
+      ...(seed.code ? { code: seed.code } : {}),
+      branchId: FLOOR_BRANCH,
+      actor: `guest:${seed.guestName}`,
+      guestName: seed.guestName,
+      guestPhone: seed.guestPhone ?? '',
+      lines,
+      note: seed.note ?? null,
+      pickupAsap: seed.pickupAsap ?? false,
+      requestedPickupUtc: pickup,
+      status: seed.status,
+      sentAtUtc: minutesFrom(start, -seed.sentMinutesAgo),
+      readyAtUtc: accepted ? at(seed.readyInMinutes ?? seed.pickupInMinutes) : null,
+      acceptedAtUtc: accepted ? minutesFrom(start, -seed.sentMinutesAgo + 1) : null,
+      acceptedByName: accepted ? staffName : null,
+      readyMarkedAtUtc: ready ? at(-(seed.readyMarkedMinutesAgo ?? 0)) : null,
+      collectedAtUtc: seed.status === 'collected' ? at(-(seed.collectedMinutesAgo ?? 0)) : null,
+      declinedAtUtc:
+        seed.status === 'declined' ? minutesFrom(start, -seed.sentMinutesAgo + 2) : null,
+      cancelledAtUtc:
+        seed.status === 'cancelled' ? minutesFrom(start, -seed.sentMinutesAgo + 1) : null,
+      noShowAtUtc: seed.status === 'noShow' ? iso(start) : null,
+      declinedBecause: seed.status === 'declined' ? 'venue' : null,
+      declineReason: null,
+      paymentMethod: seed.status === 'collected' ? (seed.paymentMethod ?? 'cash') : null,
+      paidAmountDram: seed.status === 'collected' ? total : null,
+    });
+  }
+
+  /** Mock mode's counter: to answer, being prepared, ready now, ready long ago, handed over. */
+  const TAKEAWAY_SHOWCASE: readonly StaffTakeawaySeed[] = [
+    {
+      code: 'T-482',
+      status: 'sent',
+      guestName: 'Լիլիթ Ավետիսյան',
+      guestPhone: '+37494555666',
+      lines: [
+        { menuItemId: 'cappuccino', quantity: 2 },
+        { menuItemId: 'croissant', quantity: 1 },
+        { menuItemId: 'cheesecake', quantity: 1 },
+      ],
+      note: 'Առանց շաքարի, տորթը՝ առանձին տոպրակով',
+      sentMinutesAgo: 1,
+      pickupInMinutes: 19,
+      pickupAsap: true,
+    },
+    {
+      code: 'T-317',
+      status: 'accepted',
+      guestName: 'Armen Karapetyan',
+      guestPhone: '+37491223344',
+      lines: [
+        { menuItemId: 'americano', quantity: 2 },
+        { menuItemId: 'napoleon', quantity: 2 },
+      ],
+      sentMinutesAgo: 9,
+      pickupInMinutes: 15,
+    },
+    {
+      code: 'T-205',
+      status: 'ready',
+      guestName: 'Мария Петрова',
+      guestPhone: '+37477445566',
+      lines: [
+        { menuItemId: 'flat-white', quantity: 1 },
+        { menuItemId: 'gata', quantity: 2 },
+      ],
+      sentMinutesAgo: 30,
+      pickupInMinutes: -2,
+      readyMarkedMinutesAgo: 4,
+    },
+    {
+      code: 'T-639',
+      status: 'ready',
+      guestName: 'Gohar Manukyan',
+      guestPhone: '+37498765432',
+      lines: [{ menuItemId: 'lemonade', quantity: 3 }],
+      sentMinutesAgo: 70,
+      pickupInMinutes: -40,
+      readyMarkedMinutesAgo: 42,
+    },
+    {
+      code: 'T-118',
+      status: 'collected',
+      guestName: 'Tigran Hovhannisyan',
+      guestPhone: '+37455001122',
+      lines: [
+        { menuItemId: 'espresso', quantity: 2 },
+        { menuItemId: 'croissant', quantity: 2 },
+      ],
+      sentMinutesAgo: 95,
+      pickupInMinutes: -70,
+      readyMarkedMinutesAgo: 72,
+      collectedMinutesAgo: 66,
+      paymentMethod: 'card',
+    },
+  ];
+
+  for (const seed of [
+    ...(options.takeawaySeeds ?? []),
+    ...(options.seedTakeaway ? TAKEAWAY_SHOWCASE : []),
+  ]) {
+    seedTakeaway(seed);
+  }
 
   for (const seed of [
     ...(options.preOrderSeeds ?? []),
@@ -2004,6 +2221,13 @@ export function createStaffMockGateway(options: StaffMockOptions = {}): StaffGat
               : undefined) === true,
           nextReservationGuestConfirmedOnWayAtUtc: state.nextReservationId
             ? preOrderBook.onMyWayAt(state.nextReservationId)
+            : null,
+          // "I'm coming" (2026-10-22): the next booking's lateness and the venue's last ask.
+          nextReservationGuestRunningLateMinutes: state.nextReservationId
+            ? (preOrderBook.runningLateOf(state.nextReservationId)?.minutes ?? null)
+            : null,
+          nextReservationStaffAskedOnMyWayAtUtc: state.nextReservationId
+            ? preOrderBook.staffAskedAt(state.nextReservationId)
             : null,
           openTabAwaitingAdmission:
             state.tabId !== null && tabs.get(state.tabId)?.admission.status === 'awaiting',
@@ -2466,6 +2690,66 @@ export function createStaffMockGateway(options: StaffMockOptions = {}): StaffGat
       return settle(markNotComingNow(command));
     },
 
+    // --- "Ask: are you coming?" (2026-10-22) ---------------------------------
+
+    async askOnMyWay(reservationId): Promise<AskOnMyWayResult> {
+      const url = `/api/reservations/${reservationId}/ask-on-my-way`;
+      requireSession(url);
+      const reservation = reservations.get(reservationId);
+      if (!reservation) throw new NotFoundError({ url });
+      // A phone behind it stands in for a live account: the app is told.
+      const notified = reservation.guestPhone.trim() !== '';
+      const answer = preOrderBook.askOnMyWay(url, preOrderBookingOf(reservation), notified);
+      preOrderChanged(reservation.id, now());
+      return settle(answer);
+    },
+
+    // --- Takeaway at the counter (2026-10-22) --------------------------------
+
+    async listTakeawayOrders(): Promise<BranchTakeawayOrders> {
+      requireSession('/api/branches/takeaway-orders');
+      return settle(takeawayBook.branchOrders(FLOOR_BRANCH));
+    },
+
+    async acceptTakeawayOrder({
+      orderId,
+      readyAtUtc,
+    }: AcceptTakeawayOrderCommand): Promise<StaffTakeawayOrder> {
+      const url = `/api/takeaway-orders/${orderId}/accept`;
+      requireSession(url);
+      return settle(takeawayBook.accept(url, orderId, readyAtUtc, staffName));
+    },
+
+    async declineTakeawayOrder({
+      orderId,
+      reason,
+    }: DeclineTakeawayOrderCommand): Promise<StaffTakeawayOrder> {
+      const url = `/api/takeaway-orders/${orderId}/decline`;
+      requireSession(url);
+      return settle(takeawayBook.decline(url, orderId, reason));
+    },
+
+    async markTakeawayOrderReady(orderId): Promise<StaffTakeawayOrder> {
+      const url = `/api/takeaway-orders/${orderId}/ready`;
+      requireSession(url);
+      return settle(takeawayBook.ready(url, orderId));
+    },
+
+    async collectTakeawayOrder({
+      orderId,
+      method,
+    }: CollectTakeawayOrderCommand): Promise<StaffTakeawayOrder> {
+      const url = `/api/takeaway-orders/${orderId}/collect`;
+      requireSession(url);
+      return settle(takeawayBook.collect(url, orderId, method));
+    },
+
+    async markTakeawayOrderNoShow(orderId): Promise<StaffTakeawayOrder> {
+      const url = `/api/takeaway-orders/${orderId}/no-show`;
+      requireSession(url);
+      return settle(takeawayBook.noShow(url, orderId));
+    },
+
     async listTabsAwaitingAdmission(): Promise<readonly TabAwaitingAdmission[]> {
       requireSession(`/api/branches/${branchId}/tabs/awaiting-admission`);
       return settle(
@@ -2807,11 +3091,15 @@ export function createStaffMockGateway(options: StaffMockOptions = {}): StaffGat
     },
 
     async listOrderQueue(): Promise<readonly OrderQueueEntry[]> {
+      // Accepted and ready takeaway orders ride beside the tabs' tickets with
+      // the TAKEAWAY band (2026-10-22); a collected one leaves the screen.
       return settle(
-        [...orders.values()]
-          .filter((order) => order.status !== 'served' && order.status !== 'voided')
-          .sort((a, b) => b.placedAtUtc.localeCompare(a.placedAtUtc))
-          .map(orderEntry),
+        [
+          ...[...orders.values()]
+            .filter((order) => order.status !== 'served' && order.status !== 'voided')
+            .map(orderEntry),
+          ...takeawayBook.kitchenTickets(FLOOR_BRANCH),
+        ].sort((a, b) => b.placedAtUtc.localeCompare(a.placedAtUtc)),
       );
     },
 

@@ -358,6 +358,10 @@ describe('deciding a pending booking over HTTP', () => {
         // No pre-order on the row (2026-10-21), and no answer.
         preOrder: null,
         guestConfirmedOnWayAtUtc: null,
+        // Nobody late, nobody asked (2026-10-22).
+        guestRunningLateMinutes: null,
+        guestRunningLateAtUtc: null,
+        staffAskedOnMyWayAtUtc: null,
         id: 'r-1',
         code: 'K7M2',
         branchId: 'b-1',

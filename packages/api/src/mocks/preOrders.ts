@@ -1,6 +1,10 @@
 import {
+  AskOnMyWayAskedRecentlyError,
+  AskOnMyWayNotOpenError,
+  AskOnMyWayTooEarlyError,
   BookingCommandInUseError,
   BookingNotChangeableError,
+  GuestAlreadyAnsweredError,
   OnMyWayNotOpenError,
   PreOrderAlreadySentError,
   PreOrderItemsUnavailableError,
@@ -23,6 +27,13 @@ import {
   type PreOrderResult,
   type PreOrderSettingsInput,
 } from '../contracts/preOrder';
+import {
+  STAFF_ASK_INTERVAL_MINUTES,
+  isRunningLateMinutes,
+  onMyWayOpensAtUtc,
+  type AskOnMyWayResult,
+  type RunningLateResult,
+} from '../contracts/onMyWay';
 import type { ReservationStatusCode } from '../contracts/push';
 import { requireClientCommandId, validationFailed } from './problems';
 
@@ -117,6 +128,10 @@ export function createMockPreOrderBook(options: MockPreOrderBookOptions) {
   const commands = new Map<string, { kind: string; reservationId: string; actor: string }>();
   /** reservationId -> when the guest first said "on my way". */
   const onMyWay = new Map<string, string>();
+  /** reservationId -> the guest's "running late", the latest answer (2026-10-22). */
+  const runningLate = new Map<string, { readonly minutes: number; readonly atUtc: string }>();
+  /** reservationId -> when the venue last asked "are you coming?". */
+  const staffAsked = new Map<string, string>();
   let counter = 0;
 
   for (const [branchId, branch] of Object.entries(options.branches ?? {})) {
@@ -209,8 +224,9 @@ export function createMockPreOrderBook(options: MockPreOrderBookOptions) {
   }
 
   /**
-   * The three members a booking read carries — only those that have a value,
-   * so a booking at a branch that never took pre-orders reads as it always did.
+   * The members a booking read carries — only those that have a value, so a
+   * booking at a branch that never took pre-orders reads as it always did —
+   * and when "I'm coming" opens, which every booking read has (2026-10-22).
    */
   function fields(booking: MockPreOrderBooking): BookingPreOrderFields {
     const preOrder = view(booking);
@@ -219,10 +235,15 @@ export function createMockPreOrderBook(options: MockPreOrderBookOptions) {
       (booking.status === 'pendingApproval' || booking.status === 'confirmed') &&
       now().getTime() < Date.parse(booking.startUtc);
     const answered = onMyWay.get(booking.id);
+    const late = runningLate.get(booking.id);
+    const asked = staffAsked.get(booking.id);
     return {
       ...(preOrder ? { preOrder } : {}),
       ...(offered ? { preOrderEditableUntilUtc: preOrderLockedAtUtc(booking.startUtc) } : {}),
       ...(answered ? { guestConfirmedOnWayAtUtc: answered } : {}),
+      ...(late ? { guestRunningLateMinutes: late.minutes, guestRunningLateAtUtc: late.atUtc } : {}),
+      ...(asked ? { staffAskedOnMyWayAtUtc: asked } : {}),
+      onMyWayOpensAtUtc: onMyWayOpensAtUtc(booking.startUtc),
     };
   }
 
@@ -420,10 +441,14 @@ export function createMockPreOrderBook(options: MockPreOrderBookOptions) {
       return { reservationId: booking.id, preOrder: null, wasReplay: false };
     },
 
-    /** "Yes, on my way": confirmed or seated and not over; once. */
+    /**
+     * "Yes, on my way": confirmed or seated and not over; once — unless the
+     * guest said "running late" since: on time after all, the lateness is
+     * cleared and "on my way" stamped again.
+     */
     confirmOnMyWay(url: string, booking: MockPreOrderBooking): OnMyWayResult {
       const first = onMyWay.get(booking.id);
-      if (first) {
+      if (first && !runningLate.has(booking.id)) {
         return { reservationId: booking.id, guestConfirmedOnWayAtUtc: first, wasReplay: true };
       }
       if (
@@ -440,7 +465,117 @@ export function createMockPreOrderBook(options: MockPreOrderBookOptions) {
       }
       const at = now().toISOString();
       onMyWay.set(booking.id, at);
+      runningLate.delete(booking.id);
       return { reservationId: booking.id, guestConfirmedOnWayAtUtc: at, wasReplay: false };
+    },
+
+    /**
+     * "I'm running late" (2026-10-22): 10, 15 or 30, a confirmed booking, from
+     * two hours before the start until it ends. A later answer overwrites it;
+     * "on my way" stays beside it.
+     */
+    reportRunningLate(
+      url: string,
+      booking: MockPreOrderBooking,
+      minutes: number,
+    ): RunningLateResult {
+      if (!isRunningLateMinutes(minutes)) {
+        throw validationFailed(url, [
+          { field: 'minutes', message: 'minutes must be 10, 15 or 30.', bound: 'range' },
+        ]);
+      }
+      const t = now().getTime();
+      const opensAtUtc = onMyWayOpensAtUtc(booking.startUtc);
+      if (
+        booking.status !== 'confirmed' ||
+        t < Date.parse(opensAtUtc) ||
+        t >= Date.parse(booking.endUtc)
+      ) {
+        throw new OnMyWayNotOpenError({
+          url,
+          reservationId: booking.id,
+          bookingStatus: booking.status,
+          opensAtUtc,
+        });
+      }
+      const atUtc = new Date(t).toISOString();
+      runningLate.set(booking.id, { minutes, atUtc });
+      return {
+        reservationId: booking.id,
+        guestRunningLateMinutes: minutes,
+        guestRunningLateAtUtc: atUtc,
+        expectedArrivalUtc: new Date(Date.parse(booking.startUtc) + minutes * 60_000).toISOString(),
+      };
+    },
+
+    /**
+     * The venue's "Ask: are you coming?" (2026-10-22): a confirmed booking,
+     * from two hours before its start until its start, while the guest has
+     * not answered, at most once every fifteen minutes. `notified` is the
+     * caller's: whether a live account stands behind the booking.
+     */
+    askOnMyWay(url: string, booking: MockPreOrderBooking, notified: boolean): AskOnMyWayResult {
+      const t = now().getTime();
+      if (booking.status !== 'confirmed' || t >= Date.parse(booking.startUtc)) {
+        throw new AskOnMyWayNotOpenError({
+          url,
+          reservationId: booking.id,
+          bookingStatus: booking.status,
+          startUtc: booking.startUtc,
+        });
+      }
+      const opensAtUtc = onMyWayOpensAtUtc(booking.startUtc);
+      if (t < Date.parse(opensAtUtc)) {
+        throw new AskOnMyWayTooEarlyError({ url, reservationId: booking.id, opensAtUtc });
+      }
+      const late = runningLate.get(booking.id);
+      const onWay = onMyWay.get(booking.id);
+      if (late || onWay) {
+        throw new GuestAlreadyAnsweredError({
+          url,
+          reservationId: booking.id,
+          answeredAtUtc: late?.atUtc ?? onWay ?? null,
+          runningLateMinutes: late?.minutes ?? null,
+        });
+      }
+      const last = staffAsked.get(booking.id);
+      const interval = STAFF_ASK_INTERVAL_MINUTES * 60_000;
+      if (last && t < Date.parse(last) + interval) {
+        throw new AskOnMyWayAskedRecentlyError({
+          url,
+          reservationId: booking.id,
+          askedAtUtc: last,
+          nextAllowedAtUtc: new Date(Date.parse(last) + interval).toISOString(),
+        });
+      }
+      const atUtc = new Date(t).toISOString();
+      staffAsked.set(booking.id, atUtc);
+      return {
+        reservationId: booking.id,
+        staffAskedOnMyWayAtUtc: atUtc,
+        nextAskAllowedAtUtc: new Date(t + interval).toISOString(),
+        notified,
+      };
+    },
+
+    runningLateOf(
+      reservationId: string,
+    ): { readonly minutes: number; readonly atUtc: string } | null {
+      return runningLate.get(reservationId) ?? null;
+    },
+
+    staffAskedAt(reservationId: string): string | null {
+      return staffAsked.get(reservationId) ?? null;
+    },
+
+    /** Seed a "running late", as a floor that starts with a guest running late. */
+    seedRunningLate(reservationId: string, minutes: number, atUtc: string): void {
+      runningLate.set(reservationId, { minutes, atUtc });
+    },
+
+    /** Seed the venue's ask, as a floor that asked a moment ago. */
+    seedStaffAsked(reservationId: string, atUtc: string): void {
+      staffAsked.set(reservationId, atUtc);
     },
 
     onMyWayAt(reservationId: string): string | null {

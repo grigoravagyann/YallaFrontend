@@ -980,6 +980,214 @@
         }
       }
     },
+    "/api/branches/{branchId}/takeaway-settings": {
+      "get": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "The branch's takeaway settings, with their bounds",
+        "operationId": "getTakeawaySettings",
+        "parameters": [
+          {
+            "name": "branchId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Application.Takeaway.TakeawaySettingsView"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request violated a domain rule or arrived malformed.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No usable token was presented, or the one presented was rejected.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller is authenticated but not allowed to perform this action.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such branch.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests in the window, or a one-time credential is out of attempts.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected failure. Quote the traceId from the body.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Save the branch's takeaway settings",
+        "description": "All five are required: `enabled` (off by default), `autoAccept` (off: staff accept on the tablet, and an order nobody accepts within five minutes is declined and the guest told), `prepMinutes` (5 to 90 in fives, default 20), `lastOrderMinutes` (0 to 120 in fifteens, default 30) and `maxInProgress` (1 to 30, default 5). One left out, out of bounds or off its step is 422 `validation-failed` naming it. Dishes served in the hall only are switched per dish: `availableForTakeaway` on `PATCH .../menu/items/{itemId}`.",
+        "operationId": "putTakeawaySettings",
+        "parameters": [
+          {
+            "name": "branchId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "allOf": [
+                  {
+                    "$ref": "#/components/schemas/Yalla.Api.Endpoints.TakeawaySettingsRequest"
+                  }
+                ],
+                "description": "Body of `PUT /api/branches/{branchId}/takeaway-settings`. All five are required."
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Application.Takeaway.TakeawaySettingsView"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request violated a domain rule or arrived malformed.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No usable token was presented, or the one presented was rejected.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller is authenticated but not allowed to perform this action.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such branch.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "`context.fields` names each.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.ValidationFailedProblem"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests in the window, or a one-time credential is out of attempts.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected failure. Quote the traceId from the body.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/venue/me": {
       "get": {
         "tags": [
@@ -4205,7 +4413,7 @@
           "admin"
         ],
         "summary": "Edit an item, including its price and its category",
-        "description": "A price change never affects existing order lines, which snapshotted the price they were placed at.\n\n`categoryId` **moves the item to another category of the same branch**, where it lands last in the display order - reorder afterwards if that is not where it belongs. Existing order lines are unaffected: they never reference a category. A category belonging to another branch is refused with `context.field` of `categoryId`.\n\nA field left out is left alone, including one that was never filled in, so a half-entered item can be saved again without the edit insisting on the half that is missing.",
+        "description": "A price change never affects existing order lines, which snapshotted the price they were placed at.\n\n`categoryId` **moves the item to another category of the same branch**, where it lands last in the display order - reorder afterwards if that is not where it belongs. Existing order lines are unaffected: they never reference a category. A category belonging to another branch is refused with `context.field` of `categoryId`.\n\nA field left out is left alone, including one that was never filled in, so a half-entered item can be saved again without the edit insisting on the half that is missing.\n\n`availableForTakeaway` switches the dish's \"for takeaway\" toggle: false keeps it to the hall - the diner's takeaway menu greys it out and a takeaway order naming it is refused. True by default.",
         "operationId": "updateMenuItem",
         "parameters": [
           {
@@ -11927,6 +12135,134 @@
         }
       }
     },
+    "/api/reservations/{reservationId}/running-late": {
+      "post": {
+        "tags": [
+          "diner"
+        ],
+        "summary": "\"I'm running late\" - by 10, 15 or 30 minutes",
+        "description": "Another answer to \"are you coming?\", under the window `on-my-way` is taken in (from `onMyWayOpensAtUtc`, two hours before the start, until the booking ends) for a **confirmed** booking - a seated party is not late. `minutes` is 10, 15 or 30 (anything else: 422 `validation-failed` naming `minutes`). Recorded as `guestRunningLateMinutes` / `guestRunningLateAtUtc` on the booking; a later answer overwrites it, and \"on my way\" after it clears it. Like \"on my way\" it withdraws the question not yet sent. The table is not held any longer for it. Outside the window: **409 `on-my-way-not-open`**. \"Not coming\" is the booking's ordinary cancel.",
+        "operationId": "reportRunningLate",
+        "parameters": [
+          {
+            "name": "reservationId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "allOf": [
+                  {
+                    "$ref": "#/components/schemas/Yalla.Api.Endpoints.RunningLateRequest"
+                  }
+                ],
+                "description": "Body of `POST .../running-late`."
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Application.Reservations.RunningLateResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request violated a domain rule or arrived malformed.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No usable token was presented, or the one presented was rejected.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller is authenticated but not allowed to perform this action.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such booking of yours.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "`on-my-way-not-open` (`context.opensAtUtc`).",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "`minutes` is not 10, 15 or 30.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.ValidationFailedProblem"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests in the window, or a one-time credential is out of attempts.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected failure. Quote the traceId from the body.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/public/bookings/{token}/pre-order": {
       "put": {
         "tags": [
@@ -12241,6 +12577,549 @@
           },
           "409": {
             "description": "`on-my-way-not-open`: the booking is not expecting anybody, or not yet (`context.opensAtUtc`).",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests in the window, or a one-time credential is out of attempts.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected failure. Quote the traceId from the body.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/public/bookings/{token}/running-late": {
+      "post": {
+        "tags": [
+          "diner"
+        ],
+        "summary": "\"I'm running late\" from the manage link",
+        "description": "As `reportRunningLate`.",
+        "operationId": "reportPublicBookingRunningLate",
+        "parameters": [
+          {
+            "name": "token",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "allOf": [
+                  {
+                    "$ref": "#/components/schemas/Yalla.Api.Endpoints.RunningLateRequest"
+                  }
+                ],
+                "description": "Body of `POST .../running-late`."
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Application.Reservations.RunningLateResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request violated a domain rule or arrived malformed.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No usable token was presented, or the one presented was rejected.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller is authenticated but not allowed to perform this action.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The link is not valid.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "`on-my-way-not-open` (`context.opensAtUtc`).",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "`minutes` is not 10, 15 or 30.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.ValidationFailedProblem"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests in the window, or a one-time credential is out of attempts.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected failure. Quote the traceId from the body.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/diner/branches/{branchId}/takeaway": {
+      "get": {
+        "tags": [
+          "diner"
+        ],
+        "summary": "Whether the place takes takeaway now, and the pickup times on offer",
+        "description": "`enabled` false: the venue does not take takeaway - no button. `open`: orders are taken now - inside today's opening hours and before closing minus the venue's last-order minutes. Open: `asapReadyAtUtc` / `asapReadyAt` (now plus `prepMinutes`), `slots` (quarter hours from then to `lastPickupAt`, as local `HH:mm`; a time that would put more orders in the kitchen than the venue allows is left out) and `busy` (the kitchen is full: \"as soon as possible\" is refused, a slot may still work). Closed: `opensAt` / `opensAtUtc` - the next opening an order can be taken from, within a week (\"Takeaway from opening, 10:00\"). Read it again when the checkout opens: slots move with the clock.",
+        "operationId": "getTakeawayAvailability",
+        "parameters": [
+          {
+            "name": "branchId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Application.Takeaway.TakeawayAvailability"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request violated a domain rule or arrived malformed.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No usable token was presented, or the one presented was rejected.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller is authenticated but not allowed to perform this action.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such branch.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "`branch-unavailable`: the venue is suspended or the branch switched off.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests in the window, or a one-time credential is out of attempts.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected failure. Quote the traceId from the body.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/diner/takeaway-orders": {
+      "post": {
+        "tags": [
+          "diner"
+        ],
+        "summary": "Order to take away",
+        "description": "`pickup` is `{ \"asap\": true }` or `{ \"at\": \"19:15\" }` - one of the availability's `slots`. `lines` 1 to 30, `quantity` 1 to 20, at most 60 dishes in all; `note` at most 500 characters. Names and prices are taken as they stand now. **Idempotent on `clientCommandId`**: a retry answers the order the first try made, `wasReplay: true`.\n\nA proved phone is required (403 `phone-not-verified`, as for booking). Refusals, before anything is saved: 422 `validation-failed` naming `lines`, `lines[i].quantity`, `note`, `pickup` or `pickup.at`; 409 `takeaway-not-accepted`; 409 `takeaway-closed` (`context.opensAtUtc`, `opensAt`); 409 `takeaway-busy` (ASAP while the kitchen is full - `context.maxInProgress`); 409 `takeaway-slot-unavailable` (`context.slots`: the ones on offer now); 422 `takeaway-items-unavailable` (`context.items[]` = `{ menuItemId, reason }`: 1 NotOnMenu, 2 SoldOut, 3 NotForTakeaway - every one); 409 `client-command-id-in-use`.\n\nThe order is `Sent` with `acceptDeadlineUtc` five minutes on - accepted on the tablet, or declined for nobody answering and the guest told. A branch that accepts automatically answers `Accepted` at once, ready when asked for. The code (`T-482`) is what the guest says at the counter.\n\n`status`: 1 Sent (waiting for the venue; the guest may cancel), 2 Accepted (\"Accepted · being prepared\" - in the kitchen, ready at `readyAtUtc`), 3 Ready (waiting at the counter), 4 Collected (handed over and paid), 5 Declined (`declinedBecause` 1 the venue said no - `declineReason` when it said why - or 2 nobody answered within five minutes), 6 Cancelled (by the guest, while sent), 7 NoShow (ready, and nobody came within thirty minutes). Local times are `HH:mm` on the branch's wall clock.",
+        "operationId": "placeTakeawayOrder",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "allOf": [
+                  {
+                    "$ref": "#/components/schemas/Yalla.Api.Endpoints.PlaceTakeawayOrderRequest"
+                  }
+                ],
+                "description": "Body of `POST /api/diner/takeaway-orders`."
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Application.Takeaway.TakeawayOrderView"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request violated a domain rule or arrived malformed.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No usable token was presented, or the one presented was rejected.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "`phone-not-verified`: prove the number first.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such branch.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "`takeaway-not-accepted`, `takeaway-closed`, `takeaway-busy`, `takeaway-slot-unavailable`, `branch-unavailable` or `client-command-id-in-use`.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "`validation-failed` or `takeaway-items-unavailable`.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests in the window, or a one-time credential is out of attempts.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected failure. Quote the traceId from the body.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/diner/takeaway-orders/{orderId}": {
+      "get": {
+        "tags": [
+          "diner"
+        ],
+        "summary": "One of the diner's takeaway orders - the status screen",
+        "description": "The code, the status with a time per step, the lines at their ordered prices and the total, the branch's name, address, number and position (call, directions), and `declineReason` / `declinedBecause` when declined. Poll while it is active, in the foreground. Somebody else's order is **404**.\n\n`status`: 1 Sent (waiting for the venue; the guest may cancel), 2 Accepted (\"Accepted · being prepared\" - in the kitchen, ready at `readyAtUtc`), 3 Ready (waiting at the counter), 4 Collected (handed over and paid), 5 Declined (`declinedBecause` 1 the venue said no - `declineReason` when it said why - or 2 nobody answered within five minutes), 6 Cancelled (by the guest, while sent), 7 NoShow (ready, and nobody came within thirty minutes). Local times are `HH:mm` on the branch's wall clock.",
+        "operationId": "getDinerTakeawayOrder",
+        "parameters": [
+          {
+            "name": "orderId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Application.Takeaway.TakeawayOrderView"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request violated a domain rule or arrived malformed.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No usable token was presented, or the one presented was rejected.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller is authenticated but not allowed to perform this action.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such order of this diner's.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests in the window, or a one-time credential is out of attempts.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected failure. Quote the traceId from the body.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/diner/takeaway-orders/{orderId}/cancel": {
+      "post": {
+        "tags": [
+          "diner"
+        ],
+        "summary": "Cancel a takeaway order the venue has not answered yet",
+        "description": "Only while `status` is 1 Sent - after that the venue is cooking it, and changing it is a phone call: 409 `takeaway-status-conflict` (`context.status`). Cancelled already: 200 `wasReplay: true`. No body.",
+        "operationId": "cancelTakeawayOrder",
+        "parameters": [
+          {
+            "name": "orderId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Application.Takeaway.TakeawayOrderView"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request violated a domain rule or arrived malformed.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No usable token was presented, or the one presented was rejected.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller is authenticated but not allowed to perform this action.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such order of this diner's.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "`takeaway-status-conflict`: the venue has answered it.",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -13043,7 +13922,7 @@
           "diner"
         ],
         "summary": "The diner's orders, for the Orders tab",
-        "description": "Every order this diner is on: placed from their phone, keyed in by a waiter on their behalf, or keyed in for the whole table on a tab they were approved onto. Newest first, at most 100.\n\n`status=active` is New, InKitchen and Ready; `status=history` is Served and Voided; absent is both. Anything else is `400`.\n\n`status` on each order is the app's word: New `confirmed`, InKitchen `preparing`, Ready `ready`, Served `completed`, Voided `cancelled`. `inProgress` is never produced - there is no takeaway. `kind` is always `dineIn`. `timeline` starts with `confirmed` at `placedAtUtc` and adds each kitchen step as it was recorded. `canCancel` is always false: voiding an order is a staff action.",
+        "description": "Every order this diner is on: placed from their phone, keyed in by a waiter on their behalf, or keyed in for the whole table on a tab they were approved onto - and their takeaway orders (`kind: takeaway`). **Active ones first**, then newest first, at most 100.\n\n`status=active` is New, InKitchen and Ready; `status=history` is Served and Voided; absent is both. Anything else is `400`.\n\n`status` on each order is the app's word: New `confirmed`, InKitchen `preparing`, Ready `ready`, Served `completed`, Voided `cancelled`. `kind` is `dineIn` or `takeaway`. A dine-in `timeline` starts with `confirmed` at `placedAtUtc` and adds each kitchen step as it was recorded; `canCancel` is false - voiding an order is a staff action.\n\n**Takeaway** (`kind: takeaway`): `tabId` absent, `tableLabel` empty, `partySize` 0; `status` is `inProgress` while it waits for the venue (Sent), `preparing` (Accepted), `ready`, `completed` (Collected) or `cancelled` (Declined, Cancelled or NoShow); `takeaway` carries the code, the exact status (1 Sent ... 7 NoShow), the pickup and ready times and the item count; `estimatedReadyAtUtc` is the ready time; `timeline` starts with `inProgress` at `placedAtUtc`; `canCancel` is true while Sent. Active for takeaway is Sent, Accepted and Ready. The whole order is `getDinerTakeawayOrder`.",
         "operationId": "getDinerOrders",
         "parameters": [
           {
@@ -14946,7 +15825,7 @@
           "diner"
         ],
         "summary": "One branch's details screen, by id",
-        "description": "`listing` is the card exactly as the list serves it. Beside it: `about`, `websiteUrl`, `phoneE164`, `amenities`, `openingHours` (`day` 0 = Sunday, wall-clock `opensAt`/`closesAt` as `HH:mm:ss`, `closesNextDay`), `gallery` (pictures beyond the cover, in order), `tableCount`, `acceptsWebBookings`, `recentReviews` (newest three), `ratingCounts` (shown reviews per star, **one star first**: always five numbers, adding up to `listing.reviewCount`) and `rooms` - the rooms with their photos and the live pins on them, exactly as `GET /api/public/branches/{branchId}/rooms` serves them.\n\nA branch that is inactive or whose venue is suspended or deleted is **404**, read live. `listing.rating` and `listing.reviewCount` are read live too; the other live numbers share the list's fifteen seconds.",
+        "description": "`listing` is the card exactly as the list serves it. Beside it: `about`, `websiteUrl`, `phoneE164`, `amenities`, `openingHours` (`day` 0 = Sunday, wall-clock `opensAt`/`closesAt` as `HH:mm:ss`, `closesNextDay`), `gallery` (pictures beyond the cover, in order), `tableCount`, `acceptsWebBookings`, `recentReviews` (newest three), `ratingCounts` (shown reviews per star, **one star first**: always five numbers, adding up to `listing.reviewCount`) and `rooms` - the rooms with their photos and the live pins on them, exactly as `GET /api/public/branches/{branchId}/rooms` serves them. `takeaway` (`enabled`, `prepMinutes`) says whether to show \"Order to take away\"; whether it is open for takeaway now is `GET /api/diner/branches/{branchId}/takeaway`.\n\nA branch that is inactive or whose venue is suspended or deleted is **404**, read live. `listing.rating` and `listing.reviewCount` are read live too; the other live numbers share the list's fifteen seconds.",
         "operationId": "getPublicBranchDetail",
         "parameters": [
           {
@@ -18408,6 +19287,305 @@
         }
       }
     },
+    "/api/reservations/{reservationId}/ask-on-my-way": {
+      "post": {
+        "tags": [
+          "staff"
+        ],
+        "summary": "\"Ask: are you coming?\" now",
+        "description": "Sends the guest the automatic question's push (`reservation.on-your-way`, data `kind` `reservation-on-your-way`) and feed entry (`booking-on-your-way`, params `askedByVenue` `\"true\"`) now, and records `staffAskedOnMyWayAtUtc` on the booking. The automatic question is then not asked on top. A **confirmed** booking only, from two hours before its start until its start, while the guest has not answered, at most once every 15 minutes. Refusals, each its own code: **409 `ask-on-my-way-too-early`** (`context.opensAtUtc`), **409 `ask-on-my-way-not-open`** (not confirmed, or started: `context.status`, `startUtc`), **409 `guest-already-answered`** (`context.answeredAtUtc`, and `runningLateMinutes` when late), **409 `ask-on-my-way-asked-recently`** (`context.askedAtUtc`, `nextAllowedAtUtc`). `notified` false: no live account behind the booking - call. Waiter or above at the booking's branch. No body.",
+        "operationId": "askOnMyWay",
+        "parameters": [
+          {
+            "name": "reservationId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Application.Reservations.AskOnMyWayResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request violated a domain rule or arrived malformed.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No usable token was presented, or the one presented was rejected.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not floor staff at this booking's branch.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such booking.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "`ask-on-my-way-too-early`, `ask-on-my-way-not-open`, `guest-already-answered` or `ask-on-my-way-asked-recently`.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests in the window, or a one-time credential is out of attempts.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected failure. Quote the traceId from the body.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/branches/{branchId}/takeaway-orders": {
+      "get": {
+        "tags": [
+          "staff"
+        ],
+        "summary": "The takeaway counter: active orders and today's finished ones",
+        "description": "`active`: Sent (with `acceptDeadlineUtc` - the answer countdown), Accepted and Ready, oldest first. `finishedToday`: Collected, NoShow and Declined placed on the branch's service day, newest first. `sentCount` + `readyCount` is the Takeaway tab's badge. `noShowFromUtc` says when \"No-show\" may be offered (thirty minutes after ready). `guestPhone` is empty for a platform admin. Poll it, as the rest of the floor is polled. Waiter or above at the branch.\n\n`status`: 1 Sent (waiting for the venue; the guest may cancel), 2 Accepted (\"Accepted · being prepared\" - in the kitchen, ready at `readyAtUtc`), 3 Ready (waiting at the counter), 4 Collected (handed over and paid), 5 Declined (`declinedBecause` 1 the venue said no - `declineReason` when it said why - or 2 nobody answered within five minutes), 6 Cancelled (by the guest, while sent), 7 NoShow (ready, and nobody came within thirty minutes). Local times are `HH:mm` on the branch's wall clock.",
+        "operationId": "listBranchTakeawayOrders",
+        "parameters": [
+          {
+            "name": "branchId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Application.Takeaway.BranchTakeawayOrders"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request violated a domain rule or arrived malformed.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No usable token was presented, or the one presented was rejected.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not floor staff at this branch.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such branch.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests in the window, or a one-time credential is out of attempts.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected failure. Quote the traceId from the body.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/takeaway-orders/{orderId}/ready": {
+      "post": {
+        "tags": [
+          "staff"
+        ],
+        "summary": "The kitchen: the takeaway order is ready",
+        "description": "Accepted → Ready. The Kitchen role may make this move (and only this one); the floor too. The guest is told \"ready, come and pick it up\" (push `takeaway.ready`, feed `takeaway-ready`). No body. `409 takeaway-status-conflict` (`context.orderId`, `status` - where it is now: redraw it). The move already made is answered 200 `wasReplay: true` - two tablets, one answer.",
+        "operationId": "markTakeawayOrderReady",
+        "parameters": [
+          {
+            "name": "orderId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Application.Takeaway.StaffTakeawayOrderView"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request violated a domain rule or arrived malformed.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No usable token was presented, or the one presented was rejected.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not kitchen or floor staff at this order's branch.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such order.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "`takeaway-status-conflict`.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests in the window, or a one-time credential is out of attempts.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected failure. Quote the traceId from the body.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/tab-adjustments/{adjustmentId}/void": {
       "post": {
         "tags": [
@@ -21190,6 +22368,482 @@
         }
       }
     },
+    "/api/takeaway-orders/{orderId}/accept": {
+      "post": {
+        "tags": [
+          "staff"
+        ],
+        "summary": "Accept a takeaway order, ready at a time",
+        "description": "`readyAt` (UTC) is the ready time the waiter set - the tablet starts from `requestedPickupUtc` and steps it by five minutes. From now (a minute of clock skew allowed) to twelve hours on; otherwise 422 `validation-failed` naming `readyAt`. The order goes to the kitchen screen with its TAKEAWAY band, and the guest is told (push `takeaway.accepted`, feed `takeaway-accepted`). Accepting after the five minutes is allowed while the sweep has not declined it. `409 takeaway-status-conflict` (`context.orderId`, `status` - where it is now: redraw it). The move already made is answered 200 `wasReplay: true` - two tablets, one answer.",
+        "operationId": "acceptTakeawayOrder",
+        "parameters": [
+          {
+            "name": "orderId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "allOf": [
+                  {
+                    "$ref": "#/components/schemas/Yalla.Api.Endpoints.AcceptTakeawayOrderRequest"
+                  }
+                ],
+                "description": "Body of `POST /api/takeaway-orders/{orderId}/accept`."
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Application.Takeaway.StaffTakeawayOrderView"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request violated a domain rule or arrived malformed.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No usable token was presented, or the one presented was rejected.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not floor staff at this order's branch.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such order.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "`takeaway-status-conflict`.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "`readyAt` out of range.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.ValidationFailedProblem"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests in the window, or a one-time credential is out of attempts.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected failure. Quote the traceId from the body.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/takeaway-orders/{orderId}/decline": {
+      "post": {
+        "tags": [
+          "staff"
+        ],
+        "summary": "Decline a takeaway order",
+        "description": "Only while Sent. `reason` (optional, at most 300 characters) is shown to the guest. The guest is told (push `takeaway.declined`, feed `takeaway-declined`). `409 takeaway-status-conflict` (`context.orderId`, `status` - where it is now: redraw it). The move already made is answered 200 `wasReplay: true` - two tablets, one answer.",
+        "operationId": "declineTakeawayOrder",
+        "parameters": [
+          {
+            "name": "orderId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "allOf": [
+                  {
+                    "$ref": "#/components/schemas/Yalla.Api.Endpoints.DeclineTakeawayOrderRequest"
+                  }
+                ],
+                "description": "Body of `POST /api/takeaway-orders/{orderId}/decline`. May be empty."
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Application.Takeaway.StaffTakeawayOrderView"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request violated a domain rule or arrived malformed.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No usable token was presented, or the one presented was rejected.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not floor staff at this order's branch.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such order.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "`takeaway-status-conflict`.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests in the window, or a one-time credential is out of attempts.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected failure. Quote the traceId from the body.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/takeaway-orders/{orderId}/collect": {
+      "post": {
+        "tags": [
+          "staff"
+        ],
+        "summary": "Paid and handed over",
+        "description": "Ready → Collected. `method` 1 Cash or 2 Card (the venue's own terminal); the amount recorded is the total (`paidAmountAmd`). Nothing is a fiscal receipt: the venue's cash register issues that. Missing or unknown `method`: 422 `validation-failed`. `409 takeaway-status-conflict` (`context.orderId`, `status` - where it is now: redraw it). The move already made is answered 200 `wasReplay: true` - two tablets, one answer.",
+        "operationId": "collectTakeawayOrder",
+        "parameters": [
+          {
+            "name": "orderId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "allOf": [
+                  {
+                    "$ref": "#/components/schemas/Yalla.Api.Endpoints.CollectTakeawayOrderRequest"
+                  }
+                ],
+                "description": "Body of `POST /api/takeaway-orders/{orderId}/collect`."
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Application.Takeaway.StaffTakeawayOrderView"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request violated a domain rule or arrived malformed.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No usable token was presented, or the one presented was rejected.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not floor staff at this order's branch.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such order.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "`takeaway-status-conflict`.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "`method` missing or unknown.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.ValidationFailedProblem"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests in the window, or a one-time credential is out of attempts.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected failure. Quote the traceId from the body.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/takeaway-orders/{orderId}/no-show": {
+      "post": {
+        "tags": [
+          "staff"
+        ],
+        "summary": "Nobody came for a ready takeaway order",
+        "description": "Ready → NoShow, from thirty minutes after it was ready (`noShowFromUtc`: the later of the promised time and the kitchen's \"ready\"); earlier is 409 `takeaway-no-show-too-early` (`context.noShowFromUtc`). No body. `409 takeaway-status-conflict` (`context.orderId`, `status` - where it is now: redraw it). The move already made is answered 200 `wasReplay: true` - two tablets, one answer.",
+        "operationId": "markTakeawayOrderNoShow",
+        "parameters": [
+          {
+            "name": "orderId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Application.Takeaway.StaffTakeawayOrderView"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request violated a domain rule or arrived malformed.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No usable token was presented, or the one presented was rejected.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not floor staff at this order's branch.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such order.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "`takeaway-status-conflict` or `takeaway-no-show-too-early`.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests in the window, or a one-time credential is out of attempts.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected failure. Quote the traceId from the body.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/tabs/{tabId}/staff-orders": {
       "post": {
         "tags": [
@@ -21691,6 +23345,21 @@
         "additionalProperties": false,
         "description": "Writing off an outstanding balance."
       },
+      "Yalla.Api.Endpoints.AcceptTakeawayOrderRequest": {
+        "required": [
+          "readyAt"
+        ],
+        "type": "object",
+        "properties": {
+          "readyAt": {
+            "type": "string",
+            "description": "When it will be ready, UTC.",
+            "format": "date-time"
+          }
+        },
+        "additionalProperties": false,
+        "description": "Body of `POST /api/takeaway-orders/{orderId}/accept`."
+      },
       "Yalla.Api.Endpoints.AddAdjustmentRequest": {
         "required": [
           "clientCommandId",
@@ -21843,6 +23512,24 @@
         "additionalProperties": false,
         "description": "Polls a Telegram phone verification."
       },
+      "Yalla.Api.Endpoints.CollectTakeawayOrderRequest": {
+        "required": [
+          "method"
+        ],
+        "type": "object",
+        "properties": {
+          "method": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Yalla.Domain.Takeaway.TakeawayPaymentMethod"
+              }
+            ],
+            "description": "1 Cash, 2 Card."
+          }
+        },
+        "additionalProperties": false,
+        "description": "Body of `POST /api/takeaway-orders/{orderId}/collect`."
+      },
       "Yalla.Api.Endpoints.CreateReservationRequest": {
         "required": [
           "branchId",
@@ -21938,6 +23625,18 @@
         },
         "additionalProperties": false,
         "description": "Body for staff accepting or declining a booking that is waiting for approval."
+      },
+      "Yalla.Api.Endpoints.DeclineTakeawayOrderRequest": {
+        "type": "object",
+        "properties": {
+          "reason": {
+            "type": "string",
+            "description": "Shown to the guest. At most 300 characters.",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false,
+        "description": "Body of `POST /api/takeaway-orders/{orderId}/decline`. May be empty."
       },
       "Yalla.Api.Endpoints.DeleteDinerAccountRequest": {
         "type": "object",
@@ -22294,6 +23993,49 @@
         },
         "additionalProperties": false,
         "description": "An order, from a diner's phone or a waiter's tablet."
+      },
+      "Yalla.Api.Endpoints.PlaceTakeawayOrderRequest": {
+        "required": [
+          "branchId",
+          "clientCommandId"
+        ],
+        "type": "object",
+        "properties": {
+          "branchId": {
+            "type": "string",
+            "description": "Where to order from.",
+            "format": "uuid"
+          },
+          "pickup": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Yalla.Api.Endpoints.TakeawayPickupRequest"
+              }
+            ],
+            "description": "When: `{ \"asap\": true }` or `{ \"at\": \"19:15\" }`.",
+            "nullable": true
+          },
+          "note": {
+            "type": "string",
+            "description": "For the venue, at most 500 characters.",
+            "nullable": true
+          },
+          "lines": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Yalla.Api.Endpoints.TakeawayLineRequest"
+            },
+            "description": "The dishes, in display order.",
+            "nullable": true
+          },
+          "clientCommandId": {
+            "type": "string",
+            "description": "Idempotency key; reuse it only to retry this same order.",
+            "format": "uuid"
+          }
+        },
+        "additionalProperties": false,
+        "description": "Body of `POST /api/diner/takeaway-orders`."
       },
       "Yalla.Api.Endpoints.PreOrderCommandRequest": {
         "required": [
@@ -22760,6 +24502,21 @@
         "additionalProperties": false,
         "description": "Body of `POST /api/auth/venue/reset-password`."
       },
+      "Yalla.Api.Endpoints.RunningLateRequest": {
+        "required": [
+          "minutes"
+        ],
+        "type": "object",
+        "properties": {
+          "minutes": {
+            "type": "integer",
+            "description": "10, 15 or 30.",
+            "format": "int32"
+          }
+        },
+        "additionalProperties": false,
+        "description": "Body of `POST .../running-late`."
+      },
       "Yalla.Api.Endpoints.SeatHeldPartyRequest": {
         "required": [
           "clientCommandId",
@@ -23071,6 +24828,81 @@
         },
         "additionalProperties": false,
         "description": "Body of a state-change request that needs nothing beyond the table."
+      },
+      "Yalla.Api.Endpoints.TakeawayLineRequest": {
+        "required": [
+          "menuItemId",
+          "quantity"
+        ],
+        "type": "object",
+        "properties": {
+          "menuItemId": {
+            "type": "string",
+            "description": "The dish, from the branch's menu.",
+            "format": "uuid"
+          },
+          "quantity": {
+            "type": "integer",
+            "description": "1 to 20.",
+            "format": "int32"
+          }
+        },
+        "additionalProperties": false,
+        "description": "One dish on a takeaway order."
+      },
+      "Yalla.Api.Endpoints.TakeawayPickupRequest": {
+        "type": "object",
+        "properties": {
+          "asap": {
+            "type": "boolean",
+            "description": "As soon as possible: ready at now plus the venue's preparation time.",
+            "nullable": true
+          },
+          "at": {
+            "type": "string",
+            "description": "A slot from the availability's `slots`, local `HH:mm`.",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false,
+        "description": "When to pick up: exactly one of the two."
+      },
+      "Yalla.Api.Endpoints.TakeawaySettingsRequest": {
+        "required": [
+          "autoAccept",
+          "enabled",
+          "lastOrderMinutes",
+          "maxInProgress",
+          "prepMinutes"
+        ],
+        "type": "object",
+        "properties": {
+          "enabled": {
+            "type": "boolean",
+            "description": "Guests may order to take away."
+          },
+          "autoAccept": {
+            "type": "boolean",
+            "description": "Accepted without a tap."
+          },
+          "prepMinutes": {
+            "type": "integer",
+            "description": "5 to 90, in fives.",
+            "format": "int32"
+          },
+          "lastOrderMinutes": {
+            "type": "integer",
+            "description": "0 to 120, in fifteens.",
+            "format": "int32"
+          },
+          "maxInProgress": {
+            "type": "integer",
+            "description": "1 to 30.",
+            "format": "int32"
+          }
+        },
+        "additionalProperties": false,
+        "description": "Body of `PUT /api/branches/{branchId}/takeaway-settings`. All five are required."
       },
       "Yalla.Api.Endpoints.UndoNoShowRequest": {
         "required": [
@@ -27378,7 +29210,6 @@
           "partySize",
           "placedAtUtc",
           "status",
-          "tabId",
           "tableLabel",
           "timeline",
           "totalAmd",
@@ -27393,8 +29224,9 @@
           },
           "tabId": {
             "type": "string",
-            "description": "The tab it was placed against.",
-            "format": "uuid"
+            "description": "The tab it was placed against. <b>Absent</b> on a takeaway order, which has no tab.",
+            "format": "uuid",
+            "nullable": true
           },
           "branchId": {
             "type": "string",
@@ -27420,7 +29252,7 @@
           },
           "kind": {
             "type": "string",
-            "description": "Always `\"dineIn\"`: every order in the domain is placed against a table's tab."
+            "description": "`\"dineIn\"` for an order on a table's tab, `\"takeaway\"` for a takeaway order."
           },
           "status": {
             "type": "string",
@@ -27436,11 +29268,11 @@
           },
           "tableLabel": {
             "type": "string",
-            "description": "The table's label."
+            "description": "The table's label. Empty on a takeaway order."
           },
           "partySize": {
             "type": "integer",
-            "description": "The seated party's size.",
+            "description": "The seated party's size. 0 on a takeaway order.",
             "format": "int32"
           },
           "placedAtUtc": {
@@ -27475,7 +29307,16 @@
           },
           "canCancel": {
             "type": "boolean",
-            "description": "Always false. Voiding an order is a staff action on the kitchen rail; a diner has no cancel."
+            "description": "False on a dine-in order: voiding it is a staff action on the kitchen rail. True on a takeaway order while the venue\nhas not answered it - `POST /api/diner/takeaway-orders/{id}/cancel`."
+          },
+          "takeaway": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Yalla.Application.Diners.DinerTakeawaySummary"
+              }
+            ],
+            "description": "The takeaway order's own facts - code, exact status, pickup and ready times. Absent on dine-in.",
+            "nullable": true
           }
         },
         "additionalProperties": false,
@@ -27602,6 +29443,52 @@
         },
         "additionalProperties": false,
         "description": "The signed-in diner's own review of one branch."
+      },
+      "Yalla.Application.Diners.DinerTakeawaySummary": {
+        "required": [
+          "code",
+          "itemCount",
+          "pickupAsap",
+          "requestedPickupUtc",
+          "status"
+        ],
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string",
+            "description": "\"T-482\"."
+          },
+          "status": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Yalla.Domain.Takeaway.TakeawayStatus"
+              }
+            ],
+            "description": "Where a takeaway order stands. Stored as an int, so every number is pinned (`PersistedEnumValueTests`)."
+          },
+          "pickupAsap": {
+            "type": "boolean",
+            "description": "Ordered for as soon as possible."
+          },
+          "requestedPickupUtc": {
+            "type": "string",
+            "description": "When the guest asked for it.",
+            "format": "date-time"
+          },
+          "readyAtUtc": {
+            "type": "string",
+            "description": "When the venue promised it. Absent until accepted.",
+            "format": "date-time",
+            "nullable": true
+          },
+          "itemCount": {
+            "type": "integer",
+            "description": "How many dishes in all - \"4 items\".",
+            "format": "int32"
+          }
+        },
+        "additionalProperties": false,
+        "description": "A takeaway order on the Orders tab - the card's code, status and times. The whole order is `getDinerTakeawayOrder`."
       },
       "Yalla.Application.Diners.MarkNotificationsReadCommand": {
         "type": "object",
@@ -28010,6 +29897,18 @@
             "format": "date-time",
             "nullable": true
           },
+          "nextReservationGuestRunningLateMinutes": {
+            "type": "integer",
+            "description": "The next booking's guest said they are running late: 10, 15 or 30 minutes. `null` when they have not.",
+            "format": "int32",
+            "nullable": true
+          },
+          "nextReservationStaffAskedOnMyWayAtUtc": {
+            "type": "string",
+            "description": "When somebody at the venue last asked the next booking's guest \"are you coming?\". `null` until asked.",
+            "format": "date-time",
+            "nullable": true
+          },
           "nextReservationGuestRecord": {
             "allOf": [
               {
@@ -28273,6 +30172,7 @@
       "Yalla.Application.Menus.MenuItemView": {
         "required": [
           "availableForPreOrder",
+          "availableForTakeaway",
           "categoryId",
           "displayOrder",
           "id",
@@ -28355,6 +30255,9 @@
             }
           },
           "availableForPreOrder": {
+            "type": "boolean"
+          },
+          "availableForTakeaway": {
             "type": "boolean"
           }
         },
@@ -28466,6 +30369,10 @@
           "categoryId": {
             "type": "string",
             "format": "uuid",
+            "nullable": true
+          },
+          "availableForTakeaway": {
+            "type": "boolean",
             "nullable": true
           }
         },
@@ -28785,6 +30692,15 @@
             ],
             "description": "Set when this is a booking's pre-order - held or on the tab it became: whose, and when they are due, so the kitchen\ntimes the cooking. Absent on every other order.",
             "nullable": true
+          },
+          "takeaway": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Yalla.Application.Ordering.KitchenTakeaway"
+              }
+            ],
+            "description": "Set when this is a takeaway order the venue accepted - the \"TAKEAWAY\" band: its code, when it is promised, whose it\nis and the guest's note. TableLabel is the code, TabId is absent, and the\nkitchen's \"Ready\" is `POST /api/takeaway-orders/{orderId}/ready`. Absent on every other order.",
+            "nullable": true
           }
         },
         "additionalProperties": false,
@@ -28827,6 +30743,42 @@
         },
         "additionalProperties": false,
         "description": "The booking a kitchen ticket was pre-ordered for."
+      },
+      "Yalla.Application.Ordering.KitchenTakeaway": {
+        "required": [
+          "code",
+          "guestName",
+          "readyAtLocalTime",
+          "readyAtUtc"
+        ],
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string",
+            "description": "\"T-482\" - what the guest says at the counter."
+          },
+          "readyAtUtc": {
+            "type": "string",
+            "description": "When the venue promised it.",
+            "format": "date-time"
+          },
+          "readyAtLocalTime": {
+            "type": "string",
+            "description": "The same, on the branch's wall clock - \"ready 19:10\".",
+            "format": "time"
+          },
+          "guestName": {
+            "type": "string",
+            "description": "Whose it is - a name, never a number."
+          },
+          "note": {
+            "type": "string",
+            "description": "The guest's note: \"no onion, separate bag\". Absent when none.",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false,
+        "description": "The takeaway order a kitchen ticket is."
       },
       "Yalla.Application.Ordering.OrderLineView": {
         "required": [
@@ -31361,6 +33313,24 @@
           "onYourWayAsked": {
             "type": "boolean",
             "description": "Ask \"Are you on your way?\" now: from 45 minutes before the start, for a confirmed booking whose pre-order is waiting\n(not sent, not marked not coming, not cancelled) and whose guest has not answered."
+          },
+          "guestRunningLateMinutes": {
+            "type": "integer",
+            "description": "\"I'm running late\": 10, 15 or 30 minutes, the guest's latest answer.",
+            "format": "int32",
+            "nullable": true
+          },
+          "staffAskedOnMyWayAtUtc": {
+            "type": "string",
+            "description": "When the venue last asked \"are you coming?\" from its tablet.",
+            "format": "date-time",
+            "nullable": true
+          },
+          "onMyWayOpensAtUtc": {
+            "type": "string",
+            "description": "From when \"on my way\" and \"running late\" are taken: two hours before the start.",
+            "format": "date-time",
+            "nullable": true
           }
         },
         "additionalProperties": false,
@@ -31425,7 +33395,8 @@
           "recentReviews",
           "rooms",
           "specialDays",
-          "tableCount"
+          "tableCount",
+          "takeaway"
         ],
         "type": "object",
         "properties": {
@@ -31514,6 +33485,14 @@
               "$ref": "#/components/schemas/Yalla.Application.Public.PublicRoom"
             },
             "description": "The rooms a diner picks from, each with its photos and the live pins on them - the same payload as\n`GET /api/public/branches/{id}/rooms`."
+          },
+          "takeaway": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Yalla.Application.Public.PublicTakeawayInfo"
+              }
+            ],
+            "description": "Whether the place takes takeaway orders from the app, and its preparation time - the \"Order to take away\" button\nand the info card. Whether it is open for takeaway right now is `GET /api/diner/branches/{branchId}/takeaway`."
           },
           "asOfUtc": {
             "type": "string",
@@ -32214,6 +34193,26 @@
         },
         "additionalProperties": false,
         "description": "One table's pin on a room photo, with its live state."
+      },
+      "Yalla.Application.Public.PublicTakeawayInfo": {
+        "required": [
+          "enabled",
+          "prepMinutes"
+        ],
+        "type": "object",
+        "properties": {
+          "enabled": {
+            "type": "boolean",
+            "description": "The venue takes takeaway orders from the app."
+          },
+          "prepMinutes": {
+            "type": "integer",
+            "description": "\"Ready in about 20 minutes\".",
+            "format": "int32"
+          }
+        },
+        "additionalProperties": false,
+        "description": "A place's takeaway, as the place page shows it."
       },
       "Yalla.Application.Public.PublicVenueCard": {
         "required": [
@@ -33061,6 +35060,38 @@
         },
         "additionalProperties": false
       },
+      "Yalla.Application.Reservations.AskOnMyWayResult": {
+        "required": [
+          "nextAskAllowedAtUtc",
+          "notified",
+          "reservationId",
+          "staffAskedOnMyWayAtUtc"
+        ],
+        "type": "object",
+        "properties": {
+          "reservationId": {
+            "type": "string",
+            "description": "The booking.",
+            "format": "uuid"
+          },
+          "staffAskedOnMyWayAtUtc": {
+            "type": "string",
+            "description": "When it was asked - now.",
+            "format": "date-time"
+          },
+          "nextAskAllowedAtUtc": {
+            "type": "string",
+            "description": "When the venue may ask again, fifteen minutes on, if the guest has not answered.",
+            "format": "date-time"
+          },
+          "notified": {
+            "type": "boolean",
+            "description": "The guest was sent the push and the feed entry. False for a booking with no live account behind it (made on the web\nwithout one, or the account deleted): call the number instead."
+          }
+        },
+        "additionalProperties": false,
+        "description": "The answer to the venue's \"Ask: are you coming?\"."
+      },
       "Yalla.Application.Reservations.AwaitingApproval": {
         "required": [
           "reservation",
@@ -33646,6 +35677,24 @@
             "format": "uuid",
             "nullable": true
           },
+          "guestRunningLateMinutes": {
+            "type": "integer",
+            "description": "\"Running late\": 10, 15 or 30 minutes, the guest's latest answer. Absent unless they said it.",
+            "format": "int32",
+            "nullable": true
+          },
+          "guestRunningLateAtUtc": {
+            "type": "string",
+            "description": "When they said it.",
+            "format": "date-time",
+            "nullable": true
+          },
+          "staffAskedOnMyWayAtUtc": {
+            "type": "string",
+            "description": "When somebody at the venue last asked \"are you coming?\" from the tablet. Absent until asked.",
+            "format": "date-time",
+            "nullable": true
+          },
           "wasReplay": {
             "type": "boolean",
             "description": "On an action's answer: it had been done already, and nothing changed this time."
@@ -34206,6 +36255,7 @@
           "localDate",
           "localEndTime",
           "localStartTime",
+          "onMyWayOpensAtUtc",
           "partySize",
           "phoneUnverified",
           "startUtc",
@@ -34419,10 +36469,66 @@
             "description": "When the guest answered \"Yes, on my way\". Absent until they do.",
             "format": "date-time",
             "nullable": true
+          },
+          "guestRunningLateMinutes": {
+            "type": "integer",
+            "description": "\"I'm running late\": 10, 15 or 30 minutes - the guest's latest answer. Absent unless they said it.",
+            "format": "int32",
+            "nullable": true
+          },
+          "guestRunningLateAtUtc": {
+            "type": "string",
+            "description": "When the guest said they are running late. Absent with Yalla.Application.Reservations.ReservationView.GuestRunningLateMinutes.",
+            "format": "date-time",
+            "nullable": true
+          },
+          "staffAskedOnMyWayAtUtc": {
+            "type": "string",
+            "description": "When somebody at the venue last asked \"are you coming?\" from the tablet. Set, and the guest has not answered, the\napp shows \"{venue} is asking: are you coming?\". Absent until asked.",
+            "format": "date-time",
+            "nullable": true
+          },
+          "onMyWayOpensAtUtc": {
+            "type": "string",
+            "description": "From when \"I'm coming\" and \"running late\" are taken: two hours before the start. The answer is taken until the\nbooking ends, while it is confirmed.",
+            "format": "date-time"
           }
         },
         "additionalProperties": false,
         "description": "One booking as every client sees it."
+      },
+      "Yalla.Application.Reservations.RunningLateResult": {
+        "required": [
+          "expectedArrivalUtc",
+          "guestRunningLateAtUtc",
+          "guestRunningLateMinutes",
+          "reservationId"
+        ],
+        "type": "object",
+        "properties": {
+          "reservationId": {
+            "type": "string",
+            "description": "The booking.",
+            "format": "uuid"
+          },
+          "guestRunningLateMinutes": {
+            "type": "integer",
+            "description": "10, 15 or 30 - the answer as it now stands.",
+            "format": "int32"
+          },
+          "guestRunningLateAtUtc": {
+            "type": "string",
+            "description": "When the guest said it.",
+            "format": "date-time"
+          },
+          "expectedArrivalUtc": {
+            "type": "string",
+            "description": "The start plus the minutes: when the venue may expect them.",
+            "format": "date-time"
+          }
+        },
+        "additionalProperties": false,
+        "description": "The answer to \"I'm running late\"."
       },
       "Yalla.Application.Reservations.TableAvailability": {
         "required": [
@@ -36216,6 +38322,649 @@
         "additionalProperties": false,
         "description": "A tab as one participant is allowed to see it."
       },
+      "Yalla.Application.Takeaway.BranchTakeawayOrders": {
+        "required": [
+          "active",
+          "asOfUtc",
+          "branchId",
+          "finishedToday",
+          "readyCount",
+          "sentCount"
+        ],
+        "type": "object",
+        "properties": {
+          "branchId": {
+            "type": "string",
+            "description": "The branch.",
+            "format": "uuid"
+          },
+          "active": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Yalla.Application.Takeaway.StaffTakeawayOrderView"
+            },
+            "description": "Sent, Accepted and Ready - the rail's and the counter's first two columns. Oldest first."
+          },
+          "finishedToday": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Yalla.Application.Takeaway.StaffTakeawayOrderView"
+            },
+            "description": "Collected, NoShow and Declined on the branch's service day, newest first."
+          },
+          "sentCount": {
+            "type": "integer",
+            "description": "How many wait for an answer - with ReadyCount, the tab's badge.",
+            "format": "int32"
+          },
+          "readyCount": {
+            "type": "integer",
+            "description": "How many wait at the counter.",
+            "format": "int32"
+          },
+          "asOfUtc": {
+            "type": "string",
+            "description": "When it was read.",
+            "format": "date-time"
+          }
+        },
+        "additionalProperties": false,
+        "description": "A branch's takeaway counter."
+      },
+      "Yalla.Application.Takeaway.StaffTakeawayOrderView": {
+        "required": [
+          "code",
+          "guestName",
+          "guestPhone",
+          "id",
+          "lines",
+          "pickupAsap",
+          "requestedPickupAt",
+          "requestedPickupUtc",
+          "sentAtUtc",
+          "status",
+          "totalAmd",
+          "wasReplay"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "The order - the id the actions take.",
+            "format": "uuid"
+          },
+          "code": {
+            "type": "string",
+            "description": "\"T-482\"."
+          },
+          "status": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Yalla.Domain.Takeaway.TakeawayStatus"
+              }
+            ],
+            "description": "Where a takeaway order stands. Stored as an int, so every number is pinned (`PersistedEnumValueTests`)."
+          },
+          "guestName": {
+            "type": "string",
+            "description": "Who to call out."
+          },
+          "guestPhone": {
+            "type": "string",
+            "description": "Their proved number, to call. Empty for a platform admin: the venue's to call."
+          },
+          "pickupAsap": {
+            "type": "boolean",
+            "description": "As soon as possible, rather than a slot."
+          },
+          "requestedPickupUtc": {
+            "type": "string",
+            "description": "When the guest wants it - the stepper's starting point.",
+            "format": "date-time"
+          },
+          "requestedPickupAt": {
+            "type": "string",
+            "description": "The same, `HH:mm`."
+          },
+          "readyAtUtc": {
+            "type": "string",
+            "description": "When it was promised. Absent until accepted.",
+            "format": "date-time",
+            "nullable": true
+          },
+          "readyAt": {
+            "type": "string",
+            "description": "The same, `HH:mm`.",
+            "nullable": true
+          },
+          "note": {
+            "type": "string",
+            "description": "The guest's note.",
+            "nullable": true
+          },
+          "lines": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Yalla.Application.Takeaway.TakeawayLineView"
+            },
+            "description": "What to cook."
+          },
+          "totalAmd": {
+            "type": "integer",
+            "description": "To take at the counter.",
+            "format": "int64"
+          },
+          "sentAtUtc": {
+            "type": "string",
+            "description": "When it came in.",
+            "format": "date-time"
+          },
+          "acceptDeadlineUtc": {
+            "type": "string",
+            "description": "While sent: when it is declined for nobody answering - the countdown. Absent with auto-accept.",
+            "format": "date-time",
+            "nullable": true
+          },
+          "acceptedAtUtc": {
+            "type": "string",
+            "description": "When it was accepted.",
+            "format": "date-time",
+            "nullable": true
+          },
+          "acceptedByName": {
+            "type": "string",
+            "description": "Who accepted it; absent when accepted automatically.",
+            "nullable": true
+          },
+          "readyMarkedAtUtc": {
+            "type": "string",
+            "description": "When the kitchen marked it ready - \"waiting 35 min\" counts from here.",
+            "format": "date-time",
+            "nullable": true
+          },
+          "noShowFromUtc": {
+            "type": "string",
+            "description": "From when \"no-show\" may be marked: thirty minutes after ready. Absent until accepted.",
+            "format": "date-time",
+            "nullable": true
+          },
+          "collectedAtUtc": {
+            "type": "string",
+            "description": "When it was handed over.",
+            "format": "date-time",
+            "nullable": true
+          },
+          "paymentMethod": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Yalla.Domain.Takeaway.TakeawayPaymentMethod"
+              }
+            ],
+            "description": "1 Cash, 2 Card, once collected.",
+            "nullable": true
+          },
+          "paidAmountAmd": {
+            "type": "integer",
+            "description": "What was taken, once collected.",
+            "format": "int64",
+            "nullable": true
+          },
+          "declinedAtUtc": {
+            "type": "string",
+            "description": "When it was declined.",
+            "format": "date-time",
+            "nullable": true
+          },
+          "declinedBecause": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Yalla.Domain.Takeaway.TakeawayDeclineCause"
+              }
+            ],
+            "description": "1 staff, 2 nobody answered.",
+            "nullable": true
+          },
+          "declineReason": {
+            "type": "string",
+            "description": "What staff said.",
+            "nullable": true
+          },
+          "noShowAtUtc": {
+            "type": "string",
+            "description": "When it was marked not collected.",
+            "format": "date-time",
+            "nullable": true
+          },
+          "cancelledAtUtc": {
+            "type": "string",
+            "description": "When the guest cancelled.",
+            "format": "date-time",
+            "nullable": true
+          },
+          "wasReplay": {
+            "type": "boolean",
+            "description": "On an action's answer: it had been done already, and nothing changed this time."
+          }
+        },
+        "additionalProperties": false,
+        "description": "A takeaway order as the floor tablet and the counter see it."
+      },
+      "Yalla.Application.Takeaway.TakeawayAvailability": {
+        "required": [
+          "branchId",
+          "busy",
+          "enabled",
+          "open",
+          "prepMinutes",
+          "slots"
+        ],
+        "type": "object",
+        "properties": {
+          "branchId": {
+            "type": "string",
+            "description": "The branch.",
+            "format": "uuid"
+          },
+          "enabled": {
+            "type": "boolean",
+            "description": "The venue takes takeaway at all. False: no button."
+          },
+          "open": {
+            "type": "boolean",
+            "description": "Orders are taken now: inside opening hours, before the last order."
+          },
+          "prepMinutes": {
+            "type": "integer",
+            "description": "The venue's preparation time - \"ready in about 20 minutes\".",
+            "format": "int32"
+          },
+          "asapReadyAtUtc": {
+            "type": "string",
+            "description": "\"As soon as possible\" would be ready at this instant. Absent when closed.",
+            "format": "date-time",
+            "nullable": true
+          },
+          "asapReadyAt": {
+            "type": "string",
+            "description": "The same on the branch's wall clock, `HH:mm`. Absent when closed.",
+            "nullable": true
+          },
+          "slots": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "The pickup times offered today, on the branch's wall clock (`HH:mm`), in quarter hours from the ASAP time to the\nlast pickup. A time that would put more orders in the kitchen than the venue allows is left out. Empty when closed."
+          },
+          "lastPickupAt": {
+            "type": "string",
+            "description": "The latest pickup today, `HH:mm`: closing minus the last-order minutes. Absent when closed.",
+            "nullable": true
+          },
+          "busy": {
+            "type": "boolean",
+            "description": "The kitchen has as many orders in progress as the venue allows: ASAP is refused; a slot may still work."
+          },
+          "opensAt": {
+            "type": "string",
+            "description": "Closed: the next opening an order can be taken from, `HH:mm` on its day. Absent otherwise.",
+            "nullable": true
+          },
+          "opensAtUtc": {
+            "type": "string",
+            "description": "The same instant. Absent with OpensAt.",
+            "format": "date-time",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false,
+        "description": "Whether a branch takes takeaway now, and the pickup times it offers - for the checkout screen."
+      },
+      "Yalla.Application.Takeaway.TakeawayLineView": {
+        "required": [
+          "id",
+          "lineTotalAmd",
+          "menuItemId",
+          "name",
+          "quantity",
+          "unitPriceAmd"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "menuItemId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "unitPriceAmd": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "quantity": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "lineTotalAmd": {
+            "type": "integer",
+            "format": "int64"
+          }
+        },
+        "additionalProperties": false,
+        "description": "One line of a takeaway order, at the name and price it was ordered at."
+      },
+      "Yalla.Application.Takeaway.TakeawayOrderView": {
+        "required": [
+          "branchAddress",
+          "branchId",
+          "branchName",
+          "canCancel",
+          "code",
+          "id",
+          "latitude",
+          "lines",
+          "longitude",
+          "pickupAsap",
+          "requestedPickupAt",
+          "requestedPickupUtc",
+          "sentAtUtc",
+          "status",
+          "totalAmd",
+          "venueName",
+          "wasReplay"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "The order.",
+            "format": "uuid"
+          },
+          "branchId": {
+            "type": "string",
+            "description": "The branch.",
+            "format": "uuid"
+          },
+          "venueName": {
+            "type": "string",
+            "description": "The venue."
+          },
+          "branchName": {
+            "type": "string",
+            "description": "Which location."
+          },
+          "branchAddress": {
+            "type": "string",
+            "description": "Where to pick it up."
+          },
+          "branchPhoneE164": {
+            "type": "string",
+            "description": "The venue's number, to call. Absent when it has none on file.",
+            "nullable": true
+          },
+          "latitude": {
+            "type": "number",
+            "description": "For directions.",
+            "format": "double"
+          },
+          "longitude": {
+            "type": "number",
+            "description": "For directions.",
+            "format": "double"
+          },
+          "code": {
+            "type": "string",
+            "description": "\"T-482\" - what to say at the counter."
+          },
+          "status": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Yalla.Domain.Takeaway.TakeawayStatus"
+              }
+            ],
+            "description": "Where a takeaway order stands. Stored as an int, so every number is pinned (`PersistedEnumValueTests`)."
+          },
+          "pickupAsap": {
+            "type": "boolean",
+            "description": "Ordered for as soon as possible."
+          },
+          "requestedPickupUtc": {
+            "type": "string",
+            "description": "When the guest asked for it.",
+            "format": "date-time"
+          },
+          "requestedPickupAt": {
+            "type": "string",
+            "description": "The same, branch wall clock `HH:mm`."
+          },
+          "readyAtUtc": {
+            "type": "string",
+            "description": "When the venue said it will be ready. Absent until accepted.",
+            "format": "date-time",
+            "nullable": true
+          },
+          "readyAt": {
+            "type": "string",
+            "description": "The same, `HH:mm`.",
+            "nullable": true
+          },
+          "note": {
+            "type": "string",
+            "description": "The guest's note.",
+            "nullable": true
+          },
+          "lines": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Yalla.Application.Takeaway.TakeawayLineView"
+            },
+            "description": "What was ordered."
+          },
+          "totalAmd": {
+            "type": "integer",
+            "description": "To pay at pickup.",
+            "format": "int64"
+          },
+          "paymentMethod": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Yalla.Domain.Takeaway.TakeawayPaymentMethod"
+              }
+            ],
+            "description": "How it was paid: 1 Cash, 2 Card. Absent until collected.",
+            "nullable": true
+          },
+          "paidAmountAmd": {
+            "type": "integer",
+            "description": "What was paid. Absent until collected.",
+            "format": "int64",
+            "nullable": true
+          },
+          "sentAtUtc": {
+            "type": "string",
+            "description": "When it was sent.",
+            "format": "date-time"
+          },
+          "acceptedAtUtc": {
+            "type": "string",
+            "description": "When the venue accepted it.",
+            "format": "date-time",
+            "nullable": true
+          },
+          "readyMarkedAtUtc": {
+            "type": "string",
+            "description": "When the kitchen marked it ready.",
+            "format": "date-time",
+            "nullable": true
+          },
+          "collectedAtUtc": {
+            "type": "string",
+            "description": "When it was handed over.",
+            "format": "date-time",
+            "nullable": true
+          },
+          "declinedAtUtc": {
+            "type": "string",
+            "description": "When it was declined.",
+            "format": "date-time",
+            "nullable": true
+          },
+          "cancelledAtUtc": {
+            "type": "string",
+            "description": "When the guest cancelled.",
+            "format": "date-time",
+            "nullable": true
+          },
+          "noShowAtUtc": {
+            "type": "string",
+            "description": "When it was marked not collected.",
+            "format": "date-time",
+            "nullable": true
+          },
+          "declinedBecause": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Yalla.Domain.Takeaway.TakeawayDeclineCause"
+              }
+            ],
+            "description": "1 the venue said no, 2 nobody answered in time. Absent unless declined.",
+            "nullable": true
+          },
+          "declineReason": {
+            "type": "string",
+            "description": "What the venue said, when it said why.",
+            "nullable": true
+          },
+          "acceptDeadlineUtc": {
+            "type": "string",
+            "description": "While sent: when it is declined if nobody answers.",
+            "format": "date-time",
+            "nullable": true
+          },
+          "canCancel": {
+            "type": "boolean",
+            "description": "True while sent - after that, a phone call."
+          },
+          "wasReplay": {
+            "type": "boolean",
+            "description": "On the answer to placing it: the same `clientCommandId` placed it before."
+          }
+        },
+        "additionalProperties": false,
+        "description": "A takeaway order as its guest sees it - the status screen."
+      },
+      "Yalla.Application.Takeaway.TakeawaySettingsBounds": {
+        "required": [
+          "lastOrderMinutesMax",
+          "lastOrderMinutesMin",
+          "lastOrderMinutesStep",
+          "maxInProgressMax",
+          "maxInProgressMin",
+          "prepMinutesMax",
+          "prepMinutesMin",
+          "prepMinutesStep"
+        ],
+        "type": "object",
+        "properties": {
+          "prepMinutesMin": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "prepMinutesMax": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "prepMinutesStep": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "lastOrderMinutesMin": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "lastOrderMinutesMax": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "lastOrderMinutesStep": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "maxInProgressMin": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "maxInProgressMax": {
+            "type": "integer",
+            "format": "int32"
+          }
+        },
+        "additionalProperties": false,
+        "description": "What each takeaway setting may be: inclusive bounds and the stepper's step."
+      },
+      "Yalla.Application.Takeaway.TakeawaySettingsView": {
+        "required": [
+          "acceptWindowMinutes",
+          "autoAccept",
+          "bounds",
+          "enabled",
+          "lastOrderMinutes",
+          "maxInProgress",
+          "noShowAfterMinutes",
+          "prepMinutes"
+        ],
+        "type": "object",
+        "properties": {
+          "enabled": {
+            "type": "boolean",
+            "description": "Guests may order to take away."
+          },
+          "autoAccept": {
+            "type": "boolean",
+            "description": "Accepted without a tap."
+          },
+          "prepMinutes": {
+            "type": "integer",
+            "description": "The preparation time.",
+            "format": "int32"
+          },
+          "lastOrderMinutes": {
+            "type": "integer",
+            "description": "How long before closing ordering stops.",
+            "format": "int32"
+          },
+          "maxInProgress": {
+            "type": "integer",
+            "description": "How many orders may be in progress at once.",
+            "format": "int32"
+          },
+          "bounds": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Yalla.Application.Takeaway.TakeawaySettingsBounds"
+              }
+            ],
+            "description": "What each number may be."
+          },
+          "acceptWindowMinutes": {
+            "type": "integer",
+            "description": "An order nobody accepts within this is declined (5) - when auto-accept is off.",
+            "format": "int32"
+          },
+          "noShowAfterMinutes": {
+            "type": "integer",
+            "description": "\"No-show\" may be marked this long after ready (30).",
+            "format": "int32"
+          }
+        },
+        "additionalProperties": false,
+        "description": "The settings with their bounds and the product's fixed numbers, for the console's card."
+      },
       "Yalla.Application.Venues.ManagedBranchView": {
         "required": [
           "branchId",
@@ -36887,6 +39636,55 @@
           "TableJustBooked",
           "NextBookingTooSoon",
           "EarlierGuestBeingAsked"
+        ]
+      },
+      "Yalla.Domain.Takeaway.TakeawayDeclineCause": {
+        "enum": [
+          1,
+          2
+        ],
+        "type": "integer",
+        "description": "Why a takeaway order was declined.\n\nValues: 1 StaffDeclined, 2 NoAnswer.",
+        "format": "int32",
+        "x-enum-varnames": [
+          "StaffDeclined",
+          "NoAnswer"
+        ]
+      },
+      "Yalla.Domain.Takeaway.TakeawayPaymentMethod": {
+        "enum": [
+          1,
+          2
+        ],
+        "type": "integer",
+        "description": "How the guest paid at the counter. The venue's own terminal or drawer; nothing is charged in the app.\n\nValues: 1 Cash, 2 Card.",
+        "format": "int32",
+        "x-enum-varnames": [
+          "Cash",
+          "Card"
+        ]
+      },
+      "Yalla.Domain.Takeaway.TakeawayStatus": {
+        "enum": [
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7
+        ],
+        "type": "integer",
+        "description": "Where a takeaway order stands. Stored as an int, so every number is pinned (`PersistedEnumValueTests`).\n\nValues: 1 Sent, 2 Accepted, 3 Ready, 4 Collected, 5 Declined, 6 Cancelled, 7 NoShow.",
+        "format": "int32",
+        "x-enum-varnames": [
+          "Sent",
+          "Accepted",
+          "Ready",
+          "Collected",
+          "Declined",
+          "Cancelled",
+          "NoShow"
         ]
       }
     },

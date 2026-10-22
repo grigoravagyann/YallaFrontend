@@ -119,6 +119,8 @@ export function adminItem(view: WireItem): AdminMenuItem {
     isAvailable: view.isAvailable,
     // Pre-orders (2026-10-21): absent — a server from before them — is yes.
     availableForPreOrder: view.availableForPreOrder !== false,
+    // Takeaway (2026-10-22): absent — a server from before it — is yes.
+    availableForTakeaway: view.availableForTakeaway !== false,
     displayOrder: view.displayOrder,
     ...missingFieldsOf(view),
   };
