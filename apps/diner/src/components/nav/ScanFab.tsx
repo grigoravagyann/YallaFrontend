@@ -1,5 +1,12 @@
 import { useState } from 'react';
-import { Animated, Pressable, StyleSheet, type StyleProp, type ViewStyle } from 'react-native';
+import {
+  Animated,
+  Pressable,
+  StyleSheet,
+  View,
+  type StyleProp,
+  type ViewStyle,
+} from 'react-native';
 import { colors, radius } from '../../theme';
 import { Text } from '../Text';
 import { tabBarMetrics } from './metrics';
@@ -71,7 +78,11 @@ export function ScanFab({
     >
       <Animated.View style={[styles.circle, { transform: [{ scale }] }]}>
         <GlassFill />
-        <NavGlyph routeName="scan" size={tabBarMetrics.scanGlyph} color={colors.accent} />
+        {/* Above the glass: on the web an absolutely placed layer paints over
+            in-flow siblings, which blurred the glyph under the frost. */}
+        <View style={styles.glyph}>
+          <NavGlyph routeName="scan" size={tabBarMetrics.scanGlyph} color={colors.accent} />
+        </View>
       </Animated.View>
       <Text
         numberOfLines={1}
@@ -107,5 +118,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     // Flat, like the four tabs beside it: the hairline is its only edge.
   },
+  glyph: { zIndex: 1 },
   label: { ...navLabelStyle, maxWidth: '100%' },
 });
