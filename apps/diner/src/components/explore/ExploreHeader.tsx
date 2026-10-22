@@ -90,7 +90,7 @@ export function ExploreHeader({
         onPress={onBell}
         style={({ pressed }) => [styles.round, pressed && styles.pressed]}
       >
-        <Ionicons name="notifications-outline" size={21} color={colors.primary} />
+        <Ionicons name="notifications-outline" size={21} color={colors.text} />
         {unread ? <View pointerEvents="none" style={styles.unreadDot} /> : null}
       </Pressable>
     </View>
@@ -158,7 +158,7 @@ function MapPill({
         onPressOut={press.onPressOut}
         style={({ pressed }) => [compact ? styles.round : styles.pill, pressed && styles.pressed]}
       >
-        <Ionicons name={actionIcon.map} size={20} color={colors.primary} />
+        <Ionicons name={actionIcon.map} size={20} color={colors.text} />
         {compact ? null : (
           <Text numberOfLines={1} style={styles.pillLabel}>
             {label}
@@ -190,7 +190,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  // The controls' edges and icons are burgundy; their letters stay black.
+
   initial: {
     fontSize: 21,
     lineHeight: 26,

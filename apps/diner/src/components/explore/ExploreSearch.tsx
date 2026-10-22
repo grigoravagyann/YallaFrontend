@@ -35,7 +35,7 @@ export function ExploreSearch({
 }: ExploreSearchProps) {
   return (
     <View style={styles.field}>
-      <Ionicons name={actionIcon.search} size={19} color={colors.primary} />
+      <Ionicons name={actionIcon.search} size={19} color={colors.text} />
       <TextInput
         style={styles.input}
         value={value}
@@ -55,7 +55,7 @@ export function ExploreSearch({
           onPress={() => onChangeText('')}
           style={({ pressed }) => [styles.button, pressed && styles.pressed]}
         >
-          <Ionicons name={actionIcon.close} size={20} color={colors.primary} />
+          <Ionicons name={actionIcon.close} size={20} color={colors.text} />
         </Pressable>
       ) : null}
       <Pressable
@@ -64,7 +64,7 @@ export function ExploreSearch({
         onPress={onFilters}
         style={({ pressed }) => [styles.button, pressed && styles.pressed]}
       >
-        <Ionicons name="options-outline" size={20} color={colors.primary} />
+        <Ionicons name="options-outline" size={20} color={colors.text} />
         {activeFilters > 0 ? (
           <View pointerEvents="none" style={styles.count}>
             {/* Held to its 16 px dot: a large system font would burst it. */}
