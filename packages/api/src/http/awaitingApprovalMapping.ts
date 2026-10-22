@@ -41,7 +41,13 @@ function blank(value: string | null | undefined): string | null {
 export function awaitingApprovalFromWire(wire: WireAwaitingApproval): AwaitingApproval {
   // The pre-order rides on the booking (2026-10-21), ahead of the schema.
   const view = wire.reservation as WireAwaitingApproval['reservation'] & WireBookingPreOrderFields;
-  const { preOrder, guestConfirmedOnWayAtUtc } = bookingPreOrderFields(view);
+  const {
+    preOrder,
+    guestConfirmedOnWayAtUtc,
+    guestRunningLateMinutes,
+    guestRunningLateAtUtc,
+    staffAskedOnMyWayAtUtc,
+  } = bookingPreOrderFields(view);
   const previous = wire.previousBooking as WirePreviousBooking | null | undefined;
   const previousBooking: PreviousBookingContext | null = previous
     ? {
@@ -97,5 +103,8 @@ export function awaitingApprovalFromWire(wire: WireAwaitingApproval): AwaitingAp
       : null,
     preOrder,
     guestConfirmedOnWayAtUtc,
+    guestRunningLateMinutes,
+    guestRunningLateAtUtc,
+    staffAskedOnMyWayAtUtc,
   };
 }

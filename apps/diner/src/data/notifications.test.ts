@@ -510,3 +510,68 @@ describe('are you on your way?, in the feed', () => {
     }
   });
 });
+
+describe('takeaway in the feed (2026-10-22)', () => {
+  const takeaway = (kind: string, params: DinerNotification['params']) =>
+    row({ kind, params: { code: 'T-482', ...params }, reservationId: null, orderId: 'tw-1' });
+
+  it('says the order was accepted, with the time it will be ready', () => {
+    expect(notificationCopy(takeaway('takeaway-accepted', { readyTime: '19:10' }))).toEqual({
+      titleKey: 'notifications.kind.takeawayAccepted.title',
+      bodyKey: 'notifications.kind.takeawayAccepted.body',
+      params: { place: 'Lumen Coffee · Cascade', code: 'T-482', readyTime: '19:10' },
+    });
+    expect(notificationCopy(takeaway('takeaway-accepted', {})).bodyKey).toBe(
+      'notifications.kind.takeawayAcceptedPlain.body',
+    );
+  });
+
+  it('says it is ready to pick up', () => {
+    expect(notificationCopy(takeaway('takeaway-ready', {})).titleKey).toBe(
+      'notifications.kind.takeawayReady.title',
+    );
+  });
+
+  it("apologises when nobody answered, and gives the venue's reason when it gave one", () => {
+    expect(notificationCopy(takeaway('takeaway-declined', { noAnswer: 'true' })).bodyKey).toBe(
+      'notifications.kind.takeawayDeclinedNoAnswer.body',
+    );
+    const reasoned = notificationCopy(takeaway('takeaway-declined', { reason: 'Out of lamb' }));
+    expect(reasoned.bodyKey).toBe('notifications.kind.takeawayDeclinedReason.body');
+    expect(reasoned.params.reason).toBe('Out of lamb');
+    expect(notificationCopy(takeaway('takeaway-declined', {})).bodyKey).toBe(
+      'notifications.kind.takeawayDeclined.body',
+    );
+  });
+
+  it('has every one of its keys in all three languages', () => {
+    const rows = [
+      takeaway('takeaway-accepted', { readyTime: '19:10' }),
+      takeaway('takeaway-accepted', {}),
+      takeaway('takeaway-ready', {}),
+      takeaway('takeaway-declined', { noAnswer: true }),
+      takeaway('takeaway-declined', { reason: 'x' }),
+      takeaway('takeaway-declined', {}),
+    ];
+    for (const locale of ['hy', 'ru', 'en'] as const) {
+      for (const copy of rows.map((entry) => notificationCopy(entry))) {
+        for (const key of [copy.titleKey, copy.bodyKey]) {
+          expect(typeof lookup(dinerResources[locale].diner, key), `${locale} ${key}`).toBe(
+            'string',
+          );
+        }
+      }
+    }
+  });
+
+  it("opens the order's status screen", () => {
+    expect(notificationRoute(takeaway('takeaway-ready', {}))).toEqual({
+      pathname: '/takeaway/[orderId]',
+      params: { orderId: 'tw-1' },
+    });
+    expect(notificationRoute({ ...takeaway('takeaway-ready', {}), orderId: null })).toEqual({
+      pathname: '/place/[placeId]',
+      params: { placeId: 'b1' },
+    });
+  });
+});

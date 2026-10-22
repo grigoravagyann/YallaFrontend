@@ -34,6 +34,7 @@ const VIEW: WireReservationWithApproval = {
   roomName: 'Windows',
   partySize: 2,
   startUtc: '2026-10-18T15:45:00Z',
+  onMyWayOpensAtUtc: '2026-10-18T13:45:00Z',
   endUtc: '2026-10-18T17:30:00Z',
   localDate: '2026-10-18',
   localStartTime: '19:45:00',
@@ -175,6 +176,10 @@ describe('a request on the floor tablet', () => {
       // No pre-order on this booking (2026-10-21), and no answer.
       preOrder: null,
       guestConfirmedOnWayAtUtc: null,
+      // Nobody late, nobody asked (2026-10-22).
+      guestRunningLateMinutes: null,
+      guestRunningLateAtUtc: null,
+      staffAskedOnMyWayAtUtc: null,
       id: VIEW.id,
       code: 'Y3107',
       branchId: BRANCH,

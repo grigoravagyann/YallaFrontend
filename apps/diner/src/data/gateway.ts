@@ -59,6 +59,14 @@ export const gateway: YallaGateway = resolveGateway({
   // with EXPO_PUBLIC_MOCK_PRE_ORDERS=0.
   mockPreOrders:
     process.env['EXPO_PUBLIC_MOCK_PRE_ORDERS'] !== '0' && process.env['NODE_ENV'] !== 'test',
+  // Takeaway and "I'm coming", in mock mode: Northern Avenue takes takeaway
+  // (the matnakash eggs hall-only), the seeded account has an order being
+  // prepared, and a booking with a pre-order forty minutes out. Off in tests,
+  // and with EXPO_PUBLIC_MOCK_TAKEAWAY=0.
+  mockTakeaway:
+    process.env['EXPO_PUBLIC_MOCK_TAKEAWAY'] !== '0' && process.env['NODE_ENV'] !== 'test',
+  mockComingBooking:
+    process.env['EXPO_PUBLIC_MOCK_TAKEAWAY'] !== '0' && process.env['NODE_ENV'] !== 'test',
   // On the web build the mock world survives a full page load (QA F2); a
   // phone keeps the app alive between screens and has no localStorage.
   persist:

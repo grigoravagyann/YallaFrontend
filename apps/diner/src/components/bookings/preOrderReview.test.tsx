@@ -473,7 +473,7 @@ describe('are you on your way?', () => {
     gateway.confirmOnMyWay.mockRejectedValue(new OnMyWayNotOpenError({ url: '/x', opensAtUtc }));
     render(withQueries(<BookingDetailScreen />));
 
-    fireEvent.click(await screen.findByRole('button', { name: 'preOrder.onYourWay.yes' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'coming.imComing' }));
     expect(
       await screen.findByText(
         `preOrder.error.onMyWayOpensAt time=${formatTime(opensAtUtc, 'Asia/Yerevan', 'en')}`,

@@ -48,6 +48,11 @@ export interface ResolveConsoleGatewayOptions {
    * pending booking carries one (2026-10-21). See `ConsoleMockOptions.seedPreOrders`.
    */
   readonly mockPreOrders?: boolean | undefined;
+  /**
+   * Mock only: Northern Avenue takes takeaway orders, its matnakash eggs
+   * hall-only (2026-10-22). See `ConsoleMockOptions.seedTakeaway`.
+   */
+  readonly mockTakeaway?: boolean | undefined;
   /** Mock only: keep the world across a reload. See {@link MockPersistence}. */
   readonly persist?: MockPersistence | undefined;
 }
@@ -64,6 +69,7 @@ export function resolveConsoleGateway(options: ResolveConsoleGatewayOptions): Co
     const role = {
       ...(options.mockRole ? { role: options.mockRole } : {}),
       ...(options.mockPreOrders ? { seedPreOrders: true } : {}),
+      ...(options.mockTakeaway ? { seedTakeaway: true } : {}),
     };
     if (options.persist) {
       return persistMockGateway<ConsoleGateway>({

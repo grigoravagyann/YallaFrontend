@@ -4,6 +4,7 @@ import type {
   PreOrderResult,
   ReplaceManagedPreOrderCommand,
 } from './contracts/preOrder';
+import type { ReportManagedRunningLateCommand, RunningLateResult } from './contracts/onMyWay';
 import type {
   ManagedBooking,
   PublicBranch,
@@ -153,4 +154,13 @@ export interface PublicGateway {
    * @throws {OnMyWayNotOpenError} not confirmed or seated, or over.
    */
   confirmManagedOnMyWay(input: { readonly token: string }): Promise<OnMyWayResult>;
+
+  /**
+   * "I'm running late" from the link (2026-10-22) —
+   * `POST /api/public/bookings/{token}/running-late`. The app's
+   * `reportRunningLate`, for somebody holding only the link.
+   *
+   * @throws {OnMyWayNotOpenError} not confirmed, too early, or over.
+   */
+  reportManagedRunningLate(command: ReportManagedRunningLateCommand): Promise<RunningLateResult>;
 }

@@ -23,6 +23,7 @@ import { photo } from './venueSettingsMapping';
 import { venueTypeFromCode } from './venueTypeMapping';
 
 import { publicReplyFromWire } from './reviewReplyMapping';
+import { dinerTakeawaySummaryFromWire, publicTakeawayInfoFromWire } from './takeawayMapping';
 export { venueTypeCode, venueTypeFromCode } from './venueTypeMapping';
 
 type Schemas = components['schemas'];
@@ -79,6 +80,7 @@ const BADGES: ReadonlySet<string> = new Set<BranchBadge>(['popular', 'new']);
 const ORDER_STATUSES: ReadonlySet<string> = new Set<DinerOrderStatus>([
   'confirmed',
   'preparing',
+  'inProgress',
   'ready',
   'completed',
   'cancelled',
@@ -236,6 +238,8 @@ export function branchDetailFromWire(wire: WireBranchDetail, baseUrl: string): B
     recentReviews: (wire.recentReviews ?? []).map(branchReviewFromWire),
     ratingCounts: ratingCountsFromWire(wire.ratingCounts),
     rooms: roomsFrom(wire.rooms, baseUrl),
+    // Takeaway (2026-10-22): absent — a server from before it — is none.
+    takeaway: publicTakeawayInfoFromWire(wire.takeaway),
     asOfUtc: wire.asOfUtc,
   };
 }
@@ -319,17 +323,22 @@ export function notificationPageFromWire(wire: WireNotificationPage): DinerNotif
 }
 
 export function dinerOrderFromWire(wire: WireDinerOrder, baseUrl: string): DinerOrder {
+  const isTakeaway = wire.kind === 'takeaway';
+  const takeaway = isTakeaway ? dinerTakeawaySummaryFromWire(wire.takeaway) : null;
   return {
     orderId: wire.orderId,
-    tabId: wire.tabId,
+    // Absent on a takeaway order, which has no tab.
+    tabId: orNull(wire.tabId)?.trim() || null,
     branchId: wire.branchId,
     venueName: wire.venueName,
     branchName: wire.branchName,
     coverPhoto: photoFrom(baseUrl, wire.coverPhoto),
-    kind: 'dineIn',
+    // A kind this build does not know reads as dine-in, as before takeaway.
+    kind: isTakeaway ? 'takeaway' : 'dineIn',
     status: orderStatus(wire.status, wire.kitchenStatus),
-    tableLabel: orNull(wire.tableLabel),
-    partySize: finite(wire.partySize),
+    // Empty and 0 on a takeaway order: no table, no party.
+    tableLabel: orNull(wire.tableLabel)?.trim() || null,
+    partySize: isTakeaway ? null : finite(wire.partySize),
     placedAtUtc: wire.placedAtUtc,
     estimatedReadyAtUtc: orNull(wire.estimatedReadyAtUtc),
     totalAmd: wire.totalAmd ?? 0,
@@ -346,7 +355,9 @@ export function dinerOrderFromWire(wire: WireDinerOrder, baseUrl: string): Diner
       status: orderStatus(entry.status),
       atUtc: entry.atUtc,
     })),
-    // The server says false, always; nothing here may promise more.
-    canCancel: false,
+    // The server's answer: false on dine-in, true on a takeaway order while
+    // the venue has not answered it. Nothing here may promise more.
+    canCancel: wire.canCancel === true,
+    takeaway,
   };
 }

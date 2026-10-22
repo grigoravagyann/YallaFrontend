@@ -707,6 +707,9 @@ describe("the floor's rail", () => {
               },
               sentByName: 'Davit',
               tabId: 'tab-9',
+              guestRunningLateMinutes: 15,
+              guestRunningLateAtUtc: '2026-10-22T14:58:00Z',
+              staffAskedOnMyWayAtUtc: '2026-10-22T14:40:00Z',
               guestRecord: {
                 booked: 3,
                 came: 3,
@@ -736,6 +739,10 @@ describe("the floor's rail", () => {
       guestName: 'Anna',
       guestPhone: '+37499111222',
       guestConfirmedOnWayAtUtc: '2026-10-22T14:50:00Z',
+      // Nobody late, nobody asked: absent reads as none (2026-10-22).
+      guestRunningLateMinutes: null,
+      guestRunningLateAtUtc: null,
+      staffAskedOnMyWayAtUtc: null,
       guestRecord: null,
       dueAtUtc: '2026-10-22T15:00:00Z',
       preOrder: { ...PRE_ORDER_READ, state: 'locked' },
@@ -753,6 +760,9 @@ describe("the floor's rail", () => {
       tabId: 'tab-9',
       preOrder: { state: 'sent', kitchenStatus: 'inKitchen' },
       guestRecord: { booked: 3, came: 3 },
+      guestRunningLateMinutes: 15,
+      guestRunningLateAtUtc: '2026-10-22T14:58:00Z',
+      staffAskedOnMyWayAtUtc: '2026-10-22T14:40:00Z',
     });
   });
 

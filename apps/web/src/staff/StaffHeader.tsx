@@ -8,8 +8,8 @@ import { useBranchFormat } from './useBranchFormat';
 import { useMinuteClock } from './useMinuteClock';
 import { Wordmark } from '../components/Wordmark';
 
-/** The two screens the tablet shows. */
-export type StaffView = 'floor' | 'kitchen';
+/** The screens the tablet shows: the floor, the kitchen, and the takeaway counter. */
+export type StaffView = 'floor' | 'kitchen' | 'takeaway';
 
 export interface StaffHeaderProps {
   /** The screen's name: the page's heading, for a screen reader; the tab says it on screen. */
@@ -39,6 +39,12 @@ export interface StaffHeaderProps {
    * the kitchen shows, so a request with a clock on it is never out of sight.
    */
   readonly floorWaiting?: number | undefined;
+  /**
+   * The takeaway counter (2026-10-22): its tab, with the orders waiting for an
+   * answer and the ones waiting at the counter counted on it. Left out where
+   * the branch has no takeaway today, and then there is no tab.
+   */
+  readonly takeawayWaiting?: number | undefined;
   /**
    * Switches the screen. Left out where the floor cannot be opened at all — a
    * kitchen account, which the server refuses the floor — and then the bar
@@ -85,6 +91,7 @@ export function StaffHeader({
   view,
   kitchenWaiting,
   floorWaiting = 0,
+  takeawayWaiting,
   onSelectView,
   onSwitchPerson,
 }: StaffHeaderProps) {
@@ -120,6 +127,12 @@ export function StaffHeader({
     floorCount > 0
       ? `${t('floor.title')}, ${t('views.floorWaiting', { count: floorCount })}`
       : t('floor.title');
+
+  const takeawayCount = takeawayWaiting ?? 0;
+  const takeawayName =
+    takeawayCount > 0
+      ? `${t('takeaway.title')}, ${t('views.takeawayWaiting', { count: takeawayCount })}`
+      : t('takeaway.title');
 
   const initials = who
     .split(/\s+/u)
@@ -169,6 +182,21 @@ export function StaffHeader({
                 </span>
               ) : null}
             </button>
+            {takeawayWaiting !== undefined ? (
+              <button
+                type="button"
+                aria-current={view === 'takeaway' ? 'page' : undefined}
+                aria-label={takeawayName}
+                onClick={() => onSelectView('takeaway')}
+              >
+                {t('takeaway.title')}
+                {takeawayCount > 0 ? (
+                  <span className="ft-views-count" aria-hidden="true">
+                    {takeawayCount}
+                  </span>
+                ) : null}
+              </button>
+            ) : null}
           </>
         ) : (
           // The one screen this account has: said, not offered.

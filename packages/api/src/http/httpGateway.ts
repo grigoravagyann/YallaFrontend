@@ -1,12 +1,24 @@
 import type { OnMyWayResult, PreOrderResult } from '../contracts/preOrder';
+import type { RunningLateResult } from '../contracts/onMyWay';
+import type { TakeawayAvailability, TakeawayOrder } from '../contracts/takeaway';
 import {
   onMyWayResultFromWire,
   preOrderResultFromWire,
   replacePreOrderBody,
   rethrowPreOrderRefusal,
+  runningLateResultFromWire,
   type WireOnMyWayResult,
   type WirePreOrderResult,
+  type WireRunningLateResult,
 } from './preOrderMapping';
+import {
+  placeTakeawayOrderBody,
+  rethrowTakeawayRefusal,
+  takeawayAvailabilityFromWire,
+  takeawayOrderFromWire,
+  type WireTakeawayAvailability,
+  type WireTakeawayOrder,
+} from './takeawayMapping';
 import type { FloorPlanData } from '../contracts/tableFloor';
 import { createDinerAuth, type DinerAuth } from '../auth/endpoints';
 import type { AuthSession } from '../auth/session';
@@ -1125,6 +1137,54 @@ export function createHttpGateway(client: ApiClient, options: HttpGatewayOptions
       }
     },
 
+    // --- Takeaway (2026-10-22) --------------------------------------------------
+    //
+    // The diner's own orders only; somebody else's answers 404, as for an id
+    // that is no order. Every refusal is read by `takeawayMapping.ts`.
+
+    async getTakeawayAvailability(branchId): Promise<TakeawayAvailability> {
+      const { data } = await client.get<WireTakeawayAvailability>(
+        `/api/diner/branches/${encodeURIComponent(branchId)}/takeaway`,
+      );
+      return takeawayAvailabilityFromWire(data);
+    },
+
+    async placeTakeawayOrder(command): Promise<TakeawayOrder> {
+      try {
+        const { data } = await client.post<WireTakeawayOrder>(
+          '/api/diner/takeaway-orders',
+          placeTakeawayOrderBody(command),
+        );
+        return takeawayOrderFromWire(data);
+      } catch (error) {
+        rethrowTakeawayRefusal(error);
+      }
+    },
+
+    async getTakeawayOrder(orderId): Promise<TakeawayOrder | null> {
+      try {
+        const { data } = await client.get<WireTakeawayOrder>(
+          `/api/diner/takeaway-orders/${encodeURIComponent(orderId)}`,
+        );
+        return takeawayOrderFromWire(data);
+      } catch (error) {
+        if (error instanceof NotFoundError) return null;
+        throw error;
+      }
+    },
+
+    async cancelTakeawayOrder(orderId): Promise<TakeawayOrder> {
+      try {
+        // No body: only while sent; after that it is a phone call.
+        const { data } = await client.post<WireTakeawayOrder>(
+          `/api/diner/takeaway-orders/${encodeURIComponent(orderId)}/cancel`,
+        );
+        return takeawayOrderFromWire(data);
+      } catch (error) {
+        rethrowTakeawayRefusal(error);
+      }
+    },
+
     // --- Phone verification: the diner sign-in ---------------------------------
 
     async getPhoneProofChannels(): Promise<PhoneProofChannels> {
@@ -1737,6 +1797,19 @@ export function createHttpGateway(client: ApiClient, options: HttpGatewayOptions
           `/api/reservations/${reservationId}/on-my-way`,
         );
         return onMyWayResultFromWire(data);
+      } catch (error) {
+        rethrowPreOrderRefusal(error);
+      }
+    },
+
+    async reportRunningLate({ reservationId, minutes }): Promise<RunningLateResult> {
+      try {
+        // Outside the window: `on-my-way-not-open`, as for on my way.
+        const { data } = await client.post<WireRunningLateResult>(
+          `/api/reservations/${reservationId}/running-late`,
+          { minutes },
+        );
+        return runningLateResultFromWire(data);
       } catch (error) {
         rethrowPreOrderRefusal(error);
       }

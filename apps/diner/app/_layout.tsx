@@ -206,6 +206,10 @@ function AppRoot({ onReady }: { readonly onReady: () => void }) {
               <Stack.Screen name="reserve/success" />
               <Stack.Screen name="booking/[bookingId]" />
               <Stack.Screen name="order/[orderId]" />
+              {/* Takeaway (2026-10-22): its menu and checkout for a place, and an order's status. */}
+              <Stack.Screen name="takeaway/menu/[placeId]" />
+              <Stack.Screen name="takeaway/checkout/[placeId]" />
+              <Stack.Screen name="takeaway/[orderId]" />
               <Stack.Screen name="favorites" />
               <Stack.Screen name="settings" />
               {/* Scanning in and the shared tab. One entry: `tab/[tabId]` has its

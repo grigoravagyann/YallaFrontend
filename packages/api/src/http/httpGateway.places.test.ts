@@ -162,6 +162,7 @@ describe('places over /api/public/branches', () => {
           ],
         },
       ],
+      takeaway: { enabled: true, prepMinutes: 25 },
       asOfUtc: '2026-09-14T10:00:00Z',
     } as Detail;
     const { gateway } = gatewayOver({ [`GET /api/public/branches/${BRANCH}`]: { body: detail } });
@@ -169,6 +170,7 @@ describe('places over /api/public/branches', () => {
     const read = await gateway.getBranchDetail(BRANCH);
 
     expect(read?.listing.rating).toBe(4.5);
+    expect(read?.takeaway).toEqual({ enabled: true, prepMinutes: 25 });
     expect(read?.openingHours).toEqual([
       { day: 1, opensAt: '18:00', closesAt: '02:00', closesNextDay: true },
     ]);

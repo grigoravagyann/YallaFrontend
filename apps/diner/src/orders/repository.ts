@@ -42,6 +42,13 @@ export interface MockOrderRepositoryOptions {
   readonly latencyMs?: number;
   readonly now?: () => Date;
   readonly seed?: readonly Order[];
+  /**
+   * Where the takeaway orders come from (2026-10-22). In mock mode, the
+   * `@yalla/api` mock the takeaway screens place them with, so an order sent
+   * from the app is the one the Orders tab lists and its status screen reads;
+   * the seeds' own takeaway examples give way to them.
+   */
+  readonly takeaway?: Pick<YallaGateway, 'listDinerOrders' | 'getDinerOrder'>;
 }
 
 function wait(ms: number): Promise<void> {
@@ -55,14 +62,22 @@ export function createMockOrderRepository(
   const now = options.now ?? (() => new Date());
   let orders: readonly Order[] = options.seed ?? createMockOrders(now());
 
+  const takeaway = options.takeaway;
+  const own = () => (takeaway ? orders.filter((order) => order.kind !== 'takeaway') : orders);
+
   return {
     async list() {
       await wait(latencyMs);
-      return orders;
+      if (!takeaway) return orders;
+      const placed = (await takeaway.listDinerOrders()).map(orderFromApi);
+      return [...own(), ...placed];
     },
     async getById(orderId) {
       await wait(latencyMs);
-      return orders.find((order) => order.id === orderId) ?? null;
+      const found = own().find((order) => order.id === orderId);
+      if (found || !takeaway) return found ?? null;
+      const placed = await takeaway.getDinerOrder(orderId);
+      return placed ? orderFromApi(placed) : null;
     },
     async cancel(orderId) {
       await wait(latencyMs);
@@ -108,5 +123,5 @@ export function createHttpOrderRepository(
 export const orderRepositorySource: 'http' | 'mock' = usingMockData ? 'mock' : 'http';
 
 export const orderRepository: OrderRepository = usingMockData
-  ? createMockOrderRepository()
+  ? createMockOrderRepository({ takeaway: gateway })
   : createHttpOrderRepository();

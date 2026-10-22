@@ -1,3 +1,5 @@
+import type { DinerTakeawaySummary } from '@yalla/api';
+
 /**
  * A food order the diner placed — at a table, or to take away.
  *
@@ -54,6 +56,13 @@ export interface Order {
    * diner has no cancel in its domain.
    */
   readonly cancellable?: boolean;
+  /**
+   * A takeaway order's own facts (2026-10-22) — the code said at the counter,
+   * its exact status, the pickup and ready times, how many dishes. Present on
+   * a takeaway order the server sent, which opens its status screen; absent
+   * on dine-in and on the mock's older takeaway seeds.
+   */
+  readonly takeaway?: DinerTakeawaySummary;
 }
 
 // ---------------------------------------------------------------------------
@@ -112,6 +121,16 @@ export function splitOrders(orders: readonly Order[], now: Date): SplitOrders {
     (isActiveOrder(order, now) ? active : history).push(order);
   }
   return { active: active.sort(byPlacedAtDesc), history: history.sort(byPlacedAtDesc) };
+}
+
+/**
+ * The active segment with a takeaway order on its way at the top (2026-10-22):
+ * it has a time to be collected by, and a table's order does not. Otherwise
+ * the order is kept.
+ */
+export function takeawayFirst(orders: readonly Order[]): readonly Order[] {
+  const takeaway = orders.filter((order) => order.kind === 'takeaway' && order.takeaway);
+  return [...takeaway, ...orders.filter((order) => !takeaway.includes(order))];
 }
 
 /** Confirmed and Ready read green, the kitchen states orange/burgundy, the finished ones grey/red. */

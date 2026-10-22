@@ -29,6 +29,7 @@ const VIEW: ReservationView = {
   tableLabel: '7',
   partySize: 2,
   startUtc: '2026-10-20T15:45:00Z',
+  onMyWayOpensAtUtc: '2026-10-20T13:45:00Z',
   endUtc: '2026-10-20T17:25:00Z',
   localDate: '2026-10-20',
   localStartTime: '19:45:00',

@@ -40,6 +40,12 @@ import type {
   PreOrderResult,
   ReplacePreOrderCommand,
 } from './contracts/preOrder';
+import type { ReportRunningLateCommand, RunningLateResult } from './contracts/onMyWay';
+import type {
+  PlaceTakeawayOrderCommand,
+  TakeawayAvailability,
+  TakeawayOrder,
+} from './contracts/takeaway';
 import type { Photo } from './contracts/menuAdmin';
 import type {
   BranchDetail,
@@ -325,6 +331,54 @@ export interface YallaGateway {
   /** One order, or `null` when it is unknown or somebody else's. */
   getDinerOrder(orderId: string): Promise<DinerOrder | null>;
 
+  // --- Takeaway (2026-10-22) ------------------------------------------------
+
+  /**
+   * Whether the branch takes takeaway now and the pickup times it offers —
+   * `GET /api/diner/branches/{branchId}/takeaway`, for the checkout screen.
+   * The place page's button reads `BranchDetail.takeaway`; this says whether
+   * it is open now ("Takeaway from opening, 10:00" otherwise), busy, and the
+   * slots. Read it again before sending: slots run out.
+   *
+   * @throws {NotFoundError} no such branch, or not one diners can see.
+   */
+  getTakeawayAvailability(branchId: string): Promise<TakeawayAvailability>;
+
+  /**
+   * Send a takeaway order — `POST /api/diner/takeaway-orders`. Paid at the
+   * counter, never in the app. Idempotent on `clientCommandId`: a retry
+   * answers the order the first try made (`wasReplay`).
+   *
+   * @throws {PhoneNotVerifiedError} the account's number was never proved.
+   * @throws {TakeawayNotAcceptedError} the branch does not take takeaway.
+   * @throws {TakeawayClosedError} shut now, or past the last order.
+   * @throws {TakeawayBusyError} ASAP while the kitchen is full — pick a slot.
+   * @throws {TakeawaySlotUnavailableError} the slot is not on offer (any more).
+   * @throws {TakeawayItemsUnavailableError} dishes not on the menu, sold out
+   * or "only in the hall", every one named; nothing was saved.
+   * @throws {ValidationError} the shape (`lines`, `lines[i].quantity`, `note`,
+   * `pickup`, `pickup.at`); see `takeawayOrderViolations`.
+   * @throws {BookingCommandInUseError} somebody else's `clientCommandId`.
+   */
+  placeTakeawayOrder(command: PlaceTakeawayOrderCommand): Promise<TakeawayOrder>;
+
+  /**
+   * One takeaway order — the status screen; poll while active, in the
+   * foreground. `null` when it is unknown or somebody else's.
+   */
+  getTakeawayOrder(orderId: string): Promise<TakeawayOrder | null>;
+
+  /**
+   * Cancel it — `POST /api/diner/takeaway-orders/{id}/cancel`, only while
+   * sent (`canCancel`); after that it is a phone call. A second tap answers
+   * it cancelled, `wasReplay`.
+   *
+   * @throws {TakeawayStatusConflictError} the venue answered already
+   * (`orderStatus` is where it is now — redraw it).
+   * @throws {NotFoundError} not the diner's order.
+   */
+  cancelTakeawayOrder(orderId: string): Promise<TakeawayOrder>;
+
   // --- Phone verification -------------------------------------------------
   /**
    * Which ways of proving a number this backend has on. Anonymous, and the
@@ -585,6 +639,19 @@ export interface YallaGateway {
    * @throws {NotFoundError} not the diner's booking.
    */
   confirmOnMyWay(reservationId: string): Promise<OnMyWayResult>;
+
+  /**
+   * "I'm running late" — 10, 15 or 30 minutes (2026-10-22),
+   * `POST /api/reservations/{id}/running-late`. The same window as on my way,
+   * a confirmed booking only; a later answer overwrites an earlier one. It
+   * does not hold the table any longer: the grace is the policy's.
+   *
+   * @throws {OnMyWayNotOpenError} not confirmed, more than two hours before
+   * the start, or over.
+   * @throws {ValidationError} `minutes` other than 10, 15 or 30.
+   * @throws {NotFoundError} not the diner's booking.
+   */
+  reportRunningLate(command: ReportRunningLateCommand): Promise<RunningLateResult>;
 
   // --- Notifications ------------------------------------------------------
 

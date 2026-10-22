@@ -1,6 +1,14 @@
 import {
+  ASK_ON_MY_WAY_ASKED_RECENTLY_CODE,
+  ASK_ON_MY_WAY_NOT_OPEN_CODE,
+  ASK_ON_MY_WAY_TOO_EARLY_CODE,
+  AskOnMyWayAskedRecentlyError,
+  AskOnMyWayNotOpenError,
+  AskOnMyWayTooEarlyError,
   BookingCommandInUseError,
   BookingNotChangeableError,
+  GUEST_ALREADY_ANSWERED_CODE,
+  GuestAlreadyAnsweredError,
   ON_MY_WAY_NOT_OPEN_CODE,
   OnMyWayNotOpenError,
   PRE_ORDER_ALREADY_SENT_CODE,
@@ -37,6 +45,7 @@ import {
   type PreOrderSettingsInput,
   type PreOrderState,
 } from '../contracts/preOrder';
+import type { AskOnMyWayResult, RunningLateResult } from '../contracts/onMyWay';
 import type { ReservationStatusCode } from '../contracts/push';
 import { ApiError } from '../errors';
 import type { components } from '../generated/schema';
@@ -70,11 +79,15 @@ export type WirePreOrderLine = Schemas['Yalla.Application.Reservations.PreOrderL
 /** `PreOrderView`: state 1 Editable, 2 Locked, 3 Sent, 4 NotComing, 5 Cancelled. */
 export type WirePreOrder = Schemas['Yalla.Application.Reservations.PreOrderView'];
 
-/** The new members of `ReservationView`. */
+/** The new members of `ReservationView`: the pre-order's, then the guest's answers (2026-10-22). */
 export interface WireBookingPreOrderFields {
   readonly preOrder?: WirePreOrder | null;
   readonly preOrderEditableUntilUtc?: string | null;
   readonly guestConfirmedOnWayAtUtc?: string | null;
+  readonly guestRunningLateMinutes?: number | null;
+  readonly guestRunningLateAtUtc?: string | null;
+  readonly staffAskedOnMyWayAtUtc?: string | null;
+  readonly onMyWayOpensAtUtc?: string | null;
 }
 
 /**
@@ -90,6 +103,12 @@ export type WirePreOrderResult = Schemas['Yalla.Application.Reservations.PreOrde
 
 /** `OnMyWayResult`. */
 export type WireOnMyWayResult = Schemas['Yalla.Application.Reservations.OnMyWayResult'];
+
+/** `RunningLateResult`. */
+export type WireRunningLateResult = Schemas['Yalla.Application.Reservations.RunningLateResult'];
+
+/** `AskOnMyWayResult`. */
+export type WireAskOnMyWayResult = Schemas['Yalla.Application.Reservations.AskOnMyWayResult'];
 
 /** `DuePreOrder`; the phone is "" for a platform admin. */
 export type WireDuePreOrder = Schemas['Yalla.Application.Reservations.DuePreOrder'];
@@ -159,6 +178,10 @@ function text(value: unknown): string | null {
   return typeof value === 'string' && value.trim() !== '' ? value.trim() : null;
 }
 
+function wholeOrNull(value: unknown): number | null {
+  return typeof value === 'number' && Number.isInteger(value) ? value : null;
+}
+
 function reservationStatusOf(value: unknown): ReservationStatusCode | undefined {
   return typeof value === 'number' ? (RESERVATION_STATUS[value] ?? 'unknown') : undefined;
 }
@@ -206,8 +229,8 @@ export function preOrderFromWire(wire: WirePreOrder): PreOrder {
 }
 
 /**
- * The three members every booking read carries, always all three: `null`
- * for each the server left out.
+ * The members every booking read carries — the pre-order's three and the
+ * guest's answers — always all of them: `null` for each the server left out.
  */
 export function bookingPreOrderFields(wire: WireBookingPreOrderFields): Required<{
   readonly [K in keyof BookingPreOrderFields]: NonNullable<BookingPreOrderFields[K]> | null;
@@ -216,6 +239,10 @@ export function bookingPreOrderFields(wire: WireBookingPreOrderFields): Required
     preOrder: wire.preOrder ? preOrderFromWire(wire.preOrder) : null,
     preOrderEditableUntilUtc: text(wire.preOrderEditableUntilUtc),
     guestConfirmedOnWayAtUtc: text(wire.guestConfirmedOnWayAtUtc),
+    guestRunningLateMinutes: wholeOrNull(wire.guestRunningLateMinutes),
+    guestRunningLateAtUtc: text(wire.guestRunningLateAtUtc),
+    staffAskedOnMyWayAtUtc: text(wire.staffAskedOnMyWayAtUtc),
+    onMyWayOpensAtUtc: text(wire.onMyWayOpensAtUtc),
   };
 }
 
@@ -235,6 +262,24 @@ export function onMyWayResultFromWire(wire: WireOnMyWayResult): OnMyWayResult {
   };
 }
 
+export function runningLateResultFromWire(wire: WireRunningLateResult): RunningLateResult {
+  return {
+    reservationId: wire.reservationId,
+    guestRunningLateMinutes: wire.guestRunningLateMinutes,
+    guestRunningLateAtUtc: wire.guestRunningLateAtUtc,
+    expectedArrivalUtc: wire.expectedArrivalUtc,
+  };
+}
+
+export function askOnMyWayResultFromWire(wire: WireAskOnMyWayResult): AskOnMyWayResult {
+  return {
+    reservationId: wire.reservationId,
+    staffAskedOnMyWayAtUtc: wire.staffAskedOnMyWayAtUtc,
+    nextAskAllowedAtUtc: wire.nextAskAllowedAtUtc,
+    notified: wire.notified === true,
+  };
+}
+
 export function duePreOrderFromWire(wire: WireDuePreOrder): DuePreOrder {
   return {
     reservationId: wire.reservationId,
@@ -250,6 +295,9 @@ export function duePreOrderFromWire(wire: WireDuePreOrder): DuePreOrder {
     // "" for a platform admin: the venue's to call, never a blank `tel:`.
     guestPhone: text(wire.guestPhone),
     guestConfirmedOnWayAtUtc: text(wire.guestConfirmedOnWayAtUtc),
+    guestRunningLateMinutes: wholeOrNull(wire.guestRunningLateMinutes),
+    guestRunningLateAtUtc: text(wire.guestRunningLateAtUtc),
+    staffAskedOnMyWayAtUtc: text(wire.staffAskedOnMyWayAtUtc),
     guestRecord: guestRecordFromWire(wire.guestRecord),
     dueAtUtc: wire.dueAtUtc,
     preOrder: preOrderFromWire(wire.preOrder),
@@ -346,7 +394,8 @@ function unavailableItems(value: unknown): readonly UnavailablePreOrderItem[] {
 
 /**
  * Every pre-order refusal as its typed error — the guest's (both doors) and
- * the floor's — or `null` for anything else, which keeps the client's own
+ * the floor's, "running late" and the venue's "Ask: are you coming?"
+ * (2026-10-22) included — or `null` for anything else, which keeps the client's own
  * mapping (`validation-failed` → `ValidationError`, `concurrent-update` →
  * `ConcurrencyConflictError`, a 404 → `NotFoundError`).
  */
@@ -390,6 +439,33 @@ export function preOrderRefusal(error: unknown): ApiError | null {
         bookingStatus: reservationStatusOf(context['status']),
         sendableFromUtc: text(context['sendableFromUtc']),
         endUtc: text(context['endUtc']),
+      });
+    case ASK_ON_MY_WAY_TOO_EARLY_CODE:
+      return new AskOnMyWayTooEarlyError({
+        ...base,
+        reservationId,
+        opensAtUtc: text(context['opensAtUtc']),
+      });
+    case ASK_ON_MY_WAY_NOT_OPEN_CODE:
+      return new AskOnMyWayNotOpenError({
+        ...base,
+        reservationId,
+        bookingStatus: reservationStatusOf(context['status']),
+        startUtc: text(context['startUtc']),
+      });
+    case GUEST_ALREADY_ANSWERED_CODE:
+      return new GuestAlreadyAnsweredError({
+        ...base,
+        reservationId,
+        answeredAtUtc: text(context['answeredAtUtc']),
+        runningLateMinutes: wholeOrNull(context['runningLateMinutes']),
+      });
+    case ASK_ON_MY_WAY_ASKED_RECENTLY_CODE:
+      return new AskOnMyWayAskedRecentlyError({
+        ...base,
+        reservationId,
+        askedAtUtc: text(context['askedAtUtc']),
+        nextAllowedAtUtc: text(context['nextAllowedAtUtc']),
       });
     case 'reservation-not-changeable':
       return new BookingNotChangeableError({ ...base, reservationId: reservationId ?? undefined });

@@ -1,11 +1,14 @@
 import type { OnMyWayResult, PreOrderResult } from '../contracts/preOrder';
+import type { RunningLateResult } from '../contracts/onMyWay';
 import {
   onMyWayResultFromWire,
   preOrderResultFromWire,
   replacePreOrderBody,
   rethrowPreOrderRefusal,
+  runningLateResultFromWire,
   type WireOnMyWayResult,
   type WirePreOrderResult,
+  type WireRunningLateResult,
 } from './preOrderMapping';
 import type { ApiClient } from '../client';
 import type {
@@ -266,6 +269,19 @@ export function createPublicHttpGateway(client: ApiClient): PublicGateway {
           anonymous,
         );
         return onMyWayResultFromWire(data);
+      } catch (error) {
+        rethrowPreOrderRefusal(error);
+      }
+    },
+
+    async reportManagedRunningLate({ token, minutes }): Promise<RunningLateResult> {
+      try {
+        const { data } = await client.post<WireRunningLateResult>(
+          `/api/public/bookings/${encodeURIComponent(token)}/running-late`,
+          { minutes },
+          anonymous,
+        );
+        return runningLateResultFromWire(data);
       } catch (error) {
         rethrowPreOrderRefusal(error);
       }

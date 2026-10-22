@@ -2,6 +2,7 @@ import type { SpecialDay } from './branchSettings';
 import type { VenueType } from './booking';
 import type { Photo } from './menuAdmin';
 import type { PublicReviewReply } from './reviews';
+import type { DinerTakeawaySummary, PublicTakeawayInfo } from './takeaway';
 
 /**
  * Diner browse, reviews and the diner's own orders, as the gateway hands them
@@ -148,6 +149,14 @@ export interface BranchDetail {
   readonly ratingCounts: readonly number[];
   /** The same rooms `GET …/rooms` serves. */
   readonly rooms: readonly BranchRoom[];
+  /**
+   * Whether the place takes takeaway orders from the app, and its preparation
+   * time — the "Order to take away" button and the info card (2026-10-22).
+   * Whether it is open for orders now is the availability's
+   * (`getTakeawayAvailability`). The mapper always fills it (`NO_TAKEAWAY`
+   * from a server before takeaway); optional for fixtures written before it.
+   */
+  readonly takeaway?: PublicTakeawayInfo | undefined;
   readonly asOfUtc: string;
 }
 
@@ -213,7 +222,13 @@ export interface BranchSearchQuery {
 // The diner's orders
 // ---------------------------------------------------------------------------
 
-export type DinerOrderStatus = 'confirmed' | 'preparing' | 'ready' | 'completed' | 'cancelled';
+/**
+ * The app's words for where an order stands. `inProgress` is a takeaway order
+ * sent and not yet answered by the venue; the takeaway's exact status is on
+ * {@link DinerOrder.takeaway}.
+ */
+export type DinerOrderStatus =
+  'confirmed' | 'preparing' | 'inProgress' | 'ready' | 'completed' | 'cancelled';
 
 export interface DinerOrderLine {
   readonly lineId: string;
@@ -227,13 +242,14 @@ export interface DinerOrderLine {
 
 export interface DinerOrder {
   readonly orderId: string;
-  readonly tabId: string;
+  /** The tab it was placed against; `null` on a takeaway order, which has no tab. */
+  readonly tabId: string | null;
   readonly branchId: string;
   readonly venueName: string;
   readonly branchName: string;
   readonly coverPhoto: Photo | null;
-  /** Always `dineIn` today: every order is on a table's tab. */
-  readonly kind: 'dineIn';
+  /** `dineIn` for an order on a table's tab, `takeaway` for a takeaway order (2026-10-22). */
+  readonly kind: 'dineIn' | 'takeaway';
   readonly status: DinerOrderStatus;
   readonly tableLabel: string | null;
   readonly partySize: number | null;
@@ -243,8 +259,16 @@ export interface DinerOrder {
   readonly totalAmd: number;
   readonly items: readonly DinerOrderLine[];
   readonly timeline: readonly { readonly status: DinerOrderStatus; readonly atUtc: string }[];
-  /** Always false: the domain has no diner cancel. */
+  /**
+   * False on a dine-in order: voiding it is a staff action. True on a takeaway
+   * order while the venue has not answered it (`cancelTakeawayOrder`).
+   */
   readonly canCancel: boolean;
+  /**
+   * The takeaway order's own facts — code, exact status, pickup and ready
+   * times; `null` on dine-in. Optional for fixtures written before takeaway.
+   */
+  readonly takeaway?: DinerTakeawaySummary | null | undefined;
 }
 
 export type DinerOrderSegment = 'active' | 'history';

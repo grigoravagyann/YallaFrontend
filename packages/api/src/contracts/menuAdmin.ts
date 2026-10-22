@@ -52,6 +52,12 @@ export interface AdminMenuItem {
    * `excludedMenuItemIds`. Absent from a server before pre-orders: true.
    */
   readonly availableForPreOrder?: boolean | undefined;
+  /**
+   * Guests may order it to take away (`MenuItemView.availableForTakeaway`,
+   * default true), switched per dish with {@link UpdateMenuItemInput}.
+   * Absent from a server before takeaway: true.
+   */
+  readonly availableForTakeaway?: boolean | undefined;
   readonly displayOrder: number;
   /**
    * What still keeps it from diners, as the server derives it
@@ -113,6 +119,8 @@ export interface UpdateMenuItemInput {
   readonly prepMinutes?: number | undefined;
   readonly photoId?: string | undefined;
   readonly displayOrder?: number | undefined;
+  /** The per-dish "for takeaway" switch (2026-10-22). */
+  readonly availableForTakeaway?: boolean | undefined;
 }
 
 /** What deleting an item did: removed, or deactivated because order lines point at it. */

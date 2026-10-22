@@ -1,4 +1,4 @@
-import { ON_YOUR_WAY_PUSH_KIND } from '@yalla/api';
+import { ON_YOUR_WAY_PUSH_KIND, isTakeawayNotificationKind } from '@yalla/api';
 
 /**
  * What a notification means, and where it lands.
@@ -75,6 +75,11 @@ export type PushTarget =
    */
   | { readonly kind: 'bookings' }
   /**
+   * A takeaway order accepted, ready or declined (2026-10-22): its status
+   * screen, which reads the order as it stands.
+   */
+  | { readonly kind: 'takeaway'; readonly orderId: string }
+  /**
    * A payload this build does not understand, or one missing the id its screen
    * needs.
    *
@@ -109,6 +114,10 @@ export function parsePushTarget(data: PushData | null | undefined): PushTarget {
 
   const kind = str(data, 'kind');
   if (kind !== null && BOOKINGS_TAB_PUSH_KINDS.includes(kind)) return { kind: 'bookings' };
+  if (isTakeawayNotificationKind(kind)) {
+    const orderId = str(data, 'orderId');
+    return orderId ? { kind: 'takeaway', orderId } : { kind: 'unknown' };
+  }
 
   switch (kind) {
     // `table-request-decided` (booking times): the earlier guest's answer took
@@ -190,6 +199,7 @@ export type PushRoute =
       };
     }
   | { readonly pathname: '/tab/[tabId]'; readonly params: { tabId: string } }
+  | { readonly pathname: '/takeaway/[orderId]'; readonly params: { orderId: string } }
   | { readonly pathname: '/(tabs)/bookings' };
 
 export function routeFor(target: PushTarget): PushRoute | null {
@@ -204,6 +214,8 @@ export function routeFor(target: PushTarget): PushRoute | null {
       return { pathname: '/tab/[tabId]', params: { tabId: target.tabId } };
     case 'bookings':
       return { pathname: '/(tabs)/bookings' };
+    case 'takeaway':
+      return { pathname: '/takeaway/[orderId]', params: { orderId: target.orderId } };
     default:
       return null;
   }

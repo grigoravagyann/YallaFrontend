@@ -286,33 +286,13 @@ describe('a pre-order on the booking', () => {
   });
 });
 
+/**
+ * The push's "Yes" and "Can't come" (2026-10-21) still land on the booking
+ * screen; the "I'm coming" block's own states (2026-10-22) are in
+ * `imComing.test.tsx`.
+ */
 describe('are you on your way?', () => {
-  it('asks, and "yes" tells the waiter', async () => {
-    gateway.getBooking.mockResolvedValue(ASKED);
-    gateway.confirmOnMyWay.mockImplementation(async () => {
-      const at = new Date().toISOString();
-      // The server's answer, and the booking as it reads afterwards.
-      gateway.getBooking.mockResolvedValue({ ...ASKED, guestConfirmedOnWayAtUtc: at });
-      return { reservationId: 'booking-1', guestConfirmedOnWayAtUtc: at, wasReplay: false };
-    });
-    render(withQueries(<BookingDetailScreen />));
-
-    expect(await screen.findByText('preOrder.onYourWay.title')).toBeTruthy();
-    fireEvent.click(screen.getByRole('button', { name: 'preOrder.onYourWay.yes' }));
-    await waitFor(() => expect(gateway.confirmOnMyWay).toHaveBeenCalledWith('booking-1'));
-    expect(await screen.findByText('preOrder.onYourWay.confirmedTitle')).toBeTruthy();
-  });
-
-  it('"I can\'t come" is the ordinary cancel, confirmed first', async () => {
-    gateway.getBooking.mockResolvedValue(ASKED);
-    render(withQueries(<BookingDetailScreen />));
-
-    fireEvent.click(await screen.findByRole('button', { name: 'preOrder.onYourWay.cantCome' }));
-    expect(await screen.findByText('bookings.detail.cancelTitle')).toBeTruthy();
-    expect(gateway.cancelBooking).not.toHaveBeenCalled();
-  });
-
-  it('the push\'s "yes" button sends it once on landing', async () => {
+  it(`the push's "yes" button sends it once on landing`, async () => {
     params.value = { bookingId: 'booking-1', onMyWay: 'yes' };
     gateway.getBooking.mockResolvedValue(ASKED);
     gateway.confirmOnMyWay.mockResolvedValue({
@@ -329,61 +309,10 @@ describe('are you on your way?', () => {
     expect(gateway.confirmOnMyWay).toHaveBeenCalledTimes(1);
   });
 
-  it('the push\'s "can\'t come" opens the cancel question', async () => {
+  it(`the push's "can't come" opens the cancel question`, async () => {
     params.value = { bookingId: 'booking-1', onMyWay: 'cantCome' };
     gateway.getBooking.mockResolvedValue(ASKED);
     render(withQueries(<BookingDetailScreen />));
     expect(await screen.findByText('bookings.detail.cancelTitle')).toBeTruthy();
-  });
-
-  it('says the waiter knows once answered', async () => {
-    gateway.getBooking.mockResolvedValue({
-      ...ASKED,
-      guestConfirmedOnWayAtUtc: new Date().toISOString(),
-    });
-    render(withQueries(<BookingDetailScreen />));
-    expect(await screen.findByText('preOrder.onYourWay.confirmedTitle')).toBeTruthy();
-    expect(screen.queryByRole('button', { name: 'preOrder.onYourWay.yes' })).toBeNull();
-  });
-
-  it('asks a booking without a pre-order from 30 minutes, without a word about the kitchen (2026-10-21)', async () => {
-    gateway.getBooking.mockResolvedValue(
-      bookingAt(Date.now() + 20 * MINUTE_MS, { preOrder: null }),
-    );
-    render(withQueries(<BookingDetailScreen />));
-    expect(await screen.findByText('preOrder.onYourWay.title')).toBeTruthy();
-    expect(screen.getByText(/^preOrder\.onYourWay\.bodyPlain/)).toBeTruthy();
-    expect(screen.queryByText(/^preOrder\.onYourWay\.body(?!Plain)/)).toBeNull();
-  });
-
-  it('does not ask a booking without a pre-order before 30 minutes', async () => {
-    gateway.getBooking.mockResolvedValue(
-      bookingAt(Date.now() + 40 * MINUTE_MS, { preOrder: null }),
-    );
-    render(withQueries(<BookingDetailScreen />));
-    await screen.findByRole('button', { name: 'bookings.detail.cancel' });
-    expect(screen.queryByText('preOrder.onYourWay.title')).toBeNull();
-  });
-
-  it('says the waiter knows, and nobody will call, once a booking without a pre-order is answered', async () => {
-    gateway.getBooking.mockResolvedValue(
-      bookingAt(Date.now() + 20 * MINUTE_MS, {
-        preOrder: null,
-        guestConfirmedOnWayAtUtc: new Date().toISOString(),
-      }),
-    );
-    render(withQueries(<BookingDetailScreen />));
-    expect(await screen.findByText('preOrder.onYourWay.confirmedTitle')).toBeTruthy();
-    expect(screen.getByText('preOrder.onYourWay.confirmedBodyPlain')).toBeTruthy();
-  });
-
-  it('is not asked before 45 minutes', async () => {
-    gateway.getBooking.mockResolvedValue({
-      ...ASKED,
-      slotUtc: new Date(Date.now() + 60 * MINUTE_MS).toISOString(),
-    });
-    render(withQueries(<BookingDetailScreen />));
-    await screen.findByText('preOrder.state.lockedTitle');
-    expect(screen.queryByText('preOrder.onYourWay.title')).toBeNull();
   });
 });

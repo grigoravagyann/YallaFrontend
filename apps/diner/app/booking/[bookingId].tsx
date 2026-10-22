@@ -14,6 +14,7 @@ import {
   tableWithRoom,
 } from '../../src/components/bookings/bookingText';
 import { anotherTimeRoute, changeBookingRoute } from '../../src/components/bookings/changeBooking';
+import { ImComingCard, inComingWindow } from '../../src/components/bookings/ImComingCard';
 import { OnYourWayCard } from '../../src/components/bookings/OnYourWayCard';
 import { PreOrderCard } from '../../src/components/bookings/PreOrderCard';
 import { PromiseNote } from '../../src/components/bookings/PromiseNote';
@@ -292,15 +293,25 @@ function BookingDetail({
           </View>
         </Card>
 
-        {/* Thirty minutes before (forty-five with a pre-order): "Are you on your
-            way?" "Can't come" is the cancel below, with its confirmation. */}
-        <OnYourWayCard
+        {/* From two hours before until the end (2026-10-22): "I'm coming",
+            "Late 10 / 15 / 30" and "Not coming", and the venue's question. */}
+        <ImComingCard
           booking={booking}
           now={now}
           place={where}
-          onCantCome={openCancel}
           autoConfirm={onMyWay === 'yes' && readSinceLanding}
         />
+        {/* Outside that window (a server that opens it later): the older
+            "Are you on your way?" card, where it still applies. */}
+        {inComingWindow(booking, now) ? null : (
+          <OnYourWayCard
+            booking={booking}
+            now={now}
+            place={where}
+            onCantCome={openCancel}
+            autoConfirm={onMyWay === 'yes' && readSinceLanding}
+          />
+        )}
 
         {/* Somebody would like this table after the diner: will they have left by then? */}
         <TableRequestCard booking={booking} autoAnswer={autoAnswer} />

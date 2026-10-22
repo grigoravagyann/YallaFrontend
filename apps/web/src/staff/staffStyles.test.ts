@@ -34,6 +34,9 @@ const REDESIGNED = [
   'KitchenRoute.tsx',
   'ConflictList.tsx',
   'PreOrderPanel.tsx',
+  'OnMyWayAsk.tsx',
+  'takeaway/TakeawayAccept.tsx',
+  'takeaway/TakeawayCounter.tsx',
 ];
 
 /** Comments may quote a value; only code is checked. */

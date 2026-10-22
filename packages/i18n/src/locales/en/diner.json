@@ -1373,6 +1373,27 @@
       "bookingOnYourWay": {
         "title": "Are you on your way?",
         "body": "{{place}} is expecting you. Let them know you're coming."
+      },
+      "takeawayAccepted": {
+        "title": "Order {{code}} accepted",
+        "body": "{{place}} will have it ready at {{readyTime}}."
+      },
+      "takeawayAcceptedPlain": {
+        "body": "{{place}} is preparing it."
+      },
+      "takeawayReady": {
+        "title": "Order {{code}} is ready",
+        "body": "Come and pick it up at {{place}}. You pay at the counter."
+      },
+      "takeawayDeclined": {
+        "title": "Order {{code}} was not accepted",
+        "body": "{{place}} can't take it this time. Nothing was charged."
+      },
+      "takeawayDeclinedNoAnswer": {
+        "body": "{{place}} didn't answer in time. Sorry. Nothing was charged."
+      },
+      "takeawayDeclinedReason": {
+        "body": "{{place}}: {{reason}}. Nothing was charged."
       }
     },
     "yesterday": "Yesterday",
@@ -1531,5 +1552,191 @@
       "onMyWayOpensAt": "You can confirm from {{time}}."
     },
     "menuUnavailable": "The menu isn't available here right now."
+  },
+  "takeaway": {
+    "place": {
+      "cardTitle": "Order to take away",
+      "cardBody": "Pick from the menu and say when you'll come. Ready in about {{minutes}} minutes; you pay when you pick it up, cash or card.",
+      "cta": "Order to take away",
+      "closedFrom": "Takeaway from opening, {{time}}",
+      "closed": "Takeaway is closed now"
+    },
+    "menu": {
+      "title": "Takeaway order",
+      "subtitle": "{{place}} · you pick it up",
+      "all": "All",
+      "hallOnly": "Only in the hall · not for takeaway",
+      "continue": "Continue",
+      "choose": "Choose dishes",
+      "summary_one": "{{count}} item · {{total}}",
+      "summary_other": "{{count}} items · {{total}}",
+      "closedFrom": "Takeaway is closed now. It opens at {{time}}.",
+      "closed": "Takeaway is closed now."
+    },
+    "checkout": {
+      "title": "When are you coming?",
+      "pickupTitle": "Pickup time",
+      "asap": "As soon as possible",
+      "pickTime": "Pick a time",
+      "asapLine": "Ready around {{time}}, in {{minutes}} minutes. The venue confirms the time when it accepts the order.",
+      "busy": "The kitchen is full right now. Pick a later time.",
+      "slotsLabel": "Pickup times",
+      "lastPickup": "Today, last pickup at {{time}}",
+      "noSlots": "No more pickup times today.",
+      "slotsFailed": "We couldn't load the pickup times.",
+      "summaryTitle": "Your order",
+      "change": "Change",
+      "line": "{{count}} × {{name}}",
+      "total": "Total",
+      "noteLabel": "Note for the venue",
+      "notePlaceholder": "E.g. no onion, separate bag",
+      "payAtPickup": "You pay when you pick it up, cash or card. Nothing is charged in the app.",
+      "phoneLine": "If there's a question, the venue will call your verified number: {{phone}}.",
+      "phoneLinePlain": "If there's a question, the venue will call your verified number.",
+      "send": "Send order · {{total}}",
+      "sending": "Sending…",
+      "signIn": "Log in to order",
+      "verify": "Verify my number",
+      "verifyNotice": "To order, verify your phone number first: the venue may need to call you.",
+      "closed": "Takeaway is closed now.",
+      "closedFrom": "Takeaway is closed now. It opens at {{time}}.",
+      "empty": {
+        "title": "Your takeaway order is empty",
+        "body": "Choose dishes from the menu first.",
+        "action": "Open the menu"
+      }
+    },
+    "error": {
+      "signIn": "Log in to send the order.",
+      "verify": "Verify your phone number to send the order.",
+      "notAccepted": "This place no longer takes takeaway orders.",
+      "closed": "Takeaway is closed now.",
+      "closedUntil": "Takeaway is closed now. It opens at {{time}}.",
+      "busy": "The kitchen is full right now. Pick a later time.",
+      "slot": "That time has just gone. Pick another one.",
+      "slotNone": "There are no more pickup times today.",
+      "items": "Not available to take away any more: {{names}}. We took them out of your order.",
+      "itemsPlain": "Some dishes are not available to take away any more. We took them out of your order.",
+      "conflict": "Your order has changed. Check it and try again.",
+      "invalid": "Something in the order is not right. Check the dishes and the note.",
+      "offline": "No connection. Try again: the same order will not be sent twice.",
+      "unknown": "We couldn't send the order. Try again."
+    },
+    "status": {
+      "header": "Takeaway · {{place}}",
+      "close": "Close",
+      "codeLabel": "Order code · say it at the counter",
+      "readyAround": "Ready around {{time}}",
+      "readyAt": "Ready at {{time}}",
+      "waitingSince": "Waiting for you since {{time}}",
+      "stepsLabel": "Order progress",
+      "step": {
+        "sent": "Sent",
+        "accepted": "Accepted · being prepared",
+        "ready": "Ready",
+        "collected": "Picked up"
+      },
+      "case": {
+        "sent": {
+          "title": "Your order is sent",
+          "body": "Waiting for the venue to accept it. Usually it takes a few minutes."
+        },
+        "accepted": {
+          "title": "The venue accepted your order",
+          "body": "It's being prepared. We'll tell you when it's ready."
+        },
+        "ready": {
+          "title": "Ready, come and pick it up",
+          "body": "Say the code at the counter and pay, cash or card."
+        },
+        "collected": {
+          "title": "Enjoy your meal",
+          "body": "Picked up. Thank you for choosing {{place}}."
+        },
+        "declined": {
+          "title": "The venue can't take it this time",
+          "body": "Nothing was charged. You can try again for a later time."
+        },
+        "declinedNoAnswer": {
+          "title": "The venue didn't answer in time",
+          "body": "Sorry about that. Nothing was charged. You can try again for a later time."
+        },
+        "cancelled": {
+          "title": "Order cancelled",
+          "body": "The venue won't prepare it. Nothing was charged."
+        },
+        "noShow": {
+          "title": "Not picked up",
+          "body": "The venue marked this order as not collected."
+        }
+      },
+      "reason": "The venue said: {{reason}}",
+      "payAtPickup": "Pay at pickup",
+      "paid": "Paid",
+      "total": "Total",
+      "call": "Call the venue",
+      "directions": "Directions",
+      "cancel": "Cancel order",
+      "cancelHint": "You can cancel until the venue accepts. After that, only by phone.",
+      "cancelTitle": "Cancel the order?",
+      "cancelBody": "The venue won't prepare it. Nothing was charged.",
+      "cancelConfirm": "Yes, cancel",
+      "cancelKeep": "No, keep it",
+      "cancelling": "Cancelling…",
+      "cancelTooLate": "The venue has already accepted it. To cancel now, call them.",
+      "cancelFailed": "We couldn't cancel it. Try again.",
+      "chooseAnotherTime": "Choose another time",
+      "rate": "Rate the place",
+      "orders": "Orders",
+      "notFound": {
+        "title": "We could not find that order",
+        "body": "It may have been placed from another account."
+      }
+    },
+    "orderStatus": {
+      "sent": "Waiting for the venue",
+      "accepted": "Being prepared",
+      "ready": "Ready to pick up",
+      "collected": "Picked up",
+      "declined": "Declined",
+      "cancelled": "Cancelled",
+      "noShow": "Not picked up"
+    },
+    "orders": {
+      "kindLine_one": "Takeaway · {{code}} · {{count}} item",
+      "kindLine_other": "Takeaway · {{code}} · {{count}} items",
+      "pastLine_one": "Takeaway · {{when}} · {{count}} item",
+      "pastLine_other": "Takeaway · {{when}} · {{count}} items",
+      "readyAt": "Ready at {{time}}",
+      "readyAround": "Ready around {{time}}",
+      "atVenue": "{{total}} · at the venue"
+    }
+  },
+  "coming": {
+    "askedTitle": "{{place}} is asking: are you coming?",
+    "askedBody": "They'd like your pre-order hot when you sit down. Asked at {{time}}.",
+    "askedBodyPlain": "They're holding your table for you. Asked at {{time}}.",
+    "imComing": "I'm coming",
+    "sending": "Sending…",
+    "helper": "Tap when you head out. The venue will start preparing your pre-order.",
+    "helperPlain": "Tap when you head out, so the venue knows to hold your table.",
+    "lateGroup": "Running late",
+    "late": "Late {{minutes}} min",
+    "notComing": "Not coming",
+    "confirmTitle": "Cancel the booking?",
+    "confirmBody": "The table goes back to the venue, and your pre-order won't go to the kitchen. This can't be undone.",
+    "confirmBodyPlain": "The table goes back to the venue. This can't be undone.",
+    "confirmYes": "Yes, I'm not coming",
+    "confirmKeep": "No, keep the booking",
+    "cancelling": "Cancelling…",
+    "comingTitle": "The venue knows you're coming",
+    "comingBody": "You said so at {{time}}. Your table is waiting for you.",
+    "lateTitle": "The venue knows you're {{minutes}} min late",
+    "lateBody": "They'll hold your table until {{time}}.",
+    "notComingTitle": "Booking cancelled",
+    "notComingBody": "Thank you for letting them know in advance.",
+    "change": "Change my answer",
+    "preOrderWaiting": "Pre-order: they'll start it when you say you're coming, or when the venue asks.",
+    "preOrderGoing": "Pre-order: the kitchen is starting it so it's ready as you arrive."
   }
 }

@@ -35,6 +35,7 @@ const VIEW: ReservationViewWire = {
   tableLabel: '7',
   partySize: 2,
   startUtc: '2026-10-22T15:30:00Z',
+  onMyWayOpensAtUtc: '2026-10-22T13:30:00Z',
   endUtc: '2026-10-22T17:00:00Z',
   localDate: '2026-10-22',
   localStartTime: '19:30:00',

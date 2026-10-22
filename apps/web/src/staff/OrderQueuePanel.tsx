@@ -1,4 +1,4 @@
-import type { Menu, OrderQueueEntry, OrderStatus, UserRole } from '@yalla/api';
+import type { KitchenTakeaway, Menu, OrderQueueEntry, OrderStatus, UserRole } from '@yalla/api';
 import { useTranslation } from '@yalla/i18n';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
@@ -66,6 +66,16 @@ export interface OrderQueuePanelProps {
    * start on it, as the rail does. Without it, the server's own minute.
    */
   readonly now?: Date | undefined;
+  /**
+   * "Ready" on a takeaway ticket (2026-10-22): `markTakeawayOrderReady`, never
+   * `onAdvance` — the server refuses a takeaway order the ordinary move, so the
+   * guest is always told. Online only. Without it a takeaway ticket offers nothing.
+   */
+  readonly onTakeawayReady?: ((order: OrderQueueEntry) => void) | undefined;
+  /** Takeaway tickets whose "Ready" is on its way to the server. */
+  readonly takeawayMarking?: ReadonlySet<string> | undefined;
+  /** Whether the tablet is online: a takeaway "Ready" is not queued. */
+  readonly online?: boolean | undefined;
 }
 
 /** Minutes at which a call stops being fresh, and then stops being acceptable. */
@@ -182,6 +192,19 @@ export function OrderQueuePanel(props: OrderQueuePanelProps) {
         // Focusable, so the board scrolls from a keyboard too.
         <ul className="ft-kboard" aria-label={t('kitchen.board')} tabIndex={0}>
           {visible.map((order) => {
+            if (order.takeaway) {
+              return (
+                <TakeawayTicket
+                  key={order.orderId}
+                  order={order}
+                  takeaway={order.takeaway}
+                  menuIndex={index}
+                  marking={props.takeawayMarking?.has(order.orderId) ?? false}
+                  online={props.online ?? true}
+                  onReady={props.onTakeawayReady}
+                />
+              );
+            }
             const band = ticketBand(order);
             const queued = pending.has(order.orderId);
             const heldBy = props.heldOrders?.get(order.orderId);
@@ -352,5 +375,135 @@ export function OrderQueuePanel(props: OrderQueuePanelProps) {
         </ul>
       )}
     </section>
+  );
+}
+
+/**
+ * A takeaway order on the pass (2026-10-22, the Kitchen artboard): the cherry
+ * "TAKEAWAY" band with its code, when it must be ready and whose it is, the
+ * dishes and the guest's note, and one "Ready" — which tells the guest to come.
+ * Once ready it says so, and that the counter hands it over.
+ */
+function TakeawayTicket({
+  order,
+  takeaway,
+  menuIndex,
+  marking,
+  online,
+  onReady,
+}: {
+  readonly order: OrderQueueEntry;
+  readonly takeaway: KitchenTakeaway;
+  readonly menuIndex: ReturnType<typeof allergenIndex>;
+  readonly marking: boolean;
+  readonly online: boolean;
+  readonly onReady: ((order: OrderQueueEntry) => void) | undefined;
+}) {
+  const { t } = useTranslation(['staff', 'admin', 'common']);
+  const name = t('kitchen.takeaway.name', {
+    code: takeaway.code,
+    time: takeaway.readyAtLocalTime,
+    guest: takeaway.guestName,
+    items: order.lines.map((line) => `${line.quantity} ${line.name}`).join(', '),
+  });
+  return (
+    <li className="ft-ticket is-takeaway" aria-label={name}>
+      <div className="ft-ticket-band">
+        <div className="ft-ticket-band-top">
+          <span className="ft-ticket-band-tag">
+            <svg
+              className="ft-icon"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.8"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden="true"
+            >
+              <path d="M6 8h12l-1 12H7z" />
+              <path d="M9 8V6a3 3 0 0 1 6 0v2" />
+            </svg>
+            {t('kitchen.takeaway.band')}
+          </span>
+          <b className="ft-ticket-band-code">{takeaway.code}</b>
+        </div>
+        <span className="ft-ticket-band-when">
+          {t('kitchen.takeaway.readyAt', { time: takeaway.readyAtLocalTime })}
+          {' · '}
+          {takeaway.guestName}
+        </span>
+      </div>
+
+      <ul className="ft-ticket-lines">
+        {order.lines.map((line) => {
+          const allergens = dishAllergens(menuIndex, line.menuItemId);
+          return (
+            <li key={line.lineId}>
+              <span className="ft-ticket-qty">{line.quantity}×</span>
+              <span className="ft-ticket-dish">
+                <b>{line.name}</b>
+                {line.note ? <span className="ft-ticket-note">{line.note}</span> : null}
+                {allergens === 'unknown' ? (
+                  <span className="ft-ticket-allergen is-unknown">
+                    <span aria-hidden="true">⚠</span>
+                    <span>{t('kitchen.allergensUnknown')}</span>
+                  </span>
+                ) : allergens ? (
+                  <span className="ft-ticket-allergen">
+                    <span aria-hidden="true">⚠</span>
+                    <span>
+                      {t('kitchen.allergens', {
+                        list: [
+                          ...allergens.presets.map((preset) => t(`admin:menu.allergen.${preset}`)),
+                          ...(allergens.other ? [allergens.other] : []),
+                        ].join(', '),
+                      })}
+                    </span>
+                  </span>
+                ) : null}
+              </span>
+            </li>
+          );
+        })}
+      </ul>
+      {takeaway.note ? (
+        <p className="ft-ticket-takeaway-note">{t('takeaway.note', { note: takeaway.note })}</p>
+      ) : null}
+
+      <div className="ft-ticket-foot">
+        {order.status === 'ready' ? (
+          <>
+            <p className="ft-ticket-ready">{t('kitchen.takeaway.readyDone')}</p>
+            <p className="ft-hint">{t('kitchen.takeaway.atCounter')}</p>
+          </>
+        ) : onReady ? (
+          <>
+            <button
+              type="button"
+              className="ft-btn ft-btn-ok ft-ticket-action"
+              aria-label={t('kitchen.takeaway.readyName', { code: takeaway.code })}
+              disabled={marking || !online}
+              onClick={() => onReady(order)}
+            >
+              <svg
+                className="ft-icon"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2.6"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-hidden="true"
+              >
+                <path d="M20 6 9 17l-5-5" />
+              </svg>
+              {marking ? t('takeaway.sending') : t('kitchen.ready')}
+            </button>
+            {!online ? <p className="ft-hint">{t('kitchen.takeaway.needsOnline')}</p> : null}
+          </>
+        ) : null}
+      </div>
+    </li>
   );
 }

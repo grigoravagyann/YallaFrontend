@@ -15,6 +15,12 @@ import {
   type ReplacePreOrderCommand,
 } from '../contracts/preOrder';
 import type { BranchMenu } from '../contracts/ordering';
+import type {
+  AskOnMyWayResult,
+  ReportRunningLateCommand,
+  RunningLateMinutes,
+  RunningLateResult,
+} from '../contracts/onMyWay';
 import type { ManagedBooking } from '../contracts/publicBranch';
 import type { YallaGateway } from '../gateway';
 import { ValidationError } from '../errors';
@@ -55,10 +61,34 @@ export function afterPreOrderSaved(queryClient: QueryClient, result: PreOrderRes
   invalidateBooking(queryClient, result.reservationId);
 }
 
-/** "Yes, on my way" from the app: onto the cached booking, then read again. */
+/**
+ * "Yes, on my way" from the app: onto the cached booking, then read again.
+ * On my way after "running late" is on time after all: the lateness goes.
+ */
 export function afterOnMyWay(queryClient: QueryClient, result: OnMyWayResult): void {
   queryClient.setQueryData<Booking>(queryKeys.booking(result.reservationId), (booking) =>
-    booking ? { ...booking, guestConfirmedOnWayAtUtc: result.guestConfirmedOnWayAtUtc } : booking,
+    booking
+      ? {
+          ...booking,
+          guestConfirmedOnWayAtUtc: result.guestConfirmedOnWayAtUtc,
+          guestRunningLateMinutes: null,
+          guestRunningLateAtUtc: null,
+        }
+      : booking,
+  );
+  invalidateBooking(queryClient, result.reservationId);
+}
+
+/** "I'm running late" from the app (2026-10-22): onto the cached booking, then read again. */
+export function afterRunningLate(queryClient: QueryClient, result: RunningLateResult): void {
+  queryClient.setQueryData<Booking>(queryKeys.booking(result.reservationId), (booking) =>
+    booking
+      ? {
+          ...booking,
+          guestRunningLateMinutes: result.guestRunningLateMinutes,
+          guestRunningLateAtUtc: result.guestRunningLateAtUtc,
+        }
+      : booking,
   );
   invalidateBooking(queryClient, result.reservationId);
 }
@@ -97,6 +127,54 @@ export function afterManagedOnMyWay(
       : booking,
   );
   void queryClient.invalidateQueries({ queryKey: queryKeys.managedBooking(token) });
+}
+
+/** "I'm running late" from the link: the question goes at once. */
+export function afterManagedRunningLate(
+  queryClient: QueryClient,
+  token: string,
+  result: RunningLateResult,
+): void {
+  queryClient.setQueryData<ManagedBooking | null>(queryKeys.managedBooking(token), (booking) =>
+    booking
+      ? {
+          ...booking,
+          guestRunningLateMinutes: result.guestRunningLateMinutes,
+          onYourWayAsked: false,
+        }
+      : booking,
+  );
+  void queryClient.invalidateQueries({ queryKey: queryKeys.managedBooking(token) });
+}
+
+/**
+ * The venue's "Ask: are you coming?" (2026-10-22) — `result` the answer, or
+ * `null` on a refusal (answered already, asked a moment ago: the screen is
+ * stale). The rail's card takes the ask at once; the rail, the floor (the
+ * table panel's next booking) and the awaiting list are read again.
+ */
+export function afterAskOnMyWay(
+  queryClient: QueryClient,
+  branchId: string,
+  result: AskOnMyWayResult | null,
+): void {
+  if (result) {
+    queryClient.setQueryData<DuePreOrders>(queryKeys.duePreOrders(branchId), (rail) =>
+      rail
+        ? {
+            ...rail,
+            items: rail.items.map((item) =>
+              item.reservationId === result.reservationId
+                ? { ...item, staffAskedOnMyWayAtUtc: result.staffAskedOnMyWayAtUtc }
+                : item,
+            ),
+          }
+        : rail,
+    );
+  }
+  void queryClient.invalidateQueries({ queryKey: queryKeys.duePreOrders(branchId) });
+  void queryClient.invalidateQueries({ queryKey: queryKeys.staffFloor(branchId) });
+  void queryClient.invalidateQueries({ queryKey: queryKeys.awaitingApproval(branchId) });
 }
 
 /**
@@ -255,6 +333,32 @@ export function useConfirmOnMyWay() {
   return useMutation(confirmOnMyWayOptions(useQueryClient(), useGateway()));
 }
 
+/**
+ * "I'm running late" — 10, 15 or 30 minutes (2026-10-22), from the booking
+ * screen or the feed row. `onAnswered` as for {@link confirmOnMyWayOptions}.
+ * Errors: `OnMyWayNotOpenError` outside the window.
+ */
+export function reportRunningLateOptions(
+  queryClient: QueryClient,
+  gateway: YallaGateway,
+  onAnswered?: () => void,
+) {
+  return {
+    mutationFn: (command: ReportRunningLateCommand) => gateway.reportRunningLate(command),
+    retry: false,
+    onSuccess: (result: RunningLateResult) => {
+      afterRunningLate(queryClient, result);
+      onAnswered?.();
+    },
+    onError: (_error: unknown, command: ReportRunningLateCommand) =>
+      invalidateBooking(queryClient, command.reservationId),
+  };
+}
+
+export function useReportRunningLate() {
+  return useMutation(reportRunningLateOptions(useQueryClient(), useGateway()));
+}
+
 // --- The manage link ------------------------------------------------------------
 
 /**
@@ -312,6 +416,21 @@ export function useConfirmManagedOnMyWay(token: string | undefined) {
     mutationFn: () => gateway.confirmManagedOnMyWay({ token: token! }),
     retry: false,
     onSuccess: (result: OnMyWayResult) => afterManagedOnMyWay(queryClient, token ?? '', result),
+    onError: () =>
+      void queryClient.invalidateQueries({ queryKey: queryKeys.managedBooking(token ?? '') }),
+  });
+}
+
+/** "I'm running late" from the link (2026-10-22). Takes the minutes. */
+export function useReportManagedRunningLate(token: string | undefined) {
+  const gateway = usePublicGateway();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (minutes: RunningLateMinutes) =>
+      gateway.reportManagedRunningLate({ token: token!, minutes }),
+    retry: false,
+    onSuccess: (result: RunningLateResult) =>
+      afterManagedRunningLate(queryClient, token ?? '', result),
     onError: () =>
       void queryClient.invalidateQueries({ queryKey: queryKeys.managedBooking(token ?? '') }),
   });
@@ -376,6 +495,40 @@ export function useSendPreOrder(branchId: string | undefined) {
 export function useMarkPreOrderNotComing(branchId: string | undefined) {
   const gateway = useStaffGateway();
   return usePreOrderAction(branchId, (command) => gateway.markPreOrderNotComing(command));
+}
+
+/** The ask's mutation options, apart from the hook so the network rule is tested. */
+export function askOnMyWayOptions(
+  queryClient: QueryClient,
+  branchId: string,
+  ask: (reservationId: string) => Promise<AskOnMyWayResult>,
+) {
+  return {
+    mutationFn: ask,
+    retry: false,
+    // Online only, never queued: a push that went out minutes after the tap
+    // would ask a guest who has since sat down.
+    networkMode: 'always' as const,
+    onSuccess: (result: AskOnMyWayResult) => afterAskOnMyWay(queryClient, branchId, result),
+    onError: () => afterAskOnMyWay(queryClient, branchId, null),
+  };
+}
+
+/**
+ * "Ask: are you coming?" (2026-10-22). Takes the reservation id. Enable it
+ * with `askOnMyWayBlock`; errors: `AskOnMyWayTooEarlyError`,
+ * `AskOnMyWayNotOpenError`, `GuestAlreadyAnsweredError`,
+ * `AskOnMyWayAskedRecentlyError` (its `nextAllowedAtUtc`). `notified: false`
+ * on the answer means nobody can be pushed: call.
+ */
+export function useAskOnMyWay(branchId: string | undefined) {
+  const gateway = useStaffGateway();
+  const queryClient = useQueryClient();
+  return useMutation(
+    askOnMyWayOptions(queryClient, branchId ?? '', (reservationId) =>
+      gateway.askOnMyWay(reservationId),
+    ),
+  );
 }
 
 // --- The console ------------------------------------------------------------------

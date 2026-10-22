@@ -1,6 +1,7 @@
 import type { ConsoleBooking, DecideReservationCommand } from './contracts/approvals';
 import type { BookingBlock, LiftBookingBlockCommand } from './contracts/guestRecord';
 import type { PreOrderSettings, PreOrderSettingsInput } from './contracts/preOrder';
+import type { TakeawaySettings, TakeawaySettingsInput } from './contracts/takeaway';
 import type {
   BranchOverview,
   ConsoleBookingActionCommand,
@@ -625,6 +626,30 @@ export interface ConsoleGateway {
     readonly branchId: string;
     readonly settings: PreOrderSettingsInput;
   }): Promise<PreOrderSettings>;
+
+  // --- Takeaway (2026-10-22) --------------------------------------------------
+
+  /**
+   * The branch's takeaway settings with their bounds —
+   * `GET /api/branches/{branchId}/takeaway-settings`, manager or above at the
+   * branch. Default: off, staff accept, 20 min, 30 min, 5 at once.
+   *
+   * @throws {ForbiddenError} not a manager of this branch.
+   */
+  getTakeawaySettings(branchId: string): Promise<TakeawaySettings>;
+
+  /**
+   * Save all five — `PUT /api/branches/{branchId}/takeaway-settings`. The
+   * per-dish "for takeaway" switch is the menu item's
+   * (`updateMenuItem({ patch: { availableForTakeaway } })`).
+   *
+   * @throws {ValidationError} every field out of bounds or off its step, named
+   * (`prepMinutes`, `lastOrderMinutes`, `maxInProgress`).
+   */
+  saveTakeawaySettings(input: {
+    readonly branchId: string;
+    readonly settings: TakeawaySettingsInput;
+  }): Promise<TakeawaySettings>;
 
   // --- Bookings waiting for approval ------------------------------------------
 

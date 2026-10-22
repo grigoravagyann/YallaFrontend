@@ -6,6 +6,7 @@ import { createHttpGateway, type GatewayAudience, type TabTokenStorage } from '.
 import { createMockGateway, type MockGatewayOptions } from './mocks/mockGateway';
 import { persistMockGateway } from './mocks/persistence';
 import { MOCK_PRE_ORDER_BRANCHES } from './mocks/preOrders';
+import { MOCK_TAKEAWAY_BRANCHES } from './mocks/takeaway';
 import type { MockPersistence } from './resolveConsoleGateway';
 
 export interface ResolveGatewayOptions {
@@ -81,6 +82,18 @@ export interface ResolveGatewayOptions {
    * off, the server's default.
    */
   readonly mockPreOrders?: boolean | undefined;
+  /**
+   * Mock only: takeaway on offer (2026-10-22) — Northern Avenue takes orders,
+   * the matnakash eggs hall-only (`MOCK_TAKEAWAY_BRANCHES`) — and the seeded
+   * account has one being prepared and one collected yesterday. Absent: every
+   * branch is off, the server's default.
+   */
+  readonly mockTakeaway?: boolean | undefined;
+  /**
+   * Mock only: the seeded account has a confirmed booking with a pre-order
+   * forty minutes out, inside the "I'm coming" window (2026-10-22).
+   */
+  readonly mockComingBooking?: boolean | undefined;
   /** Mock only: keep the world across a reload (QA F2). */
   readonly persist?: MockPersistence | undefined;
   /** Where tab participant tokens are kept between launches. Real only. */
@@ -117,6 +130,10 @@ export function resolveGateway(options: ResolveGatewayOptions): YallaGateway {
       guestRecord: options.mockGuestRecord,
       blockedUntilUtc: options.mockBlockedUntilUtc,
       ...(options.mockPreOrders ? { preOrders: { branches: MOCK_PRE_ORDER_BRANCHES } } : {}),
+      ...(options.mockTakeaway
+        ? { takeaway: { branches: MOCK_TAKEAWAY_BRANCHES, seedOrders: true } }
+        : {}),
+      ...(options.mockComingBooking ? { seedComingBooking: true } : {}),
     };
     if (options.persist) {
       return persistMockGateway<YallaGateway>({
