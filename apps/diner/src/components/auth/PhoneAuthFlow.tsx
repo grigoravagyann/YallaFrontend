@@ -394,10 +394,10 @@ export function PhoneAuthFlow({ mode, params }: PhoneAuthFlowProps) {
    * pops to whatever is underneath. Once `finish` is leaving on purpose the
    * guard stands aside.
    */
+  const guardsBack =
+    step === 'code' || step === 'name' || step === 'telegram' || step === 'newPassword';
   useEffect(() => {
-    if (step !== 'code' && step !== 'name' && step !== 'telegram' && step !== 'newPassword') {
-      return;
-    }
+    if (!guardsBack) return;
     return navigation.addListener('beforeRemove', (event) => {
       if (finishing.current) return;
       event.preventDefault();
@@ -405,7 +405,7 @@ export function PhoneAuthFlow({ mode, params }: PhoneAuthFlowProps) {
       else if (step === 'telegram') leaveTelegramStep();
       else finish();
     });
-  }, [navigation, step, leaveCodeStep, leaveTelegramStep, finish]);
+  }, [navigation, guardsBack, step, leaveCodeStep, leaveTelegramStep, finish]);
 
   const send = useCallback(async () => {
     if (!phoneE164) return;
@@ -618,7 +618,13 @@ export function PhoneAuthFlow({ mode, params }: PhoneAuthFlowProps) {
 
   return (
     <Screen edges={['top', 'left', 'right', 'bottom']}>
-      <Stack.Screen options={{ headerShown: false }} />
+      {/* The iOS swipe back is a native removal: the native stack takes the
+          screen away before `beforeRemove` can stop it, and the JS state is
+          left holding a screen that is gone ("removed natively but didn't
+          get removed from JS state", seen in Expo Go 2026-10-21). While the
+          guard above is on, the swipe is off; the arrow on screen and
+          Android's back go through JS and are guarded as before. */}
+      <Stack.Screen options={{ headerShown: false, gestureEnabled: !guardsBack }} />
       <KeyboardAvoidingView
         style={styles.flex}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}

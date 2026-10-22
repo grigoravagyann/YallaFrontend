@@ -99,6 +99,59 @@ describe('the splash screen', () => {
   });
 });
 
+/**
+ * The launcher icon is the SHURJ logo on the splash's cream (2026-10-22), rendered by
+ * assets/images/source/render-icons.cjs. A transparent pixel in the iOS icon is a store
+ * rejection, and ink outside Android's 66 dp safe zone is cut off by some launchers' masks.
+ */
+describe('the launcher icon', () => {
+  const read = (file: string) => decodePng(readFileSync(new URL(`../../${file}`, import.meta.url)));
+  const splash = (appJson.expo.plugins as unknown[]).find(
+    (plugin): plugin is [string, { backgroundColor: string }] =>
+      Array.isArray(plugin) && plugin[0] === 'expo-splash-screen',
+  )![1];
+  const { backgroundImage, foregroundImage, monochromeImage } = appJson.expo.android.adaptiveIcon;
+
+  it('puts the iOS icon and the Android back layer on the splash’s cream, with no transparency', () => {
+    for (const file of [appJson.expo.icon, backgroundImage]) {
+      const image = read(file);
+      expect([image.width, image.height]).toEqual([1024, 1024]);
+      for (const [x, y] of [
+        [0, 0],
+        [1023, 0],
+        [0, 1023],
+        [1023, 1023],
+        [512, 0],
+      ] as const) {
+        const [r, g, b, a] = image.pixel(x, y);
+        expect(a, `${file} is opaque`).toBe(255);
+        expect(hex(r, g, b), file).toBe(splash.backgroundColor.toUpperCase());
+      }
+    }
+  });
+
+  it('keeps the Android foreground and monochrome inside the 66 dp safe zone', () => {
+    for (const file of [foregroundImage, monochromeImage]) {
+      const image = read(file);
+      let inked = 0;
+      let farthest = 0;
+      const colours = new Set<string>();
+      for (let y = 0; y < image.height; y++) {
+        for (let x = 0; x < image.width; x++) {
+          const [r, g, b, a] = image.pixel(x, y);
+          if (a === 0) continue;
+          inked++;
+          farthest = Math.max(farthest, Math.hypot(x + 0.5 - 512, y + 0.5 - 512));
+          if (file === monochromeImage) colours.add(hex(r, g, b));
+        }
+      }
+      expect(inked, `${file} has a logo`).toBeGreaterThan(10_000);
+      expect(farthest, file).toBeLessThanOrEqual((1024 * 66) / 108 / 2 + 1);
+      if (file === monochromeImage) expect([...colours]).toEqual(['#FFFFFF']);
+    }
+  });
+});
+
 function hex(r: number, g: number, b: number): string {
   return `#${[r, g, b].map((v) => v.toString(16).padStart(2, '0')).join('')}`.toUpperCase();
 }
