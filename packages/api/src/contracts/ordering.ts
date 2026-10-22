@@ -441,6 +441,13 @@ export interface DinerTabLine {
   readonly isTableAttributed: boolean;
   /** Their name at the time of reading. `null` for a table-attributed line. */
   readonly orderedByName: string | null;
+  /**
+   * When it was ordered — the `placedAtUtc` of the order it came in on, so the
+   * bill can say "Աննա · 19:08". A booking's pre-order keeps the time the
+   * waiter sent it to the kitchen. UTC; shown in the tab's `timeZoneId`.
+   * `null` from a server that does not send it yet: the row then says who alone.
+   */
+  readonly orderedAtUtc: string | null;
   /** The note sent with it — "no sugar". */
   readonly note: string | null;
   /** Where the kitchen is with it. */

@@ -11831,6 +11831,14 @@ export interface components {
              */
             onBehalfOfParticipantId?: string | null;
             /**
+             * Format: date-time
+             * @description When it was ordered: the `placedAtUtc` of the order it came in on, so the bill can say who
+             *     and when under each dish ("Ani · 19:08"). Every line of a round shares it. A booking's pre-order
+             *     keeps the time the waiter sent it to the kitchen, not the time the party sat down. UTC; the
+             *     client shows it in the tab's `timeZoneId`.
+             */
+            orderedAtUtc: string;
+            /**
              * Format: uuid
              * @description The order it was part of, so the client can group a round together.
              */

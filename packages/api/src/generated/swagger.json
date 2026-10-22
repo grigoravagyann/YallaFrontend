@@ -35639,6 +35639,7 @@
           "lineTotalAmd",
           "menuItemId",
           "name",
+          "orderedAtUtc",
           "orderId",
           "orderStatus",
           "quantity",
@@ -35704,6 +35705,11 @@
               }
             ],
             "description": "Kitchen-facing progress of one order placed against a tab."
+          },
+          "orderedAtUtc": {
+            "type": "string",
+            "description": "When it was ordered: the `placedAtUtc` of the order it came in on, so the bill can say who\nand when under each dish (\"Ani · 19:08\"). Every line of a round shares it. A booking's pre-order\nkeeps the time the waiter sent it to the kitchen, not the time the party sat down. UTC; the\nclient shows it in the tab's `timeZoneId`.",
+            "format": "date-time"
           },
           "isShared": {
             "type": "boolean",

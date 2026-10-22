@@ -61,6 +61,8 @@ function dinerLine(line: TabLine): DinerTabLine {
     onBehalfOfParticipantId: null,
     isTableAttributed: line.isTableAttributed,
     orderedByName: line.orderedByName,
+    // The order's placed time, as the server sends it on every line.
+    orderedAtUtc: line.placedAtUtc,
     note: line.note,
     orderStatus: line.orderStatus,
     sharedWithCount: line.sharedWithCount,

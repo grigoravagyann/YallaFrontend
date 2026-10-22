@@ -72,6 +72,8 @@ describe('a diner ordering from their own phone', () => {
     expect(result.estimatedReadyAtUtc).not.toBeNull();
 
     const view = await gateway.getDinerTab(tab.tabId);
+    // Each line says when its order went in, as the server's lines do.
+    expect(view?.myLines.map((line) => line.orderedAtUtc)).toEqual([result.placedAtUtc]);
     expect(view?.money.kind).toBe('table');
     if (view?.money.kind !== 'table') return;
 
