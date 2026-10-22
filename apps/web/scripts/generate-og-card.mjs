@@ -12,17 +12,20 @@
  * text-only card that people scroll past.
  *
  * So the card is generated, from the same tokens the product is built from,
- * with no binary checked in that nobody can reproduce or recolour. When brand
- * green changes, this is a one-line edit and a re-run.
+ * with no binary checked in that nobody can reproduce or recolour. When the
+ * brand colour changes, this is a one-line edit and a re-run.
  *
- * ## Why the letterforms are polygons
+ * ## Why the wordmark is an image and the room is polygons
  *
  * There is no rasteriser in this workspace — no `sharp`, no `canvas`, no
- * headless browser — and adding one to draw five letters would be a dependency
- * with a build step for an asset that changes once a year. Every glyph in
- * "YALLA" is straight-sided, so the wordmark is drawn as polygons and filled by
- * the scanline routine below at 4x supersampling. That is the whole reason the
- * wordmark is set in capitals.
+ * headless browser — and adding one for an asset that changes once a year
+ * would be a dependency with a build step. The product is SHURJ now, and its
+ * lettering is the logo's own, with curves no polygon set draws well; so the
+ * card lays the very image the web app's top bars show
+ * (`src/assets/shurj-wordmark.png`, ivory on transparent) onto the cherry,
+ * read with `pngjs`, which this script already uses to write. The tables are
+ * straight-sided and stay polygons, filled by the scanline routine below at
+ * 4x supersampling.
  *
  * The card deliberately carries **no sentence**. The words belong in
  * `og:description`, which unfurlers render as real selectable text next to the
@@ -33,7 +36,7 @@
  *
  * Usage: `node scripts/generate-og-card.mjs`
  */
-import { writeFileSync } from 'node:fs';
+import { readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { PNG } from 'pngjs';
@@ -43,10 +46,9 @@ import { PNG } from 'pngjs';
 // `@yalla/tokens` is TypeScript. The contrast test in that package is what
 // keeps these honest; a mismatch here is a wrong-coloured card, not a wrong
 // product.
-const GREEN = [0x1e, 0x5b, 0x3c]; // color.primary — deep, desaturated brand green
-const FREE = [0x35, 0xb3, 0x7e]; // color.stateFree — bright free-table green
-const PAPER = [0xf6, 0xf9, 0xf7]; // color.paper
-const WHITE = [0xff, 0xff, 0xff];
+const CHERRY = [0x3a, 0x09, 0x12]; // consoleColor.sidebar — the deep cherry of every SHURJ bar
+const FREE = [0x35, 0xb3, 0x7e]; // consoleColor.floorFreeEdge — the free-table green
+const PAPER = [0xff, 0xff, 0xff]; // consoleColor.canvas — the white page
 
 const WIDTH = 1200;
 const HEIGHT = 630;
@@ -62,77 +64,6 @@ function rect(x, y, w, h) {
     [x + w, y + h],
     [x, y + h],
   ];
-}
-
-/**
- * The five glyphs, as polygon sets in a `w` x `h` cell at (`x`, `y`).
- *
- * Every diagonal is built as a quad with **horizontal terminals** rather than
- * as a stroked line segment. A stroked segment caps perpendicular to its own
- * direction, so the two arms of a Y meet at the top in a V-shaped notch and the
- * apex of an A comes to a nick — which is what the first render of this card
- * did. Horizontal cuts are also what a real geometric sans does at those
- * junctions, so this is the correct shape rather than a workaround.
- *
- * Capitals only, and only these five, because these five are all the card
- * needs. A general font is what the TTFs in `public/fonts` are for; this is a
- * wordmark.
- */
-const GLYPHS = {
-  Y: (x, y, w, h, t) => {
-    const mx = x + w / 2;
-    const my = y + h * 0.52;
-    return [
-      [
-        [x, y],
-        [x + t, y],
-        [mx + t / 2, my],
-        [mx - t / 2, my],
-      ],
-      [
-        [x + w - t, y],
-        [x + w, y],
-        [mx + t / 2, my],
-        [mx - t / 2, my],
-      ],
-      rect(mx - t / 2, my, t, y + h - my),
-    ];
-  },
-  A: (x, y, w, h, t) => {
-    const mx = x + w / 2;
-    return [
-      [
-        [mx - t / 2, y],
-        [mx + t / 2, y],
-        [x + t, y + h],
-        [x, y + h],
-      ],
-      [
-        [mx - t / 2, y],
-        [mx + t / 2, y],
-        [x + w, y + h],
-        [x + w - t, y + h],
-      ],
-      rect(x + w * 0.2, y + h * 0.66, w * 0.6, t * 0.84),
-    ];
-  },
-  L: (x, y, w, h, t) => [rect(x, y, t, h), rect(x, y + h - t, w * 0.82, t)],
-};
-
-function wordmark(word, x, y, cellW, cellH, thickness, gap) {
-  const shapes = [];
-  let cursor = x;
-  for (const letter of word) {
-    const glyph = GLYPHS[letter];
-    if (!glyph) throw new Error(`No glyph for "${letter}" — this is a wordmark, not a font.`);
-    shapes.push(...glyph(cursor, y, cellW, cellH, thickness));
-    cursor += cellW + gap;
-  }
-  return shapes;
-}
-
-function wordmarkWidth(word, cellW, gap) {
-  return word.length * cellW + (word.length - 1) * gap;
 }
 
 /** Rounded rectangle as a polygon, corners approximated in eight steps. */
@@ -239,38 +170,78 @@ function paint(polygon, rgb, { alpha = 1, holes = [] } = {}) {
   }
 }
 
+/**
+ * Lay an RGBA image over the card at (`dx`, `dy`), scaled to `dw` wide (the
+ * height follows its own ratio), each pixel the average of a 4x4 grid of
+ * bilinear samples so the fine strokes of the lettering stay smooth.
+ */
+function drawImage(image, dx, dy, dw) {
+  const dh = (dw * image.height) / image.width;
+  const sample = (u, v) => {
+    const x = Math.min(image.width - 1.001, Math.max(0, u));
+    const y = Math.min(image.height - 1.001, Math.max(0, v));
+    const x0 = Math.floor(x);
+    const y0 = Math.floor(y);
+    const fx = x - x0;
+    const fy = y - y0;
+    const at = (px, py, c) => image.data[(py * image.width + px) * 4 + c];
+    const mix = (c) =>
+      (at(x0, y0, c) * (1 - fx) + at(x0 + 1, y0, c) * fx) * (1 - fy) +
+      (at(x0, y0 + 1, c) * (1 - fx) + at(x0 + 1, y0 + 1, c) * fx) * fy;
+    return [mix(0), mix(1), mix(2), mix(3) / 255];
+  };
+  const scale = image.width / dw;
+  for (let y = Math.max(0, Math.floor(dy)); y < Math.min(HEIGHT, Math.ceil(dy + dh)); y += 1) {
+    for (let x = Math.max(0, Math.floor(dx)); x < Math.min(WIDTH, Math.ceil(dx + dw)); x += 1) {
+      const sum = [0, 0, 0, 0];
+      for (let sy = 0; sy < SS; sy += 1) {
+        for (let sx = 0; sx < SS; sx += 1) {
+          const [r, g, b, a] = sample(
+            (x + (sx + 0.5) / SS - dx) * scale - 0.5,
+            (y + (sy + 0.5) / SS - dy) * scale - 0.5,
+          );
+          sum[0] += r * a;
+          sum[1] += g * a;
+          sum[2] += b * a;
+          sum[3] += a;
+        }
+      }
+      const coverage = sum[3] / (SS * SS);
+      if (coverage === 0) continue;
+      const index = (y * WIDTH + x) * 4;
+      for (let c = 0; c < 3; c += 1) {
+        const ink = sum[c] / sum[3];
+        png.data[index + c] = Math.round(png.data[index + c] * (1 - coverage) + ink * coverage);
+      }
+    }
+  }
+}
+
 // --- The card ---------------------------------------------------------------
 
-fillBackground(GREEN);
+fillBackground(CHERRY);
 
 // A paper band along the bottom third: the room sits on it, so the card reads
 // as the product rather than as a logo on a colour.
 const BAND_TOP = 372;
 paint(rect(0, BAND_TOP, WIDTH, HEIGHT - BAND_TOP), PAPER);
 
-// The wordmark, optically centred in the green field above the band.
-const CELL_W = 104;
-const CELL_H = 148;
-const THICK = 27;
-const GAP = 30;
-const markWidth = wordmarkWidth('YALLA', CELL_W, GAP);
-for (const shape of wordmark(
-  'YALLA',
-  (WIDTH - markWidth) / 2,
-  (BAND_TOP - CELL_H) / 2 + 6,
-  CELL_W,
-  CELL_H,
-  THICK,
-  GAP,
-)) {
-  paint(shape, WHITE);
-}
+// The wordmark, optically centred in the cherry field above the band. Its
+// capitals sit high in the image (the R and the J hang below them), so the
+// image is set a little low for the capitals to look centred.
+const here = dirname(fileURLToPath(import.meta.url));
+const lettering = PNG.sync.read(
+  readFileSync(join(here, '..', 'src', 'assets', 'shurj-wordmark.png')),
+);
+const MARK_W = 640;
+const markH = (MARK_W * lettering.height) / lettering.width;
+drawImage(lettering, (WIDTH - MARK_W) / 2, (BAND_TOP - markH) / 2 + 12, MARK_W);
 
 /*
  * The room. Eight tables, three of them free.
  *
  * Not decoration and not a real branch: it is the one picture that says what
- * the link leads to. Free tables are solid `stateFree`; the rest are rings, so
+ * the link leads to. Free tables are solid green (`floorFreeEdge`); the rest are rings, so
  * the difference survives being rendered at thumbnail size in a chat list and
  * does not depend on colour alone — the same rule the floor plan itself
  * follows.
@@ -290,10 +261,10 @@ for (let i = 0; i < COLUMNS; i += 1) {
     paint(roundedRect(x, roomY, TABLE_W, TABLE_H, 20), FREE);
   } else {
     const { outer, inner } = roundedOutline(x, roomY, TABLE_W, TABLE_H, 20, 5);
-    paint(outer, GREEN, { alpha: 0.32, holes: [inner] });
+    paint(outer, CHERRY, { alpha: 0.32, holes: [inner] });
   }
 }
 
-const out = join(dirname(fileURLToPath(import.meta.url)), '..', 'public', 'og-card.png');
+const out = join(here, '..', 'public', 'og-card.png');
 writeFileSync(out, PNG.sync.write(png));
 console.log(`og-card — wrote ${out} (${WIDTH}x${HEIGHT}, safe area ${SAFE}px)`);
