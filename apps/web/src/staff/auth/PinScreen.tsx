@@ -14,6 +14,7 @@ import { useCallback, useEffect, useId, useRef, useState } from 'react';
 import { useMinuteClock } from '../useMinuteClock';
 import { staffDeviceStore, type KnownStaffMember } from './deviceStore';
 import { staffSession } from './staffSession';
+import { Wordmark } from '../../components/Wordmark';
 
 /**
  * Four digits, standing up, with a thumb: the PIN gate over the floor (Pin
@@ -369,7 +370,9 @@ export function PinScreen({ device, lastSignOut }: PinScreenProps) {
         tabIndex={-1}
       >
         <div className="ft-pin-left">
-          <span className="ft-pin-brand">{t('common:appName')}</span>
+          <span className="ft-pin-brand">
+            <Wordmark />
+          </span>
           {/* Where this tablet thinks it is. First, and never collapsed: a
               tablet bound to the wrong branch is cheap to catch here and
               expensive to catch anywhere else. */}

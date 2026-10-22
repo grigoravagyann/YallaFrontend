@@ -81,7 +81,9 @@ describe('the top bar', () => {
     open('/lumen-coffee/northern-avenue');
     const bar = await screen.findByRole('banner');
 
-    expect(within(bar).getByRole('link', { name: 'Yalla' }).getAttribute('href')).toBe('#top');
+    expect(within(bar).getByRole('link', { name: 'SHURJ' }).getAttribute('href')).toBe('#top');
+    // The logo's lettering, not the name typed out in a font.
+    expect(within(bar).getByRole('img', { name: 'SHURJ' })).toBeTruthy();
     const group = within(bar).getByRole('group', { name: 'Language' });
     expect(within(group).getAllByRole('button')).toHaveLength(3);
     expect(within(bar).queryByText(/App Store|Google Play|Get the app/u)).toBeNull();

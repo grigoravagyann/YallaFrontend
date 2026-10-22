@@ -2057,7 +2057,7 @@
 }
 
 .ft-enrol-code::placeholder {
-  color: var(--console-button-edge);
+  color: var(--console-code-placeholder);
 }
 
 .ft-enrol-code:focus-visible {

@@ -50,7 +50,7 @@
     "saved": "Saved",
     "failed": "That did not save. Nothing changed — try again.",
     "listing": {
-      "title": "In the Yalla app",
+      "title": "In the SHURJ app",
       "intro": "What guests read on your card and your page. It has its own save button.",
       "cuisine": {
         "label": "Cuisine",
@@ -163,7 +163,7 @@
       "savedToast": "The app listing is saved",
       "checkFields": "Check the fields marked in red"
     },
-    "sub": "{{branch}} · What anyone with your link sees, and what guests read in the Yalla app.",
+    "sub": "{{branch}} · What anyone with your link sees, and what guests read in the SHURJ app.",
     "page": {
       "title": "Page and booking",
       "cap": "Your picture, your number, and whether people can book",
@@ -471,7 +471,7 @@
     "showPassword": "Show password",
     "hidePassword": "Hide password",
     "forgot": "Forgot your password?",
-    "noAccount": "No account? Staff get their sign-in from the venue's owner or manager, and owners get theirs from Yalla.",
+    "noAccount": "No account? Staff get their sign-in from the venue's owner or manager, and owners get theirs from SHURJ.",
     "welcomeTitle": "Welcome",
     "welcomeBody": "Opening the console…",
     "welcomeGo": "Go to the console",
@@ -1424,7 +1424,7 @@
     },
     "wizard": {
       "branchLabel": "Which branch?",
-      "coOwnerNote": "A co-owner is added with a PIN. Their console sign-in is issued by the Yalla team."
+      "coOwnerNote": "A co-owner is added with a PIN. Their console sign-in is issued by the SHURJ team."
     },
     "staffId": {
       "label": "Staff ID",
@@ -1572,12 +1572,12 @@
   "reviews": {
     "title": "Reviews",
     "reason": "Reason",
-    "platformHidden": "Hidden by the Yalla team. Only they can bring it back.",
+    "platformHidden": "Hidden by the SHURJ team. Only they can bring it back.",
     "empty": "No review matches the filter.",
     "failed": "That did not go through. Nothing changed — try again.",
     "sub": "{{branch}} · What guests write. Hide only what breaks the rules, never just a bad rating.",
-    "reasonHelp": "The guest will not see the reason. The Yalla team sees every hidden review.",
-    "hiddenByYalla": "Yalla team, {{date}}",
+    "reasonHelp": "The guest will not see the reason. The SHURJ team sees every hidden review.",
+    "hiddenByYalla": "SHURJ team, {{date}}",
     "hiddenByName": "Hidden by {{name}}, {{date}}",
     "hiddenByVenue": "Hidden by the venue, {{date}}",
     "reply": {
@@ -1601,7 +1601,7 @@
       "down": "↓ {{change}} in the last 30 days"
     },
     "rules": {
-      "lowRating": "A bad rating alone is not a reason. The Yalla team can bring back hides that have none."
+      "lowRating": "A bad rating alone is not a reason. The SHURJ team can bring back hides that have none."
     }
   },
   "unsavedChanges": {
@@ -1650,7 +1650,7 @@
       "title": "Something went wrong",
       "body": "This is on our side, not yours. Nothing was changed: try again in a few seconds.",
       "home": "Home",
-      "reference": "Error code: {{reference}} · send it to the Yalla team"
+      "reference": "Error code: {{reference}} · send it to the SHURJ team"
     },
     "retry": "Try again",
     "checking": "Checking…",
@@ -2088,7 +2088,7 @@
       "pendingTitle": "Bookings awaiting approval, by venue",
       "pendingCap": "The restaurant approves them from its own console",
       "tabsTitle": "Open tabs by venue",
-      "tabsCap": "Tables eating with Yalla right now",
+      "tabsCap": "Tables eating with SHURJ right now",
       "close": "Close"
     },
     "chart": {
@@ -2194,7 +2194,7 @@
       "confirm": "Sign out"
     },
     "profile": {
-      "emailByTeam": "The Yalla team changes the email",
+      "emailByTeam": "The SHURJ team changes the email",
       "emailByOwner": "The owner changes the email, with a new sign-in link"
     },
     "password": {
@@ -2215,7 +2215,7 @@
     },
     "sessions": {
       "title": "Where you're signed in",
-      "cap": "Yalla doesn't record devices or places, only when each sign-in started and was last used",
+      "cap": "SHURJ doesn't record devices or places, only when each sign-in started and was last used",
       "signOutOthers": "Sign out everywhere else",
       "signingOut": "Signing out…",
       "thisDevice": "This device",

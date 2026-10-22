@@ -29,7 +29,7 @@ const FILTERS: readonly Filter[] = ['next', 'seated', 'all'];
 const PILL: Readonly<Record<OverviewRowState, string>> = {
   pending: 'yc-pill yc-pill-amber',
   changeRequested: 'yc-pill yc-pill-amber',
-  confirmed: 'yc-pill yc-pill-blue',
+  confirmed: 'yc-pill yc-pill-green',
   late: 'yc-pill yc-pill-red',
   seated: 'yc-pill yc-pill-green',
   completed: 'yc-pill yc-pill-grey',

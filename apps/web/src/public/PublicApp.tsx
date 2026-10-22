@@ -1,4 +1,3 @@
-import { useTranslation } from '@yalla/i18n';
 import { Route, Routes } from 'react-router-dom';
 import { BranchRoute } from './BranchRoute';
 import { LanguageSwitcher } from './language';
@@ -6,20 +5,20 @@ import { ManageBookingRoute } from './ManageBookingRoute';
 import { NotFoundPage } from './PageStates';
 import { useDocumentLocale } from '../useDocumentLocale';
 import { VenueRoute } from './VenueRoute';
+import { Wordmark } from '../components/Wordmark';
 
 /**
  * The public route group.
  *
  * Four routes and a catch-all, all unauthenticated, under one top bar: the
  * wordmark and the language switch, and nothing else (public-page HANDOFF:
- * own top bar, no sidebar, mobile first). No Yalla navigation, no sign-in
+ * own top bar, no sidebar, mobile first). No SHURJ navigation, no sign-in
  * link, no app badge — a visitor arrived here for one venue, from a link
  * somebody sent them, and every element that is not about that venue is an
  * element competing with it. The one honest mention of the app is on the
  * booking confirmation, and only when `VITE_APP_URL` says there is one.
  */
 export function PublicApp() {
-  const { t } = useTranslation('public');
   // This surface has its own entry point, so it does not inherit the console's
   // shell — it has to adopt the hook itself.
   useDocumentLocale();
@@ -39,7 +38,7 @@ export function PublicApp() {
       */}
       <header className="pub-bar">
         <a className="pub-wordmark" href="#top">
-          {t('appName', { ns: 'common' })}
+          <Wordmark />
         </a>
         <LanguageSwitcher />
       </header>

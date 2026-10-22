@@ -400,7 +400,7 @@ describe('adding somebody', () => {
     await user.type(within(wizard()).getByLabelText(/^Tablet PIN/u), '4821');
     await user.click(within(wizard()).getByRole('button', { name: 'Continue →' }));
     expect(within(wizard()).queryByLabelText(/^Email for the console/u)).toBeNull();
-    expect(within(wizard()).getByText(/issued by the Yalla team/u)).toBeTruthy();
+    expect(within(wizard()).getByText(/issued by the SHURJ team/u)).toBeTruthy();
   });
 
   it('takes a PIN somebody on the tablet uses back to the PIN, under the field', async () => {

@@ -664,7 +664,7 @@
     "title": "Take cash",
     "tip": "Tip",
     "delete": "Delete",
-    "notAReceipt": "This records the payment in Yalla. The venue's own cash register still issues the receipt.",
+    "notAReceipt": "This records the payment in SHURJ. The venue's own cash register still issues the receipt.",
     "failed": "We could not record that payment. Nothing was taken.",
     "exceeds": "{{requested}} is more than this tab owes. {{remaining}} is left on it. Nothing was recorded.",
     "heading": "Cash · table {{label}}",

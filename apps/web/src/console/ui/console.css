@@ -4996,7 +4996,7 @@ body:has(.yc-savebar) .yc-toast-region {
   padding: 0;
   border: 0;
   border-radius: var(--console-radius-pill);
-  background: var(--console-control);
+  background: var(--console-switch-off);
   cursor: pointer;
   transition: background 0.15s;
 }

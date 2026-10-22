@@ -2,6 +2,7 @@ import { LOCALES, useLocale, useTranslation, type Locale } from '@yalla/i18n';
 import { useId, type ReactNode } from 'react';
 import roomPhoto from '../assets/signin-room.jpg';
 import '../console/ui/console.css';
+import { Wordmark } from '../components/Wordmark';
 
 export interface AuthLayoutProps {
   /** The sentence on the photo. */
@@ -18,7 +19,7 @@ export interface AuthLayoutProps {
  * room photo with the brand and a sentence on one side, the card on the other.
  * Below 960px the photo becomes a band across the top.
  *
- * The photo is decoration (`alt=""`): the brand word on it is text, and the
+ * The photo is decoration (`alt=""`): the wordmark on it carries the name, and the
  * card's own heading says what the page is for.
  */
 export function AuthLayout({ claim, claimSub, languagePicker = false, children }: AuthLayoutProps) {
@@ -29,7 +30,9 @@ export function AuthLayout({ claim, claimSub, languagePicker = false, children }
       <section className="yc-auth-room" aria-label={t('common:appName')}>
         <img className="yc-auth-photo" src={roomPhoto} alt="" />
         <div className="yc-auth-shade" aria-hidden="true" />
-        <div className="yc-auth-brand">{t('common:appName')}</div>
+        <div className="yc-auth-brand">
+          <Wordmark />
+        </div>
         <p className="yc-auth-claim">
           {claim}
           <small>{claimSub}</small>
