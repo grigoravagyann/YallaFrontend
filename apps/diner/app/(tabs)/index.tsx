@@ -294,8 +294,9 @@ const styles = StyleSheet.create({
     position: 'absolute',
     // A little below the sheet's top, closer to the header than to the search.
     top: 4,
-    left: layout.screenPadding,
-    right: layout.screenPadding,
+    // Edge to edge of the screen.
+    left: 0,
+    right: 0,
     height: 1,
     backgroundColor: colors.logoInk,
   },
