@@ -183,7 +183,7 @@ const styles = StyleSheet.create({
     height: AVATAR,
     borderRadius: radius.pill,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: colors.controlBorder,
   },
   avatarInitial: {
     backgroundColor: colors.surface,
@@ -198,7 +198,7 @@ const styles = StyleSheet.create({
   },
   hello: { flex: 1, minWidth: 0 },
   measure: { position: 'absolute', left: 0, top: 0, opacity: 0, alignItems: 'flex-start' },
-  greeting: { fontSize: 14, lineHeight: 18, color: colors.textMuted },
+  greeting: { fontSize: 14, lineHeight: 18, color: colors.greeting },
   name: {
     fontSize: 25,
     lineHeight: 30,
@@ -216,7 +216,7 @@ const styles = StyleSheet.create({
     borderRadius: radius.pill,
     backgroundColor: colors.surface,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: colors.controlBorder,
   },
   pillLabel: { fontSize: 15, lineHeight: 20, fontWeight: fontWeight.medium, color: colors.text },
   round: {
@@ -225,11 +225,11 @@ const styles = StyleSheet.create({
     borderRadius: radius.pill,
     backgroundColor: colors.surface,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: colors.controlBorder,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  pressed: { borderColor: colors.borderStrong, opacity: 0.85 },
+  pressed: { opacity: 0.85 },
   unreadDot: {
     position: 'absolute',
     top: 9 - DOT_RING,

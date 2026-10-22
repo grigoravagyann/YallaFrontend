@@ -52,7 +52,7 @@ export const shadows = {
   /** A bottom sheet, lifted off the page under it. */
   sheet: shadow({ y: -12, blur: 40, opacity: 0.12, elevation: 12 }),
   /** A page-wide sheet resting on a ground (Explore's white over the ivory): a faint upward lift. */
-  sheetTop: shadow({ y: -6, blur: 20, opacity: 0.05, elevation: 2 }),
+  sheetTop: shadow({ y: -4, blur: 16, opacity: 0.07, elevation: 3 }),
   /** The faintest step — a map pin. */
   lift: shadow({ y: 1, blur: 3, opacity: 0.12, elevation: 1 }),
 } as const satisfies Record<string, ViewStyle>;

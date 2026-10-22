@@ -1,8 +1,8 @@
 /**
  * The diner app's palette. Light only: SHURJ, a white page.
  *
- * Every screen is white (`Screen` draws a flat fill, no glow); only the
- * Explore header sits on a warm ivory (`exploreGround`). Cards, rows, inputs
+ * Every screen is white (`Screen` draws a flat fill, no glow), the Explore
+ * header included. Cards, rows, inputs
  * and sheets are white too, edged by the 1px `border` hairline — there are no
  * grey fills. The brand is a muted dark burgundy that speaks three ways:
  * `brand`, the fill of every primary button, selected chip and sliding
@@ -26,8 +26,15 @@
 export const colors = {
   /** The ground under every screen: flat white. */
   background: '#FFFFFF',
-  /** The warm ivory behind the Explore header, and only there. */
-  exploreGround: '#F7F6F1',
+  /** The ground behind the Explore header: white like the rest (2026-10-22), no beige tint. */
+  exploreGround: '#FFFFFF',
+  /**
+   * The edge of a control on white — the Explore avatar, Map pill, bell and
+   * search field: a thin line, clearly visible, at full opacity.
+   */
+  controlBorder: '#CFC6C1',
+  /** The Explore greeting's soft grey above the name. */
+  greeting: '#8C8580',
   /** Cards, rows, inputs: white, edged by the `border` hairline. */
   surface: '#FFFFFF',
   /**
@@ -104,14 +111,14 @@ export const colors = {
   surfaceDark: '#120804',
 
   /** The fill of the one thing to press: buttons, selected chips, the active tab. */
-  brand: '#6E1F2C',
+  brand: '#711D2C',
   brandPressed: '#5A1823',
   /** The edge round a brand fill, so it holds its shape where it meets a burgundy tint. */
   brandEdge: '#5A1823',
   /** A brand fill's soft lift (shadow colour). */
-  brandGlow: '#6E1F2C',
+  brandGlow: '#711D2C',
   /** The brand as text or a glyph: links, prices, spinners, active labels and indicators. */
-  primary: '#6E1F2C',
+  primary: '#711D2C',
   /** Pressed state of a `primary` line (outline button, text link). */
   primaryPressed: '#4E1520',
   /** Label and glyph on a `brand` fill. */
@@ -125,7 +132,7 @@ export const colors = {
    * The burgundy of an icon that marks a place: the active nav glyph,
    * the Scan QR glyph, an unread dot. A glyph, never a sentence.
    */
-  accent: '#6E1F2C',
+  accent: '#711D2C',
 
   /** The soft burgundy behind an initials avatar. */
   secondary: '#F1E4E4',
