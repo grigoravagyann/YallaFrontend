@@ -4,9 +4,9 @@
  * Every screen is white (`Screen` draws a flat fill, no glow), the Explore
  * header included. Cards, rows, inputs
  * and sheets are white too, edged by the 1px `border` hairline — there are no
- * grey fills. The brand is a muted dark burgundy that speaks three ways:
+ * grey fills. The brand is Black Cherry (#4B0C18), which speaks three ways:
  * `brand`, the fill of every primary button, selected chip and sliding
- * selection pill; `primary`, the same burgundy where the brand is a line of
+ * selection pill; `primary`, the same cherry where the brand is a line of
  * text or a glyph — a link, a price, a spinner, the active label; and
  * `accent`, the icon that marks where you are — the active nav glyph, the
  * Scan QR, an unread dot. Chroma beyond that carries meaning and nothing else:
@@ -111,31 +111,31 @@ export const colors = {
   surfaceDark: '#120804',
 
   /** The fill of the one thing to press: buttons, selected chips, the active tab. */
-  brand: '#711D2C',
-  brandPressed: '#5A1823',
+  brand: '#4B0C18',
+  brandPressed: '#3A0912',
   /** The edge round a brand fill, so it holds its shape where it meets a burgundy tint. */
-  brandEdge: '#5A1823',
+  brandEdge: '#3A0912',
   /** A brand fill's soft lift (shadow colour). */
-  brandGlow: '#711D2C',
+  brandGlow: '#4B0C18',
   /** The brand as text or a glyph: links, prices, spinners, active labels and indicators. */
-  primary: '#711D2C',
+  primary: '#4B0C18',
   /** Pressed state of a `primary` line (outline button, text link). */
-  primaryPressed: '#4E1520',
+  primaryPressed: '#2E070F',
   /** Label and glyph on a `brand` fill. */
-  onPrimary: '#FFF8F0',
+  onPrimary: '#FFF7EA',
   /**
    * A soft burgundy tint — the Preparing and Awaiting-confirmation pills,
    * pressed rows, a row that has just arrived.
    */
-  primarySoft: '#F1E4E4',
+  primarySoft: '#F2E4E6',
   /**
    * The burgundy of an icon that marks a place: the active nav glyph,
    * the Scan QR glyph, an unread dot. A glyph, never a sentence.
    */
-  accent: '#711D2C',
+  accent: '#4B0C18',
 
   /** The soft burgundy behind an initials avatar. */
-  secondary: '#F1E4E4',
+  secondary: '#F2E4E6',
   border: '#E7E0D7',
   borderStrong: '#D9CFC3',
 
