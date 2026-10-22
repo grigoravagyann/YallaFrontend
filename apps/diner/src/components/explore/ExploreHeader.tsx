@@ -183,7 +183,7 @@ const styles = StyleSheet.create({
     height: AVATAR,
     borderRadius: radius.pill,
     borderWidth: 1,
-    borderColor: colors.primary,
+    borderColor: colors.text,
   },
   avatarInitial: {
     backgroundColor: colors.surface,
@@ -217,7 +217,7 @@ const styles = StyleSheet.create({
     borderRadius: radius.pill,
     backgroundColor: colors.surface,
     borderWidth: 1,
-    borderColor: colors.primary,
+    borderColor: colors.text,
   },
   pillLabel: { fontSize: 15, lineHeight: 20, fontWeight: fontWeight.medium, color: colors.text },
   round: {
@@ -226,7 +226,7 @@ const styles = StyleSheet.create({
     borderRadius: radius.pill,
     backgroundColor: colors.surface,
     borderWidth: 1,
-    borderColor: colors.primary,
+    borderColor: colors.text,
     alignItems: 'center',
     justifyContent: 'center',
   },

@@ -98,7 +98,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  idle: { backgroundColor: colors.surface, borderColor: colors.primary },
+  idle: { backgroundColor: colors.surface, borderColor: colors.text },
   idlePressed: { borderColor: colors.borderStrong },
   selected: { backgroundColor: colors.brand, borderColor: colors.brand },
   selectedPressed: { backgroundColor: colors.brandPressed, borderColor: colors.brandPressed },

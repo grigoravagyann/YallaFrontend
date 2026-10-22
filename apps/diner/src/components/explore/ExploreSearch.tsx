@@ -88,7 +88,7 @@ const styles = StyleSheet.create({
     paddingRight: 1,
     borderRadius: radius.pill,
     borderWidth: 1,
-    borderColor: colors.primary,
+    borderColor: colors.text,
     backgroundColor: colors.surface,
     // The design's barely-there lift under the field: a card's own, 0 1 2 at 5%.
     ...shadows.card,
