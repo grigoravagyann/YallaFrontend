@@ -64,6 +64,10 @@ const KIND_ICON: Readonly<Record<string, IoniconName>> = {
   'booking-no-show': actionIcon.calendar,
   'bookings-blocked-no-shows': 'ban-outline',
   'bookings-unblocked': actionIcon.calendar,
+  // A takeaway order accepted, ready or declined (2026-10-22): the bag.
+  'takeaway-accepted': actionIcon.takeaway,
+  'takeaway-ready': actionIcon.takeaway,
+  'takeaway-declined': actionIcon.takeaway,
 };
 
 function kindIcon(notification: DinerNotification): IoniconName {

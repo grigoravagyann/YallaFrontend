@@ -90,3 +90,19 @@ describe('invalidateForPush, the pause on booking', () => {
     }
   });
 });
+
+describe('invalidateForPush, a takeaway order (2026-10-22)', () => {
+  it('reads the order and the Orders tab again', () => {
+    const keys = queryKeysForPush({ kind: 'takeaway-ready', orderId: 'tw-1' });
+    expect(keys).toContainEqual(['takeaway', 'order', 'tw-1']);
+    expect(keys).toContainEqual(['dinerOrders']);
+  });
+
+  it('leaves the takeaway reads alone for any other order push', () => {
+    expect(queryKeysForPush({ kind: 'order-ready', orderId: 'o1' })).not.toContainEqual([
+      'takeaway',
+      'order',
+      'o1',
+    ]);
+  });
+});

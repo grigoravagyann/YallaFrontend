@@ -529,3 +529,25 @@ describe('are you on your way?', () => {
     expect(onYourWayRoute(RESERVATION, 'cantCome').params.onMyWay).toBe('cantCome');
   });
 });
+
+/**
+ * Takeaway (2026-10-22): an order accepted, ready or declined lands on its
+ * status screen, which reads the order as it stands.
+ */
+describe('a takeaway order', () => {
+  it.each(['takeaway-accepted', 'takeaway-ready', 'takeaway-declined'])(
+    '%s opens its status screen',
+    (kind) => {
+      const target = parsePushTarget({ kind, orderId: 'tw-1', code: 'T-482' });
+      expect(target).toEqual({ kind: 'takeaway', orderId: 'tw-1' });
+      expect(routeFor(target)).toEqual({
+        pathname: '/takeaway/[orderId]',
+        params: { orderId: 'tw-1' },
+      });
+    },
+  );
+
+  it('is not routable without its order', () => {
+    expect(parsePushTarget({ kind: 'takeaway-ready' })).toEqual({ kind: 'unknown' });
+  });
+});

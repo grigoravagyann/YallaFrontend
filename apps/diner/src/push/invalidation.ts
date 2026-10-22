@@ -36,6 +36,11 @@ export function queryKeysForPush(data: PushData | null | undefined): QueryKey[] 
   const tabId = id(data, 'tabId');
   if (tabId !== null) keys.push(['dinerTab', tabId]);
 
+  // A takeaway order moved (2026-10-22): its status screen reads it again
+  // (`queryKeys.takeawayOrder`) rather than waiting for its next poll.
+  const orderId = id(data, 'orderId');
+  if (orderId !== null && kind?.startsWith('takeaway-')) keys.push(['takeaway', 'order', orderId]);
+
   const reservationId = id(data, 'reservationId');
   // The pause on booking names no booking: the list says it, and is read again.
   const aboutThePause = kind !== null && BOOKINGS_TAB_PUSH_KINDS.includes(kind);

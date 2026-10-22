@@ -8,12 +8,13 @@ import { EmptyState } from '../../src/components/EmptyState';
 import { ErrorState } from '../../src/components/ErrorState';
 import { Rise, riseDelay } from '../../src/components/motion/Rise';
 import { OrderCard, OrderCardSkeleton } from '../../src/components/orders/OrderCard';
+import { TakeawayOrderCard } from '../../src/components/orders/TakeawayOrderCard';
 import { Screen, useNavClearance } from '../../src/components/Screen';
 import { SegmentedControl } from '../../src/components/SegmentedControl';
 import { Text } from '../../src/components/Text';
 import { useNow } from '../../src/hooks/useNow';
 import { useOrders } from '../../src/orders/hooks';
-import { splitOrders, type Order } from '../../src/orders/model';
+import { splitOrders, takeawayFirst, type Order } from '../../src/orders/model';
 import { useSession } from '../../src/stores/session';
 import { colors, displayWeight, layout, navIcons, space, typography } from '../../src/theme';
 
@@ -41,10 +42,14 @@ export default function OrdersScreen() {
   const offline = isOfflinePaused(ordersQuery) && !data;
 
   const split = useMemo(() => splitOrders(data ?? [], now), [data, now]);
-  const list: readonly Order[] = segment === 'active' ? split.active : split.history;
+  // A takeaway order on its way leads: it has a time to be collected by.
+  const list: readonly Order[] = segment === 'active' ? takeawayFirst(split.active) : split.history;
 
   const openDetail = (order: Order) =>
     router.push({ pathname: '/order/[orderId]', params: { orderId: order.id } });
+  // A takeaway order the server described opens its own status screen (2026-10-22).
+  const openTakeaway = (order: Order) =>
+    router.push({ pathname: '/takeaway/[orderId]', params: { orderId: order.id } });
 
   const header = (
     <View style={styles.header}>
@@ -113,17 +118,27 @@ export default function OrdersScreen() {
         onRefresh={() => void refetch()}
         renderItem={({ item, index }) => (
           <Rise delay={riseDelay(index)}>
-            <OrderCard
-              order={item}
-              now={now}
-              style={styles.card}
-              onViewDetails={() => openDetail(item)}
-              // Cancelling asks for a confirmation, which lives on the detail
-              // screen; the card takes the diner there rather than cancelling
-              // on a single tap in a list.
-              onCancel={() => openDetail(item)}
-              onTrack={() => openDetail(item)}
-            />
+            {item.kind === 'takeaway' && item.takeaway ? (
+              <TakeawayOrderCard
+                order={item}
+                takeaway={item.takeaway}
+                now={now}
+                style={styles.card}
+                onOpen={() => openTakeaway(item)}
+              />
+            ) : (
+              <OrderCard
+                order={item}
+                now={now}
+                style={styles.card}
+                onViewDetails={() => openDetail(item)}
+                // Cancelling asks for a confirmation, which lives on the detail
+                // screen; the card takes the diner there rather than cancelling
+                // on a single tap in a list.
+                onCancel={() => openDetail(item)}
+                onTrack={() => openDetail(item)}
+              />
+            )}
           </Rise>
         )}
         ListEmptyComponent={

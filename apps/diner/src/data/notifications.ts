@@ -1,5 +1,6 @@
 import {
   isKnownNotificationKind,
+  isTakeawayNotificationKind,
   type DinerNotification,
   type KnownDinerNotificationKind,
 } from '@yalla/api';
@@ -67,6 +68,12 @@ export interface NotificationCopy {
      * after three no-shows, how many bookings it cancelled.
      */
     readonly count?: number;
+    /** A takeaway order's code, "T-482" (2026-10-22). */
+    readonly code?: string;
+    /** …and, accepted, the time it will be ready. */
+    readonly readyTime?: string;
+    /** …or, declined, what the venue said. */
+    readonly reason?: string;
   };
 }
 
@@ -212,6 +219,46 @@ function guestRecordCopy(
 }
 
 /**
+ * A takeaway order's rows (2026-10-22): accepted, with the time it will be
+ * ready; ready, to come and pick it up; declined — an apology when nobody
+ * answered in time, the venue's reason when it gave one. `null` for any other row.
+ */
+function takeawayCopy(
+  notification: Pick<DinerNotification, 'kind' | 'params'>,
+  place: string,
+): NotificationCopy | null {
+  if (!isTakeawayNotificationKind(notification.kind)) return null;
+  const code = text(notification.params['code']) ?? '';
+  const kind = 'notifications.kind.';
+  if (notification.kind === 'takeaway-accepted') {
+    const readyTime = text(notification.params['readyTime']);
+    return {
+      titleKey: `${kind}takeawayAccepted.title`,
+      bodyKey: readyTime ? `${kind}takeawayAccepted.body` : `${kind}takeawayAcceptedPlain.body`,
+      params: { place, code, ...(readyTime ? { readyTime } : {}) },
+    };
+  }
+  if (notification.kind === 'takeaway-ready') {
+    return {
+      titleKey: `${kind}takeawayReady.title`,
+      bodyKey: `${kind}takeawayReady.body`,
+      params: { place, code },
+    };
+  }
+  const reason = text(notification.params['reason']);
+  const body = flag(notification, 'noAnswer')
+    ? 'takeawayDeclinedNoAnswer'
+    : reason
+      ? 'takeawayDeclinedReason'
+      : 'takeawayDeclined';
+  return {
+    titleKey: `${kind}takeawayDeclined.title`,
+    bodyKey: `${kind}${body}.body`,
+    params: { place, code, ...(reason && body === 'takeawayDeclinedReason' ? { reason } : {}) },
+  };
+}
+
+/**
  * The title and body keys for a row. A kind this build has no copy for — a
  * newer server — gets the generic pair rather than being dropped or guessed.
  */
@@ -226,6 +273,8 @@ export function notificationCopy(
     '';
   const record = guestRecordCopy(notification, place, timeZone);
   if (record) return record;
+  const takeaway = takeawayCopy(notification, place);
+  if (takeaway) return takeaway;
   const change = declinedChange(notification);
   if (change) {
     return {
@@ -321,6 +370,7 @@ export type NotificationRoute =
   | { readonly pathname: '/order/[orderId]'; readonly params: { orderId: string } }
   | { readonly pathname: '/tab/[tabId]'; readonly params: { tabId: string } }
   | { readonly pathname: '/place/[placeId]'; readonly params: { placeId: string } }
+  | { readonly pathname: '/takeaway/[orderId]'; readonly params: { orderId: string } }
   | { readonly pathname: '/(tabs)/bookings' };
 
 function bookingRoute(id: string | null): NotificationRoute | null {
@@ -350,6 +400,12 @@ export function notificationRoute(
   >,
 ): NotificationRoute | null {
   const { kind, reservationId, orderId, tabId, branchId } = notification;
+  // A takeaway order's rows open its status screen (2026-10-22).
+  if (isTakeawayNotificationKind(kind)) {
+    return orderId
+      ? { pathname: '/takeaway/[orderId]', params: { orderId } }
+      : placeRoute(branchId);
+  }
   switch (kind) {
     // The pause on booking, and its early end: said on the bookings tab.
     case 'bookings-blocked-no-shows':

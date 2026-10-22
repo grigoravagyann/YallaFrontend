@@ -35,6 +35,7 @@ import { AmenityChips } from '../../src/components/place/AmenityChips';
 import { BookCta, CtaFooter } from '../../src/components/place/BookCta';
 import { PlaceActions, openUrl } from '../../src/components/place/PlaceActions';
 import { ReviewComposer } from '../../src/components/place/ReviewComposer';
+import { TakeawayFooterAction, TakeawayInfoCard } from '../../src/components/place/TakeawayEntry';
 import { PlaceTabs, placeTabs, type PlaceTab } from '../../src/components/place/PlaceTabs';
 import { usePlaceCopy } from '../../src/components/places/placeCopy';
 import { placeDistrict } from '../../src/components/places/placeTitle';
@@ -458,6 +459,12 @@ function PlaceDetails({
     router.push({ pathname: '/branch/[branchId]', params: floorPlanParams(place) });
   }, [router, place]);
 
+  // Takeaway (2026-10-22): the menu in takeaway mode, its own cart.
+  const takeaway = place.takeaway?.enabled ? place.takeaway : null;
+  const openTakeaway = useCallback(() => {
+    router.push({ pathname: '/takeaway/menu/[placeId]', params: { placeId: place.id } });
+  }, [router, place.id]);
+
   const openAllReviews = useCallback(() => {
     router.push({ pathname: '/place/[placeId]/reviews', params: { placeId: place.id } });
   }, [router, place.id]);
@@ -652,6 +659,13 @@ function PlaceDetails({
             </View>
           </View>
 
+          {takeaway ? (
+            <TakeawayInfoCard
+              prepMinutes={takeaway.prepMinutes}
+              style={[styles.pad, styles.takeawayCard]}
+            />
+          ) : null}
+
           <PlaceActions
             place={place}
             onMenu={() => pickTab('menu')}
@@ -803,6 +817,11 @@ function PlaceDetails({
       </Animated.View>
 
       <CtaFooter bottomInset={insets.bottom}>
+        {takeaway ? (
+          <View style={styles.takeawayAction}>
+            <TakeawayFooterAction place={place} onOpen={openTakeaway} />
+          </View>
+        ) : null}
         {bookingsOff ? (
           <View style={styles.bookingsOff} accessibilityRole="summary">
             <Text style={styles.bookingsOffTitle}>{t('place.bookingsOff.title')}</Text>
@@ -971,6 +990,8 @@ const styles = StyleSheet.create({
   hours: { flexShrink: 1 },
 
   actions: { marginTop: space.md + 2 },
+  takeawayCard: { marginTop: space.md + 2 },
+  takeawayAction: { marginBottom: space.sm + 2 },
   tabs: { marginTop: space.md + 2 },
   firstSection: { marginTop: space.md + 2 },
   section: { marginTop: space.xxl },
