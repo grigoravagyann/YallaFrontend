@@ -33,7 +33,7 @@ export const colors = {
    * search field: a thin line, clearly visible, at full opacity.
    */
   controlBorder: '#CFC6C1',
-  /** The logo's own burgundy: the SHURJ wordmark, and the map and bell beside it on Explore. */
+  /** The logo's own burgundy: the SHURJ wordmark and, on Explore, the map, the bell, the search's glyphs, and the edges of the search, the chips and the cards. */
   logoInk: '#6B1121',
   /** `logoInk` at nothing: where the line under the Explore header fades out. */
   logoInkClear: 'rgba(107, 17, 33, 0)',
