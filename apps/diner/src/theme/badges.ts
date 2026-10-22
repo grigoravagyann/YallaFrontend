@@ -30,6 +30,8 @@ export interface BadgeSpec {
   readonly soft: string;
   /** The label and dot on `soft`: the hue's ink, never its bright fill. */
   readonly ink: string;
+  /** An edge round the pill, in either tone; none when absent. */
+  readonly edge?: string;
   /** Key in the `diner` namespace. */
   readonly labelKey: string;
 }
@@ -63,6 +65,18 @@ const brandSoft = {
   ink: colors.primary,
 } as const;
 
+/**
+ * White, edged in the logo's burgundy, with a charcoal label, like the
+ * category chips on Explore: Awaiting venue, on a photo and on a card alike.
+ */
+const outlined = {
+  solid: colors.surface,
+  onSolid: colors.text,
+  soft: colors.surface,
+  ink: colors.text,
+  edge: colors.logoInk,
+} as const;
+
 /** The filled burgundy pill: Served. */
 const brandFilled = {
   solid: colors.brand,
@@ -84,8 +98,8 @@ const neutral = {
  * Open / Free / Confirmed / Ready are green; Reserved / In progress are orange;
  * Occupied / Cancelled are red; Closed / Completed / Out of service are grey;
  * Popular is the brand burgundy and New the deep burgundy of `info`. The kitchen's and the
- * venue's "not yet" — Preparing, Awaiting confirmation — is the soft burgundy
- * pill in either tone, and Served the filled one: those two never change with
+ * venue's "not yet" is the soft burgundy pill for Preparing and a white pill
+ * edged in burgundy for Awaiting venue, in either tone, and Served the filled one: those two never change with
  * the ground they sit on. Availability (Open / Closed) and
  * content (Popular / New) are separate variants so a card can carry both.
  *
@@ -116,7 +130,7 @@ export const badgeVariants: Record<BadgeVariant, BadgeSpec> = {
   confirmed: { ...success, labelKey: 'orders.status.confirmed' },
   preparing: { ...brandSoft, labelKey: 'orders.status.preparing' },
   served: { ...brandFilled, labelKey: 'bill.lineStatus.served' },
-  awaiting: { ...brandSoft, labelKey: 'bookings.status.pendingApproval' },
+  awaiting: { ...outlined, labelKey: 'bookings.status.pendingApproval' },
   inProgress: { ...warning, labelKey: 'orders.status.inProgress' },
   ready: { ...success, labelKey: 'orders.status.ready' },
   completed: { ...neutral, labelKey: 'orders.status.completed' },
@@ -127,16 +141,16 @@ export const badgeVariants: Record<BadgeVariant, BadgeSpec> = {
 export function badgeColors(variant: BadgeVariant, tone: BadgeTone) {
   const spec = badgeVariants[variant];
   return tone === 'solid'
-    ? { background: spec.solid, foreground: spec.onSolid }
-    : { background: spec.soft, foreground: spec.ink };
+    ? { background: spec.solid, foreground: spec.onSolid, edge: spec.edge }
+    : { background: spec.soft, foreground: spec.ink, edge: spec.edge };
 }
 
 /**
  * A booking's status in the one pill vocabulary the app has.
  *
  * The colour comes from the nearest order/table variant, the words from the
- * booking's own `bookings.status.*` copy — so "Awaiting confirmation" is the
- * soft burgundy pill like the kitchen's "Preparing", and a venue cancellation
+ * booking's own `bookings.status.*` copy — so "Awaiting venue" is the white
+ * pill edged in burgundy, and a venue cancellation
  * is red where the diner's own is grey. Which side cancelled is the one thing a list reader wants to know.
  */
 export const bookingBadgeVariant: Readonly<Record<BookingStatus, BadgeVariant>> = {

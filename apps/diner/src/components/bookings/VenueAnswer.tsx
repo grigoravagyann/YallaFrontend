@@ -82,11 +82,7 @@ export function VenueAnswerNote({
   const answer = useVenueAnswer(booking);
   if (!answer.line) return null;
 
-  const ink = answer.declined
-    ? colors.errorInk
-    : answer.urgent
-      ? colors.warningInk
-      : colors.infoInk;
+  const ink = answer.declined ? colors.errorInk : answer.urgent ? colors.warningInk : colors.text;
   return (
     <View
       style={[
@@ -98,7 +94,7 @@ export function VenueAnswerNote({
       <Ionicons
         name={answer.declined ? actionIcon.error : actionIcon.time}
         size={iconSize.sm}
-        color={ink}
+        color={answer.declined || answer.urgent ? ink : colors.logoInk}
       />
       <Text style={[styles.text, { color: ink }]}>{t(answer.line.key, answer.line.params)}</Text>
     </View>
@@ -114,7 +110,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: space.md,
     borderRadius: radius.chip,
   },
-  waiting: { backgroundColor: colors.infoSoft },
+  // White, edged in the logo's burgundy, the words in charcoal: like Explore's chips.
+  waiting: { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.logoInk },
   urgent: { backgroundColor: colors.warningSoft },
   declined: { backgroundColor: colors.errorSoft },
   text: {
