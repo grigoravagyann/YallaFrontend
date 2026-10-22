@@ -102,7 +102,7 @@ const styles = StyleSheet.create({
   idlePressed: { borderColor: colors.borderStrong },
   selected: { backgroundColor: colors.brand, borderColor: colors.brand },
   selectedPressed: { backgroundColor: colors.brandPressed, borderColor: colors.brandPressed },
-  label: { fontSize: 15, lineHeight: 20, fontWeight: fontWeight.medium, color: colors.primary },
+  label: { fontSize: 15, lineHeight: 20, fontWeight: fontWeight.medium, color: colors.text },
   // The design's 600: the sans ships 500 and 700, and Text rounds 600 up.
   labelSelected: { fontWeight: fontWeight.bold, color: colors.onPrimary },
 });

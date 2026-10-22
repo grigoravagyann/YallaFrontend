@@ -360,7 +360,7 @@ const styles = StyleSheet.create({
     lineHeight: 30,
     letterSpacing: -0.2,
     fontWeight: displayWeight.bold,
-    color: colors.primary,
+    color: colors.text,
     marginBottom: GAP,
   },
   stale: { opacity: 0.6 },

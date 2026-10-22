@@ -190,12 +190,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  // Inside the header's controls the ink is burgundy: the initial, the Map pill and the bell.
+  // The controls' edges and icons are burgundy; their letters stay black.
   initial: {
     fontSize: 21,
     lineHeight: 26,
     fontWeight: displayWeight.bold,
-    color: colors.primary,
+    color: colors.text,
   },
   hello: { flex: 1, minWidth: 0 },
   measure: { position: 'absolute', left: 0, top: 0, opacity: 0, alignItems: 'flex-start' },
@@ -206,7 +206,7 @@ const styles = StyleSheet.create({
     fontWeight: displayWeight.semibold,
     color: colors.text,
   },
-  wordmark: { letterSpacing: 2.5, color: colors.primary },
+  wordmark: { letterSpacing: 2.5 },
   pill: {
     height: layout.touchTarget,
     flexDirection: 'row',
@@ -219,7 +219,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.primary,
   },
-  pillLabel: { fontSize: 15, lineHeight: 20, fontWeight: fontWeight.medium, color: colors.primary },
+  pillLabel: { fontSize: 15, lineHeight: 20, fontWeight: fontWeight.medium, color: colors.text },
   round: {
     width: layout.touchTarget,
     height: layout.touchTarget,

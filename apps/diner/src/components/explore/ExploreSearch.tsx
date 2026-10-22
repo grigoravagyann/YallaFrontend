@@ -41,7 +41,7 @@ export function ExploreSearch({
         value={value}
         onChangeText={onChangeText}
         placeholder={placeholder}
-        placeholderTextColor={colors.primary}
+        placeholderTextColor={colors.textMuted}
         autoCorrect={false}
         returnKeyType="search"
         // The server refuses a longer search outright.
@@ -98,7 +98,7 @@ const styles = StyleSheet.create({
     minWidth: 0,
     fontSize: 16,
     lineHeight: 20,
-    color: colors.primary,
+    color: colors.text,
     paddingVertical: 0,
     // The web build draws a focus outline of its own round the bare input.
     ...Platform.select<object>({ web: { outlineStyle: 'none' }, default: {} }),
