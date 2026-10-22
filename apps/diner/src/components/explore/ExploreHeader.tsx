@@ -206,7 +206,7 @@ const styles = StyleSheet.create({
     fontWeight: displayWeight.semibold,
     color: colors.text,
   },
-  wordmark: { letterSpacing: 2.5 },
+  wordmark: { letterSpacing: 2.5, color: colors.primary },
   pill: {
     height: layout.touchTarget,
     flexDirection: 'row',
