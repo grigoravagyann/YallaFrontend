@@ -6,9 +6,9 @@ import { space } from '../../theme';
  */
 export const tabBarMetrics = {
   /** Height of the pill. */
-  height: 68,
+  height: 63,
   /** Its corner radius: fully round ends. */
-  radius: 34,
+  radius: 31.5,
   /** Inset from the left and right screen edges. */
   inset: 14,
   /**
@@ -38,7 +38,7 @@ export const tabBarMetrics = {
   /** The QR glyph inside it. */
   scanGlyph: 30,
   /** Where the Scan circle's lower edge sits, above the pill's lower edge. */
-  scanBottom: 26,
+  scanBottom: 21,
 } as const;
 
 /**
