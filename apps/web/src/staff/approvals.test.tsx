@@ -750,9 +750,15 @@ describe("the guest's record on a request", () => {
 
     // No no-show is said too: it is the number a host looks for. A late
     // cancellation is said only when there is one.
+    // A takeaway order left at a counter comes last, apart from the bookings,
+    // said as a miss (2026-10-23).
     const late = recordLine(await card('11'))!;
-    expect(late.textContent).toMatch(/: 6 bookings · 5 came · 0 no-shows · 1 late cancellation$/u);
-    expect(late.querySelector('.is-missed')).toBeNull();
+    expect(late.textContent).toMatch(
+      /: 6 bookings · 5 came · 0 no-shows · 1 late cancellation · 1 takeaway order not collected$/u,
+    );
+    expect(within(late).getByText('1 takeaway order not collected').className).toContain(
+      'is-missed',
+    );
     expect(missed.textContent).not.toMatch(/late cancellation/u);
   });
 
@@ -767,6 +773,7 @@ describe("the guest's record on a request", () => {
           lateCancellations: 0,
           unmarked: 0,
           isNewGuest: true,
+          takeawayNoShows: 0,
           blockedUntilUtc: null,
         },
         '11': null,
@@ -793,6 +800,7 @@ describe("the guest's record on a request", () => {
           lateCancellations: 0,
           unmarked: 0,
           isNewGuest: false,
+          takeawayNoShows: 0,
           blockedUntilUtc: until.toISOString(),
         },
         '11': {
@@ -802,6 +810,7 @@ describe("the guest's record on a request", () => {
           lateCancellations: 1,
           unmarked: 2,
           isNewGuest: false,
+          takeawayNoShows: 0,
           blockedUntilUtc: null,
         },
       }),

@@ -13,8 +13,17 @@ import { deviceTimeZone } from '../deviceTimeZone';
 export interface RecordCopy {
   /** "You came 11 out of 12 bookings", or the neutral line for a new guest. */
   readonly main: CopyLine;
-  /** Missed bookings, late cancellations, unmarked ones — each only when there are any. */
+  /**
+   * Missed bookings, late cancellations, unmarked ones, takeaway orders not
+   * collected — each only when there are any.
+   */
   readonly extras: readonly CopyLine[];
+}
+
+/** "1 takeaway order not collected": its own line, never mixed into the bookings. */
+function takeawayLine(record: GuestRecord): CopyLine[] {
+  const count = record.takeawayNoShows ?? 0;
+  return count > 0 ? [{ key: 'bookings.record.takeawayNoShows', params: { count } }] : [];
 }
 
 /**
@@ -24,7 +33,9 @@ export interface RecordCopy {
  */
 export function recordCopy(record: GuestRecord | null | undefined): RecordCopy | null {
   if (!record) return null;
-  if (record.isNewGuest) return { main: { key: 'bookings.record.new', params: {} }, extras: [] };
+  if (record.isNewGuest) {
+    return { main: { key: 'bookings.record.new', params: {} }, extras: takeawayLine(record) };
+  }
   const extras: CopyLine[] = [];
   if (record.noShows > 0) {
     extras.push({ key: 'bookings.record.noShows', params: { count: record.noShows } });
@@ -40,6 +51,7 @@ export function recordCopy(record: GuestRecord | null | undefined): RecordCopy |
   if (record.unmarked > 0) {
     extras.push({ key: 'bookings.record.unmarked', params: { count: record.unmarked } });
   }
+  extras.push(...takeawayLine(record));
   return {
     // Plural by the bookings: "out of 1 booking", "out of 12 bookings".
     main: { key: 'bookings.record.came', params: { came: record.came, count: record.booked } },

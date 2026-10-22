@@ -1,4 +1,6 @@
 import {
+  BOOKING_BLOCKED_NO_SHOWS_CODE,
+  BookingBlockedNoShowsError,
   BookingCommandInUseError,
   PhoneNotVerifiedError,
   TAKEAWAY_BUSY_CODE,
@@ -393,6 +395,13 @@ export function takeawayRefusal(error: unknown): ApiError | null {
       });
     case 'phone-not-verified':
       return new PhoneNotVerifiedError(base);
+    // Blocked for no-shows (a takeaway order not collected counts too): the
+    // booking's own refusal, so both checkouts say the same (2026-10-23).
+    case BOOKING_BLOCKED_NO_SHOWS_CODE:
+      return new BookingBlockedNoShowsError({
+        ...base,
+        blockedUntilUtc: text(context['blockedUntilUtc']),
+      });
     case 'client-command-id-in-use':
       return new BookingCommandInUseError(base);
     default:

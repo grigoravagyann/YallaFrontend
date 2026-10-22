@@ -1269,11 +1269,22 @@
       "oneDay": "A single day has no daily chart. See the hours beside it.",
       "byHour": "By hour",
       "byHourAria": "Share of revenue by hour: {{hours}}",
-      "howPaid": "Cash and in-app",
+      "howPaid": "How it was paid",
       "cash": "Cash",
+      "card": "Card",
       "inApp": "In-app",
       "serviceCharge": "Service charge",
-      "payAria": "Cash {{cash}}, in-app {{app}}"
+      "payAria": "Cash {{cash}}, card {{card}}, in-app {{app}}",
+      "splitTitle": "Hall and takeaway",
+      "splitAria": "Hall {{hall}}, takeaway {{takeaway}}",
+      "hall": "Hall",
+      "takeaway": "Takeaway",
+      "hallValue_one": "{{value}} · {{count}} bill",
+      "hallValue_other": "{{value}} · {{count}} bills",
+      "takeawayValue_one": "{{value}} · {{count}} order",
+      "takeawayValue_other": "{{value}} · {{count}} orders",
+      "notCollected": "Takeaway not collected",
+      "takeawayColumn": "Of which takeaway"
     },
     "reservations": {
       "noApp_one": "{{count}} booking ({{percent}}) came from the web, without the app.",
@@ -2414,6 +2425,8 @@
     "late_one": "{{count}} late cancellation",
     "late_other": "{{count}} late cancellations",
     "unmarked": "{{count}} not marked",
+    "takeawayNoShows_one": "{{count}} takeaway order not collected",
+    "takeawayNoShows_other": "{{count}} takeaway orders not collected",
     "newGuest": "New guest",
     "blockedUntil": "Blocked until {{date}}, {{time}}"
   },

@@ -227,7 +227,7 @@ describe('the overview over HTTP', () => {
       },
     });
     const [row] = (await gateway.getBranchOverview('b-1')).todayBookings;
-    expect(row!.guestRecord).toEqual({ ...record, unmarked: 0 });
+    expect(row!.guestRecord).toEqual({ ...record, unmarked: 0, takeawayNoShows: 0 });
   });
 
   it('reads a closed branch, no comparison and an empty day', async () => {

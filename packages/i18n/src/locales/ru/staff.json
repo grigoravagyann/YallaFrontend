@@ -1072,6 +1072,10 @@
     "late_many": "поздних отмен: {{count}}",
     "late_other": "поздних отмен: {{count}}",
     "unmarked": "не отмечено: {{count}}",
+    "takeawayNoShows_one": "не забрали заказ с собой: {{count}}",
+    "takeawayNoShows_few": "не забрали заказ с собой: {{count}}",
+    "takeawayNoShows_many": "не забрали заказ с собой: {{count}}",
+    "takeawayNoShows_other": "не забрали заказ с собой: {{count}}",
     "newGuest": "Новый гость",
     "blockedUntil": "Бронирование закрыто до {{date}}, {{time}}"
   },

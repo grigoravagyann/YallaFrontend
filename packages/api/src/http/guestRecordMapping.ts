@@ -50,6 +50,8 @@ export function guestRecordFromWire(wire: WireGuestRecord | null | undefined): G
     unmarked: count(wire.unmarked),
     // The server's own word; nothing booked means new either way.
     isNewGuest: wire.isNewGuest === true || booked === 0,
+    // Since 2026-10-23; a server before it does not say, which reads as none.
+    takeawayNoShows: count(wire.takeawayNoShows),
     blockedUntilUtc: text(wire.blockedUntilUtc),
   };
 }

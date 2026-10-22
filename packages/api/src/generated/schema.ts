@@ -1208,6 +1208,8 @@ export interface paths {
          *     Revenue is counted on the tab **closing**, so a sitting that starts at 23:30 and settles at 00:40 belongs to the night it was taken - which is the day the venue counted its drawer.
          *
          *     `byDay` has one entry for every local date of the range, zero days included, and `previousByDay` the same for the previous equivalent period, so the two pair by index. `tabs` is the closed tabs with their comparison.
+         *
+         *     **Takeaway.** Orders collected at the counter are revenue too, counted when collected: `totalAmd` is `hallAmd` (the closed tabs, `tabs` of them) plus `takeawayAmd` (`takeawayOrders` of them); `byDay` carries each day's `takeawayAmd` and `takeawayOrders` inside its `revenueAmd`, and `byHour` puts an order in the hour it was collected. `cashAmd` includes the counter's cash and `cardAmd` its card payments, so cash + card + in-app is the total. `takeawayNotCollected` counts the orders marked not collected in the period. Average tab, per head and service charge stay the hall's. The CSV's day rows say `hallAmd` and `takeawayAmd` apart.
          */
         get: operations["getRevenueReport"];
         put?: never;
@@ -10464,7 +10466,7 @@ export interface components {
             localDate: string;
             /**
              * Format: int64
-             * @description Taken that day, in whole dram.
+             * @description Taken that day, in whole dram: the hall's closed tabs and the takeaway orders collected.
              */
             revenueAmd: number;
             /**
@@ -10472,6 +10474,16 @@ export interface components {
              * @description How many tabs closed.
              */
             tabs: number;
+            /**
+             * Format: int64
+             * @description Of RevenueAmd, taken for takeaway orders collected that day.
+             */
+            takeawayAmd: number;
+            /**
+             * Format: int32
+             * @description How many takeaway orders were collected.
+             */
+            takeawayOrders: number;
         };
         "Yalla.Application.Reports.DurationBucket": {
             /**
@@ -10505,7 +10517,7 @@ export interface components {
             hour: number;
             /**
              * Format: int64
-             * @description Taken in that hour, in whole dram.
+             * @description Taken in that hour, in whole dram - a tab at its close, a takeaway order when collected.
              */
             revenueAmd: number;
         };
@@ -10666,16 +10678,23 @@ export interface components {
             adjustments: components["schemas"]["Yalla.Application.Reports.AdjustmentLine"][];
             /** @description What they came to altogether. */
             adjustmentsTotalAmd: components["schemas"]["Yalla.Application.Reports.Compared"];
-            /** @description Per person on a tab. A different question from per tab, and the one a menu is priced against. */
+            /** @description Per person on a tab. A different question from per tab, and the one a menu is priced against. The hall only: a takeaway order has no party. */
             averagePerHeadAmd: components["schemas"]["Yalla.Application.Reports.Compared"];
-            /** @description Per tab. */
+            /** @description Per tab - the hall's bills only. */
             averageTabAmd: components["schemas"]["Yalla.Application.Reports.Compared"];
             /** @description Day by day, in local dates: every date of the range, zero days included. */
             byDay: components["schemas"]["Yalla.Application.Reports.DailyRevenue"][];
             /** @description Hour by hour, in local hours. */
             byHour: components["schemas"]["Yalla.Application.Reports.HourlyRevenue"][];
-            /** @description Taken in cash. */
+            /**
+             * @description Taken by card at the venue's own terminal - the takeaway counter's card payments (a tab's are not recorded by
+             *     method yet, and anything not cash on a tab is InAppAmd). Cash + card + in-app is the total.
+             */
+            cardAmd: components["schemas"]["Yalla.Application.Reports.Compared"];
+            /** @description Taken in cash: at the hall's tabs and at the takeaway counter. */
             cashAmd: components["schemas"]["Yalla.Application.Reports.Compared"];
+            /** @description Taken at the hall's tabs - the "Hall" half of the split; its count is Tabs. */
+            hallAmd: components["schemas"]["Yalla.Application.Reports.Compared"];
             /** @description Taken in the app. Zero until there is a wallet rail; the column is here so the day it exists nothing has to change. */
             inAppAmd: components["schemas"]["Yalla.Application.Reports.Compared"];
             /**
@@ -10685,11 +10704,23 @@ export interface components {
             previousByDay: components["schemas"]["Yalla.Application.Reports.DailyRevenue"][];
             /** @description What was asked for. */
             scope: components["schemas"]["Yalla.Application.Reports.ReportScope"];
-            /** @description Of which service charge. */
+            /** @description Of which service charge (the hall's; a takeaway order has none). */
             serviceChargeAmd: components["schemas"]["Yalla.Application.Reports.Compared"];
             /** @description Tabs closed - the "closed bills" card. */
             tabs: components["schemas"]["Yalla.Application.Reports.Compared"];
-            /** @description Taken in the period. */
+            /** @description Taken for takeaway orders collected in the period, at the counter - the "Takeaway" half. */
+            takeawayAmd: components["schemas"]["Yalla.Application.Reports.Compared"];
+            /**
+             * @description Takeaway orders the venue made and nobody came for (marked not collected in the period). No money: nothing is
+             *     charged in the app.
+             */
+            takeawayNotCollected: components["schemas"]["Yalla.Application.Reports.Compared"];
+            /** @description Takeaway orders collected in the period. */
+            takeawayOrders: components["schemas"]["Yalla.Application.Reports.Compared"];
+            /**
+             * @description Taken in the period: HallAmd + TakeawayAmd - the hall's closed tabs and the
+             *     takeaway orders collected at the counter.
+             */
             totalAmd: components["schemas"]["Yalla.Application.Reports.Compared"];
         };
         /** @description What the venue needs to run the floor, and nothing more. */
@@ -11246,6 +11277,14 @@ export interface components {
              * @description Marked as not having come (and not withdrawn).
              */
             noShows: number;
+            /**
+             * Format: int32
+             * @description Takeaway orders the guest's account placed whose promised ready time is in the window, made ready by the venue and
+             *     never collected (`TakeawayStatus.NoShow`). Counted apart from the bookings - none of the booking counts above
+             *     includes one, and IsNewGuest is about bookings only - but each counts toward the no-show block
+             *     like a booking's no-show (Yalla.Domain.Occupancy.NoShowBlockRules). See `docs/takeaway.md`.
+             */
+            takeawayNoShows: number;
             /**
              * Format: int32
              * @description Bookings whose time came and went with nobody on the floor settling them (review S5): confirmed and past their end

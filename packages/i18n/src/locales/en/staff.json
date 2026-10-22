@@ -942,6 +942,8 @@
     "late_one": "{{count}} late cancellation",
     "late_other": "{{count}} late cancellations",
     "unmarked": "{{count}} not marked",
+    "takeawayNoShows_one": "{{count}} takeaway order not collected",
+    "takeawayNoShows_other": "{{count}} takeaway orders not collected",
     "newGuest": "New guest",
     "blockedUntil": "Blocked until {{date}}, {{time}}"
   },

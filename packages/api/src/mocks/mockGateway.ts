@@ -378,6 +378,8 @@ export interface MockGateway extends YallaGateway {
   markTakeawayReadyAsVenue(orderId: string): void;
   /** "Paid, handed over". */
   collectTakeawayAsVenue(orderId: string, method: TakeawayPaymentMethod): void;
+  /** "Not collected": counts in the guest's record and toward the no-show block. */
+  markTakeawayNoShowAsVenue(orderId: string): void;
 }
 
 /** Where mock mode's takeaway orders and "I'm coming" booking are (2026-10-22). */
@@ -525,6 +527,8 @@ export interface MockGatewayOptions {
         readonly noShows?: number | undefined;
         readonly lateCancellations?: number | undefined;
         readonly unmarked?: number | undefined;
+        /** Takeaway orders left at the counter (2026-10-23). */
+        readonly takeawayNoShows?: number | undefined;
       }
     | undefined;
   /** This device's diner is blocked for no-shows until then (ISO UTC). */
@@ -908,6 +912,16 @@ export function createMockGateway(options: MockGatewayOptions = {}): MockGateway
       else if (booking.status === 'confirmed') unmarked += 1;
     }
     const booked = came + noShows + late + unmarked;
+    // Takeaway orders this guest left at the counter, over their promised time:
+    // their own count, in none of the booking ones.
+    const takeawayNoShows =
+      (options.guestRecord?.takeawayNoShows ?? 0) +
+      takeaway.records().filter((record) => {
+        if (record.actor !== guest || record.status !== 'noShow' || !record.readyAtUtc)
+          return false;
+        const ready = Date.parse(record.readyAtUtc);
+        return ready > since && ready <= t;
+      }).length;
     const until = blockOf(guest);
     return {
       booked,
@@ -916,6 +930,7 @@ export function createMockGateway(options: MockGatewayOptions = {}): MockGateway
       lateCancellations: late,
       unmarked,
       isNewGuest: booked === 0,
+      takeawayNoShows,
       blockedUntilUtc: until !== undefined && until > t ? new Date(until).toISOString() : null,
     };
   }
@@ -935,6 +950,26 @@ export function createMockGateway(options: MockGatewayOptions = {}): MockGateway
     noShowsMarked.set(bookingId, t);
     // The guest is told about each one (review round).
     noShowNotices.push({ guest, bookingId, atUtc: new Date(t).toISOString() });
+    blockIfDue(guest, t);
+  }
+
+  /**
+   * A takeaway order nobody collected counts toward the block as a missed
+   * booking does (2026-10-23): marked, then the guest is judged again.
+   */
+  function markTakeawayNoShow(orderId: string): void {
+    const record = takeaway.record(orderId);
+    if (!record || record.status === 'noShow') return;
+    takeaway.noShow(`${URL_TAG}/api/takeaway-orders/${orderId}/no-show`, orderId);
+    blockIfDue(record.actor, now().getTime());
+  }
+
+  /**
+   * Blocks the guest when their no-shows reach the threshold, and cancels
+   * every booking of theirs not started yet. A block in force is not made
+   * again.
+   */
+  function blockIfDue(guest: string, t: number): void {
     const windowStart = t - NO_SHOW_BLOCK.windowHours * 3_600_000;
     // What counts toward the block (review round): marked after the start
     // plus the grace, after the guest's last block ended, at most one per
@@ -958,6 +993,15 @@ export function createMockGateway(options: MockGatewayOptions = {}): MockGateway
       counted.add(
         `${entry.venueName ?? entry.branchId}|${localDateTime(entry.slotUtc, entry.timeZoneId).date}`,
       );
+    }
+    // Takeaway orders left at the counter, over their promised time - in the
+    // same venue-day pairs, so one venue's evening still counts once.
+    for (const record of takeaway.records()) {
+      if (record.actor !== guest || record.status !== 'noShow' || !record.readyAtUtc) continue;
+      const ready = Date.parse(record.readyAtUtc);
+      if (ready <= windowStart || ready > t || ready <= (blockEnded.get(guest) ?? 0)) continue;
+      const venue = findBranch(record.branchId)?.venue.name ?? record.branchId;
+      counted.add(`${venue}|${localDateTime(record.readyAtUtc, 'Asia/Yerevan').date}`);
     }
     const recent = counted.size;
     const inForce = (blockOf(guest) ?? 0) > t;
@@ -3554,6 +3598,8 @@ export function createMockGateway(options: MockGatewayOptions = {}): MockGateway
       const accountId = me();
       // A proved phone, as for booking: the venue may call the number.
       requireVerifiedPhone(url);
+      // Blocked for no-shows: no takeaway either - the booking's own 403.
+      refuseWhileBlocked(url);
       if (!findBranch(command.branchId)) throw new NotFoundError({ url });
       const profile = accounts.profile(accountId);
       return takeaway.place({
@@ -3844,6 +3890,10 @@ export function createMockGateway(options: MockGatewayOptions = {}): MockGateway
 
     collectTakeawayAsVenue(orderId, method) {
       takeaway.collect(`${URL_TAG}/api/takeaway-orders/${orderId}/collect`, orderId, method);
+    },
+
+    markTakeawayNoShowAsVenue(orderId) {
+      markTakeawayNoShow(orderId);
     },
 
     async replacePreOrderByLink(command): Promise<PreOrderResult> {

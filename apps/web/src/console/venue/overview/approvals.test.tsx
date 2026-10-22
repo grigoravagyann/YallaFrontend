@@ -555,8 +555,9 @@ describe("the guest's record on a waiting booking", () => {
         .closest('li')!;
 
     const history = line(rowFor('noShowHistory'))!;
+    // A takeaway order not collected: its own count, after the bookings (2026-10-23).
     expect(history.textContent).toBe(
-      "Guest's record, last 12 months, all venues: 7 bookings · 5 came · 2 no-shows",
+      "Guest's record, last 12 months, all venues: 7 bookings · 5 came · 2 no-shows · 1 takeaway order not collected",
     );
     expect(within(history).getByText('2 no-shows').className).toContain('is-missed');
 
@@ -576,6 +577,7 @@ describe("the guest's record on a waiting booking", () => {
             lateCancellations: 0,
             unmarked: 0,
             isNewGuest: false,
+            takeawayNoShows: 0,
             blockedUntilUtc: until.toISOString(),
           }
         : booking.awaitingApprovalBecause === 'largeParty'

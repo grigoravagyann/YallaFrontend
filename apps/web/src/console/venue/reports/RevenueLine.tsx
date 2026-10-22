@@ -8,6 +8,8 @@ export interface RevenuePoint {
   readonly value: number;
   /** The same day of the previous period, when the server sent one. */
   readonly previous: number | null;
+  /** Of `value`, the takeaway orders collected that day: the day table's own column. */
+  readonly takeaway?: number;
 }
 
 export interface RevenueLineProps {

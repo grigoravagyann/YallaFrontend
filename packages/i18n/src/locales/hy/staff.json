@@ -942,6 +942,8 @@
     "late_one": "ուշ չեղարկում՝ {{count}}",
     "late_other": "ուշ չեղարկում՝ {{count}}",
     "unmarked": "չնշված՝ {{count}}",
+    "takeawayNoShows_one": "չվերցված տանելու պատվեր՝ {{count}}",
+    "takeawayNoShows_other": "չվերցված տանելու պատվեր՝ {{count}}",
     "newGuest": "Նոր հյուր",
     "blockedUntil": "Արգելափակված է մինչև {{date}}, {{time}}"
   },

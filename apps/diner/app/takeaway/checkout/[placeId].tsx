@@ -1,4 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
+import { useQueryClient } from '@tanstack/react-query';
 import { TAKEAWAY_LIMITS } from '@yalla/api';
 import { formatDram } from '@yalla/format';
 import { useLocale, useTranslation } from '@yalla/i18n';
@@ -6,6 +7,7 @@ import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useState } from 'react';
 import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { BookingBlockedNote } from '../../../src/components/bookings/GuestRecord';
 import { Button } from '../../../src/components/Button';
 import { Chip } from '../../../src/components/Chip';
 import { EmptyState } from '../../../src/components/EmptyState';
@@ -14,6 +16,8 @@ import { BookCta, CtaFooter } from '../../../src/components/place/BookCta';
 import { maskPhone } from '../../../src/components/profile/maskPhone';
 import { Screen } from '../../../src/components/Screen';
 import { SegmentedControl } from '../../../src/components/SegmentedControl';
+import { useBookingBlock } from '../../../src/data/bookingBlock';
+import { keys } from '../../../src/data/queries';
 import { Skeleton } from '../../../src/components/Skeleton';
 import { Text, TextInput } from '../../../src/components/Text';
 import { haptics } from '../../../src/lib/haptics';
@@ -52,11 +56,16 @@ type Mode = 'asap' | 'at';
  * not proved sends them through the same verification booking uses, and the
  * order waits here for them. Every refusal is said in plain words with its way
  * on; a send whose answer was lost is retried under the same command id.
+ *
+ * A guest paused for no-shows (a takeaway order not collected counts as one)
+ * orders nothing either: the booking screens' own note says until when, and
+ * Send waits for it — as the server's 403 would answer.
  */
 export default function TakeawayCheckoutScreen() {
   const { t } = useTranslation('diner');
   const { locale } = useLocale();
   const router = useRouter();
+  const queryClient = useQueryClient();
   const insets = useSafeAreaInsets();
   const { placeId } = useLocalSearchParams<{ placeId: string }>();
 
@@ -80,6 +89,10 @@ export default function TakeawayCheckoutScreen() {
 
   const send = usePlaceTakeawayOrder();
   const [failure, setFailure] = useState<FailureLine | null>(null);
+  /** The pause, read from the guest's own record as the booking screens read it. */
+  const pausedUntil = useBookingBlock();
+  /** The server refused for the pause: the note says it, not the error line too. */
+  const [pauseRefused, setPauseRefused] = useState(false);
   /** The server said the number is not proved: Send becomes the verify step. */
   const [verifyRefused, setVerifyRefused] = useState(false);
   const mustVerify = (verifyRefused || phoneVerified === false) && phoneVerified !== true;
@@ -110,8 +123,9 @@ export default function TakeawayCheckoutScreen() {
       router.push('/auth/code');
       return;
     }
-    if (!pickupReady || closed || count === 0 || send.isPending) return;
+    if (!pickupReady || closed || count === 0 || send.isPending || pausedUntil) return;
     setFailure(null);
+    setPauseRefused(false);
     const names = namesFrom(cart.lines.map((line) => line.item));
     try {
       const order = await send.mutateAsync(command());
@@ -128,10 +142,16 @@ export default function TakeawayCheckoutScreen() {
         setVerifyRefused(true);
         return;
       }
+      // Paused for no-shows: the bookings (and the record) are read again, so
+      // this screen's note and the bookings tab's banner say it from now on.
+      if (why.kind === 'blocked') {
+        setPauseRefused(true);
+        void queryClient.invalidateQueries({ queryKey: keys.bookings });
+      }
       if (why.kind === 'items') drop(why.menuItemIds);
       // A full kitchen still has later times; a gone slot is picked again.
       if (why.kind === 'busy' || why.kind === 'slot') setPickup({ mode: 'at', at: '' });
-      setFailure(sendFailureLine(why, names));
+      setFailure(sendFailureLine(why, names, locale));
     }
   };
 
@@ -179,7 +199,9 @@ export default function TakeawayCheckoutScreen() {
         ? t('takeaway.checkout.sending')
         : t('takeaway.checkout.send', { total: formatDram(total, locale) });
   const ctaEnabled =
-    !signedIn || mustVerify || (pickupReady && !closed && !send.isPending && !!availability);
+    !signedIn ||
+    mustVerify ||
+    (pickupReady && !closed && !send.isPending && !!availability && pausedUntil === null);
 
   return (
     <Screen edges={['top', 'left', 'right']}>
@@ -340,7 +362,8 @@ export default function TakeawayCheckoutScreen() {
               {t('takeaway.checkout.verifyNotice')}
             </Text>
           ) : null}
-          {failure ? (
+          {pausedUntil ? <BookingBlockedNote untilUtc={pausedUntil} /> : null}
+          {failure && !(pauseRefused && pausedUntil) ? (
             <Text style={styles.error} accessibilityRole="alert">
               {t(failure.key, failure.params ?? {})}
             </Text>

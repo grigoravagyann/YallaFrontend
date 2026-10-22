@@ -496,6 +496,7 @@ describe("the next booking's guest record", () => {
         lateCancellations: 0,
         unmarked: 0,
         isNewGuest: false,
+        takeawayNoShows: 0,
         blockedUntilUtc: null,
       },
     });
@@ -523,6 +524,7 @@ describe("the next booking's guest record", () => {
           lateCancellations: 0,
           unmarked: 0,
           isNewGuest: false,
+          takeawayNoShows: 0,
           blockedUntilUtc: null,
         },
       },

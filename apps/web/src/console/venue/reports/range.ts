@@ -174,6 +174,8 @@ export interface DailyRow {
   readonly localDate: string;
   readonly revenueAmd: number;
   readonly tabs: number;
+  /** Of `revenueAmd`, the takeaway orders collected that day; absent reads as none. */
+  readonly takeawayAmd?: number;
 }
 
 /**

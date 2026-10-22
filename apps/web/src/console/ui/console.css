@@ -7678,6 +7678,11 @@ body:has(.yc-savebar) .yc-toast-region {
   background: var(--console-brand);
 }
 
+/* A third share: card at the venue's terminal, between cash and in-app. */
+.yc-rp-c {
+  background: var(--console-blue);
+}
+
 .yc-rp-sw {
   display: inline-block;
   width: 10px;

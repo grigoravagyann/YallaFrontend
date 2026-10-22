@@ -1,4 +1,5 @@
 import {
+  BookingBlockedNoShowsError,
   PhoneNotVerifiedError,
   TakeawayBusyError,
   TakeawayClosedError,
@@ -12,6 +13,9 @@ import {
   type MenuItemDetail,
   type TakeawayStatus,
 } from '@yalla/api';
+import type { Locale } from '@yalla/format';
+import { deviceTimeZone } from '../deviceTimeZone';
+import { blockedLine } from '../lib/guestRecord';
 
 /**
  * Why a takeaway send or cancel did not go through, as the screen acts on it.
@@ -23,6 +27,11 @@ import {
 export type TakeawayFailure =
   | { readonly kind: 'signIn' }
   | { readonly kind: 'verify' }
+  /**
+   * Paused for no-shows — a takeaway order not collected counts as one — so no
+   * takeaway either, until then (ISO UTC; null when the server did not say).
+   */
+  | { readonly kind: 'blocked'; readonly blockedUntilUtc: string | null }
   /** The venue switched takeaway off since the page was read. */
   | { readonly kind: 'notAccepted' }
   /** Shut now, or past the last order; when it opens again, if within the week. */
@@ -44,6 +53,9 @@ export type TakeawayFailure =
 export function takeawayFailure(error: unknown): TakeawayFailure {
   if (error instanceof UnauthorizedError) return { kind: 'signIn' };
   if (error instanceof PhoneNotVerifiedError) return { kind: 'verify' };
+  if (error instanceof BookingBlockedNoShowsError) {
+    return { kind: 'blocked', blockedUntilUtc: error.blockedUntilUtc };
+  }
   if (error instanceof TakeawayNotAcceptedError) return { kind: 'notAccepted' };
   if (error instanceof TakeawayClosedError) return { kind: 'closed', opensAt: error.opensAt };
   if (error instanceof TakeawayBusyError) return { kind: 'busy' };
@@ -69,16 +81,23 @@ export interface FailureLine {
 /**
  * The sentence for a failed send. `names` reads a menu id as its dish's name
  * (the cart's), so "Khashlama is not available to take away" names the dish.
+ * A pause for no-shows is said in the booking's own sentence, on the phone's
+ * clock, as the booking screens say it (`locale` for its date and time).
  */
 export function sendFailureLine(
   failure: TakeawayFailure,
   names: (menuItemId: string) => string | null = () => null,
+  locale?: Locale,
 ): FailureLine {
   switch (failure.kind) {
     case 'signIn':
       return { key: 'takeaway.error.signIn' };
     case 'verify':
       return { key: 'takeaway.error.verify' };
+    case 'blocked':
+      return failure.blockedUntilUtc && locale
+        ? blockedLine(failure.blockedUntilUtc, deviceTimeZone(), locale)
+        : { key: 'confirm.error.blockedNoShowsPlain' };
     case 'notAccepted':
       return { key: 'takeaway.error.notAccepted' };
     case 'closed':

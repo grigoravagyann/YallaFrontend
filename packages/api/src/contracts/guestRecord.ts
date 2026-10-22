@@ -38,8 +38,15 @@ export interface GuestRecord {
    * with nothing sent to the kitchen and nothing paid. 0 from a server before it.
    */
   readonly unmarked: number;
-  /** Nothing booked in the window: a neutral "new guest", never a warning. */
+  /** Nothing booked in the window: a neutral "new guest", never a warning. About bookings only. */
   readonly isNewGuest: boolean;
+  /**
+   * Takeaway orders the guest left at the counter — made ready, never
+   * collected — whose promised time is in the twelve months (2026-10-23). Its
+   * own count, in none of the booking counts; each counts toward the no-show
+   * block as a missed booking does. 0 from a server before it.
+   */
+  readonly takeawayNoShows: number;
   /**
    * While the guest is blocked from booking for no-shows: when the block
    * ends, ISO-8601 UTC. `null` when not blocked.
@@ -55,20 +62,30 @@ export const NEW_GUEST_RECORD: GuestRecord = {
   lateCancellations: 0,
   unmarked: 0,
   isNewGuest: true,
+  takeawayNoShows: 0,
   blockedUntilUtc: null,
 };
 
 /**
  * A good record, as the venue's "auto-confirm guests with a good record"
  * reads it (`GuestRecordRules.IsGood`): came at least this often in the twelve
- * months, with no no-show and no late cancellation.
+ * months, with no no-show, no late cancellation and no takeaway order left
+ * uncollected.
  */
 export const GOOD_RECORD_MIN_CAME = 3;
 
 export function hasGoodRecord(record: GuestRecord): boolean {
   return (
-    record.came >= GOOD_RECORD_MIN_CAME && record.noShows === 0 && record.lateCancellations === 0
+    record.came >= GOOD_RECORD_MIN_CAME &&
+    record.noShows === 0 &&
+    record.lateCancellations === 0 &&
+    (record.takeawayNoShows ?? 0) === 0
   );
+}
+
+/** Whether the guest left a takeaway order uncollected in the twelve months. */
+export function hasTakeawayNoShows(record: GuestRecord | null | undefined): boolean {
+  return (record?.takeawayNoShows ?? 0) > 0;
 }
 
 /** Whether the guest is blocked from booking at `now`. */
@@ -80,7 +97,9 @@ export function isBookingBlocked(record: GuestRecord | null | undefined, now: Da
 /**
  * The no-show block (`NoShowBlockRules`): this many no-shows on bookings that
  * started within these hours of each other blocks booking for these days, and
- * cancels every booking of the guest's that has not started yet.
+ * cancels every booking of the guest's that has not started yet. A takeaway
+ * order not collected counts as a no-show (over its promised time), and a
+ * blocked guest cannot order takeaway either.
  */
 export const NO_SHOW_BLOCK = { threshold: 3, windowHours: 72, blockDays: 7 } as const;
 
@@ -173,7 +192,7 @@ export interface LiftBookingBlockCommand {
  * by colour alone:
  * - `blocked` — booking is blocked until `blockedUntilUtc`;
  * - `new` — nothing on record: neutral;
- * - `missed` — at least one no-show;
+ * - `missed` — at least one no-show, or a takeaway order not collected;
  * - `good` — the venue setting's good record;
  * - `plain` — anything else.
  */
@@ -181,8 +200,9 @@ export type GuestRecordStanding = 'blocked' | 'new' | 'missed' | 'good' | 'plain
 
 export function guestRecordStanding(record: GuestRecord, now: Date): GuestRecordStanding {
   if (isBookingBlocked(record, now)) return 'blocked';
-  if (record.isNewGuest) return 'new';
-  if (record.noShows > 0) return 'missed';
+  // A guest who never booked but left an order at the counter is not neutral.
+  if (record.isNewGuest && !hasTakeawayNoShows(record)) return 'new';
+  if (record.noShows > 0 || hasTakeawayNoShows(record)) return 'missed';
   if (hasGoodRecord(record)) return 'good';
   return 'plain';
 }

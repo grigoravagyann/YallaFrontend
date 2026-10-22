@@ -192,7 +192,9 @@
       "lateCancellations_one": "{{count}} late cancellation",
       "lateCancellations_other": "{{count}} late cancellations",
       "unmarked_one": "{{count}} booking the venue did not mark",
-      "unmarked_other": "{{count}} bookings the venue did not mark"
+      "unmarked_other": "{{count}} bookings the venue did not mark",
+      "takeawayNoShows_one": "{{count}} takeaway order not collected",
+      "takeawayNoShows_other": "{{count}} takeaway orders not collected"
     },
     "blocked": {
       "title": "Booking paused until {{date}}, {{time}}",

@@ -256,6 +256,37 @@ describe('revenue', () => {
     const chart = within(card('Revenue')).getByRole('img', { name: /^Share of revenue by hour:/u });
     expect(chart.getAttribute('aria-label')).toMatch(/19:00 \d+%/u);
   });
+
+  it('splits the hall from takeaway, counts what nobody collected, and pays cash, card and in-app', async () => {
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    renderReports();
+    await waitForSummary();
+    const revenue = card('Revenue');
+    expect(within(revenue).getByRole('heading', { name: 'Hall and takeaway' })).toBeTruthy();
+    expect(within(revenue).getByRole('img', { name: /^Hall \d+%, takeaway \d+%$/u })).toBeTruthy();
+    expect(within(revenue).getByText('Hall').nextElementSibling?.textContent).toMatch(
+      / · \d+ bills?$/u,
+    );
+    expect(within(revenue).getByText('Takeaway').nextElementSibling?.textContent).toMatch(
+      / · \d+ orders?$/u,
+    );
+    expect(within(revenue).getByText('Takeaway not collected')).toBeTruthy();
+
+    expect(within(revenue).getByRole('heading', { name: 'How it was paid' })).toBeTruthy();
+    expect(
+      within(revenue).getByRole('img', { name: /^Cash \d+%, card \d+%, in-app \d+%$/u }),
+    ).toBeTruthy();
+    expect(within(revenue).getByText('Card')).toBeTruthy();
+
+    // The day table says each day's takeaway in a column of its own.
+    await user.click(screen.getByRole('button', { name: 'Last week' }));
+    await waitFor(() =>
+      expect(within(card('Revenue')).getByRole('group', { name: /7 days/u })).toBeTruthy(),
+    );
+    await user.click(within(card('Revenue')).getByRole('button', { name: 'Show table' }));
+    const table = within(card('Revenue')).getByRole('table', { name: 'Revenue' });
+    expect(within(table).getByRole('columnheader', { name: 'Of which takeaway' })).toBeTruthy();
+  });
 });
 
 describe('turn time against policy', () => {
