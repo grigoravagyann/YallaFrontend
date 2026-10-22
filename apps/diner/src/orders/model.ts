@@ -114,7 +114,7 @@ export function splitOrders(orders: readonly Order[], now: Date): SplitOrders {
   return { active: active.sort(byPlacedAtDesc), history: history.sort(byPlacedAtDesc) };
 }
 
-/** Confirmed and Ready read green, the kitchen states orange/blue, the finished ones grey/red. */
+/** Confirmed and Ready read green, the kitchen states orange/burgundy, the finished ones grey/red. */
 export function orderStatusTone(status: OrderStatus): StatusTone {
   switch (status) {
     case 'confirmed':

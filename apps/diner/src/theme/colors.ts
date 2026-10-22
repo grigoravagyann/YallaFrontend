@@ -11,7 +11,7 @@
  * `accent`, the icon that marks where you are — the active nav glyph, the
  * Scan QR, an unread dot. Chroma beyond that carries meaning and nothing else:
  * green is open / free / confirmed, orange is reserved, red is occupied /
- * failed, blue is "new" and the user's own location. Photos keep their dark
+ * failed, the deep burgundy is "new" and "waiting", blue only the user's own location on the map. Photos keep their dark
  * scrims, and text on a photo stays cream. Screens import from here, never
  * from the shared token package, so the design is described once.
  *
@@ -185,13 +185,20 @@ export const colors = {
   errorInk: '#B42318',
   errorStrong: '#B3282D',
   onErrorStrong: '#FFFFFF',
-  /** The user's location dot — the fill. */
-  info: '#4C8DFF',
-  infoSoft: '#E5EEFF',
-  /** Info as text. */
-  infoInk: '#2C5BC4',
-  infoStrong: '#2C5BC4',
-  onInfoStrong: '#FFFFFF',
+  /**
+   * Waiting · pending · a note to read: the brand's burgundy, not a blue, so a
+   * request waiting on the venue looks like SHURJ. The fill (a pending mark's
+   * light end and its glow).
+   */
+  info: '#8A2335',
+  infoSoft: '#F2E4E6',
+  /** Info as text, and as a glyph: the logo's burgundy. */
+  infoInk: '#6B1121',
+  infoStrong: '#4B0C18',
+  onInfoStrong: '#FFF7EA',
+  /** The user's location dot on the map, and its halo: the blue every map uses for "you". */
+  location: '#4C8DFF',
+  locationSoft: '#E5EEFF',
   /** Closed · Completed — a muted label on the ground. */
   neutralBadge: '#6F6860',
   neutralSoft: '#EFEAE4',

@@ -83,7 +83,7 @@ const neutral = {
  *
  * Open / Free / Confirmed / Ready are green; Reserved / In progress are orange;
  * Occupied / Cancelled are red; Closed / Completed / Out of service are grey;
- * Popular is the brand burgundy and New the blue. The kitchen's and the
+ * Popular is the brand burgundy and New the deep burgundy of `info`. The kitchen's and the
  * venue's "not yet" — Preparing, Awaiting confirmation — is the soft burgundy
  * pill in either tone, and Served the filled one: those two never change with
  * the ground they sit on. Availability (Open / Closed) and
@@ -153,7 +153,7 @@ export const bookingBadgeVariant: Readonly<Record<BookingStatus, BadgeVariant>> 
 /**
  * Where the kitchen is with a line, as the pill under its price: Preparing is
  * the soft burgundy pill, Served the filled one; a line nobody has picked up
- * yet keeps the blue of "new", one waiting at the pass the green of ready.
+ * yet keeps the deep burgundy of "new", one waiting at the pass the green of ready.
  */
 export function lineBadge(
   status: OrderStatus,
