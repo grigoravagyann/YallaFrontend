@@ -35,13 +35,13 @@ export function ExploreSearch({
 }: ExploreSearchProps) {
   return (
     <View style={styles.field}>
-      <Ionicons name={actionIcon.search} size={19} color={colors.text} />
+      <Ionicons name={actionIcon.search} size={19} color={colors.primary} />
       <TextInput
         style={styles.input}
         value={value}
         onChangeText={onChangeText}
         placeholder={placeholder}
-        placeholderTextColor={colors.textSubtle}
+        placeholderTextColor={colors.primary}
         autoCorrect={false}
         returnKeyType="search"
         // The server refuses a longer search outright.
@@ -55,7 +55,7 @@ export function ExploreSearch({
           onPress={() => onChangeText('')}
           style={({ pressed }) => [styles.button, pressed && styles.pressed]}
         >
-          <Ionicons name={actionIcon.close} size={20} color={colors.textMuted} />
+          <Ionicons name={actionIcon.close} size={20} color={colors.primary} />
         </Pressable>
       ) : null}
       <Pressable
@@ -64,7 +64,7 @@ export function ExploreSearch({
         onPress={onFilters}
         style={({ pressed }) => [styles.button, pressed && styles.pressed]}
       >
-        <Ionicons name="options-outline" size={20} color={colors.text} />
+        <Ionicons name="options-outline" size={20} color={colors.primary} />
         {activeFilters > 0 ? (
           <View pointerEvents="none" style={styles.count}>
             {/* Held to its 16 px dot: a large system font would burst it. */}
@@ -88,7 +88,7 @@ const styles = StyleSheet.create({
     paddingRight: 1,
     borderRadius: radius.pill,
     borderWidth: 1,
-    borderColor: colors.controlBorder,
+    borderColor: colors.primary,
     backgroundColor: colors.surface,
     // The design's barely-there lift under the field: a card's own, 0 1 2 at 5%.
     ...shadows.card,
@@ -98,7 +98,7 @@ const styles = StyleSheet.create({
     minWidth: 0,
     fontSize: 16,
     lineHeight: 20,
-    color: colors.text,
+    color: colors.primary,
     paddingVertical: 0,
     // The web build draws a focus outline of its own round the bare input.
     ...Platform.select<object>({ web: { outlineStyle: 'none' }, default: {} }),
