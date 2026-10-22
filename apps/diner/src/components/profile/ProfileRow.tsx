@@ -121,7 +121,7 @@ const styles = StyleSheet.create({
     paddingVertical: space.sm,
   },
   divider: { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border },
-  pressed: { backgroundColor: colors.surfaceMuted },
+  pressed: { opacity: 0.7 },
   label: { ...typography.body, color: colors.text, flex: 1 },
   labelDanger: { color: colors.errorInk },
   value: { ...typography.caption, fontSize: 12.5, color: colors.textMuted, flexShrink: 1 },

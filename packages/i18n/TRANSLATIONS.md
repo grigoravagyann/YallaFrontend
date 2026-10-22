@@ -1388,6 +1388,19 @@ review every string in `src/locales/hy` and `src/locales/ru`.**
   (the feed entry does not know about the pre-order), and staff
   `floor.card.onTheWay` (the green flag on a table whose next guest said yes).
 
+- `diner` — the SHURJ Explore screen (2026-10-22), provisional and **not**
+  reviewed: `explore.discover` (the list's heading, "Discover places") and
+  `explore.filterSheet.title` / `.done` (the sheet behind the search field's
+  filter button, which now holds Open now and Nearby). `explore.sections.categories`
+  now names the All / Cafés / Restaurants / Bars chip row for a screen reader.
+  `explore.searchPlaceholder` shortened in `en` (the design's "Search cafes &
+  restaurants") and `ru` («Поиск кафе и ресторанов»), so it no longer runs
+  under the filter button at 390 pt; `hy` is unchanged.
+  Removed: the user removed the Popular / New chips on 2026-10-22, so
+  `explore.filter.popular` and `explore.filter.new` went with them; the list
+  stays nearest first. `explore.sections.nearby` went with the old "Nearby"
+  heading and the category tiles.
+
 The Russian bundle carries four plural categories (`one`/`few`/`many`/`other`)
 where Armenian and English carry two. That is correct CLDR, not duplication, and
 `pnpm i18n:check` verifies each language has exactly the categories

@@ -108,7 +108,7 @@ export function SheetModal({
 }
 
 const styles = StyleSheet.create({
-  backdrop: { ...StyleSheet.absoluteFill, backgroundColor: colors.overlayDark },
+  backdrop: { ...StyleSheet.absoluteFill, backgroundColor: colors.scrim },
   fill: { flex: 1 },
   sheet: {
     position: 'absolute',
@@ -120,15 +120,18 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: radius.sheet + 4,
     borderTopRightRadius: radius.sheet + 4,
     backgroundColor: colors.sheet,
+    borderWidth: 1,
+    borderBottomWidth: 0,
+    borderColor: colors.border,
     gap: space.md,
-    ...shadows.float,
+    ...shadows.sheet,
   },
   grabber: {
     alignSelf: 'center',
     width: 40,
     height: 4,
     borderRadius: radius.pill,
-    backgroundColor: colors.borderStrong,
+    backgroundColor: colors.primarySoft,
     marginBottom: space.xs,
   },
 });

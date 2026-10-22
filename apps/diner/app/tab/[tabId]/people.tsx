@@ -355,6 +355,8 @@ const styles = StyleSheet.create({
     padding: space.md,
     borderRadius: radius.card,
     backgroundColor: colors.surfaceMuted,
+    borderWidth: 1,
+    borderColor: colors.border,
     gap: space.xs,
   },
   noticeText: { ...typography.body, color: colors.text },

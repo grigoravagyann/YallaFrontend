@@ -153,7 +153,12 @@ const styles = StyleSheet.create({
     paddingBottom: space.xxl,
     gap: space.md,
   },
-  card: { backgroundColor: colors.surface, ...shadows.card },
+  card: {
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+    ...shadows.card,
+  },
   state: { paddingHorizontal: layout.screenPadding, paddingTop: space.lg, gap: space.md },
   stateText: { ...typography.body, color: colors.textMuted },
   footer: { marginVertical: space.lg },

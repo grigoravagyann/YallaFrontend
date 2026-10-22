@@ -159,7 +159,7 @@ export default function RootLayout() {
               route before any screen has mounted. */}
           <PushNotifications />
           <DinerSessionWiring />
-          <StatusBar style="light" />
+          <StatusBar style="dark" />
           <ToastHost />
           <Stack screenOptions={STACK_OPTIONS}>
             <Stack.Screen name="(tabs)" />

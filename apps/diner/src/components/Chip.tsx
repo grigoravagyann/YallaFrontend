@@ -16,7 +16,7 @@ import { Text } from './Text';
 
 export interface ChipProps {
   readonly label: string;
-  /** Brown fill with a white label; unselected is white with a thin border. */
+  /** Burgundy fill with a cream label; unselected is white with the hairline. */
   readonly selected?: boolean;
   readonly onPress?: () => void;
   /** Glyph before the label — the fork on "Restaurant", the cup on "Cafe". */
@@ -112,7 +112,7 @@ const styles = StyleSheet.create({
   md: { minHeight: chipHeight.md, paddingHorizontal: space.lg },
   sm: { minHeight: chipHeight.sm, paddingHorizontal: space.md },
   idle: { backgroundColor: colors.surface, borderColor: colors.border },
-  idlePressed: { backgroundColor: colors.surfaceMuted, borderColor: colors.borderStrong },
+  idlePressed: { borderColor: colors.borderStrong, opacity: 0.85 },
   selected: { backgroundColor: colors.brand, borderColor: colors.brand },
   selectedPressed: { backgroundColor: colors.brandPressed, borderColor: colors.brandPressed },
   disabled: { opacity: 0.45 },

@@ -83,7 +83,7 @@ export function OrderCard({ order, now, onViewDetails, onCancel, onTrack, style 
             <Text numberOfLines={1} style={styles.name}>
               {order.placeName}
             </Text>
-            <Badge variant={order.status} tone="soft" size="sm" />
+            <Badge variant={order.status} tone="soft" size="status" dot />
           </View>
           <Text numberOfLines={1} style={styles.detail}>
             {where}

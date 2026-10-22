@@ -30,6 +30,12 @@ export interface SlidingChoiceProps<T extends string> {
   readonly accessibilityLabel: string;
   readonly height?: number;
   readonly gap?: number;
+  /**
+   * The choice sits inside a track that draws the hairline (the two ways to
+   * pay): the cells at rest draw none of their own. Free-standing, each cell
+   * is a white pill with the hairline (the tips, the party size).
+   */
+  readonly inTrack?: boolean;
   readonly style?: StyleProp<ViewStyle>;
 }
 
@@ -47,6 +53,7 @@ export function SlidingChoice<T extends string>({
   accessibilityLabel,
   height = layout.touchTarget,
   gap = space.sm,
+  inTrack = false,
   style,
 }: SlidingChoiceProps<T>) {
   const reduced = useReducedMotion();
@@ -130,7 +137,7 @@ export function SlidingChoice<T extends string>({
                   // before the first layout do the cells share the row. Never
                   // both: `flex` and a width fight differently on Yoga and web.
                   cell > 0 ? { width: cell } : styles.cellShare,
-                  !selected && styles.cellIdle,
+                  !selected && !inTrack && styles.cellIdle,
                   pressed && !selected && styles.cellPressed,
                   option.disabled && styles.cellDisabled,
                 ]}
@@ -175,13 +182,17 @@ const styles = StyleSheet.create({
   cell: {
     minWidth: 0,
     borderRadius: radius.pill,
+    // Every cell keeps a 1px edge so the chosen one, drawn by the thumb under
+    // it, does not shift by a pixel when its hairline goes.
+    borderWidth: 1,
+    borderColor: 'transparent',
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: space.xs,
   },
   cellShare: { flex: 1 },
-  cellIdle: { backgroundColor: colors.surface },
-  cellPressed: { backgroundColor: colors.surfaceMuted },
+  cellIdle: { backgroundColor: colors.surface, borderColor: colors.border },
+  cellPressed: { borderColor: colors.borderStrong },
   cellDisabled: { opacity: 0.45 },
   label: { ...typography.body, fontWeight: fontWeight.medium },
   labelIdle: { color: colors.textMuted },

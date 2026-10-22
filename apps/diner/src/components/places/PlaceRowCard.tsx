@@ -116,7 +116,7 @@ export const PlaceRowCard = memo(function PlaceRowCard({
               <View style={styles.line}>
                 {place.rating !== null ? (
                   // Filled: the star stands for the rating earned.
-                  <Ionicons name={ratingIcon.filled} size={11} color={colors.warningInk} />
+                  <Ionicons name={ratingIcon.filled} size={11} color={colors.ratingStar} />
                 ) : null}
                 <Text numberOfLines={1} style={[styles.meta, styles.figures]}>
                   {copy.rating}

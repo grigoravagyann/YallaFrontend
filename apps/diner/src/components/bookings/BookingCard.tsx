@@ -1,4 +1,4 @@
-import { awaitsVenueAnswer, preOrderView, type Booking, type BookingStatus } from '@yalla/api';
+import { awaitsVenueAnswer, preOrderView, type Booking } from '@yalla/api';
 import { formatDate, formatDayAndTime } from '@yalla/format';
 import { useLocale, useTranslation } from '@yalla/i18n';
 import { Ionicons } from '@expo/vector-icons';
@@ -17,6 +17,7 @@ import { bookingCountdown } from '../../lib/bookingsList';
 import { usePlace } from '../../places/hooks';
 import {
   actionIcon,
+  bookingBadgeVariant,
   colors,
   displayWeight,
   fontWeight,
@@ -29,7 +30,7 @@ import {
   type BadgeTone,
   type IoniconName,
 } from '../../theme';
-import { Badge, type BadgeVariant } from '../Badge';
+import { Badge } from '../Badge';
 import { Button } from '../Button';
 import { Card } from '../Card';
 import { usePressScale } from '../motion/usePressScale';
@@ -51,25 +52,6 @@ export const BOOKING_THUMB = 64;
 const SUMMARY_THUMB = 52;
 
 /**
- * A booking's status in the one pill vocabulary the app has.
- *
- * The colour comes from the nearest order/table variant, the words from the
- * booking's own `bookings.status.*` copy — so "Awaiting venue" is orange like
- * every other "not yet", and a venue cancellation is red where the diner's own
- * is grey. Which side cancelled is the one thing a list reader wants to know.
- */
-export const bookingBadgeVariant: Readonly<Record<BookingStatus, BadgeVariant>> = {
-  confirmed: 'confirmed',
-  pendingApproval: 'preparing',
-  seated: 'ready',
-  completed: 'completed',
-  cancelledByDiner: 'closed',
-  cancelledByVenue: 'cancelled',
-  noShow: 'cancelled',
-  unknown: 'closed',
-};
-
-/**
  * The status's words. Two venue-side cancellations read as what they were:
  * declined — "Not confirmed", never confirmed in the first place — and
  * cancelled automatically by the pause after three no-shows in three days
@@ -85,6 +67,8 @@ export function bookingStatusKey(
   return `bookings.status.${booking.status}`;
 }
 
+export { bookingBadgeVariant };
+
 export function BookingBadge({
   booking,
   tone = 'soft',
@@ -94,11 +78,15 @@ export function BookingBadge({
   readonly tone?: BadgeTone;
 }) {
   const { t } = useTranslation('diner');
+  const variant = bookingBadgeVariant[booking.status];
+  // "Awaiting confirmation" is a status pill, like the kitchen's: 24 high, dotted.
+  const pill = variant === 'awaiting';
   return (
     <Badge
-      variant={bookingBadgeVariant[booking.status]}
+      variant={variant}
       tone={tone}
-      size="sm"
+      size={pill ? 'status' : 'sm'}
+      dot={pill}
       label={t(bookingStatusKey(booking))}
     />
   );
@@ -448,7 +436,10 @@ export function BookingSheetSummary({
 export function BookingHeroSkeleton({ style }: { readonly style?: StyleProp<ViewStyle> }) {
   return (
     <Card padded={false} radiusToken="hero" style={[styles.hero, style]}>
-      <Skeleton height={HERO_PHOTO_HEIGHT} borderRadius={0} />
+      {/* Clipped to the card's top corners, as the photo it stands in for is. */}
+      <View style={styles.heroClip}>
+        <Skeleton height={HERO_PHOTO_HEIGHT} borderRadius={0} />
+      </View>
       <View style={styles.facts}>
         {[0, 1, 2].map((cell) => (
           <View key={cell} style={styles.fact}>
@@ -490,6 +481,11 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: radius.hero,
     borderTopRightRadius: radius.hero,
   },
+  heroClip: {
+    overflow: 'hidden',
+    borderTopLeftRadius: radius.hero,
+    borderTopRightRadius: radius.hero,
+  },
   countdown: {
     position: 'absolute',
     top: space.md,
@@ -517,7 +513,7 @@ const styles = StyleSheet.create({
     fontSize: 19,
     lineHeight: 24,
     fontWeight: displayWeight.semibold,
-    color: colors.text,
+    color: colors.onImage,
   },
   facts: { flexDirection: 'row', gap: space.md - 2, padding: space.md + 2 },
   answer: { marginHorizontal: space.md + 2, marginTop: -space.xs, marginBottom: space.md },
@@ -562,9 +558,11 @@ const styles = StyleSheet.create({
     gap: space.xs + 2,
     paddingHorizontal: space.sm,
     backgroundColor: colors.surfaceMuted,
+    borderWidth: 1,
+    borderColor: colors.border,
   },
   actionPressed: { backgroundColor: colors.primarySoft },
-  actionDestructive: { backgroundColor: colors.errorSoft },
+  actionDestructive: { backgroundColor: colors.errorSoft, borderColor: 'transparent' },
   actionDestructivePressed: { opacity: 0.8 },
   actionLabel: { fontSize: 13, lineHeight: 16, fontWeight: fontWeight.medium, flexShrink: 1 },
   row: { flexDirection: 'row', alignItems: 'center', gap: space.md, padding: space.md - 2 },

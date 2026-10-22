@@ -277,7 +277,7 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
     backgroundColor: colors.surface,
   },
-  fieldPressed: { backgroundColor: colors.surfaceMuted, borderColor: colors.borderStrong },
+  fieldPressed: { borderColor: colors.borderStrong, opacity: 0.7 },
   fieldValue: {
     ...typography.body,
     fontWeight: fontWeight.medium,

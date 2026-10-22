@@ -109,8 +109,8 @@ export function PlaceMetaRow({
 }: PlaceMetaRowProps) {
   const copy = usePlaceCopy(place);
   const textColor = onImage ? colors.onImage : color;
-  // The ink, not the bright orange: a lone star glyph owes 3:1 and the fill is 2.3.
-  const starColor = onImage ? colors.onImage : colors.warningInk;
+  // The honey star, not the bright orange: a lone star glyph owes 3:1.
+  const starColor = onImage ? colors.onImage : colors.ratingStar;
   const rating = (
     <View key="rating" style={styles.metaItem}>
       {place.rating !== null ? (

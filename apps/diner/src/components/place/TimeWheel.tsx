@@ -534,6 +534,8 @@ const styles = StyleSheet.create({
     height: WHEEL_ROW * VISIBLE_ROWS,
     borderRadius: radius.card,
     backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
     overflow: 'hidden',
     justifyContent: 'center',
   },

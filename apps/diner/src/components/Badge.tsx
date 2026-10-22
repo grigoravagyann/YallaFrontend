@@ -28,7 +28,11 @@ export interface BadgeProps {
   readonly tone?: BadgeTone;
   /** A small status dot before the label ("● Free"). */
   readonly dot?: boolean;
-  readonly size?: 'sm' | 'md';
+  /**
+   * `status` is the order and booking pill: 24 high, 12px label, no border —
+   * Preparing, Served, Awaiting confirmation.
+   */
+  readonly size?: 'sm' | 'md' | 'status';
   /** Replaces the variant's translated label — e.g. a count. */
   readonly label?: string;
   readonly style?: StyleProp<ViewStyle>;
@@ -52,7 +56,7 @@ export function Badge({
       accessibilityLabel={text}
       style={[
         styles.base,
-        size === 'sm' ? styles.sm : styles.md,
+        size === 'sm' ? styles.sm : size === 'status' ? styles.status : styles.md,
         { backgroundColor: background },
         style,
       ]}
@@ -63,7 +67,7 @@ export function Badge({
       ) : null}
       <Text
         numberOfLines={1}
-        style={[styles.label, size === 'sm' && styles.labelSm, { color: foreground }]}
+        style={[styles.label, size !== 'md' && styles.labelSm, { color: foreground }]}
       >
         {text}
       </Text>
@@ -81,6 +85,7 @@ const styles = StyleSheet.create({
   },
   md: { paddingHorizontal: space.md - 2, paddingVertical: space.xs + 1 },
   sm: { paddingHorizontal: space.sm + 2, paddingVertical: 3 },
+  status: { height: 24, paddingHorizontal: space.sm + 2, gap: 6, borderRadius: 12 },
   dot: { width: 6, height: 6, borderRadius: radius.pill },
   label: { ...typography.caption, fontWeight: fontWeight.bold },
   labelSm: { fontSize: 12, lineHeight: 16 },

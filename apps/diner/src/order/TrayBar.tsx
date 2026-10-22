@@ -85,7 +85,7 @@ export function TrayBar({ onReview, onSeeBill, timeZoneId, canOrder = false }: T
       {/* The list fades into the ground under the bar instead of being cut. */}
       <LinearGradient
         pointerEvents="none"
-        colors={[colors.overlayClear, colors.background, colors.background]}
+        colors={[colors.backgroundClear, colors.background, colors.background]}
         locations={[0, 0.35, 1]}
         style={StyleSheet.absoluteFill}
       />

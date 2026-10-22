@@ -210,6 +210,7 @@ export function PaySheet({ tabId, visible, onClose, tab, onShowShares }: PayShee
                 }}
                 columns={2}
                 gap={space.xs}
+                inTrack
                 accessibilityLabel={t('tab.pay.what')}
               />
             </View>
@@ -355,7 +356,13 @@ const styles = StyleSheet.create({
   notice: { ...typography.body, fontWeight: fontWeight.medium, color: colors.successInk },
 
   // One glass track under both choices, the brown thumb sliding along it.
-  modes: { padding: 3, borderRadius: radius.pill, backgroundColor: colors.surface },
+  modes: {
+    padding: 3,
+    borderRadius: radius.pill,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
   scopeOnly: { ...typography.body, fontWeight: fontWeight.medium, color: colors.textMuted },
 
   lines: { gap: space.sm },

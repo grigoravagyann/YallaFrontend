@@ -571,8 +571,8 @@ function PlaceDetails({
               colors={[
                 colors.glass,
                 colors.overlayClear,
-                colors.overlayClear,
-                colors.backgroundMid,
+                colors.backgroundClear,
+                colors.background,
               ]}
               locations={[0, 0.3, 0.55, 1]}
               style={StyleSheet.absoluteFill}
@@ -637,7 +637,7 @@ function PlaceDetails({
             <View style={styles.metaRow}>
               <View style={styles.metaItem}>
                 {place.rating !== null ? (
-                  <Ionicons name={actionIcon.star} size={13} color={colors.warningInk} />
+                  <Ionicons name={actionIcon.star} size={13} color={colors.ratingStar} />
                 ) : null}
                 <Text style={styles.metaText}>{rating}</Text>
               </View>
@@ -906,7 +906,7 @@ const styles = StyleSheet.create({
   plainHeader: { paddingHorizontal: space.sm, paddingVertical: space.xs },
   pad: { marginHorizontal: layout.screenPadding },
 
-  heroFrame: { overflow: 'hidden', backgroundColor: colors.surfaceMuted },
+  heroFrame: { overflow: 'hidden', backgroundColor: colors.skeleton },
   heroOverlay: { position: 'absolute', top: 0, left: 0, right: 0 },
   heroControls: {
     position: 'absolute',

@@ -1,13 +1,11 @@
 {
   "explore": {
-    "searchPlaceholder": "Search cafes, restaurants, or cuisine…",
+    "searchPlaceholder": "Search cafes & restaurants",
     "searchClear": "Clear search",
     "filter": {
       "all": "All",
       "cafes": "Cafes",
       "restaurants": "Restaurants",
-      "popular": "Popular",
-      "new": "New",
       "bars": "Bars"
     },
     "empty": {
@@ -33,9 +31,14 @@
       "nearby": "Nearby"
     },
     "sections": {
-      "categories": "Categories",
-      "nearby": "Nearby"
-    }
+      "categories": "Categories"
+    },
+    "discover": "Discover places",
+    "filterSheet": {
+      "title": "Filters",
+      "done": "Done"
+    },
+    "brandName": "SHURJ"
   },
   "venue": {
     "type": {
@@ -329,7 +332,7 @@
   },
   "auth": {
     "welcome": {
-      "title": "Welcome to Yalla",
+      "title": "Welcome to SHURJ",
       "body": "Book a table, order at it, and keep your bookings in one place."
     },
     "logIn": "Log in",
@@ -1210,8 +1213,8 @@
     "cancel": "Cancel",
     "uploading": "Uploading photo",
     "permission": {
-      "library": "Yalla can't open your photos. Allow photo access in Settings to choose one.",
-      "camera": "Yalla can't use the camera. Allow camera access in Settings to take a photo."
+      "library": "SHURJ can't open your photos. Allow photo access in Settings to choose one.",
+      "camera": "SHURJ can't use the camera. Allow camera access in Settings to take a photo."
     },
     "photoError": {
       "format": "That file isn't a photo we can use. Choose a JPEG, PNG or WebP.",
@@ -1368,7 +1371,7 @@
         "body": "The pause on your bookings has been lifted. Bookings it cancelled stay cancelled."
       },
       "bookingsUnblockedLifted": {
-        "body": "Yalla lifted the pause on your bookings. Bookings it cancelled stay cancelled."
+        "body": "SHURJ lifted the pause on your bookings. Bookings it cancelled stay cancelled."
       },
       "bookingsUnblockedUndone": {
         "body": "A venue undid a no-show, so the pause on your bookings is lifted. Bookings it cancelled stay cancelled."
@@ -1426,7 +1429,7 @@
     "terms": "Terms of use",
     "privacy": "Privacy policy",
     "licences": "Open-source licences",
-    "licencesBody": "Yalla is built with open-source software. Each package is used under its own licence.",
+    "licencesBody": "SHURJ is built with open-source software. Each package is used under its own licence.",
     "venuesSee": "What venues see"
   },
   "privacy": {

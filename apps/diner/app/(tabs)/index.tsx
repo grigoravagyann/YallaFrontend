@@ -1,39 +1,41 @@
-import { Ionicons } from '@expo/vector-icons';
 import { MAX_BRANCH_SEARCH_LENGTH } from '@yalla/api';
 import { isOfflinePaused } from '@yalla/api/react';
 import { useTranslation } from '@yalla/i18n';
 import { useRouter } from 'expo-router';
 import { useCallback, useMemo, useState } from 'react';
 import {
-  Animated,
   FlatList,
+  Platform,
   Pressable,
   RefreshControl,
-  ScrollView,
   StyleSheet,
   View,
+  type ViewStyle,
 } from 'react-native';
-import { Chip } from '../../src/components/Chip';
 import { EmptyState } from '../../src/components/EmptyState';
 import { ErrorState } from '../../src/components/ErrorState';
-import { IconButton } from '../../src/components/IconButton';
-import { Rise, riseDelay } from '../../src/components/motion/Rise';
-import { usePressScale } from '../../src/components/motion/usePressScale';
-import { PhotoImage } from '../../src/components/PhotoImage';
+import { CategoryChips, type CategoryOption } from '../../src/components/explore/CategoryChips';
 import {
-  PlaceRowCard,
-  ROW_CARD_HEIGHT,
-  ROW_PHOTO_WIDTH,
-} from '../../src/components/places/PlaceRowCard';
+  ExploreFilterSheet,
+  NO_QUICK_FILTERS,
+  QUICK_FILTERS,
+  type QuickFilters,
+} from '../../src/components/explore/ExploreFilterSheet';
+import { ExploreHeader } from '../../src/components/explore/ExploreHeader';
+import {
+  EXPLORE_CARD_HEIGHT,
+  ExplorePlaceCard,
+} from '../../src/components/explore/ExplorePlaceCard';
+import { ExploreSearch } from '../../src/components/explore/ExploreSearch';
+import { nearestFirst, repeatedVenues } from '../../src/components/explore/exploreList';
+import { Rise, riseDelay } from '../../src/components/motion/Rise';
 import { Screen, useNavClearance } from '../../src/components/Screen';
 import { Skeleton } from '../../src/components/Skeleton';
-import { Text, TextInput } from '../../src/components/Text';
+import { Text } from '../../src/components/Text';
 import { useDinerProfile } from '../../src/data/accountQueries';
 import { useNotificationCount } from '../../src/hooks/useNotificationCount';
-import { initialsOf } from '../../src/lib/initials';
-import { categoryPhotos } from '../../src/places/categories';
 import { usePlaces } from '../../src/places/hooks';
-import { PLACE_TYPES, type Place, type PlaceBadge, type PlaceType } from '../../src/places/model';
+import type { Place, PlaceType } from '../../src/places/model';
 import { useSession } from '../../src/stores/session';
 import { useActiveTab } from '../../src/stores/tab';
 import {
@@ -41,41 +43,28 @@ import {
   colors,
   displayWeight,
   fontWeight,
-  iconSize,
   layout,
-  placeTypeIcon,
-  radius,
   space,
   typography,
-  type IoniconName,
 } from '../../src/theme';
 
-const FILTERS: readonly PlaceBadge[] = ['popular', 'new'];
-/** The kinds of place, after the badges: a café for coffee, a restaurant for dinner, a bar after. */
-const TYPES: readonly PlaceType[] = PLACE_TYPES;
-/** Quick filters the list applies itself: the server knows nothing of "now" or "here". */
-const QUICK = ['openNow', 'nearby'] as const;
-type Quick = (typeof QUICK)[number];
-type QuickState = Readonly<Record<Quick, boolean>>;
-const NO_QUICK: QuickState = { openNow: false, nearby: false };
 /** "Nearby" as a filter: under this many kilometres, by the phone's own position. */
 const NEARBY_KM = 2;
-/** Skeleton cards while the list loads — about what fits under the categories. */
+/** Skeleton cards while the list loads — about what fits under the chips. */
 const SKELETON_ROWS = 4;
-const AVATAR = 48;
-const TILE_HEIGHT = 94;
+/** One rhythm between the search, the chips, the heading and every card. */
+const GAP = 10;
+/** The white sheet's rounded top. */
+const SHEET_RADIUS = 28;
 
-/** What a category tile narrows the list to: one kind of place, as the type chips do. */
-interface Category {
-  readonly kind: PlaceType;
-  readonly labelKey: string;
-  readonly icon: IoniconName;
-}
+type Category = 'all' | PlaceType;
 
-const CATEGORIES: readonly Category[] = [
-  { kind: 'cafe', labelKey: 'explore.filter.cafes', icon: placeTypeIcon.cafe },
-  { kind: 'restaurant', labelKey: 'explore.filter.restaurants', icon: placeTypeIcon.restaurant },
-  { kind: 'bar', labelKey: 'explore.filter.bars', icon: placeTypeIcon.bar },
+/** The chips, in order; keys as literals so the i18n check sees each one. */
+const CATEGORIES: readonly { readonly key: Category; readonly labelKey: string }[] = [
+  { key: 'all', labelKey: 'explore.filter.all' },
+  { key: 'cafe', labelKey: 'explore.filter.cafes' },
+  { key: 'restaurant', labelKey: 'explore.filter.restaurants' },
+  { key: 'bar', labelKey: 'explore.filter.bars' },
 ];
 
 /** Morning until noon, afternoon until six, evening after — and through the night. */
@@ -88,9 +77,11 @@ function dayPeriod(hour: number): 'morning' | 'afternoon' | 'evening' {
 /**
  * Explore — the first screen anyone sees.
  *
- * A greeting with the way to the map and to notifications, a search field,
- * a row of quick filters, three category tiles and the places nearby as
- * photo-left row cards. The top stays put while the list scrolls under it,
+ * On the ivory ground: the diner's initial, a greeting over their name, the
+ * Map pill and the bell. Below it a white sheet with a rounded top carries the
+ * search field (its filter button opens Open now / Nearby), the category chips
+ * — All, Cafés, Restaurants, Bars — and "Discover places", nearest first, as
+ * full-width photo cards. The top stays put while the list scrolls under it,
  * so the search field never leaves the screen while somebody types.
  *
  * Five states, each drawn explicitly: loading (skeletons), offline, failed,
@@ -110,29 +101,21 @@ export default function ExploreScreen() {
   useDinerProfile();
 
   const [query, setQuery] = useState('');
-  // Every place nearby to start with. "Popular" is earned — twenty sittings a
-  // month, or strong reviews — and a new city has few that carry it, so opening
-  // on it would greet most diners with "nothing matched". Tapping a selected
-  // chip clears it.
-  const [badge, setBadge] = useState<PlaceBadge | null>(null);
-  // A kind of place narrows the list the same way a badge does; the two combine.
+  // Every place nearby to start with; a chip narrows the list to one kind.
   const [kind, setKind] = useState<PlaceType | null>(null);
-  const [quick, setQuick] = useState<QuickState>(NO_QUICK);
+  const [quick, setQuick] = useState<QuickFilters>(NO_QUICK_FILTERS);
+  const [filtersOpen, setFiltersOpen] = useState(false);
   const activeTabId = useActiveTab((s) => s.activeTabId);
 
-  const filter =
-    badge || kind ? { ...(badge ? { badge } : {}), ...(kind ? { type: kind } : {}) } : null;
-  const placesQuery = usePlaces({ query, ...(filter ? { filter } : {}) });
+  const placesQuery = usePlaces({ query, ...(kind ? { filter: { type: kind } } : {}) });
   const { data, isLoading, isError, isFetching, isPlaceholderData, refetch } = placesQuery;
-  // The unfiltered list, for the category tiles' photos: the same query as the
-  // list's own when nothing is filtered, so it costs no request of its own.
-  const nearby = usePlaces().data;
   // An offline query is paused, never failed: without this the screen spins.
   const offline = isOfflinePaused(placesQuery) && !data;
 
-  // Stable identity, so `?? []` does not hand FlatList a fresh array per render.
+  // Nearest first, as the server sends them; sorted again here (stably, so a
+  // list with no distances keeps its order) so a quick filter never reorders it.
   const shown: readonly Place[] = useMemo(() => {
-    const places = data ?? [];
+    const places = nearestFirst(data ?? []);
     if (!quick.openNow && !quick.nearby) return places;
     return places.filter(
       (place) =>
@@ -140,18 +123,16 @@ export default function ExploreScreen() {
         (!quick.nearby || (place.distanceKm !== null && place.distanceKm < NEARBY_KM)),
     );
   }, [data, quick]);
+  const repeated = useMemo(() => repeatedVenues(shown), [shown]);
 
-  const chipFiltering = badge !== null || kind !== null || quick.openNow || quick.nearby;
+  const quickCount = QUICK_FILTERS.filter((key) => quick[key]).length;
+  const chipFiltering = kind !== null || quickCount > 0;
   const filtering = query.trim() !== '' || chipFiltering;
 
   const clearFilters = useCallback(() => {
-    setBadge(null);
     setKind(null);
-    setQuick(NO_QUICK);
+    setQuick(NO_QUICK_FILTERS);
   }, []);
-
-  // The Bars tile shows the first bar's photo, as the other two show theirs.
-  const categoryPhoto = useMemo(() => categoryPhotos(nearby ?? data ?? []), [nearby, data]);
 
   const openPlace = useCallback(
     (placeId: string) => {
@@ -170,15 +151,25 @@ export default function ExploreScreen() {
       <Rise delay={riseDelay(index)}>
         {/* Inside the Rise: its own opacity would override a dim set on it. */}
         <View style={stale && styles.stale}>
-          <PlaceRowCard place={item} onPress={openPlace} />
+          <ExplorePlaceCard
+            place={item}
+            onPress={openPlace}
+            showBranch={repeated.has(item.venueName.trim())}
+          />
         </View>
       </Rise>
     ),
-    [openPlace, stale],
+    [openPlace, stale, repeated],
+  );
+
+  const categories: readonly CategoryOption<Category>[] = useMemo(
+    () => CATEGORIES.map((category) => ({ key: category.key, label: t(category.labelKey) })),
+    [t],
   );
 
   const name = signedIn ? (profile?.displayName ?? guestName) : null;
-  const shownName = name?.trim() || t('common:appName');
+  const ownName = name?.trim();
+  const shownName = ownName || t('explore.brandName');
   const photoUrl = signedIn ? profile?.photo?.thumbnailUrl : undefined;
   const greeting = t(`explore.greeting.${dayPeriod(new Date().getHours())}`);
   const unreadLabel = unread > 99 ? '99+' : String(unread);
@@ -186,331 +177,125 @@ export default function ExploreScreen() {
     unread > 0 ? `${t('profile.notifications')}, ${unreadLabel}` : t('profile.notifications');
 
   const listHeader = (
-    <View>
-      <View style={styles.sectionRow}>
-        <Text display accessibilityRole="header" style={styles.sectionTitle}>
-          {t('explore.sections.categories')}
-        </Text>
-        <AllLink label={t('explore.filter.all')} onPress={clearFilters} />
-      </View>
-      <View style={styles.tiles}>
-        {CATEGORIES.map((category) => (
-          <CategoryTile
-            key={category.kind}
-            label={t(category.labelKey)}
-            icon={category.icon}
-            photo={categoryPhoto[category.kind]}
-            selected={kind === category.kind}
-            onPress={() => setKind(kind === category.kind ? null : category.kind)}
-          />
-        ))}
-      </View>
-      <Text display accessibilityRole="header" style={[styles.sectionTitle, styles.nearbyTitle]}>
-        {t('explore.sections.nearby')}
-      </Text>
-    </View>
+    <Text display accessibilityRole="header" style={styles.sectionTitle}>
+      {t('explore.discover')}
+    </Text>
   );
 
   return (
-    <Screen>
-      <View style={styles.header}>
-        <Avatar photoUrl={photoUrl} name={shownName} />
-        <View
-          style={styles.hello}
-          accessible
-          accessibilityRole="header"
-          accessibilityLabel={`${greeting} ${shownName}`}
-        >
-          <Text numberOfLines={1} style={styles.greeting}>
-            {greeting}
-          </Text>
-          <Text display numberOfLines={1} style={styles.name}>
-            {shownName}
-          </Text>
-        </View>
-        <GlassPill
-          icon={actionIcon.map}
-          label={t('explore.map')}
-          accessibilityLabel={t('explore.mapButton')}
-          onPress={() => router.push('/map')}
-        />
-        <View>
-          <IconButton
-            icon="notifications-outline"
-            accessibilityLabel={bellLabel}
-            onPress={() => router.push('/notifications')}
-          />
-          {unread > 0 ? <View pointerEvents="none" style={styles.unreadDot} /> : null}
-        </View>
-      </View>
+    <Screen backgroundColor={colors.exploreGround}>
+      <ExploreHeader
+        greeting={greeting}
+        name={shownName}
+        nameIsBrand={!ownName}
+        photoUrl={photoUrl}
+        mapLabel={t('explore.map')}
+        mapAccessibilityLabel={t('explore.mapButton')}
+        onMap={() => router.push('/map')}
+        bellLabel={bellLabel}
+        unread={unread > 0}
+        onBell={() => router.push('/notifications')}
+      />
 
-      {/* A way back to a tab you wandered off. Not a persistent bar: it only
-          exists while there is somewhere to go back to. */}
-      {activeTabId ? (
-        <Pressable
-          accessibilityRole="button"
-          onPress={() => router.push({ pathname: '/tab/[tabId]', params: { tabId: activeTabId } })}
-          style={({ pressed }) => [styles.resume, pressed && styles.resumePressed]}
-        >
-          <Text style={styles.resumeText}>{t('tab.resumeTitle')}</Text>
-          <Text style={styles.resumeText}>{t('tab.resumeAction')}</Text>
-        </Pressable>
-      ) : null}
+      <View style={styles.sheet}>
+        {/* A way back to a tab you wandered off. Not a persistent bar: it only
+            exists while there is somewhere to go back to. */}
+        {activeTabId ? (
+          <Pressable
+            accessibilityRole="button"
+            onPress={() =>
+              router.push({ pathname: '/tab/[tabId]', params: { tabId: activeTabId } })
+            }
+            style={({ pressed }) => [styles.resume, pressed && styles.resumePressed]}
+          >
+            <Text style={styles.resumeText}>{t('tab.resumeTitle')}</Text>
+            <Text style={styles.resumeText}>{t('tab.resumeAction')}</Text>
+          </Pressable>
+        ) : null}
 
-      <View style={styles.searchWrap}>
-        <View style={styles.search}>
-          <Ionicons name={actionIcon.search} size={17} color={colors.textMuted} />
-          <TextInput
-            style={styles.searchInput}
+        <View style={styles.searchWrap}>
+          <ExploreSearch
             value={query}
             onChangeText={setQuery}
             placeholder={t('explore.searchPlaceholder')}
-            placeholderTextColor={colors.textSubtle}
-            autoCorrect={false}
-            returnKeyType="search"
-            // The server refuses a longer search outright.
             maxLength={MAX_BRANCH_SEARCH_LENGTH}
-            accessibilityLabel={t('explore.searchPlaceholder')}
+            clearLabel={t('explore.searchClear')}
+            filtersLabel={t('explore.filterSheet.title')}
+            activeFilters={quickCount}
+            onFilters={() => setFiltersOpen(true)}
           />
-          {query ? (
-            <IconButton
-              icon={actionIcon.close}
-              size="sm"
-              variant="ghost"
-              iconColor={colors.textMuted}
-              accessibilityLabel={t('explore.searchClear')}
-              onPress={() => setQuery('')}
-            />
-          ) : null}
-          {/* Decoration: the chips under the field are the filters. */}
-          <View
-            style={styles.filterMark}
-            accessibilityElementsHidden
-            importantForAccessibility="no-hide-descendants"
-          >
-            <Ionicons name="options-outline" size={iconSize.sm} color={colors.onPrimary} />
-          </View>
         </View>
+
+        <CategoryChips
+          options={categories}
+          selected={kind ?? 'all'}
+          onSelect={(key) => setKind(key === 'all' ? null : key)}
+          accessibilityLabel={t('explore.sections.categories')}
+        />
+
+        {offline ? (
+          <ErrorState offline onRetry={() => void refetch()} />
+        ) : isError && !isLoading ? (
+          <ErrorState onRetry={() => void refetch()} />
+        ) : (
+          <FlatList
+            style={styles.listView}
+            data={isLoading ? [] : shown}
+            keyExtractor={(place) => place.id}
+            renderItem={renderItem}
+            ItemSeparatorComponent={Gap}
+            ListHeaderComponent={listHeader}
+            contentContainerStyle={[styles.list, { paddingBottom: navClearance }]}
+            keyboardShouldPersistTaps="handled"
+            keyboardDismissMode="on-drag"
+            showsVerticalScrollIndicator={false}
+            // Pull to refresh: Open / Closed moves with the clock, and a diner who
+            // has been staring at the list for a minute wants the current one.
+            refreshControl={
+              <RefreshControl
+                refreshing={isFetching && !isLoading}
+                onRefresh={() => void refetch()}
+                tintColor={colors.primary}
+                colors={[colors.primary]}
+              />
+            }
+            // An empty result needs a real message, not a blank screen — and a
+            // different one for "nothing matched" than for "nothing around here".
+            ListEmptyComponent={
+              isLoading ? (
+                <SkeletonCards />
+              ) : filtering ? (
+                <EmptyState
+                  icon={actionIcon.search}
+                  title={t('explore.empty.title')}
+                  body={t(chipFiltering ? 'explore.empty.fewerFilters' : 'explore.empty.body')}
+                  action={{
+                    label: t(chipFiltering ? 'explore.clearFilters' : 'explore.searchClear'),
+                    onPress: () => {
+                      setQuery('');
+                      clearFilters();
+                    },
+                  }}
+                />
+              ) : (
+                <EmptyState
+                  icon={actionIcon.location}
+                  title={t('explore.empty.nearby.title')}
+                  body={t('explore.empty.nearby.body')}
+                />
+              )
+            }
+          />
+        )}
       </View>
 
-      {/* Scrolls sideways: six chips never fit, in any of the three languages. */}
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        keyboardShouldPersistTaps="handled"
-        style={styles.chipsScroll}
-        contentContainerStyle={styles.chips}
-      >
-        {QUICK.map((value) => (
-          <Chip
-            key={value}
-            label={t(`explore.quick.${value}`)}
-            selected={quick[value]}
-            onPress={() => setQuick({ ...quick, [value]: !quick[value] })}
-          />
-        ))}
-        {FILTERS.map((value) => (
-          <Chip
-            key={value}
-            label={t(`explore.filter.${value}`)}
-            selected={badge === value}
-            // Tapping the selected chip clears it: no chip means every place.
-            onPress={() => setBadge(badge === value ? null : value)}
-          />
-        ))}
-        {TYPES.map((value) => (
-          <Chip
-            key={value}
-            label={t(`place.type.${value}`)}
-            icon={placeTypeIcon[value]}
-            selected={kind === value}
-            onPress={() => setKind(kind === value ? null : value)}
-          />
-        ))}
-      </ScrollView>
-
-      {offline ? (
-        <ErrorState offline onRetry={() => void refetch()} />
-      ) : isError && !isLoading ? (
-        <ErrorState onRetry={() => void refetch()} />
-      ) : (
-        <FlatList
-          data={isLoading ? [] : shown}
-          keyExtractor={(place) => place.id}
-          renderItem={renderItem}
-          ItemSeparatorComponent={Gap}
-          ListHeaderComponent={listHeader}
-          contentContainerStyle={[styles.list, { paddingBottom: navClearance }]}
-          keyboardShouldPersistTaps="handled"
-          keyboardDismissMode="on-drag"
-          showsVerticalScrollIndicator={false}
-          // Pull to refresh: Open / Closed moves with the clock, and a diner who
-          // has been staring at the list for a minute wants the current one.
-          refreshControl={
-            <RefreshControl
-              refreshing={isFetching && !isLoading}
-              onRefresh={() => void refetch()}
-              tintColor={colors.primary}
-              colors={[colors.primary]}
-            />
-          }
-          // An empty result needs a real message, not a blank screen — and a
-          // different one for "nothing matched" than for "nothing around here".
-          ListEmptyComponent={
-            isLoading ? (
-              <SkeletonRows />
-            ) : filtering ? (
-              <EmptyState
-                icon={actionIcon.search}
-                title={t('explore.empty.title')}
-                body={t(chipFiltering ? 'explore.empty.fewerFilters' : 'explore.empty.body')}
-                action={{
-                  label: t(chipFiltering ? 'explore.clearFilters' : 'explore.searchClear'),
-                  onPress: () => {
-                    setQuery('');
-                    clearFilters();
-                  },
-                }}
-              />
-            ) : (
-              <EmptyState
-                icon={actionIcon.location}
-                title={t('explore.empty.nearby.title')}
-                body={t('explore.empty.nearby.body')}
-              />
-            )
-          }
-        />
-      )}
-    </Screen>
-  );
-}
-
-/**
- * The diner's photo, or their initials on the brand fill — also when the photo
- * will not load, rather than a broken-image glyph where a face should be.
- */
-function Avatar({
-  photoUrl,
-  name,
-}: {
-  readonly photoUrl: string | undefined;
-  readonly name: string;
-}) {
-  // The photo that failed, not a flag, so a new photo gets its own attempt.
-  const [failed, setFailed] = useState<string | null>(null);
-  if (photoUrl && failed !== photoUrl) {
-    return (
-      <PhotoImage
-        source={photoUrl}
-        style={styles.avatar}
-        onLoad={(size) => {
-          if (!size) setFailed(photoUrl);
-        }}
+      <ExploreFilterSheet
+        visible={filtersOpen}
+        value={quick}
+        onChange={setQuick}
+        onClose={() => setFiltersOpen(false)}
       />
-    );
-  }
-  return (
-    <View
-      style={[styles.avatar, styles.avatarInitials]}
-      accessibilityElementsHidden
-      importantForAccessibility="no"
-    >
-      <Text display style={styles.initials}>
-        {initialsOf(name)}
-      </Text>
-    </View>
-  );
-}
-
-/** The map button: a glass pill with its glyph and a short label. */
-function GlassPill({
-  icon,
-  label,
-  accessibilityLabel,
-  onPress,
-}: {
-  readonly icon: IoniconName;
-  readonly label: string;
-  readonly accessibilityLabel: string;
-  readonly onPress: () => void;
-}) {
-  const press = usePressScale();
-  return (
-    <Animated.View style={press.style}>
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel={accessibilityLabel}
-        onPress={onPress}
-        onPressIn={press.onPressIn}
-        onPressOut={press.onPressOut}
-        style={({ pressed }) => [styles.pill, pressed && styles.glassPressed]}
-      >
-        <Ionicons name={icon} size={18} color={colors.text} />
-        <Text numberOfLines={1} style={styles.pillLabel}>
-          {label}
-        </Text>
-      </Pressable>
-    </Animated.View>
-  );
-}
-
-/** "All →" beside the categories: every filter off, the search left alone. */
-function AllLink({ label, onPress }: { readonly label: string; readonly onPress: () => void }) {
-  return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityLabel={label}
-      onPress={onPress}
-      style={({ pressed }) => [styles.allLink, pressed && styles.allLinkPressed]}
-    >
-      <Text style={styles.allLabel}>{label}</Text>
-      <Ionicons name="arrow-forward-outline" size={12} color={colors.primary} />
-    </Pressable>
-  );
-}
-
-/** One of the three category photos; tapping it narrows the list, again clears it. */
-function CategoryTile({
-  label,
-  icon,
-  photo,
-  selected,
-  onPress,
-}: {
-  readonly label: string;
-  readonly icon: IoniconName;
-  readonly photo: string | undefined;
-  readonly selected: boolean;
-  readonly onPress: () => void;
-}) {
-  const press = usePressScale();
-  return (
-    <Animated.View style={[styles.tileWrap, press.style]}>
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel={label}
-        accessibilityState={{ selected }}
-        onPress={onPress}
-        onPressIn={press.onPressIn}
-        onPressOut={press.onPressOut}
-        style={[styles.tile, selected && styles.tileSelected]}
-      >
-        {photo ? (
-          <PhotoImage source={photo} gradient={0.6} style={StyleSheet.absoluteFill} />
-        ) : null}
-        {/* The glyph in its own glass circle up top: in the pill beside the
-            label it cut "Ռեստորաններ" to "Ռեստոր…" on a 390pt phone. */}
-        <View style={styles.tileGlyph}>
-          <Ionicons name={icon} size={13} color={colors.onImage} />
-        </View>
-        <View style={styles.tilePill}>
-          <Text numberOfLines={1} style={styles.tileLabel}>
-            {label}
-          </Text>
-        </View>
-      </Pressable>
-    </Animated.View>
+    </Screen>
   );
 }
 
@@ -519,8 +304,8 @@ function Gap() {
   return <View style={styles.gap} />;
 }
 
-/** The list's shape while it loads: the row card's photo on the left, four lines beside it. */
-function SkeletonRows() {
+/** The list's shape while it loads: the cards' own size and corners. */
+function SkeletonCards() {
   return (
     <View
       style={styles.skeletons}
@@ -528,196 +313,59 @@ function SkeletonRows() {
       importantForAccessibility="no-hide-descendants"
     >
       {Array.from({ length: SKELETON_ROWS }, (_, index) => (
-        <View key={index} style={styles.skeletonCard}>
-          <Skeleton width={ROW_PHOTO_WIDTH} height={ROW_CARD_HEIGHT} borderRadius={0} />
-          <View style={styles.skeletonBody}>
-            <Skeleton width="72%" height={14} />
-            <Skeleton width="48%" height={10} />
-            <Skeleton width="84%" height={10} />
-            <Skeleton width="56%" height={10} />
-          </View>
-        </View>
+        <Skeleton key={index} height={EXPLORE_CARD_HEIGHT} borderRadius={17} />
       ))}
     </View>
   );
 }
 
+/** The sheet's faint lift off the ivory: 0 -6 20 at 5%, upward. */
+const sheetShadow: ViewStyle = Platform.select<ViewStyle>({
+  web: { boxShadow: '0 -6px 20px rgba(45,41,39,0.05)' },
+  default: {
+    shadowColor: colors.text,
+    shadowOffset: { width: 0, height: -6 },
+    shadowOpacity: 0.05,
+    shadowRadius: 20,
+    elevation: 2,
+  },
+});
+
 const styles = StyleSheet.create({
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: space.md,
-    paddingHorizontal: layout.screenPadding,
-    paddingTop: space.lg,
-  },
-  avatar: { width: AVATAR, height: AVATAR, borderRadius: radius.pill },
-  avatarInitials: {
-    backgroundColor: colors.brand,
-    borderWidth: 1,
-    borderColor: colors.brandEdge,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  initials: { ...typography.h3, fontWeight: displayWeight.semibold, color: colors.onPrimary },
-  hello: { flex: 1, minWidth: 0 },
-  greeting: { ...typography.caption, color: colors.textMuted },
-  name: {
-    fontSize: 20,
-    lineHeight: 24,
-    fontWeight: displayWeight.semibold,
-    color: colors.text,
-  },
-  pill: {
-    height: layout.touchTarget,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: space.xs + 2,
-    paddingHorizontal: space.md,
-    borderRadius: radius.pill,
+  sheet: {
+    flex: 1,
+    marginTop: space.sm,
+    paddingTop: 18,
+    borderTopLeftRadius: SHEET_RADIUS,
+    borderTopRightRadius: SHEET_RADIUS,
     backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  glassPressed: { backgroundColor: colors.surfaceMuted, borderColor: colors.borderStrong },
-  pillLabel: { ...typography.caption, fontWeight: fontWeight.medium, color: colors.text },
-  unreadDot: {
-    position: 'absolute',
-    top: -1,
-    right: 1,
-    width: 10,
-    height: 10,
-    borderRadius: radius.pill,
-    backgroundColor: colors.error,
+    ...sheetShadow,
   },
   resume: {
     marginHorizontal: layout.screenPadding,
-    marginTop: space.md,
+    marginBottom: GAP,
     minHeight: layout.touchTarget,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: space.lg,
-    borderRadius: radius.pill,
+    borderRadius: 999,
     backgroundColor: colors.primarySoft,
   },
   resumePressed: { backgroundColor: colors.border },
   resumeText: { ...typography.body, fontWeight: fontWeight.medium, color: colors.primary },
-  searchWrap: { paddingHorizontal: layout.screenPadding, paddingTop: space.md + 2 },
-  search: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: space.sm + 2,
-    height: 50,
-    paddingLeft: space.lg,
-    paddingRight: 3,
-    borderRadius: radius.pill,
-    borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.surface,
-  },
-  searchInput: {
-    flex: 1,
-    minWidth: 0,
-    ...typography.body,
-    color: colors.text,
-    paddingVertical: 0,
-  },
-  filterMark: {
-    width: layout.touchTarget - 2,
-    height: layout.touchTarget - 2,
-    borderRadius: radius.pill,
-    backgroundColor: colors.brand,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  // Never squeezed by the list under it: the web build lets a ScrollView shrink.
-  chipsScroll: { flexGrow: 0, flexShrink: 0 },
-  chips: {
-    flexDirection: 'row',
-    gap: space.sm,
-    paddingHorizontal: layout.screenPadding,
-    paddingTop: space.sm + 2,
-    paddingBottom: space.xs,
-  },
-  list: { paddingHorizontal: layout.screenPadding },
-  sectionRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginTop: space.xs,
-  },
+  searchWrap: { paddingHorizontal: layout.screenPadding, marginBottom: GAP },
+  listView: { flex: 1 },
+  list: { paddingHorizontal: layout.screenPadding, paddingTop: GAP },
   sectionTitle: {
-    fontSize: 19,
-    lineHeight: 24,
-    fontWeight: displayWeight.semibold,
+    fontSize: 25,
+    lineHeight: 30,
+    letterSpacing: -0.2,
+    fontWeight: displayWeight.bold,
     color: colors.text,
-  },
-  nearbyTitle: { marginTop: space.xl + 2, marginBottom: space.sm + 2 },
-  allLink: {
-    minHeight: layout.touchTarget,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: space.xs,
-    paddingHorizontal: 2,
-  },
-  allLinkPressed: { opacity: 0.7 },
-  allLabel: { fontSize: 13, lineHeight: 18, color: colors.primary },
-  tiles: { flexDirection: 'row', gap: space.sm, marginTop: space.xs },
-  tileWrap: { flex: 1, minWidth: 0 },
-  tile: {
-    height: TILE_HEIGHT,
-    borderRadius: radius.card,
-    overflow: 'hidden',
-    backgroundColor: colors.surfaceMuted,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  tileSelected: { borderWidth: 2, borderColor: colors.primary },
-  tilePill: {
-    position: 'absolute',
-    left: space.xs,
-    right: space.xs,
-    bottom: space.xs,
-    height: 28,
-    justifyContent: 'center',
-    paddingLeft: space.sm,
-    paddingRight: space.xs + 2,
-    borderRadius: radius.pill,
-    backgroundColor: colors.overlayDark,
-  },
-  tileGlyph: {
-    position: 'absolute',
-    top: space.xs + 2,
-    left: space.xs + 2,
-    width: 26,
-    height: 26,
-    borderRadius: radius.pill,
-    backgroundColor: colors.glass,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  tileLabel: {
-    fontSize: 11.5,
-    lineHeight: 16,
-    fontWeight: fontWeight.medium,
-    color: colors.onImage,
+    marginBottom: GAP,
   },
   stale: { opacity: 0.6 },
-  gap: { height: space.sm },
-  skeletons: { gap: space.sm },
-  skeletonCard: {
-    flexDirection: 'row',
-    height: ROW_CARD_HEIGHT,
-    borderRadius: radius.card,
-    overflow: 'hidden',
-    backgroundColor: colors.surface,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.border,
-  },
-  skeletonBody: {
-    flex: 1,
-    gap: space.sm + 2,
-    paddingVertical: space.md,
-    paddingHorizontal: space.md,
-  },
+  gap: { height: GAP },
+  skeletons: { gap: GAP },
 });

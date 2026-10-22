@@ -93,6 +93,16 @@ describe('text', () => {
     expect(contrastRatio(label, fill)).toBeGreaterThanOrEqual(AA_TEXT);
   });
 
+  it('the soft status pill (Preparing, Awaiting confirmation) clears 4.5:1', () => {
+    expect(contrastRatio(colors.primary, colors.primarySoft)).toBeGreaterThanOrEqual(AA_TEXT);
+  });
+
+  it('text clears 4.5:1 on the Explore ivory', () => {
+    for (const ink of [colors.text, colors.textMuted, colors.primary]) {
+      expect(contrastRatio(ink, colors.exploreGround)).toBeGreaterThanOrEqual(AA_TEXT);
+    }
+  });
+
   it('the label on a brand fill clears 4.5:1, at rest and pressed', () => {
     expect(contrastRatio(colors.onPrimary, colors.brand)).toBeGreaterThanOrEqual(AA_TEXT);
     expect(contrastRatio(colors.onPrimary, colors.brandPressed)).toBeGreaterThanOrEqual(AA_TEXT);
@@ -133,8 +143,13 @@ describe('glyphs', () => {
     expect(contrastRatio(value, fill)).toBeGreaterThanOrEqual(AA_GLYPH);
   });
 
-  it('the rating star is the warning ink', () => {
-    expect(glyphColors.ratingStar).toBe(colors.warningInk);
+  it('the rating star is the honey star, not a state ink', () => {
+    expect(glyphColors.ratingStar).toBe(colors.ratingStar);
+  });
+
+  it('the brand glyph clears 3:1 on the Explore ivory and on its own soft tint', () => {
+    expect(contrastRatio(colors.accent, colors.exploreGround)).toBeGreaterThanOrEqual(AA_GLYPH);
+    expect(contrastRatio(colors.accent, colors.primarySoft)).toBeGreaterThanOrEqual(AA_GLYPH);
   });
 
   it('a white glyph on the glass circle clears 3:1 even over a white photo', () => {

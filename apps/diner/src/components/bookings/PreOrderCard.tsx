@@ -371,7 +371,7 @@ const styles = StyleSheet.create({
   },
   stateOk: { backgroundColor: colors.successSoft },
   stateWait: { backgroundColor: colors.warningSoft },
-  stateOff: { backgroundColor: colors.surfaceMuted },
+  stateOff: { backgroundColor: colors.surfaceMuted, borderWidth: 1, borderColor: colors.border },
   stateText: { flex: 1, gap: 2 },
   stateTitle: { ...typography.body, fontWeight: fontWeight.bold },
   stateBody: { ...typography.caption, color: colors.text },

@@ -506,7 +506,7 @@ const styles = StyleSheet.create({
     aspectRatio: TABLE_PHOTO_ASPECT,
     borderRadius: radius.card,
     overflow: 'hidden',
-    backgroundColor: colors.surfaceMuted,
+    backgroundColor: colors.skeleton,
   },
   frameFull: { borderRadius: 0, backgroundColor: colors.surfaceDark },
   photo: { backgroundColor: 'transparent' },

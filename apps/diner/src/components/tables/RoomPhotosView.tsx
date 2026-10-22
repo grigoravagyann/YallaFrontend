@@ -272,6 +272,8 @@ const styles = StyleSheet.create({
     padding: 3,
     borderRadius: radius.pill,
     backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
   },
   roomTab: {
     minHeight: layout.touchTarget,
@@ -281,7 +283,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   roomTabOn: { backgroundColor: colors.brand },
-  roomTabPressed: { backgroundColor: colors.surfaceMuted },
+  roomTabPressed: { opacity: 0.7 },
   roomTabLabel: { ...typography.caption, color: colors.textMuted },
   roomTabLabelOn: { fontWeight: fontWeight.bold, color: colors.onPrimary },
   roomNameAside: {

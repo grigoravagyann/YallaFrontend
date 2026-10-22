@@ -6,7 +6,7 @@
 export { colors, contentBadgeColor, glyphColors, tableStatusColor, textColors } from './colors';
 export type { ColorName } from './colors';
 
-export { badgeColors, badgeVariants } from './badges';
+export { badgeColors, badgeVariants, bookingBadgeVariant, lineBadge } from './badges';
 export type { BadgeSpec, BadgeTone, BadgeVariant } from './badges';
 
 export {

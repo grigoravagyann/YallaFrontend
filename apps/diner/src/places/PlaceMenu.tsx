@@ -114,6 +114,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: space.md,
     borderRadius: radius.tile,
     backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
   },
   menuItemBody: { flex: 1, minWidth: 0, gap: 2 },
   menuItemName: {

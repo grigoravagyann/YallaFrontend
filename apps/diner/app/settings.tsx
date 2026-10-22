@@ -126,7 +126,7 @@ const styles = StyleSheet.create({
     paddingVertical: space.md,
   },
   rowDivider: { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border },
-  rowPressed: { backgroundColor: colors.surfaceMuted },
+  rowPressed: { opacity: 0.7 },
   rowLabel: { ...typography.bodyLg, color: colors.text },
   rowLabelSelected: { fontWeight: fontWeight.bold, color: colors.primary },
   check: {

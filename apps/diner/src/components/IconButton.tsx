@@ -102,7 +102,7 @@ const styles = StyleSheet.create({
 });
 
 const pressedStyles: Record<IconButtonVariant, ViewStyle> = {
-  surface: { backgroundColor: colors.surfaceMuted, borderColor: colors.borderStrong },
+  surface: { borderColor: colors.borderStrong, opacity: 0.85 },
   translucent: { backgroundColor: colors.overlayDark },
   primary: { backgroundColor: colors.brandPressed },
   ghost: { backgroundColor: colors.primarySoft },
