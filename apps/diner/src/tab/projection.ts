@@ -31,6 +31,8 @@ export interface RenderedLine {
   readonly lineTotalDram: number;
   /** Whose it is, in initials or a short name. `null` for a table line. */
   readonly orderedByName: string | null;
+  /** When its order was placed, UTC. `null` when the server did not say. */
+  readonly orderedAtUtc: string | null;
   readonly isMine: boolean;
   /** True for a line split across the table. */
   readonly isShared: boolean;
@@ -106,6 +108,7 @@ export function projectTab(tab: DinerTabView, timeZoneId: string): RenderedTab {
     quantity: line.quantity,
     lineTotalDram: line.lineTotalDram,
     orderedByName: line.orderedByName,
+    orderedAtUtc: line.orderedAtUtc,
     // A waiter's order for this guest is theirs too, as /shares charges it.
     isMine: line.participantId === participantId || line.onBehalfOfParticipantId === participantId,
     isShared: line.isShared || line.isTableAttributed,

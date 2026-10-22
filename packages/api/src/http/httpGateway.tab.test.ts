@@ -49,6 +49,7 @@ function lineView(over: Record<string, unknown> = {}) {
     sharedWithCount: 0,
     placedByParticipantId: ME,
     placedByDisplayName: 'Ani',
+    orderedAtUtc: '2026-09-20T15:08:00Z',
     ...over,
   };
 }
@@ -562,6 +563,23 @@ describe('on the tab', () => {
     });
     expect(view?.adjustments).toEqual([
       expect.objectContaining({ kind: 'comp', reductionDram: 1000, reason: 'Birthday' }),
+    ]);
+  });
+
+  it('carries when each line was ordered, and no time from a server that sends none', async () => {
+    const older = lineView({ lineId: 'l2', orderedAtUtc: undefined });
+    const { gateway } = await onTheTab({
+      [`GET /api/tabs/${TAB}`]: {
+        body: tabView({ myLines: [lineView(), older], tableLines: [lineView(), older] }),
+      },
+    });
+
+    const view = await gateway.getDinerTab(TAB);
+
+    expect(view?.myLines.map((line) => line.orderedAtUtc)).toEqual(['2026-09-20T15:08:00Z', null]);
+    expect(view?.tableLines?.map((line) => line.orderedAtUtc)).toEqual([
+      '2026-09-20T15:08:00Z',
+      null,
     ]);
   });
 

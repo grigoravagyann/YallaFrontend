@@ -26,6 +26,7 @@ import { useNow } from '../hooks/useNow';
 import { useReducedMotion } from '../hooks/useReducedMotion';
 import { tabAccessCopy } from '../tab/access';
 import type { ChangeMarker } from '../tab/events';
+import { lineMetaParts, lineMetaText } from '../tab/lineMeta';
 import {
   paymentRows,
   projectTab,
@@ -172,6 +173,7 @@ export function LiveBill({ tabId, timeZoneId, active, ownOrderId = null }: LiveB
                 ruled={i > 0}
                 fresh={staff.fresh.has(line.id)}
                 locale={locale}
+                timeZoneId={timeZoneId}
               />
             </Rise>
           ))}
@@ -386,6 +388,7 @@ function LineRow({
   ruled,
   fresh,
   locale,
+  timeZoneId,
 }: {
   readonly line: RenderedLine;
   readonly status: OrderStatus | null;
@@ -393,6 +396,8 @@ function LineRow({
   /** Just added by a waiter: lit, then fading back to the card. */
   readonly fresh: boolean;
   readonly locale: Locale;
+  /** The branch's zone, for the time each line was ordered. Never the device's. */
+  readonly timeZoneId: string;
 }) {
   const { t } = useTranslation('diner');
   const reduced = useReducedMotion();
@@ -430,21 +435,11 @@ function LineRow({
   }
 
   const badge = status ? lineBadge(status) : null;
-  const who = [
-    line.isMine
-      ? t('bill.yours')
-      : line.orderedByName
-        ? t('bill.orderedBy', { name: line.orderedByName })
-        : t('bill.forTheTable'),
-    // How many ways it splits, from the snapshot taken when it was ordered.
-    line.isShared
-      ? line.sharedWithCount > 1
-        ? t('bill.sharedWays', { count: line.sharedWithCount })
-        : t('bill.shared')
-      : null,
-  ]
-    .filter(Boolean)
-    .join(' · ');
+  // "Աննա · 19:08": who, when its order went in (the branch's clock), and how
+  // it splits.
+  const who = lineMetaText(lineMetaParts(line, timeZoneId, locale), (copy) =>
+    t(copy.key, copy.params),
+  );
 
   return (
     <View style={[styles.row, ruled && styles.rowRuled]}>
