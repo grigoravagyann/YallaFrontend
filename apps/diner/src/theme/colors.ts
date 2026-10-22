@@ -33,8 +33,10 @@ export const colors = {
    * search field: a thin line, clearly visible, at full opacity.
    */
   controlBorder: '#CFC6C1',
-  /** The Explore greeting's soft grey above the name. */
-  greeting: '#8C8580',
+  /** The logo's own burgundy: the SHURJ wordmark, and the map and bell beside it on Explore. */
+  logoInk: '#6B1121',
+  /** `logoInk` at nothing: where the line under the Explore header fades out. */
+  logoInkClear: 'rgba(107, 17, 33, 0)',
   /** Cards, rows, inputs: white, edged by the `border` hairline. */
   surface: '#FFFFFF',
   /**
@@ -140,8 +142,6 @@ export const colors = {
   borderStrong: '#D9CFC3',
 
   text: '#2D2927',
-  /** The same charcoal at zero alpha: the ends of a line that fades out. */
-  textClear: 'rgba(45,41,39,0)',
   /** Secondary text. Clears 4.5:1 on every ground and sheet, `surfaceMuted` included. */
   textMuted: '#6E675F',
   /**

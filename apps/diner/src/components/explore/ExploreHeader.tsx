@@ -26,7 +26,7 @@ export interface ExploreHeaderProps {
 /**
  * The top of Explore, on white: the map in the left corner, the SHURJ wordmark
  * from the logo in the middle, and the bell with its burgundy unread dot in
- * the right corner. The two corners are the same round buttons, so the
+ * the right corner, both in the logo's burgundy. The two corners are the same round buttons, so the
  * wordmark sits truly centred.
  */
 export function ExploreHeader({
@@ -49,7 +49,7 @@ export function ExploreHeader({
           onPressOut={press.onPressOut}
           style={({ pressed }) => [styles.round, pressed && styles.pressed]}
         >
-          <Ionicons name={actionIcon.map} size={20} color={colors.text} />
+          <Ionicons name={actionIcon.map} size={20} color={colors.logoInk} />
         </Pressable>
       </Animated.View>
       <View style={styles.brand}>
@@ -67,7 +67,7 @@ export function ExploreHeader({
         onPress={onBell}
         style={({ pressed }) => [styles.round, pressed && styles.pressed]}
       >
-        <Ionicons name="notifications-outline" size={21} color={colors.text} />
+        <Ionicons name="notifications-outline" size={21} color={colors.logoInk} />
         {unread ? <View pointerEvents="none" style={styles.unreadDot} /> : null}
       </Pressable>
     </View>
@@ -97,7 +97,7 @@ const styles = StyleSheet.create({
     borderRadius: radius.pill,
     backgroundColor: colors.surface,
     borderWidth: 1,
-    borderColor: colors.text,
+    borderColor: colors.logoInk,
     alignItems: 'center',
     justifyContent: 'center',
   },

@@ -167,11 +167,11 @@ export default function ExploreScreen() {
       />
 
       <View style={styles.sheet}>
-        {/* The charcoal line between the header and the search: full in the middle,
+        {/* The line between the header and the search, in the logo's burgundy: full in the middle,
             fading out towards both sides. */}
         <LinearGradient
           pointerEvents="none"
-          colors={[colors.textClear, colors.text, colors.textClear]}
+          colors={[colors.logoInkClear, colors.logoInk, colors.logoInkClear]}
           start={{ x: 0, y: 0.5 }}
           end={{ x: 1, y: 0.5 }}
           style={styles.sheetEdge}
