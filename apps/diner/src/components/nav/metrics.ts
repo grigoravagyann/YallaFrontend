@@ -48,10 +48,3 @@ export const SCAN_RISE = tabBarMetrics.scanBottom + tabBarMetrics.scanSize - tab
 export const NAV_CLEARANCE =
   tabBarMetrics.bottomGap +
   Math.max(tabBarMetrics.height + space.lg, tabBarMetrics.height + SCAN_RISE + space.sm);
-
-/**
- * An idle tab's label: a step warmer and darker than `textMuted`, so 11.5 px
- * on the white glass still reads at arm's length (#5E5750 on white is 7.1:1).
- * The idle glyph is the text colour itself.
- */
-export const NAV_LABEL_INK = '#5E5750';

@@ -19,6 +19,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Button } from '../../src/components/Button';
+import { FocusedStatusBar } from '../../src/components/FocusedStatusBar';
 import { IconButton } from '../../src/components/IconButton';
 import { SheetModal } from '../../src/components/motion/SheetModal';
 import { usePressScale } from '../../src/components/motion/usePressScale';
@@ -205,6 +206,8 @@ export default function ScanScreen() {
 
   return (
     <View style={styles.stage} onLayout={onStageLayout}>
+      {/* A light clock and battery on the dark stage, while Scan is in front. */}
+      <FocusedStatusBar style="light" />
       {showCamera ? (
         <CameraView
           style={StyleSheet.absoluteFill}

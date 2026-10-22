@@ -3,15 +3,7 @@ import { isOfflinePaused } from '@yalla/api/react';
 import { useTranslation } from '@yalla/i18n';
 import { useRouter } from 'expo-router';
 import { useCallback, useMemo, useState } from 'react';
-import {
-  FlatList,
-  Platform,
-  Pressable,
-  RefreshControl,
-  StyleSheet,
-  View,
-  type ViewStyle,
-} from 'react-native';
+import { FlatList, Pressable, RefreshControl, StyleSheet, View } from 'react-native';
 import { EmptyState } from '../../src/components/EmptyState';
 import { ErrorState } from '../../src/components/ErrorState';
 import { CategoryChips, type CategoryOption } from '../../src/components/explore/CategoryChips';
@@ -24,6 +16,7 @@ import {
 import { ExploreHeader } from '../../src/components/explore/ExploreHeader';
 import {
   EXPLORE_CARD_HEIGHT,
+  EXPLORE_CARD_RADIUS,
   ExplorePlaceCard,
 } from '../../src/components/explore/ExplorePlaceCard';
 import { ExploreSearch } from '../../src/components/explore/ExploreSearch';
@@ -44,6 +37,7 @@ import {
   displayWeight,
   fontWeight,
   layout,
+  shadows,
   space,
   typography,
 } from '../../src/theme';
@@ -313,23 +307,11 @@ function SkeletonCards() {
       importantForAccessibility="no-hide-descendants"
     >
       {Array.from({ length: SKELETON_ROWS }, (_, index) => (
-        <Skeleton key={index} height={EXPLORE_CARD_HEIGHT} borderRadius={17} />
+        <Skeleton key={index} height={EXPLORE_CARD_HEIGHT} borderRadius={EXPLORE_CARD_RADIUS} />
       ))}
     </View>
   );
 }
-
-/** The sheet's faint lift off the ivory: 0 -6 20 at 5%, upward. */
-const sheetShadow: ViewStyle = Platform.select<ViewStyle>({
-  web: { boxShadow: '0 -6px 20px rgba(45,41,39,0.05)' },
-  default: {
-    shadowColor: colors.text,
-    shadowOffset: { width: 0, height: -6 },
-    shadowOpacity: 0.05,
-    shadowRadius: 20,
-    elevation: 2,
-  },
-});
 
 const styles = StyleSheet.create({
   sheet: {
@@ -339,7 +321,8 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: SHEET_RADIUS,
     borderTopRightRadius: SHEET_RADIUS,
     backgroundColor: colors.surface,
-    ...sheetShadow,
+    // Its faint lift off the ivory: 0 -6 20 at 5%, upward.
+    ...shadows.sheetTop,
   },
   resume: {
     marginHorizontal: layout.screenPadding,

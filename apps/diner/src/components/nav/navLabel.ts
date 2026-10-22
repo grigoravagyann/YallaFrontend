@@ -1,5 +1,5 @@
 import { colors, fontWeight } from '../../theme';
-import { NAV_LABEL_INK, tabBarMetrics } from './metrics';
+import { tabBarMetrics } from './metrics';
 
 /**
  * How far a large system font may grow the labels. The bar is a fixed 68:
@@ -12,7 +12,7 @@ export const navLabelStyle = {
   fontSize: tabBarMetrics.labelSize,
   lineHeight: tabBarMetrics.labelLine,
   fontWeight: fontWeight.medium,
-  color: NAV_LABEL_INK,
+  color: colors.navLabel,
 } as const;
 
 /** The current tab's label: the brand ink; the design's 600 rounds to the sans's bold face. */

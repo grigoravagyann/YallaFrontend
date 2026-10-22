@@ -17,7 +17,6 @@ import {
   type Coordinates,
   type MenuSection,
   type Place,
-  type PlaceBadge,
   type PlaceRoom,
   type PlaceType,
   type ReviewPage,
@@ -34,9 +33,7 @@ import {
  */
 
 export interface PlaceFilter {
-  /** Explore's chips: only places carrying this badge. */
-  readonly badge?: PlaceBadge;
-  /** The map's legend: only places of this type. */
+  /** Explore's category chips and the map's legend: only places of this type. */
   readonly type?: PlaceType;
 }
 
@@ -102,7 +99,6 @@ function matches(place: PlaceSeed, needle: string): boolean {
 
 function passes(place: PlaceSeed, filter: PlaceFilter | undefined): boolean {
   if (!filter) return true;
-  if (filter.badge !== undefined && !place.badges.includes(filter.badge)) return false;
   if (filter.type !== undefined && place.type !== filter.type) return false;
   return true;
 }
@@ -222,10 +218,7 @@ export function createHttpPlaceRepository(
         ...(filter?.type ? { venueType: filter.type } : {}),
         ...(ctx.position ? { position: ctx.position } : {}),
       });
-      // The route has no badge filter; badges are on every card, so narrow here.
-      return listings
-        .filter((listing) => !filter?.badge || listing.badges.includes(filter.badge))
-        .map((listing) => placeFromListing(listing, ctx));
+      return listings.map((listing) => placeFromListing(listing, ctx));
     },
 
     async getById(placeId) {

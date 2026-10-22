@@ -3,7 +3,7 @@
  * type, spacing, radius, shadow and icon sizes. ESLint refuses the shared
  * colour, elevation and type-size tokens anywhere else in the app.
  */
-export { colors, contentBadgeColor, glyphColors, tableStatusColor, textColors } from './colors';
+export { colors, glyphColors, tableStatusColor, textColors } from './colors';
 export type { ColorName } from './colors';
 
 export { badgeColors, badgeVariants, bookingBadgeVariant, lineBadge } from './badges';
@@ -31,7 +31,6 @@ export type { ShadowToken } from './shadows';
 export {
   actionIcon,
   amenityIcon,
-  fabSize,
   filledIconAllowlist,
   iconSize,
   navIcons,

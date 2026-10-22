@@ -28,13 +28,6 @@ export const colors = {
   background: '#FFFFFF',
   /** The warm ivory behind the Explore header, and only there. */
   exploreGround: '#F7F6F1',
-  /**
-   * Kept for the screens that still name it: the light ground has no glow, so
-   * both are the ground itself and `Screen` draws a flat fill.
-   */
-  backgroundGlow: '#FFFFFF',
-  /** Midpoint of that (flat) glow. */
-  backgroundMid: '#FFFFFF',
   /** Cards, rows, inputs: white, edged by the `border` hairline. */
   surface: '#FFFFFF',
   /**
@@ -47,8 +40,20 @@ export const colors = {
   skeleton: '#EEE8E1',
   /** Bottom sheets and dialogs. */
   sheet: '#FFFFFF',
-  /** The floating tab bar: white glass over whatever scrolls under it. */
-  navBar: 'rgba(255,255,255,0.80)',
+  /** A switch's thumb, on the brand track or the `borderStrong` one. */
+  toggleThumb: '#FFFFFF',
+  /**
+   * The floating tab bar. There is no blur in the app, so the "glass" is all
+   * but opaque: at 80% a card's serif and photo ran straight through the
+   * labels. The Scan circle above it is solid `surface`.
+   */
+  navBar: 'rgba(255,255,255,0.96)',
+  /**
+   * An idle tab's label: a step warmer and darker than `textMuted`, so 11.5 px
+   * on the bar still reads at arm's length, over any photo scrolling under it.
+   * The idle glyph is the text colour itself.
+   */
+  navLabel: '#5E5750',
   /** The 1px edge round the nav bar and the Scan circle. */
   navBorder: 'rgba(45,41,39,0.10)',
   /** The halo behind an empty state's glyph: a burgundy blush fading into the white. */
@@ -73,6 +78,25 @@ export const colors = {
    * white photo.
    */
   glass: 'rgba(24,16,12,0.48)',
+  /** The edge round a glass circle on a photo: a whisper of white, so it holds on a dark one. */
+  glassEdge: 'rgba(255,255,255,0.22)',
+  /**
+   * The scrim under a photo card's caption: clear for the top third, then
+   * deepening to a warm near-black at the bottom edge, so cream text reads on
+   * any photo. One hue at three strengths, so the gradient never greys.
+   */
+  photoScrimClear: 'rgba(20,13,9,0)',
+  photoScrimMid: 'rgba(20,13,9,0.45)',
+  photoScrimDeep: 'rgba(20,13,9,0.82)',
+  /** A photo card under a finger: the same warm dark, faintly. */
+  photoPressed: 'rgba(20,13,9,0.12)',
+  /** The rating star on a photo's scrim: a warm honey that reads on the dark. */
+  photoStar: '#F0B866',
+  /**
+   * A photo pager's resting dot, on its dark pill (`overlayDark`); the dot
+   * of the photo on screen is `onImage`, and wider.
+   */
+  photoDotIdle: 'rgba(255,248,239,0.55)',
   /** The dark information bar that slides over a photo's bottom edge. */
   surfaceDark: '#120804',
 
@@ -81,9 +105,6 @@ export const colors = {
   brandPressed: '#5A1823',
   /** The edge round a brand fill, so it holds its shape where it meets a burgundy tint. */
   brandEdge: '#5A1823',
-  /** The Scan circle's top and bottom: the same white glass as the bar. */
-  fabTop: '#FFFFFF',
-  fabBottom: '#F8F5F0',
   /** A brand fill's soft lift (shadow colour). */
   brandGlow: '#6E1F2C',
   /** The brand as text or a glyph: links, prices, spinners, active labels and indicators. */
@@ -210,10 +231,4 @@ export const tableStatusColor = {
   reserved: colors.warning,
   occupied: colors.error,
   outOfService: colors.neutralStrong,
-} as const;
-
-/** Content badges on hero cards and in the details hero. */
-export const contentBadgeColor = {
-  popular: colors.brand,
-  new: colors.infoStrong,
 } as const;

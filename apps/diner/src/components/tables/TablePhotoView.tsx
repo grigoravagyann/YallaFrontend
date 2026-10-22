@@ -14,6 +14,7 @@ import {
   type StyleProp,
   type ViewStyle,
 } from 'react-native';
+import { StatusBar } from 'expo-status-bar';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { RoomPhoto, TablePhotoMarker } from '../../places/model';
 import { photoBox } from '../../places/rooms';
@@ -463,31 +464,37 @@ function FullscreenTables({ visible, onClose, ...view }: FullscreenTablesProps) 
   const frameWidth = Math.min(width, Math.floor(maxHeight * TABLE_PHOTO_ASPECT));
 
   return (
-    <Modal
-      visible={visible}
-      animationType="fade"
-      statusBarTranslucent
-      onRequestClose={onClose}
-      presentationStyle="fullScreen"
-    >
-      <View style={[styles.modal, { paddingTop: insets.top, paddingBottom: insets.bottom }]}>
-        <View style={styles.modalHeader}>
-          <Text numberOfLines={1} style={styles.modalTitle}>
-            {t('tables.title')}
-          </Text>
-          <IconButton
-            icon={actionIcon.close}
-            accessibilityLabel={t('tables.close')}
-            variant="translucent"
-            onPress={onClose}
-          />
+    <>
+      {/* Light on the dark ground while the modal is up; the stack hands the
+          bar back to the screen underneath when it closes. Mounted beside the
+          modal rather than in it, so the style is set as the modal opens. */}
+      {visible ? <StatusBar style="light" /> : null}
+      <Modal
+        visible={visible}
+        animationType="fade"
+        statusBarTranslucent
+        onRequestClose={onClose}
+        presentationStyle="fullScreen"
+      >
+        <View style={[styles.modal, { paddingTop: insets.top, paddingBottom: insets.bottom }]}>
+          <View style={styles.modalHeader}>
+            <Text numberOfLines={1} style={styles.modalTitle}>
+              {t('tables.title')}
+            </Text>
+            <IconButton
+              icon={actionIcon.close}
+              accessibilityLabel={t('tables.close')}
+              variant="translucent"
+              onPress={onClose}
+            />
+          </View>
+          <View style={styles.modalBody}>
+            <TablePhotoView {...view} fullscreen style={{ width: frameWidth }} />
+          </View>
+          <TableLegend tone="dark" style={styles.modalLegend} />
         </View>
-        <View style={styles.modalBody}>
-          <TablePhotoView {...view} fullscreen style={{ width: frameWidth }} />
-        </View>
-        <TableLegend tone="dark" style={styles.modalLegend} />
-      </View>
-    </Modal>
+      </Modal>
+    </>
   );
 }
 

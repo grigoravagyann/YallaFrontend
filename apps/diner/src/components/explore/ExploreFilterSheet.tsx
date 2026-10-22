@@ -49,6 +49,8 @@ export function ExploreFilterSheet({ visible, value, onChange, onClose }: Explor
             key={key}
             label={t(QUICK_LABEL_KEY[key])}
             selected={value[key]}
+            // On or off on its own, and said so on the web too.
+            accessibilityRole="switch"
             onPress={() => onChange({ ...value, [key]: !value[key] })}
           />
         ))}

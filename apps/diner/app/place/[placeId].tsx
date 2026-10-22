@@ -4,7 +4,6 @@ import { intlTag } from '@yalla/format';
 import { useLocale, useTranslation } from '@yalla/i18n';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
-import { StatusBar } from 'expo-status-bar';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Animated,
@@ -24,6 +23,7 @@ import { Badge } from '../../src/components/Badge';
 import { Button } from '../../src/components/Button';
 import { EmptyState } from '../../src/components/EmptyState';
 import { ErrorState } from '../../src/components/ErrorState';
+import { FocusedStatusBar } from '../../src/components/FocusedStatusBar';
 import { HeartPop, useSavePop } from '../../src/components/HeartPop';
 import { IconButton } from '../../src/components/IconButton';
 import { PhotoImage } from '../../src/components/PhotoImage';
@@ -509,7 +509,8 @@ function PlaceDetails({
   return (
     <Screen edges={['left', 'right']}>
       <Stack.Screen options={{ headerShown: false }} />
-      <StatusBar style="light" />
+      {/* Light over the photo; dark once the white compact bar is under it. */}
+      <FocusedStatusBar style={barLive ? 'dark' : 'light'} />
 
       <Animated.ScrollView
         ref={scrollRef}
@@ -917,23 +918,27 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   heroRight: { flexDirection: 'row', gap: space.sm + 2 },
+  // On a dark pill of their own, level with the counter: the hero fades into
+  // the white page here, and bare cream dots vanished into it.
   dots: {
     position: 'absolute',
-    left: 0,
-    right: 0,
-    bottom: space.xl - 2,
+    alignSelf: 'center',
+    bottom: space.lg,
+    height: 24,
     flexDirection: 'row',
-    justifyContent: 'center',
+    alignItems: 'center',
     gap: 5,
+    paddingHorizontal: space.sm + 1,
+    borderRadius: radius.pill,
+    backgroundColor: colors.overlayDark,
   },
   dot: {
     width: DOT,
     height: DOT,
     borderRadius: DOT / 2,
-    backgroundColor: colors.onPrimary,
-    opacity: 0.45,
+    backgroundColor: colors.photoDotIdle,
   },
-  dotActive: { width: DOT * 3, opacity: 1 },
+  dotActive: { width: DOT * 3, backgroundColor: colors.onImage },
   counter: {
     position: 'absolute',
     right: space.lg,

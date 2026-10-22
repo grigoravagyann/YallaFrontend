@@ -28,8 +28,8 @@ export interface ScreenProps {
 }
 
 /**
- * Every screen's root: the flat ivory ground, safe-area aware. The light
- * theme has no glow; the ground is one colour from top to bottom.
+ * Every screen's root: a flat white ground, safe-area aware, one colour from
+ * top to bottom. Explore alone passes `backgroundColor` for its ivory header.
  *
  * `SafeAreaView` from react-native-safe-area-context rather than React
  * Native's: the latter is iOS-only and ignores Android's gesture bar, which is

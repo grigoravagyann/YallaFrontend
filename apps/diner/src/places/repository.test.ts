@@ -110,13 +110,13 @@ function fakeGateway(overrides: Partial<YallaGateway> = {}) {
 const clock = { now: () => new Date('2026-09-14T10:00:00Z'), locale: () => 'en' as const };
 
 describe('createHttpPlaceRepository', () => {
-  it('narrows a search by badge on the client, since the route has no badge filter', async () => {
+  it('passes the search and the kind to the server, and keeps every place it answers', async () => {
     const gateway = fakeGateway();
     const places = repository.createHttpPlaceRepository({ gateway, ...clock });
 
-    const found = await places.search('lumen', { badge: 'popular', type: 'cafe' });
+    const found = await places.search('lumen', { type: 'cafe' });
 
-    expect(found.map((place) => place.id)).toEqual(['popular', 'both']);
+    expect(found.map((place) => place.id)).toEqual(['popular', 'new', 'both']);
     expect(gateway.searchBranches).toHaveBeenCalledWith({ query: 'lumen', venueType: 'cafe' });
   });
 

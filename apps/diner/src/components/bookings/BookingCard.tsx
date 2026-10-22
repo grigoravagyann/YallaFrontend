@@ -67,8 +67,6 @@ export function bookingStatusKey(
   return `bookings.status.${booking.status}`;
 }
 
-export { bookingBadgeVariant };
-
 export function BookingBadge({
   booking,
   tone = 'soft',

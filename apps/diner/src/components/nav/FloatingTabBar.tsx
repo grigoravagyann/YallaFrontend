@@ -22,7 +22,9 @@ const SCAN_ROUTE: NavRouteName = 'scan';
  *
  * The current tab's glyph turns burgundy on a soft burgundy highlight sized to
  * the glyph, and its label is set in the brand ink. There is no blur library in
- * the app, so the "glass" is white at 80% with a hairline edge and a soft drop.
+ * the app, so the "glass" is white at 96% — near enough opaque that a list
+ * scrolling under it never shows through the labels — with a hairline edge and
+ * a soft drop.
  *
  * Passed to expo-router as `tabBar={(props) => <FloatingTabBar {...props} />}`.
  * It reads the route names under `app/(tabs)/` to pick glyphs, the screen

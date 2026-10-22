@@ -26,7 +26,7 @@ const CIRCLE_TO_LABEL =
   tabBarMetrics.scanBottom - tabBarMetrics.labelBottom - tabBarMetrics.labelLine;
 
 /**
- * The Scan button: a white glass circle rising out of the tab bar with the
+ * The Scan button: a solid white circle rising out of the tab bar with the
  * burgundy QR glyph. Larger than the other four on purpose — it is the one
  * thing a diner who has just sat down needs, held in one hand, from any screen.
  * Its label sits on the shared baseline with the other four.
@@ -97,8 +97,9 @@ const styles = StyleSheet.create({
     height: tabBarMetrics.scanSize,
     marginBottom: CIRCLE_TO_LABEL,
     borderRadius: radius.pill,
-    // The same white glass as the bar, over the same hairline.
-    backgroundColor: colors.navBar,
+    // Solid white over the bar's hairline: a translucent circle let the pill's
+    // edge and its Android elevation shadow show through as a seam.
+    backgroundColor: colors.surface,
     borderWidth: 1,
     borderColor: colors.navBorder,
     alignItems: 'center',

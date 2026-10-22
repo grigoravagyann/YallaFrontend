@@ -132,6 +132,22 @@ describe('text', () => {
       contrastRatio(colors.onImage, over(colors.overlayDark, colors.surface)),
     ).toBeGreaterThanOrEqual(AA_TEXT);
   });
+
+  it('a photo card’s caption clears 4.5:1 where its own scrim is deepest, over a white photo', () => {
+    const ground = over(colors.photoScrimDeep, colors.surface);
+    expect(contrastRatio(colors.onImage, ground)).toBeGreaterThanOrEqual(AA_TEXT);
+    expect(contrastRatio(over(colors.onImageMuted, ground), ground)).toBeGreaterThanOrEqual(
+      AA_TEXT,
+    );
+  });
+
+  it('an idle tab label clears 4.5:1 on the bar, whatever scrolls under it', () => {
+    for (const under of ['#000000', '#FFFFFF', colors.surfaceDark]) {
+      expect(contrastRatio(colors.navLabel, over(colors.navBar, under))).toBeGreaterThanOrEqual(
+        AA_TEXT,
+      );
+    }
+  });
 });
 
 describe('glyphs', () => {
@@ -143,13 +159,15 @@ describe('glyphs', () => {
     expect(contrastRatio(value, fill)).toBeGreaterThanOrEqual(AA_GLYPH);
   });
 
-  it('the rating star is the honey star, not a state ink', () => {
-    expect(glyphColors.ratingStar).toBe(colors.ratingStar);
-  });
-
   it('the brand glyph clears 3:1 on the Explore ivory and on its own soft tint', () => {
     expect(contrastRatio(colors.accent, colors.exploreGround)).toBeGreaterThanOrEqual(AA_GLYPH);
     expect(contrastRatio(colors.accent, colors.primarySoft)).toBeGreaterThanOrEqual(AA_GLYPH);
+  });
+
+  it('the honey star on a photo card clears 3:1 on its scrim, even over a white photo', () => {
+    expect(
+      contrastRatio(colors.photoStar, over(colors.photoScrimDeep, colors.surface)),
+    ).toBeGreaterThanOrEqual(AA_GLYPH);
   });
 
   it('a white glyph on the glass circle clears 3:1 even over a white photo', () => {

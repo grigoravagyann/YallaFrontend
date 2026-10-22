@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
-import { Platform, Pressable, StyleSheet, View, type ViewStyle } from 'react-native';
-import { actionIcon, colors, fontWeight, layout, radius, space } from '../../theme';
+import { Platform, Pressable, StyleSheet, View } from 'react-native';
+import { actionIcon, colors, fontWeight, layout, radius, shadows, space } from '../../theme';
 import { Text, TextInput } from '../Text';
 
 /** The field's height: a step under the 48 control, as the design draws it. */
@@ -67,25 +67,16 @@ export function ExploreSearch({
         <Ionicons name="options-outline" size={20} color={colors.text} />
         {activeFilters > 0 ? (
           <View pointerEvents="none" style={styles.count}>
-            <Text style={styles.countText}>{activeFilters}</Text>
+            {/* Held to its 16 px dot: a large system font would burst it. */}
+            <Text maxFontSizeMultiplier={1} style={styles.countText}>
+              {activeFilters}
+            </Text>
           </View>
         ) : null}
       </Pressable>
     </View>
   );
 }
-
-/** The design's barely-there lift under the field: 0 1 2 at 5%. */
-const fieldShadow: ViewStyle = Platform.select<ViewStyle>({
-  web: { boxShadow: '0 1px 2px rgba(45,41,39,0.05)' },
-  default: {
-    shadowColor: colors.text,
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 2,
-    elevation: 1,
-  },
-});
 
 const styles = StyleSheet.create({
   field: {
@@ -99,7 +90,8 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.border,
     backgroundColor: colors.surface,
-    ...fieldShadow,
+    // The design's barely-there lift under the field: a card's own, 0 1 2 at 5%.
+    ...shadows.card,
   },
   input: {
     flex: 1,

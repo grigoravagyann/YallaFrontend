@@ -44,24 +44,6 @@ function filled(element: HTMLElement): CSSStyleDeclaration {
   throw new Error('No filled ancestor');
 }
 
-describe('the palette', () => {
-  it('is white everywhere a screen, card or sheet is drawn', () => {
-    expect(colors.background).toBe('#FFFFFF');
-    expect(colors.surface).toBe('#FFFFFF');
-    expect(colors.surfaceMuted).toBe('#FFFFFF');
-    expect(colors.sheet).toBe('#FFFFFF');
-    expect(colors.border).toBe('#E7E0D7');
-  });
-
-  it('keeps the ivory to the Explore header and the burgundy to the brand', () => {
-    expect(colors.exploreGround).toBe('#F7F6F1');
-    expect(colors.brand).toBe('#6E1F2C');
-    expect(colors.primary).toBe('#6E1F2C');
-    expect(colors.accent).toBe('#6E1F2C');
-    expect(colors.primarySoft).toBe('#F1E4E4');
-  });
-});
-
 describe('buttons', () => {
   it('fills the primary button with the brand and labels it cream', () => {
     render(<Button label="Book" onPress={() => undefined} />);

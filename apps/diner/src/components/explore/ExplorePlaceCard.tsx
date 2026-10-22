@@ -2,7 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { intlTag } from '@yalla/format';
 import { useLocale, useTranslation } from '@yalla/i18n';
 import { LinearGradient } from 'expo-linear-gradient';
-import { memo, useMemo } from 'react';
+import { memo, useMemo, type ComponentProps } from 'react';
 import { Animated, Pressable, StyleSheet, View } from 'react-native';
 import type { Place } from '../../places/model';
 import { useFavorites, useIsFavorite } from '../../stores/favorites';
@@ -25,20 +25,25 @@ import { usePlaceCopy } from '../places/placeCopy';
 import { placeTitle } from '../places/placeTitle';
 import { Text } from '../Text';
 
-/** About four of these fit between the chips and the nav on a 390×844 phone. */
+/**
+ * About four of these fit between the chips and the nav on a 390×844 phone.
+ * A floor, not a height: a large system font grows the card rather than
+ * clipping its caption.
+ */
 export const EXPLORE_CARD_HEIGHT = 118;
-const CARD_RADIUS = 17;
+export const EXPLORE_CARD_RADIUS = 17;
+/**
+ * How far a large system font may grow the caption and the badge. Past this
+ * the venue's name would be cut to a few letters on a 360 pt phone.
+ */
+const MAX_CAPTION_SCALE = 1.3;
 
 /**
  * The scrim under the name: clear for the top third, then deepening to a warm
  * near-black at the bottom edge, so cream text reads on any photo.
  */
-const SCRIM = ['rgba(20,13,9,0)', 'rgba(20,13,9,0.45)', 'rgba(20,13,9,0.82)'] as const;
+const SCRIM = [colors.photoScrimClear, colors.photoScrimMid, colors.photoScrimDeep] as const;
 const SCRIM_STOPS = [0.3, 0.58, 1] as const;
-/** The rating star on a photo: a warm honey that reads on the dark scrim. */
-const STAR_ON_PHOTO = '#F0B866';
-/** The heart's edge: a whisper of white, so the glass circle holds on a dark photo. */
-const HEART_EDGE = 'rgba(255,255,255,0.22)';
 
 export interface ExplorePlaceCardProps {
   readonly place: Place;
@@ -104,47 +109,57 @@ export const ExplorePlaceCard = memo(function ExplorePlaceCard({
       >
         <PhotoImage source={place.photos[0]} style={StyleSheet.absoluteFill} />
         <LinearGradient colors={SCRIM} locations={SCRIM_STOPS} style={StyleSheet.absoluteFill} />
+      </View>
+
+      {/* In the flow, so a large font grows the card; the badge shares the
+          row, so a long "Closed" pushes the caption over instead of onto it. */}
+      <View
+        style={styles.footer}
+        pointerEvents="none"
+        accessibilityElementsHidden
+        importantForAccessibility="no-hide-descendants"
+      >
         <View style={styles.caption}>
           {showBranch && title.branch ? (
-            <Text numberOfLines={1} style={styles.branch}>
+            <Caption numberOfLines={1} style={styles.branch}>
               {title.branch}
-            </Text>
+            </Caption>
           ) : null}
-          <Text display numberOfLines={1} style={styles.name}>
+          <Caption display numberOfLines={1} style={styles.name}>
             {title.venue}
-          </Text>
+          </Caption>
           <View style={styles.meta}>
-            <Text numberOfLines={1} style={[styles.metaText, styles.shrink]}>
+            <Caption numberOfLines={1} style={[styles.metaText, styles.shrink]}>
               {kind}
-            </Text>
-            <Text style={styles.metaText}>·</Text>
+            </Caption>
+            <Caption style={styles.metaText}>·</Caption>
             {stars !== null ? (
               <>
-                <Ionicons name={ratingIcon.filled} size={13} color={STAR_ON_PHOTO} />
-                <Text style={[styles.metaText, styles.figures]}>{stars}</Text>
+                <Ionicons name={ratingIcon.filled} size={13} color={colors.photoStar} />
+                <Caption style={[styles.metaText, styles.figures]}>{stars}</Caption>
               </>
             ) : (
-              <Text numberOfLines={1} style={[styles.metaText, styles.shrink]}>
+              <Caption numberOfLines={1} style={[styles.metaText, styles.shrink]}>
                 {t('place.noReviews')}
-              </Text>
+              </Caption>
             )}
             {copy.distance ? (
               <>
-                <Text style={styles.metaText}>·</Text>
-                <Text numberOfLines={1} style={[styles.metaText, styles.figures]}>
+                <Caption style={styles.metaText}>·</Caption>
+                <Caption numberOfLines={1} style={[styles.metaText, styles.figures]}>
                   {copy.distance}
-                </Text>
+                </Caption>
               </>
             ) : null}
           </View>
         </View>
         <View style={[styles.badge, open ? styles.badgeOpen : styles.badgeClosed]}>
-          <Text
+          <Caption
             numberOfLines={1}
             style={[styles.badgeText, open ? styles.badgeTextOpen : styles.badgeTextClosed]}
           >
             {status}
-          </Text>
+          </Caption>
         </View>
       </View>
 
@@ -179,22 +194,32 @@ export const ExplorePlaceCard = memo(function ExplorePlaceCard({
   );
 });
 
+/** A line of the caption or the badge: grows with the system font, up to the cap. */
+function Caption(props: ComponentProps<typeof Text>) {
+  return <Text maxFontSizeMultiplier={MAX_CAPTION_SCALE} {...props} />;
+}
+
 const styles = StyleSheet.create({
   card: {
-    height: EXPLORE_CARD_HEIGHT,
-    borderRadius: CARD_RADIUS,
+    minHeight: EXPLORE_CARD_HEIGHT,
+    justifyContent: 'flex-end',
+    borderRadius: EXPLORE_CARD_RADIUS,
     overflow: 'hidden',
     backgroundColor: colors.surfaceDark,
     ...shadows.card,
   },
-  caption: {
-    position: 'absolute',
-    left: 14,
-    // Clear of the Open / Closed badge on the right.
-    right: 92,
-    bottom: 11,
-    gap: 2,
+  // The caption and the badge, one row along the bottom edge. The top padding
+  // keeps a caption grown by a large font under the heart's row.
+  footer: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    gap: space.sm,
+    paddingTop: space.sm + layout.touchTarget,
+    paddingLeft: 14,
+    paddingRight: 10,
+    paddingBottom: 11,
   },
+  caption: { flex: 1, minWidth: 0, gap: 2 },
   branch: {
     fontSize: 12,
     lineHeight: 15,
@@ -212,10 +237,8 @@ const styles = StyleSheet.create({
   shrink: { flexShrink: 1 },
   figures: { ...tabularNumbers },
   badge: {
-    position: 'absolute',
-    right: 10,
-    bottom: 11,
-    height: 26,
+    flexShrink: 0,
+    minHeight: 26,
     paddingHorizontal: 11,
     borderRadius: radius.pill,
     justifyContent: 'center',
@@ -225,7 +248,7 @@ const styles = StyleSheet.create({
   badgeText: { fontSize: 12.5, lineHeight: 16, fontWeight: fontWeight.bold, letterSpacing: 0.1 },
   badgeTextOpen: { color: colors.onSuccessStrong },
   badgeTextClosed: { color: colors.onNeutralStrong },
-  tapPressed: { backgroundColor: 'rgba(20,13,9,0.12)' },
+  tapPressed: { backgroundColor: colors.photoPressed },
   heartWrap: { position: 'absolute', top: space.sm, right: space.sm },
   heart: {
     width: layout.touchTarget,
@@ -233,7 +256,7 @@ const styles = StyleSheet.create({
     borderRadius: radius.pill,
     backgroundColor: colors.glass,
     borderWidth: 1,
-    borderColor: HEART_EDGE,
+    borderColor: colors.glassEdge,
     alignItems: 'center',
     justifyContent: 'center',
   },

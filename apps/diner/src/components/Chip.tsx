@@ -27,9 +27,10 @@ export interface ChipProps {
   readonly disabled?: boolean;
   /**
    * What a pressable chip is to a screen reader. `button` by default; a
-   * category strip is a row of `tab`s. Ignored without `onPress`.
+   * category strip is a row of `tab`s; a filter that is on or off on its own
+   * is a `switch`. Ignored without `onPress`.
    */
-  readonly accessibilityRole?: 'button' | 'tab' | 'radio';
+  readonly accessibilityRole?: 'button' | 'tab' | 'radio' | 'switch';
   readonly accessibilityLabel?: string;
   readonly style?: StyleProp<ViewStyle>;
 }
@@ -61,15 +62,19 @@ export function Chip({
   const interactive = onPress !== undefined && !disabled;
   const press = usePressScale();
   const placed = splitStyle(style);
+  const checkable = accessibilityRole === 'radio' || accessibilityRole === 'switch';
   return (
     <Animated.View style={[styles.wrap, press.style, placed.outer]}>
       <Pressable
         accessibilityRole={onPress ? accessibilityRole : 'text'}
-        accessibilityState={{ selected, disabled }}
+        accessibilityState={
+          checkable ? { selected, checked: selected, disabled } : { selected, disabled }
+        }
         // The web build reads none of accessibilityState: say "chosen" in the
-        // terms of the role, a selected tab or a checked radio (QA B5).
+        // terms of the role, a selected tab, a checked radio or a switch that
+        // is on (QA B5).
         {...(onPress && accessibilityRole === 'tab' ? { 'aria-selected': selected } : {})}
-        {...(onPress && accessibilityRole === 'radio' ? { 'aria-checked': selected } : {})}
+        {...(onPress && checkable ? { 'aria-checked': selected } : {})}
         {...(accessibilityLabel ? { accessibilityLabel } : {})}
         disabled={!interactive}
         hitSlop={Math.max(0, (layout.touchTarget - chipHeight[size]) / 2)}

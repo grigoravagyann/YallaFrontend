@@ -1396,6 +1396,9 @@ review every string in `src/locales/hy` and `src/locales/ru`.**
   `explore.searchPlaceholder` shortened in `en` (the design's "Search cafes &
   restaurants") and `ru` («Поиск кафе и ресторанов»), so it no longer runs
   under the filter button at 390 pt; `hy` is unchanged.
+  `explore.brandName` is the app's name, SHURJ, set as the wordmark in the
+  greeting when nobody is signed in; it is the same Latin "SHURJ" in all three
+  languages, as a brand is, and is not translated.
   Removed: the user removed the Popular / New chips on 2026-10-22, so
   `explore.filter.popular` and `explore.filter.new` went with them; the list
   stays nearest first. `explore.sections.nearby` went with the old "Nearby"
