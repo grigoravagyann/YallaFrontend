@@ -37,7 +37,6 @@ import {
   displayWeight,
   fontWeight,
   layout,
-  shadows,
   space,
   typography,
 } from '../../src/theme';
@@ -337,8 +336,7 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: SHEET_RADIUS,
     borderTopRightRadius: SHEET_RADIUS,
     backgroundColor: colors.surface,
-    // Its faint lift off the ivory: 0 -6 20 at 5%, upward.
-    ...shadows.sheetTop,
+    // No shadow: the burgundy edge marks the sheet, and the header stays pure white.
   },
   resume: {
     marginHorizontal: layout.screenPadding,
