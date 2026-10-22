@@ -120,11 +120,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: space.xs,
     borderRadius: radius.card,
     backgroundColor: colors.surface,
-    // The glass's lit top edge.
-    borderTopWidth: 1,
-    borderTopColor: colors.border,
+    borderWidth: 1,
+    borderColor: colors.border,
   },
-  tilePressed: { backgroundColor: colors.surfaceMuted },
+  tilePressed: { borderColor: colors.borderStrong, opacity: 0.85 },
   tileDisabled: { opacity: 0.45 },
   label: { fontSize: 12, lineHeight: 16, color: colors.text },
 });

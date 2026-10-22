@@ -6,7 +6,7 @@ import { colors } from '../../src/theme';
 /**
  * Explore · Bookings · [Scan] · Orders · Profile, under the floating pill.
  *
- * Scan sits in the middle as a raised brown circle rather than a fifth
+ * Scan sits in the middle as a raised white circle rather than a fifth
  * equal tab because of who presses it: a person who has just sat down with a
  * coffee, phone in one hand. It is the one control reachable from every screen
  * without looking.

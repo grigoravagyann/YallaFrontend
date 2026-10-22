@@ -317,7 +317,7 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
     ...shadows.card,
   },
-  noticePressed: { backgroundColor: colors.surfaceMuted },
+  noticePressed: { opacity: 0.7 },
   noticeText: { ...typography.caption, color: colors.textMuted, flexShrink: 1 },
   loading: {
     flexDirection: 'row',
@@ -327,6 +327,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: space.md,
     borderRadius: radius.pill,
     backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
     ...shadows.card,
   },
   locate: { position: 'absolute', right: layout.screenPadding },

@@ -107,7 +107,9 @@ const PAD = space.xs;
 
 const styles = StyleSheet.create({
   track: {
-    backgroundColor: colors.surfaceMuted,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
     borderRadius: radius.pill,
     padding: PAD,
   },

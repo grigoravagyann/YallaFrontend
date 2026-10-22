@@ -419,6 +419,8 @@ const styles = StyleSheet.create({
     borderRadius: radius.hero,
     overflow: 'hidden',
     backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
   },
   photo: { height: PHOTO_HEIGHT, justifyContent: 'flex-end' },
   venue: {
@@ -484,9 +486,11 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: space.xs,
     backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
     ...shadows.card,
   },
-  tilePressed: { backgroundColor: colors.surfaceMuted },
+  tilePressed: { opacity: 0.7 },
   tileLabel: { ...typography.caption, color: colors.text },
 
   hint: {

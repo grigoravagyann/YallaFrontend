@@ -24,8 +24,8 @@ export interface CardProps {
 }
 
 /**
- * A white surface with soft corners and the resting shadow. Everything on the
- * cream ground that is not a control sits in one.
+ * A white surface with soft corners, edged by the 1px hairline. Everything on
+ * the white ground that is not a control sits in one.
  */
 export function Card({
   children,
@@ -87,7 +87,7 @@ const styles = StyleSheet.create({
   // must respect the corners (a photo) clip themselves — see `PhotoImage`.
   card: {
     backgroundColor: colors.surface,
-    borderWidth: StyleSheet.hairlineWidth,
+    borderWidth: 1,
     borderColor: colors.border,
     ...shadows.card,
   },

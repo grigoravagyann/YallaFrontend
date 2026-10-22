@@ -21,7 +21,7 @@ export interface SkeletonProps {
 const SHIMMER_MS = 1400;
 
 /**
- * A cream block with a light band sweeping across it while data loads.
+ * A warm grey block with a white band sweeping across it while data loads.
  *
  * Compose a few into the shape of the card they stand in for; a list of
  * three of those is what the diner sees for the ~300ms the mock (and later the
@@ -78,5 +78,5 @@ export function Skeleton({
 }
 
 const styles = StyleSheet.create({
-  base: { backgroundColor: colors.surfaceMuted, overflow: 'hidden' },
+  base: { backgroundColor: colors.skeleton, overflow: 'hidden' },
 });

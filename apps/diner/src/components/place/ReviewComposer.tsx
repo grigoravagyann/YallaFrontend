@@ -194,7 +194,7 @@ function VerifiedComposer({ placeId, timeZoneId, initialRating, style }: ReviewC
             <Ionicons
               name={step <= rating ? 'star' : 'star-outline'}
               size={iconSize.lg}
-              color={colors.warningInk}
+              color={colors.ratingStar}
             />
           </Pressable>
         ))}
@@ -248,7 +248,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     borderRadius: radius.pill,
   },
-  starPressed: { backgroundColor: colors.surfaceMuted },
+  starPressed: { opacity: 0.7 },
   input: {
     ...typography.body,
     color: colors.text,

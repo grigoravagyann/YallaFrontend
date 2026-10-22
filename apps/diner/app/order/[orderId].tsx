@@ -45,7 +45,8 @@ const DOT = 12;
 
 const STATUS_COLOR: Readonly<Record<OrderStatus, string>> = {
   confirmed: colors.success,
-  preparing: colors.warning,
+  // The kitchen's "not yet" is the brand burgundy, as its pill is.
+  preparing: colors.brand,
   inProgress: colors.warning,
   ready: colors.success,
   completed: colors.neutralBadge,
@@ -217,7 +218,7 @@ function PlaceSummary({ order }: { readonly order: Order }) {
         </View>
       </View>
       <View style={styles.summaryFooter}>
-        <Badge variant={order.status} tone="soft" />
+        <Badge variant={order.status} tone="soft" size="status" dot />
         {/* The last six characters: the server has no short number, and a
             whole GUID is nothing a waiter can be told. */}
         <Text style={styles.orderId}>

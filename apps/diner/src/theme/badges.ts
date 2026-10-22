@@ -1,3 +1,4 @@
+import type { BookingStatus, OrderStatus } from '@yalla/api';
 import { colors } from './colors';
 
 export type BadgeVariant =
@@ -11,6 +12,8 @@ export type BadgeVariant =
   | 'free'
   | 'confirmed'
   | 'preparing'
+  | 'served'
+  | 'awaiting'
   | 'inProgress'
   | 'ready'
   | 'completed'
@@ -52,6 +55,22 @@ const error = {
   ink: colors.errorInk,
 } as const;
 
+/** The soft burgundy pill: Preparing, Awaiting confirmation. */
+const brandSoft = {
+  solid: colors.primarySoft,
+  onSolid: colors.primary,
+  soft: colors.primarySoft,
+  ink: colors.primary,
+} as const;
+
+/** The filled burgundy pill: Served. */
+const brandFilled = {
+  solid: colors.brand,
+  onSolid: colors.onPrimary,
+  soft: colors.brand,
+  ink: colors.onPrimary,
+} as const;
+
 const neutral = {
   solid: colors.neutralStrong,
   onSolid: colors.onNeutralStrong,
@@ -62,9 +81,12 @@ const neutral = {
 /**
  * What each badge means, and the one colour it is allowed to be.
  *
- * Open / Free / Confirmed / Ready are green; Reserved / Preparing / In progress
- * are orange; Occupied / Cancelled are red; Closed / Completed / Out of service are grey;
- * Popular is the brand brown and New the blue. Availability (Open / Closed) and
+ * Open / Free / Confirmed / Ready are green; Reserved / In progress are orange;
+ * Occupied / Cancelled are red; Closed / Completed / Out of service are grey;
+ * Popular is the brand burgundy and New the blue. The kitchen's and the
+ * venue's "not yet" — Preparing, Awaiting confirmation — is the soft burgundy
+ * pill in either tone, and Served the filled one: those two never change with
+ * the ground they sit on. Availability (Open / Closed) and
  * content (Popular / New) are separate variants so a card can carry both.
  *
  * Pure data, apart from the component, so `contrast.test.ts` can hold every
@@ -92,7 +114,9 @@ export const badgeVariants: Record<BadgeVariant, BadgeSpec> = {
   occupied: { ...error, labelKey: 'tables.status.occupied' },
   outOfService: { ...neutral, labelKey: 'tables.status.outOfService' },
   confirmed: { ...success, labelKey: 'orders.status.confirmed' },
-  preparing: { ...warning, labelKey: 'orders.status.preparing' },
+  preparing: { ...brandSoft, labelKey: 'orders.status.preparing' },
+  served: { ...brandFilled, labelKey: 'bill.lineStatus.served' },
+  awaiting: { ...brandSoft, labelKey: 'bookings.status.pendingApproval' },
   inProgress: { ...warning, labelKey: 'orders.status.inProgress' },
   ready: { ...success, labelKey: 'orders.status.ready' },
   completed: { ...neutral, labelKey: 'orders.status.completed' },
@@ -105,4 +129,45 @@ export function badgeColors(variant: BadgeVariant, tone: BadgeTone) {
   return tone === 'solid'
     ? { background: spec.solid, foreground: spec.onSolid }
     : { background: spec.soft, foreground: spec.ink };
+}
+
+/**
+ * A booking's status in the one pill vocabulary the app has.
+ *
+ * The colour comes from the nearest order/table variant, the words from the
+ * booking's own `bookings.status.*` copy — so "Awaiting confirmation" is the
+ * soft burgundy pill like the kitchen's "Preparing", and a venue cancellation
+ * is red where the diner's own is grey. Which side cancelled is the one thing a list reader wants to know.
+ */
+export const bookingBadgeVariant: Readonly<Record<BookingStatus, BadgeVariant>> = {
+  confirmed: 'confirmed',
+  pendingApproval: 'awaiting',
+  seated: 'ready',
+  completed: 'completed',
+  cancelledByDiner: 'closed',
+  cancelledByVenue: 'cancelled',
+  noShow: 'cancelled',
+  unknown: 'closed',
+};
+
+/**
+ * Where the kitchen is with a line, as the pill under its price: Preparing is
+ * the soft burgundy pill, Served the filled one; a line nobody has picked up
+ * yet keeps the blue of "new", one waiting at the pass the green of ready.
+ */
+export function lineBadge(
+  status: OrderStatus,
+): { readonly variant: BadgeVariant; readonly labelKey?: string } | null {
+  switch (status) {
+    case 'new':
+      return { variant: 'new', labelKey: 'bill.lineStatus.new' };
+    case 'inKitchen':
+      return { variant: 'preparing' };
+    case 'ready':
+      return { variant: 'ready' };
+    case 'served':
+      return { variant: 'served' };
+    case 'voided':
+      return null;
+  }
 }

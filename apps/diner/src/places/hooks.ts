@@ -26,7 +26,6 @@ export const placeKeys = {
       'places',
       'list',
       query,
-      filter?.badge ?? null,
       filter?.type ?? null,
       position?.[0] ?? null,
       position?.[1] ?? null,

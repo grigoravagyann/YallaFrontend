@@ -52,11 +52,11 @@ const SMALL_HEIGHT = 36;
  *
  * Five variants and nothing else, because chroma in this product means one of
  * two things: a table's state, or the single element you are meant to act on.
- * `primary` is the brown fill with a white label. `secondary` is a white pill
- * with a thin border — the "View Details" row under an order. `outline` is a
- * glass pill with an amber label — Log Out, the retry on an error. `text` is a
- * bare amber label. `destructive` is red text, never a red fill: cancelling a
- * booking is not an alarm.
+ * `primary` is the burgundy fill with a cream label — Book, Done, Pay.
+ * `secondary` and `outline` are both the white pill with the 1px hairline and
+ * a charcoal label — Call, Share, Back, Close, Copy, the retry on an error —
+ * never a pink fill. `text` is a bare burgundy label, a link. `destructive` is
+ * red text, never a red fill: cancelling a booking is not an alarm.
  */
 export function Button({
   label,
@@ -120,7 +120,7 @@ export function Button({
 const labelColor: Record<ButtonVariant, string> = {
   primary: colors.onPrimary,
   secondary: colors.text,
-  outline: colors.primary,
+  outline: colors.text,
   text: colors.primary,
   // The ink, not the bright red: this is a label, and the fill red is 4.1:1.
   destructive: colors.errorInk,
@@ -152,9 +152,9 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.border,
   },
-  // A quiet glass pill: no gold rim (the design keeps borders off buttons).
+  // The same white pill with the hairline as `secondary`, at full weight.
   outline: {
-    backgroundColor: colors.surfaceMuted,
+    backgroundColor: colors.surface,
     borderWidth: 1,
     borderColor: colors.border,
   },
@@ -164,8 +164,8 @@ const styles = StyleSheet.create({
 
 const pressedStyles: Record<ButtonVariant, ViewStyle> = {
   primary: { backgroundColor: colors.brandPressed },
-  secondary: { backgroundColor: colors.surfaceMuted, borderColor: colors.borderStrong },
-  outline: { backgroundColor: colors.primarySoft, borderColor: colors.borderStrong },
+  secondary: { borderColor: colors.borderStrong, opacity: 0.85 },
+  outline: { borderColor: colors.borderStrong, opacity: 0.85 },
   text: { opacity: 0.7 },
   destructive: { opacity: 0.7 },
 };

@@ -127,7 +127,7 @@ function loadedSize(event: unknown): { width: number; height: number } | null {
 }
 
 const styles = StyleSheet.create({
-  frame: { overflow: 'hidden', backgroundColor: colors.surfaceMuted },
+  frame: { overflow: 'hidden', backgroundColor: colors.skeleton },
   fallback: {
     position: 'absolute',
     top: 0,

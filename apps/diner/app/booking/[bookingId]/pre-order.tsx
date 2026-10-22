@@ -787,8 +787,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: space.md,
     borderRadius: radius.tile,
     backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
   },
-  dishOn: { backgroundColor: colors.primarySoft },
+  // A chosen dish stays white; its stepper says it is in.
+  dishOn: { borderColor: colors.borderStrong },
   dishText: { flex: 1, minWidth: 0, gap: 2 },
   dishName: { ...typography.body, fontWeight: fontWeight.medium, color: colors.text },
   dishDesc: { ...typography.caption, color: colors.textMuted },

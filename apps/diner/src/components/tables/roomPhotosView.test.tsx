@@ -16,6 +16,11 @@ import { TableLegend } from './TableLegend';
 
 vi.mock('@expo/vector-icons', () => ({ Ionicons: () => null }));
 vi.mock('expo-linear-gradient', () => ({ LinearGradient: () => null }));
+vi.mock('expo-status-bar', () => ({
+  StatusBar: ({ style }: { readonly style: string }) => (
+    <span data-testid="status-bar" data-style={style} />
+  ),
+}));
 vi.mock('react-native-safe-area-context', () => ({
   useSafeAreaInsets: () => ({ top: 0, right: 0, bottom: 0, left: 0 }),
 }));
@@ -374,5 +379,16 @@ describe('a photo stored without its size', () => {
 
     expect(await screen.findByText("Tables can't be shown on this photo")).toBeTruthy();
     expect(screen.queryByRole('button', { name: 'Table 4, free' })).toBeNull();
+  });
+
+  it('lights the status bar while the full-screen photo is up, and lets it go on close', () => {
+    render(<RoomPhotosView rooms={ROOMS} selectedTableId={null} onSelect={() => undefined} />);
+    expect(screen.queryByTestId('status-bar')).toBeNull();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Full screen' }));
+    expect(screen.getByTestId('status-bar').getAttribute('data-style')).toBe('light');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Close' }));
+    expect(screen.queryByTestId('status-bar')).toBeNull();
   });
 });

@@ -1,6 +1,9 @@
 import { cleanup, render, screen } from '@testing-library/react';
+import { contrastRatio } from '@yalla/tokens';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { colors, space } from '../../theme';
 import { FloatingTabBar } from './FloatingTabBar';
+import { NAV_CLEARANCE, SCAN_RISE, tabBarMetrics } from './metrics';
 
 /**
  * At 375px the Armenian labels — "Բացահայտել", "Ամրագրումներ" — ran into each
@@ -15,20 +18,28 @@ vi.mock('react-native-safe-area-context', () => ({
 
 afterEach(cleanup);
 
-function props() {
+const ARMENIAN: Record<string, string> = {
+  index: 'Բացահայտել',
+  bookings: 'Ամրագրումներ',
+  scan: 'Սկանավորել',
+  orders: 'Պատվերներ',
+  profile: 'Պրոֆիլ',
+};
+const ENGLISH: Record<string, string> = {
+  index: 'Explore',
+  bookings: 'Bookings',
+  scan: 'Scan',
+  orders: 'Orders',
+  profile: 'Profile',
+};
+
+function props(titles: Record<string, string> = ARMENIAN, index = 0) {
   const routes = ['index', 'bookings', 'scan', 'orders', 'profile'].map((name) => ({
     key: `${name}-key`,
     name,
   }));
-  const titles: Record<string, string> = {
-    index: 'Բացահայտել',
-    bookings: 'Ամրագրումներ',
-    scan: 'Սկանավորել',
-    orders: 'Պատվերներ',
-    profile: 'Պրոֆիլ',
-  };
   return {
-    state: { index: 0, routes },
+    state: { index, routes },
     descriptors: Object.fromEntries(
       routes.map((route) => [route.key, { options: { title: titles[route.name] } }]),
     ),
@@ -50,4 +61,105 @@ describe('the bottom navigation', () => {
       expect(getComputedStyle(slot).minWidth, label).toBe('0px');
     }
   });
+
+  it('shows five tabs in order, every label always on, Scan in the middle', () => {
+    render(<FloatingTabBar {...props(ENGLISH)} />);
+
+    const tabs = screen.getAllByRole('tab');
+    expect(tabs.map((tab) => tab.getAttribute('aria-label'))).toEqual([
+      'Explore',
+      'Bookings',
+      'Scan',
+      'Orders',
+      'Profile',
+    ]);
+    for (const label of Object.values(ENGLISH)) expect(screen.getByText(label)).toBeTruthy();
+  });
+
+  it('marks only the current tab, its label in the brand ink', () => {
+    render(<FloatingTabBar {...props(ENGLISH, 3)} />);
+
+    const selected = screen
+      .getAllByRole('tab')
+      .filter((tab) => tab.getAttribute('aria-selected') === 'true')
+      .map((tab) => tab.getAttribute('aria-label'));
+    expect(selected).toEqual(['Orders']);
+    expect(screen.getByText('Orders').style.color).toBe(rgb(colors.primary));
+    const idle = new Set(
+      ['Explore', 'Bookings', 'Scan', 'Profile'].map(
+        (label) => screen.getByText(label).style.color,
+      ),
+    );
+    expect(idle.size).toBe(1);
+    expect([...idle][0]).not.toBe(rgb(colors.primary));
+    // Every label is the same size, so all five sit on one baseline.
+    const sizes = Object.values(ENGLISH).map((label) => screen.getByText(label).style.fontSize);
+    expect(new Set(sizes).size).toBe(1);
+  });
+
+  it('paints a bar a list cannot show through, and a solid white Scan circle', () => {
+    render(<FloatingTabBar {...props(ENGLISH)} />);
+
+    // Every fill in the bar: the pill, the circle, the active highlight.
+    const fills = [...document.querySelectorAll<HTMLElement>('div')]
+      .map((node) => getComputedStyle(node).backgroundColor)
+      .filter((fill) => fill && fill !== 'rgba(0, 0, 0, 0)');
+    expect(fills.length).toBeGreaterThan(0);
+    for (const fill of fills) expect(alphaOf(fill), fill).toBeGreaterThanOrEqual(0.96);
+
+    const circle = screen.getByRole('tab', { name: 'Scan' }).firstElementChild as HTMLElement;
+    expect(getComputedStyle(circle).backgroundColor).toBe('rgb(255, 255, 255)');
+  });
+
+  it('keeps an idle label readable on the bar even over a black photo', () => {
+    render(<FloatingTabBar {...props(ENGLISH)} />);
+    const pill = [...document.querySelectorAll<HTMLElement>('div')].find(
+      (node) => getComputedStyle(node).borderTopLeftRadius === `${tabBarMetrics.radius}px`,
+    )!;
+    const ground = overBlack(getComputedStyle(pill).backgroundColor);
+    const ink = toHex(screen.getByText('Bookings').style.color);
+    expect(contrastRatio(ink, ground)).toBeGreaterThanOrEqual(4.5);
+  });
 });
+
+describe('the room the bar takes', () => {
+  it('clears the pill and the Scan circle rising out of it, with ground to spare', () => {
+    const pillTop = tabBarMetrics.bottomGap + tabBarMetrics.height;
+    const circleTop = pillTop + SCAN_RISE;
+    expect(SCAN_RISE).toBe(
+      tabBarMetrics.scanBottom + tabBarMetrics.scanSize - tabBarMetrics.height,
+    );
+    expect(NAV_CLEARANCE).toBeGreaterThanOrEqual(pillTop + space.lg);
+    expect(NAV_CLEARANCE).toBeGreaterThanOrEqual(circleTop + space.sm);
+    // And no more than that: a screen's last card ends just above the bar.
+    expect(NAV_CLEARANCE).toBe(Math.max(pillTop + space.lg, circleTop + space.sm));
+  });
+});
+
+/** `#RRGGBB` as the DOM reports it. */
+function rgb(hex: string): string {
+  const value = hex.replace('#', '');
+  const [r, g, b] = [0, 2, 4].map((i) => Number.parseInt(value.slice(i, i + 2), 16));
+  return `rgb(${r}, ${g}, ${b})`;
+}
+
+function channels(css: string): number[] {
+  return (/rgba?\(([^)]+)\)/u.exec(css)?.[1] ?? '').split(',').map((part) => Number(part.trim()));
+}
+
+function alphaOf(css: string): number {
+  return channels(css)[3] ?? 1;
+}
+
+function toHex(css: string): string {
+  return `#${channels(css)
+    .slice(0, 3)
+    .map((value) => Math.round(value).toString(16).padStart(2, '0'))
+    .join('')}`;
+}
+
+/** A translucent fill as it reads laid over pure black — the worst photo under the bar. */
+function overBlack(css: string): string {
+  const [r = 0, g = 0, b = 0, a = 1] = channels(css);
+  return toHex(`rgb(${r * a}, ${g * a}, ${b * a})`);
+}

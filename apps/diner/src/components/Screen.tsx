@@ -1,4 +1,3 @@
-import { LinearGradient } from 'expo-linear-gradient';
 import type { ReactNode } from 'react';
 import { StyleSheet, type StyleProp, type ViewStyle } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets, type Edge } from 'react-native-safe-area-context';
@@ -29,8 +28,8 @@ export interface ScreenProps {
 }
 
 /**
- * Every screen's root: the dark espresso ground with its warm glow at the top,
- * safe-area aware.
+ * Every screen's root: a flat white ground, safe-area aware, one colour from
+ * top to bottom. Explore alone passes `backgroundColor` for its ivory header.
  *
  * `SafeAreaView` from react-native-safe-area-context rather than React
  * Native's: the latter is iOS-only and ignores Android's gesture bar, which is
@@ -55,14 +54,6 @@ export function Screen({
         style,
       ]}
     >
-      {backgroundColor === colors.background ? (
-        <LinearGradient
-          pointerEvents="none"
-          colors={[colors.backgroundGlow, colors.backgroundMid, colors.background]}
-          locations={[0, 0.55, 1]}
-          style={styles.glow}
-        />
-      ) : null}
       {children}
     </SafeAreaView>
   );
@@ -79,12 +70,7 @@ export function useNavClearance(): number {
 
 const DEFAULT_EDGES: readonly Edge[] = ['top', 'left', 'right'];
 
-/** How far down the warm glow reaches before it is the plain ground. */
-const GLOW_HEIGHT = 560;
-
 const styles = StyleSheet.create({
   root: { flex: 1 },
-  /** The glow covers the top of the screen and fades into the ground below it. */
-  glow: { position: 'absolute', top: 0, left: 0, right: 0, height: GLOW_HEIGHT },
   padded: { paddingHorizontal: layout.screenPadding },
 });

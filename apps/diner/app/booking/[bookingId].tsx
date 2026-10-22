@@ -483,7 +483,7 @@ const styles = StyleSheet.create({
   summary: { flexDirection: 'row', gap: space.md },
   thumb: { width: THUMB, height: THUMB, borderRadius: radius.chip },
   thumbFallback: {
-    backgroundColor: colors.surfaceMuted,
+    backgroundColor: colors.skeleton,
     alignItems: 'center',
     justifyContent: 'center',
   },

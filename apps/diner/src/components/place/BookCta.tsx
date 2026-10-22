@@ -101,7 +101,7 @@ export function CtaFooter({ children, bottomInset, onLayout }: CtaFooterProps) {
     >
       <LinearGradient
         pointerEvents="none"
-        colors={[colors.overlayClear, colors.background]}
+        colors={[colors.backgroundClear, colors.background]}
         style={styles.fade}
       />
       {children}

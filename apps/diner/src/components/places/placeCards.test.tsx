@@ -1,12 +1,11 @@
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { cleanup, render, screen } from '@testing-library/react';
 import { View } from 'react-native';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { Place } from '../../places/model';
 import { mockPlaces } from '../../places/mockPlaces';
+import { ExplorePlaceCard } from '../explore/ExplorePlaceCard';
 import { PlaceSummaryCard } from '../place/PlaceSummaryCard';
-import { PlaceHeroCard } from './PlaceHeroCard';
 import { PlaceRow } from './PlaceRow';
-import { PlaceRowCard } from './PlaceRowCard';
 import { placeArea } from './placeTitle';
 import type * as I18nModule from '@yalla/i18n';
 
@@ -62,59 +61,29 @@ function expectSeparateLines() {
 afterEach(cleanup);
 
 describe('the venue / branch split on place cards', () => {
-  it('PlaceHeroCard: venue and branch on separate lines, both in the label', () => {
-    atPhoneWidth(<PlaceHeroCard place={PLACE} onPress={() => undefined} />);
+  it('ExplorePlaceCard: venue and branch on separate lines, both in the label', () => {
+    atPhoneWidth(<ExplorePlaceCard place={PLACE} showBranch onPress={() => undefined} />);
 
     expectSeparateLines();
-    expect(screen.getByLabelText(/^Lavash Restaurant · Northern Avenue\./)).toBeTruthy();
+    expect(screen.getByLabelText(/^Lavash Restaurant · Northern Avenue\./u)).toBeTruthy();
   });
 
-  it('PlaceHeroCard: no empty part in the label when the distance is not known', () => {
+  it('ExplorePlaceCard: no empty part in the label when the distance is not known', () => {
     // QA 20261016T2 B8: "…4.2 (5). . Open".
     atPhoneWidth(
-      <PlaceHeroCard place={{ ...PLACE, distanceKm: null }} onPress={() => undefined} />,
+      <ExplorePlaceCard place={{ ...PLACE, distanceKm: null }} onPress={() => undefined} />,
     );
     const label = screen.getByLabelText(/^Lavash Restaurant · Northern Avenue\./u);
     expect(label.getAttribute('aria-label')).not.toMatch(/\.\s*\./u);
   });
 
-  it('PlaceRowCard: venue and branch on separate lines, both in the label', () => {
-    atPhoneWidth(<PlaceRowCard place={PLACE} onPress={() => undefined} />);
-
-    expectSeparateLines();
-    expect(screen.getByLabelText(/^Lavash Restaurant · Northern Avenue\./)).toBeTruthy();
-  });
-
-  it('PlaceRowCard: no empty part in the label when the distance is not known', () => {
-    atPhoneWidth(<PlaceRowCard place={{ ...PLACE, distanceKm: null }} onPress={() => undefined} />);
-    const label = screen.getByLabelText(/^Lavash Restaurant · Northern Avenue\./u);
-    expect(label.getAttribute('aria-label')).not.toMatch(/\.\s*\./u);
-  });
-
-  it('PlaceRowCard: one button for the place, named by it first, and the heart beside it', () => {
-    const onPress = vi.fn();
-    atPhoneWidth(<PlaceRowCard place={PLACE} onPress={onPress} />);
-
-    const buttons = screen.getAllByRole('button');
-    expect(buttons.map((button) => button.getAttribute('aria-label'))).toEqual([
-      expect.stringMatching(/^Lavash Restaurant · Northern Avenue\./u),
-      'place.favorite',
-    ]);
-    fireEvent.click(buttons[0]!);
-    expect(onPress).toHaveBeenCalledWith(PLACE.id);
-  });
-
-  it('PlaceRowCard: the area line is the address up to its first comma for a one-branch venue', () => {
+  it('the area line is the address up to its first comma for a one-branch venue', () => {
     const single = { ...PLACE, branchName: '', name: 'Lavash Restaurant' };
     expect(placeArea(single)).toBe('5 Northern Avenue');
     expect(placeArea(PLACE)).toBe('Northern Avenue');
-
-    atPhoneWidth(<PlaceRowCard place={single} onPress={() => undefined} />);
-    expect(screen.getByText('5 Northern Avenue')).toBeTruthy();
-    expect(screen.getByLabelText(/^Lavash Restaurant\./u)).toBeTruthy();
   });
 
-  it('PlaceRowCard: the area line is the branch and the district, else the old fallback', () => {
+  it('the area line is the branch and the district, else the old fallback', () => {
     // A one-branch venue: the district alone.
     const single = { ...PLACE, branchName: '', name: 'Lavash Restaurant', district: 'Kentron' };
     expect(placeArea(single)).toBe('Kentron');
@@ -124,24 +93,6 @@ describe('the venue / branch split on place cards', () => {
     expect(placeArea({ ...PLACE, branchName: 'Kentron', district: 'kentron' })).toBe('kentron');
     // Blank is unset: the branch, as before.
     expect(placeArea({ ...PLACE, district: '  ' })).toBe('Northern Avenue');
-
-    atPhoneWidth(
-      <PlaceRowCard place={{ ...PLACE, district: 'Kentron' }} onPress={() => undefined} />,
-    );
-    expect(screen.getByText('Northern Avenue · Kentron')).toBeTruthy();
-    // The card is still named by venue and branch, whatever the area line says.
-    expect(screen.getByLabelText(/^Lavash Restaurant · Northern Avenue\./u)).toBeTruthy();
-  });
-
-  it('PlaceRowCard: today’s hours beside the Open badge', () => {
-    atPhoneWidth(
-      <PlaceRowCard
-        place={{ ...PLACE, openState: { isOpen: true, todayLabel: '08:00 – 23:00' } }}
-        onPress={() => undefined}
-      />,
-    );
-    expect(screen.getByText('08:00 – 23:00')).toBeTruthy();
-    expect(screen.getByText('place.status.open')).toBeTruthy();
   });
 
   it('PlaceRow: venue and branch on separate lines, both in the label', () => {

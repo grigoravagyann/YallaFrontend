@@ -12,7 +12,7 @@ import {
   space,
   tabularNumbers,
   typography,
-  type BadgeVariant,
+  lineBadge,
 } from '../theme';
 import { Badge } from './Badge';
 import { Card } from './Card';
@@ -376,24 +376,6 @@ function OrdersHead({ status, stale = false }: { status?: string; stale?: boolea
   );
 }
 
-/** Where the kitchen is with a line, as the badge on its row. */
-function lineBadge(
-  status: OrderStatus,
-): { readonly variant: BadgeVariant; readonly labelKey?: string } | null {
-  switch (status) {
-    case 'new':
-      return { variant: 'new', labelKey: 'bill.lineStatus.new' };
-    case 'inKitchen':
-      return { variant: 'preparing' };
-    case 'ready':
-      return { variant: 'ready' };
-    case 'served':
-      return { variant: 'confirmed', labelKey: 'bill.lineStatus.served' };
-    case 'voided':
-      return null;
-  }
-}
-
 /** How long a waiter's new line stays lit. */
 const GLOW_MS = 1800;
 const GLOW_DELAY_MS = 300;
@@ -472,16 +454,19 @@ function LineRow({
         <Text style={styles.rowMeta}>{who}</Text>
         {line.note ? <Text style={styles.rowNote}>{line.note}</Text> : null}
       </View>
-      {badge ? (
-        <Badge
-          variant={badge.variant}
-          tone="soft"
-          size="sm"
-          style={styles.badge}
-          {...(badge.labelKey ? { label: t(badge.labelKey) } : {})}
-        />
-      ) : null}
-      <Text style={styles.rowPrice}>{formatDram(line.lineTotalDram, locale)}</Text>
+      {/* The price, and under it where the kitchen is with the line. */}
+      <View style={styles.rowEnd}>
+        <Text style={styles.rowPrice}>{formatDram(line.lineTotalDram, locale)}</Text>
+        {badge ? (
+          <Badge
+            variant={badge.variant}
+            tone="soft"
+            size="status"
+            dot
+            {...(badge.labelKey ? { label: t(badge.labelKey) } : {})}
+          />
+        ) : null}
+      </View>
     </View>
   );
 }
@@ -576,24 +561,26 @@ const styles = StyleSheet.create({
   // The card keeps its shadow; this inner layer clips a lit row to its corners.
   rowsClip: { borderRadius: radius.hero, overflow: 'hidden' },
   emptyRow: { paddingVertical: space.md, paddingHorizontal: space.md + 2 },
+  // The design's row: padded 14 all round, 12 between the words and the price.
   row: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: space.sm + 2,
-    paddingVertical: space.md,
-    paddingHorizontal: space.md + 2,
+    gap: space.md,
+    padding: space.md + 2,
   },
   rowRuled: { borderTopWidth: 1, borderTopColor: colors.border },
-  glow: { ...StyleSheet.absoluteFill, backgroundColor: colors.shimmerPeak },
+  // A waiter's new line lights in the soft burgundy, then fades to the card.
+  glow: { ...StyleSheet.absoluteFill, backgroundColor: colors.primarySoft },
   rowText: { flex: 1, minWidth: 0, gap: 1 },
   rowTitle: { ...typography.body, fontWeight: fontWeight.medium, color: colors.text },
   rowMeta: { ...typography.caption, color: colors.textMuted },
   rowNote: { ...typography.caption, color: colors.textMuted, fontStyle: 'italic' },
-  badge: { alignSelf: 'center', flexShrink: 0 },
+  rowEnd: { alignItems: 'flex-end', gap: 6, flexShrink: 0 },
   rowPrice: {
     minWidth: 64,
     textAlign: 'right',
-    ...typography.body,
+    fontSize: 13.5,
+    lineHeight: 18,
     fontWeight: fontWeight.bold,
     color: colors.text,
     ...tabularNumbers,
