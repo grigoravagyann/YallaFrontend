@@ -2,7 +2,7 @@ import type { ReactNode } from 'react';
 import { StyleSheet, type StyleProp, type ViewStyle } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets, type Edge } from 'react-native-safe-area-context';
 import { colors, layout } from '../theme';
-import { NAV_CLEARANCE } from './nav/metrics';
+import { NAV_CLEARANCE, navBottomOffset } from './nav/metrics';
 
 export { NAV_CLEARANCE };
 
@@ -65,7 +65,7 @@ export function Screen({
  */
 export function useNavClearance(): number {
   const insets = useSafeAreaInsets();
-  return NAV_CLEARANCE + insets.bottom;
+  return NAV_CLEARANCE + navBottomOffset(insets.bottom);
 }
 
 const DEFAULT_EDGES: readonly Edge[] = ['top', 'left', 'right'];

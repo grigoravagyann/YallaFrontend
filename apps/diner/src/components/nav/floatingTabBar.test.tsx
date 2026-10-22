@@ -3,7 +3,7 @@ import { contrastRatio } from '@yalla/tokens';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { colors, space } from '../../theme';
 import { FloatingTabBar } from './FloatingTabBar';
-import { NAV_CLEARANCE, SCAN_RISE, tabBarMetrics } from './metrics';
+import { NAV_CLEARANCE, SCAN_RISE, navBottomOffset, tabBarMetrics } from './metrics';
 
 /**
  * At 375px the Armenian labels — "Բացահայտել", "Ամրագրումներ" — ran into each
@@ -124,7 +124,8 @@ describe('the bottom navigation', () => {
 
 describe('the room the bar takes', () => {
   it('clears the pill and the Scan circle rising out of it, with ground to spare', () => {
-    const pillTop = tabBarMetrics.bottomGap + tabBarMetrics.height;
+    // Measured from the pill's lower edge; the screen adds navBottomOffset.
+    const pillTop = tabBarMetrics.height;
     const circleTop = pillTop + SCAN_RISE;
     expect(SCAN_RISE).toBe(
       tabBarMetrics.scanBottom + tabBarMetrics.scanSize - tabBarMetrics.height,
@@ -133,6 +134,15 @@ describe('the room the bar takes', () => {
     expect(NAV_CLEARANCE).toBeGreaterThanOrEqual(circleTop + space.sm);
     // And no more than that: a screen's last card ends just above the bar.
     expect(NAV_CLEARANCE).toBe(Math.max(pillTop + space.lg, circleTop + space.sm));
+  });
+
+  it('tucks into the home-indicator area instead of floating a full gap above it', () => {
+    // An iPhone's 34 pt inset: the pill sits 26 pt off the screen's edge, as designed.
+    expect(navBottomOffset(34)).toBe(26);
+    // No inset (old Android, web): never flush with the edge.
+    expect(navBottomOffset(0)).toBe(tabBarMetrics.minBottom);
+    // A tall Android 3-button bar keeps the pill above it.
+    expect(navBottomOffset(48)).toBe(40);
   });
 });
 
