@@ -1,6 +1,6 @@
 /**
  * The SHURJ mark as strokes, traced over the logo raster
- * (`assets/images/splash-icon.png`, 1024 × 1024) so each line can be drawn in
+ * (`assets/images/splash-logo.png`, 1024 × 1024, the logo lifted off its paper) so each line can be drawn in
  * turn. The drawing gives way to that raster at the end, so where a traced line
  * strays a pixel from the logo nobody is left looking at it.
  *
@@ -45,8 +45,8 @@ export const MARK_STROKES: readonly MarkStroke[] = [
   },
 ];
 
-/** The logo's own cream and burgundy, sampled from the raster. */
-export const LAUNCH_GROUND = '#F8F3E9';
+/** The launch's white ground and the logo's burgundy, sampled from the raster. */
+export const LAUNCH_GROUND = '#FFFFFF';
 export const LAUNCH_INK = '#7A1426';
 
 /** The logo's box on screen, in points. */

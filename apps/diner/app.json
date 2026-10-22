@@ -61,7 +61,7 @@
           "image": "./assets/images/splash-ground.png",
           "imageWidth": 240,
           "resizeMode": "contain",
-          "backgroundColor": "#F8F3E9"
+          "backgroundColor": "#FFFFFF"
         }
       ],
       "expo-localization",

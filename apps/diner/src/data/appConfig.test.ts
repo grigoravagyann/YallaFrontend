@@ -60,8 +60,8 @@ describe('app.json', () => {
 /**
  * The first frame anyone sees. The old splash was a cream "Yalla" on a
  * transparent ground, drawn for a dark background: on the white one it all
- * but vanished (B1, 2026-10-22). The image now carries its own cream ground,
- * so the splash colour has to be that exact cream for the square's edge to
+ * but vanished (B1, 2026-10-22). The native splash is now bare white and the
+ * launch animation draws the logo on it, so the splash colour has to be that exact white for the square's edge to
  * disappear, and the mark on it has to be readable.
  */
 describe('the splash screen', () => {
@@ -86,8 +86,8 @@ describe('the splash screen', () => {
     expect(splash.dark).toBeUndefined();
   });
 
-  it('is the bare cream the launch animation then draws the logo on', () => {
-    // Every pixel the same opaque cream: the native frame shows nothing to jump.
+  it('is the bare white the launch animation then draws the logo on', () => {
+    // Every pixel the same opaque white: the native frame shows nothing to jump.
     for (let y = 0; y < image.height; y += 16) {
       for (let x = 0; x < image.width; x += 16) {
         const [r, g, b, a] = image.pixel(x, y);
@@ -100,7 +100,7 @@ describe('the splash screen', () => {
 
   it('ends the launch on the logo, its mark dark enough to read on that ground', () => {
     const logo = decodePng(
-      readFileSync(new URL('../../assets/images/splash-icon.png', import.meta.url)),
+      readFileSync(new URL('../../assets/images/splash-logo.png', import.meta.url)),
     );
     let darkest = { lum: Number.POSITIVE_INFINITY, rgb: '#FFFFFF' };
     for (let y = 0; y < logo.height; y += 2) {
@@ -117,7 +117,7 @@ describe('the splash screen', () => {
 });
 
 /**
- * The launcher icon is the SHURJ logo on the splash's cream (2026-10-22), rendered by
+ * The launcher icon is the SHURJ logo on the splash's white (2026-10-22), rendered by
  * assets/images/source/render-icons.cjs. A transparent pixel in the iOS icon is a store
  * rejection, and ink outside Android's 66 dp safe zone is cut off by some launchers' masks.
  */
@@ -129,7 +129,7 @@ describe('the launcher icon', () => {
   )![1];
   const { backgroundImage, foregroundImage, monochromeImage } = appJson.expo.android.adaptiveIcon;
 
-  it('puts the iOS icon and the Android back layer on the splash’s cream, with no transparency', () => {
+  it('puts the iOS icon and the Android back layer on the splash’s white, with no transparency', () => {
     for (const file of [appJson.expo.icon, backgroundImage]) {
       const image = read(file);
       expect([image.width, image.height]).toEqual([1024, 1024]);

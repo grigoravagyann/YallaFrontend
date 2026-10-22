@@ -2,7 +2,7 @@ import * as SplashScreen from 'expo-splash-screen';
 import { useEffect, useState } from 'react';
 import { AccessibilityInfo, Animated, Easing, Image, StyleSheet, View } from 'react-native';
 import Svg, { Circle, Path } from 'react-native-svg';
-import LOGO from '../../../assets/images/splash-icon.png';
+import LOGO from '../../../assets/images/splash-logo.png';
 import { LAUNCH_GROUND, LAUNCH_INK, LAUNCH_LOGO_SIZE, MARK_STROKES } from './mark';
 
 const AnimatedPath = Animated.createAnimatedComponent(Path);
