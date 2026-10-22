@@ -119,8 +119,6 @@ export const colors = {
   brandGlow: '#711D2C',
   /** The brand as text or a glyph: links, prices, spinners, active labels and indicators. */
   primary: '#711D2C',
-  /** The same burgundy at zero alpha: the ends of a line that fades out. */
-  primaryClear: 'rgba(113,29,44,0)',
   /** Pressed state of a `primary` line (outline button, text link). */
   primaryPressed: '#4E1520',
   /** Label and glyph on a `brand` fill. */
@@ -142,6 +140,8 @@ export const colors = {
   borderStrong: '#D9CFC3',
 
   text: '#2D2927',
+  /** The same charcoal at zero alpha: the ends of a line that fades out. */
+  textClear: 'rgba(45,41,39,0)',
   /** Secondary text. Clears 4.5:1 on every ground and sheet, `surfaceMuted` included. */
   textMuted: '#6E675F',
   /**

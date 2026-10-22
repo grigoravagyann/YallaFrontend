@@ -192,11 +192,11 @@ export default function ExploreScreen() {
       />
 
       <View style={styles.sheet}>
-        {/* The burgundy line between the header and the search: full in the middle,
+        {/* The charcoal line between the header and the search: full in the middle,
             fading out towards both sides. */}
         <LinearGradient
           pointerEvents="none"
-          colors={[colors.primaryClear, colors.primary, colors.primaryClear]}
+          colors={[colors.textClear, colors.text, colors.textClear]}
           start={{ x: 0, y: 0.5 }}
           end={{ x: 1, y: 0.5 }}
           style={styles.sheetEdge}
