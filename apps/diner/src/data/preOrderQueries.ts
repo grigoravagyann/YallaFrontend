@@ -3,6 +3,7 @@ import {
   confirmOnMyWayOptions,
   preOrderMenuOptions,
   replacePreOrderOptions,
+  reportRunningLateOptions,
   useGateway,
 } from '@yalla/api/react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -44,6 +45,19 @@ export function useConfirmOnMyWay() {
   const queryClient = useQueryClient();
   return useMutation(
     confirmOnMyWayOptions(queryClient, useGateway(), () => {
+      void queryClient.invalidateQueries({ queryKey: NOTIFICATIONS_KEY });
+    }),
+  );
+}
+
+/**
+ * "I'm running late" — 10, 15 or 30 minutes (2026-10-22): the waiter's card
+ * says so, and the feed's "are you coming?" row has been answered.
+ */
+export function useReportRunningLate() {
+  const queryClient = useQueryClient();
+  return useMutation(
+    reportRunningLateOptions(queryClient, useGateway(), () => {
       void queryClient.invalidateQueries({ queryKey: NOTIFICATIONS_KEY });
     }),
   );
