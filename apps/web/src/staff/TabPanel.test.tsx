@@ -251,6 +251,66 @@ describe('the lines', () => {
   });
 });
 
+describe('when each line was ordered', () => {
+  /** A row's meta, piece by piece: the pill, who and when, the note, any comp. */
+  const meta = (panel: HTMLElement, name: string) =>
+    [...within(panel).getByText(name).closest('li')!.querySelector('.tab-line-meta')!.children].map(
+      text,
+    );
+  const withLines = (lines: readonly TabLine[]) => ({ tab: { ...TAB, lines } });
+
+  it("says it after who, as its order's time on the branch's clock", () => {
+    const { panel } = show(
+      'waiter',
+      withLines([
+        // 14:00 and 15:08 UTC are 18:00 and 19:08 in Yerevan.
+        LINES[0]!,
+        line({
+          id: 'tea',
+          name: 'Tea',
+          participantId: 'ani',
+          orderedByName: 'Ani',
+          placedAtUtc: '2026-10-19T15:08:00Z',
+        }),
+      ]),
+    );
+    expect(meta(panel, 'Steak')).toEqual(['Served', 'Gor · 18:00', '“Medium”']);
+    expect(meta(panel, 'Tea')).toEqual(['Served', 'Ani · 19:08']);
+    expect(within(panel).getByText('Tea').closest('li')!.querySelector('time')).toMatchObject({
+      dateTime: '2026-10-19T15:08:00Z',
+    });
+  });
+
+  it('reads the zone it is given, not the device’s', () => {
+    const { panel } = show('waiter', { ...withLines([LINES[0]!]), timeZoneId: 'Europe/Moscow' });
+    expect(meta(panel, 'Steak')).toContain('Gor · 17:00');
+  });
+
+  it('stands alone on a line that names nobody', () => {
+    const { panel } = show('waiter', withLines([line({ id: 'water', name: 'Water' })]));
+    expect(meta(panel, 'Water')).toEqual(['Served', '18:00']);
+  });
+
+  it('says nothing when the line carries no time', () => {
+    const { panel } = show(
+      'waiter',
+      withLines([
+        line({
+          id: 'tea',
+          name: 'Tea',
+          participantId: 'ani',
+          orderedByName: 'Ani',
+          placedAtUtc: null,
+        }),
+        line({ id: 'water', name: 'Water', placedAtUtc: null }),
+      ]),
+    );
+    expect(meta(panel, 'Tea')).toEqual(['Served', 'Ani']);
+    expect(meta(panel, 'Water')).toEqual(['Served']);
+    expect(panel.querySelector('.tab-lines time')).toBeNull();
+  });
+});
+
 describe('the one snapshot of the tab (review S4)', () => {
   const withLines = (lines: readonly TabLine[], extra: Partial<StaffTab> = {}) => ({
     tab: { ...TAB, lines: [...LINES, ...lines], ...extra },

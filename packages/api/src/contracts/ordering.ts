@@ -319,8 +319,9 @@ export interface TabLine {
   /** Who voided it. Always `null`: no view carries an actor's name. */
   readonly voidedByName: string | null;
   /**
-   * When its order was placed. `null` from the tab's snapshot, which lists the
-   * lines in order but carries no time.
+   * When its order was placed — `TabLineView.orderedAtUtc` on the tab's
+   * snapshot, the order's own time on a line from the kitchen queue. UTC; shown
+   * in the branch's zone. `null` from a server that does not send it yet.
    */
   readonly placedAtUtc: string | null;
   readonly orderStatus: OrderStatus;
