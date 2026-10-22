@@ -5,12 +5,13 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useReducedMotion } from '../../hooks/useReducedMotion';
 import { colors, fontWeight, radius, shadows, type NavRouteName } from '../../theme';
 import { Text } from '../Text';
-import { SCAN_RISE, tabBarMetrics } from './metrics';
+import { SCAN_RISE, navBottomOffset, tabBarMetrics } from './metrics';
 import { MAX_NAV_LABEL_SCALE, navLabelActiveStyle, navLabelStyle } from './navLabel';
+import { GlassFill } from './GlassFill';
 import { NavGlyph } from './NavGlyph';
 import { ScanFab } from './ScanFab';
 
-export { NAV_CLEARANCE, SCAN_RISE, tabBarMetrics } from './metrics';
+export { NAV_CLEARANCE, SCAN_RISE, navBottomOffset, tabBarMetrics } from './metrics';
 
 /** The route whose slot is the raised Scan circle rather than an icon + label. */
 const SCAN_ROUTE: NavRouteName = 'scan';
@@ -45,13 +46,17 @@ export function FloatingTabBar({ state, descriptors, navigation }: BottomTabBarP
   return (
     <View
       pointerEvents="box-none"
-      style={[styles.wrap, { paddingBottom: insets.bottom + tabBarMetrics.bottomGap }]}
+      style={[styles.wrap, { paddingBottom: navBottomOffset(insets.bottom) }]}
     >
       {/* `box-none` on the stage and the row: only the pill and the pressables
           take touches, so the transparent band beside the Scan circle lets taps
           and scrolls through to the screen underneath. */}
       <View pointerEvents="box-none" style={styles.stage}>
-        <View style={styles.pill} />
+        <View style={styles.pill}>
+          <View style={styles.pillGlass}>
+            <GlassFill />
+          </View>
+        </View>
         <View pointerEvents="box-none" style={styles.row}>
           {state.routes.map((route, index) => {
             const descriptor = descriptors[route.key];
@@ -214,10 +219,15 @@ const styles = StyleSheet.create({
     bottom: 0,
     height: tabBarMetrics.height,
     borderRadius: tabBarMetrics.radius,
-    backgroundColor: colors.navBar,
     borderWidth: 1,
     borderColor: colors.navBorder,
     ...shadows.float,
+  },
+  // The glass is clipped to the pill in its own layer, so the pill keeps its shadow.
+  pillGlass: {
+    ...StyleSheet.absoluteFill,
+    borderRadius: tabBarMetrics.radius,
+    overflow: 'hidden',
   },
   row: {
     flexDirection: 'row',

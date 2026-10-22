@@ -1,6 +1,9 @@
 import { useTranslation } from '@yalla/i18n';
+import { Redirect } from 'expo-router';
 import { Tabs } from 'expo-router/js-tabs';
+import { FROM_START } from '../../src/components/auth/PhoneAuthFlow';
 import { FloatingTabBar } from '../../src/components/nav/FloatingTabBar';
+import { useSession } from '../../src/stores/session';
 import { colors } from '../../src/theme';
 
 /**
@@ -20,6 +23,13 @@ import { colors } from '../../src/theme';
  */
 export default function TabsLayout() {
   const { t } = useTranslation(['diner', 'common']);
+  const signedIn = useSession((s) => s.signedIn);
+
+  // An account comes first: a diner who is not signed in (a first launch, or
+  // after signing out) meets the welcome, and the app opens once signed in.
+  if (!signedIn) {
+    return <Redirect href={{ pathname: '/auth', params: { from: FROM_START } }} />;
+  }
 
   return (
     <Tabs

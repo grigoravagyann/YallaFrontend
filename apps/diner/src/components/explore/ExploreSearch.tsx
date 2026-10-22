@@ -35,13 +35,13 @@ export function ExploreSearch({
 }: ExploreSearchProps) {
   return (
     <View style={styles.field}>
-      <Ionicons name={actionIcon.search} size={19} color={colors.text} />
+      <Ionicons name={actionIcon.search} size={19} color={colors.logoInk} />
       <TextInput
         style={styles.input}
         value={value}
         onChangeText={onChangeText}
         placeholder={placeholder}
-        placeholderTextColor={colors.textSubtle}
+        placeholderTextColor={colors.textMuted}
         autoCorrect={false}
         returnKeyType="search"
         // The server refuses a longer search outright.
@@ -55,16 +55,18 @@ export function ExploreSearch({
           onPress={() => onChangeText('')}
           style={({ pressed }) => [styles.button, pressed && styles.pressed]}
         >
-          <Ionicons name={actionIcon.close} size={20} color={colors.textMuted} />
+          <Ionicons name={actionIcon.close} size={20} color={colors.logoInk} />
         </Pressable>
       ) : null}
+      {/* A hairline between the words and the filters, as the design draws it. */}
+      <View pointerEvents="none" style={styles.rule} />
       <Pressable
         accessibilityRole="button"
         accessibilityLabel={activeFilters > 0 ? `${filtersLabel}, ${activeFilters}` : filtersLabel}
         onPress={onFilters}
         style={({ pressed }) => [styles.button, pressed && styles.pressed]}
       >
-        <Ionicons name="options-outline" size={20} color={colors.text} />
+        <Ionicons name="options-outline" size={20} color={colors.logoInk} />
         {activeFilters > 0 ? (
           <View pointerEvents="none" style={styles.count}>
             {/* Held to its 16 px dot: a large system font would burst it. */}
@@ -88,7 +90,7 @@ const styles = StyleSheet.create({
     paddingRight: 1,
     borderRadius: radius.pill,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: colors.logoInk,
     backgroundColor: colors.surface,
     // The design's barely-there lift under the field: a card's own, 0 1 2 at 5%.
     ...shadows.card,
@@ -111,6 +113,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  rule: { width: 1, height: 24, marginRight: -space.xs, backgroundColor: colors.controlBorder },
   pressed: { backgroundColor: colors.primarySoft },
   count: {
     position: 'absolute',

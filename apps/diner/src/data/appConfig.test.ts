@@ -1,5 +1,6 @@
 /// <reference types="node" />
 import { readFileSync } from 'node:fs';
+import { LAUNCH_GROUND, LAUNCH_INK } from '../components/launch/mark';
 import { createRequire } from 'node:module';
 import { inflateSync } from 'node:zlib';
 import { contrastRatio } from '@yalla/tokens';
@@ -59,8 +60,8 @@ describe('app.json', () => {
 /**
  * The first frame anyone sees. The old splash was a cream "Yalla" on a
  * transparent ground, drawn for a dark background: on the white one it all
- * but vanished (B1, 2026-10-22). The image now carries its own cream ground,
- * so the splash colour has to be that exact cream for the square's edge to
+ * but vanished (B1, 2026-10-22). The native splash is now bare white and the
+ * launch animation draws the logo on it, so the splash colour has to be that exact white for the square's edge to
  * disappear, and the mark on it has to be readable.
  */
 describe('the splash screen', () => {
@@ -85,22 +86,38 @@ describe('the splash screen', () => {
     expect(splash.dark).toBeUndefined();
   });
 
-  it('draws the mark dark enough to read on that ground', () => {
-    let darkest = { lum: Number.POSITIVE_INFINITY, rgb: '#FFFFFF' };
-    for (let y = 0; y < image.height; y += 2) {
-      for (let x = 0; x < image.width; x += 2) {
+  it('is the bare white the launch animation then draws the logo on', () => {
+    // Every pixel the same opaque white: the native frame shows nothing to jump.
+    for (let y = 0; y < image.height; y += 16) {
+      for (let x = 0; x < image.width; x += 16) {
         const [r, g, b, a] = image.pixel(x, y);
+        expect(a).toBe(255);
+        expect(hex(r, g, b)).toBe(splash.backgroundColor.toUpperCase());
+      }
+    }
+    expect(LAUNCH_GROUND).toBe(splash.backgroundColor.toUpperCase());
+  });
+
+  it('ends the launch on the logo, its mark dark enough to read on that ground', () => {
+    const logo = decodePng(
+      readFileSync(new URL('../../assets/images/splash-mark.png', import.meta.url)),
+    );
+    let darkest = { lum: Number.POSITIVE_INFINITY, rgb: '#FFFFFF' };
+    for (let y = 0; y < logo.height; y += 2) {
+      for (let x = 0; x < logo.width; x += 2) {
+        const [r, g, b, a] = logo.pixel(x, y);
         if (a < 255) continue;
         const lum = r * 0.2126 + g * 0.7152 + b * 0.0722;
         if (lum < darkest.lum) darkest = { lum, rgb: hex(r, g, b) };
       }
     }
     expect(contrastRatio(darkest.rgb, splash.backgroundColor)).toBeGreaterThanOrEqual(4.5);
+    expect(contrastRatio(LAUNCH_INK, LAUNCH_GROUND)).toBeGreaterThanOrEqual(4.5);
   });
 });
 
 /**
- * The launcher icon is the SHURJ logo on the splash's cream (2026-10-22), rendered by
+ * The launcher icon is the SHURJ logo on the splash's white (2026-10-22), rendered by
  * assets/images/source/render-icons.cjs. A transparent pixel in the iOS icon is a store
  * rejection, and ink outside Android's 66 dp safe zone is cut off by some launchers' masks.
  */
@@ -112,7 +129,7 @@ describe('the launcher icon', () => {
   )![1];
   const { backgroundImage, foregroundImage, monochromeImage } = appJson.expo.android.adaptiveIcon;
 
-  it('puts the iOS icon and the Android back layer on the splash’s cream, with no transparency', () => {
+  it('puts the iOS icon and the Android back layer on the splash’s white, with no transparency', () => {
     for (const file of [appJson.expo.icon, backgroundImage]) {
       const image = read(file);
       expect([image.width, image.height]).toEqual([1024, 1024]);

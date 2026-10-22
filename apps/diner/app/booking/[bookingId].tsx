@@ -319,7 +319,7 @@ function BookingDetail({
         <KeepTableAction booking={booking} />
 
         {/* Large and legible: staff ask for this at the door. Pending must never
-            look confirmed — a dashed blue edge instead of the solid green. */}
+            look confirmed — a dashed burgundy edge instead of the solid green. */}
         <Card
           style={[
             styles.codeCard,

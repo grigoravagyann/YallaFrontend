@@ -12,7 +12,7 @@ import { colors } from './colors';
 /**
  * The SHURJ restyle's rules, held where a person would see them break: white
  * secondary buttons with the hairline and a charcoal label (never the soft
- * pink), burgundy for the one thing to press, the two burgundy status pills,
+ * pink), burgundy for the one thing to press, the burgundy status pills,
  * and the warm skeleton block.
  */
 
@@ -120,14 +120,22 @@ describe('SlidingChoice', () => {
 });
 
 describe('status pills', () => {
-  it('draws Preparing and Awaiting confirmation as the soft burgundy pill, on any ground', () => {
-    for (const variant of ['preparing', 'awaiting'] as const) {
-      for (const tone of ['soft', 'solid'] as const) {
-        expect(badgeColors(variant, tone)).toEqual({
-          background: colors.primarySoft,
-          foreground: colors.primary,
-        });
-      }
+  it('draws Preparing as the soft burgundy pill, on any ground', () => {
+    for (const tone of ['soft', 'solid'] as const) {
+      expect(badgeColors('preparing', tone)).toEqual({
+        background: colors.primarySoft,
+        foreground: colors.primary,
+      });
+    }
+  });
+
+  it('draws Awaiting venue like the Explore chips: white, edged in burgundy, a charcoal label', () => {
+    for (const tone of ['soft', 'solid'] as const) {
+      expect(badgeColors('awaiting', tone)).toEqual({
+        background: colors.surface,
+        foreground: colors.text,
+        edge: colors.logoInk,
+      });
     }
   });
 

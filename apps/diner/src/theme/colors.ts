@@ -1,17 +1,17 @@
 /**
  * The diner app's palette. Light only: SHURJ, a white page.
  *
- * Every screen is white (`Screen` draws a flat fill, no glow); only the
- * Explore header sits on a warm ivory (`exploreGround`). Cards, rows, inputs
+ * Every screen is white (`Screen` draws a flat fill, no glow), the Explore
+ * header included. Cards, rows, inputs
  * and sheets are white too, edged by the 1px `border` hairline — there are no
- * grey fills. The brand is a muted dark burgundy that speaks three ways:
+ * grey fills. The brand is Black Cherry (#4B0C18), which speaks three ways:
  * `brand`, the fill of every primary button, selected chip and sliding
- * selection pill; `primary`, the same burgundy where the brand is a line of
+ * selection pill; `primary`, the same cherry where the brand is a line of
  * text or a glyph — a link, a price, a spinner, the active label; and
  * `accent`, the icon that marks where you are — the active nav glyph, the
  * Scan QR, an unread dot. Chroma beyond that carries meaning and nothing else:
  * green is open / free / confirmed, orange is reserved, red is occupied /
- * failed, blue is "new" and the user's own location. Photos keep their dark
+ * failed, the deep burgundy is "new" and "waiting", blue only the user's own location on the map. Photos keep their dark
  * scrims, and text on a photo stays cream. Screens import from here, never
  * from the shared token package, so the design is described once.
  *
@@ -26,8 +26,17 @@
 export const colors = {
   /** The ground under every screen: flat white. */
   background: '#FFFFFF',
-  /** The warm ivory behind the Explore header, and only there. */
-  exploreGround: '#F7F6F1',
+  /** The ground behind the Explore header: white like the rest (2026-10-22), no beige tint. */
+  exploreGround: '#FFFFFF',
+  /**
+   * The edge of a control on white — the Explore avatar, Map pill, bell and
+   * search field: a thin line, clearly visible, at full opacity.
+   */
+  controlBorder: '#CFC6C1',
+  /** The logo's own burgundy: the SHURJ wordmark and, on Explore, the map, the bell, the search's glyphs, and the edges of the search, the chips and the cards. */
+  logoInk: '#6B1121',
+  /** `logoInk` at nothing: where the line under the Explore header fades out. */
+  logoInkClear: 'rgba(107, 17, 33, 0)',
   /** Cards, rows, inputs: white, edged by the `border` hairline. */
   surface: '#FFFFFF',
   /**
@@ -43,11 +52,14 @@ export const colors = {
   /** A switch's thumb, on the brand track or the `borderStrong` one. */
   toggleThumb: '#FFFFFF',
   /**
-   * The floating tab bar. There is no blur in the app, so the "glass" is all
-   * but opaque: at 80% a card's serif and photo ran straight through the
-   * labels. The Scan circle above it is solid `surface`.
+   * The floating tab bar and the Scan circle rising out of it: see-through
+   * white glass, the content scrolling under it visible (the user's choice,
+   * 2026-10-22). There is no blur in the app, so this alpha alone sets how much
+   * shows through.
    */
-  navBar: 'rgba(255,255,255,0.96)',
+  navBar: 'rgba(255,255,255,0.72)',
+  /** The thinner white wash over the blur where the platform blurs (iOS, web). */
+  navGlassWash: 'rgba(255,255,255,0.55)',
   /**
    * An idle tab's label: a step warmer and darker than `textMuted`, so 11.5 px
    * on the bar still reads at arm's length, over any photo scrolling under it.
@@ -101,31 +113,31 @@ export const colors = {
   surfaceDark: '#120804',
 
   /** The fill of the one thing to press: buttons, selected chips, the active tab. */
-  brand: '#6E1F2C',
-  brandPressed: '#5A1823',
+  brand: '#4B0C18',
+  brandPressed: '#3A0912',
   /** The edge round a brand fill, so it holds its shape where it meets a burgundy tint. */
-  brandEdge: '#5A1823',
+  brandEdge: '#3A0912',
   /** A brand fill's soft lift (shadow colour). */
-  brandGlow: '#6E1F2C',
+  brandGlow: '#4B0C18',
   /** The brand as text or a glyph: links, prices, spinners, active labels and indicators. */
-  primary: '#6E1F2C',
+  primary: '#4B0C18',
   /** Pressed state of a `primary` line (outline button, text link). */
-  primaryPressed: '#4E1520',
+  primaryPressed: '#2E070F',
   /** Label and glyph on a `brand` fill. */
-  onPrimary: '#FFF8F0',
+  onPrimary: '#FFF7EA',
   /**
    * A soft burgundy tint — the Preparing and Awaiting-confirmation pills,
    * pressed rows, a row that has just arrived.
    */
-  primarySoft: '#F1E4E4',
+  primarySoft: '#F2E4E6',
   /**
    * The burgundy of an icon that marks a place: the active nav glyph,
    * the Scan QR glyph, an unread dot. A glyph, never a sentence.
    */
-  accent: '#6E1F2C',
+  accent: '#4B0C18',
 
   /** The soft burgundy behind an initials avatar. */
-  secondary: '#F1E4E4',
+  secondary: '#F2E4E6',
   border: '#E7E0D7',
   borderStrong: '#D9CFC3',
 
@@ -173,13 +185,20 @@ export const colors = {
   errorInk: '#B42318',
   errorStrong: '#B3282D',
   onErrorStrong: '#FFFFFF',
-  /** The user's location dot — the fill. */
-  info: '#4C8DFF',
-  infoSoft: '#E5EEFF',
-  /** Info as text. */
-  infoInk: '#2C5BC4',
-  infoStrong: '#2C5BC4',
-  onInfoStrong: '#FFFFFF',
+  /**
+   * Waiting · pending · a note to read: the brand's burgundy, not a blue, so a
+   * request waiting on the venue looks like SHURJ. The fill (a pending mark's
+   * light end and its glow).
+   */
+  info: '#8A2335',
+  infoSoft: '#F2E4E6',
+  /** Info as text, and as a glyph: the logo's burgundy. */
+  infoInk: '#6B1121',
+  infoStrong: '#4B0C18',
+  onInfoStrong: '#FFF7EA',
+  /** The user's location dot on the map, and its halo: the blue every map uses for "you". */
+  location: '#4C8DFF',
+  locationSoft: '#E5EEFF',
   /** Closed · Completed — a muted label on the ground. */
   neutralBadge: '#6F6860',
   neutralSoft: '#EFEAE4',

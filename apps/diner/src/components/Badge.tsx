@@ -47,7 +47,7 @@ export function Badge({
   style,
 }: BadgeProps) {
   const { t } = useTranslation('diner');
-  const { background, foreground } = badgeColors(variant, tone);
+  const { background, foreground, edge } = badgeColors(variant, tone);
   const text = label ?? t(badgeVariants[variant].labelKey);
 
   return (
@@ -58,6 +58,7 @@ export function Badge({
         styles.base,
         size === 'sm' ? styles.sm : size === 'status' ? styles.status : styles.md,
         { backgroundColor: background },
+        edge ? { borderWidth: 1, borderColor: edge } : null,
         style,
       ]}
     >

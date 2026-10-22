@@ -20,12 +20,6 @@
     "loading": "Finding places nearby…",
     "mapButton": "Open map",
     "clearFilters": "Clear filters",
-    "map": "Map",
-    "greeting": {
-      "morning": "Good morning,",
-      "afternoon": "Good afternoon,",
-      "evening": "Good evening,"
-    },
     "quick": {
       "openNow": "Open now",
       "nearby": "Nearby"
@@ -332,8 +326,8 @@
   },
   "auth": {
     "welcome": {
-      "title": "Welcome to SHURJ",
-      "body": "Book a table, order at it, and keep your bookings in one place."
+      "title": "Your favourite places, all in one",
+      "body": "Discover cafés and restaurants, book and order in one app."
     },
     "logIn": "Log in",
     "createAccount": "Create account",

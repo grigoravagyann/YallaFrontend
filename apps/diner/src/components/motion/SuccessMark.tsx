@@ -7,7 +7,7 @@ import { colors, radius, type IoniconName } from '../../theme';
 
 export interface SuccessMarkProps {
   /**
-   * `success` is the green check; `pending` the blue clock; `declined` the red
+   * `success` is the green check; `pending` the burgundy clock; `declined` the red
    * cross, for a request the venue could not take.
    */
   readonly tone?: 'success' | 'pending' | 'declined';

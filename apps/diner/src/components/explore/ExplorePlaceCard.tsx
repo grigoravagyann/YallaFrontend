@@ -205,6 +205,9 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
     borderRadius: EXPLORE_CARD_RADIUS,
     overflow: 'hidden',
+    // Edged in the logo's burgundy, like the search and the chips above it.
+    borderWidth: 1,
+    borderColor: colors.logoInk,
     backgroundColor: colors.surfaceDark,
     ...shadows.card,
   },

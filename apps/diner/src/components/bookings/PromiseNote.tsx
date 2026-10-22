@@ -44,7 +44,7 @@ export function PromiseNote({
   if (!line) return null;
   return (
     <View style={[styles.note, style]}>
-      <Ionicons name={actionIcon.time} size={iconSize.sm} color={colors.infoInk} />
+      <Ionicons name={actionIcon.time} size={iconSize.sm} color={colors.logoInk} />
       <Text style={styles.text}>{t(line.key, line.params)}</Text>
     </View>
   );
@@ -58,12 +58,15 @@ const styles = StyleSheet.create({
     paddingVertical: space.sm,
     paddingHorizontal: space.md,
     borderRadius: radius.chip,
-    backgroundColor: colors.infoSoft,
+    // White, edged in the logo's burgundy, the words in charcoal: like Explore's chips.
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.logoInk,
   },
   text: {
     ...typography.body,
     fontWeight: fontWeight.medium,
-    color: colors.infoInk,
+    color: colors.text,
     flexShrink: 1,
   },
 });

@@ -3,7 +3,7 @@ import { contrastRatio } from '@yalla/tokens';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { colors, space } from '../../theme';
 import { FloatingTabBar } from './FloatingTabBar';
-import { NAV_CLEARANCE, SCAN_RISE, tabBarMetrics } from './metrics';
+import { NAV_CLEARANCE, SCAN_RISE, navBottomOffset, tabBarMetrics } from './metrics';
 
 /**
  * At 375px the Armenian labels — "Բացահայտել", "Ամրագրումներ" — ran into each
@@ -97,34 +97,32 @@ describe('the bottom navigation', () => {
     expect(new Set(sizes).size).toBe(1);
   });
 
-  it('paints a bar a list cannot show through, and a solid white Scan circle', () => {
+  it('frosts the bar and the Scan circle with the same glass', () => {
     render(<FloatingTabBar {...props(ENGLISH)} />);
-
-    // Every fill in the bar: the pill, the circle, the active highlight.
-    const fills = [...document.querySelectorAll<HTMLElement>('div')]
-      .map((node) => getComputedStyle(node).backgroundColor)
-      .filter((fill) => fill && fill !== 'rgba(0, 0, 0, 0)');
-    expect(fills.length).toBeGreaterThan(0);
-    for (const fill of fills) expect(alphaOf(fill), fill).toBeGreaterThanOrEqual(0.96);
-
-    const circle = screen.getByRole('tab', { name: 'Scan' }).firstElementChild as HTMLElement;
-    expect(getComputedStyle(circle).backgroundColor).toBe('rgb(255, 255, 255)');
+    // One glass layer in the pill, one in the circle, washed alike.
+    const washes = screen.getAllByTestId('nav-glass');
+    expect(washes).toHaveLength(2);
+    const [bar, circle] = washes.map((node) => getComputedStyle(node).backgroundColor);
+    expect(circle).toBe(bar);
+    // See-through, but white enough to read on.
+    expect(alphaOf(bar!)).toBeLessThan(0.9);
+    expect(alphaOf(bar!)).toBeGreaterThanOrEqual(0.5);
   });
 
-  it('keeps an idle label readable on the bar even over a black photo', () => {
+  it('keeps an idle label readable on the glass over the app light grounds', () => {
     render(<FloatingTabBar {...props(ENGLISH)} />);
-    const pill = [...document.querySelectorAll<HTMLElement>('div')].find(
-      (node) => getComputedStyle(node).borderTopLeftRadius === `${tabBarMetrics.radius}px`,
-    )!;
-    const ground = overBlack(getComputedStyle(pill).backgroundColor);
+    const wash = getComputedStyle(screen.getAllByTestId('nav-glass')[0]!).backgroundColor;
     const ink = toHex(screen.getByText('Bookings').style.color);
-    expect(contrastRatio(ink, ground)).toBeGreaterThanOrEqual(4.5);
+    for (const under of ['#FFFFFF', '#F7F6F1']) {
+      expect(contrastRatio(ink, over(wash, under)), under).toBeGreaterThanOrEqual(4.5);
+    }
   });
 });
 
 describe('the room the bar takes', () => {
   it('clears the pill and the Scan circle rising out of it, with ground to spare', () => {
-    const pillTop = tabBarMetrics.bottomGap + tabBarMetrics.height;
+    // Measured from the pill's lower edge; the screen adds navBottomOffset.
+    const pillTop = tabBarMetrics.height;
     const circleTop = pillTop + SCAN_RISE;
     expect(SCAN_RISE).toBe(
       tabBarMetrics.scanBottom + tabBarMetrics.scanSize - tabBarMetrics.height,
@@ -133,6 +131,15 @@ describe('the room the bar takes', () => {
     expect(NAV_CLEARANCE).toBeGreaterThanOrEqual(circleTop + space.sm);
     // And no more than that: a screen's last card ends just above the bar.
     expect(NAV_CLEARANCE).toBe(Math.max(pillTop + space.lg, circleTop + space.sm));
+  });
+
+  it('tucks into the home-indicator area instead of floating a full gap above it', () => {
+    // An iPhone's 34 pt inset: the pill sits 26 pt off the screen's edge, as designed.
+    expect(navBottomOffset(34)).toBe(26);
+    // No inset (old Android, web): never flush with the edge.
+    expect(navBottomOffset(0)).toBe(tabBarMetrics.minBottom);
+    // A tall Android 3-button bar keeps the pill above it.
+    expect(navBottomOffset(48)).toBe(40);
   });
 });
 
@@ -158,8 +165,9 @@ function toHex(css: string): string {
     .join('')}`;
 }
 
-/** A translucent fill as it reads laid over pure black — the worst photo under the bar. */
-function overBlack(css: string): string {
+/** A translucent fill as it reads laid over a ground. */
+function over(css: string, ground: string): string {
   const [r = 0, g = 0, b = 0, a = 1] = channels(css);
-  return toHex(`rgb(${r * a}, ${g * a}, ${b * a})`);
+  const [gr = 0, gg = 0, gb = 0] = [1, 3, 5].map((i) => parseInt(ground.slice(i, i + 2), 16));
+  return toHex(`rgb(${r * a + gr * (1 - a)}, ${g * a + gg * (1 - a)}, ${b * a + gb * (1 - a)})`);
 }

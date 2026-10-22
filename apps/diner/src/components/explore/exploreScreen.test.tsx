@@ -1,4 +1,4 @@
-import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import ExploreScreen from '../../../app/(tabs)/index';
 import { mockPlaces } from '../../places/mockPlaces';
@@ -92,18 +92,6 @@ function search(text: string) {
 function checked(role: 'radio' | 'switch', name: string): string | null {
   return screen.getByRole(role, { name }).getAttribute('aria-checked');
 }
-
-/** Hands a node the size react-native-web would report from its ResizeObserver. */
-function layout(node: Element, width: number) {
-  act(() => {
-    (node as unknown as Record<string, (event: unknown) => void>)['__reactLayoutHandler']!({
-      nativeEvent: { layout: { x: 0, y: 0, width, height: 20 } },
-    });
-  });
-}
-
-const measured = (node: Element) =>
-  typeof (node as unknown as Record<string, unknown>)['__reactLayoutHandler'] === 'function';
 
 beforeEach(() => {
   held.places = [];
@@ -276,35 +264,22 @@ describe('an empty result', () => {
 });
 
 describe('the header', () => {
-  it('greets nobody signed in with the SHURJ wordmark, and a diner by name', () => {
+  it('opens with the SHURJ wordmark, signed in or not, and greets nobody by name', () => {
     held.places = placesOf(['Lumen Coffee']);
     const { unmount } = render(<ExploreScreen />);
-    expect(screen.getByRole('heading', { name: /, SHURJ$/u })).toBeTruthy();
-    // Set as the wordmark: letter-spaced, as no person's name is.
-    expect(['', 'normal']).not.toContain(getComputedStyle(screen.getByText('SHURJ')).letterSpacing);
+    expect(screen.getByRole('heading', { name: 'SHURJ' })).toBeTruthy();
     unmount();
 
     useSession.setState({ signedIn: true, guestName: 'Ani' });
     render(<ExploreScreen />);
-    expect(screen.getByRole('heading', { name: /, Ani$/u })).toBeTruthy();
-    expect(screen.queryByText('SHURJ')).toBeNull();
-    expect(['', 'normal']).toContain(getComputedStyle(screen.getByText('Ani')).letterSpacing);
+    expect(screen.getByRole('heading', { name: 'SHURJ' })).toBeTruthy();
+    expect(screen.queryByText('Ani')).toBeNull();
+    expect(screen.queryByText(/^Good (morning|afternoon|evening),$/u)).toBeNull();
   });
 
-  it('keeps "Open map" as the Map button’s name when it drops its word', () => {
+  it('puts the map in the left corner as a glyph, still named "Open map"', () => {
     held.places = placesOf(['Lumen Coffee']);
     render(<ExploreScreen />);
-    expect(screen.getByRole('button', { name: 'Open map' }).textContent).toBe('Map');
-
-    // A narrow phone: beside the word, the greeting would be cut short.
-    const greeting = screen.getAllByText(/^Good (morning|afternoon|evening),$/u).find(measured)!;
-    const word = screen.getAllByText('Map').find(measured)!;
-    let row: Element | null = greeting.parentElement;
-    while (row && !measured(row)) row = row.parentElement;
-    layout(greeting, 200);
-    layout(word, 40);
-    layout(row!, 360);
-
     const map = screen.getByRole('button', { name: 'Open map' });
     expect(map.textContent).toBe('');
     fireEvent.click(map);

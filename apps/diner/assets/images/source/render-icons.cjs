@@ -3,7 +3,7 @@
 // Renders the SHURJ launcher icon set into apps/diner/assets/images from the logo raster (the fork,
 // plate and knife in one burgundy line above the wordmark, on a cream ground), with Playwright's
 // Chromium as the canvas. The logo is never redrawn: its ink is lifted off the cream once, then
-// scaled onto each target. splash-icon.png is a crop of the same raster and is not written here.
+// scaled onto each target. splash-mark.png and splash-wordmark.png (the launch animation's layers) are the same raster lifted off its paper, split at the gap, and are not written here.
 const path = require('node:path');
 const fs = require('node:fs');
 
@@ -16,8 +16,10 @@ const { chromium } = require(path.join(repo, 'node_modules', '@playwright', 'tes
 const out = path.join(repo, 'apps/diner/assets/images');
 
 const settings = {
-  // The splash's ground (expo-splash-screen's backgroundColor in app.json); the icon matches it.
+  // The raster's paper, which the ink is lifted off.
   CREAM: '#F8F3E9',
+  // The ground the icons are laid on: white, as the splash and the launch animation (2026-10-22).
+  GROUND: '#FFFFFF',
   // The raster has a thin dark frame on its left, right and bottom edges. Ink is only read inside
   // this margin, so the frame never reaches a crop.
   FRAME_MARGIN: 24,
@@ -39,7 +41,7 @@ const SAFE_ZONE = 66 / 108;
 const jobs = [
   // iOS and the store: opaque, the whole logo as large as stays clear of the rounded corners.
   { file: 'icon.png', size: 1024, ground: true, fit: { width: 0.8 }, colour: 'ink' },
-  // Android adaptive: a flat cream back layer, and the logo inside the safe zone in front.
+  // Android adaptive: a flat white back layer, and the logo inside the safe zone in front.
   { file: 'adaptive-background.png', size: 1024, ground: true, fit: null },
   {
     file: 'adaptive-foreground.png',
@@ -62,7 +64,7 @@ const jobs = [
 
 // Runs in the page.
 function render(job, settings) {
-  const { CREAM, FRAME_MARGIN, BG_LUM, INK_LUM, NOISE } = settings;
+  const { CREAM, GROUND, FRAME_MARGIN, BG_LUM, INK_LUM, NOISE } = settings;
   const src = document.getElementById('logo');
   const W = src.naturalWidth;
   const H = src.naturalHeight;
@@ -128,7 +130,7 @@ function render(job, settings) {
   const o = out.getContext('2d');
   o.clearRect(0, 0, S, S);
   if (job.ground) {
-    o.fillStyle = CREAM;
+    o.fillStyle = GROUND;
     o.fillRect(0, 0, S, S);
   }
   if (!job.fit) return null;

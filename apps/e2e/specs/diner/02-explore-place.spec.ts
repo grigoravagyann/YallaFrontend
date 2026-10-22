@@ -7,9 +7,11 @@ import {
   demoBranch,
   newApi,
   publicBranches,
+  registerDiner,
   SEED_BRANCH_SLUG,
   SEED_VENUE_SLUG,
 } from '../../support/api';
+import { logIn, openTab } from '../../support/diner';
 
 /**
  * Plan E1 spec 2. Explore shows the seeded branch from the real API and opens it
@@ -27,7 +29,9 @@ test('Explore lists the demo branch with the API id, and its place page is real'
   const listed = (await publicBranches(api)).find((entry) => entry.branchId === demo.branchId);
   expect(listed, 'GET /api/public/branches lists the demo branch').toBeTruthy();
 
-  await page.goto('/');
+  // Explore is behind an account: a signed-out diner starts on the welcome.
+  await logIn(page, await registerDiner(api));
+  await openTab(page, 'Explore');
   const card = page.getByRole('button', {
     name: new RegExp(`^${demo.venueName} · ${demo.branchName}`),
   });
