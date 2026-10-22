@@ -20,6 +20,11 @@ import {
   type PreOrderCardDraft,
 } from './PreOrderSettingsCard';
 import {
+  TAKEAWAY_CARD_ID,
+  TakeawaySettingsCard,
+  type TakeawayCardDraft,
+} from './TakeawaySettingsCard';
+import {
   EXAMPLE_START,
   POLICY_GROUPS,
   changedFields,
@@ -175,6 +180,10 @@ function PolicyForm({
    */
   const [preOrders, setPreOrders] = useState<PreOrderCardDraft | null>(null);
   const preOrdersDirty = preOrders?.dirty ?? false;
+  /** The takeaway card's draft (2026-10-22): the same arrangement as the pre-order card's. */
+  const [takeaway, setTakeaway] = useState<TakeawayCardDraft | null>(null);
+  const takeawayDirty = takeaway?.dirty ?? false;
+  const cardsDirty = preOrdersDirty || takeawayDirty;
   useUnsavedChangesGuard(dirty);
   const invalid = outOfBounds(draft, fields);
   const fromDefault = differsFromDefaults(draft, defaults);
@@ -202,11 +211,12 @@ function PolicyForm({
     // The card's changes go with the page's; a card that would send nothing
     // (its minutes out of bounds) has said why, and holds the policy back too.
     if (preOrders?.dirty && !preOrders.save()) return;
+    if (takeaway?.dirty && !takeaway.save()) return;
     // Unchanged, the save still has a use while nobody has confirmed the
     // policy: it is what ticks "policy reviewed" for a venue happy with the
     // defaults, which otherwise could only get there by changing something.
     if (!dirty && !unreviewed) {
-      if (!preOrders?.dirty) toast.say(t('policy.noChanges'));
+      if (!cardsDirty) toast.say(t('policy.noChanges'));
       return;
     }
     setRefused(new Set());
@@ -228,18 +238,27 @@ function PolicyForm({
     });
   }
 
+  // The cards holding changes, by name, once takeaway is among them.
+  const dirtyCards = [
+    ...(preOrdersDirty ? [t('preOrders.title')] : []),
+    ...(takeawayDirty ? [t('takeaway.title')] : []),
+  ].join(', ');
   const barText =
-    invalid.length > 0 || preOrders?.invalid
+    invalid.length > 0 || preOrders?.invalid || takeaway?.invalid
       ? t('policy.bar.outOfBounds')
-      : dirty && preOrdersDirty
-        ? t('policy.bar.unsavedWithPreOrders', { count: dirtyKeys.length })
-        : preOrdersDirty
-          ? t('policy.bar.unsavedPreOrders')
-          : dirty
-            ? t('policy.bar.unsaved', { count: dirtyKeys.length })
-            : unreviewed
-              ? t('policy.bar.unreviewed')
-              : t('policy.bar.saved');
+      : takeawayDirty
+        ? dirty
+          ? t('policy.bar.unsavedWithCards', { count: dirtyKeys.length, cards: dirtyCards })
+          : t('policy.bar.unsavedCards', { cards: dirtyCards })
+        : dirty && preOrdersDirty
+          ? t('policy.bar.unsavedWithPreOrders', { count: dirtyKeys.length })
+          : preOrdersDirty
+            ? t('policy.bar.unsavedPreOrders')
+            : dirty
+              ? t('policy.bar.unsaved', { count: dirtyKeys.length })
+              : unreviewed
+                ? t('policy.bar.unreviewed')
+                : t('policy.bar.saved');
 
   return (
     <div className="yc-page yc-pol-page">
@@ -310,6 +329,9 @@ function PolicyForm({
           <a href={`#${PRE_ORDER_CARD_ID}`}>
             <span>{t('preOrders.title')}</span>
           </a>
+          <a href={`#${TAKEAWAY_CARD_ID}`}>
+            <span>{t('takeaway.title')}</span>
+          </a>
         </nav>
 
         <div className="yc-pol-groups">
@@ -349,6 +371,7 @@ function PolicyForm({
             </section>
           ))}
           <PreOrderSettingsCard branchId={branchId} onDraft={setPreOrders} />
+          <TakeawaySettingsCard branchId={branchId} onDraft={setTakeaway} />
         </div>
       </div>
 
@@ -356,7 +379,7 @@ function PolicyForm({
         <span className="yc-grow" aria-live="polite">
           {barText}
         </span>
-        {dirty || preOrdersDirty ? (
+        {dirty || cardsDirty ? (
           <button
             type="button"
             className="yc-btn yc-btn-sec yc-btn-sm"
@@ -365,6 +388,7 @@ function PolicyForm({
               setDraft(saved);
               setRefused(new Set());
               preOrders?.discard();
+              takeaway?.discard();
               toast.say(t('policy.discarded'));
             }}
           >

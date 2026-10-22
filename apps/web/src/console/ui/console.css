@@ -7974,3 +7974,28 @@ body:has(.yc-savebar) .yc-toast-region {
 .yc-mn-tbl.has-preorder .yc-dish {
   min-width: 170px;
 }
+
+/* --- Takeaway orders (2026-10-22, the Policy artboard) ------------------------ */
+
+/* "Guest will see" sits under the steppers, as each policy group's does. */
+.yc-tk-preview {
+  margin-top: var(--space-lg);
+}
+
+/* Which dishes are not for takeaway is the Menu's: said, with the way there. */
+.yc-tk-menu {
+  margin: 0;
+  padding: 0 20px var(--space-md);
+  color: var(--console-muted);
+  font-size: var(--console-text-label);
+}
+
+/* The menu's takeaway column: room made for it in the dish column, as for
+   pre-orders, so the row's actions stay in view at 1440. */
+.yc-mn-tbl.has-takeaway .yc-dish {
+  min-width: 170px;
+}
+
+.yc-mn-tbl.has-preorder.has-takeaway .yc-dish {
+  min-width: 150px;
+}

@@ -773,7 +773,8 @@
       "actions": "Actions",
       "dish": "Dish",
       "status": "Status",
-      "preOrder": "Pre-order"
+      "preOrder": "Pre-order",
+      "takeaway": "Takeaway"
     },
     "incomplete": {
       "showOnly": "Show only these",
@@ -901,10 +902,16 @@
       "preOrderAria": "{{name}}: can be pre-ordered",
       "preOrderOn": "“{{name}}” can be pre-ordered again",
       "preOrderOff": "“{{name}}” is no longer offered for pre-order. Pre-orders that already have it keep it.",
-      "preOrderFailed": "Could not change that. Try again."
+      "preOrderFailed": "Could not change that. Try again.",
+      "takeawayOff": "“{{name}}” is now only in the hall. Takeaway orders already sent keep it.",
+      "takeawayOn": "“{{name}}” can be ordered to take away again",
+      "takeawayFailed": "Could not change that. Try again.",
+      "takeawayAria": "{{name}}: for takeaway"
     },
     "preOrderYes": "Offered",
-    "preOrderNo": "Not offered"
+    "preOrderNo": "Not offered",
+    "takeawayYes": "For takeaway",
+    "takeawayNo": "Only in the hall"
   },
   "hours": {
     "unsaved": "Unsaved changes",
@@ -1161,7 +1168,10 @@
       "unsavedWithPreOrders_one": "{{count}} unsaved change, and Pre-orders",
       "unsavedWithPreOrders_other": "{{count}} unsaved changes, and Pre-orders",
       "saved": "Saved",
-      "unreviewed": "Not confirmed yet: save to confirm these rules"
+      "unreviewed": "Not confirmed yet: save to confirm these rules",
+      "unsavedCards": "Unsaved changes in {{cards}}",
+      "unsavedWithCards_one": "{{count}} unsaved change, and {{cards}}",
+      "unsavedWithCards_other": "{{count}} unsaved changes, and {{cards}}"
     },
     "discard": "Discard changes",
     "discarded": "Changes discarded",
@@ -2453,5 +2463,47 @@
       "cancelled": "Cancelled",
       "unknown": "Status unknown"
     }
+  },
+  "takeaway": {
+    "title": "Takeaway orders",
+    "body": "The guest orders in the app, comes, pays and picks it up. No table is taken.",
+    "enabled": {
+      "label": "We take takeaway orders",
+      "why": "Off, the venue’s page has no “Order to take away” button."
+    },
+    "autoAccept": {
+      "label": "Accept without us",
+      "why_one": "Off, you accept on the tablet. If nobody accepts within {{count}} minute, the order is declined and the guest is told.",
+      "why_other": "Off, you accept on the tablet. If nobody accepts within {{count}} minutes, the order is declined and the guest is told."
+    },
+    "prepMinutes": {
+      "label": "Preparation time",
+      "why": "How soon an “as soon as possible” order can be ready. You can change it when accepting.",
+      "unit": "min"
+    },
+    "lastOrderMinutes": {
+      "label": "Last order",
+      "why": "How long before the venue closes takeaway ordering stops.",
+      "unit": "min before"
+    },
+    "maxInProgress": {
+      "label": "At most at once",
+      "why": "How many takeaway orders can be prepared at the same time. Once full, guests see later times.",
+      "unit": "orders"
+    },
+    "outOfBoundsStep": "Must be between {{min}} and {{max}}, in steps of {{step}}",
+    "preview": {
+      "label": "Guest will see:",
+      "on_one": "“Order to take away · ready in about {{count}} minute · you pay when you pick it up”",
+      "on_other": "“Order to take away · ready in about {{count}} minutes · you pay when you pick it up”",
+      "off": "No takeaway on the venue’s page."
+    },
+    "menuNote": "A dish not given for takeaway (a stew, say) is switched off on the Menu, on the dish’s row.",
+    "menuLink": "Open the menu",
+    "unsaved": "Unsaved changes",
+    "save": "Save takeaway settings",
+    "saved": "Takeaway settings saved",
+    "saveFailed": "Could not save the takeaway settings. Try again.",
+    "noChanges": "Nothing to save"
   }
 }
