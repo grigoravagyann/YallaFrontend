@@ -90,7 +90,7 @@ export function ExploreHeader({
         onPress={onBell}
         style={({ pressed }) => [styles.round, pressed && styles.pressed]}
       >
-        <Ionicons name="notifications-outline" size={21} color={colors.text} />
+        <Ionicons name="notifications-outline" size={21} color={colors.primary} />
         {unread ? <View pointerEvents="none" style={styles.unreadDot} /> : null}
       </Pressable>
     </View>
@@ -158,7 +158,7 @@ function MapPill({
         onPressOut={press.onPressOut}
         style={({ pressed }) => [compact ? styles.round : styles.pill, pressed && styles.pressed]}
       >
-        <Ionicons name={actionIcon.map} size={20} color={colors.text} />
+        <Ionicons name={actionIcon.map} size={20} color={colors.primary} />
         {compact ? null : (
           <Text numberOfLines={1} style={styles.pillLabel}>
             {label}
@@ -190,11 +190,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  // Inside the header's controls the ink is burgundy: the initial, the Map pill and the bell.
   initial: {
     fontSize: 21,
     lineHeight: 26,
     fontWeight: displayWeight.bold,
-    color: colors.text,
+    color: colors.primary,
   },
   hello: { flex: 1, minWidth: 0 },
   measure: { position: 'absolute', left: 0, top: 0, opacity: 0, alignItems: 'flex-start' },
@@ -218,7 +219,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.controlBorder,
   },
-  pillLabel: { fontSize: 15, lineHeight: 20, fontWeight: fontWeight.medium, color: colors.text },
+  pillLabel: { fontSize: 15, lineHeight: 20, fontWeight: fontWeight.medium, color: colors.primary },
   round: {
     width: layout.touchTarget,
     height: layout.touchTarget,
