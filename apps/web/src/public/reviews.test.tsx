@@ -104,7 +104,7 @@ describe('the reviews summary', () => {
     const region = await screen.findByRole('region', { name: 'Reviews' });
     expect(await within(region).findByText('No reviews yet.')).toBeDefined();
     expect(
-      within(region).getByText('Only guests who came here through Yalla can leave a review.'),
+      within(region).getByText('Only guests who came here through SHURJ can leave a review.'),
     ).toBeDefined();
     expect(within(region).queryByRole('button')).toBeNull();
   });

@@ -10,7 +10,7 @@
     "updated": "Updated {{time}}",
     "loading": "Loading…",
     "notAvailable": {
-      "title": "Not on Yalla right now",
+      "title": "Not on SHURJ right now",
       "body": "This place's page is closed for now. Their phone and door still work."
     },
     "notFound": {
@@ -124,11 +124,11 @@
     "noneFree": "no table free right now",
     "later": "Later times may still be free",
     "addressDistrict": "{{address}} · {{district}}",
-    "empty": "This venue has not added a branch on Yalla yet. Try again a little later."
+    "empty": "This venue has not added a branch on SHURJ yet. Try again a little later."
   },
   "booking": {
     "offTitle": "Booking",
-    "notOffered": "Booking through Yalla is not switched on for this venue. The room below is live, and the menu and hours are up to date.",
+    "notOffered": "Booking through SHURJ is not switched on for this venue. The room below is live, and the menu and hours are up to date.",
     "pick": "Book a table",
     "closedNotice": "You can still book ahead.",
     "back": "Back to the room",
@@ -335,7 +335,7 @@
     "more": "Show more reviews",
     "loading": "Loading reviews…",
     "none": "No reviews yet.",
-    "who": "Only guests who came here through Yalla can leave a review.",
+    "who": "Only guests who came here through SHURJ can leave a review.",
     "failed": "We could not load the reviews.",
     "edited": "edited",
     "age": {

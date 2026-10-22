@@ -3,18 +3,21 @@
  *
  * ## Why the console has a palette of its own
  *
- * The rest of the product follows the thesis in `color.ts`: a beige accent
- * fill, ink text, a cool near-white page. On 2026-10-18 the user approved a
- * darker look for the platform-admin area and for the sign-in pages every
- * console user passes through: a **cream canvas, a dark-brown sidebar and a
- * brown primary button**. The values here are the approved artboards'
- * (`docs/design/console/source/_shell.css`, the `.y` block) and nothing else.
+ * The rest of the product follows the thesis in `color.ts`. The console, the
+ * venue console, the floor tablet and the public page wear one palette of their
+ * own. On 2026-10-18 the user approved a dark-brown look for it; on 2026-10-22
+ * the product became **SHURJ** and the same screens moved to its colours, the
+ * diner app's (`apps/diner/src/theme/colors.ts`), from the four recoloured
+ * canvases the user approved: a **white page, a deep cherry sidebar and bar,
+ * a Black Cherry (#4B0C18) primary button with ivory on it, and the logo's own
+ * burgundy (#6B1121) on every control's edge**. Blue is gone: waiting and held
+ * are burgundy, a confirmed booking is green, as in the app.
  *
  * The thesis still holds inside it. Chroma means state or the one action:
- * the brown is the primary button and the current nav item, amber is "not
+ * the cherry is the primary button and the current nav item, amber is "not
  * ready yet", red is only ever a real failure (a dead letter, a server error,
- * a destructive button), green is "done", and everything else is ink, muted
- * brown or a hairline.
+ * a destructive button), green is "done", and everything else is ink, a warm
+ * grey or a hairline.
  *
  * ## How the web app reads it
  *
@@ -26,42 +29,42 @@
  */
 export const consoleColor = {
   // --- Ground ---------------------------------------------------------------
-  /** The page: warm cream, so a white card reads as lifted off it. */
-  canvas: '#F7F1E8',
+  /** The page: white, as in the app; a card stands off it by its hairline edge. */
+  canvas: '#FFFFFF',
   /** Cards, dialogs, inputs. */
   surface: '#FFFFFF',
   /** Table heads and quiet inset boxes ("who this link is for"). */
-  surfaceMuted: '#FCF9F5',
+  surfaceMuted: '#FBF8F8',
   /** A hovered row or a secondary button under the pointer. */
-  hover: '#FBF6EF',
+  hover: '#F8F0F1',
 
   // --- Ink ------------------------------------------------------------------
   /** Text. 14.92:1 on the canvas. */
-  ink: '#2A1A10',
+  ink: '#2D2927',
   /** Secondary text: captions, hints, table heads. 5.84:1 on the canvas. */
-  muted: '#6B5A4F',
+  muted: '#605954',
 
   // --- The one action ---------------------------------------------------------
   /** The primary button's fill, links, the current sub-tab. */
-  brand: '#3A1D0C',
-  brandHover: '#4E2815',
+  brand: '#4B0C18',
+  brandHover: '#3A0912',
   /** A primary button while its request is in flight. */
-  brandBusy: '#5A3420',
+  brandBusy: '#6B1121',
   /** The unlit part of the spinner on a brand fill: cream at 35%, over a brand fill only. */
-  spinTrack: 'rgba(255, 243, 228, 0.35)',
+  spinTrack: 'rgba(255, 247, 234, 0.35)',
   /** The label on every brand fill. 14.10:1 on `brand`. */
-  brandForeground: '#FFF3E4',
+  brandForeground: '#FFF7EA',
   /** The brand's tint: a selected chip, a ghost button under the pointer, an icon tile. */
-  brandTint: '#F4ECE2',
+  brandTint: '#F2E4E6',
   /** A link under the pointer. */
-  linkHover: '#5A2E14',
+  linkHover: '#3A0912',
   /** The keyboard focus outline on light grounds. */
-  focus: '#3A1D0C',
+  focus: '#4B0C18',
 
   // --- Lines ------------------------------------------------------------------
-  line: '#E8DDD0',
+  line: '#EAE4E1',
   /** The divider inside a card. */
-  lineSoft: '#F1E9DF',
+  lineSoft: '#F4F0EE',
   /**
    * An input's or a select's edge. 3.70:1 on white, 3.29:1 on the canvas.
    *
@@ -69,47 +72,57 @@ export const consoleColor = {
    * empty field the edge is the only thing that says "type here", so it is
    * held to WCAG 1.4.11's 3:1 (2026-10-18). Same warm hue, more weight.
    */
-  control: '#988169',
-  /** The same edge under the pointer: darker still, never fainter. 4.70:1 on white. */
-  controlHover: '#85705B',
+  control: '#6B1121',
+  /** The same edge under the pointer: darker still, never fainter. */
+  controlHover: '#4B0C18',
   /**
    * A secondary button's edge: the artboards' soft line. A button's label
    * already says what it is, so its edge is decoration and keeps the lighter
    * approved weight; only inputs needed the 3:1 edge.
    */
-  buttonEdge: '#D8C8B6',
-  buttonEdgeHover: '#C8B39C',
+  buttonEdge: '#6B1121',
+  buttonEdgeHover: '#4B0C18',
+  /**
+   * A switch's track when off: a warm grey, never the burgundy of an edge, so
+   * off and on (the brand) differ in lightness as well as hue. 3.86:1 on white.
+   */
+  switchOff: '#8A817C',
+  /**
+   * The tablet code field's "XXXXX-XXXXX": a faint format hint the line under
+   * it spells out, light enough never to pass for a typed code.
+   */
+  codePlaceholder: '#B3AAA5',
 
   // --- Sidebar ----------------------------------------------------------------
-  sidebar: '#2B1608',
+  sidebar: '#3A0912',
   /** The current nav item's fill. */
-  sidebarActive: '#4A2817',
+  sidebarActive: '#5A1220',
   /** Nav links at rest. 10.29:1 on the sidebar. */
-  sidebarText: '#D9C5B0',
+  sidebarText: '#E3C7CC',
   /** The brand word, the current item and the signed-in name. */
-  sidebarTextStrong: '#FFF3E4',
+  sidebarTextStrong: '#FFF7EA',
   /** The role line under the name. 7.55:1. */
-  sidebarMuted: '#BFA88F',
+  sidebarMuted: '#D9B8BE',
   /** A nav link under the pointer: cream at 7%, over the sidebar only. */
-  sidebarHover: 'rgba(255, 243, 228, 0.07)',
+  sidebarHover: 'rgba(255, 247, 234, 0.07)',
   /** The signed-in card at the foot: cream at 5%, over the sidebar only. */
-  sidebarRaised: 'rgba(255, 243, 228, 0.05)',
+  sidebarRaised: 'rgba(255, 247, 234, 0.05)',
   /** The focus outline on the sidebar's dark ground. */
-  sidebarFocus: '#F3D9B8',
+  sidebarFocus: '#F5D3D9',
   /** Initials in a circle. The brand beige, with the sidebar's brown on it. */
-  avatar: '#C3B59F',
-  avatarForeground: '#2B1608',
+  avatar: '#F2E4E6',
+  avatarForeground: '#3A0912',
   /**
    * The venue console's sidebar (docs/design/venue-console, the `.side` block):
    * a group heading over its links ("Today", "The venue"…). 5.68:1.
    */
-  sidebarGroup: '#A8907A',
+  sidebarGroup: '#D9B8BE',
   /** The venue and branch panel under the brand: cream at 6%, over the sidebar only. */
-  sidebarPanel: 'rgba(255, 243, 228, 0.06)',
+  sidebarPanel: 'rgba(255, 247, 234, 0.06)',
   /** The branch switcher's fill, and the one-branch line in its place. */
-  sidebarField: '#351B0D',
+  sidebarField: '#4B0C18',
   /** Its text. 13.01:1 on the field. */
-  sidebarFieldText: '#F3E6D6',
+  sidebarFieldText: '#F5ECEC',
   /**
    * The switcher's edge. 3.30:1 on the sidebar, 3.06:1 on its own fill.
    *
@@ -117,11 +130,11 @@ export const consoleColor = {
    * reason `control` is darker than theirs: on a control the edge is what says
    * "this opens", so it is held to WCAG 1.4.11's 3:1. Same hue, more light.
    */
-  sidebarFieldEdge: '#86664F',
+  sidebarFieldEdge: '#B98F97',
   /** A count on a nav link: pending approvals, incomplete dishes, reported reviews. */
   navBadge: '#E2B77A',
   /** Its number. 9.25:1 on the badge. */
-  navBadgeForeground: '#2B1608',
+  navBadgeForeground: '#3A0912',
 
   // --- State --------------------------------------------------------------------
   /** Not ready yet, needs attention. Never red. */
@@ -143,85 +156,85 @@ export const consoleColor = {
   greyBg: '#EEE8E1',
   greyLine: '#DDD3C8',
   /** Booked and confirmed, still to come: a booking's state, not a warning (Main artboard). */
-  blue: '#1D4E89',
-  blueBg: '#E6EEF8',
+  blue: '#6B1121',
+  blueBg: '#F2E4E6',
   /** The password meter's third step, between amber and green. */
   meterFair: '#6E8B3D',
   /** A finished step in a dialog's step list: a warm bar beside the step's name. */
-  stepDone: '#B07A45',
+  stepDone: '#8A2335',
   /** A loading placeholder's block, pulsing on the white card. */
-  skeleton: '#EFE6DB',
+  skeleton: '#F1ECE9',
   /** A bar for what came to nothing (cancelled bookings): there, but quiet. */
   barMuted: '#A8A29E',
 
   // --- Toast ------------------------------------------------------------------
-  toast: '#2A1A10',
-  toastForeground: '#FFF3E4',
+  toast: '#2D2927',
+  toastForeground: '#FFF7EA',
   /** The tick in front of the sentence. */
   toastIcon: '#9FD9BD',
   /** "Undo": the one thing to press on a toast. */
-  toastAction: '#F3D9B8',
+  toastAction: '#F5D3D9',
   /** The undo button's own fill: cream at 10%, over the toast only. */
-  toastActionFill: 'rgba(255, 243, 228, 0.1)',
+  toastActionFill: 'rgba(255, 247, 234, 0.1)',
 
   // --- Overlays and the sign-in photo -------------------------------------------
   /** Behind a dialog. Ink at 45%. */
-  scrim: 'rgba(42, 26, 16, 0.45)',
+  scrim: 'rgba(45, 41, 39, 0.45)',
   /** What the photo panel shows before the photo loads, and what its text is checked on. */
-  photoGround: '#140904',
+  photoGround: '#1A0508',
   /** Laid over the photo so the claim reads on any part of it. */
-  photoShade: 'rgba(20, 9, 4, 0.38)',
-  photoText: '#FFF3E4',
-  photoTextMuted: '#EAD9C5',
+  photoShade: 'rgba(26, 5, 8, 0.38)',
+  photoText: '#FFF7EA',
+  photoTextMuted: '#F3E8E9',
 
   // --- A branch's pages (BranchPublic, BranchRooms, Reviews artboards) ---------
   /** The phone drawn around the app card's preview. */
-  phoneFrame: '#1E0F06',
+  phoneFrame: '#1A0508',
   /** The diner app's card, in the app's own dark brown. */
-  appCard: '#2B1608',
-  appCardText: '#FFF3E4',
+  appCard: '#3A0912',
+  appCardText: '#FFF7EA',
   /** Its meta lines and description. */
-  appCardMuted: '#D9C5B0',
+  appCardMuted: '#E3C7CC',
   /** An amenity on the card: cream at 10%, over the card only. */
-  appCardChip: 'rgba(255, 243, 228, 0.1)',
-  appCardChipText: '#EAD9C5',
+  appCardChip: 'rgba(255, 247, 234, 0.1)',
+  appCardChipText: '#F3E8E9',
   /** The booking button when bookings are off. */
-  appCardOff: 'rgba(255, 243, 228, 0.12)',
-  appCardOffText: '#BFA88F',
-  appCardButton: '#FFF3E4',
-  appCardButtonText: '#3A1D0C',
+  appCardOff: 'rgba(255, 247, 234, 0.12)',
+  appCardOffText: '#D9B8BE',
+  appCardButton: '#FFF7EA',
+  appCardButtonText: '#4B0C18',
   /** The rooms page's sticky save bar: ink, like the toast. */
-  savebar: '#2A1A10',
-  savebarText: '#FFF3E4',
+  savebar: '#2D2927',
+  savebarText: '#FFF7EA',
   /** Its outline button's edge and hover, cream over the ink. */
-  savebarEdge: 'rgba(255, 243, 228, 0.3)',
-  savebarHover: 'rgba(255, 243, 228, 0.08)',
-  savebarFocus: '#F3D9B8',
+  savebarEdge: 'rgba(255, 247, 234, 0.3)',
+  savebarHover: 'rgba(255, 247, 234, 0.08)',
+  savebarFocus: '#F5D3D9',
   /** A review's stars, lit and not. */
-  star: '#B07A45',
-  starOff: '#E2D5C6',
+  star: '#8A2335',
+  starOff: '#E7E1DE',
   /** A reported review's edge, beside its amber stripe. */
   reportedEdge: '#EBC48C',
   /** A hidden review's card. */
-  reviewHidden: '#FBF8F4',
+  reviewHidden: '#FBFAF9',
 
   // --- Home and Settings (Main and Settings artboards) ------------------------
   /** A day's bar in Home's bookings chart; hovered, it takes the brand. */
-  chartBar: '#5A3420',
+  chartBar: '#6B1121',
   /** Today's bar is the tan `stepDone`; hovered, this darker tan. */
-  chartBarTodayHover: '#94622F',
+  chartBarTodayHover: '#5A1220',
   /** A line in the outbox alert's details: white at 70% over the red tint. */
   alertItem: 'rgba(255, 255, 255, 0.7)',
   /** A card that opens something, hovered: a darker edge than its line. */
-  cardHoverEdge: '#D4BFA8',
+  cardHoverEdge: '#D8CFCB',
   /** A field that shows a value nobody can change here (the admin's email). */
-  readonlyField: '#FAF6F0',
+  readonlyField: '#FAF8F7',
 
   // --- The venue Overview (venue-console Main artboard) -------------------------
   /** An hour still to come in the load chart; the hour now is `brand`, those gone `line`. */
-  loadBar: '#D9C3AA',
+  loadBar: '#DAD0CC',
   /** The load chart's dashed "the room is full" line. */
-  capacityLine: '#D2BFA8',
+  capacityLine: '#D8CFCB',
 
   // --- Reports (venue-console Reports artboard) ----------------------------------
   /**
@@ -230,14 +243,14 @@ export const consoleColor = {
    * `surfaceMuted`: darker than the artboards' #B89B7E (2.62:1), on purpose —
    * a bar is the chart's whole message, so it is held to WCAG 1.4.11's 3:1.
    */
-  reportBar: '#A08262',
+  reportBar: '#A0717B',
   /**
    * The previous period's line behind this one, dashed. 3.52:1 on white; the
    * artboards' #B8A28A was 2.45:1, so it is darker for the same reason.
    */
-  reportPreviousLine: '#9A8570',
+  reportPreviousLine: '#8A817C',
   /** The fill under this period's revenue line: the brand at 7%, over a white card only. */
-  reportArea: 'rgba(58, 29, 12, 0.07)',
+  reportArea: 'rgba(75, 12, 24, 0.07)',
 
   // --- The floor tablet (docs/design/floor-tablet) ------------------------------
   /*
@@ -246,13 +259,13 @@ export const consoleColor = {
    * bar's chips. The state edges are the product's state hues (`color.ts`).
    */
   /** The top bar's running text. 12.45:1 on the bar. */
-  floorBarText: '#E9D9C6',
+  floorBarText: '#F3E8E9',
   /** The Floor / Kitchen tray: cream at 8%, over the bar only. */
-  floorBarTabs: 'rgba(255, 243, 228, 0.08)',
+  floorBarTabs: 'rgba(255, 247, 234, 0.08)',
   /** A chip's edge at rest: cream at 30%, over the bar only. */
-  floorBarChipEdge: 'rgba(255, 243, 228, 0.3)',
+  floorBarChipEdge: 'rgba(255, 247, 234, 0.3)',
   /** The signed-in person's pill: cream at 10%, over the bar only. */
-  floorBarWho: 'rgba(255, 243, 228, 0.1)',
+  floorBarWho: 'rgba(255, 247, 234, 0.1)',
   /** Connected: the chip's dot and edge. 8.20:1 on the bar. */
   floorLive: '#5BC78F',
   /** Offline, actions kept on the tablet: amber, never red. 9.25:1. */
@@ -275,10 +288,10 @@ export const consoleColor = {
   /** "Reserved 19:00". 5.04:1. */
   floorBookedInk: '#8A5E08',
   /** Held for a late party; the edge is dashed. */
-  floorHeld: '#E6EEFA',
-  floorHeldEdge: '#3B6FD4',
+  floorHeld: '#FFFFFF',
+  floorHeldEdge: '#4B0C18',
   /** "Held · running late". 6.13:1. */
-  floorHeldInk: '#2A54A8',
+  floorHeldInk: '#4B0C18',
   /** Occupied; its words are `red`, 5.68:1 on this. */
   floorOccupied: '#F7E1E0',
   floorOccupiedEdge: '#B93B3B',
@@ -298,22 +311,22 @@ export const consoleColor = {
    * below on top.
    */
   /** A loading placeholder's block on the cream page (States artboard). */
-  publicSkeleton: '#EADFD2',
+  publicSkeleton: '#EFEAE7',
   /** The icon in a page state's circle, on `lineSoft`. 3.56:1, a graphic. */
-  publicStateIcon: '#8C7666',
+  publicStateIcon: '#8A807B',
   /** Behind a cover or room photo until it loads, and when there is none. */
-  publicPhotoGround: '#3A2A1E',
+  publicPhotoGround: '#2D2927',
   /** The dot before "Open until …". 3.41:1 on white; the words carry the state. */
   publicOpenDot: '#2E9E5B',
   /** The dot before "Closed · opens …": quiet on purpose, the words carry it. */
-  publicClosedDot: '#A39383',
+  publicClosedDot: '#A39994',
   /**
    * Over a photo: the "All 7" tile on the last thumbnail and behind the
    * gallery dialog. Ink-brown at 62%; `photoText` reads on it over a white photo.
    */
-  publicPhotoScrim: 'rgba(20, 10, 4, 0.62)',
+  publicPhotoScrim: 'rgba(26, 5, 8, 0.62)',
   /** The cover's "2 / 7" chip: the same ink, a little denser for its small type. */
-  publicPhotoCount: 'rgba(20, 10, 4, 0.72)',
+  publicPhotoCount: 'rgba(26, 5, 8, 0.72)',
   /** A review's lit stars and the rating's star (Main artboard). 5.0:1 on white. */
   publicStar: '#8A5E08',
   /**
@@ -492,14 +505,14 @@ export const consoleText = {
 } as const;
 
 export const consoleShadow = {
-  dialog: '0 24px 60px rgba(42, 26, 16, 0.3)',
-  toast: '0 10px 30px rgba(42, 26, 16, 0.25)',
+  dialog: '0 24px 60px rgba(45, 41, 39, 0.3)',
+  toast: '0 10px 30px rgba(45, 41, 39, 0.25)',
   /** A row's ⋮ menu, over the table. */
-  menu: '0 12px 32px rgba(42, 26, 16, 0.14)',
+  menu: '0 12px 32px rgba(45, 41, 39, 0.14)',
   /** Under the sign-in claim, so it reads over the brightest part of the photo. */
   photoText: '0 1px 12px rgba(0, 0, 0, 0.5)',
   /** Under the phone drawn around the app card's preview. */
-  phone: '0 16px 40px rgba(42, 26, 16, 0.18)',
+  phone: '0 16px 40px rgba(45, 41, 39, 0.18)',
   /** Under a Home card that opens something, hovered. */
-  cardHover: '0 2px 10px rgba(58, 29, 12, 0.06)',
+  cardHover: '0 2px 10px rgba(75, 12, 24, 0.06)',
 } as const;

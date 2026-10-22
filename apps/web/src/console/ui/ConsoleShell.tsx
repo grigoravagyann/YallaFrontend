@@ -5,6 +5,7 @@ import { DevRoleSwitcher } from '../../auth/DevRoleSwitcher';
 import { SignOutIcon } from './icons';
 import { ToastProvider } from './toast';
 import './console.css';
+import { Wordmark } from '../../components/Wordmark';
 
 /** One destination in the sidebar. */
 export interface ShellLink {
@@ -105,7 +106,7 @@ export function ConsoleShell({ groups, place, person, onSignOut, children }: Con
 
         <div className={grouped ? 'yc-side is-grouped' : 'yc-side'}>
           <div className="yc-brand">
-            {t('common:appName')}
+            <Wordmark />
             {grouped ? <span className="yc-brand-sub">{t('shell.brandSub')}</span> : null}
           </div>
 

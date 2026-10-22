@@ -6,6 +6,7 @@ import { DevRoleSwitcher } from '../auth/DevRoleSwitcher';
 import { staffSession } from './auth/staffSession';
 import { useBranchFormat } from './useBranchFormat';
 import { useMinuteClock } from './useMinuteClock';
+import { Wordmark } from '../components/Wordmark';
 
 /** The two screens the tablet shows. */
 export type StaffView = 'floor' | 'kitchen';
@@ -131,7 +132,9 @@ export function StaffHeader({
   return (
     <header className="ft-top">
       <h1 className="visually-hidden">{title}</h1>
-      <span className="ft-brand">{t('common:appName')}</span>
+      <span className="ft-brand">
+        <Wordmark />
+      </span>
       <div className="ft-where">
         <b>{place}</b>
         <span>{today}</span>

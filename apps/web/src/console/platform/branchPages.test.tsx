@@ -109,7 +109,7 @@ describe('the public page', () => {
     renderAt(`${CASCADE}/public`);
     const listing = await screen.findByRole(
       'form',
-      { name: 'In the Yalla app' },
+      { name: 'In the SHURJ app' },
       { timeout: 5000 },
     );
     expect(within(listing).getByRole('button', { name: 'Save listing' })).toBeTruthy();

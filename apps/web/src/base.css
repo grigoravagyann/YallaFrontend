@@ -112,3 +112,14 @@ input,
   font: inherit;
   white-space: pre-wrap;
 }
+
+/*
+ * The SHURJ wordmark (`components/Wordmark.tsx`): the logo's lettering as an
+ * image, as tall as the brand word it replaced and never under 26px, so its
+ * fine strokes still read on the dark bars.
+ */
+.wordmark {
+  display: block;
+  width: auto;
+  height: max(var(--console-text-auth-brand-narrow), 0.9em);
+}

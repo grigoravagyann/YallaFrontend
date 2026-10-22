@@ -10,6 +10,7 @@ import {
 import { useTranslation } from '@yalla/i18n';
 import { useId, useRef, useState, type FormEvent } from 'react';
 import { staffSession } from './staffSession';
+import { Wordmark } from '../../components/Wordmark';
 
 /**
  * Enrolling a browser as a tablet. Once, during onboarding.
@@ -135,7 +136,9 @@ export function EnrolDeviceScreen({ reason, enrolled, onContinue }: EnrolDeviceS
     <div className="staff-gate ft-gate ft-enrol" data-surface="staff">
       <main className="ft-pin" aria-labelledby={titleId}>
         <div className="ft-pin-left">
-          <span className="ft-pin-brand">{t('common:appName')}</span>
+          <span className="ft-pin-brand">
+            <Wordmark />
+          </span>
           <h1 id={titleId} className="ft-enrol-title">
             {reason === 'revoked' && !enrolled ? t('enrol.titleRevoked') : t('enrol.title')}
           </h1>

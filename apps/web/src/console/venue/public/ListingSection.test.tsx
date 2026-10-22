@@ -10,7 +10,7 @@ import { createConsoleHarness, initConsoleTestI18n } from '../reports/testHarnes
 import { PublicPageScreen } from './PublicPageScreen';
 
 /**
- * The Public page's diner app listing section ("In the Yalla app", Public
+ * The Public page's diner app listing section ("In the SHURJ app", Public
  * artboard). (The table pins that shared this file moved to the rooms editor,
  * with their tests.)
  */
@@ -61,7 +61,7 @@ function errorOf(field: HTMLElement): HTMLElement | null {
 async function listingForm(): Promise<HTMLElement> {
   return (await screen.findByRole(
     'form',
-    { name: /in the yalla app/i },
+    { name: /in the shurj app/i },
     { timeout: 5000 },
   )) as HTMLElement;
 }

@@ -80,7 +80,7 @@ describe('a suspended branch', () => {
 
     const heading = await screen.findByRole('heading', {
       level: 1,
-      name: 'Not on Yalla right now',
+      name: 'Not on SHURJ right now',
     });
     const main = heading.closest('main')!;
     expect(within(main).getByText('Dolmama')).toBeDefined();
@@ -93,7 +93,7 @@ describe('a suspended branch', () => {
     open('/dolmama/dalma-garden');
     const heading = await screen.findByRole('heading', {
       level: 1,
-      name: 'Not on Yalla right now',
+      name: 'Not on SHURJ right now',
     });
     expect(within(heading.closest('main')!).queryByRole('link')).toBeNull();
   });
