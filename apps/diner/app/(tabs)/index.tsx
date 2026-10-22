@@ -325,8 +325,8 @@ function SkeletonCards() {
 const styles = StyleSheet.create({
   sheetEdge: {
     position: 'absolute',
-    // Midway between the header row and the search field.
-    top: 8,
+    // A little below the sheet's top, closer to the header than to the search.
+    top: 4,
     left: layout.screenPadding,
     right: layout.screenPadding,
     height: 1,
