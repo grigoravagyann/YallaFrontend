@@ -6,6 +6,7 @@ import {
   FROM_WELCOME,
   type AuthRouteParams,
 } from '../../src/components/auth/PhoneAuthFlow';
+import { LanguageSwitch } from '../../src/components/auth/LanguageSwitch';
 import { Button } from '../../src/components/Button';
 import { IconButton } from '../../src/components/IconButton';
 import { Screen } from '../../src/components/Screen';
@@ -57,7 +58,7 @@ export default function WelcomeScreen() {
   return (
     <Screen edges={['top', 'left', 'right', 'bottom']}>
       <Stack.Screen options={{ headerShown: false }} />
-      <View style={styles.top}>
+      <View style={styles.bar}>
         {/* The app's first screen has no way back and no guest door: an account comes first. */}
         {atStart ? null : (
           <IconButton
@@ -65,9 +66,14 @@ export default function WelcomeScreen() {
             accessibilityLabel={t('floorPlan.back')}
             variant="surface"
             onPress={leave}
-            style={styles.back}
           />
         )}
+        {/* The language comes before everything else, in the corner where people look for it. */}
+        <View style={styles.language}>
+          <LanguageSwitch />
+        </View>
+      </View>
+      <View style={styles.top}>
         <Image
           source={LOGO}
           style={styles.logo}
@@ -118,19 +124,20 @@ export default function WelcomeScreen() {
 }
 
 const styles = StyleSheet.create({
-  top: {
+  bar: {
+    flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
     paddingHorizontal: layout.screenPadding,
     paddingTop: space.sm,
-    minHeight: LOGO_HEIGHT + space.sm,
+    minHeight: layout.touchTarget + space.sm,
   },
-  back: { position: 'absolute', left: layout.screenPadding, top: space.sm },
+  language: { marginLeft: 'auto' },
+  top: { alignItems: 'center', paddingTop: space.xs },
   logo: { height: LOGO_HEIGHT, aspectRatio: LOGO_RATIO },
   body: {
     flexGrow: 1,
     paddingHorizontal: layout.screenPadding,
-    paddingTop: space.lg,
+    paddingTop: space.xl,
     paddingBottom: space.xl,
     gap: space.lg,
   },
