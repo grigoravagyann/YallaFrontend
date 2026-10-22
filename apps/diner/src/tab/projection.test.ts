@@ -32,6 +32,7 @@ function line(id: string, overrides: Partial<DinerTabLine> = {}): DinerTabLine {
     onBehalfOfParticipantId: null,
     isTableAttributed: false,
     orderedByName: 'AM',
+    orderedAtUtc: '2026-10-22T15:08:00Z',
     orderId: 'o1',
     menuItemId: 'm1',
     note: null,
@@ -131,6 +132,19 @@ describe('a participant who may see the table total', () => {
 
     expect(rendered.tableLines).toHaveLength(2);
     expect(rendered.tableLines?.map((l) => l.isMine)).toEqual([true, false]);
+  });
+
+  it('carries when each line was ordered, and its absence', () => {
+    const rendered = projectTab(
+      tab({
+        myLines: [line('l1')],
+        tableLines: [line('l1'), line('l2', { participantId: THEM, orderedAtUtc: null })],
+      }),
+      ZONE,
+    );
+
+    expect(rendered.myLines.map((l) => l.orderedAtUtc)).toEqual(['2026-10-22T15:08:00Z']);
+    expect(rendered.tableLines?.map((l) => l.orderedAtUtc)).toEqual(['2026-10-22T15:08:00Z', null]);
   });
 
   it("counts a waiter's order for them as theirs, and a table order as shared", () => {
