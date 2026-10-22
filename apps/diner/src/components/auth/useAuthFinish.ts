@@ -33,6 +33,9 @@ export type AuthRouteParams = {
   reason?: string;
 };
 
+/** The value of `from` when the welcome screen opened the app, before any tab. */
+export const FROM_START = 'start';
+
 /** The value of `from` when the welcome screen is underneath. */
 export const FROM_WELCOME = 'welcome';
 
@@ -97,6 +100,13 @@ export function useAuthFinish(params: AuthRouteParams) {
       return;
     }
     const depth = navigation.getState()?.routes.length ?? 0;
+    if (from === FROM_START) {
+      // Signed in from the app's first screen: on to the app itself, with no
+      // way back to the welcome underneath.
+      if (router.canDismiss()) router.dismissAll();
+      router.replace('/(tabs)');
+      return;
+    }
     if (from === FROM_WELCOME) {
       if (depth >= 3) router.dismiss(2);
       else router.replace('/(tabs)/profile');
@@ -111,7 +121,7 @@ export function useAuthFinish(params: AuthRouteParams) {
     (target: AuthRoute, extra?: Readonly<Record<string, string>>) => {
       const carried = {
         ...forward,
-        ...(from === FROM_WELCOME ? { from: FROM_WELCOME } : {}),
+        ...(from === FROM_WELCOME || from === FROM_START ? { from } : {}),
         ...extra,
       };
       router.replace({ pathname: target, params: carried });

@@ -77,6 +77,7 @@ interface SessionState {
   phoneProvedAtMs: number | null;
   /** The phone was proved just now, by a code or the Telegram bot. */
   markPhoneProved: (atMs: number) => void;
+
   /** Signed in under this number. A change of number also forgets the name and email. */
   setVerified: (input: { phoneE164: string }) => void;
   setGuestName: (guestName: string) => void;

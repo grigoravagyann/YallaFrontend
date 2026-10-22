@@ -8,7 +8,14 @@ import { bookingParams, useAuthFinish } from './useAuthFinish';
  * table by a time (booking times), which the confirm screen sends with it.
  */
 
-const router = vi.hoisted(() => ({ replace: vi.fn(), dismiss: vi.fn(), back: vi.fn() }));
+const router = vi.hoisted(() => ({
+  replace: vi.fn(),
+  dismiss: vi.fn(),
+  back: vi.fn(),
+  canDismiss: vi.fn(() => true),
+  dismissAll: vi.fn(),
+  canGoBack: vi.fn(() => true),
+}));
 
 vi.mock('expo-router', () => ({
   useRouter: () => router,
@@ -35,5 +42,26 @@ describe('the booking carried through sign-in', () => {
     expect(result.current.forward).toEqual(BOOKING);
     result.current.finish();
     expect(router.replace).toHaveBeenCalledWith({ pathname: '/reserve/confirm', params: BOOKING });
+  });
+});
+
+describe('signing in from the first screen of the app', () => {
+  it('opens the app itself, leaving no welcome underneath', () => {
+    router.replace.mockClear();
+    router.dismissAll.mockClear();
+    const { result } = renderHook(() => useAuthFinish({ from: 'start' }));
+    result.current.finish();
+    expect(router.dismissAll).toHaveBeenCalled();
+    expect(router.replace).toHaveBeenCalledWith('/(tabs)');
+  });
+
+  it('keeps the start in hand when switching between log in and sign up', () => {
+    router.replace.mockClear();
+    const { result } = renderHook(() => useAuthFinish({ from: 'start' }));
+    result.current.switchTo('/auth/signup');
+    expect(router.replace).toHaveBeenCalledWith({
+      pathname: '/auth/signup',
+      params: { from: 'start' },
+    });
   });
 });
