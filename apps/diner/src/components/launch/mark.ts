@@ -52,3 +52,17 @@ export const LAUNCH_INK = '#6B1121';
 
 /** The logo's box on screen, in points. */
 export const LAUNCH_LOGO_SIZE = 260;
+
+/**
+ * The ink's vertical extent in the 1024 frame (measured on the raster layers):
+ * the mark alone, and the whole logo with the wordmark. While the mark is drawn
+ * alone it sits on the screen's optical centre, then rises to make room for the
+ * wordmark.
+ */
+export const MARK_INK = { top: 201, bottom: 576 } as const;
+export const LOGO_INK = { top: 201, bottom: 822 } as const;
+
+/** How far below its place in the logo the mark is drawn, in points. */
+export const MARK_DROP =
+  (((LOGO_INK.top + LOGO_INK.bottom) / 2 - (MARK_INK.top + MARK_INK.bottom) / 2) / 1024) *
+  LAUNCH_LOGO_SIZE;

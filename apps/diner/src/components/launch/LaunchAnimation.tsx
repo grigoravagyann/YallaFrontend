@@ -4,7 +4,7 @@ import { AccessibilityInfo, Animated, Easing, Image, StyleSheet } from 'react-na
 import Svg, { Circle, Path } from 'react-native-svg';
 import MARK from '../../../assets/images/splash-mark.png';
 import WORDMARK from '../../../assets/images/splash-wordmark.png';
-import { LAUNCH_GROUND, LAUNCH_INK, LAUNCH_LOGO_SIZE, MARK_STROKES } from './mark';
+import { LAUNCH_GROUND, LAUNCH_INK, LAUNCH_LOGO_SIZE, MARK_DROP, MARK_STROKES } from './mark';
 
 const AnimatedPath = Animated.createAnimatedComponent(Path);
 const AnimatedCircle = Animated.createAnimatedComponent(Circle);
@@ -55,6 +55,7 @@ export function LaunchAnimation({ appReady }: LaunchAnimationProps) {
   const [settle] = useState(() => new Animated.Value(0));
   const [wordmark] = useState(() => new Animated.Value(0));
   const [exit] = useState(() => new Animated.Value(0));
+  const [waiting] = useState(() => new Animated.Value(1));
 
   useEffect(() => {
     let cancelled = false;
@@ -102,6 +103,32 @@ export function LaunchAnimation({ appReady }: LaunchAnimationProps) {
     };
   }, [progress, settle, wordmark]);
 
+  // Drawn but the app is still loading: the logo breathes gently, so it never looks frozen.
+  useEffect(() => {
+    if (!drawn || appReady) return;
+    const breathe = Animated.loop(
+      Animated.sequence([
+        Animated.timing(waiting, {
+          toValue: 0.72,
+          duration: 900,
+          easing: Easing.inOut(Easing.sin),
+          useNativeDriver: true,
+        }),
+        Animated.timing(waiting, {
+          toValue: 1,
+          duration: 900,
+          easing: Easing.inOut(Easing.sin),
+          useNativeDriver: true,
+        }),
+      ]),
+    );
+    breathe.start();
+    return () => {
+      breathe.stop();
+      Animated.timing(waiting, { toValue: 1, duration: 150, useNativeDriver: true }).start();
+    };
+  }, [drawn, appReady, waiting]);
+
   useEffect(() => {
     if (!drawn || !appReady) return;
     Animated.timing(exit, {
@@ -119,6 +146,8 @@ export function LaunchAnimation({ appReady }: LaunchAnimationProps) {
   const curtain = exit.interpolate({ inputRange: [0, 1], outputRange: [1, 0] });
   const forward = exit.interpolate({ inputRange: [0, 1], outputRange: [1, EXIT_SCALE] });
   const rise = wordmark.interpolate({ inputRange: [0, 1], outputRange: [WORDMARK_RISE, 0] });
+  // Drawn alone on the optical centre, the mark lifts as the wordmark arrives.
+  const lift = wordmark.interpolate({ inputRange: [0, 1], outputRange: [MARK_DROP, 0] });
 
   return (
     <Animated.View
@@ -128,46 +157,48 @@ export function LaunchAnimation({ appReady }: LaunchAnimationProps) {
       importantForAccessibility="no-hide-descendants"
       style={[styles.curtain, { opacity: curtain }]}
     >
-      <Animated.View style={[styles.logo, { transform: [{ scale: forward }] }]}>
-        <Animated.View style={[StyleSheet.absoluteFill, { opacity: lines }]}>
-          <Svg width="100%" height="100%" viewBox="0 0 1024 1024">
-            {MARK_STROKES.map((stroke) => {
-              const offset = progress[stroke.id]!.interpolate({
-                inputRange: [0, 1],
-                outputRange: [stroke.length, 0],
-              });
-              // A round cap draws a dot even for a zero-length dash: hidden until the line starts.
-              const shown = progress[stroke.id]!.interpolate({
-                inputRange: [0, 0.03],
-                outputRange: [0, 1],
-                extrapolate: 'clamp',
-              });
-              const common = {
-                opacity: shown,
-                fill: 'none',
-                stroke: LAUNCH_INK,
-                strokeWidth: 6,
-                strokeLinecap: 'round' as const,
-                strokeLinejoin: 'round' as const,
-                strokeDasharray: [stroke.length, stroke.length],
-                strokeDashoffset: offset,
-              };
-              return stroke.kind === 'circle' ? (
-                <AnimatedCircle
-                  key={stroke.id}
-                  cx={stroke.cx}
-                  cy={stroke.cy}
-                  r={stroke.r}
-                  {...common}
-                />
-              ) : (
-                <AnimatedPath key={stroke.id} d={stroke.d} {...common} />
-              );
-            })}
-          </Svg>
-        </Animated.View>
-        <Animated.View style={[StyleSheet.absoluteFill, { opacity: settle }]}>
-          <Image source={MARK} style={styles.image} resizeMode="contain" />
+      <Animated.View style={[styles.logo, { opacity: waiting, transform: [{ scale: forward }] }]}>
+        <Animated.View style={[StyleSheet.absoluteFill, { transform: [{ translateY: lift }] }]}>
+          <Animated.View style={[StyleSheet.absoluteFill, { opacity: lines }]}>
+            <Svg width="100%" height="100%" viewBox="0 0 1024 1024">
+              {MARK_STROKES.map((stroke) => {
+                const offset = progress[stroke.id]!.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [stroke.length, 0],
+                });
+                // A round cap draws a dot even for a zero-length dash: hidden until the line starts.
+                const shown = progress[stroke.id]!.interpolate({
+                  inputRange: [0, 0.03],
+                  outputRange: [0, 1],
+                  extrapolate: 'clamp',
+                });
+                const common = {
+                  opacity: shown,
+                  fill: 'none',
+                  stroke: LAUNCH_INK,
+                  strokeWidth: 6,
+                  strokeLinecap: 'round' as const,
+                  strokeLinejoin: 'round' as const,
+                  strokeDasharray: [stroke.length, stroke.length],
+                  strokeDashoffset: offset,
+                };
+                return stroke.kind === 'circle' ? (
+                  <AnimatedCircle
+                    key={stroke.id}
+                    cx={stroke.cx}
+                    cy={stroke.cy}
+                    r={stroke.r}
+                    {...common}
+                  />
+                ) : (
+                  <AnimatedPath key={stroke.id} d={stroke.d} {...common} />
+                );
+              })}
+            </Svg>
+          </Animated.View>
+          <Animated.View style={[StyleSheet.absoluteFill, { opacity: settle }]}>
+            <Image source={MARK} style={styles.image} resizeMode="contain" />
+          </Animated.View>
         </Animated.View>
         <Animated.View
           style={[
