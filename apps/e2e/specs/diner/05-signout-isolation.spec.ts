@@ -9,10 +9,10 @@ import {
   registerDiner,
   tableByLabel,
 } from '../../support/api';
-import { logIn, logInFromProfile, logOut, openTab } from '../../support/diner';
+import { logIn, logInFromWelcome, logOut, openTab } from '../../support/diner';
 
 /**
- * Plan E1 spec 5. Logging out leaves Orders and Bookings signed out, and the next
+ * Plan E1 spec 5. Logging out returns to the welcome, Orders and Bookings behind it, and the next
  * diner on the same phone, signed in without a reload, sees nothing of the first
  * diner's bookings: the diner-scoped caches are really reset.
  *
@@ -42,11 +42,8 @@ test("Log out signs Orders and Bookings out, and the next diner sees none of the
   await openTab(page, 'Bookings');
   await expect(page.getByRole('button', { name: new RegExp(booking.code) })).toBeVisible();
 
+  // Signed out, the app is the welcome again: Orders and Bookings are behind it.
   await logOut(page);
-  await openTab(page, 'Orders');
-  await expect(page.getByText('Your orders are kept on your account')).toBeVisible();
-  await openTab(page, 'Bookings');
-  await expect(page.getByText('Your bookings are kept under your number')).toBeVisible();
   await expect(page.getByText(booking.code)).toHaveCount(0);
 
   const leakedAtStart = await page.evaluate((code) => {
@@ -68,7 +65,7 @@ test("Log out signs Orders and Bookings out, and the next diner sees none of the
       response.request().method() === 'GET' &&
       response.ok(),
   );
-  await logInFromProfile(page, second);
+  await logInFromWelcome(page, second);
   await openTab(page, 'Bookings');
   await secondDinersBookings;
   await expect(page.getByText('No bookings yet')).toBeVisible();

@@ -60,14 +60,14 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface,
   },
   option: {
-    minWidth: 36,
-    height: 30,
-    paddingHorizontal: 6,
+    minWidth: 32,
+    height: 28,
+    paddingHorizontal: 5,
     borderRadius: radius.pill,
     alignItems: 'center',
     justifyContent: 'center',
   },
   selected: { backgroundColor: colors.brand },
-  label: { fontSize: 13, lineHeight: 16, fontWeight: fontWeight.medium, color: colors.text },
+  label: { fontSize: 12, lineHeight: 16, fontWeight: fontWeight.medium, color: colors.text },
   labelSelected: { color: colors.onPrimary, fontWeight: fontWeight.bold },
 });

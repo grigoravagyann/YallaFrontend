@@ -58,7 +58,7 @@ export default function WelcomeScreen() {
   return (
     <Screen edges={['top', 'left', 'right', 'bottom']}>
       <Stack.Screen options={{ headerShown: false }} />
-      <View style={styles.bar}>
+      <View style={styles.top}>
         {/* The app's first screen has no way back and no guest door: an account comes first. */}
         {atStart ? null : (
           <IconButton
@@ -66,14 +66,9 @@ export default function WelcomeScreen() {
             accessibilityLabel={t('floorPlan.back')}
             variant="surface"
             onPress={leave}
+            style={styles.back}
           />
         )}
-        {/* The language comes before everything else, in the corner where people look for it. */}
-        <View style={styles.language}>
-          <LanguageSwitch />
-        </View>
-      </View>
-      <View style={styles.top}>
         <Image
           source={LOGO}
           style={styles.logo}
@@ -81,6 +76,10 @@ export default function WelcomeScreen() {
           accessibilityRole="image"
           accessibilityLabel="SHURJ"
         />
+        {/* The language comes before everything else, in the corner where people look for it. */}
+        <View style={styles.language}>
+          <LanguageSwitch />
+        </View>
       </View>
 
       <ScrollView
@@ -124,20 +123,20 @@ export default function WelcomeScreen() {
 }
 
 const styles = StyleSheet.create({
-  bar: {
-    flexDirection: 'row',
+  top: {
     alignItems: 'center',
+    justifyContent: 'center',
     paddingHorizontal: layout.screenPadding,
     paddingTop: space.sm,
-    minHeight: layout.touchTarget + space.sm,
+    minHeight: LOGO_HEIGHT + space.sm,
   },
-  language: { marginLeft: 'auto' },
-  top: { alignItems: 'center', paddingTop: space.xs },
+  back: { position: 'absolute', left: layout.screenPadding, top: space.sm },
+  language: { position: 'absolute', right: layout.screenPadding, top: space.sm + 2 },
   logo: { height: LOGO_HEIGHT, aspectRatio: LOGO_RATIO },
   body: {
     flexGrow: 1,
     paddingHorizontal: layout.screenPadding,
-    paddingTop: space.xl,
+    paddingTop: space.xxxl,
     paddingBottom: space.xl,
     gap: space.lg,
   },
