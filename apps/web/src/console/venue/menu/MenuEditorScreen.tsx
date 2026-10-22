@@ -25,6 +25,7 @@ import {
   useRemoveMenuItemPhoto,
   useSavePreOrderSettings,
   useSetMenuItemAvailability,
+  useTakeawaySettings,
   useUpdateCategory,
   useUpdateMenuItem,
 } from '@yalla/api/react';
@@ -136,6 +137,11 @@ export function MenuEditorScreen() {
   const savePreOrders = useSavePreOrderSettings(branchId ?? undefined);
   /** The branch's pre-order settings, while it takes them: the column is there only then. */
   const preOrders = preOrderQuery.data?.acceptsPreOrders ? preOrderQuery.data : null;
+  /** The dish whose "for takeaway" switch is being saved: one at a time, as availability. */
+  const [takeawayFor, setTakeawayFor] = useState<string | null>(null);
+  const takeawayQuery = useTakeawaySettings(branchId ?? undefined);
+  /** The branch takes takeaway (2026-10-22): the column is there only then. */
+  const takeaway = takeawayQuery.data?.enabled === true;
   /** A reorder in flight: its orders are computed from the list as it was. */
   const [moving, setMoving] = useState(false);
 
@@ -330,6 +336,29 @@ export function MenuEditorScreen() {
           ),
         onError: () => failed(t('menu.dish.preOrderFailed')),
         onSettled: () => setPreOrderFor(null),
+      },
+    );
+  }
+
+  /**
+   * For takeaway, or "only in the hall" (2026-10-22): the dish's own field,
+   * patched on its own. A dish taken out stays on orders already sent.
+   */
+  function toggleTakeaway(item: AdminMenuItem): void {
+    if (takeawayFor !== null) return;
+    const offered = item.availableForTakeaway !== false;
+    setTakeawayFor(item.id);
+    updateItem.mutate(
+      { itemId: item.id, patch: { availableForTakeaway: !offered } },
+      {
+        onSuccess: () =>
+          toast.say(
+            offered
+              ? t('menu.dish.takeawayOff', { name: item.name })
+              : t('menu.dish.takeawayOn', { name: item.name }),
+          ),
+        onError: () => failed(t('menu.dish.takeawayFailed')),
+        onSettled: () => setTakeawayFor(null),
       },
     );
   }
@@ -739,7 +768,15 @@ export function MenuEditorScreen() {
             </div>
           ) : (
             <div className="yc-tscroll">
-              <table className={preOrders ? 'yc-tbl yc-mn-tbl has-preorder' : 'yc-tbl yc-mn-tbl'}>
+              <table
+                className={[
+                  'yc-tbl yc-mn-tbl',
+                  preOrders ? 'has-preorder' : '',
+                  takeaway ? 'has-takeaway' : '',
+                ]
+                  .filter(Boolean)
+                  .join(' ')}
+              >
                 <thead>
                   <tr>
                     <th scope="col">{t('menu.column.dish')}</th>
@@ -750,6 +787,11 @@ export function MenuEditorScreen() {
                     {preOrders ? (
                       <th scope="col" className="yc-mn-po">
                         {t('menu.column.preOrder')}
+                      </th>
+                    ) : null}
+                    {takeaway ? (
+                      <th scope="col" className="yc-mn-po">
+                        {t('menu.column.takeaway')}
                       </th>
                     ) : null}
                     <th scope="col">{t('menu.column.status')}</th>
@@ -845,6 +887,24 @@ export function MenuEditorScreen() {
                                   : t('menu.preOrderYes')
                               }
                               onClick={() => togglePreOrder(item)}
+                            />
+                          </td>
+                        ) : null}
+                        {takeaway ? (
+                          <td className="yc-mn-po">
+                            <button
+                              type="button"
+                              className="yc-sw"
+                              role="switch"
+                              aria-checked={item.availableForTakeaway !== false}
+                              aria-label={t('menu.dish.takeawayAria', { name: item.name })}
+                              aria-disabled={takeawayFor !== null}
+                              title={
+                                item.availableForTakeaway === false
+                                  ? t('menu.takeawayNo')
+                                  : t('menu.takeawayYes')
+                              }
+                              onClick={() => toggleTakeaway(item)}
                             />
                           </td>
                         ) : null}

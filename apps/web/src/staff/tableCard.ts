@@ -85,6 +85,11 @@ export function tableCardText({
 }: TableCardInput): TableCardText {
   const card = cardText({ table, detail, debt, now, t, time, minutesSince });
   const booked = table.state === 'reservedSoon' || table.state === 'held';
+  // The guest said they are running late (2026-10-22): their latest answer.
+  const late = detail?.nextReservationGuestRunningLateMinutes;
+  if (booked && late != null) {
+    return { ...card, flag: t('floor.card.runningLate', { count: late }), flagTone: 'warn' };
+  }
   if (booked && detail?.nextReservationGuestConfirmedOnWayAtUtc) {
     return { ...card, flag: t('floor.card.onTheWay'), flagTone: 'ok' };
   }

@@ -4363,3 +4363,499 @@
   /* A long guest name wraps inside the ticket rather than widening it. */
   overflow-wrap: anywhere;
 }
+
+/* --------------------------------------------------------------------------
+ * "Ask: are you coming?" (2026-10-22, the Ask artboard): the status box, the
+ * ask, and Call when nobody answers — on a pre-order card and in the panel
+ * -------------------------------------------------------------------------- */
+.ask {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+}
+
+.ask-status {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+  padding: var(--space-md) 14px;
+  border-radius: var(--console-radius-floor-button);
+  background: var(--console-surface);
+  box-shadow: inset 0 0 0 1px var(--console-line);
+  color: var(--console-ink);
+}
+
+.ask-status b {
+  font-size: var(--console-text-nav);
+  font-weight: var(--font-weight-bold);
+}
+
+.ask-status span {
+  font-size: var(--console-text-label);
+}
+
+/* Asked and waiting: the brand's edge, as on the artboard. */
+.ask-status[data-tone='wait'] {
+  box-shadow: inset 0 0 0 2px var(--console-button-edge);
+}
+
+.ask-status[data-tone='good'] {
+  background: var(--console-green-bg);
+  box-shadow: none;
+  color: var(--console-green);
+}
+
+.ask-status[data-tone='warn'] {
+  background: var(--console-amber-bg);
+  box-shadow: none;
+  color: var(--console-amber);
+}
+
+.ft-item .ask p {
+  color: var(--console-muted);
+}
+
+.ask-call {
+  text-decoration: none;
+}
+
+.tp-ask {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: var(--space-md);
+  border: 1.5px solid var(--console-line);
+  border-radius: var(--console-radius-floor-button);
+}
+
+.tp-ask h3 {
+  margin: 0;
+  font-size: var(--console-text-nav);
+  font-weight: var(--font-weight-bold);
+}
+
+/* --------------------------------------------------------------------------
+ * Takeaway (2026-10-22): the rail's "Takeaway · accept" card (Rail artboard),
+ * the Takeaway page (Counter), its payment dialog, and the kitchen's
+ * TAKEAWAY band (Kitchen)
+ * -------------------------------------------------------------------------- */
+.takeaway-accept {
+  margin: var(--space-sm) 18px 14px;
+  padding: 14px;
+  border: 2px dashed var(--console-button-edge);
+  border-radius: var(--console-radius-floor-table);
+}
+
+.takeaway-accept.is-urgent {
+  background: var(--console-floor-urgent);
+}
+
+.takeaway-code {
+  font-family: var(--font-family-display);
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-bold);
+  letter-spacing: 0.04em;
+}
+
+.ft-item-top .takeaway-code {
+  font-size: var(--font-size-lg);
+}
+
+.takeaway-countdown {
+  margin-left: auto;
+  color: var(--console-red);
+  font-size: var(--console-text-label);
+  font-weight: var(--font-weight-semibold);
+}
+
+.takeaway-countdown-value {
+  font-feature-settings: var(--font-feature-tabular);
+}
+
+.takeaway-accept.is-closed .takeaway-countdown {
+  color: var(--console-muted);
+}
+
+.ft-item .takeaway-guest,
+.ft-item .takeaway-wants {
+  color: var(--console-ink);
+}
+
+.takeaway-guest a {
+  color: var(--console-brand);
+}
+
+.takeaway-lines {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: var(--console-text-nav);
+}
+
+.ft-item .takeaway-note,
+.ft-ticket-takeaway-note {
+  margin: 0;
+  padding: var(--space-sm) 10px;
+  border-radius: var(--console-radius-control);
+  background: var(--console-canvas);
+  color: var(--console-ink);
+  font-size: var(--console-text-label);
+}
+
+.ft-ticket-takeaway-note {
+  margin: 0 14px;
+  font-size: var(--console-text-nav);
+}
+
+/* The ready time and its ±5: large, tabular, read across the counter. */
+.takeaway-ready {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.takeaway-ready-label {
+  flex-grow: 1;
+  font-size: var(--console-text-nav);
+}
+
+.takeaway-step {
+  display: grid;
+  place-items: center;
+  width: var(--touch-staff);
+  height: var(--touch-staff);
+  border: 1.5px solid var(--console-button-edge);
+  border-radius: var(--console-radius-floor-button);
+  background: var(--console-surface);
+  color: var(--console-ink);
+  font: inherit;
+  font-size: var(--font-size-md);
+  cursor: pointer;
+}
+
+.takeaway-step:disabled {
+  border-color: var(--console-line);
+  color: var(--console-muted);
+  cursor: not-allowed;
+}
+
+.takeaway-ready-value {
+  min-width: 74px;
+  font-size: var(--font-size-md);
+  font-weight: var(--font-weight-bold);
+  text-align: center;
+  font-feature-settings: var(--font-feature-tabular);
+}
+
+/* What became of an answer, a handover or a no-show: said, in green. */
+.takeaway-done {
+  margin: var(--space-sm) 18px;
+  padding: 14px;
+  border-radius: var(--console-radius-floor-table);
+  background: var(--console-green-bg);
+  color: var(--console-green);
+  font-size: var(--console-text-nav);
+  font-weight: var(--font-weight-semibold);
+}
+
+.ft-btn-danger-fill {
+  border-color: var(--console-red);
+  background: var(--console-red);
+  color: var(--console-red-foreground);
+}
+
+a.ft-btn {
+  text-decoration: none;
+}
+
+/* --- The Takeaway page ------------------------------------------------------- */
+.takeaway-page {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: var(--space-md);
+  min-height: 0;
+  padding: 20px;
+  overflow-y: auto;
+}
+
+.takeaway-message {
+  margin: 0;
+}
+
+.takeaway-page .takeaway-done {
+  margin: 0;
+}
+
+.takeaway-columns {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-lg);
+  align-items: start;
+}
+
+.takeaway-column {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+}
+
+.takeaway-column h2 {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  margin: 0;
+  font-size: var(--console-text-body);
+  font-weight: var(--font-weight-bold);
+}
+
+.takeaway-column h2 i {
+  width: 10px;
+  height: 10px;
+  border-radius: var(--console-radius-pill);
+}
+
+.takeaway-column.is-ready h2 i {
+  background: var(--console-green);
+}
+
+.takeaway-column.is-preparing h2 i {
+  background: var(--console-brand);
+}
+
+.takeaway-column.is-done h2 {
+  color: var(--console-muted);
+}
+
+.takeaway-sub {
+  margin: 0;
+  font-size: var(--console-text-nav);
+  font-weight: var(--font-weight-bold);
+}
+
+.takeaway-empty {
+  margin: 0;
+  color: var(--console-muted);
+  font-size: var(--console-text-nav);
+}
+
+.takeaway-cards {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.takeaway-answer .takeaway-accept {
+  margin: 0;
+}
+
+.takeaway-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  padding: 14px;
+  border: 1.5px solid var(--console-button-edge);
+  border-radius: var(--console-radius-floor-table);
+  background: var(--console-surface);
+}
+
+.takeaway-card.is-ready {
+  border: 2px solid var(--console-green);
+}
+
+.takeaway-card.is-overdue {
+  border-color: var(--console-amber);
+}
+
+.takeaway-card-top {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-xs) 10px;
+  font-size: var(--console-text-nav);
+}
+
+.takeaway-card-top > span {
+  color: var(--console-muted);
+}
+
+.takeaway-card-top .takeaway-overdue {
+  color: var(--console-amber);
+  font-weight: var(--font-weight-semibold);
+}
+
+.takeaway-card p {
+  margin: 0;
+}
+
+.takeaway-card-sub {
+  font-size: var(--console-text-nav);
+  color: var(--console-muted);
+}
+
+.takeaway-card.is-ready .takeaway-card-sub {
+  color: var(--console-ink);
+}
+
+.takeaway-pay {
+  font-size: var(--font-size-md);
+  font-weight: var(--font-weight-bold);
+  font-feature-settings: var(--font-feature-tabular);
+}
+
+.takeaway-card .table-note {
+  color: var(--console-muted);
+  font-size: var(--console-text-label);
+}
+
+.takeaway-finished {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  border: 1px solid var(--console-line);
+  border-radius: var(--console-radius-floor-table);
+  list-style: none;
+}
+
+.takeaway-row {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: var(--space-xs) var(--space-sm);
+  padding: 12px 14px;
+  border-top: 1px solid var(--console-line-soft);
+  font-size: var(--console-text-nav);
+  font-feature-settings: var(--font-feature-tabular);
+}
+
+.takeaway-row:first-child {
+  border-top: 0;
+}
+
+.takeaway-row.is-noshow {
+  color: var(--console-red);
+}
+
+.takeaway-row.is-quiet {
+  color: var(--console-muted);
+}
+
+/* --- Hand over: cash or card ---------------------------------------------------- */
+.takeaway-pay-dialog {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  width: min(var(--console-size-floor-done-card), 100%);
+  max-height: calc(100vh - 48px);
+  overflow-y: auto;
+  padding: var(--space-xl);
+  border-radius: var(--console-radius-dialog);
+  background: var(--console-surface);
+  box-shadow: var(--console-shadow-dialog);
+}
+
+.takeaway-pay-dialog h2 {
+  margin: 0;
+  font-family: var(--font-family-display);
+  font-size: var(--font-size-lg);
+}
+
+.takeaway-pay-dialog p {
+  margin: 0;
+}
+
+.takeaway-pay-due b {
+  font-size: var(--font-size-lg);
+  font-feature-settings: var(--font-feature-tabular);
+}
+
+.takeaway-methods {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.takeaway-method {
+  min-height: calc(var(--touch-staff) + 8px);
+  border: 2px solid var(--console-button-edge);
+  border-radius: var(--console-radius-floor-button);
+  background: var(--console-surface);
+  color: var(--console-ink);
+  font: inherit;
+  font-size: var(--console-text-body);
+  font-weight: var(--font-weight-bold);
+  cursor: pointer;
+}
+
+.takeaway-method[aria-checked='true'] {
+  border-color: var(--console-brand);
+  background: var(--console-brand);
+  color: var(--console-brand-foreground);
+}
+
+.takeaway-pay-actions {
+  display: flex;
+  gap: 10px;
+}
+
+.takeaway-pay-actions > :first-child {
+  flex: 1;
+}
+
+.takeaway-pay-actions > :last-child {
+  flex: 2;
+}
+
+/* --- The kitchen's TAKEAWAY band ----------------------------------------------- */
+.ft-ticket.is-takeaway {
+  border-color: var(--console-brand);
+}
+
+.ft-ticket-band {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+  padding: 12px 14px;
+  background: var(--console-brand);
+  color: var(--console-brand-foreground);
+}
+
+.ft-ticket-band-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-sm);
+}
+
+.ft-ticket-band-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--console-text-label);
+  font-weight: var(--font-weight-bold);
+  letter-spacing: 0.06em;
+}
+
+.ft-ticket-band-code {
+  font-family: var(--font-family-display);
+  font-size: var(--font-size-lg);
+}
+
+.ft-ticket-band-when {
+  font-size: var(--console-text-nav);
+  font-feature-settings: var(--font-feature-tabular);
+  overflow-wrap: anywhere;
+}
+
+.ask-phone {
+  align-self: flex-start;
+}

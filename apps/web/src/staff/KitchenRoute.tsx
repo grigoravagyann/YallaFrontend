@@ -21,6 +21,7 @@ import { useBranchFormat } from './useBranchFormat';
 import { useCachedMenu } from './useCachedMenu';
 import { useBehindHeldNotice, useCancelReadsWhileLocked, useHeldMarks } from './useHandover';
 import { useConnectionState } from './useConnectionState';
+import { useTakeawayReady } from './takeaway/useTakeawayReady';
 
 /**
  * The kitchen's screen: the order queue, and nothing else.
@@ -156,6 +157,10 @@ export function KitchenRoute({ identity, device, paused }: KitchenRouteProps) {
   }, []);
 
   const arrival = useKitchenArrivals(ordersQuery.data);
+  const timeFormat = useBranchFormat(TIME_ZONE_ID);
+  const takeawayTime = useCallback((iso: string) => timeFormat.time(iso), [timeFormat]);
+  // A takeaway ticket's "Ready" tells the guest: online only, never queued.
+  const takeaway = useTakeawayReady(branchId, setNotice, takeawayTime);
 
   // A tap made offline shows where it put the ticket, and says it is not sent.
   // Offline the last read's minutes would freeze; they carry on from it.
@@ -230,6 +235,9 @@ export function KitchenRoute({ identity, device, paused }: KitchenRouteProps) {
           loading={ordersQuery.isLoading && !isOfflinePaused(ordersQuery)}
           failed={ordersQuery.isError || (isOfflinePaused(ordersQuery) && !ordersQuery.data)}
           sounds
+          onTakeawayReady={takeaway.markReady}
+          takeawayMarking={takeaway.marking}
+          online={queue.online}
         />
       </div>
 
