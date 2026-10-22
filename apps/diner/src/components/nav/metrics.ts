@@ -38,7 +38,7 @@ export const tabBarMetrics = {
   /** The QR glyph inside it. */
   scanGlyph: 30,
   /** Where the Scan circle's lower edge sits, above the pill's lower edge. */
-  scanBottom: 30,
+  scanBottom: 20,
 } as const;
 
 /**
