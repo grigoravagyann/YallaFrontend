@@ -127,6 +127,9 @@ export function dinerTabLine(view: LineView): DinerTabLine {
     onBehalfOfParticipantId: view.onBehalfOfParticipantId ?? null,
     isTableAttributed: view.isTableAttributed,
     orderedByName: view.placedByDisplayName ?? null,
+    // Required on the wire since the server started sending it (2026-10-22);
+    // read as optional so a tab from an older server still maps, timeless.
+    orderedAtUtc: view.orderedAtUtc ?? null,
     note: view.note ?? null,
     orderStatus: orderStatus(view.orderStatus),
     sharedWithCount: view.sharedWithCount,

@@ -18,6 +18,7 @@ function line(id: string, overrides: Partial<DinerTabLine> = {}): DinerTabLine {
     onBehalfOfParticipantId: null,
     isTableAttributed: false,
     orderedByName: 'Ani',
+    orderedAtUtc: '2026-10-22T15:08:00Z',
     note: null,
     orderStatus: 'inKitchen',
     sharedWithCount: 0,
