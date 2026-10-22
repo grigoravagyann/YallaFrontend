@@ -1,6 +1,7 @@
 import { MAX_BRANCH_SEARCH_LENGTH } from '@yalla/api';
 import { isOfflinePaused } from '@yalla/api/react';
 import { useTranslation } from '@yalla/i18n';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import { useCallback, useMemo, useState } from 'react';
 import { FlatList, Pressable, RefreshControl, StyleSheet, View } from 'react-native';
@@ -191,8 +192,15 @@ export default function ExploreScreen() {
       />
 
       <View style={styles.sheet}>
-        {/* The burgundy line between the header and the sheet: its top edge and rounded corners. */}
-        <View pointerEvents="none" style={styles.sheetEdge} />
+        {/* The burgundy line between the header and the search: full in the middle,
+            fading out towards both sides. */}
+        <LinearGradient
+          pointerEvents="none"
+          colors={[colors.primaryClear, colors.primary, colors.primaryClear]}
+          start={{ x: 0, y: 0.5 }}
+          end={{ x: 1, y: 0.5 }}
+          style={styles.sheetEdge}
+        />
         {/* A way back to a tab you wandered off. Not a persistent bar: it only
             exists while there is somewhere to go back to. */}
         {activeTabId ? (
@@ -318,16 +326,9 @@ const styles = StyleSheet.create({
   sheetEdge: {
     position: 'absolute',
     top: 0,
-    left: 0,
-    right: 0,
-    height: SHEET_RADIUS,
-    borderTopLeftRadius: SHEET_RADIUS,
-    borderTopRightRadius: SHEET_RADIUS,
-    borderTopWidth: 1,
-    borderLeftWidth: 1,
-    borderRightWidth: 1,
-    borderBottomWidth: 0,
-    borderColor: colors.primary,
+    left: layout.screenPadding,
+    right: layout.screenPadding,
+    height: 1,
   },
   sheet: {
     flex: 1,
