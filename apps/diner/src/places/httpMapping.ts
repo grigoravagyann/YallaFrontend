@@ -1,4 +1,5 @@
 import {
+  NO_TAKEAWAY,
   haversineKm,
   type BranchDetail,
   type BranchListing,
@@ -246,6 +247,7 @@ export function placeFromDetail(detail: BranchDetail, context: PlaceMappingConte
     amenities: detail.amenities,
     about: detail.about ?? '',
     acceptsAppBookings: detail.acceptsAppBookings,
+    takeaway: detail.takeaway ?? NO_TAKEAWAY,
     reviews: detail.recentReviews.map((review) => reviewFromApi(review, base.timeZoneId)),
     rooms: roomsFromApi(detail.rooms),
   };

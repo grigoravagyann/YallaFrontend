@@ -106,6 +106,56 @@ describe('createHttpOrderRepository', () => {
   });
 });
 
+/** A takeaway order as `GET /api/diner/orders` lists it (2026-10-22). */
+const TAKEAWAY: DinerOrder = {
+  ...ORDER,
+  orderId: 't1',
+  tabId: null,
+  kind: 'takeaway',
+  status: 'preparing',
+  tableLabel: null,
+  partySize: null,
+  canCancel: false,
+  takeaway: {
+    code: 'T-482',
+    status: 'accepted',
+    pickupAsap: true,
+    requestedPickupUtc: '2026-09-14T09:20:00Z',
+    readyAtUtc: '2026-09-14T09:25:00Z',
+    itemCount: 2,
+  },
+};
+
+describe('takeaway orders (2026-10-22)', () => {
+  it('carry their code, status and times onto the card', async () => {
+    const orders = repository.createHttpOrderRepository({
+      listDinerOrders: () => Promise.resolve([TAKEAWAY]),
+      getDinerOrder: () => Promise.resolve(TAKEAWAY),
+    });
+    const [order] = await orders.list();
+    expect(order?.kind).toBe('takeaway');
+    expect(order?.takeaway?.code).toBe('T-482');
+    expect(order?.takeaway?.status).toBe('accepted');
+    expect((await orders.list())[0]).not.toHaveProperty('tableLabel');
+  });
+
+  it("in mock mode come from the gateway mock, in place of the seeds' own", async () => {
+    const orders = repository.createMockOrderRepository({
+      latencyMs: 0,
+      takeaway: {
+        listDinerOrders: () => Promise.resolve([TAKEAWAY]),
+        getDinerOrder: (id: string) => Promise.resolve(id === 't1' ? TAKEAWAY : null),
+      },
+    });
+    const list = await orders.list();
+    const takeaways = list.filter((order) => order.kind === 'takeaway');
+    expect(takeaways.map((order) => order.id)).toEqual(['t1']);
+    expect(list.some((order) => order.kind === 'dineIn')).toBe(true);
+    expect((await orders.getById('t1'))?.takeaway?.code).toBe('T-482');
+    expect(await orders.getById('nope')).toBeNull();
+  });
+});
+
 describe('which order repository the app runs on', () => {
   it('is the HTTP one when EXPO_PUBLIC_DATA_SOURCE=real', () => {
     expect(repository.orderRepositorySource).toBe('http');

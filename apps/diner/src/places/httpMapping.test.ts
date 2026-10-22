@@ -214,6 +214,16 @@ describe('placeFromDetail', () => {
     ]);
     expect(place.rooms).toEqual([]);
     expect(place).not.toHaveProperty('menu');
+    // A server from before takeaway: no button (2026-10-22).
+    expect(place.takeaway).toEqual({ enabled: false, prepMinutes: 20 });
+  });
+
+  it("carries the place's takeaway: the button and the info card's time", () => {
+    const place = placeFromDetail(
+      { ...detail, takeaway: { enabled: true, prepMinutes: 25 } },
+      CONTEXT,
+    );
+    expect(place.takeaway).toEqual({ enabled: true, prepMinutes: 25 });
   });
 
   it('carries every room and every photo, each pin on the photo it stands on', () => {

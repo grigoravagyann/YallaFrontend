@@ -1,4 +1,4 @@
-import type { YallaGateway } from '@yalla/api';
+import { NO_TAKEAWAY, type PublicTakeawayInfo, type YallaGateway } from '@yalla/api';
 import { currentLocale } from '@yalla/i18n';
 import { gateway, usingMockData } from '../data/gateway';
 import { readDevicePosition } from './devicePosition';
@@ -82,7 +82,8 @@ export interface MockPlaceRepositoryOptions {
    * `@yalla/api` mock: the rooms, photos and pins the slot floor and the
    * booking resolve against, so a pin drawn here is a table the mock books.
    */
-  readonly gateway?: Pick<YallaGateway, 'getBranchRooms'>;
+  readonly gateway?: Pick<YallaGateway, 'getBranchRooms'> &
+    Partial<Pick<YallaGateway, 'getBranchDetail'>>;
 }
 
 function wait(ms: number): Promise<void> {
@@ -114,6 +115,16 @@ export function createMockPlaceRepository(
 
   const roomsOf = async (placeId: string) =>
     roomsFromApi((await rooms.getBranchRooms(placeId))?.rooms ?? []);
+  // Whether the place takes takeaway, from the same mock the orders go to: a
+  // button shown here is a branch the mock takes the order at.
+  const takeawayOf = async (placeId: string): Promise<PublicTakeawayInfo> => {
+    if (!rooms.getBranchDetail) return NO_TAKEAWAY;
+    try {
+      return (await rooms.getBranchDetail(placeId))?.takeaway ?? NO_TAKEAWAY;
+    } catch {
+      return NO_TAKEAWAY;
+    }
+  };
 
   const hydrate = ({ menu: _menu, ...seed }: PlaceSeed): Place => ({
     ...seed,
@@ -134,7 +145,9 @@ export function createMockPlaceRepository(
     async getById(placeId) {
       await wait(latencyMs);
       const seed = seedOf(placeId);
-      return seed ? { ...hydrate(seed), rooms: await roomsOf(placeId) } : null;
+      return seed
+        ? { ...hydrate(seed), rooms: await roomsOf(placeId), takeaway: await takeawayOf(placeId) }
+        : null;
     },
     async search(query, filter) {
       await wait(latencyMs);

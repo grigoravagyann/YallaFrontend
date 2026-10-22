@@ -36,5 +36,6 @@ export function orderFromApi(order: DinerOrder): Order {
     totalDram: order.totalAmd,
     timeline: order.timeline.map((entry) => ({ status: entry.status, at: entry.atUtc })),
     cancellable: order.canCancel,
+    ...(order.takeaway ? { takeaway: order.takeaway } : {}),
   };
 }

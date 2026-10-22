@@ -8,6 +8,7 @@ import {
   orderStatusKey,
   orderStatusTone,
   splitOrders,
+  takeawayFirst,
   type Order,
 } from './model';
 
@@ -114,5 +115,24 @@ describe('shortOrderCode', () => {
     const { shortOrderCode } = await import('./model');
     expect(shortOrderCode('3f2504e0-4f89-11d3-9a0c-0305e82c3301')).toBe('2C3301');
     expect(shortOrderCode('o-7')).toBe('O-7');
+  });
+});
+
+describe('takeawayFirst (2026-10-22)', () => {
+  it('lifts a takeaway order the server described above the table orders', () => {
+    const summary = {
+      code: 'T-482',
+      status: 'accepted' as const,
+      pickupAsap: true,
+      requestedPickupUtc: '2026-09-13T10:20:00Z',
+      readyAtUtc: null,
+      itemCount: 1,
+    };
+    const orders = [
+      order('table', 'confirmed', '2026-09-13T09:45:00Z'),
+      { ...order('tw', 'preparing', '2026-09-13T09:00:00Z', 'takeaway'), takeaway: summary },
+      order('seed', 'preparing', '2026-09-13T08:00:00Z', 'takeaway'),
+    ];
+    expect(takeawayFirst(orders).map((o) => o.id)).toEqual(['tw', 'table', 'seed']);
   });
 });

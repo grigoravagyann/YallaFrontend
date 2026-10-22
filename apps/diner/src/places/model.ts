@@ -1,4 +1,4 @@
-import type { TableUnavailableReason } from '@yalla/api';
+import type { PublicTakeawayInfo, TableUnavailableReason } from '@yalla/api';
 import { branchDayKey, instantFromZonedClock, intlTag, type Locale } from '@yalla/format';
 
 /**
@@ -235,6 +235,13 @@ export interface Place {
    * does not carry it; known once the place's own page has been read.
    */
   readonly acceptsAppBookings: boolean | null;
+  /**
+   * Whether the place takes takeaway orders from the app, and how long they
+   * take (2026-10-22): the "Order to take away" button and its info card.
+   * Absent on a list card, which does not carry it. Whether it is open for
+   * orders now is the availability's (`useTakeawayAvailability`).
+   */
+  readonly takeaway?: PublicTakeawayInfo;
   /**
    * The newest few, from the place's page. The whole list pages through
    * `PlaceRepository.reviewPage`; the menu is read on its own through

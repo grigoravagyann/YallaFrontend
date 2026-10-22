@@ -94,6 +94,10 @@ export const actionIcon = {
   refresh: 'refresh-outline',
   error: 'alert-circle-outline',
   imageFallback: 'image-outline',
+  /** Takeaway: the bag on the place page's button, its info card and the Orders card. */
+  takeaway: 'bag-handle-outline',
+  /** "Pay at pickup, cash or card". */
+  payment: 'card-outline',
   /** The glyph standing in for the brand on the welcome screen. */
   brandMark: 'restaurant-outline',
 } as const satisfies Record<string, IoniconName>;
