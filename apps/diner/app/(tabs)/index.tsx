@@ -192,6 +192,8 @@ export default function ExploreScreen() {
       />
 
       <View style={styles.sheet}>
+        {/* The burgundy line between the header and the sheet: its top edge and rounded corners. */}
+        <View pointerEvents="none" style={styles.sheetEdge} />
         {/* A way back to a tab you wandered off. Not a persistent bar: it only
             exists while there is somewhere to go back to. */}
         {activeTabId ? (
@@ -314,6 +316,20 @@ function SkeletonCards() {
 }
 
 const styles = StyleSheet.create({
+  sheetEdge: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    height: SHEET_RADIUS,
+    borderTopLeftRadius: SHEET_RADIUS,
+    borderTopRightRadius: SHEET_RADIUS,
+    borderTopWidth: 1,
+    borderLeftWidth: 1,
+    borderRightWidth: 1,
+    borderBottomWidth: 0,
+    borderColor: colors.primary,
+  },
   sheet: {
     flex: 1,
     marginTop: space.sm,
