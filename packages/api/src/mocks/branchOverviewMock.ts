@@ -59,6 +59,8 @@ const TODAY: readonly {
     readonly came: number;
     readonly noShows?: number;
     readonly late?: number;
+    /** Takeaway orders left at the counter. */
+    readonly takeaway?: number;
     readonly blockedDays?: number;
   };
 }[] = [
@@ -80,7 +82,7 @@ const TODAY: readonly {
     party: 2,
     channel: 'app',
     status: 'confirmed',
-    record: { came: 2, late: 1 },
+    record: { came: 2, late: 1, takeaway: 1 },
   },
   { offset: 65, guest: 'Gor A.', party: 4, channel: 'staff', status: 'confirmed' },
   { offset: 95, guest: 'Ruzanna M.', party: 2, channel: 'app', status: 'cancelledByDiner' },
@@ -116,6 +118,7 @@ function seededRecord(record: (typeof TODAY)[number]['record'], now: Date): Gues
     lateCancellations: late,
     unmarked: 0,
     isNewGuest: booked === 0,
+    takeawayNoShows: record.takeaway ?? 0,
     blockedUntilUtc: record.blockedDays
       ? new Date(now.getTime() + record.blockedDays * 24 * 3_600_000).toISOString()
       : null,

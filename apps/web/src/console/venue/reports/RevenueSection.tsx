@@ -23,8 +23,13 @@ const WEEKDAY_LIMIT = 7;
 
 /**
  * What was taken (Reports artboard, "Revenue"): by day against the previous
- * period, with the days as a table one click away; by hour as shares; cash
- * against in-app, and the service charge.
+ * period, with the days as a table one click away; by hour as shares; the hall
+ * against takeaway, with the orders nobody collected; cash, card and in-app,
+ * and the service charge.
+ *
+ * Takeaway (2026-10-23) is in every total, counted when collected, and said
+ * apart only where the venue asks "which": the split, the day table's own
+ * column, the CSV's `source` rows. The split shows once the period had any.
  *
  * Every date is a local date key of the branch, labelled as such: parsed at
  * noon UTC and formatted in UTC, so no device zone can move it a day.
@@ -61,6 +66,7 @@ export function RevenueSection({ query, locale, periodName, onCsv }: RevenueSect
             : short.format(date),
         value: day.revenueAmd,
         previous: previous ? (previous[index]?.revenueAmd ?? 0) : null,
+        takeaway: day.takeawayAmd ?? 0,
       };
     });
   }, [data, query, locale]);
@@ -88,10 +94,24 @@ export function RevenueSection({ query, locale, periodName, onCsv }: RevenueSect
 
   const percent = new Intl.NumberFormat(locale, { style: 'percent', maximumFractionDigits: 0 });
   const cash = data?.cashAmd.value ?? 0;
+  const card = data?.cardAmd.value ?? 0;
   const inApp = data?.inAppAmd.value ?? 0;
-  const paid = cash + inApp;
+  const paid = cash + card + inApp;
   const cashShare = paid === 0 ? 0 : cash / paid;
-  const appShare = paid === 0 ? 0 : 1 - cashShare;
+  const cardShare = paid === 0 ? 0 : card / paid;
+  const appShare = paid === 0 ? 0 : inApp / paid;
+
+  // The hall against takeaway: the closed bills, the orders collected at the
+  // counter, and the ones nobody came for.
+  const hall = data?.hallAmd.value ?? 0;
+  const takeaway = data?.takeawayAmd.value ?? 0;
+  const takeawayOrders = data?.takeawayOrders.value ?? 0;
+  const notCollected = data?.takeawayNotCollected.value ?? 0;
+  const hadTakeaway = takeawayOrders > 0 || notCollected > 0;
+  const split = hall + takeaway;
+  const hallShare = split === 0 ? 0 : hall / split;
+  const takeawayShare = split === 0 ? 0 : takeaway / split;
+  const showTakeawayColumn = hadTakeaway && points.some((point) => (point.takeaway ?? 0) > 0);
   const total = points.reduce((sum, point) => sum + point.value, 0);
   const hasPrevious = points.length > 0 && points[0]!.previous !== null;
   const empty = Boolean(data) && data!.totalAmd.value === 0;
@@ -165,6 +185,11 @@ export function RevenueSection({ query, locale, periodName, onCsv }: RevenueSect
                       <th scope="col" className="yc-num">
                         {t('reports.revenue.taken')}
                       </th>
+                      {showTakeawayColumn ? (
+                        <th scope="col" className="yc-num">
+                          {t('reports.revenue.takeawayColumn')}
+                        </th>
+                      ) : null}
                       {hasPrevious ? (
                         <th scope="col" className="yc-num">
                           {t('reports.revenue.previousColumn')}
@@ -177,6 +202,9 @@ export function RevenueSection({ query, locale, periodName, onCsv }: RevenueSect
                       <tr key={point.key}>
                         <th scope="row">{point.label}</th>
                         <td className="yc-num">{money(point.value)}</td>
+                        {showTakeawayColumn ? (
+                          <td className="yc-num">{money(point.takeaway ?? 0)}</td>
+                        ) : null}
                         {hasPrevious ? (
                           <td className="yc-num">{money(point.previous ?? 0)}</td>
                         ) : null}
@@ -199,16 +227,67 @@ export function RevenueSection({ query, locale, periodName, onCsv }: RevenueSect
                 })}
               />
             ) : null}
+            {hadTakeaway ? (
+              <>
+                <h3 className="yc-h3">{t('reports.revenue.splitTitle')}</h3>
+                <div
+                  className="yc-rp-bar2"
+                  role="img"
+                  aria-label={t('reports.revenue.splitAria', {
+                    hall: percent.format(hallShare),
+                    takeaway: percent.format(takeawayShare),
+                  })}
+                >
+                  <span className="yc-rp-a" style={{ width: `${(hallShare * 100).toFixed(1)}%` }} />
+                  <span
+                    className="yc-rp-b"
+                    style={{ width: `${(takeawayShare * 100).toFixed(1)}%` }}
+                  />
+                </div>
+                <ul className="yc-rp-kv">
+                  <li>
+                    <span>
+                      <i className="yc-rp-sw yc-rp-a" aria-hidden="true" />
+                      {t('reports.revenue.hall')}
+                    </span>
+                    <b>
+                      {t('reports.revenue.hallValue', {
+                        value: money(hall),
+                        count: data.tabs.value,
+                      })}
+                    </b>
+                  </li>
+                  <li>
+                    <span>
+                      <i className="yc-rp-sw yc-rp-b" aria-hidden="true" />
+                      {t('reports.revenue.takeaway')}
+                    </span>
+                    <b>
+                      {t('reports.revenue.takeawayValue', {
+                        value: money(takeaway),
+                        count: takeawayOrders,
+                      })}
+                    </b>
+                  </li>
+                  <li>
+                    <span>{t('reports.revenue.notCollected')}</span>
+                    <b>{notCollected}</b>
+                  </li>
+                </ul>
+              </>
+            ) : null}
             <h3 className="yc-h3">{t('reports.revenue.howPaid')}</h3>
             <div
               className="yc-rp-bar2"
               role="img"
               aria-label={t('reports.revenue.payAria', {
                 cash: percent.format(cashShare),
+                card: percent.format(cardShare),
                 app: percent.format(appShare),
               })}
             >
               <span className="yc-rp-a" style={{ width: `${(cashShare * 100).toFixed(1)}%` }} />
+              <span className="yc-rp-c" style={{ width: `${(cardShare * 100).toFixed(1)}%` }} />
               <span className="yc-rp-b" style={{ width: `${(appShare * 100).toFixed(1)}%` }} />
             </div>
             <ul className="yc-rp-kv">
@@ -219,6 +298,15 @@ export function RevenueSection({ query, locale, periodName, onCsv }: RevenueSect
                 </span>
                 <b>
                   {t('reports.share', { value: money(cash), percent: percent.format(cashShare) })}
+                </b>
+              </li>
+              <li>
+                <span>
+                  <i className="yc-rp-sw yc-rp-c" aria-hidden="true" />
+                  {t('reports.revenue.card')}
+                </span>
+                <b>
+                  {t('reports.share', { value: money(card), percent: percent.format(cardShare) })}
                 </b>
               </li>
               <li>

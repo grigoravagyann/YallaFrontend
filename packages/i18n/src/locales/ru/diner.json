@@ -202,7 +202,11 @@
       "unmarked_one": "{{count}} бронь заведение не отметило",
       "unmarked_few": "{{count}} брони заведение не отметило",
       "unmarked_many": "{{count}} броней заведение не отметило",
-      "unmarked_other": "{{count}} брони заведение не отметило"
+      "unmarked_other": "{{count}} брони заведение не отметило",
+      "takeawayNoShows_one": "{{count}} заказ с собой Вы не забрали",
+      "takeawayNoShows_few": "{{count}} заказа с собой Вы не забрали",
+      "takeawayNoShows_many": "{{count}} заказов с собой Вы не забрали",
+      "takeawayNoShows_other": "{{count}} заказа с собой Вы не забрали"
     },
     "blocked": {
       "title": "Бронирование приостановлено до {{date}}, {{time}}",

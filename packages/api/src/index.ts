@@ -879,6 +879,7 @@ export {
   OTHER_VENUE_GAP_MINUTES,
   guestRecordStanding,
   hasGoodRecord,
+  hasTakeawayNoShows,
   isBookingBlocked,
   noShowUndoableUntil,
 } from './contracts/guestRecord';

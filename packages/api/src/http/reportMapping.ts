@@ -18,8 +18,18 @@ type Schemas = components['schemas'];
 type WireDaily = Schemas['Yalla.Application.Reports.DailyRevenue'];
 
 function daily(wire: WireDaily) {
-  return { localDate: wire.localDate, revenueAmd: wire.revenueAmd, tabs: wire.tabs };
+  return {
+    localDate: wire.localDate,
+    revenueAmd: wire.revenueAmd,
+    tabs: wire.tabs,
+    // Takeaway since 2026-10-23; a server before it took none.
+    takeawayAmd: wire.takeawayAmd ?? 0,
+    takeawayOrders: wire.takeawayOrders ?? 0,
+  };
 }
+
+/** A measure a server before takeaway in the reports does not send: nothing, with nothing to compare. */
+const NONE: Compared = { value: 0, previous: null, changeFraction: null };
 
 /**
  * Report wire shapes to screen shapes.
@@ -148,9 +158,15 @@ export function revenueReport(
     tabs: compared(wire.tabs),
     byHour: wire.byHour.map((hour) => ({ hour: hour.hour, revenueAmd: hour.revenueAmd })),
     cashAmd: compared(wire.cashAmd),
+    cardAmd: wire.cardAmd ? compared(wire.cardAmd) : NONE,
     inAppAmd: compared(wire.inAppAmd),
     adjustments: wire.adjustments.map(adjustment),
     adjustmentsTotalAmd: compared(wire.adjustmentsTotalAmd),
+    // Before takeaway was counted, everything was the hall's.
+    hallAmd: wire.hallAmd ? compared(wire.hallAmd) : compared(wire.totalAmd),
+    takeawayAmd: wire.takeawayAmd ? compared(wire.takeawayAmd) : NONE,
+    takeawayOrders: wire.takeawayOrders ? compared(wire.takeawayOrders) : NONE,
+    takeawayNotCollected: wire.takeawayNotCollected ? compared(wire.takeawayNotCollected) : NONE,
   };
 }
 

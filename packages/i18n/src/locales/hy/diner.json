@@ -192,7 +192,9 @@
       "lateCancellations_one": "{{count}} ուշ չեղարկում",
       "lateCancellations_other": "{{count}} ուշ չեղարկում",
       "unmarked_one": "{{count}} ամրագրում վայրը չի նշել",
-      "unmarked_other": "{{count}} ամրագրում վայրը չի նշել"
+      "unmarked_other": "{{count}} ամրագրում վայրը չի նշել",
+      "takeawayNoShows_one": "{{count}} տանելու պատվեր չեք վերցրել",
+      "takeawayNoShows_other": "{{count}} տանելու պատվեր չեք վերցրել"
     },
     "blocked": {
       "title": "Ամրագրումը դադարեցված է մինչև {{date}}, ժամը {{time}}",

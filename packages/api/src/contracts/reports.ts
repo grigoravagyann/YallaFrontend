@@ -176,8 +176,13 @@ export interface ReservationReport {
 export interface DailyRevenue {
   /** The branch's own day, `YYYY-MM-DD`. */
   readonly localDate: string;
+  /** The hall's closed tabs and the takeaway orders collected that day. */
   readonly revenueAmd: number;
+  /** The hall's closed tabs. */
   readonly tabs: number;
+  /** Of `revenueAmd`, the takeaway orders collected that day (2026-10-23). */
+  readonly takeawayAmd: number;
+  readonly takeawayOrders: number;
 }
 
 export interface HourlyRevenue {
@@ -198,6 +203,7 @@ export interface AdjustmentLine {
 
 export interface RevenueReport {
   readonly scope: ReportScope;
+  /** `hallAmd` + `takeawayAmd`. */
   readonly totalAmd: Compared;
   readonly serviceChargeAmd: Compared;
   readonly averageTabAmd: Compared;
@@ -213,11 +219,24 @@ export interface RevenueReport {
   /** Closed bills, compared. */
   readonly tabs: Compared;
   readonly byHour: readonly HourlyRevenue[];
+  /** The hall's cash and the takeaway counter's. */
   readonly cashAmd: Compared;
+  /** By card at the venue's own terminal: the takeaway counter's. */
+  readonly cardAmd: Compared;
   /** Zero until there is a wallet rail. Shown anyway, because 100% cash is the finding. */
   readonly inAppAmd: Compared;
   readonly adjustments: readonly AdjustmentLine[];
   readonly adjustmentsTotalAmd: Compared;
+  /**
+   * The "Hall / Takeaway" split (2026-10-23): the closed tabs (`tabs` of
+   * them) against the takeaway orders collected at the counter, counted when
+   * collected. Average bill, per head and service charge stay the hall's.
+   */
+  readonly hallAmd: Compared;
+  readonly takeawayAmd: Compared;
+  readonly takeawayOrders: Compared;
+  /** Takeaway orders made and never collected: no money, a count. */
+  readonly takeawayNotCollected: Compared;
 }
 
 // --- Menu --------------------------------------------------------------------

@@ -1304,7 +1304,7 @@ export function createConsoleMockGateway(options: ConsoleMockOptions = {}): Cons
       },
       because: ConsoleBooking['awaitingApprovalBecause'],
       /** How the guest kept their bookings; absent: no proved account behind it. */
-      record?: { came: number; noShows?: number; late?: number },
+      record?: { came: number; noShows?: number; late?: number; takeaway?: number },
     ) => {
       const id = `r-${branchId.replace(/^b-/u, '')}-${suffix}`;
       bookings.set(id, {
@@ -1329,6 +1329,7 @@ export function createConsoleMockGateway(options: ConsoleMockOptions = {}): Cons
               lateCancellations: record.late ?? 0,
               unmarked: 0,
               isNewGuest: record.came + (record.noShows ?? 0) + (record.late ?? 0) === 0,
+              takeawayNoShows: record.takeaway ?? 0,
               blockedUntilUtc: null,
             }
           : null,
@@ -1359,6 +1360,7 @@ export function createConsoleMockGateway(options: ConsoleMockOptions = {}): Cons
         lateCancellations: 0,
         unmarked: 0,
         isNewGuest: false,
+        takeawayNoShows: 0,
         blockedUntilUtc: null,
       },
     });
@@ -1388,7 +1390,7 @@ export function createConsoleMockGateway(options: ConsoleMockOptions = {}): Cons
         time: '20:30:00',
       },
       'noShowHistory',
-      { came: 5, noShows: 2 },
+      { came: 5, noShows: 2, takeaway: 1 },
     );
     seed(
       'b-lumen-north',

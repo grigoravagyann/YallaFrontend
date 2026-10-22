@@ -105,6 +105,11 @@ export function summaryCsv(occupancy: OccupancyReport, revenue: RevenueReport): 
   );
 }
 
+/**
+ * Revenue: day by day (the day's total, then its hall and takeaway halves),
+ * by hour, the measures, and the hall against takeaway with a `source` column
+ * saying which is which (2026-10-23).
+ */
 export function revenueCsv(report: RevenueReport): string {
   const prior = hadPreviousPeriod(report.totalAmd);
   const previous = prior ? report.previousByDay : null;
@@ -117,6 +122,9 @@ export function revenueCsv(report: RevenueReport): string {
         'previousLocalDate',
         'previousRevenueAmd',
         'previousTabs',
+        'hallAmd',
+        'takeawayAmd',
+        'takeawayOrders',
       ],
       report.byDay.map((day, index) => {
         const before = previous?.[index];
@@ -127,6 +135,9 @@ export function revenueCsv(report: RevenueReport): string {
           before?.localDate ?? null,
           before ? Math.round(before.revenueAmd) : null,
           before?.tabs ?? null,
+          Math.round(day.revenueAmd - day.takeawayAmd),
+          Math.round(day.takeawayAmd),
+          day.takeawayOrders,
         ];
       }),
     ),
@@ -139,9 +150,32 @@ export function revenueCsv(report: RevenueReport): string {
       measure('tabs', report.tabs, prior),
       measure('serviceChargeAmd', report.serviceChargeAmd, prior),
       measure('cashAmd', report.cashAmd, prior),
+      measure('cardAmd', report.cardAmd, prior),
       measure('inAppAmd', report.inAppAmd, prior),
+      measure('hallAmd', report.hallAmd, prior),
+      measure('takeawayAmd', report.takeawayAmd, prior),
+      measure('takeawayOrders', report.takeawayOrders, prior),
+      measure('takeawayNotCollected', report.takeawayNotCollected, prior),
     ]),
+    table(
+      ['source', 'revenueAmd', 'orders', 'previousRevenueAmd', 'previousOrders'],
+      [
+        sourceRow('hall', report.hallAmd, report.tabs, prior),
+        sourceRow('takeaway', report.takeawayAmd, report.takeawayOrders, prior),
+      ],
+    ),
   );
+}
+
+/** One `source` row: hall (closed bills) or takeaway (orders collected). */
+function sourceRow(source: string, amount: Compared, orders: Compared, prior: boolean): Cell[] {
+  return [
+    source,
+    Math.round(amount.value),
+    orders.value,
+    prior && amount.previous !== null ? Math.round(amount.previous) : null,
+    prior ? orders.previous : null,
+  ];
 }
 
 export function reservationsCsv(report: ReservationReport): string {

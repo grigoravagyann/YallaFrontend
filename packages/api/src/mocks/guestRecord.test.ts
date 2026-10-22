@@ -180,6 +180,7 @@ describe("the guest's own record", () => {
       lateCancellations: 1,
       unmarked: 0,
       isNewGuest: false,
+      takeawayNoShows: 0,
       blockedUntilUtc: null,
     });
   });

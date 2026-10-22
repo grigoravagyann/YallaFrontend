@@ -20,6 +20,7 @@ const record = (overrides: Partial<GuestRecord> = {}): GuestRecord => ({
   lateCancellations: 0,
   unmarked: 0,
   isNewGuest: false,
+  takeawayNoShows: 0,
   blockedUntilUtc: null,
   ...overrides,
 });
@@ -56,6 +57,17 @@ describe('the record line', () => {
     expect(recordCopy(record({ came: 10, lateCancellations: 2 }))?.extras).toEqual([
       { key: 'bookings.record.lateCancellations', params: { count: 2 } },
     ]);
+  });
+
+  it('says takeaway orders not collected on a line of their own, a new guest included', () => {
+    expect(recordCopy(record({ came: 11, noShows: 1, takeawayNoShows: 2 }))?.extras).toEqual([
+      { key: 'bookings.record.noShows', params: { count: 1 } },
+      { key: 'bookings.record.takeawayNoShows', params: { count: 2 } },
+    ]);
+    expect(recordCopy({ ...NEW_GUEST_RECORD, takeawayNoShows: 1 })).toEqual({
+      main: { key: 'bookings.record.new', params: {} },
+      extras: [{ key: 'bookings.record.takeawayNoShows', params: { count: 1 } }],
+    });
   });
 });
 

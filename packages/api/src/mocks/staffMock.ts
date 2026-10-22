@@ -361,7 +361,12 @@ interface MockTab {
 }
 
 /** A guest record from its counts, as the server writes one. */
-function seededRecord(came: number, noShows: number, lateCancellations: number): GuestRecord {
+function seededRecord(
+  came: number,
+  noShows: number,
+  lateCancellations: number,
+  takeawayNoShows = 0,
+): GuestRecord {
   const booked = came + noShows + lateCancellations;
   return {
     booked,
@@ -370,6 +375,7 @@ function seededRecord(came: number, noShows: number, lateCancellations: number):
     lateCancellations,
     unmarked: 0,
     isNewGuest: booked === 0,
+    takeawayNoShows,
     blockedUntilUtc: null,
   };
 }
@@ -717,7 +723,7 @@ export function createStaffMockGateway(options: StaffMockOptions = {}): StaffGat
       approvalExpiresAtUtc: null,
       because: 'largeParty',
       note: 'A birthday dinner.',
-      guestRecord: seededRecord(5, 0, 1),
+      guestRecord: seededRecord(5, 0, 1, 1),
       previousBooking: null,
       nextBooking: null,
       status: 'pendingApproval',

@@ -127,6 +127,12 @@ interface TradingDay {
   readonly lateCancellations: number;
   readonly webWithoutApp: number;
   readonly ordersEntered: number;
+  /** Takeaway orders collected at the counter, what they took, and of that by card. */
+  readonly takeawayOrders: number;
+  readonly takeawayAmd: number;
+  readonly takeawayCardAmd: number;
+  /** Takeaway orders made and never collected. */
+  readonly takeawayNotCollected: number;
 }
 
 const CLOSED: Omit<TradingDay, 'date'> = {
@@ -142,6 +148,10 @@ const CLOSED: Omit<TradingDay, 'date'> = {
   lateCancellations: 0,
   webWithoutApp: 0,
   ordersEntered: 0,
+  takeawayOrders: 0,
+  takeawayAmd: 0,
+  takeawayCardAmd: 0,
+  takeawayNotCollected: 0,
 };
 
 function tradingDay(branchId: string, date: string): TradingDay {
@@ -163,6 +173,12 @@ function tradingDay(branchId: string, date: string): TradingDay {
   const cancelled = Math.round(booked * (pick(`${seed}|x`, 4, 14) / 100));
   const noShow = Math.round(booked * (pick(`${seed}|n`, 2, 9) / 100));
 
+  // A few orders at the counter a day, a little under half of them by card,
+  // and now and then one nobody came for.
+  const takeawayOrders = pick(`${seed}|ta`, 1, 6);
+  const takeawayAmd = takeawayOrders * pick(`${seed}|tv`, 3800, 8600);
+  const takeawayCardAmd = Math.round(takeawayAmd * (pick(`${seed}|tc`, 30, 60) / 100));
+
   return {
     date,
     sessions,
@@ -180,6 +196,10 @@ function tradingDay(branchId: string, date: string): TradingDay {
     // render the block as a curiosity rather than a question.
     webWithoutApp: Math.round(booked * (pick(`${seed}|w`, 25, 55) / 100)),
     ordersEntered: sessions * pick(`${seed}|o`, 2, 5),
+    takeawayOrders,
+    takeawayAmd,
+    takeawayCardAmd,
+    takeawayNotCollected: pick(`${seed}|tn`, 0, 4) === 0 ? 1 : 0,
   };
 }
 
@@ -203,6 +223,10 @@ function daysFor(branchIds: readonly string[], from: string, to: string): Tradin
         lateCancellations: total.lateCancellations + day.lateCancellations,
         webWithoutApp: total.webWithoutApp + day.webWithoutApp,
         ordersEntered: total.ordersEntered + day.ordersEntered,
+        takeawayOrders: total.takeawayOrders + day.takeawayOrders,
+        takeawayAmd: total.takeawayAmd + day.takeawayAmd,
+        takeawayCardAmd: total.takeawayCardAmd + day.takeawayCardAmd,
+        takeawayNotCollected: total.takeawayNotCollected + day.takeawayNotCollected,
       }),
       { date, ...CLOSED },
     );
@@ -523,9 +547,12 @@ export function createMockReports(world: MockReportWorld): MockReports {
       ];
       const hourTotal = hourShape.reduce((a, b) => a + b, 0);
 
+      const taken = revenue + sum(current, (day) => day.takeawayAmd);
+
       return {
         scope,
-        totalAmd: compare(current, prior, (day) => day.revenueAmd),
+        // The hall's tabs (`revenueAmd` here) and the counter's takeaway.
+        totalAmd: compare(current, prior, (day) => day.revenueAmd + day.takeawayAmd),
         // A tenth, the default service charge, and rounded to whole dram
         // because dram has no minor unit and a fraction of one is not money.
         serviceChargeAmd: compare(current, prior, (day) => Math.round(day.revenueAmd * 0.1)),
@@ -538,26 +565,40 @@ export function createMockReports(world: MockReportWorld): MockReports {
          */
         byDay: current.map((day) => ({
           localDate: day.date,
-          revenueAmd: day.revenueAmd,
+          revenueAmd: day.revenueAmd + day.takeawayAmd,
           tabs: day.tabs,
+          takeawayAmd: day.takeawayAmd,
+          takeawayOrders: day.takeawayOrders,
         })),
         previousByDay: prior.map((day) => ({
           localDate: day.date,
-          revenueAmd: day.revenueAmd,
+          revenueAmd: day.revenueAmd + day.takeawayAmd,
           tabs: day.tabs,
+          takeawayAmd: day.takeawayAmd,
+          takeawayOrders: day.takeawayOrders,
         })),
         tabs: compare(current, prior, (day) => day.tabs),
         byHour: hourShape.map((weight, hour) => ({
           hour,
-          revenueAmd: Math.round((revenue * weight) / hourTotal),
+          revenueAmd: Math.round((taken * weight) / hourTotal),
         })),
         // Everything is cash today, and that is the finding rather than a gap:
         // there is no wallet rail yet, so the column reads 100% cash and is
         // correct. It is here so the day one exists nothing has to change.
-        cashAmd: compare(current, prior, (day) => day.revenueAmd),
+        cashAmd: compare(
+          current,
+          prior,
+          (day) => day.revenueAmd + day.takeawayAmd - day.takeawayCardAmd,
+        ),
+        // Card at the venue's terminal: only the takeaway counter records it.
+        cardAmd: compare(current, prior, (day) => day.takeawayCardAmd),
         inAppAmd: compare(current, prior, () => 0),
         adjustments: adjustmentsFor(scope, revenue),
         adjustmentsTotalAmd: compare(current, prior, (day) => Math.round(day.revenueAmd * 0.021)),
+        hallAmd: compare(current, prior, (day) => day.revenueAmd),
+        takeawayAmd: compare(current, prior, (day) => day.takeawayAmd),
+        takeawayOrders: compare(current, prior, (day) => day.takeawayOrders),
+        takeawayNotCollected: compare(current, prior, (day) => day.takeawayNotCollected),
       };
     },
 
@@ -732,10 +773,17 @@ function csvRowsFor(reports: MockReports, input: ReportQuery & { section: Report
 
     case 'revenue':
       return table(
-        ['localDate', 'revenueAmd', 'tabs'],
+        ['localDate', 'revenueAmd', 'tabs', 'hallAmd', 'takeawayAmd', 'takeawayOrders'],
         reports
           .revenue(input)
-          .byDay.map((day) => [day.localDate, String(day.revenueAmd), String(day.tabs)]),
+          .byDay.map((day) => [
+            day.localDate,
+            String(day.revenueAmd),
+            String(day.tabs),
+            String(day.revenueAmd - day.takeawayAmd),
+            String(day.takeawayAmd),
+            String(day.takeawayOrders),
+          ]),
       );
 
     case 'menu':

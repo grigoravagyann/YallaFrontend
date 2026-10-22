@@ -6611,7 +6611,7 @@
           "admin"
         ],
         "summary": "What was taken, by day and by hour",
-        "description": "Total, average tab and **average per head** - a different question from average tab, and the one a menu is priced against. Service charge collected, cash against in-app, and comps and discounts as their own line **with who authorised them**.\n\nThat last part is why adjustments are manager-only: an owner asking \"what did we give away last month, and who decided\" is asking both halves.\n\nRevenue is counted on the tab **closing**, so a sitting that starts at 23:30 and settles at 00:40 belongs to the night it was taken - which is the day the venue counted its drawer.\n\n`byDay` has one entry for every local date of the range, zero days included, and `previousByDay` the same for the previous equivalent period, so the two pair by index. `tabs` is the closed tabs with their comparison.",
+        "description": "Total, average tab and **average per head** - a different question from average tab, and the one a menu is priced against. Service charge collected, cash against in-app, and comps and discounts as their own line **with who authorised them**.\n\nThat last part is why adjustments are manager-only: an owner asking \"what did we give away last month, and who decided\" is asking both halves.\n\nRevenue is counted on the tab **closing**, so a sitting that starts at 23:30 and settles at 00:40 belongs to the night it was taken - which is the day the venue counted its drawer.\n\n`byDay` has one entry for every local date of the range, zero days included, and `previousByDay` the same for the previous equivalent period, so the two pair by index. `tabs` is the closed tabs with their comparison.\n\n**Takeaway.** Orders collected at the counter are revenue too, counted when collected: `totalAmd` is `hallAmd` (the closed tabs, `tabs` of them) plus `takeawayAmd` (`takeawayOrders` of them); `byDay` carries each day's `takeawayAmd` and `takeawayOrders` inside its `revenueAmd`, and `byHour` puts an order in the hour it was collected. `cashAmd` includes the counter's cash and `cardAmd` its card payments, so cash + card + in-app is the total. `takeawayNotCollected` counts the orders marked not collected in the period. Average tab, per head and service charge stay the hall's. The CSV's day rows say `hallAmd` and `takeawayAmd` apart.",
         "operationId": "getRevenueReport",
         "parameters": [
           {
@@ -34327,7 +34327,9 @@
         "required": [
           "localDate",
           "revenueAmd",
-          "tabs"
+          "tabs",
+          "takeawayAmd",
+          "takeawayOrders"
         ],
         "type": "object",
         "properties": {
@@ -34338,12 +34340,22 @@
           },
           "revenueAmd": {
             "type": "integer",
-            "description": "Taken that day, in whole dram.",
+            "description": "Taken that day, in whole dram: the hall's closed tabs and the takeaway orders collected.",
             "format": "int64"
           },
           "tabs": {
             "type": "integer",
             "description": "How many tabs closed.",
+            "format": "int32"
+          },
+          "takeawayAmd": {
+            "type": "integer",
+            "description": "Of RevenueAmd, taken for takeaway orders collected that day.",
+            "format": "int64"
+          },
+          "takeawayOrders": {
+            "type": "integer",
+            "description": "How many takeaway orders were collected.",
             "format": "int32"
           }
         },
@@ -34403,7 +34415,7 @@
           },
           "revenueAmd": {
             "type": "integer",
-            "description": "Taken in that hour, in whole dram.",
+            "description": "Taken in that hour, in whole dram - a tab at its close, a takeaway order when collected.",
             "format": "int64"
           }
         },
@@ -34805,12 +34817,17 @@
           "averageTabAmd",
           "byDay",
           "byHour",
+          "cardAmd",
           "cashAmd",
+          "hallAmd",
           "inAppAmd",
           "previousByDay",
           "scope",
           "serviceChargeAmd",
           "tabs",
+          "takeawayAmd",
+          "takeawayNotCollected",
+          "takeawayOrders",
           "totalAmd"
         ],
         "type": "object",
@@ -34829,7 +34846,7 @@
                 "$ref": "#/components/schemas/Yalla.Application.Reports.Compared"
               }
             ],
-            "description": "Taken in the period."
+            "description": "Taken in the period: HallAmd + TakeawayAmd - the hall's closed tabs and the\ntakeaway orders collected at the counter."
           },
           "serviceChargeAmd": {
             "allOf": [
@@ -34837,7 +34854,7 @@
                 "$ref": "#/components/schemas/Yalla.Application.Reports.Compared"
               }
             ],
-            "description": "Of which service charge."
+            "description": "Of which service charge (the hall's; a takeaway order has none)."
           },
           "averageTabAmd": {
             "allOf": [
@@ -34845,7 +34862,7 @@
                 "$ref": "#/components/schemas/Yalla.Application.Reports.Compared"
               }
             ],
-            "description": "Per tab."
+            "description": "Per tab - the hall's bills only."
           },
           "averagePerHeadAmd": {
             "allOf": [
@@ -34853,7 +34870,7 @@
                 "$ref": "#/components/schemas/Yalla.Application.Reports.Compared"
               }
             ],
-            "description": "Per person on a tab. A different question from per tab, and the one a menu is priced against."
+            "description": "Per person on a tab. A different question from per tab, and the one a menu is priced against. The hall only: a takeaway order has no party."
           },
           "byDay": {
             "type": "array",
@@ -34875,7 +34892,7 @@
                 "$ref": "#/components/schemas/Yalla.Application.Reports.Compared"
               }
             ],
-            "description": "Taken in cash."
+            "description": "Taken in cash: at the hall's tabs and at the takeaway counter."
           },
           "inAppAmd": {
             "allOf": [
@@ -34914,6 +34931,46 @@
               "$ref": "#/components/schemas/Yalla.Application.Reports.DailyRevenue"
             },
             "description": "The previous equivalent period, day by day - the chart's dashed line. Like ByDay it has one entry\nfor every local date of its period, zero days included, so the two have the same length and pair by index."
+          },
+          "cardAmd": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Yalla.Application.Reports.Compared"
+              }
+            ],
+            "description": "Taken by card at the venue's own terminal - the takeaway counter's card payments (a tab's are not recorded by\nmethod yet, and anything not cash on a tab is InAppAmd). Cash + card + in-app is the total."
+          },
+          "hallAmd": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Yalla.Application.Reports.Compared"
+              }
+            ],
+            "description": "Taken at the hall's tabs - the \"Hall\" half of the split; its count is Tabs."
+          },
+          "takeawayAmd": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Yalla.Application.Reports.Compared"
+              }
+            ],
+            "description": "Taken for takeaway orders collected in the period, at the counter - the \"Takeaway\" half."
+          },
+          "takeawayOrders": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Yalla.Application.Reports.Compared"
+              }
+            ],
+            "description": "Takeaway orders collected in the period."
+          },
+          "takeawayNotCollected": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Yalla.Application.Reports.Compared"
+              }
+            ],
+            "description": "Takeaway orders the venue made and nobody came for (marked not collected in the period). No money: nothing is\ncharged in the app."
           }
         },
         "additionalProperties": false
@@ -35771,6 +35828,7 @@
           "isNewGuest",
           "lateCancellations",
           "noShows",
+          "takeawayNoShows",
           "unmarked"
         ],
         "type": "object",
@@ -35803,6 +35861,11 @@
           "isNewGuest": {
             "type": "boolean",
             "description": "Nothing booked in the window: show a neutral \"new guest\", never a warning."
+          },
+          "takeawayNoShows": {
+            "type": "integer",
+            "description": "Takeaway orders the guest's account placed whose promised ready time is in the window, made ready by the venue and\nnever collected (`TakeawayStatus.NoShow`). Counted apart from the bookings - none of the booking counts above\nincludes one, and IsNewGuest is about bookings only - but each counts toward the no-show block\nlike a booking's no-show (Yalla.Domain.Occupancy.NoShowBlockRules). See `docs/takeaway.md`.",
+            "format": "int32"
           },
           "blockedUntilUtc": {
             "type": "string",

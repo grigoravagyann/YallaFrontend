@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { createAuthSession } from '../auth/session';
 import { createMemoryTokenStorage } from '../auth/storage';
 import {
+  BookingBlockedNoShowsError,
   BookingCommandInUseError,
   PhoneNotVerifiedError,
   TakeawayBusyError,
@@ -613,6 +614,12 @@ describe("the guest's takeaway routes", () => {
       },
     ],
     [problemReply(403, 'phone-not-verified'), PhoneNotVerifiedError, {}],
+    // Blocked for no-shows: the booking's own refusal (2026-10-23).
+    [
+      problemReply(403, 'booking-blocked-no-shows', { blockedUntilUtc: '2026-10-30T10:00:00Z' }),
+      BookingBlockedNoShowsError,
+      { blockedUntilUtc: '2026-10-30T10:00:00Z' },
+    ],
     [problemReply(409, 'client-command-id-in-use'), BookingCommandInUseError, {}],
   ])('reads a refused order as its typed error (%#)', async (reply, type, fields) => {
     const { gateway } = dinerOver({ 'POST /api/diner/takeaway-orders': reply });

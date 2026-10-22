@@ -1269,11 +1269,22 @@
       "oneDay": "Մեկ օրվա համար օրական գրաֆիկ չկա։ Տե՛ս ժամային բաշխումը կողքին։",
       "byHour": "Ըստ ժամի",
       "byHourAria": "Եկամտի բաշխում ըստ ժամի՝ {{hours}}",
-      "howPaid": "Կանխիկ և հավելվածով",
+      "howPaid": "Ինչպես է վճարվել",
       "cash": "Կանխիկ",
+      "card": "Քարտով",
       "inApp": "Հավելվածով",
       "serviceCharge": "Սպասարկման վճար",
-      "payAria": "Կանխիկ՝ {{cash}}, հավելվածով՝ {{app}}"
+      "payAria": "Կանխիկ՝ {{cash}}, քարտով՝ {{card}}, հավելվածով՝ {{app}}",
+      "splitTitle": "Սրահ և տանելու պատվեր",
+      "splitAria": "Սրահ՝ {{hall}}, տանելու՝ {{takeaway}}",
+      "hall": "Սրահ",
+      "takeaway": "Տանելու պատվեր",
+      "hallValue_one": "{{value}} · հաշիվ՝ {{count}}",
+      "hallValue_other": "{{value}} · հաշիվ՝ {{count}}",
+      "takeawayValue_one": "{{value}} · պատվեր՝ {{count}}",
+      "takeawayValue_other": "{{value}} · պատվեր՝ {{count}}",
+      "notCollected": "Չվերցված տանելու պատվեր",
+      "takeawayColumn": "Որից տանելու"
     },
     "reservations": {
       "noApp_one": "{{count}} ամրագրում ({{percent}}) վեբից է՝ առանց հավելվածի։",
@@ -2414,6 +2425,8 @@
     "late_one": "ուշ չեղարկում՝ {{count}}",
     "late_other": "ուշ չեղարկում՝ {{count}}",
     "unmarked": "չնշված՝ {{count}}",
+    "takeawayNoShows_one": "չվերցված տանելու պատվեր՝ {{count}}",
+    "takeawayNoShows_other": "չվերցված տանելու պատվեր՝ {{count}}",
     "newGuest": "Նոր հյուր",
     "blockedUntil": "Արգելափակված է մինչև {{date}}, {{time}}"
   },

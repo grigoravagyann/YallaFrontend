@@ -9,11 +9,18 @@ import { AlertCircleIcon, CheckIcon, LockIcon, UserIcon } from '../../ui/icons';
  * how many, how many came, how many did not. A late cancellation and a booking
  * nobody marked are said only when there is one: a "0 late cancellations" on
  * every card is noise a waiter learns to skip, and then skips the one that
- * matters.
+ * matters. Takeaway orders left at the counter come last, apart from the
+ * bookings and only when there is one.
  */
 export interface GuestRecordPart {
-  readonly kind: 'booked' | 'came' | 'noShows' | 'late' | 'unmarked';
+  readonly kind: 'booked' | 'came' | 'noShows' | 'late' | 'unmarked' | 'takeawayNoShows';
   readonly count: number;
+}
+
+/** "1 takeaway order not collected", when there is one: never mixed into the bookings. */
+function takeawayPart(record: GuestRecord): GuestRecordPart[] {
+  const count = record.takeawayNoShows ?? 0;
+  return count > 0 ? [{ kind: 'takeawayNoShows', count }] : [];
 }
 
 export function guestRecordParts(record: GuestRecord): readonly GuestRecordPart[] {
@@ -25,7 +32,18 @@ export function guestRecordParts(record: GuestRecord): readonly GuestRecordPart[
   if (record.lateCancellations > 0) parts.push({ kind: 'late', count: record.lateCancellations });
   // `unmarked` came with the review round; a server before it does not say.
   if ((record.unmarked ?? 0) > 0) parts.push({ kind: 'unmarked', count: record.unmarked });
+  parts.push(...takeawayPart(record));
   return parts;
+}
+
+/** What a new guest's line says after "New guest": only an order left behind, if any. */
+export function newGuestParts(record: GuestRecord): readonly GuestRecordPart[] {
+  return takeawayPart(record);
+}
+
+/** A part said as a warning: a missed booking, or an order not collected. */
+function isMissed(part: GuestRecordPart): boolean {
+  return (part.kind === 'noShows' || part.kind === 'takeawayNoShows') && part.count > 0;
 }
 
 const ICON: Readonly<Record<GuestRecordStanding, (props: { className: string }) => ReactNode>> = {
@@ -40,7 +58,8 @@ const ICON: Readonly<Record<GuestRecordStanding, (props: { className: string }) 
  * How the guest kept their bookings — twelve months, every venue, counts only
  * — beside a booking the venue decides on or watches for: «12 bookings · 11
  * came · 1 no-show», a neutral "New guest", or "Blocked until …" first when
- * three no-shows in three days blocked them.
+ * three no-shows in three days blocked them; «· 1 takeaway order not
+ * collected» after it when the guest left one at a counter.
  *
  * Shared by the floor tablet and the console, each in its own words
  * (`staff:guestRecord.*`, `admin:guestRecord.*`) and its own classes. Never
@@ -88,18 +107,17 @@ export function GuestRecordLine({
           {' · '}
         </>
       ) : null}
-      {record.isNewGuest
-        ? say('newGuest')
-        : guestRecordParts(record).map((part, index) => (
-            <span key={part.kind}>
-              {index > 0 ? ' · ' : null}
-              {part.kind === 'noShows' && part.count > 0 ? (
-                <span className="is-missed">{say(part.kind, { count: part.count })}</span>
-              ) : (
-                say(part.kind, { count: part.count })
-              )}
-            </span>
-          ))}
+      {record.isNewGuest ? say('newGuest') : null}
+      {(record.isNewGuest ? newGuestParts(record) : guestRecordParts(record)).map((part, index) => (
+        <span key={part.kind}>
+          {index > 0 || record.isNewGuest ? ' · ' : null}
+          {isMissed(part) ? (
+            <span className="is-missed">{say(part.kind, { count: part.count })}</span>
+          ) : (
+            say(part.kind, { count: part.count })
+          )}
+        </span>
+      ))}
     </p>
   );
 }

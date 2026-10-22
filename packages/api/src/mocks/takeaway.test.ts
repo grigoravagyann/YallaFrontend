@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  BookingBlockedNoShowsError,
   BookingCommandInUseError,
   TakeawayBusyError,
   TakeawayClosedError,
@@ -458,6 +459,40 @@ describe("the diner's world", () => {
 
     gateway.collectTakeawayAsVenue(sent.id, 'card');
     expect((await gateway.getTakeawayOrder(sent.id))?.paymentMethod).toBe('card');
+  });
+
+  it("counts an order nobody collected in the guest's own record, apart from bookings", async () => {
+    const { gateway, advance } = await signedIn();
+    const sent = await gateway.placeTakeawayOrder(order());
+    gateway.acceptTakeawayAsVenue(sent.id);
+    advance(20);
+    gateway.markTakeawayReadyAsVenue(sent.id);
+    advance(31);
+    gateway.markTakeawayNoShowAsVenue(sent.id);
+
+    expect((await gateway.getTakeawayOrder(sent.id))?.status).toBe('noShow');
+    expect((await gateway.listBookings()).guestRecord).toMatchObject({
+      booked: 0,
+      noShows: 0,
+      isNewGuest: true,
+      takeawayNoShows: 1,
+    });
+  });
+
+  it('refuses a guest blocked for no-shows with the booking refusal', async () => {
+    const until = new Date(WEDNESDAY_2PM + 3 * 24 * 3_600_000).toISOString();
+    const gateway = createMockGateway({
+      now: () => new Date(WEDNESDAY_2PM),
+      takeaway: { branches: MOCK_TAKEAWAY_BRANCHES },
+      blockedUntilUtc: until,
+    });
+    const challenge = await gateway.requestPhoneCode('+37491000199');
+    await gateway.verifyPhoneCode({ challengeId: challenge.challengeId, code: challenge.devCode! });
+
+    const refused = await gateway.placeTakeawayOrder(order()).catch((error: unknown) => error);
+    expect(refused).toBeInstanceOf(BookingBlockedNoShowsError);
+    expect(refused).toMatchObject({ blockedUntilUtc: until });
+    expect(await gateway.listDinerOrders()).toEqual([]);
   });
 
   it('tells the guest of a decline, with the reason', async () => {

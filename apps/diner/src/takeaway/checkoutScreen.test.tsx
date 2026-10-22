@@ -1,4 +1,6 @@
 import {
+  BookingBlockedNoShowsError,
+  NEW_GUEST_RECORD,
   PhoneNotVerifiedError,
   TakeawayItemsUnavailableError,
   TakeawaySlotUnavailableError,
@@ -30,6 +32,7 @@ const router = vi.hoisted(() => ({
 const gateway = vi.hoisted(() => ({
   getTakeawayAvailability: vi.fn(),
   placeTakeawayOrder: vi.fn(),
+  listBookings: vi.fn(),
 }));
 
 vi.mock('@expo/vector-icons', () => ({ Ionicons: () => null }));
@@ -102,6 +105,11 @@ async function readySend() {
 beforeEach(() => {
   useSession.setState({ signedIn: true, profile: PROFILE, phoneE164: PROFILE.phoneE164 });
   gateway.getTakeawayAvailability.mockResolvedValue(availability());
+  gateway.listBookings.mockResolvedValue({
+    upcoming: [],
+    past: [],
+    guestRecord: NEW_GUEST_RECORD,
+  });
 });
 afterEach(() => {
   cleanup();
@@ -252,6 +260,33 @@ describe('the checkout', () => {
     fireEvent.click(await readySend());
     expect(await screen.findByText('takeaway.error.items names=Khashlama')).toBeTruthy();
     expect(useTakeawayCart.getState().cart.lines.map((line) => line.item.id)).toEqual(['pork']);
+  });
+
+  it('paused for no-shows: the booking note, and Send waits', async () => {
+    const until = new Date(Date.now() + 3 * 24 * 3_600_000).toISOString();
+    gateway.listBookings.mockResolvedValue({
+      upcoming: [],
+      past: [],
+      guestRecord: { ...NEW_GUEST_RECORD, takeawayNoShows: 3, blockedUntilUtc: until },
+    });
+    fillCart();
+    renderCheckout();
+    expect(await screen.findByText(/^confirm\.error\.blockedNoShows date=.* time=/u)).toBeTruthy();
+    await waitFor(async () =>
+      expect((await sendButton()).getAttribute('aria-disabled')).toBe('true'),
+    );
+    expect(gateway.placeTakeawayOrder).not.toHaveBeenCalled();
+  });
+
+  it("the server's pause is said in the booking's own sentence", async () => {
+    gateway.placeTakeawayOrder.mockRejectedValue(
+      new BookingBlockedNoShowsError({ url: 'x', blockedUntilUtc: null }),
+    );
+    fillCart();
+    renderCheckout();
+    fireEvent.click(await readySend());
+    expect(await screen.findByText('confirm.error.blockedNoShowsPlain')).toBeTruthy();
+    expect(gateway.listBookings.mock.calls.length).toBeGreaterThanOrEqual(1);
   });
 
   it('a gone slot asks for another time', async () => {

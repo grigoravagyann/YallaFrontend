@@ -902,6 +902,7 @@ describe('the Book screen, who may book', () => {
         lateCancellations: 0,
         unmarked: 0,
         isNewGuest: false,
+        takeawayNoShows: 0,
         blockedUntilUtc,
       },
     });

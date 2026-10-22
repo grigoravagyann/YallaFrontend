@@ -1839,8 +1839,9 @@ export function isPhoneHasActiveBooking(error: unknown): error is PhoneHasActive
 /**
  * The guest is blocked from booking for missed bookings — three no-shows on
  * bookings that started within three days — `booking-blocked-no-shows`, 403,
- * on a new booking and on every change (the app's and the manage link's).
- * Nothing to retry: the screen says until when.
+ * on a new booking and on every change (the app's and the manage link's), and
+ * on a takeaway order (2026-10-23; an order not collected counts as a
+ * no-show). Nothing to retry: the screen says until when.
  */
 export class BookingBlockedNoShowsError extends ApiError {
   /** When booking opens again, ISO-8601 UTC; null when the server did not say. */

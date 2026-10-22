@@ -38,7 +38,8 @@ const RECORD = {
   lateCancellations: 0,
   isNewGuest: false,
 } as unknown as Schemas['Yalla.Application.Reservations.GuestRecord'];
-const RECORD_READ = { ...RECORD, unmarked: 0, blockedUntilUtc: null };
+// A server before takeaway in the record (2026-10-23) says none: 0.
+const RECORD_READ = { ...RECORD, unmarked: 0, takeawayNoShows: 0, blockedUntilUtc: null };
 
 const VIEW: ReservationViewWire = {
   id: '6f1d0a2e-0000-4000-8000-00000000000a',
@@ -121,9 +122,14 @@ describe('the guest record on the wire', () => {
         lateCancellations: 0,
         unmarked: 0,
         isNewGuest: true,
+        takeawayNoShows: 1,
         blockedUntilUtc: '2026-10-27T18:00:00Z',
       }),
-    ).toMatchObject({ isNewGuest: true, blockedUntilUtc: '2026-10-27T18:00:00Z' });
+    ).toMatchObject({
+      isNewGuest: true,
+      takeawayNoShows: 1,
+      blockedUntilUtc: '2026-10-27T18:00:00Z',
+    });
     // Absent: no proved account behind the booking.
     expect(guestRecordFromWire(undefined)).toBeNull();
     expect(guestRecordFromWire(null)).toBeNull();

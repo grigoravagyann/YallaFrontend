@@ -54,14 +54,37 @@ describe('the section files', () => {
     const report = await gateway.getRevenueReport(query);
     const lines = revenueCsv(report).split('\r\n');
     expect(lines[0]).toBe(
-      'localDate,revenueAmd,tabs,previousLocalDate,previousRevenueAmd,previousTabs',
+      'localDate,revenueAmd,tabs,previousLocalDate,previousRevenueAmd,previousTabs,hallAmd,takeawayAmd,takeawayOrders',
     );
     const first = report.byDay[0]!;
     const before = report.previousByDay![0]!;
     expect(lines[1]).toBe(
-      `${first.localDate},${first.revenueAmd},${first.tabs},${before.localDate},${before.revenueAmd},${before.tabs}`,
+      `${first.localDate},${first.revenueAmd},${first.tabs},${before.localDate},${before.revenueAmd},${before.tabs},` +
+        `${first.revenueAmd - first.takeawayAmd},${first.takeawayAmd},${first.takeawayOrders}`,
     );
     expect(revenueCsv(report).endsWith('\r\n')).toBe(true);
+  });
+
+  it('says the hall and takeaway apart: a source column, and their measures', async () => {
+    const report = await gateway.getRevenueReport(query);
+    const text = revenueCsv(report);
+    expect(report.takeawayAmd.value).toBeGreaterThan(0);
+    expect(report.totalAmd.value).toBe(report.hallAmd.value + report.takeawayAmd.value);
+    expect(text).toContain(
+      `${CRLF}source,revenueAmd,orders,previousRevenueAmd,previousOrders${CRLF}` +
+        `hall,${report.hallAmd.value},${report.tabs.value},${report.hallAmd.previous},${report.tabs.previous}${CRLF}` +
+        `takeaway,${report.takeawayAmd.value},${report.takeawayOrders.value},` +
+        `${report.takeawayAmd.previous},${report.takeawayOrders.previous}${CRLF}`,
+    );
+    for (const name of [
+      'cardAmd',
+      'hallAmd',
+      'takeawayAmd',
+      'takeawayOrders',
+      'takeawayNotCollected',
+    ]) {
+      expect(text).toMatch(new RegExp(`\\r\\n${name},\\d+,`, 'u'));
+    }
   });
 
   it('leaves every previous value empty when the previous total is 0, never writing 0', async () => {
@@ -77,7 +100,10 @@ describe('the section files', () => {
 
     const days = revenueCsv(revenue).split(CRLF);
     const day = revenue.byDay[0]!;
-    expect(days[1]).toBe(`${day.localDate},${day.revenueAmd},${day.tabs},,,`);
+    expect(days[1]).toBe(
+      `${day.localDate},${day.revenueAmd},${day.tabs},,,,` +
+        `${day.revenueAmd - day.takeawayAmd},${day.takeawayAmd},${day.takeawayOrders}`,
+    );
     expect(revenueCsv(revenue)).toContain(`${CRLF}totalAmd,${revenue.totalAmd.value},,${CRLF}`);
   });
 

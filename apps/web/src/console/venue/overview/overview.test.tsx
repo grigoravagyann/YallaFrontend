@@ -822,7 +822,7 @@ describe("the guest's record and a no-show undone, on today's bookings", () => {
     await user.click(within(card).getByRole('button', { name: 'All' }));
 
     expect(line(rowOf(card, 'Narine T.'))!.textContent).toBe(
-      "Guest's record, last 12 months, all venues: 3 bookings · 2 came · 0 no-shows · 1 late cancellation",
+      "Guest's record, last 12 months, all venues: 3 bookings · 2 came · 0 no-shows · 1 late cancellation · 1 takeaway order not collected",
     );
     expect(line(rowOf(card, 'Սոնա Վ.'))!.textContent).toMatch(/: New guest$/u);
     // Booked by phone at the venue: no proved account, nothing said either way.
