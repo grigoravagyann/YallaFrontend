@@ -3,7 +3,7 @@
 // Renders the SHURJ launcher icon set into apps/diner/assets/images from the logo raster (the fork,
 // plate and knife in one burgundy line above the wordmark, on a cream ground), with Playwright's
 // Chromium as the canvas. The logo is never redrawn: its ink is lifted off the cream once, then
-// scaled onto each target. splash-logo.png (the launch animation's logo) is the same raster lifted off its paper and is not written here.
+// scaled onto each target. splash-mark.png and splash-wordmark.png (the launch animation's layers) are the same raster lifted off its paper, split at the gap, and are not written here.
 const path = require('node:path');
 const fs = require('node:fs');
 

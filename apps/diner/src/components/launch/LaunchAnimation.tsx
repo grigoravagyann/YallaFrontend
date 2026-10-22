@@ -1,29 +1,38 @@
 import * as SplashScreen from 'expo-splash-screen';
 import { useEffect, useState } from 'react';
-import { AccessibilityInfo, Animated, Easing, Image, StyleSheet, View } from 'react-native';
+import { AccessibilityInfo, Animated, Easing, Image, StyleSheet } from 'react-native';
 import Svg, { Circle, Path } from 'react-native-svg';
-import LOGO from '../../../assets/images/splash-logo.png';
+import MARK from '../../../assets/images/splash-mark.png';
+import WORDMARK from '../../../assets/images/splash-wordmark.png';
 import { LAUNCH_GROUND, LAUNCH_INK, LAUNCH_LOGO_SIZE, MARK_STROKES } from './mark';
 
 const AnimatedPath = Animated.createAnimatedComponent(Path);
 const AnimatedCircle = Animated.createAnimatedComponent(Circle);
 
-// The native splash is plain cream, so nothing jumps when this takes over.
+// The native splash is bare white, so nothing jumps when this takes over.
 void SplashScreen.preventAutoHideAsync().catch(() => undefined);
 
-/** When each stroke starts and how long it draws, in ms — they overlap, one hand drawing. */
+/** When each stroke starts and how long it draws, in ms: they overlap, one hand drawing. */
 const DRAW_TIMING = {
-  fork: { delay: 0, duration: 520 },
-  plate: { delay: 360, duration: 760 },
-  inner: { delay: 640, duration: 640 },
-  knife: { delay: 900, duration: 600 },
+  fork: { delay: 0, duration: 460 },
+  plate: { delay: 300, duration: 640 },
+  inner: { delay: 520, duration: 560 },
+  knife: { delay: 760, duration: 520 },
 } as const;
-/** The drawn lines give way to the logo itself, wordmark and all. */
-const REVEAL_AT = 1450;
-const REVEAL_MS = 380;
-/** Held whole for a beat, then the app shows through. */
-const HOLD_MS = 260;
-const FADE_OUT_MS = 320;
+/**
+ * The drawn lines hand over to the logo's own mark. Quick, so the traced line
+ * and the real one are never both on screen long enough to read as a double.
+ */
+const SETTLE_AT = 1220;
+const SETTLE_MS = 180;
+/** Then the wordmark rises into place under it. */
+const WORDMARK_AT = 1260;
+const WORDMARK_MS = 420;
+const WORDMARK_RISE = 10;
+/** Held whole for a beat, then the logo eases forward as the app shows through. */
+const HOLD_MS = 220;
+const EXIT_MS = 300;
+const EXIT_SCALE = 1.06;
 
 export interface LaunchAnimationProps {
   /** The app has what it needs for its first screen; the curtain may lift once the logo is drawn. */
@@ -31,10 +40,11 @@ export interface LaunchAnimationProps {
 }
 
 /**
- * The opening: on the logo's cream, the fork, the plate and the knife are drawn
- * in one burgundy line as in the logo, the full logo (with the SHURJ wordmark)
- * settles in, and the app fades up from underneath. Shown once per launch. With
- * Reduce Motion on, the logo simply appears and fades.
+ * The opening: on white, the fork, the plate and the knife are drawn in one
+ * burgundy line as in the logo; the line gives way to the logo's own mark, the
+ * SHURJ wordmark rises in beneath it, and the app fades up from underneath as
+ * the logo eases forward. Shown once per launch. With Reduce Motion on, the
+ * logo simply appears and fades.
  */
 export function LaunchAnimation({ appReady }: LaunchAnimationProps) {
   const [gone, setGone] = useState(false);
@@ -42,8 +52,9 @@ export function LaunchAnimation({ appReady }: LaunchAnimationProps) {
   const [progress] = useState(() =>
     Object.fromEntries(MARK_STROKES.map((s) => [s.id, new Animated.Value(0)])),
   );
-  const [reveal] = useState(() => new Animated.Value(0));
-  const [curtain] = useState(() => new Animated.Value(1));
+  const [settle] = useState(() => new Animated.Value(0));
+  const [wordmark] = useState(() => new Animated.Value(0));
+  const [exit] = useState(() => new Animated.Value(0));
 
   useEffect(() => {
     let cancelled = false;
@@ -53,7 +64,8 @@ export function LaunchAnimation({ appReady }: LaunchAnimationProps) {
       .then((reduce) => {
         if (cancelled) return;
         if (reduce) {
-          reveal.setValue(1);
+          settle.setValue(1);
+          wordmark.setValue(1);
           setDrawn(true);
           return;
         }
@@ -67,11 +79,18 @@ export function LaunchAnimation({ appReady }: LaunchAnimationProps) {
               useNativeDriver: false,
             }),
           ),
-          Animated.timing(reveal, {
+          Animated.timing(settle, {
             toValue: 1,
-            delay: REVEAL_AT,
-            duration: REVEAL_MS,
-            easing: Easing.out(Easing.quad),
+            delay: SETTLE_AT,
+            duration: SETTLE_MS,
+            easing: Easing.linear,
+            useNativeDriver: true,
+          }),
+          Animated.timing(wordmark, {
+            toValue: 1,
+            delay: WORDMARK_AT,
+            duration: WORDMARK_MS,
+            easing: Easing.out(Easing.cubic),
             useNativeDriver: true,
           }),
         ]).start(() => {
@@ -81,22 +100,25 @@ export function LaunchAnimation({ appReady }: LaunchAnimationProps) {
     return () => {
       cancelled = true;
     };
-  }, [progress, reveal]);
+  }, [progress, settle, wordmark]);
 
   useEffect(() => {
     if (!drawn || !appReady) return;
-    Animated.timing(curtain, {
-      toValue: 0,
+    Animated.timing(exit, {
+      toValue: 1,
       delay: HOLD_MS,
-      duration: FADE_OUT_MS,
+      duration: EXIT_MS,
       easing: Easing.in(Easing.quad),
       useNativeDriver: true,
     }).start(() => setGone(true));
-  }, [drawn, appReady, curtain]);
+  }, [drawn, appReady, exit]);
 
   if (gone) return null;
 
-  const lines = reveal.interpolate({ inputRange: [0, 1], outputRange: [1, 0] });
+  const lines = settle.interpolate({ inputRange: [0, 1], outputRange: [1, 0] });
+  const curtain = exit.interpolate({ inputRange: [0, 1], outputRange: [1, 0] });
+  const forward = exit.interpolate({ inputRange: [0, 1], outputRange: [1, EXIT_SCALE] });
+  const rise = wordmark.interpolate({ inputRange: [0, 1], outputRange: [WORDMARK_RISE, 0] });
 
   return (
     <Animated.View
@@ -106,7 +128,7 @@ export function LaunchAnimation({ appReady }: LaunchAnimationProps) {
       importantForAccessibility="no-hide-descendants"
       style={[styles.curtain, { opacity: curtain }]}
     >
-      <View style={styles.logo}>
+      <Animated.View style={[styles.logo, { transform: [{ scale: forward }] }]}>
         <Animated.View style={[StyleSheet.absoluteFill, { opacity: lines }]}>
           <Svg width="100%" height="100%" viewBox="0 0 1024 1024">
             {MARK_STROKES.map((stroke) => {
@@ -114,10 +136,17 @@ export function LaunchAnimation({ appReady }: LaunchAnimationProps) {
                 inputRange: [0, 1],
                 outputRange: [stroke.length, 0],
               });
+              // A round cap draws a dot even for a zero-length dash: hidden until the line starts.
+              const shown = progress[stroke.id]!.interpolate({
+                inputRange: [0, 0.03],
+                outputRange: [0, 1],
+                extrapolate: 'clamp',
+              });
               const common = {
+                opacity: shown,
                 fill: 'none',
                 stroke: LAUNCH_INK,
-                strokeWidth: 5,
+                strokeWidth: 6,
                 strokeLinecap: 'round' as const,
                 strokeLinejoin: 'round' as const,
                 strokeDasharray: [stroke.length, stroke.length],
@@ -137,10 +166,18 @@ export function LaunchAnimation({ appReady }: LaunchAnimationProps) {
             })}
           </Svg>
         </Animated.View>
-        <Animated.View style={[StyleSheet.absoluteFill, { opacity: reveal }]}>
-          <Image source={LOGO} style={styles.image} resizeMode="contain" />
+        <Animated.View style={[StyleSheet.absoluteFill, { opacity: settle }]}>
+          <Image source={MARK} style={styles.image} resizeMode="contain" />
         </Animated.View>
-      </View>
+        <Animated.View
+          style={[
+            StyleSheet.absoluteFill,
+            { opacity: wordmark, transform: [{ translateY: rise }] },
+          ]}
+        >
+          <Image source={WORDMARK} style={styles.image} resizeMode="contain" />
+        </Animated.View>
+      </Animated.View>
     </Animated.View>
   );
 }

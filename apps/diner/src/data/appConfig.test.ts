@@ -100,7 +100,7 @@ describe('the splash screen', () => {
 
   it('ends the launch on the logo, its mark dark enough to read on that ground', () => {
     const logo = decodePng(
-      readFileSync(new URL('../../assets/images/splash-logo.png', import.meta.url)),
+      readFileSync(new URL('../../assets/images/splash-mark.png', import.meta.url)),
     );
     let darkest = { lum: Number.POSITIVE_INFINITY, rgb: '#FFFFFF' };
     for (let y = 0; y < logo.height; y += 2) {

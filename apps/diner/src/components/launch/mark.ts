@@ -1,6 +1,6 @@
 /**
  * The SHURJ mark as strokes, traced over the logo raster
- * (`assets/images/splash-logo.png`, 1024 × 1024, the logo lifted off its paper) so each line can be drawn in
+ * (`assets/images/splash-mark.png`, 1024 × 1024, the mark lifted off its paper) so each line can be drawn in
  * turn. The drawing gives way to that raster at the end, so where a traced line
  * strays a pixel from the logo nobody is left looking at it.
  *
@@ -27,7 +27,8 @@ export const MARK_STROKES: readonly MarkStroke[] = [
   {
     id: 'fork',
     kind: 'path',
-    d: 'M246 574 C 236 574 230 566 231 552 L 235 392 C 236 380 230 370 222 360 C 214 350 212 336 212 318 L 212 222 M 230 222 L 230 300 M 254 222 L 254 300 M 274 222 L 274 318 C 274 336 270 350 262 360 C 256 368 252 378 252 392 L 258 552 C 259 566 254 574 246 574',
+    // One line: down the fork's left edge, round the handle, up its right edge, then the two inner tines.
+    d: 'M 212 222 L 212 318 C 212 336 214 350 222 360 C 230 370 236 380 235 392 L 231 552 C 230 566 236 574 246 574 C 254 574 259 566 258 552 L 252 392 C 252 378 256 368 262 360 C 270 350 274 336 274 318 L 274 222 M 230 222 L 230 300 M 254 222 L 254 300',
     length: 885,
   },
   {
@@ -47,7 +48,7 @@ export const MARK_STROKES: readonly MarkStroke[] = [
 
 /** The launch's white ground and the logo's burgundy, sampled from the raster. */
 export const LAUNCH_GROUND = '#FFFFFF';
-export const LAUNCH_INK = '#7A1426';
+export const LAUNCH_INK = '#6B1121';
 
 /** The logo's box on screen, in points. */
 export const LAUNCH_LOGO_SIZE = 260;
