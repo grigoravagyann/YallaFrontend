@@ -1,5 +1,6 @@
 /// <reference types="node" />
 import { readFileSync } from 'node:fs';
+import { LAUNCH_GROUND, LAUNCH_INK } from '../components/launch/mark';
 import { createRequire } from 'node:module';
 import { inflateSync } from 'node:zlib';
 import { contrastRatio } from '@yalla/tokens';
@@ -85,17 +86,33 @@ describe('the splash screen', () => {
     expect(splash.dark).toBeUndefined();
   });
 
-  it('draws the mark dark enough to read on that ground', () => {
-    let darkest = { lum: Number.POSITIVE_INFINITY, rgb: '#FFFFFF' };
-    for (let y = 0; y < image.height; y += 2) {
-      for (let x = 0; x < image.width; x += 2) {
+  it('is the bare cream the launch animation then draws the logo on', () => {
+    // Every pixel the same opaque cream: the native frame shows nothing to jump.
+    for (let y = 0; y < image.height; y += 16) {
+      for (let x = 0; x < image.width; x += 16) {
         const [r, g, b, a] = image.pixel(x, y);
+        expect(a).toBe(255);
+        expect(hex(r, g, b)).toBe(splash.backgroundColor.toUpperCase());
+      }
+    }
+    expect(LAUNCH_GROUND).toBe(splash.backgroundColor.toUpperCase());
+  });
+
+  it('ends the launch on the logo, its mark dark enough to read on that ground', () => {
+    const logo = decodePng(
+      readFileSync(new URL('../../assets/images/splash-icon.png', import.meta.url)),
+    );
+    let darkest = { lum: Number.POSITIVE_INFINITY, rgb: '#FFFFFF' };
+    for (let y = 0; y < logo.height; y += 2) {
+      for (let x = 0; x < logo.width; x += 2) {
+        const [r, g, b, a] = logo.pixel(x, y);
         if (a < 255) continue;
         const lum = r * 0.2126 + g * 0.7152 + b * 0.0722;
         if (lum < darkest.lum) darkest = { lum, rgb: hex(r, g, b) };
       }
     }
     expect(contrastRatio(darkest.rgb, splash.backgroundColor)).toBeGreaterThanOrEqual(4.5);
+    expect(contrastRatio(LAUNCH_INK, LAUNCH_GROUND)).toBeGreaterThanOrEqual(4.5);
   });
 });
 

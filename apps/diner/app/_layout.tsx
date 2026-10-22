@@ -6,10 +6,11 @@ import { I18nextProvider, i18next } from '@yalla/i18n';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { Ionicons } from '@expo/vector-icons';
 import { useFonts } from 'expo-font';
+import { LaunchAnimation } from '../src/components/launch/LaunchAnimation';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import NetInfo from '@react-native-community/netinfo';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, AppState, View } from 'react-native';
 import { DinerSessionWiring } from '../src/auth/DinerSessionWiring';
 import { createSecureProfileStorage } from '../src/auth/profileStorage';
@@ -106,7 +107,23 @@ function PushNotifications() {
   return null;
 }
 
+/**
+ * The app under its opening: the launch animation draws the logo over whatever
+ * this renders, and lifts once this reports it is ready — one animation for the
+ * whole launch, never restarted when the boot screen gives way to the app.
+ */
 export default function RootLayout() {
+  const [appReady, setAppReady] = useState(false);
+  const onReady = useCallback(() => setAppReady(true), []);
+  return (
+    <>
+      <AppRoot onReady={onReady} />
+      <LaunchAnimation appReady={appReady} />
+    </>
+  );
+}
+
+function AppRoot({ onReady }: { readonly onReady: () => void }) {
   const [ready, setReady] = useState(false);
   const [fontsLoaded, fontError] = useFonts(FONTS);
   // On the web, "loaded" means the rules are in the page; this waits for the files.
@@ -133,68 +150,76 @@ export default function RootLayout() {
   // face: an unreadable label is worse than an off-brand one.
   if (fontError) console.warn('[fonts] Yalla fonts failed to load', fontError);
 
-  if (!ready || (!fontError && (!fontsLoaded || !facesReady))) {
-    // The boot screen is the first frame anybody sees, so it is already the
-    // app's ground and brown, not a neutral placeholder that changes a moment later.
+  const appReady = ready && (!!fontError || (fontsLoaded && facesReady));
+  useEffect(() => {
+    if (appReady) onReady();
+  }, [appReady, onReady]);
+
+  if (!appReady) {
+    // Under the launch animation: the logo is drawn over this until the app is ready.
     return (
-      <View
-        style={{
-          flex: 1,
-          alignItems: 'center',
-          justifyContent: 'center',
-          backgroundColor: colors.background,
-        }}
-      >
-        <ActivityIndicator color={colors.primary} />
-      </View>
+      <>
+        <View
+          style={{
+            flex: 1,
+            alignItems: 'center',
+            justifyContent: 'center',
+            backgroundColor: colors.background,
+          }}
+        >
+          <ActivityIndicator color={colors.primary} />
+        </View>
+      </>
     );
   }
 
   return (
-    <I18nextProvider i18n={i18next}>
-      <QueryClientProvider client={queryClient}>
-        <GatewayProvider gateway={gateway}>
-          {/* Inside the providers, because it needs the gateway and the locale;
+    <>
+      <I18nextProvider i18n={i18next}>
+        <QueryClientProvider client={queryClient}>
+          <GatewayProvider gateway={gateway}>
+            {/* Inside the providers, because it needs the gateway and the locale;
               above the navigator, because a cold-start tap has to be able to
               route before any screen has mounted. */}
-          <PushNotifications />
-          <DinerSessionWiring />
-          <StatusBar style="dark" />
-          <ToastHost />
-          <Stack screenOptions={STACK_OPTIONS}>
-            <Stack.Screen name="(tabs)" />
-            {/* The map draws its own overlay controls over a full-bleed map. */}
-            <Stack.Screen name="map" />
-            {/* Pushed screens set their own header, which also gives Android
+            <PushNotifications />
+            <DinerSessionWiring />
+            <StatusBar style="dark" />
+            <ToastHost />
+            <Stack screenOptions={STACK_OPTIONS}>
+              <Stack.Screen name="(tabs)" />
+              {/* The map draws its own overlay controls over a full-bleed map. */}
+              <Stack.Screen name="map" />
+              {/* Pushed screens set their own header, which also gives Android
                 hardware-back and the iOS swipe-back gesture. */}
-            <Stack.Screen name="branch/[branchId]" />
-            <Stack.Screen name="place/[placeId]" />
-            <Stack.Screen name="book/[placeId]" />
-            {/* Sign up and log in: the welcome fork, then either flow. `verify`
+              <Stack.Screen name="branch/[branchId]" />
+              <Stack.Screen name="place/[placeId]" />
+              <Stack.Screen name="book/[placeId]" />
+              {/* Sign up and log in: the welcome fork, then either flow. `verify`
                 stays as the older name for the log-in flow. */}
-            <Stack.Screen name="auth/index" />
-            <Stack.Screen name="auth/login" />
-            <Stack.Screen name="auth/signup" />
-            <Stack.Screen name="auth/code" />
-            <Stack.Screen name="verify/index" />
-            <Stack.Screen name="profile/edit" />
-            <Stack.Screen name="reserve/confirm" />
-            <Stack.Screen name="reserve/success" />
-            <Stack.Screen name="booking/[bookingId]" />
-            <Stack.Screen name="order/[orderId]" />
-            <Stack.Screen name="favorites" />
-            <Stack.Screen name="settings" />
-            {/* Scanning in and the shared tab. One entry: `tab/[tabId]` has its
+              <Stack.Screen name="auth/index" />
+              <Stack.Screen name="auth/login" />
+              <Stack.Screen name="auth/signup" />
+              <Stack.Screen name="auth/code" />
+              <Stack.Screen name="verify/index" />
+              <Stack.Screen name="profile/edit" />
+              <Stack.Screen name="reserve/confirm" />
+              <Stack.Screen name="reserve/success" />
+              <Stack.Screen name="booking/[bookingId]" />
+              <Stack.Screen name="order/[orderId]" />
+              <Stack.Screen name="favorites" />
+              <Stack.Screen name="settings" />
+              {/* Scanning in and the shared tab. One entry: `tab/[tabId]` has its
                 own layout (the tray provider), which declares the screens under it. */}
-            <Stack.Screen name="tab/[tabId]" />
-            {/* Deep links. Expo Router derives the linking config from these
+              <Stack.Screen name="tab/[tabId]" />
+              {/* Deep links. Expo Router derives the linking config from these
                 paths, so `https://yalla.am/join/<token>` and the `yalla://`
                 scheme both resolve without a hand-written linking map. */}
-            <Stack.Screen name="join/[token]" />
-            <Stack.Screen name="t/[code]" />
-          </Stack>
-        </GatewayProvider>
-      </QueryClientProvider>
-    </I18nextProvider>
+              <Stack.Screen name="join/[token]" />
+              <Stack.Screen name="t/[code]" />
+            </Stack>
+          </GatewayProvider>
+        </QueryClientProvider>
+      </I18nextProvider>
+    </>
   );
 }
