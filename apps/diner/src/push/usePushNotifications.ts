@@ -103,6 +103,15 @@ export function usePushNotifications({ projectId, signedIn }: PushOptions): void
    * attempt at extending a hold is refused.
    */
   const commandIds = useRef(new Map<string, string>());
+  /**
+   * Read by the response handler at the moment of the tap, not captured when
+   * its effect ran: a banner answered on a phone nobody is signed in on has
+   * nobody to answer as.
+   */
+  const signedInNow = useRef(signedIn);
+  useEffect(() => {
+    signedInNow.current = signedIn;
+  }, [signedIn]);
   const commandIdFor = (key: string): string => {
     const existing = commandIds.current.get(key);
     if (existing) return existing;
@@ -205,6 +214,12 @@ export function usePushNotifications({ projectId, signedIn }: PushOptions): void
       const openThread = () => {
         if (!cancelled) router.push(threadRoute(subject, what === 'reply' ? words : null));
       };
+      // Signed out (or signed out since the push came): nothing is sent as
+      // nobody; the thread opens and asks for a log-in, the words in its field.
+      if (!signedInNow.current) {
+        openThread();
+        return;
+      }
       try {
         if (what === 'reply') {
           if (messageViolations(words).length > 0) {

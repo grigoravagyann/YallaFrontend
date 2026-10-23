@@ -8,7 +8,7 @@ import { Text } from '../components/Text';
 import { useDinerConversation, useScreenFocused } from '../data/messageQueries';
 import { useConfirmOnMyWay } from '../data/preOrderQueries';
 import { actionIcon, colors, fontWeight, iconSize, layout, radius, space } from '../theme';
-import { messageBody, threadRoute } from './copy';
+import { lastAskId, messageBody, threadRoute } from './copy';
 import { MessageBubble, bubbleSide } from './MessageBubble';
 import { useThreadFormat } from './useThreadFormat';
 
@@ -40,7 +40,8 @@ export function MessagesCard({
   const { data: thread } = useDinerConversation(subject, { focused });
   const format = useThreadFormat(thread?.subject.branchId);
   const confirm = useConfirmOnMyWay();
-  const [answered, setAnswered] = useState(false);
+  /** The ask answered from this card: its buttons go until the venue asks again. */
+  const [answeredAsk, setAnsweredAsk] = useState<string | null | undefined>(undefined);
 
   if (!thread) return null;
   const messages = thread.messages;
@@ -49,7 +50,8 @@ export function MessagesCard({
   const place = thread.subject.venueName;
   const reservation = subject.kind === 'reservation';
   const unread = thread.unreadCount;
-  const asking = reservation && thread.pendingAsk && !answered;
+  const askId = lastAskId(messages);
+  const asking = reservation && thread.pendingAsk && askId !== answeredAsk;
   const open = () => router.push(threadRoute(subject));
 
   const last = messages.at(-1) ?? null;
@@ -118,7 +120,7 @@ export function MessagesCard({
             label={confirm.isPending ? t('messages.bar.sending') : t('messages.bar.coming')}
             primary
             disabled={confirm.isPending}
-            onPress={() => confirm.mutate(subject.id, { onSuccess: () => setAnswered(true) })}
+            onPress={() => confirm.mutate(subject.id, { onSuccess: () => setAnsweredAsk(askId) })}
           />
           <CardButton label={t('messages.card.reply')} onPress={open} />
         </View>

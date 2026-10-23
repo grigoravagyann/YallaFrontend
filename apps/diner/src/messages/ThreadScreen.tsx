@@ -3,6 +3,7 @@ import {
   messageText,
   messageViolations,
   newCommandId,
+  UnauthorizedError,
   seenByVenue,
   type ConversationMessage,
   type ConversationSubjectKind,
@@ -13,8 +14,15 @@ import {
 import { isOfflinePaused, useMarkReadWhenSeen } from '@yalla/api/react';
 import { useTranslation } from '@yalla/i18n';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
-import { useMemo, useRef, useState, type ReactNode } from 'react';
-import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, View } from 'react-native';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import {
+  AccessibilityInfo,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  View,
+} from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { EmptyState } from '../components/EmptyState';
 import { IconButton } from '../components/IconButton';
@@ -30,11 +38,20 @@ import {
   useSendGuestMessage,
 } from '../data/messageQueries';
 import { useBooking } from '../data/queries';
+import { useKeyboardInset } from '../hooks/useKeyboardInset';
 import { useNow } from '../hooks/useNow';
+import { useSession } from '../stores/session';
 import { actionIcon, colors, displayWeight, fontWeight, layout, radius, space } from '../theme';
 import { AnswerBar } from './AnswerBar';
 import { Composer } from './Composer';
-import { failureHidesComposer, failureLine, messageBody, venueInitial } from './copy';
+import {
+  failureHidesComposer,
+  failureLine,
+  lastAskId,
+  messageBody,
+  newArrivals,
+  venueInitial,
+} from './copy';
 import { MessageBubble, bubbleSide } from './MessageBubble';
 import { useSubjectLine, useThreadFormat } from './useThreadFormat';
 
@@ -64,6 +81,7 @@ export function ThreadScreen({ kind }: { readonly kind: ConversationSubjectKind 
     [kind, id],
   );
   const focused = useScreenFocused();
+  const signedIn = useSession((state) => state.signedIn);
   const query = useDinerConversation(subject, { focused });
   const markRead = useMarkConversationRead();
   const thread = query.data;
@@ -95,7 +113,19 @@ export function ThreadScreen({ kind }: { readonly kind: ConversationSubjectKind 
             style={styles.round}
           />
         </View>
-        {isOfflinePaused(query) ? (
+        {!signedIn || query.error instanceof UnauthorizedError ? (
+          // A push's thread opened on a phone nobody is signed in on: the
+          // thread is the diner's own, so the way in is to log in.
+          <EmptyState
+            icon={actionIcon.message}
+            title={t('messages.thread.signedOut.title')}
+            body={t('messages.thread.signedOut.body')}
+            action={{
+              label: t('messages.thread.signedOut.action'),
+              onPress: () => router.push('/auth'),
+            }}
+          />
+        ) : isOfflinePaused(query) ? (
           <QueryErrorState offline onRetry={() => void query.refetch()} />
         ) : query.isLoading ? (
           <ThreadSkeleton />
@@ -141,6 +171,8 @@ function Thread({
 }) {
   const { t } = useTranslation('diner');
   const insets = useSafeAreaInsets();
+  // With the keyboard up the field stands on it, not on the home indicator.
+  const keyboard = useKeyboardInset();
   const now = useNow(60_000);
   const format = useThreadFormat(thread.subject.branchId);
   const place = thread.subject.venueName;
@@ -152,14 +184,44 @@ function Thread({
   const { data: booking } = useBooking(reservation ? subject.id : undefined);
   const [draft, setDraft] = useState(initialDraft);
   const [failure, setFailure] = useState<MessageFailure | null>(null);
-  const [answered, setAnswered] = useState(false);
+  /** The venue's ask answered from here: the bar goes until the venue asks again. */
+  const [answeredAsk, setAnsweredAsk] = useState<string | null | undefined>(undefined);
   /** The last text tried, and its command id: sent again unchanged, it is the same command. */
   const attempt = useRef<{ readonly text: string; readonly id: string } | null>(null);
   const scroll = useRef<ScrollView>(null);
 
   const blocked = failure !== null && failureHidesComposer(failure);
   const canWrite = thread.open && thread.guestsCanWrite && !blocked;
-  const showAnswers = reservation && thread.pendingAsk && !answered;
+  const askId = lastAskId(thread.messages);
+  const showAnswers = reservation && thread.pendingAsk && askId !== answeredAsk;
+
+  // A screen reader hears what the venue writes as it arrives: said once, by
+  // the screen, rather than a live region re-reading the whole log.
+  const known = useRef<ReadonlySet<string> | null>(null);
+  const lastId = thread.messages.at(-1)?.id ?? null;
+  useEffect(() => {
+    const before = known.current;
+    known.current = new Set(thread.messages.map((message) => message.id));
+    // The thread as it opened is not news: it is on the screen to be read.
+    if (!before) return;
+    for (const { message, previous } of newArrivals(thread.messages, before)) {
+      const body = format.say(
+        messageBody(message, {
+          localTime: thread.subject.localTime,
+          previous,
+          clock: format.clock,
+        }),
+      );
+      if (!body) continue;
+      AccessibilityInfo.announceForAccessibility(
+        message.author === 'venue'
+          ? t('messages.a11y.venue', { place, text: body, time: format.time(message.createdAtUtc) })
+          : body,
+      );
+    }
+    // Only a new newest message is news; the rest of the thread is read with it.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lastId]);
 
   const sendDraft = () => {
     const text = messageText(draft);
@@ -292,7 +354,6 @@ function Thread({
           keyboardShouldPersistTaps="handled"
           role="log"
           accessibilityLabel={t('messages.thread.log')}
-          accessibilityLiveRegion="polite"
           onContentSizeChange={() => scroll.current?.scrollToEnd({ animated: false })}
         >
           {rows.length === 0 ? (
@@ -311,7 +372,7 @@ function Thread({
             reservationId={subject.id}
             zone={format.zone}
             withPreOrder={Boolean(booking?.preOrder)}
-            onAnswered={() => setAnswered(true)}
+            onAnswered={() => setAnsweredAsk(askId)}
           />
         ) : null}
 
@@ -331,7 +392,7 @@ function Thread({
             onSend={sendDraft}
             place={place}
             busy={send.isPending}
-            bottomInset={insets.bottom}
+            bottomInset={keyboard > 0 ? 0 : insets.bottom}
           />
         ) : (
           <View

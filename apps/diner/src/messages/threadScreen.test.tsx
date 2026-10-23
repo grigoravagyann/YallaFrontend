@@ -3,6 +3,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import type * as I18nModule from '@yalla/i18n';
 import type * as ApiReactModule from '@yalla/api/react';
+import { AccessibilityInfo } from 'react-native';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import ReservationThreadScreen from '../../app/messages/reservation/[id]';
 import TakeawayThreadScreen from '../../app/messages/takeaway/[id]';
@@ -133,7 +134,10 @@ function thread(overrides: Partial<DinerConversation> = {}): DinerConversation {
 
 function renderScreen(node: React.ReactNode = <ReservationThreadScreen />) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-  return render(<QueryClientProvider client={client}>{node}</QueryClientProvider>);
+  return {
+    client,
+    ...render(<QueryClientProvider client={client}>{node}</QueryClientProvider>),
+  };
 }
 
 beforeEach(() => {
@@ -295,6 +299,85 @@ describe('a booking thread', () => {
     renderScreen();
 
     expect(await screen.findByText('messages.thread.notFound.title')).toBeTruthy();
+  });
+
+  it('says a venue message aloud as it arrives, once, and not the thread it opened on', async () => {
+    const announce = vi
+      .spyOn(AccessibilityInfo, 'announceForAccessibility')
+      .mockImplementation(() => undefined);
+    gateway.getConversation.mockResolvedValue(thread({ pendingAsk: false }));
+    const { client } = renderScreen();
+    expect(await screen.findByText('Of course, by table 6')).toBeTruthy();
+    expect(announce).not.toHaveBeenCalled();
+
+    const arrived = thread({ pendingAsk: false });
+    gateway.getConversation.mockResolvedValue({
+      ...arrived,
+      messages: [
+        ...arrived.messages,
+        {
+          id: 'm4',
+          author: 'venue',
+          kind: 'text',
+          text: 'Your table is ready',
+          answer: null,
+          status: null,
+          createdAtUtc: at(0),
+          staffName: null,
+        },
+      ],
+    });
+    await client.invalidateQueries();
+    expect(await screen.findByText('Your table is ready')).toBeTruthy();
+    await waitFor(() => expect(announce).toHaveBeenCalledTimes(1));
+    expect(announce.mock.calls[0]![0]).toMatch(
+      /^messages\.a11y\.venue place=Lava text=Your table is ready time=/,
+    );
+
+    // Read again with nothing new: nothing more is said.
+    await client.invalidateQueries();
+    await waitFor(() => expect(gateway.getConversation).toHaveBeenCalledTimes(3));
+    expect(announce).toHaveBeenCalledTimes(1);
+    announce.mockRestore();
+  });
+
+  it('brings the answer bar back when the venue asks again', async () => {
+    gateway.getConversation.mockResolvedValue(thread());
+    gateway.confirmOnMyWay.mockResolvedValue({ wasReplay: false });
+    const { client } = renderScreen();
+
+    fireEvent.click(await screen.findByLabelText('messages.bar.coming'));
+    await waitFor(() => expect(screen.queryByText('messages.bar.title')).toBeNull());
+
+    const asked = thread();
+    gateway.getConversation.mockResolvedValue({
+      ...asked,
+      messages: [
+        ...asked.messages,
+        {
+          id: 'm5',
+          author: 'venue',
+          kind: 'askComing',
+          text: null,
+          answer: null,
+          status: null,
+          createdAtUtc: at(0),
+          staffName: null,
+        },
+      ],
+    });
+    await client.invalidateQueries();
+    expect(await screen.findByText('messages.bar.title')).toBeTruthy();
+  });
+
+  it('asks a signed-out diner to log in, and reads nothing', async () => {
+    useSession.setState({ signedIn: false });
+    renderScreen();
+
+    expect(await screen.findByText('messages.thread.signedOut.title')).toBeTruthy();
+    fireEvent.click(screen.getByText('messages.thread.signedOut.action'));
+    expect(router.push).toHaveBeenCalledWith('/auth');
+    expect(gateway.getConversation).not.toHaveBeenCalled();
   });
 
   it('opens with the words a push reply could not send', async () => {

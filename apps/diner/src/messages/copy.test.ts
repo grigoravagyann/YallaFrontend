@@ -5,9 +5,11 @@ import { describe, expect, it } from 'vitest';
 import {
   failureHidesComposer,
   failureLine,
+  lastAskId,
   lastMessageLine,
   messageBody,
   messageRow,
+  newArrivals,
   threadRoute,
   unreadFor,
   venueInitial,
@@ -113,6 +115,44 @@ describe('messageBody', () => {
   function ctx(localTime: string | null = '19:30') {
     return { localTime, clock };
   }
+});
+
+describe('lastAskId', () => {
+  it("is the venue's latest ask, answered or not", () => {
+    expect(
+      lastAskId([
+        { id: 'a1', kind: 'askComing' },
+        { id: 'x', kind: 'answer' },
+        { id: 'a2', kind: 'askComing' },
+        { id: 't', kind: 'text' },
+      ]),
+    ).toBe('a2');
+    expect(lastAskId([{ id: 't', kind: 'text' }])).toBeNull();
+  });
+});
+
+describe('newArrivals', () => {
+  const m = (id: string, author: 'guest' | 'venue' | 'system', pending = false) => ({
+    id,
+    author,
+    pending,
+  });
+
+  it("is what the venue and the system added since, never the guest's own", () => {
+    const messages = [m('1', 'venue'), m('2', 'guest'), m('3', 'guest'), m('4', 'system')];
+    const arrived = newArrivals([...messages, m('5', 'venue')], new Set(['1', '2']));
+    expect(arrived.map((entry) => entry.message.id)).toEqual(['4', '5']);
+    expect(arrived[0]!.previous?.id).toBe('3');
+  });
+
+  it('says nothing for a send settling, nor one still sending', () => {
+    expect(newArrivals([m('1', 'venue'), m('pending:c', 'guest', true)], new Set(['1']))).toEqual(
+      [],
+    );
+    expect(newArrivals([m('1', 'venue'), m('9', 'guest')], new Set(['1', 'pending:c']))).toEqual(
+      [],
+    );
+  });
 });
 
 describe('failureLine', () => {

@@ -89,7 +89,7 @@ describe('the tap that opened the app', () => {
  * does not go through opens the thread, the reply's words in its field.
  */
 describe("a venue message's buttons", () => {
-  function respond(actionIdentifier: string, userText?: string) {
+  function respond(actionIdentifier: string, userText?: string, signedIn = true) {
     notifications.getLastNotificationResponseAsync.mockResolvedValue({
       actionIdentifier,
       ...(userText === undefined ? {} : { userText }),
@@ -106,7 +106,7 @@ describe("a venue message's buttons", () => {
         },
       },
     });
-    renderHook(() => usePushNotifications({ projectId: 'p', signedIn: false }), { wrapper });
+    renderHook(() => usePushNotifications({ projectId: 'p', signedIn }), { wrapper });
   }
 
   it("'I'm coming' tells the venue without opening anything", async () => {
@@ -151,6 +151,28 @@ describe("a venue message's buttons", () => {
 
   it('a tap on the banner itself opens the thread', async () => {
     respond('expo.modules.notifications.actions.DEFAULT');
+    await waitFor(() =>
+      expect(router.push).toHaveBeenCalledWith({
+        pathname: '/messages/reservation/[id]',
+        params: { id: 'r-1' },
+      }),
+    );
+    expect(gateway.confirmOnMyWay).not.toHaveBeenCalled();
+  });
+
+  it('sends nothing as nobody: signed out, the thread opens with the words', async () => {
+    respond('venue-reply', 'Ten minutes away', false);
+    await waitFor(() =>
+      expect(router.push).toHaveBeenCalledWith({
+        pathname: '/messages/reservation/[id]',
+        params: { id: 'r-1', draft: 'Ten minutes away' },
+      }),
+    );
+    expect(gateway.sendGuestMessage).not.toHaveBeenCalled();
+  });
+
+  it("signed out, 'I'm coming' opens the thread instead of answering", async () => {
+    respond('venue-ask-coming', undefined, false);
     await waitFor(() =>
       expect(router.push).toHaveBeenCalledWith({
         pathname: '/messages/reservation/[id]',

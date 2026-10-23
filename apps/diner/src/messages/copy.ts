@@ -95,6 +95,35 @@ export function messageBody(
   }
 }
 
+/**
+ * The id of the venue's latest "are you coming?" in a thread, or `null`. An
+ * answer bar dismissed for one ask comes back for the next one.
+ */
+export function lastAskId(
+  messages: readonly Pick<ConversationMessage, 'id' | 'kind'>[],
+): string | null {
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    if (messages[index]!.kind === 'askComing') return messages[index]!.id;
+  }
+  return null;
+}
+
+/**
+ * The venue's and the system's messages that arrived since `known` (the ids
+ * on screen before), each with the message before it — what a screen reader
+ * is told as they land. The guest's own never are, nor one still sending.
+ */
+export function newArrivals<M extends Pick<ConversationMessage, 'id' | 'author' | 'pending'>>(
+  messages: readonly M[],
+  known: ReadonlySet<string>,
+): { readonly message: M; readonly previous: M | null }[] {
+  return messages.flatMap((message, index) =>
+    known.has(message.id) || message.author === 'guest' || message.pending
+      ? []
+      : [{ message, previous: messages[index - 1] ?? null }],
+  );
+}
+
 /** The line a summary or an unread row shows for the last message: its text, or what it was. */
 export function lastMessageLine(last: {
   readonly lastKind: ConversationSummary['lastKind'];

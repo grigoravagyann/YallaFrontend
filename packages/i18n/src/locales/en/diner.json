@@ -1808,6 +1808,11 @@
       "notFound": {
         "title": "This conversation isn't available",
         "body": "It closed more than 30 days ago, or the booking is no longer on your account."
+      },
+      "signedOut": {
+        "title": "Your conversations are kept on your account",
+        "body": "Log in to read and answer the venue.",
+        "action": "Log in"
       }
     },
     "bar": {
