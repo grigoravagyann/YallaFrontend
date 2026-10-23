@@ -1,3 +1,4 @@
+import type { ConversationSummary } from './messages';
 import type { FloorPlanData } from './tableFloor';
 import type { ApprovalTrigger, DeclineReason } from './approvals';
 import type { OpenState } from './publicBranch';
@@ -469,6 +470,14 @@ export interface Booking extends BookingPreOrderFields {
    * asking — and once the diner has answered.
    */
   readonly incomingTableRequest?: IncomingTableRequest | null | undefined;
+  /**
+   * The thread with the venue (guest messages, 2026-10-23): unread count, the
+   * last message and whether it is open — the Bookings card's row and the
+   * booking screen's "Messages with the venue" card. Absent or `null` when
+   * there is no thread and none can be opened, and from a server before
+   * messages.
+   */
+  readonly messages?: ConversationSummary | null | undefined;
 }
 
 /**

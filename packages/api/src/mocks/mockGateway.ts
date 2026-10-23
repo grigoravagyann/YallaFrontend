@@ -183,7 +183,23 @@ import {
   type TakeawayPaymentMethod,
   type TakeawaySettingsInput,
 } from '../contracts/takeaway';
-import type { AskOnMyWayResult, RunningLateMinutes, RunningLateResult } from '../contracts/onMyWay';
+import {
+  canAnswerOnMyWay,
+  type AskOnMyWayResult,
+  type RunningLateMinutes,
+  type RunningLateResult,
+} from '../contracts/onMyWay';
+import {
+  VENUE_MESSAGE_FEED_KIND,
+  type ConversationSubjectRef,
+  type DinerConversation,
+  type DinerUnreadMessages,
+  type MessageAnswer,
+  type MessageSettingsInput,
+  type SentMessage,
+} from '../contracts/messages';
+import { createMockConversationBook, type MockConversationSubjectInfo } from './messages';
+import { newCommandId } from '../ids';
 
 const URL_TAG = 'mock://yalla';
 
@@ -380,10 +396,26 @@ export interface MockGateway extends YallaGateway {
   collectTakeawayAsVenue(orderId: string, method: TakeawayPaymentMethod): void;
   /** "Not collected": counts in the guest's record and toward the no-show block. */
   markTakeawayNoShowAsVenue(orderId: string): void;
+
+  // --- Guest messages: the venue's side (2026-10-23) ------------------------
+
+  /** Somebody at the venue writes to the guest: the thread, the feed row, the unread dot. */
+  sendMessageAsVenue(
+    subject: ConversationSubjectRef,
+    text: string,
+    staffName?: string,
+  ): SentMessage;
+  /** Somebody at the venue opened the thread: "seen" under the guest's messages. */
+  readConversationAsVenue(subject: ConversationSubjectRef): void;
+  /** The console's message settings for a branch. */
+  setMessageSettingsAsVenue(branchId: string, settings: MessageSettingsInput): void;
 }
 
 /** Where mock mode's takeaway orders and "I'm coming" booking are (2026-10-22). */
 const TAKEAWAY_SEED_BRANCH = 'b-lumen-north';
+
+/** In mock mode, the venue answers a guest's text or answer this long after it (2026-10-23). */
+const MOCK_VENUE_REPLY_MS = 6_000;
 
 /** The waiter the mock acts as when it plays the floor. */
 const MOCK_WAITER_ID = 'staff-mock-waiter';
@@ -562,6 +594,17 @@ export interface MockGatewayOptions {
    */
   readonly seedComingBooking?: boolean | undefined;
   /**
+   * Guest messages (2026-10-23), for mock mode: threads on the seeded
+   * account's coming booking (the venue asking "are you coming?", one new) and
+   * on its two takeaway orders (one open, one closed yesterday) — each only
+   * when its subject is seeded too — and the venue replying a few seconds
+   * after every text or answer. Off unless asked: tests seed their own and
+   * reply as the venue with `sendMessageAsVenue`.
+   */
+  readonly seedMessages?: boolean | undefined;
+  /** Message settings per branch, as the console saved them. Absent: the server's default. */
+  readonly messageSettings?: Readonly<Record<string, Partial<MessageSettingsInput>>> | undefined;
+  /**
    * The branch setting: a scan with no proved number waits for a waiter. True
    * when absent, as the server's default; false lets such scans order at once
    * (`notRequired`).
@@ -683,6 +726,114 @@ export function createMockGateway(options: MockGatewayOptions = {}): MockGateway
     },
     branches: options.takeaway?.branches,
   });
+
+  /**
+   * Guest messages in this world (2026-10-23): the threads on the diner's
+   * bookings and takeaway orders. The subjects stay here; the book reads them
+   * as they stand, so a thread's window follows its booking.
+   */
+  const conversations = createMockConversationBook({
+    now,
+    subject: conversationSubject,
+    settings: options.messageSettings,
+    simulate: options.seedMessages
+      ? { venueReplyAfterMs: MOCK_VENUE_REPLY_MS, venueStaffName: MOCK_WAITER_NAME }
+      : undefined,
+  });
+
+  function conversationSubject(ref: ConversationSubjectRef): MockConversationSubjectInfo | null {
+    if (ref.kind === 'reservation') {
+      const booking = bookings.get(ref.id);
+      if (!booking) return null;
+      const owner = bookingOwners.get(booking.id) ?? null;
+      const local = localDateTime(booking.slotUtc, booking.timeZoneId);
+      const active =
+        booking.status === 'pendingApproval' ||
+        booking.status === 'confirmed' ||
+        booking.status === 'seated';
+      const fields = preOrders.fields(preOrderBooking(booking));
+      return {
+        ref,
+        branchId: booking.branchId,
+        venueName: booking.venueName ?? findBranch(booking.branchId)?.venue.name ?? '',
+        venuePhone: publicBranchFixtures[booking.branchId]?.phoneE164 ?? null,
+        owner,
+        guestName: (owner ? accounts.profile(owner)?.displayName : null) ?? 'Guest',
+        startUtc: booking.slotUtc,
+        localDate: local.date,
+        localTime: local.time,
+        partySize: booking.partySize,
+        tableLabel: booking.tableLabel,
+        takeawayCode: null,
+        readyAtLocal: null,
+        active,
+        endUtc: booking.endUtc,
+        // A decided booking's moment: the cancellation, else its end.
+        endedAtUtc: active ? null : (booking.cancelledAtUtc ?? booking.endUtc),
+        acceptsAnswer: canAnswerOnMyWay(
+          {
+            status: booking.status,
+            startUtc: booking.slotUtc,
+            endUtc: booking.endUtc,
+            onMyWayOpensAtUtc: fields.onMyWayOpensAtUtc ?? null,
+          },
+          now(),
+        ),
+      };
+    }
+    const record = takeaway.record(ref.id);
+    if (!record) return null;
+    const found = findBranch(record.branchId);
+    const zone = found?.branch.timeZoneId ?? 'Asia/Yerevan';
+    return {
+      ref,
+      branchId: record.branchId,
+      venueName: found?.venue.name ?? '',
+      venuePhone: publicBranchFixtures[record.branchId]?.phoneE164 ?? null,
+      owner: record.actor,
+      guestName: record.guestName,
+      startUtc: null,
+      localDate: null,
+      localTime: null,
+      partySize: null,
+      tableLabel: null,
+      takeawayCode: record.code,
+      readyAtLocal: record.readyAtUtc ? localDateTime(record.readyAtUtc, zone).time : null,
+      active: isTakeawayActive(record.status),
+      endUtc: null,
+      endedAtUtc:
+        record.collectedAtUtc ??
+        record.noShowAtUtc ??
+        record.declinedAtUtc ??
+        record.cancelledAtUtc ??
+        null,
+      acceptsAnswer: false,
+    };
+  }
+
+  /** `messages` on a booking or order read: only when there is a thread to show. */
+  function messagesOf(ref: ConversationSubjectRef) {
+    const messages = conversations.summary(ref);
+    return messages ? { messages } : {};
+  }
+
+  /**
+   * The guest answered with a button: the answer and the system line go into
+   * the booking's thread (created if needed), as the server writes them.
+   */
+  function answerInThread(booking: Booking, answer: MessageAnswer): void {
+    const heldUntil =
+      answer.kind === 'late' && answer.lateMinutes !== null
+        ? localDateTime(
+            new Date(Date.parse(booking.slotUtc) + answer.lateMinutes * 60_000),
+            booking.timeZoneId,
+          ).time
+        : null;
+    conversations.appendAnswer({ kind: 'reservation', id: booking.id }, answer, {
+      heldUntilLocal: heldUntil,
+      cancelled: answer.kind === 'notComing',
+    });
+  }
 
   /** A booking as the pre-order book reads it. */
   function preOrderBooking(booking: Booking): MockPreOrderBooking {
@@ -1258,6 +1409,8 @@ export function createMockGateway(options: MockGatewayOptions = {}): MockGateway
       ...booking,
       // The pre-order, the editor's window and "on my way" — only those with a value.
       ...preOrders.fields(preOrderBooking(booking)),
+      // Guest messages (2026-10-23): the thread's row, when there is one to show.
+      ...messagesOf({ kind: 'reservation', id: booking.id }),
       awaitsEarlierGuestAnswer: asking?.asksEarlierGuest ?? false,
       incomingTableRequest: request
         ? {
@@ -2905,6 +3058,41 @@ export function createMockGateway(options: MockGatewayOptions = {}): MockGateway
       });
     }
 
+    // Guest messages (2026-10-23): every venue text, once. The ask has its own
+    // "are you coming?" entry above.
+    for (const record of conversations.records()) {
+      const info = conversationSubject(record.ref);
+      if (!info || info.owner !== accountId) continue;
+      for (const message of record.messages) {
+        if (message.author !== 'venue' || message.kind !== 'text') continue;
+        if (Date.parse(message.createdAtUtc) > now().getTime()) continue;
+        if (
+          feed.some(
+            (row) => row.kind === VENUE_MESSAGE_FEED_KIND && row.params['messageId'] === message.id,
+          )
+        ) {
+          continue;
+        }
+        const body = message.text ?? '';
+        add({
+          kind: VENUE_MESSAGE_FEED_KIND,
+          params: {
+            venueName: info.venueName,
+            text: body.length > 140 ? `${body.slice(0, 139)}…` : body,
+            ask: 'false',
+            conversationId: record.id,
+            messageId: message.id,
+          },
+          branchId: info.branchId,
+          branchName: findBranch(info.branchId)?.branch.name ?? null,
+          reservationId: record.ref.kind === 'reservation' ? record.ref.id : null,
+          tabId: null,
+          orderId: record.ref.kind === 'takeaway' ? record.ref.id : null,
+          createdAtUtc: message.createdAtUtc,
+        });
+      }
+    }
+
     // Takeaway (2026-10-22): accepted (with the ready time), ready, declined.
     for (const record of takeaway.records()) {
       if (record.actor !== accountId) continue;
@@ -3159,6 +3347,71 @@ export function createMockGateway(options: MockGatewayOptions = {}): MockGateway
 
   if (options.takeaway?.seedOrders) seedTakeawayOrders();
   if (options.seedComingBooking) seedComingBooking();
+  if (options.seedMessages) seedMessageThreads();
+
+  /**
+   * Mock mode's threads (2026-10-23), in the design's words: the coming
+   * booking's — a question answered by the venue, then its "are you coming?"
+   * one new — the order being prepared's (onion, and the venue's answer, one
+   * new), and yesterday's collected order's, closed.
+   */
+  function seedMessageThreads(): void {
+    if (bookings.has('bk_coming')) {
+      const ref = { kind: 'reservation', id: 'bk_coming' } as const;
+      conversations.seed(
+        ref,
+        [
+          {
+            author: 'guest',
+            text: 'Բարև։ Մեզ մանկական աթոռ է պետք, հնարավո՞ր է։',
+            minutesAgo: 6 * 60 + 25,
+          },
+          {
+            author: 'venue',
+            text: 'Բարև։ Աթոռը կդնենք ձեր սեղանի մոտ։',
+            minutesAgo: 6 * 60 + 10,
+            staffName: 'Լիլիթ',
+          },
+          { author: 'venue', kind: 'askComing', minutesAgo: 3, staffName: 'Արամ' },
+        ],
+        { guestLastReadMinutesAgo: 6 * 60, venueLastReadMinutesAgo: 6 * 60 + 10 },
+      );
+      preOrders.seedStaffAsked('bk_coming', new Date(now().getTime() - 3 * 60_000).toISOString());
+    }
+    const orders = takeaway.records().filter((record) => record.actor === SEEDED_ACCOUNT.id);
+    const preparing = orders.find((record) => isTakeawayActive(record.status));
+    if (preparing) {
+      conversations.seed(
+        { kind: 'takeaway', id: preparing.id },
+        [
+          { author: 'guest', text: 'Կարո՞ղ եք կրուասանները տաքացնել։', minutesAgo: 6 },
+          {
+            author: 'venue',
+            text: 'Իհարկե։ Մի բան էլ՝ չիզքեյքը վերջացել է։ Նապոլեոնով փոխարինե՞նք (նույն գինը), թե՞ հանենք պատվերից։',
+            minutesAgo: 1,
+            staffName: MOCK_WAITER_NAME,
+          },
+        ],
+        { guestLastReadMinutesAgo: 6, venueLastReadMinutesAgo: 6 },
+      );
+    }
+    const collected = orders.find((record) => record.status === 'collected');
+    if (collected) {
+      conversations.seed(
+        { kind: 'takeaway', id: collected.id },
+        [
+          { author: 'guest', text: 'Ուշանում եմ 10 րոպե, կպահե՞ք։', minutesAgo: 24 * 60 + 5 },
+          {
+            author: 'venue',
+            text: 'Լավ, պահում ենք։',
+            minutesAgo: 24 * 60 + 4,
+            staffName: MOCK_WAITER_NAME,
+          },
+        ],
+        { guestLastReadMinutesAgo: 24 * 60, venueLastReadMinutesAgo: 24 * 60 },
+      );
+    }
+  }
 
   /** The seeded account's order being prepared now, and one it collected yesterday. */
   function seedTakeawayOrders(): void {
@@ -3567,7 +3820,9 @@ export function createMockGateway(options: MockGatewayOptions = {}): MockGateway
       // The mock keeps no dine-in order history (the app's Orders tab runs on
       // its own mock repository for those); the takeaway orders this diner
       // placed are real here (2026-10-22), the ones still moving first.
-      const orders = takeaway.dinerOrders(me());
+      const orders = takeaway
+        .dinerOrders(me())
+        .map((order) => ({ ...order, ...messagesOf({ kind: 'takeaway', id: order.orderId }) }));
       if (!segment) return orders;
       return orders.filter(
         (order) =>
@@ -3578,7 +3833,8 @@ export function createMockGateway(options: MockGatewayOptions = {}): MockGateway
 
     async getDinerOrder(orderId): Promise<DinerOrder | null> {
       await wait();
-      return takeaway.dinerOrders(me()).find((order) => order.orderId === orderId) ?? null;
+      const order = takeaway.dinerOrders(me()).find((entry) => entry.orderId === orderId);
+      return order ? { ...order, ...messagesOf({ kind: 'takeaway', id: order.orderId }) } : null;
     },
 
     // --- Takeaway (2026-10-22) --------------------------------------------------
@@ -3620,6 +3876,68 @@ export function createMockGateway(options: MockGatewayOptions = {}): MockGateway
       await wait();
       const url = `${URL_TAG}/api/diner/takeaway-orders/${orderId}/cancel`;
       return takeaway.cancel(url, orderId, me());
+    },
+
+    // --- Messages with the venue (2026-10-23) ------------------------------------
+
+    async getConversation(subject): Promise<DinerConversation | null> {
+      await wait();
+      return conversations.guestConversation(subject, me());
+    },
+
+    async sendGuestMessage(command): Promise<SentMessage> {
+      await wait();
+      const segment = command.subject.kind === 'takeaway' ? 'takeaway-orders' : 'reservations';
+      return conversations.sendAsGuest({
+        url: `${URL_TAG}/api/diner/${segment}/${command.subject.id}/conversation/messages`,
+        ref: command.subject,
+        actor: me(),
+        text: command.text,
+        clientCommandId: command.clientCommandId,
+      });
+    },
+
+    async markConversationRead(subject): Promise<void> {
+      await wait();
+      const segment = subject.kind === 'takeaway' ? 'takeaway-orders' : 'reservations';
+      conversations.readAsGuest(
+        `${URL_TAG}/api/diner/${segment}/${subject.id}/conversation/read`,
+        subject,
+        me(),
+      );
+    },
+
+    async getUnreadMessages(): Promise<DinerUnreadMessages> {
+      await wait();
+      return conversations.unread(me());
+    },
+
+    sendMessageAsVenue(subject, text, staffName) {
+      const segment = subject.kind === 'takeaway' ? 'takeaway-orders' : 'reservations';
+      return conversations.sendAsVenue({
+        url: `${URL_TAG}/api/${segment}/${subject.id}/conversation/messages`,
+        ref: subject,
+        role: 'manager',
+        staffName: staffName ?? MOCK_WAITER_NAME,
+        text,
+        clientCommandId: newCommandId(),
+      });
+    },
+
+    readConversationAsVenue(subject) {
+      const segment = subject.kind === 'takeaway' ? 'takeaway-orders' : 'reservations';
+      conversations.readAsVenue(
+        `${URL_TAG}/api/${segment}/${subject.id}/conversation/read`,
+        subject,
+      );
+    },
+
+    setMessageSettingsAsVenue(branchId, settings) {
+      conversations.setSettings(
+        `${URL_TAG}/api/branches/${branchId}/message-settings`,
+        branchId,
+        settings,
+      );
     },
 
     async listVenues() {
@@ -3822,38 +4140,42 @@ export function createMockGateway(options: MockGatewayOptions = {}): MockGateway
     async confirmOnMyWay(reservationId): Promise<OnMyWayResult> {
       await wait();
       const url = `${URL_TAG}/api/reservations/${reservationId}/on-my-way`;
-      return preOrders.confirmOnMyWay(url, preOrderBooking(ownBooking(url, reservationId)));
+      const booking = ownBooking(url, reservationId);
+      const result = preOrders.confirmOnMyWay(url, preOrderBooking(booking));
+      if (!result.wasReplay) answerInThread(booking, { kind: 'coming', lateMinutes: null });
+      return result;
     },
 
     async reportRunningLate({ reservationId, minutes }): Promise<RunningLateResult> {
       await wait();
       const url = `${URL_TAG}/api/reservations/${reservationId}/running-late`;
-      return preOrders.reportRunningLate(
-        url,
-        preOrderBooking(ownBooking(url, reservationId)),
-        minutes,
-      );
+      const booking = ownBooking(url, reservationId);
+      const result = preOrders.reportRunningLate(url, preOrderBooking(booking), minutes);
+      answerInThread(booking, { kind: 'late', lateMinutes: result.guestRunningLateMinutes });
+      return result;
     },
 
     async reportRunningLateByLink({ bookingId, minutes }): Promise<RunningLateResult> {
       await wait();
       const url = `${URL_TAG}/api/public/bookings/running-late`;
-      return preOrders.reportRunningLate(
-        url,
-        preOrderBooking(linkedBooking(url, bookingId)),
-        minutes,
-      );
+      const booking = linkedBooking(url, bookingId);
+      const result = preOrders.reportRunningLate(url, preOrderBooking(booking), minutes);
+      answerInThread(booking, { kind: 'late', lateMinutes: result.guestRunningLateMinutes });
+      return result;
     },
 
     askOnMyWayAsVenue(bookingId): AskOnMyWayResult {
       const url = `${URL_TAG}/api/reservations/${bookingId}/ask-on-my-way`;
       const booking = linkedBooking(url, bookingId);
       const owner = bookingOwners.get(bookingId);
-      return preOrders.askOnMyWay(
+      const result = preOrders.askOnMyWay(
         url,
         preOrderBooking(booking),
         owner !== undefined && !deletedAccounts.has(owner),
       );
+      // The ask is a message in the booking's thread, with the asker's name.
+      conversations.appendAsk({ kind: 'reservation', id: bookingId }, MOCK_WAITER_NAME);
+      return result;
     },
 
     setTakeawaySettingsAsVenue(branchId, settings) {
@@ -3923,7 +4245,10 @@ export function createMockGateway(options: MockGatewayOptions = {}): MockGateway
     async confirmOnMyWayByLink(bookingId): Promise<OnMyWayResult> {
       await wait();
       const url = `${URL_TAG}/api/public/bookings/on-my-way`;
-      return preOrders.confirmOnMyWay(url, preOrderBooking(linkedBooking(url, bookingId)));
+      const booking = linkedBooking(url, bookingId);
+      const result = preOrders.confirmOnMyWay(url, preOrderBooking(booking));
+      if (!result.wasReplay) answerInThread(booking, { kind: 'coming', lateMinutes: null });
+      return result;
     },
 
     setPreOrderSettingsAsVenue(branchId, settings) {
@@ -4428,6 +4753,11 @@ export function createMockGateway(options: MockGatewayOptions = {}): MockGateway
       bookings.set(bookingId, cancelled);
       rejudgeAskersOf(bookingId, at.toISOString());
       withdrawRequestsFor(bookingId);
+      // "Not coming" is the ordinary cancel: an answer in the thread when the
+      // venue had asked, as the server writes it for every cancel by the guest.
+      if (conversations.record({ kind: 'reservation', id: bookingId })) {
+        answerInThread(cancelled, { kind: 'notComing', lateMinutes: null });
+      }
 
       const floor = floors.get(booking.branchId);
       if (floor) {

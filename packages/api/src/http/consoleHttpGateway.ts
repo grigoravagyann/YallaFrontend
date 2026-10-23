@@ -1,5 +1,11 @@
 import type { PreOrderSettings } from '../contracts/preOrder';
 import type { TakeawaySettings } from '../contracts/takeaway';
+import type { MessageSettings } from '../contracts/messages';
+import {
+  messageSettingsBody,
+  messageSettingsFromWire,
+  type WireMessageSettings,
+} from './messagesMapping';
 import {
   takeawaySettingsBody,
   takeawaySettingsFromWire,
@@ -1733,6 +1739,27 @@ export function createConsoleHttpGateway(
         takeawaySettingsBody(settings),
       );
       return takeawaySettingsFromWire(data);
+    },
+
+    // --- Messages with guests (2026-10-23) ---------------------------------------
+
+    async getMessageSettings(branchId: string): Promise<MessageSettings> {
+      // gateway-schema: awaiting-route — guest messages are built in parallel (2026-10-23)
+      const { data } = await client.get<WireMessageSettings>(
+        `${BRANCHES}/${branchId}/message-settings`,
+      );
+      return messageSettingsFromWire(data);
+    },
+
+    async saveMessageSettings({ branchId, settings }): Promise<MessageSettings> {
+      // All four, every time. A `422 validation-failed` naming every bad field
+      // stays the client's `ValidationError`.
+      // gateway-schema: awaiting-route — guest messages are built in parallel (2026-10-23)
+      const { data } = await client.put<WireMessageSettings>(
+        `${BRANCHES}/${branchId}/message-settings`,
+        messageSettingsBody(settings),
+      );
+      return messageSettingsFromWire(data);
     },
   };
 }

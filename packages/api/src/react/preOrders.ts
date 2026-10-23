@@ -23,6 +23,7 @@ import type {
 } from '../contracts/onMyWay';
 import type { ManagedBooking } from '../contracts/publicBranch';
 import type { YallaGateway } from '../gateway';
+import { afterGuestAnswered, afterVenueAsked } from './messages';
 import { ValidationError } from '../errors';
 import { staleTime } from '../queryClient';
 import {
@@ -97,6 +98,9 @@ function invalidateBooking(queryClient: QueryClient, reservationId: string): voi
   void queryClient.invalidateQueries({ queryKey: queryKeys.booking(reservationId) });
   void queryClient.invalidateQueries({ queryKey: queryKeys.bookings });
   void queryClient.invalidateQueries({ queryKey: queryKeys.reservationState(reservationId) });
+  // Guest messages (2026-10-23): every answer is a message in the booking's
+  // thread, with a system line beside it.
+  afterGuestAnswered(queryClient, reservationId);
 }
 
 /** A save or a clear from the manage link: onto the cached link, then read again. */
@@ -175,6 +179,8 @@ export function afterAskOnMyWay(
   void queryClient.invalidateQueries({ queryKey: queryKeys.duePreOrders(branchId) });
   void queryClient.invalidateQueries({ queryKey: queryKeys.staffFloor(branchId) });
   void queryClient.invalidateQueries({ queryKey: queryKeys.awaitingApproval(branchId) });
+  // Guest messages (2026-10-23): the ask is a message in the booking's thread.
+  afterVenueAsked(queryClient, branchId, result?.reservationId ?? null);
 }
 
 /**
@@ -202,6 +208,8 @@ export function afterPreOrderAction(
   void queryClient.invalidateQueries({ queryKey: queryKeys.duePreOrders(branchId) });
   void queryClient.invalidateQueries({ queryKey: queryKeys.staffFloor(branchId) });
   void queryClient.invalidateQueries({ queryKey: queryKeys.orderQueue(branchId) });
+  // Guest messages (2026-10-23): "not coming" may be written into the thread.
+  afterVenueAsked(queryClient, branchId, card?.reservationId ?? null);
   if (card?.tabId) {
     void queryClient.invalidateQueries({ queryKey: queryKeys.tabLines(card.tabId) });
     void queryClient.invalidateQueries({ queryKey: queryKeys.staffTab(card.tabId) });

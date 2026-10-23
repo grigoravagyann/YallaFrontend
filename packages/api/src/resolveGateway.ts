@@ -94,6 +94,13 @@ export interface ResolveGatewayOptions {
    * forty minutes out, inside the "I'm coming" window (2026-10-22).
    */
   readonly mockComingBooking?: boolean | undefined;
+  /**
+   * Mock only: guest messages (2026-10-23) — threads on the seeded account's
+   * coming booking and takeaway orders, and the venue replying a few seconds
+   * after each text or answer. Follows `mockTakeaway || mockComingBooking`
+   * when absent, so an app already seeding those gets the threads too.
+   */
+  readonly mockMessages?: boolean | undefined;
   /** Mock only: keep the world across a reload (QA F2). */
   readonly persist?: MockPersistence | undefined;
   /** Where tab participant tokens are kept between launches. Real only. */
@@ -134,6 +141,9 @@ export function resolveGateway(options: ResolveGatewayOptions): YallaGateway {
         ? { takeaway: { branches: MOCK_TAKEAWAY_BRANCHES, seedOrders: true } }
         : {}),
       ...(options.mockComingBooking ? { seedComingBooking: true } : {}),
+      ...((options.mockMessages ?? (options.mockTakeaway || options.mockComingBooking))
+        ? { seedMessages: true }
+        : {}),
     };
     if (options.persist) {
       return persistMockGateway<YallaGateway>({

@@ -27,6 +27,7 @@ import type {
   UpdateVenueCommand,
 } from '../contracts/console';
 import type { StaffFloor } from '../contracts/service';
+import type { ConversationSubjectKind } from '../contracts/messages';
 import type { EditorFloorPlan, ReplaceFloorPlanCommand } from '../contracts/floorPlan';
 import type { SetReviewVisibilityCommand, VenueReviewQuery } from '../contracts/reviews';
 import type {
@@ -159,6 +160,46 @@ export {
   useTakeawayOrders,
   useTakeawaySettings,
 } from './takeaway';
+export {
+  CONVERSATION_POLL_MS,
+  STAFF_CONVERSATIONS_POLL_MS,
+  UNREAD_MESSAGES_POLL_MS,
+  afterGuestAnswered,
+  afterGuestConversationRead,
+  afterGuestMessageSent,
+  afterMessageSettingsSaved,
+  afterStaffConversationRead,
+  afterStaffMessageSent,
+  afterVenueAsked,
+  appendPendingMessage,
+  branchConversationsOptions,
+  conversationPollMs,
+  dinerConversationOptions,
+  dropPendingMessage,
+  hasPendingMessages,
+  markConversationReadOptions,
+  markStaffConversationReadOptions,
+  messageSettingsOptions,
+  pendingMessage,
+  saveMessageSettingsOptions,
+  sendGuestMessageOptions,
+  sendStaffMessageOptions,
+  settleSentMessage,
+  staffConversationOptions,
+  unreadMessagesOptions,
+  useBranchConversations,
+  useDinerConversation,
+  useMarkConversationRead,
+  useMarkReadWhenSeen,
+  useMarkStaffConversationRead,
+  useMessageSettings,
+  useSaveMessageSettings,
+  useSendGuestMessage,
+  useSendStaffMessage,
+  useStaffConversation,
+  useUnreadMessages,
+} from './messages';
+export type { ConversationQueryOptions } from './messages';
 export type {
   TelegramVerification,
   TelegramVerificationStatus,
@@ -372,6 +413,25 @@ export const queryKeys = {
   takeawayAvailability: (branchId: string) => ['takeaway', 'availability', branchId] as const,
   /** One takeaway order: the guest's status screen. */
   takeawayOrder: (orderId: string) => ['takeaway', 'order', orderId] as const,
+  /*
+   * Guest messages (2026-10-23). The guest's are all under `['messages']` —
+   * the diner's own, reset with the session — and the floor's under
+   * `['staff', …]`.
+   */
+  /** One thread, as the guest reads it. */
+  dinerConversation: (kind: ConversationSubjectKind, id: string) =>
+    ['messages', 'conversation', kind, id] as const,
+  /** The guest's unread summary: the nav's dot and the Bookings cards' rows. */
+  unreadMessages: ['messages', 'unread'] as const,
+  /** The floor's inbox: the Messages tab, its badge and the Now rail's section. */
+  staffConversations: (branchId: string) => ['staff', 'conversations', branchId] as const,
+  /** Every thread the floor has open: the prefix of {@link staffConversation}. */
+  staffConversationsAll: ['staff', 'conversation'] as const,
+  /** One thread, as the floor reads it. */
+  staffConversation: (kind: ConversationSubjectKind, id: string) =>
+    ['staff', 'conversation', kind, id] as const,
+  /** The branch's message settings: the Policy page's card. */
+  messageSettings: (branchId: string) => ['console', 'messageSettings', branchId] as const,
   /** Tables a scan seated with no proved number, waiting for a waiter to let them order. */
   tabsAwaitingAdmission: (branchId: string) =>
     ['staff', 'tabsAwaitingAdmission', branchId] as const,

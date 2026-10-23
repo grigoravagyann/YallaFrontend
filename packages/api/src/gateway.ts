@@ -48,6 +48,13 @@ import type {
 } from './contracts/takeaway';
 import type { Photo } from './contracts/menuAdmin';
 import type {
+  ConversationSubjectRef,
+  DinerConversation,
+  DinerUnreadMessages,
+  SendMessageCommand,
+  SentMessage,
+} from './contracts/messages';
+import type {
   BranchDetail,
   BranchListing,
   BranchReviewPage,
@@ -378,6 +385,41 @@ export interface YallaGateway {
    * @throws {NotFoundError} not the diner's order.
    */
   cancelTakeawayOrder(orderId: string): Promise<TakeawayOrder>;
+
+  // --- Messages with the venue (2026-10-23) ----------------------------------
+
+  /**
+   * One thread — `GET /api/diner/reservations/{id}/conversation` or
+   * `/api/diner/takeaway-orders/{id}/conversation`. Poll every ten seconds
+   * while the screen is in front. A subject with no thread yet answers
+   * `conversationId: null` and no messages.
+   *
+   * @returns `null` for somebody else's subject, an unknown one, or a thread
+   * closed more than thirty days ago (each a 404).
+   */
+  getConversation(subject: ConversationSubjectRef): Promise<DinerConversation | null>;
+
+  /**
+   * Send a text — `POST …/conversation/messages`. Idempotent on
+   * `clientCommandId`: a retry answers the first send's message, `wasReplay`.
+   *
+   * @throws {ConversationClosedError} the thread closed.
+   * @throws {GuestsCannotWriteError} the venue takes no guest texts; answer
+   * with the buttons or call.
+   * @throws {MessagesTooFastError} five a minute, or sixty in the thread.
+   * @throws {ValidationError} `text` blank or over 500 after trim.
+   * @throws {NotFoundError} not the diner's booking or order.
+   */
+  sendGuestMessage(command: SendMessageCommand): Promise<SentMessage>;
+
+  /** "Read up to now" — `POST …/conversation/read`, on opening the thread and on new messages. */
+  markConversationRead(subject: ConversationSubjectRef): Promise<void>;
+
+  /**
+   * The diner's threads that are open or have unread venue messages —
+   * `GET /api/diner/messages/unread`: the nav's dot and the Bookings rows.
+   */
+  getUnreadMessages(): Promise<DinerUnreadMessages>;
 
   // --- Phone verification -------------------------------------------------
   /**

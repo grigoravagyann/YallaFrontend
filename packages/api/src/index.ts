@@ -1139,3 +1139,86 @@ export {
 } from './contracts/errors';
 export { MOCK_TAKEAWAY_BRANCHES, createMockTakeawayBook } from './mocks/takeaway';
 export type { MockTakeawayBranch, MockTakeawayPlace } from './mocks/takeaway';
+
+// Guest messages (2026-10-23): a venue and a guest write inside one booking or one takeaway order.
+export {
+  CONVERSATION_OPEN_AFTER_HOURS,
+  CONVERSATION_READABLE_DAYS,
+  DEFAULT_MESSAGE_SETTINGS,
+  GUEST_MESSAGES_PER_CONVERSATION,
+  GUEST_MESSAGES_PER_MINUTE,
+  MESSAGE_MAX_LENGTH,
+  MESSAGE_SETTINGS_LIMITS,
+  STAFF_LIST_RECENT_HOURS,
+  VENUE_ASK_PUSH_CATEGORY,
+  VENUE_MESSAGE_FEED_KIND,
+  VENUE_MESSAGE_PUSH_CATEGORY,
+  VENUE_MESSAGE_PUSH_KIND,
+  compareConversationItems,
+  conversationClosesAtUtc,
+  filterConversations,
+  hasUnansweredAsk,
+  isConversationOpen,
+  isConversationReadable,
+  isVenueMessageNotificationKind,
+  messageSettingsViolations,
+  messageText,
+  messageViolations,
+  needsReminder,
+  normalizeMessageTemplates,
+  sameSubject,
+  seenByGuest,
+  seenByVenue,
+  staffMayWrite,
+  venueMessageFeedSubject,
+  venueMessagePushTarget,
+} from './contracts/messages';
+export type {
+  BranchConversations,
+  ConversationFilter,
+  ConversationMessage,
+  ConversationSubject,
+  ConversationSubjectKind,
+  ConversationSubjectRef,
+  ConversationSummary,
+  DinerConversation,
+  DinerUnreadMessages,
+  FloorMessages,
+  MessageAnswer,
+  MessageAnswerKind,
+  MessageAuthor,
+  MessageKind,
+  MessageSettings,
+  MessageSettingsInput,
+  MessageStatus,
+  MessageWriterRole,
+  SendMessageCommand,
+  SentMessage,
+  StaffConversation,
+  StaffConversationLastMessage,
+  StaffConversationListItem,
+  StaffConversationSubject,
+  UnreadConversation,
+} from './contracts/messages';
+export {
+  CONVERSATION_CLOSED_CODE,
+  ConversationClosedError,
+  GUESTS_CANNOT_WRITE_CODE,
+  GuestsCannotWriteError,
+  MESSAGES_TOO_FAST_CODE,
+  MessagesTooFastError,
+  WAITERS_CANNOT_WRITE_CODE,
+  WaitersCannotWriteError,
+  isConversationClosed,
+  isGuestsCannotWrite,
+  isMessagesTooFast,
+  isWaitersCannotWrite,
+} from './contracts/errors';
+export { messageFailure } from './contracts/messageFailure';
+export type { MessageFailure } from './contracts/messageFailure';
+export { createMockConversationBook } from './mocks/messages';
+export type {
+  MockConversationBook,
+  MockConversationSubjectInfo,
+  MockSeedMessage,
+} from './mocks/messages';

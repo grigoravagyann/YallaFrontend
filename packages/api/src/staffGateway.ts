@@ -11,6 +11,13 @@ import type {
 import type { DuePreOrder, DuePreOrders, PreOrderStaffCommand } from './contracts/preOrder';
 import type { AskOnMyWayResult } from './contracts/onMyWay';
 import type {
+  BranchConversations,
+  ConversationSubjectRef,
+  SendMessageCommand,
+  SentMessage,
+  StaffConversation,
+} from './contracts/messages';
+import type {
   AcceptTakeawayOrderCommand,
   BranchTakeawayOrders,
   CollectTakeawayOrderCommand,
@@ -271,6 +278,37 @@ export interface StaffGateway {
    * @throws {TakeawayStatusConflictError} not ready.
    */
   markTakeawayOrderNoShow(orderId: string): Promise<StaffTakeawayOrder>;
+
+  // --- Messages with guests (2026-10-23) -----------------------------------
+
+  /**
+   * The inbox — `GET /api/branches/{branchId}/conversations`, waiter or above
+   * at the branch: open threads and ones with a message in the last 24 hours,
+   * unanswered first, with the badge's count and the branch's templates and
+   * reminder. Polled: guest messages push nothing to the tablet.
+   */
+  listConversations(branchId: string): Promise<BranchConversations>;
+
+  /**
+   * One thread with who wrote each venue message —
+   * `GET /api/reservations/{id}/conversation` or
+   * `/api/takeaway-orders/{id}/conversation`. `null` for an unknown subject.
+   */
+  getStaffConversation(subject: ConversationSubjectRef): Promise<StaffConversation | null>;
+
+  /**
+   * Write to the guest — `POST …/conversation/messages`. Online only.
+   * Idempotent on `clientCommandId` (`wasReplay`).
+   *
+   * @throws {ConversationClosedError} the thread closed.
+   * @throws {WaitersCannotWriteError} the venue lets only managers write.
+   * @throws {ForbiddenError} kitchen, or a platform admin (reads only).
+   * @throws {ValidationError} `text` blank or over 500 after trim.
+   */
+  sendStaffMessage(command: SendMessageCommand): Promise<SentMessage>;
+
+  /** "The venue has read it" — `POST …/conversation/read`; anybody's read counts for the venue. */
+  markStaffConversationRead(subject: ConversationSubjectRef): Promise<void>;
 
   // --- The tab ------------------------------------------------------------
 

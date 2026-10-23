@@ -1,6 +1,6 @@
 import type { FloorPlanData } from './tableFloor';
 import type { TabAdmissionStatus } from './admission';
-import { ApiError } from '../errors';
+import { ApiError, TooManyRequestsError } from '../errors';
 import type { ProblemDetails } from '../problem';
 import type { TableAvailability, TableUnavailableReason } from './booking';
 import type { ReservationStatusCode } from './push';
@@ -2588,4 +2588,116 @@ export class TakeawayNoShowTooEarlyError extends ApiError {
 
 export function isTakeawayNoShowTooEarly(error: unknown): error is TakeawayNoShowTooEarlyError {
   return error instanceof TakeawayNoShowTooEarlyError;
+}
+
+// ---------------------------------------------------------------------------
+// Guest messages (2026-10-23)
+// ---------------------------------------------------------------------------
+
+/** `conversation-closed`: the thread closed (two hours after the booking or order finished). */
+export const CONVERSATION_CLOSED_CODE = 'conversation-closed';
+/** `guests-cannot-write`: the venue switched guest messages off; the answer buttons still work. */
+export const GUESTS_CANNOT_WRITE_CODE = 'guests-cannot-write';
+/** `waiters-cannot-write`: the venue lets only managers write from the tablet. */
+export const WAITERS_CANNOT_WRITE_CODE = 'waiters-cannot-write';
+/** `messages-too-fast`: more than five guest messages a minute, or sixty in one thread. */
+export const MESSAGES_TOO_FAST_CODE = 'messages-too-fast';
+
+/**
+ * Writing to a closed thread — `conversation-closed`, 409. Hide the composer
+ * and show the closed note; `closesAtUtc` is when it closed, when the server
+ * says. Read the thread again.
+ */
+export class ConversationClosedError extends ApiError {
+  readonly conversationId: string | null;
+  readonly closesAtUtc: string | null;
+
+  constructor(
+    options: RefusalOptions & {
+      conversationId?: string | null | undefined;
+      closesAtUtc?: string | null | undefined;
+    },
+  ) {
+    super('This conversation is closed.', {
+      status: 409,
+      url: options.url,
+      requestId: options.requestId,
+    });
+    this.name = 'ConversationClosedError';
+    this.conversationId = options.conversationId ?? null;
+    this.closesAtUtc = options.closesAtUtc ?? null;
+  }
+}
+
+export function isConversationClosed(error: unknown): error is ConversationClosedError {
+  return error instanceof ConversationClosedError;
+}
+
+/**
+ * A guest's text while the venue has guest messages off —
+ * `guests-cannot-write`, 403. The answer buttons still work: "reply with the
+ * buttons or call".
+ */
+export class GuestsCannotWriteError extends ApiError {
+  constructor(options: RefusalOptions) {
+    super('This venue does not take messages from guests.', {
+      status: 403,
+      url: options.url,
+      requestId: options.requestId,
+    });
+    this.name = 'GuestsCannotWriteError';
+  }
+}
+
+export function isGuestsCannotWrite(error: unknown): error is GuestsCannotWriteError {
+  return error instanceof GuestsCannotWriteError;
+}
+
+/**
+ * A waiter writing while the venue lets only managers write —
+ * `waiters-cannot-write`, 403. Hide the composer.
+ */
+export class WaitersCannotWriteError extends ApiError {
+  constructor(options: RefusalOptions) {
+    super('Only managers can write to guests here.', {
+      status: 403,
+      url: options.url,
+      requestId: options.requestId,
+    });
+    this.name = 'WaitersCannotWriteError';
+  }
+}
+
+export function isWaitersCannotWrite(error: unknown): error is WaitersCannotWriteError {
+  return error instanceof WaitersCannotWriteError;
+}
+
+/**
+ * Too many guest messages — `messages-too-fast`, 429: more than five a minute,
+ * or sixty in one thread (`perConversation`). A `TooManyRequestsError`, so the
+ * generic "wait a moment" handling still applies; `retryAfterSeconds` from
+ * `Retry-After` when the server sent it.
+ */
+export class MessagesTooFastError extends TooManyRequestsError {
+  /** The thread's sixty are used up: waiting will not help — call instead. */
+  readonly perConversation: boolean;
+
+  constructor(
+    options: RefusalOptions & {
+      retryAfterSeconds?: number | null | undefined;
+      perConversation?: boolean | undefined;
+    },
+  ) {
+    super({
+      url: options.url,
+      requestId: options.requestId,
+      retryAfterSeconds: options.retryAfterSeconds ?? null,
+    });
+    this.name = 'MessagesTooFastError';
+    this.perConversation = options.perConversation ?? false;
+  }
+}
+
+export function isMessagesTooFast(error: unknown): error is MessagesTooFastError {
+  return error instanceof MessagesTooFastError;
 }

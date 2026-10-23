@@ -22,6 +22,24 @@ import {
   type WireBranchTakeawayOrders,
   type WireStaffTakeawayOrder,
 } from './takeawayMapping';
+import type {
+  BranchConversations,
+  ConversationSubjectRef,
+  SentMessage,
+  StaffConversation,
+} from '../contracts/messages';
+import {
+  branchConversationsFromWire,
+  floorMessagesFromWire,
+  rethrowMessageRefusal,
+  sendMessageBody,
+  sentMessageFromWire,
+  staffConversationFromWire,
+  type WireBranchConversations,
+  type WireConversation,
+  type WireConversationMessage,
+  type WireFloorStateMessages,
+} from './messagesMapping';
 import type { ApiClient } from '../client';
 import type { ConsoleBooking } from '../contracts/approvals';
 import {
@@ -245,11 +263,14 @@ export function createStaffHttpGateway(client: ApiClient): StaffGateway {
         const { data } = await client.get<Schemas['Yalla.Application.Floor.BranchFloorState']>(
           `/api/branches/${branchId}/tables/floor`,
         );
+        const messages = floorMessagesFromWire((data as WireFloorStateMessages).messages);
         return {
           plan: floorFromState(data),
           details: staffFloorDetails(data),
           lastSequence: data.maxSequence,
           asOfUtc: data.asOfUtc,
+          // Guest messages (2026-10-23): the badge and the rail, when the server says.
+          ...(messages ? { messages } : {}),
         };
       } catch (error) {
         if (error instanceof NotFoundError) return null;
@@ -508,6 +529,67 @@ export function createStaffHttpGateway(client: ApiClient): StaffGateway {
         return staffTakeawayOrderFromWire(data);
       } catch (error) {
         rethrowTakeawayRefusal(error);
+      }
+    },
+
+    // --- Messages with guests (2026-10-23) -----------------------------------
+    //
+    // Written to the build spec ahead of the regenerated schema. Sends are
+    // online only, like the rail's actions; every refusal is read by
+    // `messagesMapping.ts`.
+
+    async listConversations(branchId): Promise<BranchConversations> {
+      // gateway-schema: awaiting-route — guest messages are built in parallel (2026-10-23)
+      const { data } = await client.get<WireBranchConversations>(
+        `/api/branches/${branchId}/conversations`,
+      );
+      return branchConversationsFromWire(data);
+    },
+
+    async getStaffConversation(subject: ConversationSubjectRef): Promise<StaffConversation | null> {
+      try {
+        const { data } =
+          subject.kind === 'takeaway'
+            ? // gateway-schema: awaiting-route — guest messages are built in parallel (2026-10-23)
+              await client.get<WireConversation>(`/api/takeaway-orders/${subject.id}/conversation`)
+            : // gateway-schema: awaiting-route — guest messages are built in parallel (2026-10-23)
+              await client.get<WireConversation>(`/api/reservations/${subject.id}/conversation`);
+        return staffConversationFromWire(data ?? {}, subject);
+      } catch (error) {
+        if (error instanceof NotFoundError) return null;
+        throw error;
+      }
+    },
+
+    async sendStaffMessage(command): Promise<SentMessage> {
+      const { id } = command.subject;
+      const body = sendMessageBody(command);
+      try {
+        const { data } =
+          command.subject.kind === 'takeaway'
+            ? // gateway-schema: awaiting-route — guest messages are built in parallel (2026-10-23)
+              await client.post<WireConversationMessage>(
+                `/api/takeaway-orders/${id}/conversation/messages`,
+                body,
+              )
+            : // gateway-schema: awaiting-route — guest messages are built in parallel (2026-10-23)
+              await client.post<WireConversationMessage>(
+                `/api/reservations/${id}/conversation/messages`,
+                body,
+              );
+        return sentMessageFromWire(data ?? {});
+      } catch (error) {
+        rethrowMessageRefusal(error);
+      }
+    },
+
+    async markStaffConversationRead(subject): Promise<void> {
+      if (subject.kind === 'takeaway') {
+        // gateway-schema: awaiting-route — guest messages are built in parallel (2026-10-23)
+        await client.post(`/api/takeaway-orders/${subject.id}/conversation/read`);
+      } else {
+        // gateway-schema: awaiting-route — guest messages are built in parallel (2026-10-23)
+        await client.post(`/api/reservations/${subject.id}/conversation/read`);
       }
     },
 
