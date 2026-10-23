@@ -36,8 +36,8 @@ export function isOwnText(body: MessageBody): body is { readonly text: string } 
  *   branch's clock (`clock` formats the `HH:mm`).
  * - The guest's answer: "I'm coming", "Running late 15 min", "Not coming".
  * - The system's line: held until 19:45 after a late answer, cancelled after
- *   "not coming", and "coming" after a coming answer (read off the answer just
- *   before it, which the status itself does not repeat).
+ *   "not coming", and "coming" after a coming answer (the line's own
+ *   `status.answer`, else the answer just before it).
  *
  * `null` for a message this build cannot say anything about: a kind a newer
  * server added, with no text to fall back on.
@@ -82,7 +82,10 @@ export function messageBody(
           params: { time: context.clock(status.heldUntilLocal) },
         };
       }
-      if (context.previous?.kind === 'answer' && context.previous.answer?.kind === 'coming') {
+      if (
+        status?.answer === 'coming' ||
+        (context.previous?.kind === 'answer' && context.previous.answer?.kind === 'coming')
+      ) {
         return { key: 'messages.status.coming' };
       }
       return { key: 'messages.status.updated' };

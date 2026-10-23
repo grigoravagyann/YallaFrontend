@@ -14,12 +14,11 @@ import type { StaffRole } from './console';
  * linkified.
  *
  * Every shape here is the wire's (`docs/messages.md` in the backend), renamed
- * the way the rest of the client is: enums as camelCase words. The types were
- * **hand-written to the build spec** before the backend's swagger had them;
- * `http/messagesMapping.ts` holds the wire side, so swapping to the generated
- * types is a change there alone. The rules the server applies are mirrored only
- * where a screen or the mocks need them; the server's answer always wins
- * (`open`, `pendingAsk`, `canWrite`, `unreadCount`).
+ * the way the rest of the client is: enums as camelCase words.
+ * `http/messagesMapping.ts` reads the generated schema into these. The rules
+ * the server applies are mirrored only where a screen or the mocks need them;
+ * the server's answer always wins (`open`, `pendingAsk`, `canWrite`,
+ * `unreadCount`).
  */
 
 // ---------------------------------------------------------------------------
@@ -84,6 +83,8 @@ export interface ConversationSubject extends ConversationSubjectRef {
   readonly takeawayCode: string | null;
   /** "19:25" — when the order is promised; `null` until accepted, and on a booking. */
   readonly readyAtLocal: string | null;
+  /** The same moment in UTC; `null` until accepted, and on a booking. */
+  readonly readyAtUtc: string | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -112,6 +113,8 @@ export interface MessageAnswer {
 
 /** What the system line says changed. */
 export interface MessageStatus {
+  /** The answer the line follows: "Booking updated · coming". */
+  readonly answer: MessageAnswerKind;
   /** "19:45" on the branch's clock: the table is held until then (a late answer). */
   readonly heldUntilLocal: string | null;
   /** The booking was cancelled (the "not coming" answer). */
@@ -146,6 +149,8 @@ export interface ConversationMessage {
 
 /** The answer to a send: the message as stored, and whether this was a replay of the command. */
 export interface SentMessage extends ConversationMessage {
+  /** The thread it went into — made by this send when the subject had none yet. */
+  readonly conversationId: string | null;
   /** The same `clientCommandId` again: the first send's message, nothing new written. */
   readonly wasReplay: boolean;
 }
@@ -196,6 +201,11 @@ export interface StaffConversation extends DinerConversation {
   readonly unreadCount: number;
   /** "Անի Մ." — a name, never a number. */
   readonly guestName: string;
+  /**
+   * The guest's number, for the Call button only — never printed in the
+   * thread. Empty for a platform admin, as on the takeaway counter.
+   */
+  readonly guestPhone: string;
   /** When the guest last read the thread: "seen" under the venue's messages. */
   readonly guestLastReadUtc: string | null;
   /**
@@ -245,7 +255,10 @@ export interface UnreadConversation {
   readonly unread: number;
   readonly lastText: string | null;
   readonly lastKind: MessageKind | null;
+  readonly lastAuthor: MessageAuthor | null;
   readonly lastAtUtc: string | null;
+  /** Writing is allowed now. A closed thread is listed only while it has unread messages. */
+  readonly open: boolean;
 }
 
 /**
@@ -269,9 +282,17 @@ export interface StaffConversationSubject extends ConversationSubjectRef {
   readonly guestName: string;
   /** "19:30": the booking's start, or the order's ready (else requested) time. */
   readonly localTime: string | null;
+  /** A booking's day on the branch's calendar; `null` on an order. */
+  readonly localDate: string | null;
+  /** A booking's party; `null` on an order. */
+  readonly partySize: number | null;
+  /** An order's item count; `null` on a booking. */
+  readonly itemCount: number | null;
+  /** An order's total in dram; `null` on a booking. */
+  readonly totalAmd: number | null;
 }
 
-/** The last message, as the row shows it. */
+/** The last message that is not a system line, as the row shows it. */
 export interface StaffConversationLastMessage {
   readonly author: MessageAuthor;
   readonly kind: MessageKind;
@@ -288,6 +309,11 @@ export interface StaffConversationListItem {
   readonly conversationId: string;
   readonly subject: StaffConversationSubject;
   readonly lastMessage: StaffConversationLastMessage | null;
+  /**
+   * The newest system line: what the guest's answer did to the booking
+   * ("held until 19:45", cancelled). `null` when there is none.
+   */
+  readonly latestStatus: MessageStatus | null;
   /** Guest messages nobody at the venue has read. */
   readonly unreadFromGuest: number;
   /** The last message is the venue's ask, and the guest has not answered. */
@@ -312,6 +338,8 @@ export interface BranchConversations {
   readonly templates: readonly string[] | null;
   /** Waiters may write. False: a waiter's composer is hidden. */
   readonly waitersCanWrite: boolean;
+  /** When the server read it. */
+  readonly asOfUtc: string | null;
 }
 
 /** The floor state's message line: the rail's section and the header's badge, without a second call. */
@@ -405,9 +433,14 @@ export function normalizeMessageTemplates(
 // ---------------------------------------------------------------------------
 
 /**
- * The feed entry for a venue message: `reservationId` or `orderId` set (the
- * takeaway order's id), params `venueName`, `text` (≤140, an ellipsis),
- * `ask` ("true" for the venue's "are you coming?"), `conversationId`.
+ * The feed entry for a venue message — a text or the venue's "are you
+ * coming?": `reservationId` or `orderId` set (the takeaway order's id), params
+ * `venueName`, `branchName`, `conversationId`, `subjectKind` (`reservation` /
+ * `takeaway`), `ask` ("true" for the ask), `text` (≤140, an ellipsis; absent
+ * for the ask), and the booking's `date` / `time` or the order's `code`.
+ *
+ * Since 2026-10-23 the venue's ask sends this entry (and the `venue-ask`
+ * push) only — no `booking-on-your-way` row with `askedByVenue` beside it.
  */
 export const VENUE_MESSAGE_FEED_KIND = 'venue-message';
 /** The push's `data.kind`: the same word. */
@@ -454,13 +487,20 @@ export function venueMessagePushTarget(
   };
 }
 
-/** The thread a `venue-message` feed entry is about, from its ids; `null` for any other entry. */
+/**
+ * The thread a `venue-message` feed entry is about, from its ids (and its
+ * `subjectKind` param, when both ids are somehow set); `null` for any other
+ * entry.
+ */
 export function venueMessageFeedSubject(notification: {
   readonly kind: string;
   readonly reservationId: string | null;
   readonly orderId: string | null;
+  readonly params?: Readonly<Record<string, unknown>> | undefined;
 }): ConversationSubjectRef | null {
   if (!isVenueMessageNotificationKind(notification.kind)) return null;
+  const takeawayFirst = notification.params?.['subjectKind'] === 'takeaway';
+  if (takeawayFirst && notification.orderId) return { kind: 'takeaway', id: notification.orderId };
   if (notification.reservationId) return { kind: 'reservation', id: notification.reservationId };
   if (notification.orderId) return { kind: 'takeaway', id: notification.orderId };
   return null;

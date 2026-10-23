@@ -1744,7 +1744,6 @@ export function createConsoleHttpGateway(
     // --- Messages with guests (2026-10-23) ---------------------------------------
 
     async getMessageSettings(branchId: string): Promise<MessageSettings> {
-      // gateway-schema: awaiting-route — guest messages are built in parallel (2026-10-23)
       const { data } = await client.get<WireMessageSettings>(
         `${BRANCHES}/${branchId}/message-settings`,
       );
@@ -1752,9 +1751,9 @@ export function createConsoleHttpGateway(
     },
 
     async saveMessageSettings({ branchId, settings }): Promise<MessageSettings> {
-      // All four, every time. A `422 validation-failed` naming every bad field
-      // stays the client's `ValidationError`.
-      // gateway-schema: awaiting-route — guest messages are built in parallel (2026-10-23)
+      // All four, every time (`templates: null` is the default set). A `422
+      // validation-failed` naming every bad field stays the client's
+      // `ValidationError`.
       const { data } = await client.put<WireMessageSettings>(
         `${BRANCHES}/${branchId}/message-settings`,
         messageSettingsBody(settings),

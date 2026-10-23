@@ -113,15 +113,16 @@ export function settleSentMessage<T extends DinerConversation>(
   sent: SentMessage,
 ): T | null | undefined {
   if (!conversation) return conversation;
-  const { wasReplay: _wasReplay, ...message } = sent;
+  const { wasReplay: _wasReplay, conversationId, ...message } = sent;
   const already = conversation.messages.some((entry) => entry.id === message.id);
   const messages = conversation.messages.flatMap((entry) => {
     if (entry.clientCommandId !== clientCommandId || !entry.pending) return [entry];
     return already ? [] : [message];
   });
-  // A thread nobody had read yet gets its id from the answer's next read.
+  // The first message makes the thread: it has an id from now on.
   return {
     ...conversation,
+    conversationId: conversation.conversationId ?? conversationId,
     messages: messages.some((entry) => entry.id === message.id) ? messages : [...messages, message],
   };
 }

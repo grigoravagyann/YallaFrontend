@@ -390,8 +390,11 @@ describe("the floor's inbox", () => {
     expect(ani).toMatchObject({
       subject: { kind: 'reservation', label: '5' },
       unreadFromGuest: 1,
-      lastMessage: { author: 'system', kind: 'status' },
+      // The guest's answer, not the system line after it; that is `latestStatus`.
+      lastMessage: { author: 'guest', kind: 'answer', answer: { kind: 'late', lateMinutes: 15 } },
+      latestStatus: { answer: 'late', cancelled: false },
     });
+    expect(ani?.latestStatus?.heldUntilLocal).toMatch(/^\d{2}:\d{2}$/u);
     expect(davit).toMatchObject({ awaitingGuestAnswer: true, unreadFromGuest: 0 });
     expect(mariam).toMatchObject({ oldestUnansweredGuestMessageUtc: null, unreadFromGuest: 0 });
   });
@@ -411,7 +414,12 @@ describe("the floor's inbox", () => {
     const { gateway } = floor();
     const subject = { kind: 'reservation', id: 'res-msg-ani' } as const;
     const thread = await gateway.getStaffConversation(subject);
-    expect(thread).toMatchObject({ guestName: 'Անի Մելքոնյան', canWrite: true, unreadCount: 1 });
+    expect(thread).toMatchObject({
+      guestName: 'Անի Մելքոնյան',
+      guestPhone: '+37491556677',
+      canWrite: true,
+      unreadCount: 1,
+    });
     expect(thread?.messages.map((message) => message.staffName)).toEqual([
       null,
       'Լիլիթ',

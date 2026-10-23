@@ -28,7 +28,7 @@ import {
   type WireReservationTimes,
 } from './bookingTimesWire';
 import { cancellationCause } from './guestRecordMapping';
-import { conversationSummaryFromWire, type WireMessagesSummaryField } from './messagesMapping';
+import { conversationSummaryFromWire, type WireMessagesSummary } from './messagesMapping';
 import { bookingPreOrderFields, type WireBookingPreOrderFields } from './preOrderMapping';
 import { absolutePhoto } from './photoUrl';
 import { orderStatus, totals } from './staffMapping';
@@ -279,8 +279,7 @@ export function dinerTab(view: TabView, fetchedAtUtc: string, baseUrl: string): 
 type ReservationViewWire = Schemas['Yalla.Application.Reservations.ReservationView'] &
   WireApprovalFields &
   WireReservationTimes &
-  WireBookingPreOrderFields &
-  WireMessagesSummaryField;
+  WireBookingPreOrderFields;
 
 /**
  * `ReservationStatus`: 1 PendingApproval, 2 Confirmed, 4 Seated, 5 Completed,
@@ -351,7 +350,7 @@ export function booking(view: ReservationViewWire, venueName: string | null): Bo
 }
 
 /** `messages` when the read carries a thread, and nothing otherwise. */
-export function messagesField(wire: WireMessagesSummaryField['messages']) {
+export function messagesField(wire: WireMessagesSummary | null | undefined) {
   const messages = conversationSummaryFromWire(wire);
   return messages ? { messages } : {};
 }

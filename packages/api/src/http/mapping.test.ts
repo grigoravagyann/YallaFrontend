@@ -157,6 +157,8 @@ describe('floor', () => {
       rowVersion: 'AAAAAAAAB9E=',
       nextReservationPhoneUnverified: false,
       openTabAwaitingAdmission: false,
+      nextReservationUnreadMessages: 0,
+      sittingUnreadMessages: 0,
     } as const;
     const plan = floorFromState({
       asOfUtc: '2026-09-05T15:00:00Z',
@@ -164,6 +166,7 @@ describe('floor', () => {
       branchName: 'Yerevan Centre',
       maxSequence: 1,
       timeZoneId: 'Asia/Yerevan',
+      messages: { unreadTotal: 0 },
       tables: [
         { ...row, tableId: 'a', label: '1', floorAreaId: 'r1', floorAreaName: 'Hall' },
         {
@@ -191,6 +194,7 @@ describe('floor', () => {
       branchName: 'Yerevan Centre',
       maxSequence: 41,
       timeZoneId: 'Asia/Yerevan',
+      messages: { unreadTotal: 0 },
       tables: [
         {
           tableId: 't1',
@@ -204,6 +208,8 @@ describe('floor', () => {
           seatedAtUtc: '2026-09-05T14:10:00Z',
           nextReservationPhoneUnverified: false,
           openTabAwaitingAdmission: false,
+          nextReservationUnreadMessages: 0,
+          sittingUnreadMessages: 0,
         },
       ],
     };

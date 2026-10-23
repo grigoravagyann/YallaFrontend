@@ -157,7 +157,17 @@ describe('the inbox', () => {
     lastAt: string,
   ): StaffConversationListItem => ({
     conversationId: `c-${id}`,
-    subject: { kind, id, label: id, guestName: id, localTime: null },
+    subject: {
+      kind,
+      id,
+      label: id,
+      guestName: id,
+      localTime: null,
+      localDate: null,
+      partySize: null,
+      itemCount: null,
+      totalAmd: null,
+    },
     lastMessage: {
       author: 'guest',
       kind: 'text',
@@ -166,6 +176,7 @@ describe('the inbox', () => {
       staffName: null,
       answer: null,
     },
+    latestStatus: null,
     unreadFromGuest: 0,
     awaitingGuestAnswer: false,
     oldestUnansweredGuestMessageUtc: waitingSince,
@@ -228,6 +239,15 @@ describe('the push and the feed', () => {
     expect(
       venueMessageFeedSubject({ kind: 'venue-message', reservationId: null, orderId: 'tk-1' }),
     ).toEqual({ kind: 'takeaway', id: 'tk-1' });
+    // The backend's row: one id set, `subjectKind` naming which.
+    expect(
+      venueMessageFeedSubject({
+        kind: 'venue-message',
+        reservationId: 'r-1',
+        orderId: null,
+        params: { subjectKind: 'reservation', ask: 'true', conversationId: 'c-1' },
+      }),
+    ).toEqual({ kind: 'reservation', id: 'r-1' });
     expect(
       venueMessageFeedSubject({ kind: 'booking-confirmed', reservationId: 'r-1', orderId: null }),
     ).toBeNull();
@@ -236,9 +256,9 @@ describe('the push and the feed', () => {
 
 describe('a failure, as the kind of sentence to show', () => {
   it('names each refusal', () => {
-    expect(messageFailure(new ConversationClosedError({ url: 'x', closesAtUtc: END }))).toEqual({
+    expect(messageFailure(new ConversationClosedError({ url: 'x', closedAtUtc: END }))).toEqual({
       kind: 'closed',
-      closesAtUtc: END,
+      closedAtUtc: END,
     });
     expect(messageFailure(new GuestsCannotWriteError({ url: 'x' })).kind).toBe('guestsCannotWrite');
     expect(messageFailure(new WaitersCannotWriteError({ url: 'x' })).kind).toBe(

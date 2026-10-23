@@ -1404,6 +1404,9 @@
       "venueAsk": {
         "body": "Are you coming? Answer in one tap."
       },
+      "venueAskAt": {
+        "body": "Are you coming at {{time}}? Answer in one tap."
+      },
       "venueMessagePlain": {
         "body": "Open the conversation to read it."
       }

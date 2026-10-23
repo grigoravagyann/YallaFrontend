@@ -43,6 +43,7 @@ import type {
 import { createMockConversationBook, type MockConversationSubjectInfo } from './messages';
 import {
   isTakeawayActive,
+  takeawayItemCount,
   type AcceptTakeawayOrderCommand,
   type BranchTakeawayOrders,
   type CollectTakeawayOrderCommand,
@@ -1694,6 +1695,7 @@ export function createStaffMockGateway(options: StaffMockOptions = {}): StaffGat
         ...venue,
         venuePhone,
         guestName: reservation.guestName,
+        guestPhone: reservation.guestPhone,
         startUtc: reservation.startUtc,
         localDate: local.localDate,
         localTime: local.localStartTime.slice(0, 5),
@@ -1701,6 +1703,9 @@ export function createStaffMockGateway(options: StaffMockOptions = {}): StaffGat
         tableLabel: plan.tables.find((table) => table.id === reservation.tableId)?.label ?? null,
         takeawayCode: null,
         readyAtLocal: null,
+        readyAtUtc: null,
+        itemCount: null,
+        totalAmd: null,
         active,
         endUtc: booking.endUtc,
         endedAtUtc: active ? null : booking.endUtc,
@@ -1717,6 +1722,7 @@ export function createStaffMockGateway(options: StaffMockOptions = {}): StaffGat
       ...venue,
       venuePhone,
       guestName: record.guestName,
+      guestPhone: record.guestPhone,
       startUtc: null,
       localDate: null,
       localTime: null,
@@ -1724,6 +1730,9 @@ export function createStaffMockGateway(options: StaffMockOptions = {}): StaffGat
       tableLabel: null,
       takeawayCode: record.code,
       readyAtLocal: floorClock(record.readyAtUtc ?? record.requestedPickupUtc),
+      readyAtUtc: record.readyAtUtc,
+      itemCount: takeawayItemCount(record.lines),
+      totalAmd: record.lines.reduce((sum, line) => sum + line.unitPriceDram * line.quantity, 0),
       active: isTakeawayActive(record.status),
       endUtc: null,
       endedAtUtc:
@@ -2459,11 +2468,23 @@ export function createStaffMockGateway(options: StaffMockOptions = {}): StaffGat
 
   if (options.seedMessages) seedMessageThreads();
 
-  /** A table's next booking's unread guest messages, as the floor carries them. */
-  function unreadOnTable(reservationId: string | null) {
-    if (!reservationId) return {};
-    const unread = conversations.unreadFromGuest({ kind: 'reservation', id: reservationId });
-    return unread > 0 ? { nextReservationUnreadMessages: unread } : {};
+  /**
+   * A table's unread guest messages, as the floor carries them: the next
+   * booking's thread, and the thread of the booking the party sitting there
+   * came in on. Each only when there are some.
+   */
+  function unreadOnTable(state: MockTableState) {
+    const unreadOf = (reservationId: string | null | undefined) =>
+      reservationId ? conversations.unreadFromGuest({ kind: 'reservation', id: reservationId }) : 0;
+    const next = unreadOf(state.nextReservationId);
+    const sittingId = state.sessionId
+      ? [...seatedBookings].find((id) => reservations.get(id)?.tableId === state.tableId)
+      : undefined;
+    const sitting = unreadOf(sittingId);
+    return {
+      ...(next > 0 ? { nextReservationUnreadMessages: next } : {}),
+      ...(sitting > 0 ? { sittingUnreadMessages: sitting } : {}),
+    };
   }
 
   // --- The gateway ----------------------------------------------------------
@@ -2517,8 +2538,8 @@ export function createStaffMockGateway(options: StaffMockOptions = {}): StaffGat
             ? (reservations.get(state.nextReservationId)?.guestRecord ?? null)
             : null,
           sittingGuestRecord: null,
-          // Guest messages (2026-10-23): the tile's badge, only when there are some.
-          ...unreadOnTable(state.nextReservationId),
+          // Guest messages (2026-10-23): the tile's badges, only when there are some.
+          ...unreadOnTable(state),
         });
         return {
           ...table,

@@ -31,8 +31,8 @@ import {
   sendMessageBody,
   sentMessageFromWire,
   unreadMessagesFromWire,
-  type WireConversation,
-  type WireConversationMessage,
+  type WireDinerConversation,
+  type WireDinerMessageResult,
   type WireUnreadMessages,
 } from './messagesMapping';
 import type { FloorPlanData } from '../contracts/tableFloor';
@@ -1204,19 +1204,18 @@ export function createHttpGateway(client: ApiClient, options: HttpGatewayOptions
     // --- Messages with the venue (2026-10-23) ---------------------------------
     //
     // The diner's own subjects only; somebody else's answers 404, as an id that
-    // is no booking does. Every refusal is read by `messagesMapping.ts`. The
-    // routes were written to the build spec ahead of the regenerated schema.
+    // is no booking does. Every refusal is read by `messagesMapping.ts`.
 
     async getConversation(subject: ConversationSubjectRef): Promise<DinerConversation | null> {
       const id = encodeURIComponent(subject.id);
       try {
         const { data } =
           subject.kind === 'takeaway'
-            ? // gateway-schema: awaiting-route — guest messages are built in parallel (2026-10-23)
-              await client.get<WireConversation>(`/api/diner/takeaway-orders/${id}/conversation`)
-            : // gateway-schema: awaiting-route — guest messages are built in parallel (2026-10-23)
-              await client.get<WireConversation>(`/api/diner/reservations/${id}/conversation`);
-        return dinerConversationFromWire(data ?? {}, subject);
+            ? await client.get<WireDinerConversation>(
+                `/api/diner/takeaway-orders/${id}/conversation`,
+              )
+            : await client.get<WireDinerConversation>(`/api/diner/reservations/${id}/conversation`);
+        return dinerConversationFromWire(data, subject);
       } catch (error) {
         if (error instanceof NotFoundError) return null;
         throw error;
@@ -1229,17 +1228,15 @@ export function createHttpGateway(client: ApiClient, options: HttpGatewayOptions
       try {
         const { data } =
           command.subject.kind === 'takeaway'
-            ? // gateway-schema: awaiting-route — guest messages are built in parallel (2026-10-23)
-              await client.post<WireConversationMessage>(
+            ? await client.post<WireDinerMessageResult>(
                 `/api/diner/takeaway-orders/${id}/conversation/messages`,
                 body,
               )
-            : // gateway-schema: awaiting-route — guest messages are built in parallel (2026-10-23)
-              await client.post<WireConversationMessage>(
+            : await client.post<WireDinerMessageResult>(
                 `/api/diner/reservations/${id}/conversation/messages`,
                 body,
               );
-        return sentMessageFromWire(data ?? {});
+        return sentMessageFromWire(data);
       } catch (error) {
         rethrowMessageRefusal(error);
       }
@@ -1248,16 +1245,13 @@ export function createHttpGateway(client: ApiClient, options: HttpGatewayOptions
     async markConversationRead(subject): Promise<void> {
       const id = encodeURIComponent(subject.id);
       if (subject.kind === 'takeaway') {
-        // gateway-schema: awaiting-route — guest messages are built in parallel (2026-10-23)
         await client.post(`/api/diner/takeaway-orders/${id}/conversation/read`);
       } else {
-        // gateway-schema: awaiting-route — guest messages are built in parallel (2026-10-23)
         await client.post(`/api/diner/reservations/${id}/conversation/read`);
       }
     },
 
     async getUnreadMessages(): Promise<DinerUnreadMessages> {
-      // gateway-schema: awaiting-route — guest messages are built in parallel (2026-10-23)
       const { data } = await client.get<WireUnreadMessages>('/api/diner/messages/unread');
       return unreadMessagesFromWire(data);
     },

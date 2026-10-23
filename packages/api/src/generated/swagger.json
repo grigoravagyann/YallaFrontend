@@ -1188,6 +1188,214 @@
         }
       }
     },
+    "/api/branches/{branchId}/message-settings": {
+      "get": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "The branch's settings for messages with guests, with their bounds",
+        "operationId": "getMessageSettings",
+        "parameters": [
+          {
+            "name": "branchId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Application.Messages.MessageSettingsView"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request violated a domain rule or arrived malformed.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No usable token was presented, or the one presented was rejected.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller is authenticated but not allowed to perform this action.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such branch.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests in the window, or a one-time credential is out of attempts.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected failure. Quote the traceId from the body.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Save the branch's settings for messages with guests",
+        "description": "`guestsCanWrite` (default true; off, guests answer with the buttons only), `waitersCanWrite` (default true; managers, the general manager and the owner always may), `remindAfterMinutes` (1 to 15, default 3) - all three required - and `templates`: the quick replies, at most 8 of 1 to 120 characters after trimming, or null (or left out) for the app's default set. Every bad field is named in one 422 `validation-failed`: `guestsCanWrite`, `waitersCanWrite`, `remindAfterMinutes`, `templates`, `templates[i]`.",
+        "operationId": "putMessageSettings",
+        "parameters": [
+          {
+            "name": "branchId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "allOf": [
+                  {
+                    "$ref": "#/components/schemas/Yalla.Api.Endpoints.MessageSettingsRequest"
+                  }
+                ],
+                "description": "Body of `PUT /api/branches/{branchId}/message-settings`."
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Application.Messages.MessageSettingsView"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request violated a domain rule or arrived malformed.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No usable token was presented, or the one presented was rejected.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller is authenticated but not allowed to perform this action.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such branch.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "`context.fields` names each.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.ValidationFailedProblem"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests in the window, or a one-time credential is out of attempts.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected failure. Quote the traceId from the body.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/venue/me": {
       "get": {
         "tags": [
@@ -11675,7 +11883,7 @@
           "diner"
         ],
         "summary": "Cancel a booking",
-        "description": "A diner may only cancel their own; anyone else's is 403. Free until the branch's cancellation deadline and still allowed after it - a late cancellation is far better than a no-show - with `cancelledAfterDeadline` recording which it was.",
+        "description": "A diner may only cancel their own; anyone else's is 403. Free until the branch's cancellation deadline and still allowed after it - a late cancellation is far better than a no-show - with `cancelledAfterDeadline` recording which it was. It is also the \"Not coming\" answer: when the booking has a thread with the venue, or from two hours before its start, a `not-coming` answer and a `status` line (`cancelled: true`) go into the thread.",
         "operationId": "cancelReservation",
         "parameters": [
           {
@@ -12038,7 +12246,7 @@
           "diner"
         ],
         "summary": "\"Yes, on my way\"",
-        "description": "The answer to \"are you on your way?\", asked of every booking 30 minutes before (45 while a pre-order waits) - taken from two hours before the start until the booking ends. Recorded once (`guestConfirmedOnWayAtUtc` on the booking; the waiter's card says \"Guest confirmed\"); a second tap answers the first time, `wasReplay: true`. Moving the booking to another start forgets the answer. No body. \"Can't come\" is the booking's ordinary cancel. A booking not confirmed or seated, more than two hours away, or over: **409 `on-my-way-not-open`** (`context`: `reservationId`, `status`, `opensAtUtc`).",
+        "description": "The answer to \"are you on your way?\", asked of every booking 30 minutes before (45 while a pre-order waits) - taken from two hours before the start until the booking ends. Recorded once (`guestConfirmedOnWayAtUtc` on the booking; the waiter's card says \"Guest confirmed\"); a second tap answers the first time, `wasReplay: true`. Moving the booking to another start forgets the answer. The answer and a `status` line go into the booking's thread with the venue (made if there is none - `getReservationConversation`). No body. \"Can't come\" is the booking's ordinary cancel. A booking not confirmed or seated, more than two hours away, or over: **409 `on-my-way-not-open`** (`context`: `reservationId`, `status`, `opensAtUtc`).",
         "operationId": "confirmOnMyWay",
         "parameters": [
           {
@@ -12141,7 +12349,7 @@
           "diner"
         ],
         "summary": "\"I'm running late\" - by 10, 15 or 30 minutes",
-        "description": "Another answer to \"are you coming?\", under the window `on-my-way` is taken in (from `onMyWayOpensAtUtc`, two hours before the start, until the booking ends) for a **confirmed** booking - a seated party is not late. `minutes` is 10, 15 or 30 (anything else: 422 `validation-failed` naming `minutes`). Recorded as `guestRunningLateMinutes` / `guestRunningLateAtUtc` on the booking; a later answer overwrites it, and \"on my way\" after it clears it. Like \"on my way\" it withdraws the question not yet sent. The table is not held any longer for it. Outside the window: **409 `on-my-way-not-open`**. \"Not coming\" is the booking's ordinary cancel.",
+        "description": "Another answer to \"are you coming?\", under the window `on-my-way` is taken in (from `onMyWayOpensAtUtc`, two hours before the start, until the booking ends) for a **confirmed** booking - a seated party is not late. `minutes` is 10, 15 or 30 (anything else: 422 `validation-failed` naming `minutes`). Recorded as `guestRunningLateMinutes` / `guestRunningLateAtUtc` on the booking; a later answer overwrites it, and \"on my way\" after it clears it. Like \"on my way\" it withdraws the question not yet sent. The table is not held any longer for it. The answer and a `status` line (`heldUntilLocal`: the start plus the minutes) go into the booking's thread with the venue. Outside the window: **409 `on-my-way-not-open`**. \"Not coming\" is the booking's ordinary cancel.",
         "operationId": "reportRunningLate",
         "parameters": [
           {
@@ -13120,6 +13328,692 @@
           },
           "409": {
             "description": "`takeaway-status-conflict`: the venue has answered it.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests in the window, or a one-time credential is out of attempts.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected failure. Quote the traceId from the body.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/diner/reservations/{id}/conversation": {
+      "get": {
+        "tags": [
+          "diner"
+        ],
+        "summary": "The booking's thread with the venue",
+        "description": "The caller's own booking only - anybody else's is 404, as is a thread that closed over 30 days ago. Nobody has written yet: `conversationId` absent and `messages` empty - the composer still shows while `open` and `guestsCanWrite`. The venue's side is the venue: no staff names here. `pendingAsk`: the venue asked \"are you coming?\", nobody answered since and the answer is still taken - show the answer bar (Coming / Late 10-15-30 / Not coming), which calls `confirmOnMyWay`, `reportRunningLate` and the booking's cancel. `venueLastReadUtc`: a guest message not after it is \"seen\". `unreadCount`: venue messages since the guest last read - mark read on open (`.../conversation/read`). Poll every 10 s while the screen is open.\n\n`open`: a booking's thread takes messages until two hours after the booking ends - or after it was cancelled, declined, missed or completed; a takeaway order's until two hours after it was collected, declined, cancelled or not collected. `closesAtUtc` says when (absent while an order is still moving).\n\nEach message: `author` (`guest`, `venue` or `system`), `kind` (`text` - has `text`, plain and never to be linkified; `ask-coming` - the venue's \"are you coming?\"; `answer` - has `answer` `{ kind: coming | late | not-coming, lateMinutes }`; `status` - the system line after an answer, has `status` `{ answer, heldUntilLocal, cancelled }`), `createdAtUtc`. Oldest first. Write the words of the last three in the reader's language.",
+        "operationId": "getReservationConversation",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Application.Messages.DinerConversationView"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request violated a domain rule or arrived malformed.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No usable token was presented, or the one presented was rejected.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller is authenticated but not allowed to perform this action.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such booking of yours, or its thread closed over 30 days ago.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests in the window, or a one-time credential is out of attempts.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected failure. Quote the traceId from the body.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/diner/reservations/{id}/conversation/messages": {
+      "post": {
+        "tags": [
+          "diner"
+        ],
+        "summary": "Write to the venue about the booking",
+        "description": "The first message makes the thread. `text` is 1 to 500 characters after trimming (422 `validation-failed` naming `text`). **Idempotent on `clientCommandId`**: a retry answers the message the first try wrote, `wasReplay: true`. A closed thread: **409 `conversation-closed`** (`context.subjectKind`, `subjectId`, `closedAtUtc`). The venue switched typed messages off: **403 `guests-cannot-write`** (`context.branchId`) - the answer buttons still work. At most 5 messages a minute and 60 in a thread: **429 `messages-too-fast`** (`context.conversationId`, `perMinute`, `perConversation`, and `retryAfterUtc` when waiting helps). The venue is not pushed - the tablet polls.",
+        "operationId": "sendReservationMessage",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "allOf": [
+                  {
+                    "$ref": "#/components/schemas/Yalla.Api.Endpoints.SendMessageRequest"
+                  }
+                ],
+                "description": "Body of a `.../conversation/messages` send - the guest's and the venue's."
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Application.Messages.DinerMessageResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request violated a domain rule or arrived malformed.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No usable token was presented, or the one presented was rejected.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "`guests-cannot-write`.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such booking of yours.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "`conversation-closed` or `client-command-id-in-use`.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "`text` blank or over 500 characters.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.ValidationFailedProblem"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "`messages-too-fast`.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected failure. Quote the traceId from the body.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/diner/reservations/{id}/conversation/read": {
+      "post": {
+        "tags": [
+          "diner"
+        ],
+        "summary": "The guest read the thread",
+        "description": "Everything the venue wrote until now is read - the unread count and the nav dot go. Call it on open and when new messages arrive while open. No thread yet: nothing to mark, still 204. No body.",
+        "operationId": "markReservationConversationRead",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "400": {
+            "description": "The request violated a domain rule or arrived malformed.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No usable token was presented, or the one presented was rejected.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller is authenticated but not allowed to perform this action.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such booking of yours.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests in the window, or a one-time credential is out of attempts.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected failure. Quote the traceId from the body.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/diner/takeaway-orders/{id}/conversation": {
+      "get": {
+        "tags": [
+          "diner"
+        ],
+        "summary": "The takeaway order's thread with the venue",
+        "description": "The caller's own takeaway order only - anybody else's is 404, as is a thread that closed over 30 days ago. Nobody has written yet: `conversationId` absent and `messages` empty - the composer still shows while `open` and `guestsCanWrite`. The venue's side is the venue: no staff names here. `pendingAsk`: the venue asked \"are you coming?\", nobody answered since and the answer is still taken - show the answer bar (Coming / Late 10-15-30 / Not coming), which calls `confirmOnMyWay`, `reportRunningLate` and the booking's cancel. `venueLastReadUtc`: a guest message not after it is \"seen\". `unreadCount`: venue messages since the guest last read - mark read on open (`.../conversation/read`). Poll every 10 s while the screen is open.\n\n`open`: a booking's thread takes messages until two hours after the booking ends - or after it was cancelled, declined, missed or completed; a takeaway order's until two hours after it was collected, declined, cancelled or not collected. `closesAtUtc` says when (absent while an order is still moving).\n\nEach message: `author` (`guest`, `venue` or `system`), `kind` (`text` - has `text`, plain and never to be linkified; `ask-coming` - the venue's \"are you coming?\"; `answer` - has `answer` `{ kind: coming | late | not-coming, lateMinutes }`; `status` - the system line after an answer, has `status` `{ answer, heldUntilLocal, cancelled }`), `createdAtUtc`. Oldest first. Write the words of the last three in the reader's language.",
+        "operationId": "getTakeawayConversation",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Application.Messages.DinerConversationView"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request violated a domain rule or arrived malformed.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No usable token was presented, or the one presented was rejected.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller is authenticated but not allowed to perform this action.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such takeaway order of yours, or its thread closed over 30 days ago.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests in the window, or a one-time credential is out of attempts.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected failure. Quote the traceId from the body.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/diner/takeaway-orders/{id}/conversation/messages": {
+      "post": {
+        "tags": [
+          "diner"
+        ],
+        "summary": "Write to the venue about the takeaway order",
+        "description": "The first message makes the thread. `text` is 1 to 500 characters after trimming (422 `validation-failed` naming `text`). **Idempotent on `clientCommandId`**: a retry answers the message the first try wrote, `wasReplay: true`. A closed thread: **409 `conversation-closed`** (`context.subjectKind`, `subjectId`, `closedAtUtc`). The venue switched typed messages off: **403 `guests-cannot-write`** (`context.branchId`) - the answer buttons still work. At most 5 messages a minute and 60 in a thread: **429 `messages-too-fast`** (`context.conversationId`, `perMinute`, `perConversation`, and `retryAfterUtc` when waiting helps). The venue is not pushed - the tablet polls.",
+        "operationId": "sendTakeawayMessage",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "allOf": [
+                  {
+                    "$ref": "#/components/schemas/Yalla.Api.Endpoints.SendMessageRequest"
+                  }
+                ],
+                "description": "Body of a `.../conversation/messages` send - the guest's and the venue's."
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Application.Messages.DinerMessageResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request violated a domain rule or arrived malformed.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No usable token was presented, or the one presented was rejected.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "`guests-cannot-write`.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such takeaway order of yours.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "`conversation-closed` or `client-command-id-in-use`.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "`text` blank or over 500 characters.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.ValidationFailedProblem"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "`messages-too-fast`.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected failure. Quote the traceId from the body.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/diner/takeaway-orders/{id}/conversation/read": {
+      "post": {
+        "tags": [
+          "diner"
+        ],
+        "summary": "The guest read the thread",
+        "description": "Everything the venue wrote until now is read - the unread count and the nav dot go. Call it on open and when new messages arrive while open. No thread yet: nothing to mark, still 204. No body.",
+        "operationId": "markTakeawayConversationRead",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "400": {
+            "description": "The request violated a domain rule or arrived malformed.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No usable token was presented, or the one presented was rejected.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller is authenticated but not allowed to perform this action.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such takeaway order of yours.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests in the window, or a one-time credential is out of attempts.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected failure. Quote the traceId from the body.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/diner/messages/unread": {
+      "get": {
+        "tags": [
+          "diner"
+        ],
+        "summary": "The guest's threads that are open or have something unread",
+        "description": "For the Bookings tab's dot (`total` above zero) and the booking cards' message rows. Each item: `conversationId`, `subjectKind` (`reservation` or `takeaway`) and `subjectId` (the thread's route), `venueName`, `unread` (venue messages since the guest last read), the last message (`lastAuthor`, `lastKind`, `lastText` - at most 140 characters, a `text` only - and `lastAtUtc`), `open`. Newest first.",
+        "operationId": "getUnreadMessages",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Application.Messages.DinerUnreadMessages"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request violated a domain rule or arrived malformed.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No usable token was presented, or the one presented was rejected.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller is authenticated but not allowed to perform this action.",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -19293,7 +20187,7 @@
           "staff"
         ],
         "summary": "\"Ask: are you coming?\" now",
-        "description": "Sends the guest the automatic question's push (`reservation.on-your-way`, data `kind` `reservation-on-your-way`) and feed entry (`booking-on-your-way`, params `askedByVenue` `\"true\"`) now, and records `staffAskedOnMyWayAtUtc` on the booking. The automatic question is then not asked on top. A **confirmed** booking only, from two hours before its start until its start, while the guest has not answered, at most once every 15 minutes. Refusals, each its own code: **409 `ask-on-my-way-too-early`** (`context.opensAtUtc`), **409 `ask-on-my-way-not-open`** (not confirmed, or started: `context.status`, `startUtc`), **409 `guest-already-answered`** (`context.answeredAtUtc`, and `runningLateMinutes` when late), **409 `ask-on-my-way-asked-recently`** (`context.askedAtUtc`, `nextAllowedAtUtc`). `notified` false: no live account behind the booking - call. Waiter or above at the booking's branch. No body.",
+        "description": "Writes the question into the booking's thread with guests - an `ask-coming` message with the asker's name, made in the same transaction (see `getStaffReservationConversation`) - and tells the guest now: push `message.to-guest` (data `kind` `venue-message`, `ask` `\"true\"`, `categoryId` `venue-ask`) and feed entry `venue-message`. Records `staffAskedOnMyWayAtUtc` on the booking; the automatic question is then not asked on top. A **confirmed** booking only, from two hours before its start until its start, while the guest has not answered, at most once every 15 minutes. Refusals, each its own code: **409 `ask-on-my-way-too-early`** (`context.opensAtUtc`), **409 `ask-on-my-way-not-open`** (not confirmed, or started: `context.status`, `startUtc`), **409 `guest-already-answered`** (`context.answeredAtUtc`, and `runningLateMinutes` when late), **409 `ask-on-my-way-asked-recently`** (`context.askedAtUtc`, `nextAllowedAtUtc`). `notified` false: no live account behind the booking - call. Waiter or above at the booking's branch. No body.",
         "operationId": "askOnMyWay",
         "parameters": [
           {
@@ -19555,6 +20449,99 @@
           },
           "409": {
             "description": "`takeaway-status-conflict`.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests in the window, or a one-time credential is out of attempts.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected failure. Quote the traceId from the body.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/branches/{branchId}/conversations": {
+      "get": {
+        "tags": [
+          "staff"
+        ],
+        "summary": "The Messages tab: the branch's threads with guests",
+        "description": "Threads that are open or had a message in the last 24 hours. A guest message the venue has not answered since puts its thread first (`oldestUnansweredGuestMessageUtc` - the longest waiting first); the rest newest first. Each: the subject (`kind`, `id`, `label` - the table or the `T-` code, `guestName`, `localTime`, and `localDate`/`partySize` or `itemCount`/`totalAmd`), `lastMessage` (the last that is not a system status line - the guest's words or answer, or the venue's - with `answer` on an answer and `staffName` on a venue message), `latestStatus` (the newest status line's `heldUntilLocal` / `cancelled`), `unreadFromGuest`, `awaitingGuestAnswer` (the last is the venue's \"are you coming?\"), `open`. `unreadTotal` is the tab's badge; ring when a guest message has waited `remindAfterMinutes`. `templates`: the venue's quick replies, absent for the app's default four. `waitersCanWrite`: whether a waiter's composer shows. The floor (`getBranchFloor`) carries the badge too - poll this when the tab is open. Waiter or above at the branch.",
+        "operationId": "listBranchConversations",
+        "parameters": [
+          {
+            "name": "branchId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Application.Messages.BranchConversations"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request violated a domain rule or arrived malformed.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No usable token was presented, or the one presented was rejected.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not floor staff at this branch.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such branch.",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -22844,6 +23831,620 @@
         }
       }
     },
+    "/api/reservations/{id}/conversation": {
+      "get": {
+        "tags": [
+          "staff"
+        ],
+        "summary": "The booking's thread with its guest, as the venue reads it",
+        "description": "The guest's view plus `staffName` on each venue message (who wrote it, as they were named then), `guestName`, `guestPhone` (the number the booking or order holds, for the Call button - empty for a platform admin), `guestLastReadUtc` (a venue message not after it is \"seen\") and `canWrite` - open, and the caller a manager, the general manager or the owner, or a waiter while the venue lets waiters write; never a platform admin. `unreadCount`: guest messages since anybody at the venue last read it. Waiter or above at the subject's branch.\n\n`open`: a booking's thread takes messages until two hours after the booking ends - or after it was cancelled, declined, missed or completed; a takeaway order's until two hours after it was collected, declined, cancelled or not collected. `closesAtUtc` says when (absent while an order is still moving).\n\nEach message: `author` (`guest`, `venue` or `system`), `kind` (`text` - has `text`, plain and never to be linkified; `ask-coming` - the venue's \"are you coming?\"; `answer` - has `answer` `{ kind: coming | late | not-coming, lateMinutes }`; `status` - the system line after an answer, has `status` `{ answer, heldUntilLocal, cancelled }`), `createdAtUtc`. Oldest first. Write the words of the last three in the reader's language.",
+        "operationId": "getStaffReservationConversation",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Application.Messages.StaffConversationView"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request violated a domain rule or arrived malformed.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No usable token was presented, or the one presented was rejected.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not floor staff at this booking's branch.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such booking.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests in the window, or a one-time credential is out of attempts.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected failure. Quote the traceId from the body.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/reservations/{id}/conversation/messages": {
+      "post": {
+        "tags": [
+          "staff"
+        ],
+        "summary": "Write to the booking's guest",
+        "description": "The guest is told at once: push `message.to-guest` (data `kind` `venue-message`, `categoryId` `venue-message`, the venue's name over the text) and feed `venue-message`. The message keeps the writer's name for staff; the guest sees the venue's. `text` is 1 to 500 characters after trimming (422 `validation-failed` naming `text`). **Idempotent on `clientCommandId`**: a retry answers the message the first try wrote, `wasReplay: true`. A closed thread: **409 `conversation-closed`** (`context.subjectKind`, `subjectId`, `closedAtUtc`). A platform admin reads only, the kitchen never writes: 403 `forbidden`. A waiter where the venue keeps messages to managers: **403 `waiters-cannot-write`** (`context.branchId`). \"Ask: are you coming?\" is `askOnMyWay` - it writes its own message.",
+        "operationId": "sendStaffReservationMessage",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "allOf": [
+                  {
+                    "$ref": "#/components/schemas/Yalla.Api.Endpoints.SendMessageRequest"
+                  }
+                ],
+                "description": "Body of a `.../conversation/messages` send - the guest's and the venue's."
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Application.Messages.StaffMessageResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request violated a domain rule or arrived malformed.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No usable token was presented, or the one presented was rejected.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "`forbidden` or `waiters-cannot-write`.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such booking.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "`conversation-closed` or `client-command-id-in-use`.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "`text` blank or over 500 characters.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.ValidationFailedProblem"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests in the window, or a one-time credential is out of attempts.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected failure. Quote the traceId from the body.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/reservations/{id}/conversation/read": {
+      "post": {
+        "tags": [
+          "staff"
+        ],
+        "summary": "Somebody at the venue read the thread",
+        "description": "Everything the guest wrote until now is read for the whole venue - any member of staff reading counts. A platform admin's read changes nothing. No thread yet: still 204. No body.",
+        "operationId": "markStaffReservationConversationRead",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "400": {
+            "description": "The request violated a domain rule or arrived malformed.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No usable token was presented, or the one presented was rejected.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not floor staff at this booking's branch.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such booking.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests in the window, or a one-time credential is out of attempts.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected failure. Quote the traceId from the body.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/takeaway-orders/{id}/conversation": {
+      "get": {
+        "tags": [
+          "staff"
+        ],
+        "summary": "The takeaway order's thread with its guest, as the venue reads it",
+        "description": "The guest's view plus `staffName` on each venue message (who wrote it, as they were named then), `guestName`, `guestPhone` (the number the booking or order holds, for the Call button - empty for a platform admin), `guestLastReadUtc` (a venue message not after it is \"seen\") and `canWrite` - open, and the caller a manager, the general manager or the owner, or a waiter while the venue lets waiters write; never a platform admin. `unreadCount`: guest messages since anybody at the venue last read it. Waiter or above at the subject's branch.\n\n`open`: a booking's thread takes messages until two hours after the booking ends - or after it was cancelled, declined, missed or completed; a takeaway order's until two hours after it was collected, declined, cancelled or not collected. `closesAtUtc` says when (absent while an order is still moving).\n\nEach message: `author` (`guest`, `venue` or `system`), `kind` (`text` - has `text`, plain and never to be linkified; `ask-coming` - the venue's \"are you coming?\"; `answer` - has `answer` `{ kind: coming | late | not-coming, lateMinutes }`; `status` - the system line after an answer, has `status` `{ answer, heldUntilLocal, cancelled }`), `createdAtUtc`. Oldest first. Write the words of the last three in the reader's language.",
+        "operationId": "getStaffTakeawayConversation",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Application.Messages.StaffConversationView"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request violated a domain rule or arrived malformed.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No usable token was presented, or the one presented was rejected.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not floor staff at this takeaway order's branch.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such takeaway order.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests in the window, or a one-time credential is out of attempts.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected failure. Quote the traceId from the body.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/takeaway-orders/{id}/conversation/messages": {
+      "post": {
+        "tags": [
+          "staff"
+        ],
+        "summary": "Write to the takeaway order's guest",
+        "description": "The guest is told at once: push `message.to-guest` (data `kind` `venue-message`, `categoryId` `venue-message`, the venue's name over the text) and feed `venue-message`. The message keeps the writer's name for staff; the guest sees the venue's. `text` is 1 to 500 characters after trimming (422 `validation-failed` naming `text`). **Idempotent on `clientCommandId`**: a retry answers the message the first try wrote, `wasReplay: true`. A closed thread: **409 `conversation-closed`** (`context.subjectKind`, `subjectId`, `closedAtUtc`). A platform admin reads only, the kitchen never writes: 403 `forbidden`. A waiter where the venue keeps messages to managers: **403 `waiters-cannot-write`** (`context.branchId`). \"Ask: are you coming?\" is `askOnMyWay` - it writes its own message.",
+        "operationId": "sendStaffTakeawayMessage",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "allOf": [
+                  {
+                    "$ref": "#/components/schemas/Yalla.Api.Endpoints.SendMessageRequest"
+                  }
+                ],
+                "description": "Body of a `.../conversation/messages` send - the guest's and the venue's."
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Application.Messages.StaffMessageResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request violated a domain rule or arrived malformed.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No usable token was presented, or the one presented was rejected.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "`forbidden` or `waiters-cannot-write`.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such takeaway order.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "`conversation-closed` or `client-command-id-in-use`.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "`text` blank or over 500 characters.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.ValidationFailedProblem"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests in the window, or a one-time credential is out of attempts.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected failure. Quote the traceId from the body.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/takeaway-orders/{id}/conversation/read": {
+      "post": {
+        "tags": [
+          "staff"
+        ],
+        "summary": "Somebody at the venue read the thread",
+        "description": "Everything the guest wrote until now is read for the whole venue - any member of staff reading counts. A platform admin's read changes nothing. No thread yet: still 204. No body.",
+        "operationId": "markStaffTakeawayConversationRead",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "400": {
+            "description": "The request violated a domain rule or arrived malformed.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No usable token was presented, or the one presented was rejected.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not floor staff at this takeaway order's branch.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such takeaway order.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests in the window, or a one-time credential is out of attempts.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected failure. Quote the traceId from the body.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/tabs/{tabId}/staff-orders": {
       "post": {
         "tags": [
@@ -23795,6 +25396,39 @@
         "additionalProperties": false,
         "description": "Body of `POST /api/reservations/{id}/no-show`."
       },
+      "Yalla.Api.Endpoints.MessageSettingsRequest": {
+        "required": [
+          "guestsCanWrite",
+          "remindAfterMinutes",
+          "waitersCanWrite"
+        ],
+        "type": "object",
+        "properties": {
+          "guestsCanWrite": {
+            "type": "boolean",
+            "description": "Guests may type messages. Required."
+          },
+          "waitersCanWrite": {
+            "type": "boolean",
+            "description": "Waiters may write. Required."
+          },
+          "templates": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "The quick replies, at most 8 of 1 to 120 characters; null or absent for the app's default set.",
+            "nullable": true
+          },
+          "remindAfterMinutes": {
+            "type": "integer",
+            "description": "1 to 15. Required.",
+            "format": "int32"
+          }
+        },
+        "additionalProperties": false,
+        "description": "Body of `PUT /api/branches/{branchId}/message-settings`."
+      },
       "Yalla.Api.Endpoints.MoveOrderStatusRequest": {
         "required": [
           "status"
@@ -24663,6 +26297,26 @@
         },
         "additionalProperties": false,
         "description": "Body for seating a party with no booking."
+      },
+      "Yalla.Api.Endpoints.SendMessageRequest": {
+        "required": [
+          "clientCommandId",
+          "text"
+        ],
+        "type": "object",
+        "properties": {
+          "text": {
+            "type": "string",
+            "description": "1 to 500 characters after trimming. Plain text."
+          },
+          "clientCommandId": {
+            "type": "string",
+            "description": "Idempotency key; reuse it only to retry this same message.",
+            "format": "uuid"
+          }
+        },
+        "additionalProperties": false,
+        "description": "Body of a `.../conversation/messages` send - the guest's and the venue's."
       },
       "Yalla.Api.Endpoints.SetDinerPasswordRequest": {
         "required": [
@@ -29317,6 +30971,15 @@
             ],
             "description": "The takeaway order's own facts - code, exact status, pickup and ready times. Absent on dine-in.",
             "nullable": true
+          },
+          "messages": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Yalla.Application.Messages.MessagesSummary"
+              }
+            ],
+            "description": "A takeaway order's thread with the venue in one line - unread, the last message, whether it takes messages. Absent on\ndine-in, and on an order with no thread that takes none. See `docs/messages.md`.",
+            "nullable": true
           }
         },
         "additionalProperties": false,
@@ -29714,6 +31377,7 @@
           "branchId",
           "branchName",
           "maxSequence",
+          "messages",
           "tables",
           "timeZoneId"
         ],
@@ -29745,10 +31409,39 @@
             "items": {
               "$ref": "#/components/schemas/Yalla.Application.Floor.TableFloorState"
             }
+          },
+          "messages": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Yalla.Application.Floor.FloorMessages"
+              }
+            ],
+            "description": "The branch's guest messages at a glance - the Messages tab's badge and the remind - so the tablet needs no second\nread to badge. See `docs/messages.md`."
           }
         },
         "additionalProperties": false,
         "description": "Every active table in one branch with its live state, as of one instant: what the staff floor\nscreen lists, grouped by room."
+      },
+      "Yalla.Application.Floor.FloorMessages": {
+        "required": [
+          "unreadTotal"
+        ],
+        "type": "object",
+        "properties": {
+          "unreadTotal": {
+            "type": "integer",
+            "description": "Guest messages nobody at the venue has read, in threads that are open or had a message in the last 24 hours - the\nsame threads as the Messages tab.",
+            "format": "int32"
+          },
+          "oldestUnansweredUtc": {
+            "type": "string",
+            "description": "The oldest guest message the venue has not answered since, across those threads: ring once it has waited the venue's\n`remindAfterMinutes`. Absent when every thread has the venue's last word.",
+            "format": "date-time",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false,
+        "description": "The branch's guest messages on the floor."
       },
       "Yalla.Application.Floor.TableFloorState": {
         "required": [
@@ -29756,10 +31449,12 @@
           "isBookable",
           "label",
           "nextReservationPhoneUnverified",
+          "nextReservationUnreadMessages",
           "openTabAwaitingAdmission",
           "physicalStatus",
           "rowVersion",
           "seats",
+          "sittingUnreadMessages",
           "state",
           "tableId"
         ],
@@ -29932,6 +31627,16 @@
             "description": "The time the party sitting here now promised to free the table by, when they were seated against\na booking that made such a promise; absent otherwise.",
             "format": "date-time",
             "nullable": true
+          },
+          "nextReservationUnreadMessages": {
+            "type": "integer",
+            "description": "Unread guest messages in the next booking's thread - the table tile's and the Now rail's badge. 0 without one.",
+            "format": "int32"
+          },
+          "sittingUnreadMessages": {
+            "type": "integer",
+            "description": "Unread guest messages in the thread of the booking the party sitting here came in on. 0 without one.",
+            "format": "int32"
           }
         },
         "additionalProperties": false,
@@ -30378,6 +32083,870 @@
         },
         "additionalProperties": false,
         "description": "Patch an item. Only supplied fields change; null means \"not supplied\", never \"clear this\"."
+      },
+      "Yalla.Application.Messages.BranchConversations": {
+        "required": [
+          "asOfUtc",
+          "items",
+          "remindAfterMinutes",
+          "unreadTotal",
+          "waitersCanWrite"
+        ],
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Yalla.Application.Messages.InboxItem"
+            },
+            "description": "Threads that are open or had a message in the last 24 hours: those with a guest message unanswered first (the\nlongest waiting first), then the rest, newest first."
+          },
+          "unreadTotal": {
+            "type": "integer",
+            "description": "Unread guest messages across Items - the tab's badge.",
+            "format": "int32"
+          },
+          "remindAfterMinutes": {
+            "type": "integer",
+            "description": "Ring when a guest message has waited this long unanswered.",
+            "format": "int32"
+          },
+          "templates": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "The venue's quick replies; absent for the app's default set.",
+            "nullable": true
+          },
+          "waitersCanWrite": {
+            "type": "boolean",
+            "description": "Whether waiters may write (managers always may)."
+          },
+          "asOfUtc": {
+            "type": "string",
+            "description": "When it was read.",
+            "format": "date-time"
+          }
+        },
+        "additionalProperties": false,
+        "description": "The branch's threads for the tablet's Messages tab."
+      },
+      "Yalla.Application.Messages.ConversationSubjectView": {
+        "required": [
+          "branchId",
+          "id",
+          "kind",
+          "venueName"
+        ],
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "description": "`reservation` or `takeaway`."
+          },
+          "id": {
+            "type": "string",
+            "description": "The booking's or the order's id.",
+            "format": "uuid"
+          },
+          "venueName": {
+            "type": "string",
+            "description": "The venue - the only name the guest sees on the venue's side."
+          },
+          "branchId": {
+            "type": "string",
+            "description": "The branch.",
+            "format": "uuid"
+          },
+          "startUtc": {
+            "type": "string",
+            "description": "A booking's start. Absent on a takeaway order.",
+            "format": "date-time",
+            "nullable": true
+          },
+          "localDate": {
+            "type": "string",
+            "description": "A booking's day on the branch's wall clock, `yyyy-MM-dd`. Absent on a takeaway order.",
+            "nullable": true
+          },
+          "localTime": {
+            "type": "string",
+            "description": "A booking's start on the branch's wall clock, `HH:mm`. Absent on a takeaway order.",
+            "nullable": true
+          },
+          "partySize": {
+            "type": "integer",
+            "description": "A booking's party. Absent on a takeaway order.",
+            "format": "int32",
+            "nullable": true
+          },
+          "tableLabel": {
+            "type": "string",
+            "description": "A booking's table. Absent on a takeaway order.",
+            "nullable": true
+          },
+          "takeawayCode": {
+            "type": "string",
+            "description": "An order's code, \"T-482\". Absent on a booking.",
+            "nullable": true
+          },
+          "readyAtLocal": {
+            "type": "string",
+            "description": "An order's ready time on the branch's wall clock, `HH:mm` - the promised time once accepted, the requested one\nbefore. Absent on a booking.",
+            "nullable": true
+          },
+          "readyAtUtc": {
+            "type": "string",
+            "description": "The same instant. Absent on a booking.",
+            "format": "date-time",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false,
+        "description": "A thread's subject as the header shows it - \"Today 19:30 · 4 guests · table 6\", or \"Takeaway · T-482 · ready 19:10\" -\nin parts, so each client writes the line in its own language."
+      },
+      "Yalla.Application.Messages.DinerConversationMessage": {
+        "required": [
+          "author",
+          "createdAtUtc",
+          "id",
+          "kind"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "The message.",
+            "format": "uuid"
+          },
+          "author": {
+            "type": "string",
+            "description": "`guest`, `venue` or `system`."
+          },
+          "kind": {
+            "type": "string",
+            "description": "`text` (has `text`), `ask-coming` (the venue's \"are you coming?\"), `answer` (has `answer`) or\n            `status` (has `status`). Write the words for the last three in the reader's language."
+          },
+          "text": {
+            "type": "string",
+            "description": "The words of a `text` message - plain text, never to be linkified. Absent for the other kinds.",
+            "nullable": true
+          },
+          "answer": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Yalla.Application.Messages.MessageAnswerView"
+              }
+            ],
+            "description": "An `answer`'s facts. Absent for the other kinds.",
+            "nullable": true
+          },
+          "status": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Yalla.Application.Messages.MessageStatusView"
+              }
+            ],
+            "description": "A `status` line's facts. Absent for the other kinds.",
+            "nullable": true
+          },
+          "createdAtUtc": {
+            "type": "string",
+            "description": "When it was written. \"Seen\" under a guest message: it is not after `venueLastReadUtc`.",
+            "format": "date-time"
+          }
+        },
+        "additionalProperties": false,
+        "description": "One message as the guest sees it. No staff names: the venue's side is the venue."
+      },
+      "Yalla.Application.Messages.DinerConversationView": {
+        "required": [
+          "guestsCanWrite",
+          "messages",
+          "open",
+          "pendingAsk",
+          "subject",
+          "unreadCount"
+        ],
+        "type": "object",
+        "properties": {
+          "conversationId": {
+            "type": "string",
+            "description": "The thread; absent while nobody has written yet (and `messages` is empty).",
+            "format": "uuid",
+            "nullable": true
+          },
+          "subject": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Yalla.Application.Messages.ConversationSubjectView"
+              }
+            ],
+            "description": "What it is about - the header."
+          },
+          "open": {
+            "type": "boolean",
+            "description": "Takes messages now: a booking until two hours after it ends (or after it was cancelled, declined, missed or\ncompleted); an order until two hours after it was collected, declined, cancelled or not collected. Closed: no\ncomposer - the \"closed\" note instead; the thread stays readable for 30 days."
+          },
+          "closesAtUtc": {
+            "type": "string",
+            "description": "When it closes, or closed. Absent while a takeaway order is still moving.",
+            "format": "date-time",
+            "nullable": true
+          },
+          "guestsCanWrite": {
+            "type": "boolean",
+            "description": "The venue takes typed messages. False: no composer - \"reply with the buttons or call\"."
+          },
+          "venuePhone": {
+            "type": "string",
+            "description": "The branch's number for the call button, E.164. Absent when it has none on file.",
+            "nullable": true
+          },
+          "pendingAsk": {
+            "type": "boolean",
+            "description": "The venue asked \"are you coming?\", nobody has answered since, and the answer is still taken (a confirmed booking,\nfrom two hours before its start until its end): show the answer bar."
+          },
+          "venueLastReadUtc": {
+            "type": "string",
+            "description": "When the venue last read the thread: a guest message not after it is \"seen\".",
+            "format": "date-time",
+            "nullable": true
+          },
+          "unreadCount": {
+            "type": "integer",
+            "description": "What the venue wrote since the guest last read the thread.",
+            "format": "int32"
+          },
+          "messages": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Yalla.Application.Messages.DinerConversationMessage"
+            },
+            "description": "Oldest first."
+          }
+        },
+        "additionalProperties": false,
+        "description": "A booking's or a takeaway order's thread, as its guest reads it."
+      },
+      "Yalla.Application.Messages.DinerMessageResult": {
+        "required": [
+          "author",
+          "conversationId",
+          "createdAtUtc",
+          "id",
+          "kind",
+          "wasReplay"
+        ],
+        "type": "object",
+        "properties": {
+          "conversationId": {
+            "type": "string",
+            "description": "The thread - made by this message when it was the first.",
+            "format": "uuid"
+          },
+          "id": {
+            "type": "string",
+            "description": "The message.",
+            "format": "uuid"
+          },
+          "author": {
+            "type": "string",
+            "description": "Always `guest`."
+          },
+          "kind": {
+            "type": "string",
+            "description": "Always `text`."
+          },
+          "text": {
+            "type": "string",
+            "description": "What was stored: the text trimmed.",
+            "nullable": true
+          },
+          "createdAtUtc": {
+            "type": "string",
+            "description": "When it was written.",
+            "format": "date-time"
+          },
+          "wasReplay": {
+            "type": "boolean",
+            "description": "The same `clientCommandId` wrote it before: nothing new was written."
+          }
+        },
+        "additionalProperties": false,
+        "description": "The answer to the guest's send: the message as written, and its thread."
+      },
+      "Yalla.Application.Messages.DinerUnreadMessages": {
+        "required": [
+          "items",
+          "total"
+        ],
+        "type": "object",
+        "properties": {
+          "total": {
+            "type": "integer",
+            "description": "Unread venue messages across them all; the dot shows while above zero.",
+            "format": "int32"
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Yalla.Application.Messages.DinerUnreadThread"
+            },
+            "description": "Newest first."
+          }
+        },
+        "additionalProperties": false,
+        "description": "The guest's threads that are open or have something unread - the nav dot and the Bookings card rows."
+      },
+      "Yalla.Application.Messages.DinerUnreadThread": {
+        "required": [
+          "conversationId",
+          "lastAtUtc",
+          "lastAuthor",
+          "lastKind",
+          "open",
+          "subjectId",
+          "subjectKind",
+          "unread",
+          "venueName"
+        ],
+        "type": "object",
+        "properties": {
+          "conversationId": {
+            "type": "string",
+            "description": "The thread.",
+            "format": "uuid"
+          },
+          "subjectKind": {
+            "type": "string",
+            "description": "`reservation` or `takeaway`."
+          },
+          "subjectId": {
+            "type": "string",
+            "description": "The booking's or the order's id - the thread's route.",
+            "format": "uuid"
+          },
+          "venueName": {
+            "type": "string",
+            "description": "The venue."
+          },
+          "unread": {
+            "type": "integer",
+            "description": "What the venue wrote since the guest last read it.",
+            "format": "int32"
+          },
+          "lastText": {
+            "type": "string",
+            "description": "The last message's words when it is a `text`, at most 140 characters.",
+            "nullable": true
+          },
+          "lastKind": {
+            "type": "string",
+            "description": "`text`, `ask-coming`, `answer` or `status`."
+          },
+          "lastAuthor": {
+            "type": "string",
+            "description": "`guest`, `venue` or `system`."
+          },
+          "lastAtUtc": {
+            "type": "string",
+            "description": "When the last message was written.",
+            "format": "date-time"
+          },
+          "open": {
+            "type": "boolean",
+            "description": "The thread takes messages now."
+          }
+        },
+        "additionalProperties": false,
+        "description": "One of the guest's threads on the unread list."
+      },
+      "Yalla.Application.Messages.InboxItem": {
+        "required": [
+          "awaitingGuestAnswer",
+          "conversationId",
+          "lastMessage",
+          "open",
+          "subject",
+          "unreadFromGuest"
+        ],
+        "type": "object",
+        "properties": {
+          "conversationId": {
+            "type": "string",
+            "description": "The thread.",
+            "format": "uuid"
+          },
+          "subject": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Yalla.Application.Messages.InboxSubject"
+              }
+            ],
+            "description": "What it is about."
+          },
+          "lastMessage": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Yalla.Application.Messages.StaffConversationMessage"
+              }
+            ],
+            "description": "The last message that is not a system status line - the guest's words or answer (\"late 15\"), or the venue's - what the\nrow previews, with `answer` on an answer and `staffName` on a venue message."
+          },
+          "latestStatus": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Yalla.Application.Messages.MessageStatusView"
+              }
+            ],
+            "description": "The newest system status line in the thread (\"held until 19:45\", \"cancelled\"), or absent.",
+            "nullable": true
+          },
+          "unreadFromGuest": {
+            "type": "integer",
+            "description": "What the guest wrote since anybody at the venue last read it.",
+            "format": "int32"
+          },
+          "awaitingGuestAnswer": {
+            "type": "boolean",
+            "description": "The last message is the venue's \"are you coming?\" and the guest has not answered."
+          },
+          "oldestUnansweredGuestMessageUtc": {
+            "type": "string",
+            "description": "The first guest message since the venue last wrote - the one to remind about after `remindAfterMinutes`.\nAbsent when the venue has the last word.",
+            "format": "date-time",
+            "nullable": true
+          },
+          "open": {
+            "type": "boolean",
+            "description": "The thread takes messages now."
+          }
+        },
+        "additionalProperties": false,
+        "description": "One thread on the tablet's Messages tab."
+      },
+      "Yalla.Application.Messages.InboxSubject": {
+        "required": [
+          "guestName",
+          "id",
+          "kind",
+          "label",
+          "localTime"
+        ],
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "description": "`reservation` or `takeaway`."
+          },
+          "id": {
+            "type": "string",
+            "description": "The booking's or the order's id.",
+            "format": "uuid"
+          },
+          "label": {
+            "type": "string",
+            "description": "The table's label for a booking, the code (\"T-485\") for an order."
+          },
+          "guestName": {
+            "type": "string",
+            "description": "The guest's name."
+          },
+          "localTime": {
+            "type": "string",
+            "description": "A booking's start or an order's ready time, `HH:mm` on the branch's clock."
+          },
+          "localDate": {
+            "type": "string",
+            "description": "A booking's day, `yyyy-MM-dd`. Absent on an order.",
+            "nullable": true
+          },
+          "partySize": {
+            "type": "integer",
+            "description": "A booking's party. Absent on an order.",
+            "format": "int32",
+            "nullable": true
+          },
+          "itemCount": {
+            "type": "integer",
+            "description": "An order's dishes in all. Absent on a booking.",
+            "format": "int32",
+            "nullable": true
+          },
+          "totalAmd": {
+            "type": "integer",
+            "description": "An order's total, to pay at pickup. Absent on a booking.",
+            "format": "int64",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false,
+        "description": "A thread's subject on the tablet's inbox row."
+      },
+      "Yalla.Application.Messages.MessageAnswerView": {
+        "required": [
+          "kind"
+        ],
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "description": "`coming`, `late` or `not-coming`."
+          },
+          "lateMinutes": {
+            "type": "integer",
+            "description": "For `late`: 10, 15 or 30. Absent otherwise.",
+            "format": "int32",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false,
+        "description": "The guest's answer to \"are you coming?\"."
+      },
+      "Yalla.Application.Messages.MessageSettingsBounds": {
+        "required": [
+          "maxTemplates",
+          "remindAfterMinutesMax",
+          "remindAfterMinutesMin",
+          "templateMaxLength",
+          "textMaxLength"
+        ],
+        "type": "object",
+        "properties": {
+          "maxTemplates": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "templateMaxLength": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "remindAfterMinutesMin": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "remindAfterMinutesMax": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "textMaxLength": {
+            "type": "integer",
+            "format": "int32"
+          }
+        },
+        "additionalProperties": false,
+        "description": "The bounds of the message settings, and of a message."
+      },
+      "Yalla.Application.Messages.MessageSettingsView": {
+        "required": [
+          "bounds",
+          "guestsCanWrite",
+          "remindAfterMinutes",
+          "waitersCanWrite"
+        ],
+        "type": "object",
+        "properties": {
+          "guestsCanWrite": {
+            "type": "boolean",
+            "description": "Guests may type messages. Default true."
+          },
+          "waitersCanWrite": {
+            "type": "boolean",
+            "description": "Waiters may write. Default true."
+          },
+          "templates": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "The quick replies; absent for the app's default set.",
+            "nullable": true
+          },
+          "remindAfterMinutes": {
+            "type": "integer",
+            "description": "The tablet rings after this long unanswered. Default 3.",
+            "format": "int32"
+          },
+          "bounds": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Yalla.Application.Messages.MessageSettingsBounds"
+              }
+            ],
+            "description": "What each may be."
+          }
+        },
+        "additionalProperties": false,
+        "description": "The branch's message settings with their bounds."
+      },
+      "Yalla.Application.Messages.MessageStatusView": {
+        "required": [
+          "answer",
+          "cancelled"
+        ],
+        "type": "object",
+        "properties": {
+          "answer": {
+            "type": "string",
+            "description": "The answer it follows: `coming`, `late` or `not-coming`."
+          },
+          "heldUntilLocal": {
+            "type": "string",
+            "description": "After `late`: the start plus the minutes, `HH:mm` on the branch's clock. Absent otherwise.",
+            "nullable": true
+          },
+          "cancelled": {
+            "type": "boolean",
+            "description": "True after `not-coming`: the booking was cancelled."
+          }
+        },
+        "additionalProperties": false,
+        "description": "What the booking is after the guest's answer - the system line \"Booking updated · held until 19:45\"."
+      },
+      "Yalla.Application.Messages.MessagesSummary": {
+        "required": [
+          "open",
+          "unread"
+        ],
+        "type": "object",
+        "properties": {
+          "unread": {
+            "type": "integer",
+            "description": "What the venue wrote since the guest last read the thread - \"1 new\".",
+            "format": "int32"
+          },
+          "lastAuthor": {
+            "type": "string",
+            "description": "`guest`, `venue` or `system`; absent while nobody has written.",
+            "nullable": true
+          },
+          "lastKind": {
+            "type": "string",
+            "description": "`text`, `ask-coming`, `answer` or `status`; absent while nobody has written.",
+            "nullable": true
+          },
+          "lastText": {
+            "type": "string",
+            "description": "The last message's words when it is a `text`, at most 140 characters. Absent otherwise.",
+            "nullable": true
+          },
+          "lastAtUtc": {
+            "type": "string",
+            "description": "When the last message was written; absent while nobody has written.",
+            "format": "date-time",
+            "nullable": true
+          },
+          "open": {
+            "type": "boolean",
+            "description": "The thread takes messages now."
+          }
+        },
+        "additionalProperties": false,
+        "description": "A thread in one line, on a booking (list and detail) and on an Orders-tab takeaway order - the \"Messages with the\nvenue\" card. Absent when the subject has no thread and takes none."
+      },
+      "Yalla.Application.Messages.StaffConversationMessage": {
+        "required": [
+          "author",
+          "createdAtUtc",
+          "id",
+          "kind"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "The message.",
+            "format": "uuid"
+          },
+          "author": {
+            "type": "string",
+            "description": "`guest`, `venue` or `system`."
+          },
+          "kind": {
+            "type": "string",
+            "description": "`text`, `ask-coming`, `answer` or `status`."
+          },
+          "text": {
+            "type": "string",
+            "description": "The words of a `text` message. Absent for the other kinds.",
+            "nullable": true
+          },
+          "answer": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Yalla.Application.Messages.MessageAnswerView"
+              }
+            ],
+            "description": "An `answer`'s facts.",
+            "nullable": true
+          },
+          "status": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Yalla.Application.Messages.MessageStatusView"
+              }
+            ],
+            "description": "A `status` line's facts.",
+            "nullable": true
+          },
+          "createdAtUtc": {
+            "type": "string",
+            "description": "When it was written.",
+            "format": "date-time"
+          },
+          "staffName": {
+            "type": "string",
+            "description": "On a venue message: who wrote it, as they were named then. Absent on the others.",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false,
+        "description": "One message as the venue sees it: the guest's view plus who at the venue wrote it."
+      },
+      "Yalla.Application.Messages.StaffConversationView": {
+        "required": [
+          "canWrite",
+          "guestName",
+          "guestPhone",
+          "guestsCanWrite",
+          "messages",
+          "open",
+          "pendingAsk",
+          "subject",
+          "unreadCount"
+        ],
+        "type": "object",
+        "properties": {
+          "conversationId": {
+            "type": "string",
+            "description": "The thread; absent while nobody has written yet.",
+            "format": "uuid",
+            "nullable": true
+          },
+          "subject": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Yalla.Application.Messages.ConversationSubjectView"
+              }
+            ],
+            "description": "What it is about."
+          },
+          "guestName": {
+            "type": "string",
+            "description": "The guest, as the booking or order names them."
+          },
+          "guestPhone": {
+            "type": "string",
+            "description": "The guest's number as the booking or order holds it, for the Call button - never shown in the thread itself. Empty for\na platform admin: the venue's to call, as on the takeaway counter and the pre-order rail."
+          },
+          "open": {
+            "type": "boolean",
+            "description": "Takes messages now."
+          },
+          "closesAtUtc": {
+            "type": "string",
+            "description": "When it closes, or closed. Absent while a takeaway order is still moving.",
+            "format": "date-time",
+            "nullable": true
+          },
+          "guestsCanWrite": {
+            "type": "boolean",
+            "description": "Whether the guest may type (the venue's setting)."
+          },
+          "canWrite": {
+            "type": "boolean",
+            "description": "The caller may write here now: the thread is open and they are a manager, the general manager or the owner - or a\nwaiter while the venue lets waiters write. Never a platform admin, never the kitchen."
+          },
+          "venuePhone": {
+            "type": "string",
+            "description": "The branch's own number.",
+            "nullable": true
+          },
+          "pendingAsk": {
+            "type": "boolean",
+            "description": "The venue asked \"are you coming?\" and the guest has not answered, while the answer is still taken."
+          },
+          "venueLastReadUtc": {
+            "type": "string",
+            "description": "When anybody at the venue last read it.",
+            "format": "date-time",
+            "nullable": true
+          },
+          "guestLastReadUtc": {
+            "type": "string",
+            "description": "When the guest last read it: a venue message not after it is \"seen\".",
+            "format": "date-time",
+            "nullable": true
+          },
+          "unreadCount": {
+            "type": "integer",
+            "description": "What the guest wrote since the venue last read the thread.",
+            "format": "int32"
+          },
+          "messages": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Yalla.Application.Messages.StaffConversationMessage"
+            },
+            "description": "Oldest first."
+          }
+        },
+        "additionalProperties": false,
+        "description": "A thread as the venue reads it: the guest's view, plus who wrote each venue message and whether the caller may write."
+      },
+      "Yalla.Application.Messages.StaffMessageResult": {
+        "required": [
+          "author",
+          "conversationId",
+          "createdAtUtc",
+          "id",
+          "kind",
+          "wasReplay"
+        ],
+        "type": "object",
+        "properties": {
+          "conversationId": {
+            "type": "string",
+            "description": "The thread - made by this message when it was the first.",
+            "format": "uuid"
+          },
+          "id": {
+            "type": "string",
+            "description": "The message.",
+            "format": "uuid"
+          },
+          "author": {
+            "type": "string",
+            "description": "Always `venue`."
+          },
+          "kind": {
+            "type": "string",
+            "description": "Always `text`."
+          },
+          "text": {
+            "type": "string",
+            "description": "What was stored: the text trimmed.",
+            "nullable": true
+          },
+          "createdAtUtc": {
+            "type": "string",
+            "description": "When it was written.",
+            "format": "date-time"
+          },
+          "staffName": {
+            "type": "string",
+            "description": "Who wrote it.",
+            "nullable": true
+          },
+          "wasReplay": {
+            "type": "boolean",
+            "description": "The same `clientCommandId` wrote it before: nothing new was written, nobody told twice."
+          }
+        },
+        "additionalProperties": false,
+        "description": "The answer to staff's send: the message as written, with who wrote it."
       },
       "Yalla.Application.Messaging.DeadLetterView": {
         "required": [
@@ -36555,6 +39124,15 @@
             "type": "string",
             "description": "From when \"I'm coming\" and \"running late\" are taken: two hours before the start. The answer is taken until the\nbooking ends, while it is confirmed.",
             "format": "date-time"
+          },
+          "messages": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Yalla.Application.Messages.MessagesSummary"
+              }
+            ],
+            "description": "The booking's thread with the venue in one line - the \"Messages with the venue\" card: unread, the last message,\nwhether it takes messages. On the guest's own reads (`getMyReservations`) only; absent elsewhere, and when the\nbooking has no thread and takes none. See `docs/messages.md`.",
+            "nullable": true
           }
         },
         "additionalProperties": false,

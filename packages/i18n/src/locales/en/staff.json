@@ -1180,6 +1180,7 @@
       },
       "rowTakeaway": "{{name}} · {{code}}",
       "you": "You: {{text}}",
+      "lastHeld": "{{text}} · held until {{time}}",
       "tag": {
         "new": "New · reply",
         "waiting": "Waiting for their answer",
@@ -1228,6 +1229,7 @@
         "heldUntil": "Booking updated · table held until {{time}}",
         "cancelled": "Booking cancelled",
         "updated": "Booking updated",
+        "updatedComing": "Booking updated · coming",
         "unknown": "A message this tablet cannot show",
         "late_one": "Running {{count}} minute late",
         "late_other": "Running {{count}} minutes late"

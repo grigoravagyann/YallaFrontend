@@ -619,6 +619,34 @@ describe('a venue message in the feed', () => {
     );
   });
 
+  it("says the booking's time on the venue's ask, as the backend writes its row", () => {
+    // The ask's row since 2026-10-23: no words, `ask` "true", the booking's date and time.
+    const copy = notificationCopy(
+      message({
+        venueName: 'Lava',
+        branchName: 'Kentron',
+        subjectKind: 'reservation',
+        ask: 'true',
+        date: '2026-10-23',
+        time: '19:30',
+      }),
+    );
+    expect(copy).toEqual({
+      titleKey: 'notifications.kind.venueMessage.title',
+      bodyKey: 'notifications.kind.venueAskAt.body',
+      params: { place: 'Lava', time: '19:30' },
+    });
+    for (const locale of ['hy', 'ru', 'en'] as const) {
+      expect(lookup(dinerResources[locale].diner, copy.bodyKey)).toEqual(
+        expect.stringContaining('{{time}}'),
+      );
+    }
+    expect(notificationRoute(message({ subjectKind: 'reservation', ask: 'true' }))).toEqual({
+      pathname: '/messages/reservation/[id]',
+      params: { id: 'r1' },
+    });
+  });
+
   it("opens the booking's thread, or the takeaway order's", () => {
     expect(notificationRoute(message({}))).toEqual({
       pathname: '/messages/reservation/[id]',

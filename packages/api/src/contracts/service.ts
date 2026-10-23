@@ -346,6 +346,11 @@ export interface StaffTableDetail {
    * from a server before messages.
    */
   readonly nextReservationUnreadMessages?: number | undefined;
+  /**
+   * …and on the thread of the booking the party sitting here came in on: the
+   * tile badges either. Absent or 0 when none.
+   */
+  readonly sittingUnreadMessages?: number | undefined;
 }
 
 /**

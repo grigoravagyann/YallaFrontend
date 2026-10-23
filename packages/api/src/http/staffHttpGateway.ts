@@ -36,9 +36,8 @@ import {
   sentMessageFromWire,
   staffConversationFromWire,
   type WireBranchConversations,
-  type WireConversation,
-  type WireConversationMessage,
-  type WireFloorStateMessages,
+  type WireStaffConversation,
+  type WireStaffMessageResult,
 } from './messagesMapping';
 import type { ApiClient } from '../client';
 import type { ConsoleBooking } from '../contracts/approvals';
@@ -263,7 +262,7 @@ export function createStaffHttpGateway(client: ApiClient): StaffGateway {
         const { data } = await client.get<Schemas['Yalla.Application.Floor.BranchFloorState']>(
           `/api/branches/${branchId}/tables/floor`,
         );
-        const messages = floorMessagesFromWire((data as WireFloorStateMessages).messages);
+        const messages = floorMessagesFromWire(data.messages);
         return {
           plan: floorFromState(data),
           details: staffFloorDetails(data),
@@ -534,12 +533,11 @@ export function createStaffHttpGateway(client: ApiClient): StaffGateway {
 
     // --- Messages with guests (2026-10-23) -----------------------------------
     //
-    // Written to the build spec ahead of the regenerated schema. Sends are
-    // online only, like the rail's actions; every refusal is read by
-    // `messagesMapping.ts`.
+    // Sends are online only, like the rail's actions; every refusal is read by
+    // `messagesMapping.ts`. Kitchen and a platform admin writing get a plain
+    // 403 `forbidden`, the client's `ForbiddenError`.
 
     async listConversations(branchId): Promise<BranchConversations> {
-      // gateway-schema: awaiting-route — guest messages are built in parallel (2026-10-23)
       const { data } = await client.get<WireBranchConversations>(
         `/api/branches/${branchId}/conversations`,
       );
@@ -550,11 +548,13 @@ export function createStaffHttpGateway(client: ApiClient): StaffGateway {
       try {
         const { data } =
           subject.kind === 'takeaway'
-            ? // gateway-schema: awaiting-route — guest messages are built in parallel (2026-10-23)
-              await client.get<WireConversation>(`/api/takeaway-orders/${subject.id}/conversation`)
-            : // gateway-schema: awaiting-route — guest messages are built in parallel (2026-10-23)
-              await client.get<WireConversation>(`/api/reservations/${subject.id}/conversation`);
-        return staffConversationFromWire(data ?? {}, subject);
+            ? await client.get<WireStaffConversation>(
+                `/api/takeaway-orders/${subject.id}/conversation`,
+              )
+            : await client.get<WireStaffConversation>(
+                `/api/reservations/${subject.id}/conversation`,
+              );
+        return staffConversationFromWire(data, subject);
       } catch (error) {
         if (error instanceof NotFoundError) return null;
         throw error;
@@ -567,17 +567,15 @@ export function createStaffHttpGateway(client: ApiClient): StaffGateway {
       try {
         const { data } =
           command.subject.kind === 'takeaway'
-            ? // gateway-schema: awaiting-route — guest messages are built in parallel (2026-10-23)
-              await client.post<WireConversationMessage>(
+            ? await client.post<WireStaffMessageResult>(
                 `/api/takeaway-orders/${id}/conversation/messages`,
                 body,
               )
-            : // gateway-schema: awaiting-route — guest messages are built in parallel (2026-10-23)
-              await client.post<WireConversationMessage>(
+            : await client.post<WireStaffMessageResult>(
                 `/api/reservations/${id}/conversation/messages`,
                 body,
               );
-        return sentMessageFromWire(data ?? {});
+        return sentMessageFromWire(data);
       } catch (error) {
         rethrowMessageRefusal(error);
       }
@@ -585,10 +583,8 @@ export function createStaffHttpGateway(client: ApiClient): StaffGateway {
 
     async markStaffConversationRead(subject): Promise<void> {
       if (subject.kind === 'takeaway') {
-        // gateway-schema: awaiting-route — guest messages are built in parallel (2026-10-23)
         await client.post(`/api/takeaway-orders/${subject.id}/conversation/read`);
       } else {
-        // gateway-schema: awaiting-route — guest messages are built in parallel (2026-10-23)
         await client.post(`/api/reservations/${subject.id}/conversation/read`);
       }
     },

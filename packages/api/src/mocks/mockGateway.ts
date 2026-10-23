@@ -178,6 +178,7 @@ import {
 import { createMockTakeawayBook, type MockTakeawayBranch } from './takeaway';
 import {
   isTakeawayActive,
+  takeawayItemCount,
   type TakeawayAvailability,
   type TakeawayOrder,
   type TakeawayPaymentMethod,
@@ -185,6 +186,7 @@ import {
 } from '../contracts/takeaway';
 import {
   canAnswerOnMyWay,
+  onMyWayOpensAtUtc,
   type AskOnMyWayResult,
   type RunningLateMinutes,
   type RunningLateResult,
@@ -759,6 +761,7 @@ export function createMockGateway(options: MockGatewayOptions = {}): MockGateway
         venuePhone: publicBranchFixtures[booking.branchId]?.phoneE164 ?? null,
         owner,
         guestName: (owner ? accounts.profile(owner)?.displayName : null) ?? 'Guest',
+        guestPhone: (owner ? accounts.profile(owner)?.phoneE164 : null) ?? '',
         startUtc: booking.slotUtc,
         localDate: local.date,
         localTime: local.time,
@@ -766,6 +769,9 @@ export function createMockGateway(options: MockGatewayOptions = {}): MockGateway
         tableLabel: booking.tableLabel,
         takeawayCode: null,
         readyAtLocal: null,
+        readyAtUtc: null,
+        itemCount: null,
+        totalAmd: null,
         active,
         endUtc: booking.endUtc,
         // A decided booking's moment: the cancellation, else its end.
@@ -792,6 +798,7 @@ export function createMockGateway(options: MockGatewayOptions = {}): MockGateway
       venuePhone: publicBranchFixtures[record.branchId]?.phoneE164 ?? null,
       owner: record.actor,
       guestName: record.guestName,
+      guestPhone: record.guestPhone,
       startUtc: null,
       localDate: null,
       localTime: null,
@@ -799,6 +806,9 @@ export function createMockGateway(options: MockGatewayOptions = {}): MockGateway
       tableLabel: null,
       takeawayCode: record.code,
       readyAtLocal: record.readyAtUtc ? localDateTime(record.readyAtUtc, zone).time : null,
+      readyAtUtc: record.readyAtUtc,
+      itemCount: takeawayItemCount(record.lines),
+      totalAmd: record.lines.reduce((sum, line) => sum + line.unitPriceDram * line.quantity, 0),
       active: isTakeawayActive(record.status),
       endUtc: null,
       endedAtUtc:
@@ -3020,51 +3030,15 @@ export function createMockGateway(options: MockGatewayOptions = {}): MockGateway
       });
     }
 
-    // The venue's "Ask: are you coming?" (2026-10-22): the same entry, now,
-    // once per ask, while the guest has not answered.
-    for (const booking of bookings.values()) {
-      if (bookingOwners.get(booking.id) !== accountId) continue;
-      const asked = preOrders.staffAskedAt(booking.id);
-      if (!asked) continue;
-      if (
-        feed.some(
-          (row) =>
-            row.kind === ON_YOUR_WAY_FEED_KIND &&
-            row.reservationId === booking.id &&
-            row.params['askedByVenue'] === 'true' &&
-            row.createdAtUtc === asked,
-        )
-      ) {
-        continue;
-      }
-      const local = localDateTime(booking.slotUtc, booking.timeZoneId);
-      add({
-        kind: ON_YOUR_WAY_FEED_KIND,
-        params: {
-          venueName: booking.venueName,
-          branchName: booking.branchName,
-          date: local.date,
-          time: local.time,
-          partySize: String(booking.partySize),
-          reservationCode: booking.code,
-          askedByVenue: 'true',
-        },
-        branchId: booking.branchId,
-        branchName: booking.branchName,
-        reservationId: booking.id,
-        tabId: null,
-        orderId: null,
-        createdAtUtc: asked,
-      });
-    }
-
-    // Guest messages (2026-10-23): every venue text, once. The ask has its own
-    // "are you coming?" entry above.
+    // Guest messages (2026-10-23): every venue message, once — a text, or the
+    // venue's "are you coming?" (`ask` "true", no text). Since then the ask
+    // writes this entry only: no `booking-on-your-way` row beside it.
     for (const record of conversations.records()) {
       const info = conversationSubject(record.ref);
       if (!info || info.owner !== accountId) continue;
       for (const message of record.messages) {
-        if (message.author !== 'venue' || message.kind !== 'text') continue;
+        if (message.author !== 'venue') continue;
+        if (message.kind !== 'text' && message.kind !== 'askComing') continue;
         if (Date.parse(message.createdAtUtc) > now().getTime()) continue;
         if (
           feed.some(
@@ -3073,14 +3047,22 @@ export function createMockGateway(options: MockGatewayOptions = {}): MockGateway
         ) {
           continue;
         }
+        const ask = message.kind === 'askComing';
         const body = message.text ?? '';
+        const branchName = findBranch(info.branchId)?.branch.name ?? '';
         add({
           kind: VENUE_MESSAGE_FEED_KIND,
           params: {
             venueName: info.venueName,
-            text: body.length > 140 ? `${body.slice(0, 139)}…` : body,
-            ask: 'false',
+            branchName,
             conversationId: record.id,
+            subjectKind: record.ref.kind,
+            ask: ask ? 'true' : 'false',
+            ...(ask ? {} : { text: body.length > 140 ? `${body.slice(0, 139)}…` : body }),
+            ...(record.ref.kind === 'takeaway'
+              ? { code: info.takeawayCode ?? '' }
+              : { date: info.localDate ?? '', time: info.localTime ?? '' }),
+            // The mock's own key, so a message is written once.
             messageId: message.id,
           },
           branchId: info.branchId,
@@ -4754,8 +4736,13 @@ export function createMockGateway(options: MockGatewayOptions = {}): MockGateway
       rejudgeAskersOf(bookingId, at.toISOString());
       withdrawRequestsFor(bookingId);
       // "Not coming" is the ordinary cancel: an answer in the thread when the
-      // venue had asked, as the server writes it for every cancel by the guest.
-      if (conversations.record({ kind: 'reservation', id: bookingId })) {
+      // booking has one already or the answer window has opened (two hours
+      // before the start), as the server writes it. A booking cancelled next
+      // week is a cancellation, not an answer to anybody.
+      if (
+        conversations.record({ kind: 'reservation', id: bookingId }) ||
+        at.getTime() >= Date.parse(onMyWayOpensAtUtc(booking.slotUtc))
+      ) {
         answerInThread(cancelled, { kind: 'notComing', lateMinutes: null });
       }
 

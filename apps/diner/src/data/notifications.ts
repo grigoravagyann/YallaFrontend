@@ -275,15 +275,19 @@ function venueMessageCopy(
   // The thread says the venue's name, never the branch's: so does its row.
   const venue = text(notification.params['venueName']) ?? place;
   const words = text(notification.params['text']);
+  // The ask carries no words: the booking's time, as the push says it.
+  const time = flag(notification, 'ask') ? text(notification.params['time']) : null;
   const body = words
     ? 'venueMessage'
     : flag(notification, 'ask')
-      ? 'venueAsk'
+      ? time
+        ? 'venueAskAt'
+        : 'venueAsk'
       : 'venueMessagePlain';
   return {
     titleKey: 'notifications.kind.venueMessage.title',
     bodyKey: `notifications.kind.${body}.body`,
-    params: { place: venue, ...(words ? { text: words } : {}) },
+    params: { place: venue, ...(words ? { text: words } : {}), ...(time ? { time } : {}) },
   };
 }
 

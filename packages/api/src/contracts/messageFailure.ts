@@ -36,7 +36,7 @@ import {
  * - `generic`: anything else.
  */
 export type MessageFailure =
-  | { readonly kind: 'closed'; readonly closesAtUtc: string | null }
+  | { readonly kind: 'closed'; readonly closedAtUtc: string | null }
   | { readonly kind: 'guestsCannotWrite' }
   | { readonly kind: 'waitersCannotWrite' }
   | { readonly kind: 'forbidden' }
@@ -53,7 +53,7 @@ export type MessageFailure =
 /** A messages failure, as the kind of sentence to show. */
 export function messageFailure(error: unknown): MessageFailure {
   if (error instanceof ConversationClosedError) {
-    return { kind: 'closed', closesAtUtc: error.closesAtUtc };
+    return { kind: 'closed', closedAtUtc: error.closedAtUtc };
   }
   if (error instanceof GuestsCannotWriteError) return { kind: 'guestsCannotWrite' };
   if (error instanceof WaitersCannotWriteError) return { kind: 'waitersCannotWrite' };

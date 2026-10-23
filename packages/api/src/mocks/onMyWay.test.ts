@@ -118,12 +118,16 @@ describe("the venue's ask", () => {
     expect(await gateway.getBooking(COMING)).toMatchObject({
       staffAskedOnMyWayAtUtc: asked.staffAskedOnMyWayAtUtc,
     });
+    // Since 2026-10-23 the ask is a venue message: its row is `venue-message`
+    // with `ask` "true", and no `booking-on-your-way` row beside it.
     const feed = await gateway.listNotifications({});
-    expect(
-      feed.items.find(
-        (row) => row.reservationId === COMING && row.params['askedByVenue'] === 'true',
-      ),
-    ).toBeDefined();
+    const rows = feed.items.filter((row) => row.reservationId === COMING);
+    expect(rows.find((row) => row.kind === 'venue-message')?.params).toMatchObject({
+      ask: 'true',
+      subjectKind: 'reservation',
+    });
+    expect(rows.find((row) => row.kind === 'venue-message')?.params).not.toHaveProperty('text');
+    expect(rows.some((row) => row.params['askedByVenue'] === 'true')).toBe(false);
 
     advance(10);
     const again = await caught(() => gateway.askOnMyWayAsVenue(COMING));

@@ -125,6 +125,7 @@ function thread(overrides: Partial<DinerConversation> = {}): DinerConversation {
       tableLabel: '6',
       takeawayCode: null,
       readyAtLocal: null,
+      readyAtUtc: null,
     },
     open: true,
     closesAtUtc: null,

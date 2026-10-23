@@ -175,9 +175,13 @@ function MessageRailCard({
         }
       : null);
   const after = lastGuest ? messages.slice(messages.findIndex((m) => m.id === lastGuest.id)) : [];
-  const status = after.find((message) => message.kind === 'status')?.status ?? null;
+  // The line after the guest's answer in the thread, else the list's latest
+  // status — which follows the row's last message, the guest's answer.
+  const status =
+    after.find((message) => message.kind === 'status')?.status ??
+    (lastGuest?.kind === 'answer' ? item.latestStatus : null);
   const held =
-    status?.heldUntilLocal?.slice(0, 5) ??
+    (status?.cancelled ? null : status?.heldUntilLocal?.slice(0, 5)) ??
     (lastGuest?.kind === 'answer' && lastGuest.answer?.kind === 'late'
       ? heldUntil(item.subject.localTime, lastGuest.answer.lateMinutes)
       : null);

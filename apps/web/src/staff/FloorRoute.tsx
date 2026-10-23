@@ -724,25 +724,6 @@ export function FloorRoute({ identity, device = null, paused }: FloorRouteProps)
     [takeawayCounter],
   );
 
-  /** The guest's number where the floor knows it: the thread's Call. Never printed there. */
-  const phoneFor = useCallback(
-    (subject: ConversationSubjectRef): string | null => {
-      if (subject.kind === 'takeaway') {
-        return (
-          [...(takeawayCounter?.active ?? []), ...(takeawayCounter?.finishedToday ?? [])].find(
-            (order) => order.id === subject.id,
-          )?.guestPhone ?? null
-        );
-      }
-      return (
-        duePreOrders.find((entry) => entry.reservationId === subject.id)?.guestPhone ??
-        awaitingQuery.data?.find((request) => request.id === subject.id)?.guestPhone ??
-        null
-      );
-    },
-    [awaitingQuery.data, duePreOrders, takeawayCounter],
-  );
-
   // Browsers allow sound only after a gesture, and suspend it again when the
   // tablet sleeps or the tab is hidden. Every tap on the floor wakes the
   // chime — not only the first — so the next request is heard, not only seen.
@@ -1431,7 +1412,6 @@ export function FloorRoute({ identity, device = null, paused }: FloorRouteProps)
             selected={messageSubject}
             onSelect={setMessageSubject}
             staffName={identity.fullName}
-            phoneFor={phoneFor}
             timeZoneId={timeZoneId}
             online={queue.online}
             active={active}
@@ -1470,7 +1450,10 @@ export function FloorRoute({ identity, device = null, paused }: FloorRouteProps)
                       time: format.time,
                       minutesSince: format.minutesSince,
                     }),
-                    messages: detail?.nextReservationUnreadMessages ?? 0,
+                    // The next booking's thread and the sitting party's: either badges.
+                    messages:
+                      (detail?.nextReservationUnreadMessages ?? 0) +
+                      (detail?.sittingUnreadMessages ?? 0),
                   };
                 }}
               />

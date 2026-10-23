@@ -57,6 +57,7 @@ const THREAD: DinerConversation = {
     tableLabel: '6',
     takeawayCode: null,
     readyAtLocal: null,
+    readyAtUtc: null,
   },
   open: true,
   closesAtUtc: '2026-10-23T19:00:00Z',
@@ -83,6 +84,7 @@ const STAFF_THREAD: StaffConversation = {
   ...THREAD,
   unreadCount: 1,
   guestName: 'Անի Մ.',
+  guestPhone: '+37491556677',
   guestLastReadUtc: null,
   canWrite: true,
 };
@@ -96,6 +98,7 @@ const SENT: SentMessage = {
   status: null,
   createdAtUtc: '2026-10-23T14:33:00Z',
   staffName: null,
+  conversationId: 'c-1',
   wasReplay: false,
 };
 
@@ -147,6 +150,9 @@ describe('the optimistic append', () => {
       'm-2',
     ]);
     expect(dropPendingMessage(shown, COMMAND)?.messages).toEqual(THREAD.messages);
+    // The first message makes the thread: the answer names it.
+    const unborn = { ...THREAD, conversationId: null, messages: [pending] };
+    expect(settleSentMessage(unborn, COMMAND, SENT)?.conversationId).toBe('c-1');
   });
 
   it('pauses the poll while a send is in flight, and when the thread is not in front', () => {
@@ -275,7 +281,9 @@ describe('reading', () => {
           unread: 2,
           lastText: null,
           lastKind: 'askComing',
+          lastAuthor: 'venue',
           lastAtUtc: '2026-10-23T14:31:00Z',
+          open: true,
         },
         {
           conversationId: 'c-2',
@@ -285,7 +293,9 @@ describe('reading', () => {
           unread: 1,
           lastText: 'Ok',
           lastKind: 'text',
+          lastAuthor: 'venue',
           lastAtUtc: '2026-10-23T14:00:00Z',
+          open: true,
         },
       ],
     });
@@ -334,8 +344,19 @@ describe('reading', () => {
     const queryClient = client();
     const row = (id: string, unread: number): StaffConversationListItem => ({
       conversationId: `c-${id}`,
-      subject: { kind: 'reservation', id, label: '6', guestName: 'Անի Մ.', localTime: '19:30' },
+      subject: {
+        kind: 'reservation',
+        id,
+        label: '6',
+        guestName: 'Անի Մ.',
+        localTime: '19:30',
+        localDate: '2026-10-23',
+        partySize: 4,
+        itemCount: null,
+        totalAmd: null,
+      },
       lastMessage: null,
+      latestStatus: null,
       unreadFromGuest: unread,
       awaitingGuestAnswer: false,
       oldestUnansweredGuestMessageUtc: null,
@@ -347,6 +368,7 @@ describe('reading', () => {
       remindAfterMinutes: 3,
       templates: null,
       waitersCanWrite: true,
+      asOfUtc: '2026-10-23T14:34:00Z',
     });
     queryClient.setQueryData(queryKeys.staffConversation('reservation', 'r-1'), STAFF_THREAD);
     queryClient.setQueryData(queryKeys.staffFloor(BRANCH), { details: [] });

@@ -24,7 +24,7 @@ import { venueTypeFromCode } from './venueTypeMapping';
 
 import { publicReplyFromWire } from './reviewReplyMapping';
 import { dinerTakeawaySummaryFromWire, publicTakeawayInfoFromWire } from './takeawayMapping';
-import { conversationSummaryFromWire, type WireMessagesSummaryField } from './messagesMapping';
+import { conversationSummaryFromWire } from './messagesMapping';
 export { venueTypeCode, venueTypeFromCode } from './venueTypeMapping';
 
 type Schemas = components['schemas'];
@@ -360,16 +360,13 @@ export function dinerOrderFromWire(wire: WireDinerOrder, baseUrl: string): Diner
     // the venue has not answered it. Nothing here may promise more.
     canCancel: wire.canCancel === true,
     takeaway,
-    // Guest messages (2026-10-23): a takeaway order's thread, on the order or
-    // beside its takeaway facts — only when there is one.
+    // Guest messages (2026-10-23): a takeaway order's thread, `messages` on
+    // the order itself (absent on dine-in) — only when there is one.
     ...(isTakeaway ? orderMessages(wire) : {}),
   };
 }
 
 function orderMessages(wire: WireDinerOrder) {
-  const messages = conversationSummaryFromWire(
-    (wire as WireMessagesSummaryField).messages ??
-      (wire.takeaway as WireMessagesSummaryField | null | undefined)?.messages,
-  );
+  const messages = conversationSummaryFromWire(wire.messages);
   return messages ? { messages } : {};
 }

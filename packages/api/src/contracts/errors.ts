@@ -2604,18 +2604,22 @@ export const WAITERS_CANNOT_WRITE_CODE = 'waiters-cannot-write';
 export const MESSAGES_TOO_FAST_CODE = 'messages-too-fast';
 
 /**
- * Writing to a closed thread — `conversation-closed`, 409. Hide the composer
- * and show the closed note; `closesAtUtc` is when it closed, when the server
- * says. Read the thread again.
+ * Writing to a closed thread — `conversation-closed`, 409 (`context`:
+ * `subjectKind`, `subjectId`, `closedAtUtc`). Hide the composer and show the
+ * closed note; the thread can still be read. Read it again.
  */
 export class ConversationClosedError extends ApiError {
-  readonly conversationId: string | null;
-  readonly closesAtUtc: string | null;
+  /** `reservation` or `takeaway`, when the server says. */
+  readonly subjectKind: 'reservation' | 'takeaway' | null;
+  readonly subjectId: string | null;
+  /** When it closed, when the server says. */
+  readonly closedAtUtc: string | null;
 
   constructor(
     options: RefusalOptions & {
-      conversationId?: string | null | undefined;
-      closesAtUtc?: string | null | undefined;
+      subjectKind?: 'reservation' | 'takeaway' | null | undefined;
+      subjectId?: string | null | undefined;
+      closedAtUtc?: string | null | undefined;
     },
   ) {
     super('This conversation is closed.', {
@@ -2624,8 +2628,9 @@ export class ConversationClosedError extends ApiError {
       requestId: options.requestId,
     });
     this.name = 'ConversationClosedError';
-    this.conversationId = options.conversationId ?? null;
-    this.closesAtUtc = options.closesAtUtc ?? null;
+    this.subjectKind = options.subjectKind ?? null;
+    this.subjectId = options.subjectId ?? null;
+    this.closedAtUtc = options.closedAtUtc ?? null;
   }
 }
 
@@ -2673,18 +2678,24 @@ export function isWaitersCannotWrite(error: unknown): error is WaitersCannotWrit
 }
 
 /**
- * Too many guest messages — `messages-too-fast`, 429: more than five a minute,
- * or sixty in one thread (`perConversation`). A `TooManyRequestsError`, so the
- * generic "wait a moment" handling still applies; `retryAfterSeconds` from
- * `Retry-After` when the server sent it.
+ * Too many guest messages — `messages-too-fast`, 429 (`context`:
+ * `conversationId`, `perMinute`, `perConversation`, and `retryAfterUtc` while
+ * waiting helps): more than five a minute, or sixty in one thread. A
+ * `TooManyRequestsError`, so the generic "wait a moment" handling still
+ * applies; `retryAfterSeconds` from `Retry-After` when the server sent it.
  */
 export class MessagesTooFastError extends TooManyRequestsError {
+  readonly conversationId: string | null;
+  /** When the next one will be taken; `null` once the thread's sixty are spent. */
+  readonly retryAfterUtc: string | null;
   /** The thread's sixty are used up: waiting will not help — call instead. */
   readonly perConversation: boolean;
 
   constructor(
     options: RefusalOptions & {
+      conversationId?: string | null | undefined;
       retryAfterSeconds?: number | null | undefined;
+      retryAfterUtc?: string | null | undefined;
       perConversation?: boolean | undefined;
     },
   ) {
@@ -2694,6 +2705,8 @@ export class MessagesTooFastError extends TooManyRequestsError {
       retryAfterSeconds: options.retryAfterSeconds ?? null,
     });
     this.name = 'MessagesTooFastError';
+    this.conversationId = options.conversationId ?? null;
+    this.retryAfterUtc = options.retryAfterUtc ?? null;
     this.perConversation = options.perConversation ?? false;
   }
 }

@@ -51,8 +51,6 @@ export interface MessageThreadProps {
   readonly waitersCanWrite: boolean;
   /** The signed-in person: signs the message while it is on its way. */
   readonly staffName: string;
-  /** The guest's number, where the floor knows it: the Call button. Never shown. */
-  readonly phone: string | null;
   readonly timeZoneId: string;
   readonly online: boolean;
   /** The pane is in front: poll, and mark what arrives as read. */
@@ -66,7 +64,6 @@ export function MessageThread({
   templates,
   waitersCanWrite,
   staffName,
-  phone,
   timeZoneId,
   online,
   active,
@@ -106,6 +103,9 @@ export function MessageThread({
   }, [lastId, messages.length]);
 
   const guestName = thread?.guestName ?? item?.subject.guestName ?? '';
+  // The thread's own `guestPhone`, for Call only and never printed; empty for
+  // a platform admin, who gets no Call.
+  const phone = thread?.guestPhone.trim() || null;
   const title = item ? rowTitle(t, item) : shortName(guestName);
   const sub = thread ? subjectLine(t, thread, format) : null;
   const badge =

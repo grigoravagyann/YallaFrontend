@@ -86,12 +86,16 @@ export function answerText(t: TFunction, answer: MessageAnswer | null): string {
   }
 }
 
-/** The system line: "Booking updated · table held until 19:45". */
+/**
+ * The system line: "Booking updated · table held until 19:45", "Booking
+ * updated · coming", "Booking cancelled" — said from the answer it names.
+ */
 export function statusText(t: TFunction, status: MessageStatus | null): string {
   if (status?.cancelled) return t('messages.thread.text.cancelled');
   if (status?.heldUntilLocal) {
     return t('messages.thread.text.heldUntil', { time: status.heldUntilLocal.slice(0, 5) });
   }
+  if (status?.answer === 'coming') return t('messages.thread.text.updatedComing');
   return t('messages.thread.text.updated');
 }
 
@@ -133,12 +137,34 @@ function bodyOf(
   }
 }
 
-/** The inbox row's second line: the last message, "You: …" when it was the venue's. */
+/**
+ * The inbox row's second line: the last message that is not a system line —
+ * the guest's words or answer, "You: …" when it was the venue's. After a late
+ * answer, the time the table is held until, from the latest status line:
+ * "Running 15 minutes late · held until 19:45".
+ */
 export function lastLine(t: TFunction, item: StaffConversationListItem): string {
   const last = item.lastMessage;
-  if (!last) return '';
+  if (!last) return item.latestStatus ? statusText(t, item.latestStatus) : '';
   const body = bodyOf(t, last.kind, last.text, last.answer, null, item.subject.localTime);
-  return last.author === 'venue' ? t('messages.inbox.you', { text: body }) : body;
+  if (last.author === 'venue') return t('messages.inbox.you', { text: body });
+  const held = heldAfter(item);
+  return held ? t('messages.inbox.lastHeld', { text: body, time: held }) : body;
+}
+
+/**
+ * "19:45": the table is held until then, when the row's last message is the
+ * guest's late answer — from the latest status line, else worked out from the
+ * booking's start.
+ */
+export function heldAfter(item: StaffConversationListItem): string | null {
+  const last = item.lastMessage;
+  if (last?.author !== 'guest' || last.kind !== 'answer' || last.answer?.kind !== 'late') {
+    return null;
+  }
+  const status = item.latestStatus;
+  if (status?.heldUntilLocal && !status.cancelled) return status.heldUntilLocal.slice(0, 5);
+  return heldUntil(item.subject.localTime, last.answer.lateMinutes);
 }
 
 /** The subject as a rail card's title: "Table 6 · Ani M. · 19:30", "Takeaway T-485 · Karen S.". */

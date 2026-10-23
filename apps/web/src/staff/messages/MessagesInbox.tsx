@@ -34,8 +34,6 @@ export interface MessagesInboxProps {
   readonly selected: ConversationSubjectRef | null;
   readonly onSelect: (subject: ConversationSubjectRef) => void;
   readonly staffName: string;
-  /** The guest's number where the floor knows it, for the thread's Call. */
-  readonly phoneFor: (subject: ConversationSubjectRef) => string | null;
   readonly timeZoneId: string;
   readonly online: boolean;
   /** The tab is in front. */
@@ -129,7 +127,6 @@ export function MessagesInbox(props: MessagesInboxProps) {
           templates={props.inbox?.templates ?? null}
           waitersCanWrite={props.inbox?.waitersCanWrite ?? true}
           staffName={props.staffName}
-          phone={props.phoneFor(current)}
           timeZoneId={props.timeZoneId}
           online={props.online}
           active={props.active}

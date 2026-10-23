@@ -70,6 +70,8 @@ export interface MockConversationSubjectInfo {
   /** The diner account it belongs to; `null` for a guest with no account in this world. */
   readonly owner: string | null;
   readonly guestName: string;
+  /** The guest's number: the floor thread's Call (empty for a platform admin). */
+  readonly guestPhone: string;
   readonly startUtc: string | null;
   readonly localDate: string | null;
   readonly localTime: string | null;
@@ -77,6 +79,10 @@ export interface MockConversationSubjectInfo {
   readonly tableLabel: string | null;
   readonly takeawayCode: string | null;
   readonly readyAtLocal: string | null;
+  readonly readyAtUtc: string | null;
+  /** An order's item count and total, for the inbox row; `null` on a booking. */
+  readonly itemCount: number | null;
+  readonly totalAmd: number | null;
   /** Pending, confirmed or seated; sent, accepted or ready. */
   readonly active: boolean;
   /** A booking's end. */
@@ -218,7 +224,11 @@ export function createMockConversationBook(options: MockConversationBookOptions)
         kind: 'status',
         text: null,
         answer: null,
-        status: { heldUntilLocal: null, cancelled: message.answer.kind === 'notComing' },
+        status: {
+          answer: message.answer.kind,
+          heldUntilLocal: null,
+          cancelled: message.answer.kind === 'notComing',
+        },
         createdAtUtc: message.createdAtUtc,
         staffName: null,
         clientCommandId: null,
@@ -277,6 +287,7 @@ export function createMockConversationBook(options: MockConversationBookOptions)
       tableLabel: info.tableLabel,
       takeawayCode: info.takeawayCode,
       readyAtLocal: info.readyAtLocal,
+      readyAtUtc: info.readyAtUtc,
     };
   }
 
@@ -354,13 +365,20 @@ export function createMockConversationBook(options: MockConversationBookOptions)
       // The floor's own unread: guest messages nobody at the venue has read.
       unreadCount: record ? unreadForVenue(record) : 0,
       guestName: info.guestName,
+      // A platform admin reads only, and gets no number to call.
+      guestPhone: role === 'platformAdmin' ? '' : info.guestPhone,
       guestLastReadUtc: record?.guestLastReadUtc ?? null,
       canWrite: base.open && staffMayWrite(role, settingsOf(info.branchId)),
     };
   }
 
-  function sent(message: StoredMessage, staff: boolean, wasReplay: boolean): SentMessage {
-    return { ...messageView(message, staff), wasReplay };
+  function sent(
+    record: MockConversationRecord,
+    message: StoredMessage,
+    staff: boolean,
+    wasReplay: boolean,
+  ): SentMessage {
+    return { ...messageView(message, staff), conversationId: record.id, wasReplay };
   }
 
   /** A send made with the same command id by the same side: the first send's message. */
@@ -395,11 +413,11 @@ export function createMockConversationBook(options: MockConversationBookOptions)
 
   function requireOpen(url: string, info: MockConversationSubjectInfo): void {
     if (isOpen(info)) return;
-    const record = records.get(mapKey(info.ref));
     throw new ConversationClosedError({
       url,
-      conversationId: record?.id ?? null,
-      closesAtUtc: closesAtOf(info),
+      subjectKind: info.ref.kind,
+      subjectId: info.ref.id,
+      closedAtUtc: closesAtOf(info),
     });
   }
 
@@ -408,15 +426,18 @@ export function createMockConversationBook(options: MockConversationBookOptions)
     if (!record) return;
     const texts = record.messages.filter((m) => m.author === 'guest' && m.kind === 'text');
     if (texts.length >= GUEST_MESSAGES_PER_CONVERSATION) {
-      throw new MessagesTooFastError({ url, perConversation: true });
+      // No `retryAfterUtc`: waiting will not help.
+      throw new MessagesTooFastError({ url, conversationId: record.id, perConversation: true });
     }
     const t = now().getTime();
     const lastMinute = texts.filter((m) => t - Date.parse(m.createdAtUtc) < MINUTE);
     if (lastMinute.length >= GUEST_MESSAGES_PER_MINUTE) {
-      const oldest = Date.parse(lastMinute[0]!.createdAtUtc);
+      const retryAt = Date.parse(lastMinute[0]!.createdAtUtc) + MINUTE;
       throw new MessagesTooFastError({
         url,
-        retryAfterSeconds: Math.max(1, Math.ceil((oldest + MINUTE - t) / 1000)),
+        conversationId: record.id,
+        retryAfterUtc: iso(retryAt),
+        retryAfterSeconds: Math.max(1, Math.ceil((retryAt - t) / 1000)),
       });
     }
   }
@@ -507,7 +528,8 @@ export function createMockConversationBook(options: MockConversationBookOptions)
       unread: record ? unreadForGuest(record) : 0,
       lastAuthor: last?.author ?? null,
       lastKind: last?.kind ?? null,
-      lastText: last?.text ?? null,
+      // A text's first 140 characters, as the server cuts it.
+      lastText: last?.text ? last.text.slice(0, 140) : null,
       lastAtUtc: last?.createdAtUtc ?? null,
       open,
     };
@@ -518,20 +540,28 @@ export function createMockConversationBook(options: MockConversationBookOptions)
     record: MockConversationRecord,
   ): StaffConversationListItem | null {
     const messages = shown(record);
-    const last = messages.at(-1);
-    if (!last) return null;
+    const newest = messages.at(-1);
+    // The row's message is the last that is not a system line; the line itself
+    // is `latestStatus`.
+    const last = [...messages].reverse().find((message) => message.author !== 'system');
+    if (!newest || !last) return null;
     const open = isOpen(info);
     const recent =
-      now().getTime() - Date.parse(last.createdAtUtc) <= STAFF_LIST_RECENT_HOURS * 3_600_000;
+      now().getTime() - Date.parse(newest.createdAtUtc) <= STAFF_LIST_RECENT_HOURS * 3_600_000;
     if (!open && !recent) return null;
+    const takeaway = info.ref.kind === 'takeaway';
     return {
       conversationId: record.id,
       subject: {
         kind: info.ref.kind,
         id: info.ref.id,
-        label: (info.ref.kind === 'takeaway' ? info.takeawayCode : info.tableLabel) ?? '',
+        label: (takeaway ? info.takeawayCode : info.tableLabel) ?? '',
         guestName: info.guestName,
-        localTime: info.ref.kind === 'takeaway' ? info.readyAtLocal : info.localTime,
+        localTime: takeaway ? info.readyAtLocal : info.localTime,
+        localDate: takeaway ? null : info.localDate,
+        partySize: takeaway ? null : info.partySize,
+        itemCount: takeaway ? info.itemCount : null,
+        totalAmd: takeaway ? info.totalAmd : null,
       },
       lastMessage: {
         author: last.author,
@@ -541,9 +571,12 @@ export function createMockConversationBook(options: MockConversationBookOptions)
         staffName: last.staffName,
         answer: last.answer,
       },
+      latestStatus:
+        [...messages].reverse().find((message) => message.kind === 'status')?.status ?? null,
       unreadFromGuest: unreadForVenue(record),
       awaitingGuestAnswer: last.kind === 'askComing',
-      oldestUnansweredGuestMessageUtc: oldestUnanswered(record),
+      // A closed thread cannot be answered: nothing in it waits or rings.
+      oldestUnansweredGuestMessageUtc: open ? oldestUnanswered(record) : null,
       open,
     };
   }
@@ -599,7 +632,7 @@ export function createMockConversationBook(options: MockConversationBookOptions)
       if (!info || !guestOwns(info, input.actor)) throw new NotFoundError({ url });
       const existing = records.get(mapKey(ref));
       const replay = replayOf(existing, 'guest', input.clientCommandId);
-      if (replay) return sent(replay, false, true);
+      if (replay && existing) return sent(existing, replay, false, true);
       const text = requireText(url, input.text);
       requireOpen(url, info);
       if (!settingsOf(info.branchId).guestsCanWrite) throw new GuestsCannotWriteError({ url });
@@ -618,7 +651,7 @@ export function createMockConversationBook(options: MockConversationBookOptions)
       // Writing is reading: the guest has seen everything up to their own message.
       record.guestLastReadUtc = message.createdAtUtc;
       scheduleVenueReply(record, message);
-      return sent(message, false, false);
+      return sent(record, message, false, false);
     },
 
     /** `POST …/conversation/read`: nothing to read is a success. */
@@ -646,9 +679,11 @@ export function createMockConversationBook(options: MockConversationBookOptions)
             subjectId: record.ref.id,
             venueName: info.venueName,
             unread,
-            lastText: last.text,
+            lastText: last.text ? last.text.slice(0, 140) : null,
             lastKind: last.kind,
+            lastAuthor: last.author,
             lastAtUtc: last.createdAtUtc,
+            open: isOpen(info),
           },
         ];
       });
@@ -682,6 +717,7 @@ export function createMockConversationBook(options: MockConversationBookOptions)
         remindAfterMinutes: settings.remindAfterMinutes,
         templates: settings.templates,
         waitersCanWrite: settings.waitersCanWrite,
+        asOfUtc: now().toISOString(),
       };
     },
 
@@ -734,7 +770,7 @@ export function createMockConversationBook(options: MockConversationBookOptions)
       if (!info) throw new NotFoundError({ url });
       const existing = records.get(mapKey(ref));
       const replay = replayOf(existing, 'venue', input.clientCommandId);
-      if (replay) return sent(replay, true, true);
+      if (replay && existing) return sent(existing, replay, true, true);
       if (input.role === 'kitchen' || input.role === 'platformAdmin') {
         throw new ForbiddenError({ url });
       }
@@ -757,7 +793,7 @@ export function createMockConversationBook(options: MockConversationBookOptions)
       // Writing is reading: the venue has seen the guest's messages before its own.
       record.venueLastReadUtc = message.createdAtUtc;
       scheduleGuestReply(record, message);
-      return sent(message, true, false);
+      return sent(record, message, true, false);
     },
 
     /** `POST …/conversation/read` from the floor: anybody's read counts for the venue. */
@@ -788,9 +824,14 @@ export function createMockConversationBook(options: MockConversationBookOptions)
     /**
      * The guest answered with a button (on my way, running late, not coming;
      * in the app or by link): the answer, and the system line saying what
-     * changed on the booking.
+     * changed on the booking, naming the answer it follows.
      */
-    appendAnswer(ref: ConversationSubjectRef, answer: MessageAnswer, status: MessageStatus): void {
+    appendAnswer(
+      ref: ConversationSubjectRef,
+      answer: MessageAnswer,
+      change: Omit<MessageStatus, 'answer'>,
+    ): void {
+      const status: MessageStatus = { answer: answer.kind, ...change };
       const record = ensure(ref);
       const at = now().toISOString();
       const message = push(record, {
@@ -840,6 +881,13 @@ export function createMockConversationBook(options: MockConversationBookOptions)
           status:
             kind === 'status'
               ? {
+                  answer:
+                    seed.status?.answer ??
+                    (seed.status?.cancelled
+                      ? 'notComing'
+                      : seed.status?.heldUntilLocal
+                        ? 'late'
+                        : 'coming'),
                   heldUntilLocal: seed.status?.heldUntilLocal ?? null,
                   cancelled: seed.status?.cancelled ?? false,
                 }

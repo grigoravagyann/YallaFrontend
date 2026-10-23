@@ -57,18 +57,31 @@ describe('messageBody', () => {
   });
 
   it("says what the system's line changed", () => {
-    const status = (heldUntilLocal: string | null, cancelled: boolean) =>
-      messageBody({ ...base, kind: 'status', status: { heldUntilLocal, cancelled } }, ctx());
+    const status = (
+      heldUntilLocal: string | null,
+      cancelled: boolean,
+      answer: 'coming' | 'late' | 'notComing' | 'unknown' = 'unknown',
+    ) =>
+      messageBody(
+        { ...base, kind: 'status', status: { answer, heldUntilLocal, cancelled } },
+        ctx(),
+      );
     expect(status('19:45', false)).toEqual({
       key: 'messages.status.held',
       params: { time: '[19:45]' },
     });
     expect(status(null, true)).toEqual({ key: 'messages.status.cancelled' });
     expect(status(null, false)).toEqual({ key: 'messages.status.updated' });
-    // After "I'm coming": the line says so, though the status itself does not.
+    // The line names the answer it follows: "Booking updated · coming".
+    expect(status(null, false, 'coming')).toEqual({ key: 'messages.status.coming' });
+    // …and, from a server that did not say, the answer just before it.
     expect(
       messageBody(
-        { ...base, kind: 'status', status: { heldUntilLocal: null, cancelled: false } },
+        {
+          ...base,
+          kind: 'status',
+          status: { answer: 'unknown', heldUntilLocal: null, cancelled: false },
+        },
         { ...ctx(), previous: { kind: 'answer', answer: { kind: 'coming', lateMinutes: null } } },
       ),
     ).toEqual({ key: 'messages.status.coming' });
@@ -105,7 +118,7 @@ describe('messageBody', () => {
 describe('failureLine', () => {
   it('says why each refusal happened', () => {
     const cases: [MessageFailure, string][] = [
-      [{ kind: 'closed', closesAtUtc: null }, 'messages.failure.closed'],
+      [{ kind: 'closed', closedAtUtc: null }, 'messages.failure.closed'],
       [{ kind: 'guestsCannotWrite' }, 'messages.failure.guestsCannotWrite'],
       [{ kind: 'forbidden' }, 'messages.failure.forbidden'],
       [{ kind: 'invalid', violations: [] }, 'messages.failure.invalid'],
@@ -160,7 +173,9 @@ describe('messageRow', () => {
     unread: 1,
     lastText: 'Are you coming at 19:30?',
     lastKind: 'text',
+    lastAuthor: 'venue',
     lastAtUtc: '2026-10-23T14:31:00Z',
+    open: true,
     ...overrides,
   });
 

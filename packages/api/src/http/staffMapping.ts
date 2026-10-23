@@ -44,7 +44,7 @@ import type {
 } from '../contracts/ordering';
 import type { Menu } from '../contracts/menu';
 import { instantOrNull, type WireFloorTableTimes } from './bookingTimesWire';
-import { tableUnreadMessagesFromWire, type WireFloorTableMessages } from './messagesMapping';
+import { tableUnreadMessagesFromWire } from './messagesMapping';
 import { derivedTableState } from './mapping';
 import { absolutePhoto } from './photoUrl';
 import { photo } from './venueSettingsMapping';
@@ -265,55 +265,50 @@ const TAB_EVENT_TYPES: readonly TabEventType[] = [
  * that has already ended.
  */
 export function staffFloorDetails(state: FloorState): readonly StaffTableDetail[] {
-  return (
-    state.tables as readonly (FloorState['tables'][number] &
-      WireFloorTableTimes &
-      WireFloorTableMessages)[]
-  ).map((table) => ({
-    tableId: table.tableId,
-    label: table.label,
-    seats: table.seats,
-    physicalStatus: tableStatus(table.physicalStatus),
-    currentSessionId: table.currentSessionId ?? null,
-    seatedAtUtc: table.seatedAtUtc ?? null,
-    partySize: table.partySize ?? null,
-    nextReservationId: table.nextReservationId ?? null,
-    nextReservationStartUtc: table.nextReservationStartUtc ?? null,
-    // Still not on the floor payload. The panel shows the booked time and no
-    // party size, rather than showing the party sitting there as the one booked.
-    nextReservationPartySize: null,
-    freeUntilUtc: table.freeUntilUtc ?? null,
-    openTabId: table.openTabId ?? null,
-    rowVersion: table.rowVersion,
-    // Booking times: the promises on the table — the next booking's guest's,
-    // and the party sitting now.
-    nextReservationPromisedFreeByUtc: instantOrNull(table.nextReservationPromisedFreeByUtc),
-    sittingPromisedFreeByUtc: instantOrNull(table.sittingPromisedFreeByUtc),
-    // Unverified guests: a badge on the next booking, Admit / Reject on the tab.
-    nextReservationPhoneUnverified: table.nextReservationPhoneUnverified === true,
-    // "On my way": the waiter need not call the next booking's guest.
-    nextReservationGuestConfirmedOnWayAtUtc: instantOrNull(
-      table.nextReservationGuestConfirmedOnWayAtUtc,
-    ),
-    // "I'm coming" (2026-10-22): the guest's lateness and the venue's last ask.
-    nextReservationGuestRunningLateMinutes:
-      typeof table.nextReservationGuestRunningLateMinutes === 'number'
-        ? table.nextReservationGuestRunningLateMinutes
-        : null,
-    nextReservationStaffAskedOnMyWayAtUtc: instantOrNull(
-      table.nextReservationStaffAskedOnMyWayAtUtc,
-    ),
-    openTabAwaitingAdmission: table.openTabAwaitingAdmission === true,
-    // Guest record (wire §0a): the next booking's guest, and the party sitting now.
-    nextReservationGuestRecord: guestRecordFromWire(table.nextReservationGuestRecord),
-    sittingGuestRecord: guestRecordFromWire(table.sittingGuestRecord),
-    // Guest messages (2026-10-23): the tile's badge, only when there are some.
-    ...unreadField(tableUnreadMessagesFromWire(table)),
-  }));
-}
-
-function unreadField(unread: number) {
-  return unread > 0 ? { nextReservationUnreadMessages: unread } : {};
+  return (state.tables as readonly (FloorState['tables'][number] & WireFloorTableTimes)[]).map(
+    (table) => ({
+      tableId: table.tableId,
+      label: table.label,
+      seats: table.seats,
+      physicalStatus: tableStatus(table.physicalStatus),
+      currentSessionId: table.currentSessionId ?? null,
+      seatedAtUtc: table.seatedAtUtc ?? null,
+      partySize: table.partySize ?? null,
+      nextReservationId: table.nextReservationId ?? null,
+      nextReservationStartUtc: table.nextReservationStartUtc ?? null,
+      // Still not on the floor payload. The panel shows the booked time and no
+      // party size, rather than showing the party sitting there as the one booked.
+      nextReservationPartySize: null,
+      freeUntilUtc: table.freeUntilUtc ?? null,
+      openTabId: table.openTabId ?? null,
+      rowVersion: table.rowVersion,
+      // Booking times: the promises on the table — the next booking's guest's,
+      // and the party sitting now.
+      nextReservationPromisedFreeByUtc: instantOrNull(table.nextReservationPromisedFreeByUtc),
+      sittingPromisedFreeByUtc: instantOrNull(table.sittingPromisedFreeByUtc),
+      // Unverified guests: a badge on the next booking, Admit / Reject on the tab.
+      nextReservationPhoneUnverified: table.nextReservationPhoneUnverified === true,
+      // "On my way": the waiter need not call the next booking's guest.
+      nextReservationGuestConfirmedOnWayAtUtc: instantOrNull(
+        table.nextReservationGuestConfirmedOnWayAtUtc,
+      ),
+      // "I'm coming" (2026-10-22): the guest's lateness and the venue's last ask.
+      nextReservationGuestRunningLateMinutes:
+        typeof table.nextReservationGuestRunningLateMinutes === 'number'
+          ? table.nextReservationGuestRunningLateMinutes
+          : null,
+      nextReservationStaffAskedOnMyWayAtUtc: instantOrNull(
+        table.nextReservationStaffAskedOnMyWayAtUtc,
+      ),
+      openTabAwaitingAdmission: table.openTabAwaitingAdmission === true,
+      // Guest record (wire §0a): the next booking's guest, and the party sitting now.
+      nextReservationGuestRecord: guestRecordFromWire(table.nextReservationGuestRecord),
+      sittingGuestRecord: guestRecordFromWire(table.sittingGuestRecord),
+      // Guest messages (2026-10-23): the tile's badges — the next booking's
+      // thread and the sitting party's — only when there are some.
+      ...tableUnreadMessagesFromWire(table),
+    }),
+  );
 }
 
 // --- Transitions ------------------------------------------------------------

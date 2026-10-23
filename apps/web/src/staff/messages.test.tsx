@@ -18,7 +18,8 @@ import { useSyncExternalStore } from 'react';
 import { MemoryRouter } from 'react-router-dom';
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { initConsoleTestI18n } from '../console/venue/reports/testHarness';
-import { heldUntil, shortName, templateDraft } from './messages/messageText';
+import type { StaffConversationListItem } from '@yalla/api';
+import { heldUntil, lastLine, shortName, statusText, templateDraft } from './messages/messageText';
 import { resetCommandStore } from './testCommandStore';
 import type * as CurrentUserModule from '../auth/useCurrentUser';
 
@@ -200,6 +201,61 @@ describe('the words', () => {
     expect(heldUntil('23:50', 30)).toBe('00:20');
     expect(heldUntil(null, 15)).toBeNull();
   });
+
+  it('says the system line from the answer it names: "Booking updated · coming"', () => {
+    const t = i18next.getFixedT('en', ['staff', 'common']);
+    const line = (
+      answer: 'coming' | 'late' | 'notComing',
+      held: string | null,
+      cancelled = false,
+    ) => statusText(t, { answer, heldUntilLocal: held, cancelled });
+    expect(line('coming', null)).toBe('Booking updated · coming');
+    expect(line('late', '19:45')).toBe('Booking updated · table held until 19:45');
+    expect(line('notComing', null, true)).toBe('Booking cancelled');
+  });
+
+  it("gives an inbox row the guest's answer and the held-until from the latest status", () => {
+    const t = i18next.getFixedT('en', ['staff', 'common']);
+    const row: StaffConversationListItem = {
+      conversationId: 'c-1',
+      subject: {
+        kind: 'reservation',
+        id: 'r-1',
+        label: '5',
+        guestName: 'Անի Մելքոնյան',
+        localTime: '19:30',
+        localDate: '2026-10-23',
+        partySize: 4,
+        itemCount: null,
+        totalAmd: null,
+      },
+      lastMessage: {
+        author: 'guest',
+        kind: 'answer',
+        text: null,
+        createdAtUtc: '2026-10-23T15:20:00Z',
+        staffName: null,
+        answer: { kind: 'late', lateMinutes: 15 },
+      },
+      latestStatus: { answer: 'late', heldUntilLocal: '19:50', cancelled: false },
+      unreadFromGuest: 1,
+      awaitingGuestAnswer: false,
+      oldestUnansweredGuestMessageUtc: '2026-10-23T15:20:00Z',
+      open: true,
+    };
+    // The server's held-until wins over the start plus the minutes.
+    expect(lastLine(t, row)).toBe('Running 15 minutes late · held until 19:50');
+    expect(lastLine(t, { ...row, latestStatus: null })).toBe(
+      'Running 15 minutes late · held until 19:45',
+    );
+    expect(
+      lastLine(t, {
+        ...row,
+        lastMessage: { ...row.lastMessage!, answer: { kind: 'coming', lateMinutes: null } },
+        latestStatus: { answer: 'coming', heldUntilLocal: null, cancelled: false },
+      }),
+    ).toBe('I’m coming');
+  });
 });
 
 describe('the top bar', () => {
@@ -296,6 +352,26 @@ describe('the Now rail', () => {
     const nine = within(tables).getByRole('button', { name: /^Table 9,/u });
     expect(nine.getAttribute('aria-label')).not.toMatch(/new message/u);
   });
+
+  it('badges a table whose sitting party wrote, as well as its next booking', async () => {
+    signIn();
+    const gateway = gatewayWith();
+    const read = gateway.getFloor.bind(gateway);
+    vi.spyOn(gateway, 'getFloor').mockImplementation(async (branchId) => {
+      const floor = await read(branchId);
+      if (!floor) return floor;
+      return {
+        ...floor,
+        details: floor.details.map((detail) =>
+          detail.label === '9' ? { ...detail, sittingUnreadMessages: 2 } : detail,
+        ),
+      };
+    });
+    renderAt(gateway);
+    const tables = await screen.findByRole('list', { name: 'Tables' }, { timeout: 5000 });
+    const nine = await within(tables).findByRole('button', { name: /^Table 9,.*2 new messages/u });
+    expect(nine.querySelector('.ft-table-msg')).not.toBeNull();
+  });
 });
 
 describe('the Messages tab', () => {
@@ -316,6 +392,11 @@ describe('the Messages tab', () => {
     expect(rows[1]!.textContent).toMatch(/New · reply/u);
     expect(within(list).getByText('Waiting for their answer')).toBeTruthy();
     expect(within(list).getByText(/^You: Այո, սեղան 3-ը/u)).toBeTruthy();
+    // Ani's late answer, with the time the table is held until — not "Booking updated".
+    expect(
+      within(list).getByText(/^Running 15 minutes late · held until \d\d:\d\d$/u),
+    ).toBeTruthy();
+    expect(within(list).queryByText(/Booking updated/u)).toBeNull();
 
     await user.click(within(filters).getByRole('button', { name: 'Takeaway' }));
     expect(within(list).getAllByRole('listitem')).toHaveLength(1);
@@ -394,6 +475,10 @@ describe('the Messages tab', () => {
     ).toBeTruthy();
     expect(within(aniLog).getByText(/^Լիլիթ · \d\d:\d\d$/u)).toBeTruthy();
     expect(within(ani).getByText(/^Table 5 · today \d\d:\d\d · 4 guests$/u)).toBeTruthy();
+    // Call dials the thread's own `guestPhone`.
+    expect(within(ani).getByRole('link', { name: 'Call Անի Մ.' }).getAttribute('href')).toBe(
+      'tel:+37491556677',
+    );
   });
 
   it('marks a conversation read when it is open', async () => {
