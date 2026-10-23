@@ -25,6 +25,11 @@ import {
   type TakeawayCardDraft,
 } from './TakeawaySettingsCard';
 import {
+  MESSAGES_CARD_ID,
+  MessageSettingsCard,
+  type MessagesCardDraft,
+} from './MessageSettingsCard';
+import {
   EXAMPLE_START,
   POLICY_GROUPS,
   changedFields,
@@ -183,7 +188,10 @@ function PolicyForm({
   /** The takeaway card's draft (2026-10-22): the same arrangement as the pre-order card's. */
   const [takeaway, setTakeaway] = useState<TakeawayCardDraft | null>(null);
   const takeawayDirty = takeaway?.dirty ?? false;
-  const cardsDirty = preOrdersDirty || takeawayDirty;
+  /** The guest messages card's draft (2026-10-23): the same arrangement again. */
+  const [messages, setMessages] = useState<MessagesCardDraft | null>(null);
+  const messagesDirty = messages?.dirty ?? false;
+  const cardsDirty = preOrdersDirty || takeawayDirty || messagesDirty;
   useUnsavedChangesGuard(dirty);
   const invalid = outOfBounds(draft, fields);
   const fromDefault = differsFromDefaults(draft, defaults);
@@ -212,6 +220,7 @@ function PolicyForm({
     // (its minutes out of bounds) has said why, and holds the policy back too.
     if (preOrders?.dirty && !preOrders.save()) return;
     if (takeaway?.dirty && !takeaway.save()) return;
+    if (messages?.dirty && !messages.save()) return;
     // Unchanged, the save still has a use while nobody has confirmed the
     // policy: it is what ticks "policy reviewed" for a venue happy with the
     // defaults, which otherwise could only get there by changing something.
@@ -242,11 +251,12 @@ function PolicyForm({
   const dirtyCards = [
     ...(preOrdersDirty ? [t('preOrders.title')] : []),
     ...(takeawayDirty ? [t('takeaway.title')] : []),
+    ...(messagesDirty ? [t('messages.title')] : []),
   ].join(', ');
   const barText =
-    invalid.length > 0 || preOrders?.invalid || takeaway?.invalid
+    invalid.length > 0 || preOrders?.invalid || takeaway?.invalid || messages?.invalid
       ? t('policy.bar.outOfBounds')
-      : takeawayDirty
+      : takeawayDirty || messagesDirty
         ? dirty
           ? t('policy.bar.unsavedWithCards', { count: dirtyKeys.length, cards: dirtyCards })
           : t('policy.bar.unsavedCards', { cards: dirtyCards })
@@ -332,6 +342,9 @@ function PolicyForm({
           <a href={`#${TAKEAWAY_CARD_ID}`}>
             <span>{t('takeaway.title')}</span>
           </a>
+          <a href={`#${MESSAGES_CARD_ID}`}>
+            <span>{t('messages.title')}</span>
+          </a>
         </nav>
 
         <div className="yc-pol-groups">
@@ -372,6 +385,7 @@ function PolicyForm({
           ))}
           <PreOrderSettingsCard branchId={branchId} onDraft={setPreOrders} />
           <TakeawaySettingsCard branchId={branchId} onDraft={setTakeaway} />
+          <MessageSettingsCard branchId={branchId} onDraft={setMessages} />
         </div>
       </div>
 
@@ -389,6 +403,7 @@ function PolicyForm({
               setRefused(new Set());
               preOrders?.discard();
               takeaway?.discard();
+              messages?.discard();
               toast.say(t('policy.discarded'));
             }}
           >

@@ -54,6 +54,11 @@ export interface TableCardText {
   readonly flag?: string | null;
   /** How the flag is said: `warn` (amber) or `ok` (green). */
   readonly flagTone?: 'warn' | 'ok';
+  /**
+   * Guest messages nobody here has read on the table's next booking
+   * (2026-10-23): the card's message badge. Absent or 0 for none.
+   */
+  readonly messages?: number;
 }
 
 export interface TableCardInput {

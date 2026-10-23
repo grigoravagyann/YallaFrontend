@@ -8004,3 +8004,100 @@ body:has(.yc-savebar) .yc-toast-region {
 .yc-mn-tbl.has-preorder.has-takeaway .yc-dish {
   min-width: 150px;
 }
+
+/* --- Messages with guests (2026-10-23, the Policy artboard) ------------------ */
+
+/* Who writes, and the ready replies: a label, why, and the controls under it. */
+.yc-msg-set {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  min-width: 0;
+  margin: 0;
+  padding: var(--space-lg) 20px;
+  border: 0;
+  border-bottom: 1px solid var(--console-line-soft);
+}
+
+.yc-msg-set > legend {
+  float: left;
+  width: 100%;
+  padding: 0;
+}
+
+.yc-msg-tpls {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.yc-msg-tpls li {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.yc-msg-tpl {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+}
+
+.yc .yc-msg-tpl .yc-ctl {
+  flex: 1;
+  min-width: 0;
+}
+
+.yc-msg-tpl .yc-ctl[aria-invalid='true'] {
+  border-color: var(--console-red);
+}
+
+.yc-msg-del {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: var(--console-size-button);
+  height: var(--console-size-button);
+  padding: 0;
+  border: 1px solid var(--console-line);
+  border-radius: var(--console-radius-control);
+  background: var(--console-surface);
+  color: var(--console-red);
+  cursor: pointer;
+}
+
+.yc-msg-del:hover {
+  background: var(--console-hover);
+}
+
+.yc-msg-del:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.yc-msg-add {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-sm) var(--space-md);
+}
+
+/* What the feature never allows: said once, plainly, in a dashed box. */
+.yc-msg-rules {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin: var(--space-lg) 20px 0;
+  padding: var(--space-md) 14px;
+  border: 1px dashed var(--console-button-edge);
+  border-radius: var(--console-radius-control);
+}
+
+.yc-msg-rules > span {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}

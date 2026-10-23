@@ -37,5 +37,17 @@
     "table_few": "Стол {{label}}, {{count}} места, {{status}}",
     "table_many": "Стол {{label}}, {{count}} мест, {{status}}",
     "table_other": "Стол {{label}}, {{count}} мест, {{status}}"
+  },
+  "messages": {
+    "defaultTemplates": {
+      "reservation1": "Хорошо, ждём вас",
+      "reservation2": "Столик готов",
+      "reservation3": "Мы немного задерживаемся",
+      "reservation4": "Предзаказ готов",
+      "takeaway1": "Да, можно",
+      "takeaway2": "Заказ готов",
+      "takeaway3": "Задерживаемся на 10 минут",
+      "takeaway4": "Кое-что закончилось…"
+    }
   }
 }

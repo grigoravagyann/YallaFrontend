@@ -8,8 +8,8 @@ import { useBranchFormat } from './useBranchFormat';
 import { useMinuteClock } from './useMinuteClock';
 import { Wordmark } from '../components/Wordmark';
 
-/** The screens the tablet shows: the floor, the kitchen, and the takeaway counter. */
-export type StaffView = 'floor' | 'kitchen' | 'takeaway';
+/** The screens the tablet shows: the floor, the kitchen, the takeaway counter and the messages. */
+export type StaffView = 'floor' | 'kitchen' | 'takeaway' | 'messages';
 
 export interface StaffHeaderProps {
   /** The screen's name: the page's heading, for a screen reader; the tab says it on screen. */
@@ -45,6 +45,12 @@ export interface StaffHeaderProps {
    * the branch has no takeaway today, and then there is no tab.
    */
   readonly takeawayWaiting?: number | undefined;
+  /**
+   * Guest messages (2026-10-23): the Messages tab, with the guest messages
+   * nobody here has read counted on it. Left out on the kitchen's own
+   * screen, which has no tab for them.
+   */
+  readonly messagesWaiting?: number | undefined;
   /**
    * Switches the screen. Left out where the floor cannot be opened at all — a
    * kitchen account, which the server refuses the floor — and then the bar
@@ -92,6 +98,7 @@ export function StaffHeader({
   kitchenWaiting,
   floorWaiting = 0,
   takeawayWaiting,
+  messagesWaiting,
   onSelectView,
   onSwitchPerson,
 }: StaffHeaderProps) {
@@ -133,6 +140,12 @@ export function StaffHeader({
     takeawayCount > 0
       ? `${t('takeaway.title')}, ${t('views.takeawayWaiting', { count: takeawayCount })}`
       : t('takeaway.title');
+
+  const messagesCount = messagesWaiting ?? 0;
+  const messagesName =
+    messagesCount > 0
+      ? `${t('messages.title')}, ${t('views.messagesWaiting', { count: messagesCount })}`
+      : t('messages.title');
 
   const initials = who
     .split(/\s+/u)
@@ -193,6 +206,21 @@ export function StaffHeader({
                 {takeawayCount > 0 ? (
                   <span className="ft-views-count" aria-hidden="true">
                     {takeawayCount}
+                  </span>
+                ) : null}
+              </button>
+            ) : null}
+            {messagesWaiting !== undefined ? (
+              <button
+                type="button"
+                aria-current={view === 'messages' ? 'page' : undefined}
+                aria-label={messagesName}
+                onClick={() => onSelectView('messages')}
+              >
+                {t('messages.title')}
+                {messagesCount > 0 ? (
+                  <span className="ft-views-count is-messages" aria-hidden="true">
+                    {messagesCount}
                   </span>
                 ) : null}
               </button>

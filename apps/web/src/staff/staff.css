@@ -4859,3 +4859,483 @@ a.ft-btn {
 .ask-phone {
   align-self: flex-start;
 }
+
+/* --------------------------------------------------------------------------
+ * Guest messages (2026-10-23, the Rail and Inbox artboards)
+ * -------------------------------------------------------------------------- */
+
+/* The Messages tab's count: cream on the bar, cherry when the tab is on. */
+.ft-views-count.is-messages {
+  background: var(--console-brand-foreground);
+  color: var(--console-sidebar);
+}
+
+[aria-current='page'] > .ft-views-count.is-messages {
+  background: var(--console-brand);
+  color: var(--console-brand-foreground);
+}
+
+/* A table whose next booking has a guest message nobody has read. */
+.ft-table-msg {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--console-radius-pill);
+  background: var(--console-brand);
+  color: var(--console-brand-foreground);
+}
+
+.ft-table-msg .ft-icon {
+  width: 16px;
+  height: 16px;
+}
+
+.table-row[data-messages] .ft-table-seats {
+  right: 48px;
+}
+
+/* --- The rail's section --------------------------------------------------- */
+
+.msg-rail {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+  padding: 0 18px var(--space-md);
+}
+
+.msg-rail .msg-card {
+  gap: 10px;
+  padding: 14px;
+  border-top: 0;
+  border-radius: 16px;
+  box-shadow: inset 0 0 0 2px var(--console-brand);
+}
+
+.msg-rail .msg-card.is-urgent {
+  background: var(--console-floor-urgent);
+  box-shadow: inset 0 0 0 2px var(--console-button-edge);
+}
+
+.msg-rail .msg-card.is-done {
+  box-shadow: inset 0 0 0 1px var(--console-line);
+}
+
+.ft-item .msg-quote {
+  font-size: var(--font-size-sm);
+  line-height: 1.4;
+  color: var(--console-ink);
+  overflow-wrap: anywhere;
+}
+
+.msg-held {
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  min-height: 28px;
+  padding: 0 10px;
+  border-radius: var(--console-radius-pill);
+  background: var(--console-amber-bg);
+  color: var(--console-amber);
+  font-size: var(--console-text-label);
+  font-weight: var(--font-weight-semibold);
+}
+
+.ft-item .msg-answered {
+  color: var(--console-green);
+  font-weight: var(--font-weight-semibold);
+}
+
+.msg-more {
+  display: block;
+  width: calc(100% - 36px);
+  min-height: var(--touch-regular);
+  margin: 0 18px var(--space-md);
+  border: 0;
+  border-radius: var(--console-radius-floor-button);
+  background: var(--console-hover);
+  color: var(--console-brand);
+  font: inherit;
+  font-size: var(--console-text-nav);
+  font-weight: var(--font-weight-bold);
+  cursor: pointer;
+}
+
+/* --- The Messages tab: the list and the conversation ---------------------- */
+
+.msg-inbox {
+  display: grid;
+  flex: 1;
+  grid-template-columns: 420px minmax(0, 1fr);
+  min-height: 0;
+  background: var(--console-surface);
+}
+
+.msg-list {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  border-right: 1px solid var(--console-line);
+}
+
+.msg-filters {
+  display: flex;
+  flex: none;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 14px var(--space-lg);
+  border-bottom: 1px solid var(--console-line);
+}
+
+.msg-chip {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 0 14px;
+  border: 1.5px solid var(--console-button-edge);
+  border-radius: 22px;
+  background: var(--console-surface);
+  color: var(--console-ink);
+  font: inherit;
+  font-size: var(--console-text-nav);
+  font-weight: var(--font-weight-semibold);
+  cursor: pointer;
+}
+
+.msg-chip[aria-pressed='true'] {
+  border-color: var(--console-brand);
+  background: var(--console-brand);
+  color: var(--console-brand-foreground);
+}
+
+.msg-chip:active {
+  transform: scale(0.98);
+}
+
+.msg-rows {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.msg-rows .ft-rail-empty,
+.msg-thread.is-empty .ft-rail-empty {
+  padding: 20px var(--space-lg);
+}
+
+.msg-empty {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  padding: 0 var(--space-lg) var(--space-lg);
+}
+
+.msg-row-btn {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-md);
+  width: 100%;
+  padding: 14px var(--space-lg);
+  border: 0;
+  border-bottom: 1px solid var(--console-line-soft);
+  background: var(--console-surface);
+  color: var(--console-ink);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.msg-row-btn[aria-current='true'] {
+  background: var(--console-surface-muted);
+  box-shadow: inset 4px 0 0 var(--console-brand);
+}
+
+.msg-row-btn:active {
+  background: var(--console-hover);
+}
+
+/* The table's number, or T for a takeaway order: amber like a booked table,
+   dashed cherry like the counter. */
+.msg-badge {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  box-sizing: border-box;
+  border: 2px solid var(--console-floor-booked-edge);
+  border-radius: 12px;
+  background: var(--console-floor-booked);
+  font-family: var(--font-family-display);
+  font-size: 19px;
+  font-weight: var(--font-weight-bold);
+}
+
+.msg-badge[data-kind='takeaway'] {
+  border: 2px dashed var(--console-button-edge);
+  background: var(--console-surface);
+}
+
+.msg-badge.is-big {
+  width: 52px;
+  height: 52px;
+  font-size: 22px;
+}
+
+.msg-row-text {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.msg-row-top {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-sm);
+}
+
+.msg-row-top b {
+  overflow: hidden;
+  font-size: var(--font-size-sm);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.msg-row-top > span {
+  flex: none;
+  font-size: var(--console-text-label);
+  color: var(--console-muted);
+  font-feature-settings: var(--font-feature-tabular);
+}
+
+.msg-row-last {
+  overflow: hidden;
+  font-size: var(--console-text-nav);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.msg-tag {
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  padding: 0 9px;
+  border-radius: 12px;
+  font-size: var(--console-text-label);
+  font-weight: var(--font-weight-semibold);
+  color: var(--console-muted);
+}
+
+.msg-tag[data-tone='new'] {
+  background: var(--console-brand);
+  color: var(--console-brand-foreground);
+}
+
+.msg-tag[data-tone='urgent'] {
+  background: var(--console-red);
+  color: var(--console-red-foreground);
+}
+
+.msg-tag[data-tone='waiting'] {
+  box-shadow: inset 0 0 0 1px var(--console-button-edge);
+  color: var(--console-ink);
+}
+
+.msg-thread {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+}
+
+.msg-thread-head {
+  display: flex;
+  flex: none;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 20px;
+  border-bottom: 1px solid var(--console-line);
+}
+
+.msg-thread-who {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.msg-thread-who b {
+  font-size: var(--font-size-md);
+}
+
+.msg-thread-who span {
+  font-size: var(--console-text-nav);
+  color: var(--console-muted);
+}
+
+.msg-thread-head .ft-btn {
+  min-height: 52px;
+  border-radius: 14px;
+  text-decoration: none;
+}
+
+.msg-call .ft-icon {
+  color: var(--console-button-edge);
+}
+
+.msg-thread-note {
+  margin: 0;
+  padding: var(--space-sm) 20px 0;
+  font-size: var(--console-text-label);
+  color: var(--console-muted);
+}
+
+.msg-log {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: var(--space-md);
+  min-height: 0;
+  padding: 18px 20px;
+  overflow-y: auto;
+}
+
+.msg-row {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+  max-width: 70%;
+}
+
+.msg-row.is-venue {
+  align-self: flex-end;
+  align-items: flex-end;
+}
+
+.msg-row.is-guest {
+  align-self: flex-start;
+  align-items: flex-start;
+}
+
+.msg-row[data-pending] {
+  opacity: 0.7;
+}
+
+.msg-bubble {
+  padding: var(--space-md) 14px;
+  font-size: var(--font-size-sm);
+  line-height: 1.45;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.is-venue > .msg-bubble {
+  border-radius: 18px 18px 4px;
+  background: var(--console-brand);
+  color: var(--console-brand-foreground);
+}
+
+.is-venue > .msg-bubble.is-ask {
+  box-shadow:
+    0 0 0 2px var(--console-surface),
+    0 0 0 4px var(--console-button-edge);
+}
+
+.is-guest > .msg-bubble {
+  border-radius: 18px 18px 18px 4px;
+  background: var(--console-brand-tint);
+  color: var(--console-ink);
+}
+
+.msg-meta {
+  font-size: var(--console-text-label);
+  color: var(--console-muted);
+}
+
+.msg-system {
+  align-self: center;
+  margin: 0;
+  padding: 6px 14px;
+  border-radius: 14px;
+  background: var(--console-green-bg);
+  color: var(--console-green);
+  font-size: var(--console-text-nav);
+  font-weight: var(--font-weight-semibold);
+  text-align: center;
+}
+
+.msg-compose {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  gap: 10px;
+  padding: var(--space-md) 20px var(--space-lg);
+  border-top: 1px solid var(--console-line);
+}
+
+.msg-compose:empty {
+  display: none;
+}
+
+.msg-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+}
+
+.msg-form {
+  display: flex;
+  gap: 10px;
+}
+
+.msg-input {
+  flex: 1;
+  min-width: 0;
+  height: 56px;
+  padding: 0 18px;
+  box-sizing: border-box;
+  border: 1.5px solid var(--console-button-edge);
+  border-radius: 14px;
+  background: var(--console-surface);
+  color: var(--console-ink);
+  font: inherit;
+  font-size: 17px;
+}
+
+.msg-input::placeholder {
+  color: var(--console-muted);
+}
+
+.msg-input[aria-invalid='true'] {
+  border-color: var(--console-red);
+}
+
+.msg-send.ft-btn {
+  flex: none;
+  min-height: 56px;
+  padding: 0 26px;
+  border-radius: 14px;
+  font-size: 17px;
+}
+
+.msg-hint,
+.msg-closed {
+  margin: 0;
+  font-size: var(--console-text-label);
+  color: var(--console-muted);
+}
+
+.msg-closed {
+  padding: var(--space-md) 14px;
+  border: 1px dashed var(--console-button-edge);
+  border-radius: var(--console-radius-floor-button);
+  font-size: var(--console-text-nav);
+  color: var(--console-ink);
+}
