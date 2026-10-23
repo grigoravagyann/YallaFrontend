@@ -162,6 +162,26 @@ describe('the messages card', () => {
     expect(await screen.findByText('Message settings saved.')).toBeTruthy();
   });
 
+  it('keeps the defaults as none when a reply is added and deleted again', async () => {
+    const user = userEvent.setup();
+    const console = gateway();
+    const save = vi.spyOn(console, 'saveMessageSettings');
+    renderPolicy(console);
+    const card = await messagesCard();
+
+    await user.click(within(card).getByRole('button', { name: '+ Add a reply' }));
+    expect(within(card).getByText('Unsaved changes')).toBeTruthy();
+    await user.click(within(card).getByRole('button', { name: 'Delete reply 5' }));
+    // The list reads the defaults again: nothing to save.
+    expect(within(card).queryByText('Unsaved changes')).toBeNull();
+
+    // Saved with another change, the replies are still the app's own (null).
+    await user.click(within(card).getByRole('checkbox', { name: 'Waiters' }));
+    await user.click(within(card).getByRole('button', { name: 'Save' }));
+    await waitFor(() => expect(save).toHaveBeenCalledTimes(1));
+    expect(save.mock.calls[0]![0].settings.templates).toBeNull();
+  });
+
   it('allows eight replies at most, and an empty one is not saved', async () => {
     const user = userEvent.setup();
     const console = gateway();

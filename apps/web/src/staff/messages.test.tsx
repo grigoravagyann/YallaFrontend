@@ -439,6 +439,29 @@ describe('the Messages tab', () => {
     expect((field as HTMLInputElement).value).toBe('');
   });
 
+  it('keeps the conversation it opened on when an answer moves it down the list', async () => {
+    const user = setupUser();
+    signIn();
+    renderAt(gatewayWith(), '/staff/messages');
+
+    const pane = await thread(/^Կարեն Ս\. · T-485$/u);
+    const field = await within(pane).findByRole('textbox', { name: 'Message to the guest' });
+    await user.type(field, 'Yes, come at 18:40');
+    await user.click(within(pane).getByRole('button', { name: 'Send' }));
+
+    // Answered, Karen's row leaves the top of the list…
+    await waitFor(
+      () =>
+        expect(within(conversations()).getAllByRole('listitem')[0]!.textContent).not.toMatch(
+          /T-485/u,
+        ),
+      { timeout: 5000 },
+    );
+    // …and hers is still the conversation open, not the new top row's.
+    expect(screen.getByRole('region', { name: /^Կարեն Ս\. · T-485$/u })).toBeTruthy();
+    expect(screen.queryByRole('region', { name: /^Անի Մ\.$/u })).toBeNull();
+  });
+
   it('shows a booking’s conversation with who wrote what, the ask and the system line', async () => {
     const user = setupUser();
     const gateway = gatewayWith();

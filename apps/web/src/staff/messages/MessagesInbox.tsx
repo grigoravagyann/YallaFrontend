@@ -8,7 +8,7 @@ import {
   type StaffConversationListItem,
 } from '@yalla/api';
 import { useTranslation } from '@yalla/i18n';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { QueryFailureNotice } from '../../components/QueryFailureNotice';
 import { useBranchFormat } from '../useBranchFormat';
 import { MessageThread } from './MessageThread';
@@ -52,8 +52,18 @@ export function MessagesInbox(props: MessagesInboxProps) {
   const items = props.inbox?.items ?? [];
   const shown = filterConversations(items, filter);
   const remindAfter = props.inbox?.remindAfterMinutes ?? 3;
-  const current =
-    props.selected ?? (shown[0] ? { kind: shown[0].subject.kind, id: shown[0].subject.id } : null);
+  const first = shown[0] ? { kind: shown[0].subject.kind, id: shown[0].subject.id } : null;
+  const current = props.selected ?? first;
+  // Nothing chosen yet: the first row is opened, and stays the one open. The
+  // list re-sorts on every read (an answer moves a row down), and a pane that
+  // followed the top row would swap the conversation under the waiter — the
+  // reply half-typed gone, and a guest's message marked read unseen.
+  const { selected, onSelect } = props;
+  const firstKind = first?.kind;
+  const firstId = first?.id;
+  useEffect(() => {
+    if (!selected && firstKind && firstId) onSelect({ kind: firstKind, id: firstId });
+  }, [selected, firstKind, firstId, onSelect]);
   const currentItem = current
     ? (items.find((item) => sameSubject(item.subject, current)) ?? null)
     : null;

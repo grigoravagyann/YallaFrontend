@@ -151,7 +151,18 @@ function MessagesForm({
 
   const violations = messageSettingsViolations(draft);
   const invalid = new Set(violations.map((violation) => violation.field));
-  const dirty = !same(draft, fresh);
+  // While the venue has no replies of its own (`null`), a list that reads
+  // exactly the defaults again — one edited and put back, one added and
+  // deleted — is still the defaults: it stays `null`, so the tablet keeps
+  // offering them in each reader's language rather than this one's.
+  const defaults = defaultReplies(t);
+  const asDefaults =
+    fresh.templates === null &&
+    draft.templates !== null &&
+    draft.templates.length === defaults.length &&
+    draft.templates.every((template, index) => template.trim() === defaults[index]);
+  const effective: MessageSettingsInput = asDefaults ? { ...draft, templates: null } : draft;
+  const dirty = !same(effective, fresh);
   useUnsavedChangesGuard(dirty);
 
   // The page's bar acts through the latest of these, whichever render it holds.
@@ -207,7 +218,7 @@ function MessagesForm({
     }
     setRefused(new Set());
     save.mutate(
-      { ...draft, templates: normalizeMessageTemplates(draft.templates) },
+      { ...effective, templates: normalizeMessageTemplates(effective.templates) },
       {
         onSuccess: () => {
           setTyping(null);
