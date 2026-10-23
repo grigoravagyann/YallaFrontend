@@ -106,3 +106,24 @@ describe('invalidateForPush, a takeaway order (2026-10-22)', () => {
     ]);
   });
 });
+
+describe('invalidateForPush, a venue message (2026-10-23)', () => {
+  it('reads every thread and the unread summary again, and the booking', () => {
+    const keys = queryKeysForPush({ kind: 'venue-message', reservationId: 'r1', ask: 'true' });
+    expect(keys).toContainEqual(['messages']);
+    expect(keys).toContainEqual(['booking', 'r1']);
+    expect(keys).not.toContainEqual(['dinerOrders']);
+  });
+
+  it("reads the Orders tab again for a takeaway order's thread", () => {
+    const keys = queryKeysForPush({ kind: 'venue-message', takeawayOrderId: 'tw-1' });
+    expect(keys).toContainEqual(['messages']);
+    expect(keys).toContainEqual(['dinerOrders']);
+  });
+
+  it('leaves the threads alone for any other push', () => {
+    expect(
+      queryKeysForPush({ kind: 'reservation-reminder', reservationId: 'r1' }),
+    ).not.toContainEqual(['messages']);
+  });
+});

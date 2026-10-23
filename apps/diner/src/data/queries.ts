@@ -12,7 +12,7 @@ import {
   type TabPermissions,
   type WaiterCallReason,
 } from '@yalla/api';
-import { queryKeys, useGateway } from '@yalla/api/react';
+import { afterGuestAnswered, queryKeys, useGateway } from '@yalla/api/react';
 import { useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query';
 import { bookingKeys } from './bookingKeys';
 import { orderKeys } from './orderQueries';
@@ -182,6 +182,9 @@ export function useCancelBooking() {
       void queryClient.invalidateQueries({ queryKey: keys.bookings });
       void queryClient.invalidateQueries({ queryKey: keys.reservationState(booking.id) });
       void queryClient.invalidateQueries({ queryKey: ['availability', booking.branchId] });
+      // "Not coming" is a cancel: the server wrote the answer and "Booking
+      // cancelled" into the booking's thread with the venue (2026-10-23).
+      afterGuestAnswered(queryClient, booking.id);
     },
   });
 }

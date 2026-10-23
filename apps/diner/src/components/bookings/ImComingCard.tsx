@@ -41,12 +41,17 @@ export function inComingWindow(booking: Booking, now: Date): boolean {
  *
  * `autoConfirm`: the "on your way" push's "Yes" opened the app here, and the
  * booking has been read since; decided once, on that read.
+ *
+ * `askedInThread`: the venue's question is a message in the booking's thread
+ * (2026-10-23), shown with its own "I'm coming" on the messages card — the
+ * banner here would say it twice.
  */
 export function ImComingCard({
   booking,
   now,
   place,
   autoConfirm = false,
+  askedInThread = false,
   style,
 }: {
   readonly booking: Booking;
@@ -54,6 +59,7 @@ export function ImComingCard({
   /** The place's name as the screen shows it. */
   readonly place: string;
   readonly autoConfirm?: boolean;
+  readonly askedInThread?: boolean;
   readonly style?: StyleProp<ViewStyle>;
 }) {
   const { t } = useTranslation('diner');
@@ -140,7 +146,7 @@ export function ImComingCard({
 
   return (
     <View style={[styles.block, style]}>
-      {asking && !answered && booking.staffAskedOnMyWayAtUtc ? (
+      {asking && !answered && !askedInThread && booking.staffAskedOnMyWayAtUtc ? (
         <View style={styles.asked} accessibilityRole="alert">
           <Text style={styles.askedTitle}>{t('coming.askedTitle', { place })}</Text>
           <Text style={styles.askedBody}>

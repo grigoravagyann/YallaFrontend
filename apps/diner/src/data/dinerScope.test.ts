@@ -1,4 +1,5 @@
 import type { DinerProfileView } from '@yalla/api';
+import { queryKeys } from '@yalla/api/react';
 import { QueryClient } from '@tanstack/react-query';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { dinerOrderKeys } from '../orders/keys';
@@ -44,6 +45,8 @@ const PER_DINER_KEYS = [
   bookingKeys.bookings,
   bookingKeys.booking('booking-1'),
   bookingKeys.reservationState('reservation-1'),
+  queryKeys.dinerConversation('reservation', 'booking-1'),
+  queryKeys.unreadMessages,
 ] as const;
 
 let queryClient: QueryClient;

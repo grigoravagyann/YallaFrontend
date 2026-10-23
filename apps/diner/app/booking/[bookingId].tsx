@@ -32,9 +32,11 @@ import { Screen } from '../../src/components/Screen';
 import { SectionHeader } from '../../src/components/SectionHeader';
 import { Skeleton } from '../../src/components/Skeleton';
 import { Text } from '../../src/components/Text';
+import { useDinerConversation } from '../../src/data/messageQueries';
 import { useBooking, useCancelBooking } from '../../src/data/queries';
 import { useNow } from '../../src/hooks/useNow';
 import { canCancel } from '../../src/lib/bookingActions';
+import { MessagesCard } from '../../src/messages/MessagesCard';
 import { usePlace } from '../../src/places/hooks';
 import { KeepTableAction } from '../../src/push/ReservationActions';
 import {
@@ -169,6 +171,12 @@ function BookingDetail({
   const now = useNow();
   const { data: place } = usePlace(booking.branchId);
   const changeable = useCanChangeBooking(booking, now);
+  // The booking's thread with the venue (2026-10-23), when it has one or may:
+  // the card below, and whether the venue's "are you coming?" is asked there.
+  const messagesSubject = booking.messages
+    ? { kind: 'reservation' as const, id: booking.id }
+    : null;
+  const { data: thread } = useDinerConversation(messagesSubject, { focused: false });
   // What the venue sees with the booking (K9).
   const note = booking.note;
 
@@ -293,13 +301,19 @@ function BookingDetail({
           </View>
         </Card>
 
+        {/* "Messages with the venue" (2026-10-23): the newest message, "1 new",
+            and the venue's "are you coming?" answered in one tap. */}
+        {messagesSubject ? <MessagesCard subject={messagesSubject} /> : null}
+
         {/* From two hours before until the end (2026-10-22): "I'm coming",
-            "Late 10 / 15 / 30" and "Not coming", and the venue's question. */}
+            "Late 10 / 15 / 30" and "Not coming", and the venue's question —
+            unless the messages card above is already asking it. */}
         <ImComingCard
           booking={booking}
           now={now}
           place={where}
           autoConfirm={onMyWay === 'yes' && readSinceLanding}
+          askedInThread={Boolean(thread?.pendingAsk)}
         />
         {/* Outside that window (a server that opens it later): the older
             "Are you on your way?" card, where it still applies. */}

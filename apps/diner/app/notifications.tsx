@@ -1,4 +1,8 @@
-import type { DinerNotification } from '@yalla/api';
+import {
+  isVenueMessageNotificationKind,
+  venueMessageFeedSubject,
+  type DinerNotification,
+} from '@yalla/api';
 import { isOfflinePaused } from '@yalla/api/react';
 import { intlTag } from '@yalla/format';
 import { useLocale, useTranslation } from '@yalla/i18n';
@@ -68,6 +72,8 @@ const KIND_ICON: Readonly<Record<string, IoniconName>> = {
   'takeaway-accepted': actionIcon.takeaway,
   'takeaway-ready': actionIcon.takeaway,
   'takeaway-declined': actionIcon.takeaway,
+  // A venue's message (2026-10-23): the speech bubble, as on the booking's card.
+  'venue-message': actionIcon.message,
 };
 
 function kindIcon(notification: DinerNotification): IoniconName {
@@ -307,6 +313,17 @@ function NotificationRow({
   const title = t(copy.titleKey, copy.params);
   const body = t(copy.bodyKey, copy.params);
   const unread = !notification.read;
+  // A venue's message stands out until read: the Push board's tinted card and
+  // filled bubble, and what it is about beside its time.
+  const message = isVenueMessageNotificationKind(notification.kind);
+  const loud = message && unread;
+  const about = message ? venueMessageFeedSubject(notification)?.kind : undefined;
+  const meta = [
+    when,
+    about ? t(about === 'takeaway' ? 'messages.feed.takeaway' : 'messages.feed.booking') : null,
+  ]
+    .filter(Boolean)
+    .join(' · ');
 
   return (
     <Animated.View style={press.style}>
@@ -314,23 +331,28 @@ function NotificationRow({
         accessibilityRole="button"
         // The dot and the brighter card are the only unread signs on screen,
         // and the dot is hidden from a screen reader, so the label says it.
-        accessibilityLabel={`${unread ? `${t('notifications.unread')}. ` : ''}${title}. ${body}. ${when}`}
+        accessibilityLabel={`${unread ? `${t('notifications.unread')}. ` : ''}${title}. ${body}. ${meta}`}
         onPress={() => onPress(notification)}
         onPressIn={press.onPressIn}
         onPressOut={press.onPressOut}
         style={({ pressed }) => [
           styles.row,
           unread ? styles.rowUnread : styles.rowRead,
+          loud && styles.rowMessage,
           pressed && styles.rowPressed,
         ]}
       >
-        <View style={styles.iconWell}>
-          <Ionicons name={kindIcon(notification)} size={iconSize.md} color={colors.primary} />
+        <View style={[styles.iconWell, loud && styles.iconWellMessage]}>
+          <Ionicons
+            name={kindIcon(notification)}
+            size={iconSize.md}
+            color={loud ? colors.onPrimary : colors.primary}
+          />
         </View>
         <View style={styles.rowBody}>
           <Text style={styles.rowTitle}>{title}</Text>
-          <Text style={styles.rowText}>{body}</Text>
-          {when ? <Text style={styles.rowTime}>{when}</Text> : null}
+          <Text style={[styles.rowText, loud && styles.rowTextMessage]}>{body}</Text>
+          {meta ? <Text style={styles.rowTime}>{meta}</Text> : null}
         </View>
         {unread ? (
           <View style={styles.dot} accessibilityElementsHidden importantForAccessibility="no" />
@@ -391,6 +413,7 @@ const styles = StyleSheet.create({
   // Read or not, a row is white with the hairline; the burgundy dot says unread.
   rowUnread: { backgroundColor: colors.surface, borderColor: colors.border },
   rowRead: { backgroundColor: colors.surface, borderColor: colors.border },
+  rowMessage: { backgroundColor: colors.unreadTint, borderColor: colors.logoInk },
   rowPressed: { backgroundColor: colors.primarySoft },
   skeletonBody: { gap: space.sm, paddingTop: space.xs },
   iconWell: {
@@ -403,9 +426,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  iconWellMessage: { backgroundColor: colors.brand, borderColor: colors.brand },
   rowBody: { flex: 1, minWidth: 0, gap: 2 },
   rowTitle: { ...typography.body, fontSize: 13.5, fontWeight: fontWeight.bold, color: colors.text },
   rowText: { ...typography.caption, fontSize: 12.5, lineHeight: 18, color: colors.textMuted },
+  rowTextMessage: { fontSize: 14, lineHeight: 20, color: colors.text },
   rowTime: { ...typography.caption, color: colors.textMuted, marginTop: 2 },
   dot: {
     width: DOT,

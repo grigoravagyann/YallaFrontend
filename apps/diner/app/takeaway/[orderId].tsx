@@ -18,6 +18,7 @@ import { Screen } from '../../src/components/Screen';
 import { Skeleton } from '../../src/components/Skeleton';
 import { Text } from '../../src/components/Text';
 import { useMenuDetail } from '../../src/data/orderQueries';
+import { MessagesCard } from '../../src/messages/MessagesCard';
 import { usePlace } from '../../src/places/hooks';
 import { formatClock } from '../../src/places/model';
 import { useSession } from '../../src/stores/session';
@@ -258,6 +259,11 @@ function StatusBody({
             ))}
           </View>
         ) : null}
+
+        {/* "Messages with the venue" (2026-10-23): "no onions?", "we're out of
+            tan — ayran instead?". Nothing for an order with no thread that can
+            no longer have one. */}
+        <MessagesCard subject={{ kind: 'takeaway', id: order.id }} />
 
         <View style={styles.lines}>
           {order.lines.map((line) => (

@@ -29,6 +29,8 @@ const gateway = vi.hoisted(() => ({
   cancelTakeawayOrder: vi.fn(),
   getBranchMenuDetail: vi.fn(),
   getTakeawayAvailability: vi.fn(),
+  // The "Messages with the venue" card (2026-10-23): no thread here.
+  getConversation: vi.fn(async () => null),
 }));
 
 vi.mock('@expo/vector-icons', () => ({ Ionicons: () => null }));
@@ -37,6 +39,7 @@ vi.mock('expo-router', () => ({
   Stack: { Screen: () => null },
   useRouter: () => router,
   useLocalSearchParams: () => ({ orderId: 'order-1' }),
+  useFocusEffect: () => undefined,
 }));
 vi.mock('react-native-safe-area-context', () => ({
   SafeAreaView: ({ children }: { children: unknown }) => children,

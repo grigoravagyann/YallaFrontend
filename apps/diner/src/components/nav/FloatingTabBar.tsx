@@ -13,6 +13,13 @@ import { ScanFab } from './ScanFab';
 
 export { NAV_CLEARANCE, SCAN_RISE, navBottomOffset, tabBarMetrics } from './metrics';
 
+/**
+ * A `tabBarBadge` of this value draws a dot rather than a count: "something
+ * new here", with no number to read — the Bookings tab's unread messages
+ * (2026-10-23). The tab's `tabBarAccessibilityLabel` says it in words.
+ */
+export const NAV_DOT = '';
+
 /** The route whose slot is the raised Scan circle rather than an icon + label. */
 const SCAN_ROUTE: NavRouteName = 'scan';
 
@@ -173,7 +180,9 @@ function TabItem({
               color={focused ? colors.accent : colors.text}
             />
           </View>
-          {badge !== undefined ? (
+          {badge === NAV_DOT ? (
+            <View style={styles.dot} accessibilityElementsHidden importantForAccessibility="no" />
+          ) : badge !== undefined ? (
             <View style={styles.badge}>
               <Text numberOfLines={1} style={styles.badgeText}>
                 {String(badge)}
@@ -280,6 +289,18 @@ const styles = StyleSheet.create({
     backgroundColor: colors.errorStrong,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  // The Main board's dot: 10 of cherry inside a 2px white ring, so it holds on the glass.
+  dot: {
+    position: 'absolute',
+    top: 0,
+    right: 4,
+    width: 14,
+    height: 14,
+    borderRadius: 7,
+    borderWidth: 2,
+    borderColor: colors.surface,
+    backgroundColor: colors.accent,
   },
   badgeText: {
     fontSize: 10,

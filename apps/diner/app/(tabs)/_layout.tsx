@@ -2,7 +2,8 @@ import { useTranslation } from '@yalla/i18n';
 import { Redirect } from 'expo-router';
 import { Tabs } from 'expo-router/js-tabs';
 import { FROM_START } from '../../src/components/auth/PhoneAuthFlow';
-import { FloatingTabBar } from '../../src/components/nav/FloatingTabBar';
+import { FloatingTabBar, NAV_DOT } from '../../src/components/nav/FloatingTabBar';
+import { useUnreadMessages } from '../../src/data/messageQueries';
 import { useSession } from '../../src/stores/session';
 import { colors } from '../../src/theme';
 
@@ -24,6 +25,8 @@ import { colors } from '../../src/theme';
 export default function TabsLayout() {
   const { t } = useTranslation(['diner', 'common']);
   const signedIn = useSession((s) => s.signedIn);
+  // A dot on Bookings while a venue's message waits unread (2026-10-23).
+  const unreadMessages = useUnreadMessages().data?.total ?? 0;
 
   // An account comes first: a diner who is not signed in (a first launch, or
   // after signing out) meets the welcome, and the app opens once signed in.
@@ -40,7 +43,20 @@ export default function TabsLayout() {
       }}
     >
       <Tabs.Screen name="index" options={{ title: t('tabs.explore') }} />
-      <Tabs.Screen name="bookings" options={{ title: t('tabs.bookings') }} />
+      <Tabs.Screen
+        name="bookings"
+        options={{
+          title: t('tabs.bookings'),
+          ...(unreadMessages > 0
+            ? {
+                tabBarBadge: NAV_DOT,
+                tabBarAccessibilityLabel: t('messages.nav.bookingsUnread', {
+                  label: t('tabs.bookings'),
+                }),
+              }
+            : {}),
+        }}
+      />
       <Tabs.Screen name="scan" options={{ title: t('scan.tabTitle') }} />
       <Tabs.Screen name="orders" options={{ title: t('tabs.orders') }} />
       <Tabs.Screen name="profile" options={{ title: t('tabs.profile') }} />

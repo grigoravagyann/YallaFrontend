@@ -2,6 +2,7 @@ import { awaitsVenueAnswer, preOrderView, type Booking } from '@yalla/api';
 import { formatDate, formatDayAndTime } from '@yalla/format';
 import { useLocale, useTranslation } from '@yalla/i18n';
 import { Ionicons } from '@expo/vector-icons';
+import type { ReactNode } from 'react';
 import {
   Animated,
   Linking,
@@ -163,6 +164,11 @@ export interface BookingHeroCardProps {
    * changed — the server's window, read through `preOrderView`.
    */
   readonly onPreOrder?: (() => void) | undefined;
+  /**
+   * The thread's row (guest messages, 2026-10-23) — "New message · 18:31" —
+   * at the card's foot, a control of its own. Left out, there is none.
+   */
+  readonly messages?: ReactNode;
   readonly style?: StyleProp<ViewStyle>;
 }
 
@@ -179,6 +185,7 @@ export function BookingHeroCard({
   onCancel,
   onBookAgain,
   onPreOrder,
+  messages,
   style,
 }: BookingHeroCardProps) {
   const { t } = useTranslation('diner');
@@ -292,6 +299,8 @@ export function BookingHeroCard({
           ) : null}
         </View>
       ) : null}
+
+      {messages}
     </Card>
   );
 }
@@ -358,6 +367,8 @@ export interface BookingRowProps {
   readonly booking: Booking;
   readonly now: Date;
   readonly onOpen: () => void;
+  /** The thread's row at the card's foot (guest messages, 2026-10-23), a control of its own. */
+  readonly messages?: ReactNode;
   readonly style?: StyleProp<ViewStyle>;
 }
 
@@ -365,43 +376,63 @@ export interface BookingRowProps {
  * Every other booking: the photo, the name, when and how many — and the table
  * and its room when the server named one — and the status.
  */
-export function BookingRow({ booking, now, onOpen, style }: BookingRowProps) {
+export function BookingRow({ booking, now, onOpen, messages, style }: BookingRowProps) {
   const { t } = useTranslation('diner');
   const facts = useBookingFacts(booking, now);
   // The row is one control: what it shows of a request is in its name too.
   const label = booking.incomingTableRequest
     ? `${facts.label}, ${t('booking.tableRequest.title')}`
     : facts.label;
-  return (
-    <Card onPress={onOpen} accessibilityLabel={label} padded={false} style={style}>
-      <View style={styles.row}>
-        <PhotoImage source={facts.photo} style={styles.thumb} />
-        <View style={styles.rowBody}>
-          <Text display numberOfLines={1} style={styles.rowName}>
-            {facts.where}
-          </Text>
-          <Text numberOfLines={1} style={styles.rowLine}>
-            {facts.hasRoom
-              ? `${facts.day} · ${facts.time} · ${facts.guests} · ${facts.table}`
-              : `${facts.day} · ${facts.time} · ${facts.guests}`}
-          </Text>
-          <BookingBadge booking={booking} tone="solid" />
-          <NoShowBlockReason booking={booking} />
-          {/* The countdown while it waits. Once declined the badge says so;
+  const content = (
+    <View style={styles.row}>
+      <PhotoImage source={facts.photo} style={styles.thumb} />
+      <View style={styles.rowBody}>
+        <Text display numberOfLines={1} style={styles.rowName}>
+          {facts.where}
+        </Text>
+        <Text numberOfLines={1} style={styles.rowLine}>
+          {facts.hasRoom
+            ? `${facts.day} · ${facts.time} · ${facts.guests} · ${facts.table}`
+            : `${facts.day} · ${facts.time} · ${facts.guests}`}
+        </Text>
+        <BookingBadge booking={booking} tone="solid" />
+        <NoShowBlockReason booking={booking} />
+        {/* The countdown while it waits. Once declined the badge says so;
               why is the detail's to say, not a paragraph in the list. */}
-          {awaitsVenueAnswer(booking) ? (
-            <VenueAnswerNote booking={booking} style={styles.rowAnswer} />
-          ) : null}
-          <PreOrderSummaryLine booking={booking} now={now} />
-          {/* Somebody is asking for this table: answered on the booking itself. */}
-          {booking.incomingTableRequest ? (
-            <Text numberOfLines={1} style={styles.rowRequest}>
-              {t('booking.tableRequest.title')}
-            </Text>
-          ) : null}
-        </View>
-        <Ionicons name={actionIcon.chevron} size={iconSize.sm} color={colors.textMuted} />
+        {awaitsVenueAnswer(booking) ? (
+          <VenueAnswerNote booking={booking} style={styles.rowAnswer} />
+        ) : null}
+        <PreOrderSummaryLine booking={booking} now={now} />
+        {/* Somebody is asking for this table: answered on the booking itself. */}
+        {booking.incomingTableRequest ? (
+          <Text numberOfLines={1} style={styles.rowRequest}>
+            {t('booking.tableRequest.title')}
+          </Text>
+        ) : null}
       </View>
+      <Ionicons name={actionIcon.chevron} size={iconSize.sm} color={colors.textMuted} />
+    </View>
+  );
+  if (!messages) {
+    return (
+      <Card onPress={onOpen} accessibilityLabel={label} padded={false} style={style}>
+        {content}
+      </Card>
+    );
+  }
+  // With a message row the card holds two controls side by side in the
+  // accessibility tree, never one inside the other.
+  return (
+    <Card padded={false} style={style}>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={label}
+        onPress={onOpen}
+        style={({ pressed }) => pressed && styles.pressed}
+      >
+        {content}
+      </Pressable>
+      {messages}
     </Card>
   );
 }

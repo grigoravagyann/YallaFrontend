@@ -575,3 +575,62 @@ describe('takeaway in the feed (2026-10-22)', () => {
     });
   });
 });
+
+/**
+ * Guest messages (2026-10-23): a venue's message in the feed — "{venue}
+ * wrote" and its words — opens the booking's or the order's thread.
+ */
+describe('a venue message in the feed', () => {
+  const message = (params: DinerNotification['params'], ids: Partial<DinerNotification> = {}) =>
+    row({
+      kind: 'venue-message',
+      branchName: 'Lava',
+      params: { conversationId: 'c1', ...params },
+      ...ids,
+    });
+
+  it('quotes the words under the venue, in every language', () => {
+    const copy = notificationCopy(message({ text: 'Your table is ready', ask: 'false' }));
+    expect(copy).toEqual({
+      titleKey: 'notifications.kind.venueMessage.title',
+      bodyKey: 'notifications.kind.venueMessage.body',
+      params: { place: 'Lava', text: 'Your table is ready' },
+    });
+    for (const locale of ['hy', 'ru', 'en'] as const) {
+      expect(lookup(dinerResources[locale].diner, copy.titleKey)).toEqual(expect.any(String));
+      expect(lookup(dinerResources[locale].diner, copy.bodyKey)).toEqual(
+        expect.stringContaining('{{text}}'),
+      );
+    }
+  });
+
+  it('names the venue, as the thread does, not the branch', () => {
+    expect(notificationCopy(message({ venueName: 'Lumen Coffee', text: 'Hi' })).params.place).toBe(
+      'Lumen Coffee',
+    );
+  });
+
+  it('says it is the question when an ask has no words of its own', () => {
+    expect(notificationCopy(message({ ask: 'true' })).bodyKey).toBe(
+      'notifications.kind.venueAsk.body',
+    );
+    expect(notificationCopy(message({ ask: 'false' })).bodyKey).toBe(
+      'notifications.kind.venueMessagePlain.body',
+    );
+  });
+
+  it("opens the booking's thread, or the takeaway order's", () => {
+    expect(notificationRoute(message({}))).toEqual({
+      pathname: '/messages/reservation/[id]',
+      params: { id: 'r1' },
+    });
+    expect(notificationRoute(message({}, { reservationId: null, orderId: 'tw-1' }))).toEqual({
+      pathname: '/messages/takeaway/[id]',
+      params: { id: 'tw-1' },
+    });
+    expect(notificationRoute(message({}, { reservationId: null }))).toEqual({
+      pathname: '/place/[placeId]',
+      params: { placeId: 'b1' },
+    });
+  });
+});

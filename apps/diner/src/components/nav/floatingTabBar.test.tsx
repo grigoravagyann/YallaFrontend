@@ -2,7 +2,7 @@ import { cleanup, render, screen } from '@testing-library/react';
 import { contrastRatio } from '@yalla/tokens';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { colors, space } from '../../theme';
-import { FloatingTabBar } from './FloatingTabBar';
+import { FloatingTabBar, NAV_DOT } from './FloatingTabBar';
 import { NAV_CLEARANCE, SCAN_RISE, navBottomOffset, tabBarMetrics } from './metrics';
 
 /**
@@ -171,3 +171,32 @@ function over(css: string, ground: string): string {
   const [gr = 0, gg = 0, gb = 0] = [1, 3, 5].map((i) => parseInt(ground.slice(i, i + 2), 16));
   return toHex(`rgb(${r * a + gr * (1 - a)}, ${g * a + gg * (1 - a)}, ${b * a + gb * (1 - a)})`);
 }
+
+/**
+ * Guest messages (2026-10-23): a venue's message waits unread — a dot on
+ * Bookings, no number, and the tab's name says it in words.
+ */
+describe('the unread-messages dot', () => {
+  it('draws a dot, not a count, and the tab says why', () => {
+    const base = props(ENGLISH);
+    const bookings = base.state.routes[1]!.key;
+    const withDot = {
+      ...base,
+      descriptors: {
+        ...base.descriptors,
+        [bookings]: {
+          options: {
+            title: 'Bookings',
+            tabBarBadge: NAV_DOT,
+            tabBarAccessibilityLabel: 'Bookings, new messages',
+          },
+        },
+      },
+    } as unknown as Parameters<typeof FloatingTabBar>[0];
+    render(<FloatingTabBar {...withDot} />);
+
+    const tab = screen.getByRole('tab', { name: 'Bookings, new messages' });
+    // No count is drawn: the badge's text would be its only text besides the label.
+    expect(tab.textContent).toBe('Bookings');
+  });
+});
