@@ -147,7 +147,8 @@ describe('History', () => {
 
     await user.type(screen.getByRole('searchbox'), 'T-482{Enter}');
     await waitFor(() => expect(params().get('q')).toBe('T-482'));
-    await waitFor(() => expect(rows(screen.getByRole('table'))).toHaveLength(1));
+    // Placed by the guest, accepted by Lilit: the code's two entries.
+    await waitFor(() => expect(rows(screen.getByRole('table'))).toHaveLength(2));
   });
 
   it('reads the filters from the address', async () => {
@@ -156,7 +157,7 @@ describe('History', () => {
     await waitFor(() => expect(rows(table)).toHaveLength(1));
     expect(within(table).getByText('SHURJ')).toBeTruthy();
     expect(within(table).getByRole('rowheader').textContent).toContain(
-      'Declined automatically · nobody answered in 15 minutes',
+      'Declined automatically · nobody answered in time',
     );
   });
 
@@ -188,15 +189,16 @@ describe('a bill’s timeline', () => {
       category: 'all',
       q: '4',
     });
-    const seated = page.items.find((entry) => entry.action === 'table.seated')!;
-    renderAt(`/venue/history/tab/${seated.subject.id}`, console);
+    const opened = page.items.find((entry) => entry.action === 'table.tab-opened')!;
+    renderAt(`/venue/history/tab/${opened.subject.id}`, console);
 
     expect(
       await screen.findByRole('heading', { level: 1, name: 'Table 4 · bill' }, { timeout: 8000 }),
     ).toBeTruthy();
     expect(screen.getByText(/waiter: Aram P\. \(from Lilit A\. at/u)).toBeTruthy();
     const steps = screen.getByRole('list');
-    expect(within(steps).getAllByRole('listitem')).toHaveLength(9);
+    // The sitting's every entry: the seat came before the bill.
+    expect(within(steps).getAllByRole('listitem')).toHaveLength(10);
     expect(within(steps).getByText('Reason: “Հյուրը փոխեց պատվերը”')).toBeTruthy();
 
     const people = screen.getByRole('group', { name: 'Filter by person' });
@@ -238,8 +240,10 @@ describe('Staff → Results', () => {
       within(table)
         .getAllByRole('rowheader')
         .map((header) => header.querySelector('a')?.textContent ?? header.textContent);
-    expect(names()[0]).toBe('Aram Petrosyan');
+    // Lilit: table 3 and her 12 000 of table 4 before she handed it to Aram.
+    expect(names()[0]).toBe('Lilit Avetisyan');
     expect(names().at(-1)).toBe('Total');
+    expect(within(table).getByRole('columnheader', { name: 'Declined' })).toBeTruthy();
 
     await user.click(within(salesHeader).getByRole('button'));
     expect(salesHeader.getAttribute('aria-sort')).toBe('ascending');
@@ -255,6 +259,7 @@ describe('Staff → Results', () => {
     expect(params().get('period')).toBe('week');
     expect(await screen.findByRole('table', { name: / – / })).toBeTruthy();
     expect(screen.getByText(/Waiters see only their own results\./u)).toBeTruthy();
+    expect(screen.getByText(/matches the revenue report/u)).toBeTruthy();
   });
 
   it('keeps the People tab as it was', async () => {
@@ -287,13 +292,16 @@ describe('one person’s page', () => {
     expect(screen.getByRole('table', { name: 'Sales by day' })).toBeTruthy();
 
     const orders = screen.getByRole('tabpanel', { name: /^Orders/u });
-    const before = within(orders).getAllByRole('row').length;
+    const before = (await within(orders).findAllByRole('row', undefined, { timeout: 8000 })).length;
     await user.click(within(orders).getByRole('button', { name: 'More' }));
     await waitFor(() => expect(within(orders).getAllByRole('row').length).toBeGreaterThan(before));
 
     await user.click(screen.getByRole('tab', { name: /^Calls/u }));
     const calls = screen.getByRole('tabpanel', { name: /^Calls/u });
-    expect(within(calls).getAllByRole('columnheader').at(-1)!.textContent).toBe('Response');
+    expect(
+      (await within(calls).findAllByRole('columnheader', undefined, { timeout: 8000 })).at(-1)!
+        .textContent,
+    ).toBe('Response');
   });
 
   it('says so for somebody who is not on the branch', async () => {

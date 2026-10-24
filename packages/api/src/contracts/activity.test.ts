@@ -1,11 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import {
+  ACTIVITY_ACTIONS,
   activityViolations,
   defaultActivityFilters,
   hasTimeline,
+  isKnownActivityAction,
   matchesActivitySearch,
   medianSeconds,
   performanceRange,
+  timelineSubjectOf,
   type ActivityEntry,
 } from './activity';
 
@@ -16,19 +19,24 @@ const TODAY = '2026-10-24';
 const ENTRY: ActivityEntry = {
   id: 'a-1',
   occurredAtUtc: '2026-10-24T14:00:00Z',
+  local: '2026-10-24 18:00',
   actor: { kind: 'staff', staffMemberId: 's-1', name: 'Արամ' },
   device: { id: null, label: '', isConsole: false },
   category: 'order',
   action: 'order.sent',
-  subject: { type: 'tab', id: 'tab-1' },
+  subject: { type: 'tab', id: 'tab-1', code: 'T-482' },
+  tableSessionId: 'ts-1',
   tableLabel: '4',
   guestName: 'Անի Մարտիրոսյան',
+  itemNames: 'Խոզի խորոված, Թան',
   amountAmd: 6200,
   isMoney: false,
   before: null,
   after: null,
   reason: null,
-  params: { itemName: 'Խոզի խորոված', code: 'T-482' },
+  params: {},
+  lines: [],
+  seconds: null,
 };
 
 describe('the feed’s filters', () => {
@@ -60,6 +68,24 @@ describe('the feed’s filters', () => {
     expect(hasTimeline({ type: 'tab', id: 't' })).toBe(true);
     expect(hasTimeline({ type: 'menuItem', id: 'm' })).toBe(false);
     expect(hasTimeline({ type: 'reservation', id: null })).toBe(false);
+  });
+
+  it('opens a call’s or a sitting’s bill by the tab its summary names', () => {
+    const call = {
+      ...ENTRY,
+      subject: { type: 'serviceRequest' as const, id: 'sr-1' },
+      params: { tabId: 'tab-9' },
+    };
+    expect(timelineSubjectOf(call)).toEqual({ type: 'tab', id: 'tab-9' });
+    expect(timelineSubjectOf({ ...call, params: {} })).toBeNull();
+    expect(timelineSubjectOf(ENTRY)).toEqual({ type: 'tab', id: 'tab-1' });
+  });
+
+  it('knows the server’s action codes, kebab-case, and nothing else', () => {
+    expect(isKnownActivityAction('booking.auto-declined')).toBe(true);
+    expect(isKnownActivityAction('table.call-claimed')).toBe(true);
+    expect(isKnownActivityAction('booking.autoDeclined')).toBe(false);
+    expect(ACTIVITY_ACTIONS.every((code) => /^[a-z]+\.[a-z-]+$/u.test(code))).toBe(true);
   });
 });
 

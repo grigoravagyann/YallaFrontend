@@ -498,15 +498,9 @@ export const queryKeys = {
   /** One person's page over one range. */
   staffMemberPerformance: (branchId: string, staffMemberId: string, from: string, to: string) =>
     ['console', 'staffMemberPerformance', branchId, staffMemberId, from, to] as const,
-  /** One of a person's lists, past its first page. */
-  staffRecent: (
-    branchId: string,
-    staffMemberId: string,
-    from: string,
-    to: string,
-    list: string,
-    firstCursor: string,
-  ) => ['console', 'staffRecent', branchId, staffMemberId, from, to, list, firstCursor] as const,
+  /** One of a person's lists, a page at a time. */
+  staffRecent: (branchId: string, staffMemberId: string, from: string, to: string, list: string) =>
+    ['console', 'staffRecent', branchId, staffMemberId, from, to, list] as const,
   /** Tables a scan seated with no proved number, waiting for a waiter to let them order. */
   tabsAwaitingAdmission: (branchId: string) =>
     ['staff', 'tabsAwaitingAdmission', branchId] as const,

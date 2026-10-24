@@ -19,29 +19,69 @@ import { localDateLabel } from '../messageHistory/historyText';
 import { saveFile } from '../reports/download';
 
 /** A column of the Results table: what it measures and how it is written. */
-type FigureKey = Exclude<
-  keyof PerformanceFigures,
-  'callsClaimed' | 'messagesAnswered' | 'cashBills'
->;
-
 interface Column {
-  readonly key: FigureKey;
+  readonly key: ColumnKey;
   readonly labelKey: string;
   readonly kind: 'count' | 'money' | 'time';
+  readonly value: (figures: PerformanceFigures) => number | null;
 }
 
-/** The board's columns, in its order. */
+type ColumnKey =
+  | 'tables'
+  | 'guests'
+  | 'salesAmd'
+  | 'averageCheckAmd'
+  | 'tipsAmd'
+  | 'callMedianSeconds'
+  | 'replyMedianSeconds'
+  | 'approvals'
+  | 'declines'
+  | 'cashAmd'
+  | 'discountsAndComps';
+
+/** The board's columns, in its order; the declines beside the approvals. */
 export const RESULT_COLUMNS: readonly Column[] = [
-  { key: 'tables', labelKey: 'staffResults.col.tables', kind: 'count' },
-  { key: 'guests', labelKey: 'staffResults.col.guests', kind: 'count' },
-  { key: 'salesAmd', labelKey: 'staffResults.col.sales', kind: 'money' },
-  { key: 'averageCheckAmd', labelKey: 'staffResults.col.avgCheck', kind: 'money' },
-  { key: 'tipsAmd', labelKey: 'staffResults.col.tips', kind: 'money' },
-  { key: 'callMedianSeconds', labelKey: 'staffResults.col.calls', kind: 'time' },
-  { key: 'replyMedianSeconds', labelKey: 'staffResults.col.replies', kind: 'time' },
-  { key: 'approvals', labelKey: 'staffResults.col.approvals', kind: 'count' },
-  { key: 'cashAmd', labelKey: 'staffResults.col.cash', kind: 'money' },
-  { key: 'discountsAndComps', labelKey: 'staffResults.col.discounts', kind: 'count' },
+  { key: 'tables', labelKey: 'staffResults.col.tables', kind: 'count', value: (f) => f.tables },
+  { key: 'guests', labelKey: 'staffResults.col.guests', kind: 'count', value: (f) => f.guests },
+  { key: 'salesAmd', labelKey: 'staffResults.col.sales', kind: 'money', value: (f) => f.salesAmd },
+  {
+    key: 'averageCheckAmd',
+    labelKey: 'staffResults.col.avgCheck',
+    kind: 'money',
+    value: (f) => f.averageCheckAmd,
+  },
+  { key: 'tipsAmd', labelKey: 'staffResults.col.tips', kind: 'money', value: (f) => f.tipsAmd },
+  {
+    key: 'callMedianSeconds',
+    labelKey: 'staffResults.col.calls',
+    kind: 'time',
+    value: (f) => f.callMedianSeconds,
+  },
+  {
+    key: 'replyMedianSeconds',
+    labelKey: 'staffResults.col.replies',
+    kind: 'time',
+    value: (f) => f.replyMedianSeconds,
+  },
+  {
+    key: 'approvals',
+    labelKey: 'staffResults.col.approvals',
+    kind: 'count',
+    value: (f) => f.approvals,
+  },
+  {
+    key: 'declines',
+    labelKey: 'staffResults.col.declines',
+    kind: 'count',
+    value: (f) => f.declines,
+  },
+  { key: 'cashAmd', labelKey: 'staffResults.col.cash', kind: 'money', value: (f) => f.cashAmd },
+  {
+    key: 'discountsAndComps',
+    labelKey: 'staffResults.col.discounts',
+    kind: 'count',
+    value: (f) => f.discounts + f.comps,
+  },
 ];
 
 const SORT_KEYS = RESULT_COLUMNS.map((column) => column.key);
@@ -107,8 +147,9 @@ export function FigureCell({
 /**
  * Staff → Results (2026-10-24, the Team board): each person's tables,
  * guests, sales, average check, tips, how fast they answered calls and
- * messages, approvals, cash and discounts, over today, seven or thirty days,
- * with the branch's totals. Sortable by any column; the period and the sort
+ * messages, bookings approved and declined, cash, and discounts and comps,
+ * over today, seven or thirty days, with the branch's totals — counted once,
+ * as the revenue report counts them. Sortable by any column; the period and the sort
  * live in the address. CSV downloads the server's file.
  *
  * Sales, guests and tips are the table's waiter's, and a transfer moves the
@@ -130,8 +171,9 @@ export function StaffResults({
   const today = branchDayKey(new Date(), timeZoneId as TimeZone);
   const period = periodFrom(params.get('period'));
   const range = performanceRange(period, today);
-  const sortParam = params.get('sort') as FigureKey | null;
-  const sort: FigureKey = sortParam && SORT_KEYS.includes(sortParam) ? sortParam : 'salesAmd';
+  const sortParam = params.get('sort') as ColumnKey | null;
+  const sort: ColumnKey = sortParam && SORT_KEYS.includes(sortParam) ? sortParam : 'salesAmd';
+  const sortColumn = RESULT_COLUMNS.find((column) => column.key === sort) ?? RESULT_COLUMNS[2]!;
   const dir: 'asc' | 'desc' = params.get('dir') === 'asc' ? 'asc' : 'desc';
   const query = useStaffPerformance(branchId, range);
 
@@ -149,7 +191,7 @@ export function StaffResults({
     );
   }
 
-  function sortBy(key: FigureKey) {
+  function sortBy(key: ColumnKey) {
     // A new column starts from the most; the same column turns around.
     const nextDir = key === sort ? (dir === 'desc' ? 'asc' : 'desc') : 'desc';
     put(
@@ -177,8 +219,8 @@ export function StaffResults({
   }
 
   const rows: readonly StaffPerformanceRow[] = [...(query.data?.rows ?? [])].sort((a, b) => {
-    const left = a[sort];
-    const right = b[sort];
+    const left = sortColumn.value(a);
+    const right = sortColumn.value(b);
     // Nothing measured goes last, whichever way the column is turned.
     if (left === null && right === null) return a.name.localeCompare(b.name, locale);
     if (left === null) return 1;
@@ -258,7 +300,12 @@ export function StaffResults({
                 </th>
                 {RESULT_COLUMNS.map((column) => (
                   <td key={column.key} className="yc-num">
-                    <FigureCell value={row[column.key]} kind={column.kind} locale={locale} t={t} />
+                    <FigureCell
+                      value={column.value(row)}
+                      kind={column.kind}
+                      locale={locale}
+                      t={t}
+                    />
                   </td>
                 ))}
               </tr>
@@ -271,7 +318,7 @@ export function StaffResults({
                 {RESULT_COLUMNS.map((column) => (
                   <td key={column.key} className="yc-num">
                     <FigureCell
-                      value={query.data.totals[column.key]}
+                      value={column.value(query.data.totals)}
                       kind={column.kind}
                       locale={locale}
                       t={t}
@@ -316,7 +363,23 @@ export function StaffResults({
       <section className="yc-card yc-res-card" aria-label={t('staffResults.label')}>
         {body}
       </section>
-      <p className="yc-res-note">{t('staffResults.note')}</p>
+      <p className="yc-res-note">
+        {[
+          t('staffResults.note'),
+          query.data
+            ? t('staffResults.noteTotals', {
+                takeaway: dram(query.data.totals.takeawayAmd, locale),
+              })
+            : null,
+          query.data && query.data.totals.unattributedSalesAmd > 0
+            ? t('staffResults.noteUnattributed', {
+                amount: dram(query.data.totals.unattributedSalesAmd, locale),
+              })
+            : null,
+        ]
+          .filter(Boolean)
+          .join(' ')}
+      </p>
     </div>
   );
 }

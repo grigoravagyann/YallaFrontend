@@ -1,11 +1,12 @@
 import { InfiniteQueryObserver, QueryClient, QueryObserver } from '@tanstack/react-query';
 import { describe, expect, it, vi } from 'vitest';
-import type { ActivityPage, ActivityQuery } from '../contracts/activity';
+import type { ActivityPage, ActivityQuery, StaffRecentQuery } from '../contracts/activity';
 import type { ServiceRequest } from '../contracts/ordering';
 import {
   activityOptions,
   claimServiceRequestOptions,
   staffMemberPerformanceOptions,
+  staffRecentOptions,
   transferTabOptions,
 } from './activity';
 import { queryKeys } from './index';
@@ -25,19 +26,24 @@ function page(cursor: string | null, nextCursor: string | null): ActivityPage {
       {
         id: `a-${cursor ?? 'first'}`,
         occurredAtUtc: '2026-10-24T14:00:00Z',
+        local: '2026-10-24 18:00',
         actor: { kind: 'system', staffMemberId: null, name: '' },
         device: { id: null, label: '', isConsole: false },
         category: 'booking',
-        action: 'booking.autoDeclined',
+        action: 'booking.auto-declined',
         subject: { type: 'reservation', id: 'r-1' },
+        tableSessionId: null,
         tableLabel: null,
         guestName: null,
+        itemNames: null,
         amountAmd: null,
         isMoney: false,
         before: null,
         after: null,
         reason: null,
         params: {},
+        lines: [],
+        seconds: null,
       },
     ],
     nextCursor,
@@ -85,6 +91,31 @@ describe('the feed', () => {
   });
 });
 
+describe('a person’s lists', () => {
+  it('opens a list on its first page and follows the server’s cursor', async () => {
+    const asked: (string | null)[] = [];
+    const gateway = {
+      listStaffRecent: vi.fn(
+        async (_branchId: string, _staffMemberId: string, query: StaffRecentQuery) => {
+          asked.push(query.cursor);
+          return { list: query.list, items: [], nextCursor: query.cursor ? null : 'c-2' };
+        },
+      ),
+    };
+    const client = new QueryClient();
+    const observer = new InfiniteQueryObserver(
+      client,
+      staffRecentOptions(gateway, 'b-1', 's-1', { from: 'a', to: 'b' }, 'calls'),
+    );
+    const unsubscribe = observer.subscribe(() => {});
+    await vi.waitFor(() => expect(observer.getCurrentResult().isSuccess).toBe(true));
+    await observer.fetchNextPage();
+    expect(asked).toEqual([null, 'c-2']);
+    expect(observer.getCurrentResult().hasNextPage).toBe(false);
+    unsubscribe();
+  });
+});
+
 describe('the floor', () => {
   it('puts the claimer’s name on the call in the list at once, then reads the list again', async () => {
     const client = new QueryClient();
@@ -113,6 +144,9 @@ describe('the floor', () => {
       server: { staffMemberId: 's-1', name: 'Արամ' },
       previousServer: null,
       transferredAtUtc: '2026-10-24T13:40:00Z',
+      tableSessionId: 'ts-4',
+      tableLabel: '4',
+      wasReplay: false,
     });
     expect(invalidate).toHaveBeenCalledWith({ queryKey: queryKeys.staffFloor('b-1') });
     expect(invalidate).toHaveBeenCalledWith({ queryKey: queryKeys.staffTab('tab-4') });

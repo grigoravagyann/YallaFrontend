@@ -52,7 +52,7 @@ import {
   useTransferTab,
   useVoidLine,
 } from '@yalla/api/react';
-import { SERVING_ROLES, type StaffRole } from '@yalla/api';
+import { SERVING_ROLES, transferRefusalOf, type StaffRole } from '@yalla/api';
 import { useQuery } from '@tanstack/react-query';
 import { staffSession } from './auth/staffSession';
 import { useQueryClient } from '@tanstack/react-query';
@@ -1215,11 +1215,25 @@ export function FloorRoute({ identity, device = null, paused }: FloorRouteProps)
             });
             setSelection(null);
           },
-          onError: () =>
+          onError: (error) => {
+            // The server says why (`transfer-target-ineligible` and its
+            // reason, or `tab-not-transferable`); anything else is a retry.
+            const refusal = transferRefusalOf(error);
+            const name = target.name.split(/\s+/u)[0] ?? target.name;
             setNotice({
               kind: 'warning',
-              text: t('table.transfer.refused', { label: tableLabel }),
-            }),
+              text:
+                refusal?.kind === 'notTransferable'
+                  ? t('table.transfer.closed', { label: tableLabel })
+                  : refusal?.reason === 'does-not-serve'
+                    ? t('table.transfer.notServing', { name })
+                    : refusal?.reason === 'other-branch'
+                      ? t('table.transfer.otherBranch', { name })
+                      : refusal?.reason === 'inactive' || refusal?.reason === 'not-found'
+                        ? t('table.transfer.gone', { name })
+                        : t('table.transfer.refused', { label: tableLabel }),
+            });
+          },
         },
       );
     },

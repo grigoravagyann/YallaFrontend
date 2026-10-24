@@ -1,5 +1,6 @@
 import {
   ACTIVITY_TIMELINE_SUBJECTS,
+  timelineLinesAmd,
   type ActivityEntry,
   type ActivitySubjectType,
   type ActivityTimeline,
@@ -87,14 +88,24 @@ export function TimelineScreen() {
 function titleOf(t: TFunction, timeline: ActivityTimeline): string {
   switch (timeline.subject.type) {
     case 'tab':
-      return timeline.tableLabel
-        ? t('activity.timeline.titleTab', { label: timeline.tableLabel })
+      return timeline.tab?.tableLabel
+        ? t('activity.timeline.titleTab', { label: timeline.tab.tableLabel })
         : t('activity.timeline.titleBill');
     case 'takeaway':
-      return t('activity.timeline.titleTakeaway', { code: timeline.code ?? '' });
+      return t('activity.timeline.titleTakeaway', {
+        code:
+          timeline.takeaway?.code ??
+          timeline.entries.find((entry) => entry.subject.code)?.subject.code ??
+          '',
+      });
     default:
       return t('activity.timeline.titleBooking', {
-        guest: shortName(timeline.guestName ?? '') || t('activity.who.theGuest'),
+        guest:
+          shortName(
+            timeline.booking?.guestName ??
+              timeline.entries.find((entry) => entry.guestName)?.guestName ??
+              '',
+          ) || t('activity.who.theGuest'),
       });
   }
 }
@@ -109,9 +120,25 @@ function dotTone(entry: ActivityEntry): string {
 /** The muted line under a step: why, how fast, or from where. */
 function noteOf(t: TFunction, entry: ActivityEntry): string | null {
   if (entry.reason) return t('activity.timeline.reason', { reason: entry.reason });
-  const seconds = entry.params['seconds'];
-  if (typeof seconds === 'number') return durationLabel(t, seconds);
+  if (entry.seconds !== null) return durationLabel(t, entry.seconds);
   return deviceLabel(t, entry);
+}
+
+/** Who did something here, for the chips: the staff the server names, then the guest and SHURJ. */
+function peopleOf(
+  t: TFunction,
+  timeline: ActivityTimeline,
+): readonly { readonly key: string; readonly label: string }[] {
+  const out: { key: string; label: string }[] = [];
+  const add = (key: string, label: string) => {
+    if (!out.some((one) => one.key === key)) out.push({ key, label });
+  };
+  for (const entry of timeline.entries) {
+    const key = entry.actor.staffMemberId ?? entry.actor.kind;
+    const named = timeline.people.find((one) => one.staffMemberId === entry.actor.staffMemberId);
+    add(key, named ? (named.name.split(/\s+/u)[0] ?? named.name) : whoShort(t, entry));
+  }
+  return out;
 }
 
 function Timeline({
@@ -128,88 +155,95 @@ function Timeline({
   const zone = timeZoneId as TimeZone;
   const today = branchDayKey(new Date(), zone);
   const [who, setWho] = useState<string | 'all'>('all');
+  const { tab, booking, takeaway } = timeline;
 
   const time = (utc: string) => formatTime(utc, zone, locale);
-  const transfers = timeline.entries.filter((entry) => entry.action === 'table.transferred');
-  const lastTransfer = transfers.at(-1);
+  const dayText = (day: string) =>
+    day === today ? t('activity.timeline.today') : localDateLabel(day, today, locale);
 
   // The sub line: when, how many, whose — "Today 17:12–18:20 · 4 people · waiter Aram (from Lilit at 17:40)".
   const when = (() => {
-    const start = timeline.startedAtUtc ?? timeline.entries[0]?.occurredAtUtc ?? null;
+    if (booking) {
+      return booking.localDate
+        ? t('activity.detail.dated', { date: dayText(booking.localDate), time: booking.localTime })
+        : null;
+    }
+    const start =
+      tab?.seatedAtUtc ?? takeaway?.createdAtUtc ?? timeline.entries[0]?.occurredAtUtc ?? null;
     if (!start) return null;
-    const day = branchDayKey(start, zone);
-    const dayText =
-      day === today ? t('activity.timeline.today') : localDateLabel(day, today, locale);
-    const end = timeline.endedAtUtc;
+    const day = dayText(branchDayKey(start, zone));
+    const end = tab ? tab.closedAtUtc : (takeaway?.collectedAtUtc ?? null);
     return end
-      ? t('activity.timeline.whenRange', { day: dayText, from: time(start), to: time(end) })
-      : t('activity.timeline.whenOpen', { day: dayText, from: time(start) });
+      ? t('activity.timeline.whenRange', { day, from: time(start), to: time(end) })
+      : t('activity.timeline.whenOpen', { day, from: time(start) });
   })();
-  const server = timeline.server
-    ? lastTransfer
+  const servers = tab?.servers ?? [];
+  const current = servers.at(-1);
+  const before = servers.at(-2);
+  const server = current
+    ? before
       ? t('activity.timeline.serverFrom', {
-          name: shortName(timeline.server.name),
-          from: shortName(
-            typeof lastTransfer.params['fromName'] === 'string'
-              ? lastTransfer.params['fromName']
-              : lastTransfer.actor.name,
-          ),
-          time: time(lastTransfer.occurredAtUtc),
+          name: shortName(current.name),
+          from: shortName(before.name),
+          time: time(current.fromUtc),
         })
-      : t('activity.timeline.server', { name: shortName(timeline.server.name) })
+      : t('activity.timeline.server', { name: shortName(current.name) })
     : null;
+  const partySize = tab?.partySize ?? booking?.partySize ?? 0;
+  const guest = booking?.guestName ?? takeaway?.guestName ?? null;
   const sub = [
     when,
-    timeline.partySize ? t('activity.part.party', { count: timeline.partySize }) : null,
-    timeline.subject.type !== 'tab' && timeline.guestName ? shortName(timeline.guestName) : null,
+    partySize > 0 ? t('activity.part.party', { count: partySize }) : null,
+    guest ? shortName(guest) : null,
+    booking?.tableLabel ? t('activity.part.table', { label: booking.tableLabel }) : null,
     server,
   ]
     .filter(Boolean)
     .join(' · ');
 
-  // People who did something here, in the order they first did.
-  const people: { readonly key: string; readonly label: string }[] = [];
-  for (const entry of timeline.entries) {
-    const key = entry.actor.staffMemberId ?? entry.actor.kind;
-    if (people.some((person) => person.key === key)) continue;
-    people.push({ key, label: whoShort(t, entry) });
-  }
+  const people = peopleOf(t, timeline);
   const steps = timeline.entries.filter(
     (entry) => who === 'all' || (entry.actor.staffMemberId ?? entry.actor.kind) === who,
   );
 
-  const totals = timeline.totals;
-  const method = totals?.paidBy ? t(`activity.timeline.method.${totals.paidBy}`) : null;
+  const lines = timeline.lines;
+  const linesAmd = timelineLinesAmd(lines);
+  const paidAmd = tab?.paidAmd ?? takeaway?.paidAmd ?? 0;
+  const tipsAmd = tab?.tipsAmd ?? 0;
+  const method = takeaway?.paymentMethod
+    ? t(`activity.timeline.method.${takeaway.paymentMethod}`)
+    : null;
+  const adjustmentsAmd = tab ? Math.max(0, linesAmd - tab.subtotalAmd) : 0;
+  const mark =
+    timeline.subject.type === 'tab'
+      ? tab?.tableLabel || '—'
+      : timeline.subject.type === 'takeaway'
+        ? 'T'
+        : booking?.tableLabel || '·';
 
   return (
     <>
       <div className="yc-tl-head">
         <span className="yc-tl-mark" aria-hidden="true">
-          {timeline.subject.type === 'tab'
-            ? (timeline.tableLabel ?? '—')
-            : timeline.subject.type === 'takeaway'
-              ? 'T'
-              : (timeline.tableLabel ?? '·')}
+          {mark}
         </span>
         <div className="yc-tl-title">
           <h1 className="yc-h1">{titleOf(t, timeline)}</h1>
           {sub ? <p className="yc-sub">{sub}</p> : null}
         </div>
-        {totals && totals.paidAmd > 0 ? (
+        {paidAmd > 0 ? (
           <div className="yc-tl-total">
-            <b>{dram(totals.paidAmd, locale)}</b>
+            <b>{dram(paidAmd, locale)}</b>
             <span className="yc-muted">
               {[
                 method,
-                totals.tipAmd > 0
-                  ? t('activity.part.tip', { amount: dram(totals.tipAmd, locale) })
-                  : null,
+                tipsAmd > 0 ? t('activity.part.tip', { amount: dram(tipsAmd, locale) }) : null,
               ]
                 .filter(Boolean)
                 .join(' · ')}
             </span>
           </div>
-        ) : totals ? (
+        ) : tab || takeaway ? (
           <div className="yc-tl-total">
             <span className="yc-muted">{t('activity.timeline.open')}</span>
           </div>
@@ -242,15 +276,14 @@ function Timeline({
             <ol className="yc-tl-list">
               {steps.map((entry) => {
                 const note = noteOf(t, entry);
-                const seconds = entry.params['seconds'];
-                const speed = typeof seconds === 'number' ? durationLabel(t, seconds) : null;
+                const speed = entry.seconds !== null ? durationLabel(t, entry.seconds) : null;
+                const tableLabel = tab?.tableLabel ?? null;
                 const details = detailParts(t, entry, locale).filter(
                   // The table is the page's own: said once, in the title. How
                   // fast goes under the step, not in it.
                   (part) =>
                     part !== speed &&
-                    (!timeline.tableLabel ||
-                      part !== t('activity.part.table', { label: timeline.tableLabel })),
+                    (!tableLabel || part !== t('activity.part.table', { label: tableLabel })),
                 );
                 return (
                   <li key={entry.id} className="yc-tl-step">
@@ -260,7 +293,7 @@ function Timeline({
                       <span>
                         <b>{whoShort(t, entry)}</b>
                         {' · '}
-                        {[actionLabel(t, entry), ...details].join(' · ')}
+                        {[actionLabel(t, entry, locale), ...details].join(' · ')}
                       </span>
                       {note ? (
                         <span className={entry.reason ? 'yc-tl-note is-reason' : 'yc-tl-note'}>
@@ -275,12 +308,12 @@ function Timeline({
           )}
         </section>
 
-        {timeline.subject.type === 'tab' ? (
+        {timeline.subject.type === 'tab' || lines.length > 0 ? (
           <section className="yc-card yc-tl-items" aria-labelledby={itemsId}>
             <h2 id={itemsId} className="yc-h2">
               {t('activity.timeline.items')}
             </h2>
-            {timeline.items.length === 0 ? (
+            {lines.length === 0 ? (
               <p className="yc-muted">{t('activity.timeline.noItems')}</p>
             ) : (
               <div className="yc-tscroll">
@@ -296,77 +329,76 @@ function Timeline({
                     </tr>
                   </thead>
                   <tbody>
-                    {timeline.items.map((item) => (
-                      <tr key={item.lineId} className={item.voided ? 'is-dim' : undefined}>
-                        <td className="yc-wrap">
-                          {item.voided ? (
-                            <>
-                              <s>
-                                {t('activity.timeline.line', {
-                                  count: item.quantity,
-                                  name: item.name,
-                                })}
-                              </s>
-                              <span className="yc-sr"> {t('activity.timeline.voided')}</span>
-                            </>
-                          ) : (
-                            t('activity.timeline.line', { count: item.quantity, name: item.name })
-                          )}
-                          {item.comped ? (
-                            <span className="yc-act-tag is-quiet yc-tl-comp">
-                              {t('activity.timeline.comped')}
-                            </span>
-                          ) : null}
-                        </td>
-                        <td className="yc-wrap">
-                          {item.addedBy
-                            ? shortName(item.addedBy.name)
-                            : t('activity.timeline.guestOrdered')}
-                          {item.voidedBy ? (
-                            <>
-                              {' · '}
-                              <span className="yc-tl-void">
-                                {t('activity.timeline.voidedBy', {
-                                  name: shortName(item.voidedBy.name),
-                                })}
-                              </span>
-                            </>
-                          ) : null}
-                        </td>
-                        <td className="yc-num">
-                          {item.voided ? (
-                            <s>{dram(item.amountAmd, locale)}</s>
-                          ) : (
-                            dram(item.amountAmd, locale)
-                          )}
-                        </td>
-                      </tr>
-                    ))}
+                    {lines.map((line) => {
+                      // A voided line's total is zero: struck through, it shows what it was.
+                      const worth = line.voided
+                        ? line.unitPriceAmd * line.quantity
+                        : line.lineTotalAmd;
+                      return (
+                        <tr key={line.lineId} className={line.voided ? 'is-dim' : undefined}>
+                          <td className="yc-wrap">
+                            {line.voided ? (
+                              <>
+                                <s>
+                                  {t('activity.timeline.line', {
+                                    count: line.quantity,
+                                    name: line.name,
+                                  })}
+                                </s>
+                                <span className="yc-sr"> {t('activity.timeline.voided')}</span>
+                              </>
+                            ) : (
+                              t('activity.timeline.line', { count: line.quantity, name: line.name })
+                            )}
+                          </td>
+                          <td className="yc-wrap">
+                            {line.addedByGuest
+                              ? [t('activity.timeline.guestOrdered'), line.addedBy?.name]
+                                  .filter(Boolean)
+                                  .join(' · ')
+                              : line.addedBy
+                                ? shortName(line.addedBy.name)
+                                : '—'}
+                            {line.voidedBy ? (
+                              <>
+                                {' · '}
+                                <span className="yc-tl-void">
+                                  {t('activity.timeline.voidedBy', {
+                                    name: shortName(line.voidedBy.name),
+                                  })}
+                                </span>
+                              </>
+                            ) : null}
+                          </td>
+                          <td className="yc-num">
+                            {line.voided ? <s>{dram(worth, locale)}</s> : dram(worth, locale)}
+                          </td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
-                  {totals ? (
-                    <tfoot>
-                      <tr className="yc-tl-sum">
-                        <th scope="row" colSpan={2}>
-                          {t('activity.timeline.total')}
-                        </th>
-                        <td className="yc-num">{dram(totals.itemsAmd, locale)}</td>
-                      </tr>
-                    </tfoot>
-                  ) : null}
+                  <tfoot>
+                    <tr className="yc-tl-sum">
+                      <th scope="row" colSpan={2}>
+                        {t('activity.timeline.total')}
+                      </th>
+                      <td className="yc-num">{dram(linesAmd, locale)}</td>
+                    </tr>
+                  </tfoot>
                 </table>
               </div>
             )}
-            {totals && totals.paidAmd > 0 ? (
+            {tab && tab.paidAmd > 0 ? (
               <p className="yc-tl-paid">
                 {[
-                  totals.serviceChargeAmd > 0
+                  tab.serviceChargeAmd > 0
                     ? t('activity.timeline.paidWithService', {
-                        paid: dram(totals.paidAmd, locale),
-                        service: dram(totals.serviceChargeAmd, locale),
+                        paid: dram(tab.paidAmd, locale),
+                        service: dram(tab.serviceChargeAmd, locale),
                       })
-                    : t('activity.timeline.paid', { paid: dram(totals.paidAmd, locale) }),
-                  totals.discountAmd > 0
-                    ? t('activity.timeline.discount', { amount: dram(totals.discountAmd, locale) })
+                    : t('activity.timeline.paid', { paid: dram(tab.paidAmd, locale) }),
+                  adjustmentsAmd > 0
+                    ? t('activity.timeline.discount', { amount: dram(adjustmentsAmd, locale) })
                     : null,
                 ]
                   .filter(Boolean)

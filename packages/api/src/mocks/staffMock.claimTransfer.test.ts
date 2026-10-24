@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { NotFoundError, ValidationError } from '../errors';
+import { transferRefusalOf } from '../contracts/activity';
+import { NotFoundError } from '../errors';
 import { createStaffMockGateway } from './staffMock';
 
 /**
@@ -66,7 +67,7 @@ describe('transferring a table', () => {
     });
   });
 
-  it('refuses the kitchen as a target', async () => {
+  it('refuses the kitchen as a target, as the server does', async () => {
     const { gateway, detail } = await seatedTab();
     const error = await failing(
       gateway.transferTab({
@@ -75,6 +76,7 @@ describe('transferring a table', () => {
         clientCommandId: '22222222-2222-4222-8222-222222222222',
       }),
     );
-    expect(error).toBeInstanceOf(ValidationError);
+    // 422 `transfer-target-ineligible`, `context.reason` `does-not-serve`.
+    expect(transferRefusalOf(error)).toEqual({ kind: 'ineligible', reason: 'does-not-serve' });
   });
 });

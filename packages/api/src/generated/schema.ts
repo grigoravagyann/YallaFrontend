@@ -461,6 +461,82 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/branches/{branchId}/activity": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The History: who did what at the branch, newest first
+         * @description Every recorded action - bookings, tables, orders, money, takeaway, guest messages, settings, the team and devices - with who did it (staff, the guest, or the system), from which device (`deviceLabel`: the tablet's or phone's name, `Console` for the console), and what it was about.
+         *
+         *     Query, all optional: `date` (one branch-local day, `yyyy-MM-dd`) **or** `from`/`to` (inclusive; both default to today) - not both; at most 366 days, and not before today - 1095 (money is kept three years, everything else one). `staffMemberId`: only what this person did. `actorKind`: `staff`, `guest`, `system` (what the system did by itself) or `platform`. `category`: `booking`, `table`, `order`, `payment`, `takeaway`, `message`, `settings`, `staff` or `device`. `q` (at most 60): the table (exact), the guest (contains), a code (`T-482` or `482`, or a booking's), or a dish (contains). `limit` 1 to 100, default 50. `cursor`: the page before's `nextCursor`. A bad value is **422 `validation-failed`** naming each in `context.fields`.
+         *
+         *     Answers `{ items, nextCursor, from, to }`, newest first then by id, so equal instants neither repeat nor skip across pages. Each item: `id`, `occurredAtUtc`, `local` (`yyyy-MM-dd HH:mm` on the branch's clock), `actorKind` (`staff`, `guest`, `system`, `platform`), `staffMemberId`, `actorName`, `deviceId`, `deviceLabel`, `category`, `action` (a stable code - the list is in `docs/activity.md`), `subjectType` and `subjectId` (the detail link: `reservation`, `tab`, `takeaway`, `menu-item`, `staff`, `branch`, `device`, `service-request`, `table`, `table-session`), `subjectCode`, `tableSessionId`, `tableLabel`, `guestName`, `itemNames`, `amountAmd`, `isMoney`, `before`/`after` (what changed, shape per action), `reason` (as typed), `summary` (the parameters to render the line from - never prose) and `seconds` (a call's claim, a reply, a booking decision).
+         *
+         *     Entries that name no branch (an owner's account) are on every branch's feed for the owner, the general manager and the platform, and on none for a branch manager.
+         *
+         *     Manager or above, scoped like the Reviews page: a branch manager reaches their own branch only, the owner and the general manager every branch of their venue, a platform admin any. Waiters and the kitchen: 403.
+         */
+        get: operations["listBranchActivity"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/branches/{branchId}/activity.csv": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The History as CSV, with the same filters
+         * @description The feed's filters (`date` or `from`/`to`, `staffMemberId`, `actorKind`, `category`, `q`) - every entry in the window, newest first; `cursor` and `limit` are ignored. At most 20,000 rows: more is **422 `activity-export-too-large`** with `context.rows` and `context.maxRows` - narrow the dates or filter.
+         *
+         *     The reports' CSV rules: UTF-8 with a byte-order mark (Excel reads Armenian names), RFC 4180 quoting, plain digits, whole dram, branch-local times; and a leading `'` on a text cell that starts with `=`, `+`, `-`, `@`, a tab or a carriage return, because reasons and dish names are typed by staff. Columns: `local`, `actorKind`, `actorName`, `deviceLabel`, `category`, `action`, `subjectType`, `subjectId`, `subjectCode`, `tableLabel`, `guestName`, `items`, `amountAmd`, `isMoney`, `seconds`, `reason`, `before`, `after`, `summary` (the last three JSON).
+         *
+         *     Manager or above, scoped like the Reviews page: a branch manager reaches their own branch only, the owner and the general manager every branch of their venue, a platform admin any. Waiters and the kitchen: 403.
+         */
+        get: operations["exportBranchActivity"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/branches/{branchId}/activity/subjects/{subjectType}/{subjectId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * One bill's, booking's or takeaway order's whole story, oldest first
+         * @description The Check board. `subjectType` `tab`: every entry of the bill's sitting - the seat, orders, the kitchen, voids, discounts, calls claimed, the transfer, payments - with `tab` (the header: table, party, opened/closed, totals, tips, and `servers`, the table's waiters in turn with when each took it) and `lines`, each with who added it (`addedByStaffMemberId`/`addedByName`, or `addedByGuest` and the guest's name), whose sale it was (`serverStaffMemberId`) and who voided it and why. `reservation`: the booking's entries and `booking`. `takeawayOrder` (or `takeaway`): the order's entries, `takeaway` and its `lines`. Any other type (`menu-item`, `staff`, ...): its entries alone. `people` lists who appears, for the filter chips.
+         *
+         *     404 when the subject is not this branch's, or nothing at the branch is recorded about it.
+         *
+         *     Manager or above, scoped like the Reviews page: a branch manager reaches their own branch only, the owner and the general manager every branch of their venue, a platform admin any. Waiters and the kitchen: 403.
+         */
+        get: operations["getActivityTimeline"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/branches/{branchId}/availability": {
         parameters: {
             query?: never;
@@ -511,6 +587,28 @@ export interface paths {
         get: operations["getBranchDaySlots"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/branches/{branchId}/calls/{callId}/claim": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * "I'm on it": claim a call or a bill request
+         * @description No body. Records `claimedByStaffMemberId` and `claimedAtUtc`; **the first claim wins** and a repeat - anybody's - answers with the request as it stands, nothing written. The guest is **not** told, and the request does **not** leave the open list: it stays, showing `claimedByName`, until somebody acknowledges it (`acknowledgeServiceRequest`). One already acknowledged or replaced is answered as it stands. The seconds from the call to the claim are the waiter's response time in Staff → Results, and the claim is logged as `table.call-claimed` (`docs/activity.md`). Acknowledging a request nobody claimed claims it in the same moment.
+         *
+         *     A waiter or above at the branch; a call at another branch is not found.
+         */
+        post: operations["claimServiceRequest"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1496,6 +1594,8 @@ export interface paths {
          * @description Open requests, newest first, with the table label and how long they have been waiting. Newest first because on a busy floor the screen is glanced at, and the thing that just came in is the one nobody has walked to yet.
          *
          *     A request for the bill from the diner's pay sheet carries `billScope`, `billAmountAmd`, `tipPercent` and `tipAmd`: the amount to bring, priced when the diner asked, and the tip to expect on top of it - what the cash keypad opens with. One the same diner has since replaced with a newer request for the bill is not listed: the newer one is what to bring.
+         *
+         *     A claimed request (`claimServiceRequest`, "I'm on it") stays listed until acknowledged, with `claimedAtUtc`, `claimedByStaffMemberId` and `claimedByName` - so every tablet shows who has it.
          */
         get: operations["getOpenServiceRequests"];
         put?: never;
@@ -1564,6 +1664,56 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/branches/{branchId}/staff-performance": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Staff → Results: everybody's numbers over the dates, and the branch's
+         * @description Query: `from`, `to` - branch-local dates, inclusive; `from` defaults to `to`, `to` to today; at most 366 days. Bad values: 422 `validation-failed`.
+         *
+         *     **Whose a sale is.** A bill counts when it closes, as the revenue report counts it, and is split over the table's waiters in the proportion of the lines ordered while the table was theirs: a transfer moves what comes after it and leaves what came before. Tips are the waiter's whose table it was when paid; cash is whoever took it (the takeaway counter's included). A table and its guests count for each waiter with a share of the bill or holding it at the close.
+         *
+         *     Each row: `staffMemberId`, `name`, `role`, `isActive`, `tables`, `guests`, `salesAmd`, `averageCheckAmd`, `tipsAmd`, `callsClaimed` and `callClaimMedianSeconds` (call to "I'm on it"), `messagesAnswered` and `messageReplyMedianSeconds` (guest text to the first venue reply), `approvals`, `declines`, `cashAmd`, `cashPayments`, `discounts`, `comps`, `adjustmentsAmd`, `voids`. Medians are of whole seconds - the mean of the middle two for an even count, rounded half up; absent with none. Rows: everybody with anything in the window, and every active waiter and manager of the branch with nothing.
+         *
+         *     `totals` counts the branch once (a transferred table is one table; the medians are over every claim and reply). **Its money is the revenue report's for the same dates**: `salesAmd` = `hallAmd`, `tables` = `tabs`, `averageCheckAmd` = `averageTabAmd`, `cashAmd` = `cashAmd`, `takeawayAmd` = `takeawayAmd`, `adjustmentsAmd` = `adjustmentsTotalAmd`; `unattributedSalesAmd` is the part no waiter held.
+         *
+         *     Manager or above, scoped like the Reviews page: a branch manager reaches their own branch only, the owner and the general manager every branch of their venue, a platform admin any. Waiters and the kitchen: 403.
+         */
+        get: operations["getStaffPerformance"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/branches/{branchId}/staff-performance.csv": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Staff → Results as CSV
+         * @description The same `from`/`to` and the same numbers: one row per person, then a `totals` row. The reports' CSV rules (byte-order mark, RFC 4180, whole dram, plain digits; an empty cell for a median with nothing to take one of). Columns: `staffMemberId`, `name`, `role`, `tables`, `guests`, `salesAmd`, `averageCheckAmd`, `tipsAmd`, `callsClaimed`, `callClaimMedianSeconds`, `messagesAnswered`, `messageReplyMedianSeconds`, `approvals`, `declines`, `cashAmd`, `cashPayments`, `discounts`, `comps`, `adjustmentsAmd`, `voids`.
+         *
+         *     Manager or above, scoped like the Reviews page: a branch manager reaches their own branch only, the owner and the general manager every branch of their venue, a platform admin any. Waiters and the kitchen: 403.
+         */
+        get: operations["exportStaffPerformance"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/branches/{branchId}/staff/{staffMemberId}/clear-pin-lockout": {
         parameters: {
             query?: never;
@@ -1578,6 +1728,32 @@ export interface paths {
          * @description The path that actually gets used mid-service. A waiter who fat-fingered their PIN during a rush cannot be made to wait out a timer, so a manager clears it.
          */
         post: operations["clearStaffPinLockout"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/branches/{branchId}/staff/{staffMemberId}/performance": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * One person's page: their numbers, sales by day, and their recent work
+         * @description Query: `from`, `to` as Staff → Results; `list` - `orders` (default: orders sent, pre-orders sent, voids, discounts, comps, bills closed in cash), `messages` (replies and "are you coming?"), `bookings` (approved, declined, seated, no-show), `cash` (cash at tables and the takeaway counter) or `calls` (calls claimed); `limit` 1 to 100, default 50; `cursor` the page before's `recent.nextCursor`.
+         *
+         *     Answers `{ branchId, from, to, kpis, dailySales, recent }`: `kpis` is their row as on Staff → Results (zeros when they did nothing); `dailySales` one `{ date, salesAmd, tables }` per day from six days before `to` (or `from`, when earlier) to `to`; `recent` `{ list, items, nextCursor }` - History entries, newest first, with `seconds` where the action measures it.
+         *
+         *     404 when the person does not work at this venue.
+         *
+         *     Manager or above, scoped like the Reviews page: a branch manager reaches their own branch only, the owner and the general manager every branch of their venue, a platform admin any. Waiters and the kitchen: 403.
+         */
+        get: operations["getStaffMemberPerformance"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -3830,8 +4006,32 @@ export interface paths {
         /**
          * A waiter has seen it
          * @description Acknowledging one twice is a no-op rather than an error: two waiters tapping the same request is the normal case, and both seeing it is what the table wanted.
+         *
+         *     The first acknowledgement stands (`acknowledgedByStaffMemberId`, `acknowledgedByName`). One nobody claimed (`claimServiceRequest`) is claimed by the same tap: that is then the response time (`docs/activity.md`).
          */
         post: operations["acknowledgeServiceRequest"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/staff/me/performance": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * My results: the caller's own numbers
+         * @description The same answer as `getStaffMemberPerformance`, for the person signed in - a waiter from the tablet or their phone, a manager from the console. At their home branch; an owner or general manager, who has none, says which with `branchId` (one of their venue's - another venue's or another branch than their own is 403). Nobody else's numbers are reachable from here.
+         *
+         *     A waiter or above, by the stored row: the kitchen and the platform are 403.
+         */
+        get: operations["getMyPerformance"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -4404,6 +4604,30 @@ export interface paths {
          *     **A shared line has no owner.** `isShared` splits the line across everyone present whatever `onBehalfOfParticipantId` says, as it always did; a line that is `isShared` **and** names a `participantId` contradicts itself and is refused. Every refusal refuses the whole send.
          */
         post: operations["placeOrderAsStaff"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/tabs/{tabId}/transfer": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Hand the table to another waiter, from now on
+         * @description Body `{ toStaffMemberId, clientCommandId? }`. Answers `{ tabId, serverStaffMemberId, serverName, previousServerStaffMemberId, previousServerName, transferredAtUtc, tableSessionId, tableLabel, wasReplay }`. The bill, its calls and messages are the new waiter's from this moment; what was done before stays with whoever did it - each order and payment keeps the waiter it was taken under, so the sales and tips before the hand-over stay the earlier waiter's.
+         *
+         *     Allowed for the table's waiter, or a manager or above at the branch (stored roles) - anybody else 403. The target: active staff of this venue at this branch (or venue-wide), who serves - a waiter, manager, general manager or owner, never the kitchen; otherwise **422 `transfer-target-ineligible`** with `context.staffMemberId` and `context.reason` (`not-found`, `inactive`, `other-branch`, `does-not-serve`). A bill closed or written off, or a party gone: **409 `tab-not-transferable`** (`context.tabId`, `context.status`). Already theirs: 200 with `wasReplay` true, nothing written.
+         *
+         *     Logged as `table.transferred`, and a `TableTransferred` (7) signal on the branch's change stream so every tablet re-reads the floor - whose `serverStaffMemberId`/`serverName` moved.
+         */
+        post: operations["transferTable"];
         delete?: never;
         options?: never;
         head?: never;
@@ -5785,6 +6009,20 @@ export interface components {
              */
             prepMinutes: number;
         };
+        /** @description Body of `POST /api/tabs/{tabId}/transfer`. */
+        "Yalla.Api.Endpoints.TransferTableRequest": {
+            /**
+             * Format: uuid
+             * @description Optional, accepted for the tablet's offline queue. A transfer is idempotent by what it asks - a second one to the same
+             *     waiter answers as done - so the id is not needed to make a retry safe.
+             */
+            clientCommandId?: string | null;
+            /**
+             * Format: uuid
+             * @description The waiter taking the table. Required.
+             */
+            toStaffMemberId: string;
+        };
         /** @description Body of `POST /api/reservations/{id}/undo-no-show`. */
         "Yalla.Api.Endpoints.UndoNoShowRequest": {
             /**
@@ -6835,6 +7073,608 @@ export interface components {
             traceId: string;
             /** @description A URI naming the problem type, built from Yalla.Api.Errors.ProblemShape.Code. */
             type: string;
+        };
+        /** @description One entry of the History, as the console renders it. */
+        "Yalla.Application.Activity.ActivityItem": {
+            /** @description The stable code - see `docs/activity.md`. */
+            action: string;
+            /** @description `staff`, `guest`, `system` or `platform`. */
+            actorKind: string;
+            /** @description Their name then - staff's, or the guest's; absent for the system. */
+            actorName?: string | null;
+            /** @description What it became. */
+            after?: unknown;
+            /**
+             * Format: int64
+             * @description The amount it is about.
+             */
+            amountAmd?: number | null;
+            /** @description What it was, for a change - shape per action. */
+            before?: unknown;
+            /** @description The filter word. */
+            category: string;
+            /**
+             * Format: uuid
+             * @description The tablet or phone it came from; absent from the console.
+             */
+            deviceId?: string | null;
+            /** @description That device's name then, or `Console`; absent for the guest and the system. */
+            deviceLabel?: string | null;
+            /** @description The guest. */
+            guestName?: string | null;
+            /**
+             * Format: uuid
+             * @description The entry.
+             */
+            id: string;
+            /** @description About money (kept three years). */
+            isMoney: boolean;
+            /** @description The dishes it names, comma-joined. */
+            itemNames?: string | null;
+            /** @description The same instant on the branch's clock, `yyyy-MM-dd HH:mm`. */
+            local: string;
+            /**
+             * Format: date-time
+             * @description When.
+             */
+            occurredAtUtc: string;
+            /** @description Why, as somebody typed it. */
+            reason?: string | null;
+            /**
+             * Format: int32
+             * @description How long it took, when the action measures it: a call's claim from the call, a reply from the guest's text, a
+             *     booking's decision from its request.
+             */
+            seconds?: number | null;
+            /**
+             * Format: uuid
+             * @description Who, when staff.
+             */
+            staffMemberId?: string | null;
+            /** @description Its short code: `T-482`, a booking's code. */
+            subjectCode?: string | null;
+            /**
+             * Format: uuid
+             * @description Its id - the detail link.
+             */
+            subjectId: string;
+            /** @description What it was done to: `reservation`, `tab`, `takeaway`, `menu-item`... */
+            subjectType: string;
+            /** @description The parameters to render the line from - shape per action, see `docs/activity.md`. */
+            summary: unknown;
+            /** @description The table, as it was called then. */
+            tableLabel?: string | null;
+            /**
+             * Format: uuid
+             * @description The sitting it belongs to - the bill's timeline.
+             */
+            tableSessionId?: string | null;
+        };
+        /** @description A page of the History, newest first. */
+        "Yalla.Application.Activity.ActivityPage": {
+            /**
+             * Format: date
+             * @description The first date read, the default filled in.
+             */
+            from: string;
+            /** @description This page. */
+            items: components["schemas"]["Yalla.Application.Activity.ActivityItem"][];
+            /** @description Pass back as `cursor`; absent on the last page. */
+            nextCursor?: string | null;
+            /**
+             * Format: date
+             * @description The last, inclusive.
+             */
+            to: string;
+        };
+        /** @description Somebody on a timeline, for its filter chips. */
+        "Yalla.Application.Activity.ActivityPerson": {
+            name: string;
+            /** Format: uuid */
+            staffMemberId: string;
+        };
+        /**
+         * @description Everything that happened to one bill, booking or takeaway order, oldest first - the Check board - with the bill's
+         *     lines and who added and voided each. Exactly one header is present for those three subjects; any other subject has
+         *     its entries and no header.
+         */
+        "Yalla.Application.Activity.ActivityTimeline": {
+            /** @description A booking's header on its timeline. */
+            booking?: components["schemas"]["Yalla.Application.Activity.BookingTimelineHeader"] | null;
+            entries: components["schemas"]["Yalla.Application.Activity.ActivityItem"][];
+            lines: components["schemas"]["Yalla.Application.Activity.TimelineLine"][];
+            people: components["schemas"]["Yalla.Application.Activity.ActivityPerson"][];
+            /** Format: uuid */
+            subjectId: string;
+            subjectType: string;
+            /** @description A bill's header on its timeline. */
+            tab?: components["schemas"]["Yalla.Application.Activity.TabTimelineHeader"] | null;
+            /** @description A takeaway order's header on its timeline. */
+            takeaway?: components["schemas"]["Yalla.Application.Activity.TakeawayTimelineHeader"] | null;
+        };
+        /** @description A booking's header on its timeline. */
+        "Yalla.Application.Activity.BookingTimelineHeader": {
+            code: string;
+            guestName: string;
+            localDate: string;
+            localTime: string;
+            /** Format: int32 */
+            partySize: number;
+            /** Format: uuid */
+            reservationId: string;
+            /** Format: int32 */
+            status: number;
+            /** Format: uuid */
+            tabId?: string | null;
+            tableLabel: string;
+        };
+        /** @description A day's sales on a person's chart. */
+        "Yalla.Application.Activity.DailySales": {
+            /** Format: date */
+            date: string;
+            /** Format: int64 */
+            salesAmd: number;
+            /** Format: int32 */
+            tables: number;
+        };
+        /** @description One person's page: their numbers, a day-by-day chart, and their recent work. */
+        "Yalla.Application.Activity.PersonPerformance": {
+            /**
+             * Format: uuid
+             * @description The branch read.
+             */
+            branchId: string;
+            /** @description One entry per local date from six days before `to` (or `from`, when earlier) to `to`, zero days included. */
+            dailySales: components["schemas"]["Yalla.Application.Activity.DailySales"][];
+            /**
+             * Format: date
+             * @description The first date.
+             */
+            from: string;
+            /** @description Their row, as on Staff → Results. */
+            kpis: components["schemas"]["Yalla.Application.Activity.StaffPerformanceRow"];
+            /** @description The list asked for. */
+            recent: components["schemas"]["Yalla.Application.Activity.RecentPage"];
+            /**
+             * Format: date
+             * @description The last, inclusive.
+             */
+            to: string;
+        };
+        /** @description A page of one of a person's recent lists, newest first. */
+        "Yalla.Application.Activity.RecentPage": {
+            /** @description This page - History entries, with `seconds` where the action measures it. */
+            items: components["schemas"]["Yalla.Application.Activity.ActivityItem"][];
+            /** @description `orders`, `messages`, `bookings`, `cash` or `calls`. */
+            list: string;
+            /** @description Pass back as `cursor`; absent on the last page. */
+            nextCursor?: string | null;
+        };
+        /** @description Staff → Results: everybody's numbers over the window, and the branch's. */
+        "Yalla.Application.Activity.StaffPerformanceReport": {
+            /**
+             * Format: uuid
+             * @description The branch.
+             */
+            branchId: string;
+            /**
+             * Format: date
+             * @description The first date.
+             */
+            from: string;
+            /** @description One row per person with anything in the window, and every active waiter and manager of the branch. */
+            staff: components["schemas"]["Yalla.Application.Activity.StaffPerformanceRow"][];
+            /**
+             * Format: date
+             * @description The last, inclusive.
+             */
+            to: string;
+            /** @description The branch's, counted once. */
+            totals: components["schemas"]["Yalla.Application.Activity.StaffPerformanceTotals"];
+        };
+        /**
+         * @description One person's numbers over a window. Sales, guests, tables and tips are the table's waiter's: a sale is theirs from
+         *     the order placed while the table was theirs, so a transfer moves what comes after and leaves what came before. See
+         *     `docs/activity.md`.
+         */
+        "Yalla.Application.Activity.StaffPerformanceRow": {
+            /**
+             * Format: int64
+             * @description What those took off, as the bills charged it.
+             */
+            adjustmentsAmd: number;
+            /**
+             * Format: int32
+             * @description Bookings they approved.
+             */
+            approvals: number;
+            /**
+             * Format: int64
+             * @description Sales over tables, rounded; 0 with no tables.
+             */
+            averageCheckAmd: number;
+            /**
+             * Format: int32
+             * @description The median seconds from the call to their claim; absent with none.
+             */
+            callClaimMedianSeconds?: number | null;
+            /**
+             * Format: int32
+             * @description Calls and bill requests they claimed ("I'm on it").
+             */
+            callsClaimed: number;
+            /**
+             * Format: int64
+             * @description Cash they took: on bills that closed in the window, and at the takeaway counter.
+             */
+            cashAmd: number;
+            /**
+             * Format: int32
+             * @description How many cash payments that was.
+             */
+            cashPayments: number;
+            /**
+             * Format: int32
+             * @description Comps they gave, still standing.
+             */
+            comps: number;
+            /**
+             * Format: int32
+             * @description Bookings they declined.
+             */
+            declines: number;
+            /**
+             * Format: int32
+             * @description Discounts they gave, still standing.
+             */
+            discounts: number;
+            /**
+             * Format: int64
+             * @description Those bills' party sizes.
+             */
+            guests: number;
+            /** @description Still works here. */
+            isActive: boolean;
+            /**
+             * Format: int32
+             * @description The median seconds from the guest's text to their reply; absent with none.
+             */
+            messageReplyMedianSeconds?: number | null;
+            /**
+             * Format: int32
+             * @description Guest texts they answered first.
+             */
+            messagesAnswered: number;
+            /** @description Their name now. */
+            name: string;
+            /** @description What a staff member is allowed to do, coarsely. Authorisation itself is a later task. */
+            role: components["schemas"]["Yalla.Domain.Enums.StaffRole"];
+            /**
+             * Format: int64
+             * @description Their share of those bills' totals, service charge included - whole dram, in the proportion of the lines ordered while the table was theirs.
+             */
+            salesAmd: number;
+            /**
+             * Format: uuid
+             * @description The person.
+             */
+            staffMemberId: string;
+            /**
+             * Format: int32
+             * @description Closed bills in the window with a share of their sale theirs, or that were theirs at the close.
+             */
+            tables: number;
+            /**
+             * Format: int64
+             * @description Tips on payments taken while the table was theirs.
+             */
+            tipsAmd: number;
+            /**
+             * Format: int32
+             * @description Lines they voided.
+             */
+            voids: number;
+        };
+        /**
+         * @description The branch's totals over the window - counted once, not summed from the rows: a transferred table is one table, and a
+         *     median of everyone is not the sum of medians. The money matches the revenue report for the same dates.
+         */
+        "Yalla.Application.Activity.StaffPerformanceTotals": {
+            /**
+             * Format: int64
+             * @description The revenue report's `adjustmentsTotalAmd`.
+             */
+            adjustmentsAmd: number;
+            /**
+             * Format: int32
+             * @description Bookings approved by staff.
+             */
+            approvals: number;
+            /**
+             * Format: int64
+             * @description The revenue report's `averageTabAmd`.
+             */
+            averageCheckAmd: number;
+            /**
+             * Format: int32
+             * @description The median over every claim.
+             */
+            callClaimMedianSeconds?: number | null;
+            /**
+             * Format: int32
+             * @description Calls claimed.
+             */
+            callsClaimed: number;
+            /**
+             * Format: int64
+             * @description All cash - the revenue report's `cashAmd`.
+             */
+            cashAmd: number;
+            /**
+             * Format: int32
+             * @description Cash payments.
+             */
+            cashPayments: number;
+            /**
+             * Format: int32
+             * @description Comps standing.
+             */
+            comps: number;
+            /**
+             * Format: int32
+             * @description Bookings declined by staff.
+             */
+            declines: number;
+            /**
+             * Format: int32
+             * @description Discounts standing.
+             */
+            discounts: number;
+            /**
+             * Format: int64
+             * @description Their party sizes.
+             */
+            guests: number;
+            /**
+             * Format: int32
+             * @description The median over every reply.
+             */
+            messageReplyMedianSeconds?: number | null;
+            /**
+             * Format: int32
+             * @description Guest texts answered.
+             */
+            messagesAnswered: number;
+            /**
+             * Format: int64
+             * @description Their totals - the revenue report's `hallAmd`.
+             */
+            salesAmd: number;
+            /**
+             * Format: int32
+             * @description Closed bills - the revenue report's `tabs`.
+             */
+            tables: number;
+            /**
+             * Format: int64
+             * @description Takeaway collected - the revenue report's `takeawayAmd`; nobody's sale.
+             */
+            takeawayAmd: number;
+            /**
+             * Format: int64
+             * @description All tips on those bills.
+             */
+            tipsAmd: number;
+            /**
+             * Format: int64
+             * @description The part of that no waiter held: a table nobody on staff served.
+             */
+            unattributedSalesAmd: number;
+            /**
+             * Format: int32
+             * @description Lines voided.
+             */
+            voids: number;
+        };
+        /** @description A table handed over. */
+        "Yalla.Application.Activity.TableTransferResult": {
+            /** @description Their name. */
+            previousServerName?: string | null;
+            /**
+             * Format: uuid
+             * @description Whose it was; absent when nobody served it.
+             */
+            previousServerStaffMemberId?: string | null;
+            /** @description Their name. */
+            serverName: string;
+            /**
+             * Format: uuid
+             * @description Whose it is now.
+             */
+            serverStaffMemberId: string;
+            /**
+             * Format: uuid
+             * @description The tab.
+             */
+            tabId: string;
+            /** @description The table. */
+            tableLabel: string;
+            /**
+             * Format: uuid
+             * @description The sitting, which carries the waiter.
+             */
+            tableSessionId: string;
+            /**
+             * Format: date-time
+             * @description From when - what came before stays with the earlier waiter.
+             */
+            transferredAtUtc: string;
+            /** @description Already theirs: answered as done, nothing written. */
+            wasReplay: boolean;
+        };
+        /** @description A bill's header on its timeline. */
+        "Yalla.Application.Activity.TabTimelineHeader": {
+            /**
+             * Format: date-time
+             * @description When it closed; absent while open.
+             */
+            closedAtUtc?: string | null;
+            /**
+             * Format: date-time
+             * @description When the tab opened.
+             */
+            openedAtUtc: string;
+            /**
+             * Format: int64
+             * @description Paid so far.
+             */
+            paidAmd: number;
+            /**
+             * Format: int32
+             * @description How many sat.
+             */
+            partySize: number;
+            /**
+             * Format: date-time
+             * @description When the party sat - before the tab, often.
+             */
+            seatedAtUtc: string;
+            /** @description The table's waiters in turn: who took it from when - the first from the seat, each transfer after. */
+            servers: components["schemas"]["Yalla.Application.Activity.TimelineServer"][];
+            /**
+             * Format: int64
+             * @description The service charge.
+             */
+            serviceChargeAmd: number;
+            /**
+             * Format: int32
+             * @description 1 Open, 2 Closing, 3 Closed, 4 Abandoned.
+             */
+            status: number;
+            /**
+             * Format: int64
+             * @description The lines, less adjustments.
+             */
+            subtotalAmd: number;
+            /**
+             * Format: uuid
+             * @description The tab.
+             */
+            tabId: string;
+            /** @description The table. */
+            tableLabel: string;
+            /**
+             * Format: uuid
+             * @description Its sitting.
+             */
+            tableSessionId: string;
+            /**
+             * Format: int64
+             * @description Tips on its payments, outside the bill.
+             */
+            tipsAmd: number;
+            /**
+             * Format: int64
+             * @description What the bill came to - the reports' figure for it.
+             */
+            totalAmd: number;
+        };
+        /** @description A takeaway order's header on its timeline. */
+        "Yalla.Application.Activity.TakeawayTimelineHeader": {
+            code: string;
+            /** Format: date-time */
+            collectedAtUtc?: string | null;
+            /** Format: date-time */
+            createdAtUtc: string;
+            guestName: string;
+            /** Format: uuid */
+            orderId: string;
+            /** Format: int64 */
+            paidAmd?: number | null;
+            /** Format: int32 */
+            paymentMethod?: number | null;
+            /** Format: int32 */
+            status: number;
+            /** Format: int64 */
+            totalAmd: number;
+        };
+        /** @description A line on a bill with who did what to it. */
+        "Yalla.Application.Activity.TimelineLine": {
+            /**
+             * Format: date-time
+             * @description When the order went in.
+             */
+            addedAtUtc: string;
+            /** @description A guest ordered it from their phone. */
+            addedByGuest: boolean;
+            /** @description That waiter's name, or the guest's display name. */
+            addedByName?: string | null;
+            /**
+             * Format: uuid
+             * @description The waiter who keyed it; absent for a guest's phone.
+             */
+            addedByStaffMemberId?: string | null;
+            /**
+             * Format: uuid
+             * @description The line.
+             */
+            lineId: string;
+            /**
+             * Format: int64
+             * @description Quantity times price - zero once voided.
+             */
+            lineTotalAmd: number;
+            /** @description The dish, as ordered. */
+            name: string;
+            /**
+             * Format: uuid
+             * @description Its order.
+             */
+            orderId: string;
+            /**
+             * Format: int32
+             * @description How many.
+             */
+            quantity: number;
+            /**
+             * Format: uuid
+             * @description The table's waiter when it was ordered - whose sale it is.
+             */
+            serverStaffMemberId?: string | null;
+            /**
+             * Format: int64
+             * @description At the price then.
+             */
+            unitPriceAmd: number;
+            /**
+             * Format: date-time
+             * @description When it was voided.
+             */
+            voidedAtUtc?: string | null;
+            /** @description Their name. */
+            voidedByName?: string | null;
+            /**
+             * Format: uuid
+             * @description Who voided it.
+             */
+            voidedByStaffMemberId?: string | null;
+            /** @description Why. */
+            voidReason?: string | null;
+        };
+        /** @description A waiter's turn at a table. */
+        "Yalla.Application.Activity.TimelineServer": {
+            /**
+             * Format: date-time
+             * @description When they took it.
+             */
+            fromUtc: string;
+            /** @description Their name as stored now. */
+            name: string;
+            /**
+             * Format: uuid
+             * @description The waiter.
+             */
+            staffMemberId: string;
         };
         /** @description A one-time code a manager reads out to a tablet being enrolled. */
         "Yalla.Application.Auth.DeviceEnrolmentCodeResult": {
@@ -8381,6 +9221,14 @@ export interface components {
             seatedAtUtc?: string | null;
             /** Format: int32 */
             seats: number;
+            /** @description That waiter's name as stored now. */
+            serverName?: string | null;
+            /**
+             * Format: uuid
+             * @description The waiter whose table this is - who seated it or opened its tab, or the first to order on it, until a transfer
+             *     (`POST /api/tabs/{tabId}/transfer`). Absent with nobody seated, or nobody on staff serving yet.
+             */
+            serverStaffMemberId?: string | null;
             /**
              * @description The guest record of the party sitting here now, when they were seated against a booking a proved account
              *     made. Absent for a walk-in, a scan, or nobody.
@@ -9522,6 +10370,13 @@ export interface components {
              * @description When a waiter picked it up, if they have.
              */
             acknowledgedAtUtc?: string | null;
+            /** @description That waiter's name as stored now. Absent with the id. */
+            acknowledgedByName?: string | null;
+            /**
+             * Format: uuid
+             * @description Who acknowledged it. Absent while nobody has.
+             */
+            acknowledgedByStaffMemberId?: string | null;
             /**
              * Format: int64
              * @description What that scope left to pay when the diner asked, in whole dram - service charge included, tip
@@ -9534,6 +10389,18 @@ export interface components {
              *     request.
              */
             billScope?: components["schemas"]["Yalla.Domain.Enums.BillScope"] | null;
+            /**
+             * Format: date-time
+             * @description When a waiter said "I'm on it" (`claimServiceRequest`); absent while nobody has.
+             */
+            claimedAtUtc?: string | null;
+            /** @description Their name as stored now, for "Aram is on it". */
+            claimedByName?: string | null;
+            /**
+             * Format: uuid
+             * @description Who - the first to claim it.
+             */
+            claimedByStaffMemberId?: string | null;
             /**
              * Format: date-time
              * @description When.
@@ -14249,10 +15116,10 @@ export interface components {
          * @description What a branch change-stream entry signals beyond the table's status, when it is about the tab on the
          *     table rather than the table itself. Persisted as its number on `TableStateChanges.Signal`.
          *
-         *     Values: 1 TabAwaitingAdmission, 2 TabAdmitted, 3 TabAdmissionRejected, 4 BookingCancelledByBlock, 5 BookingChanged, 6 PreOrderChanged.
+         *     Values: 1 TabAwaitingAdmission, 2 TabAdmitted, 3 TabAdmissionRejected, 4 BookingCancelledByBlock, 5 BookingChanged, 6 PreOrderChanged, 7 TableTransferred.
          * @enum {integer}
          */
-        "Yalla.Domain.Enums.TableChangeSignal": 1 | 2 | 3 | 4 | 5 | 6;
+        "Yalla.Domain.Enums.TableChangeSignal": 1 | 2 | 3 | 4 | 5 | 6 | 7;
         /**
          * Format: int32
          * @description How a party came to occupy a table.
@@ -15765,6 +16632,272 @@ export interface operations {
             };
         };
     };
+    listBranchActivity: {
+        parameters: {
+            query?: {
+                actorKind?: string;
+                category?: string;
+                cursor?: string;
+                date?: string;
+                from?: string;
+                limit?: string;
+                q?: string;
+                staffMemberId?: string;
+                to?: string;
+            };
+            header?: never;
+            path: {
+                branchId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Yalla.Application.Activity.ActivityPage"];
+                };
+            };
+            /** @description The request violated a domain rule or arrived malformed. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description No usable token was presented, or the one presented was rejected. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description `forbidden`: not a manager or above at this branch. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description No such branch. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description A bad query value; `context.fields` names each. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.ValidationFailedProblem"];
+                };
+            };
+            /** @description Too many requests in the window, or a one-time credential is out of attempts. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description Unexpected failure. Quote the traceId from the body. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+        };
+    };
+    exportBranchActivity: {
+        parameters: {
+            query?: {
+                actorKind?: string;
+                category?: string;
+                date?: string;
+                from?: string;
+                q?: string;
+                staffMemberId?: string;
+                to?: string;
+            };
+            header?: never;
+            path: {
+                branchId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/csv": string;
+                };
+            };
+            /** @description The request violated a domain rule or arrived malformed. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description No usable token was presented, or the one presented was rejected. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description `forbidden`: not a manager or above at this branch. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description No such branch. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description A bad query value (`validation-failed`, `context.fields`), or `activity-export-too-large`. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.ValidationFailedProblem"];
+                };
+            };
+            /** @description Too many requests in the window, or a one-time credential is out of attempts. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description Unexpected failure. Quote the traceId from the body. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+        };
+    };
+    getActivityTimeline: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                branchId: string;
+                subjectId: string;
+                subjectType: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Yalla.Application.Activity.ActivityTimeline"];
+                };
+            };
+            /** @description The request violated a domain rule or arrived malformed. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description No usable token was presented, or the one presented was rejected. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description `forbidden`: not a manager or above at this branch. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description No such subject at this branch. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description Too many requests in the window, or a one-time credential is out of attempts. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description Unexpected failure. Quote the traceId from the body. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+        };
+    };
     getBranchAvailability: {
         parameters: {
             query?: {
@@ -15907,6 +17040,83 @@ export interface operations {
                 };
             };
             /** @description Too many availability queries from this address. Generous but finite - the endpoint is anonymous and a phone will poll it. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description Unexpected failure. Quote the traceId from the body. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+        };
+    };
+    claimServiceRequest: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                branchId: string;
+                callId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Yalla.Application.Ordering.ServiceRequestView"];
+                };
+            };
+            /** @description The request violated a domain rule or arrived malformed. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description No usable token was presented, or the one presented was rejected. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description Not staff at this branch. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description No such call at this branch. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description Too many requests in the window, or a one-time credential is out of attempts. */
             429: {
                 headers: {
                     [name: string]: unknown;
@@ -20555,6 +21765,182 @@ export interface operations {
             };
         };
     };
+    getStaffPerformance: {
+        parameters: {
+            query?: {
+                from?: string;
+                to?: string;
+            };
+            header?: never;
+            path: {
+                branchId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Yalla.Application.Activity.StaffPerformanceReport"];
+                };
+            };
+            /** @description The request violated a domain rule or arrived malformed. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description No usable token was presented, or the one presented was rejected. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description `forbidden`: not a manager or above at this branch. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description No such branch. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description A bad query value; `context.fields` names each. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.ValidationFailedProblem"];
+                };
+            };
+            /** @description Too many requests in the window, or a one-time credential is out of attempts. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description Unexpected failure. Quote the traceId from the body. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+        };
+    };
+    exportStaffPerformance: {
+        parameters: {
+            query?: {
+                from?: string;
+                to?: string;
+            };
+            header?: never;
+            path: {
+                branchId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/csv": string;
+                };
+            };
+            /** @description The request violated a domain rule or arrived malformed. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description No usable token was presented, or the one presented was rejected. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description `forbidden`: not a manager or above at this branch. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description No such branch. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description A bad query value; `context.fields` names each. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.ValidationFailedProblem"];
+                };
+            };
+            /** @description Too many requests in the window, or a one-time credential is out of attempts. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description Unexpected failure. Quote the traceId from the body. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+        };
+    };
     clearStaffPinLockout: {
         parameters: {
             query?: never;
@@ -20608,6 +21994,98 @@ export interface operations {
                 };
                 content: {
                     "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description Too many requests in the window, or a one-time credential is out of attempts. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description Unexpected failure. Quote the traceId from the body. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+        };
+    };
+    getStaffMemberPerformance: {
+        parameters: {
+            query?: {
+                cursor?: string;
+                from?: string;
+                limit?: string;
+                list?: string;
+                to?: string;
+            };
+            header?: never;
+            path: {
+                branchId: string;
+                staffMemberId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Yalla.Application.Activity.PersonPerformance"];
+                };
+            };
+            /** @description The request violated a domain rule or arrived malformed. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description No usable token was presented, or the one presented was rejected. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description `forbidden`: not a manager or above at this branch. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description No such branch, or nobody by that id at this venue. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description A bad query value; `context.fields` names each. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.ValidationFailedProblem"];
                 };
             };
             /** @description Too many requests in the window, or a one-time credential is out of attempts. */
@@ -29910,6 +31388,96 @@ export interface operations {
             };
         };
     };
+    getMyPerformance: {
+        parameters: {
+            query?: {
+                branchId?: string;
+                cursor?: string;
+                from?: string;
+                limit?: string;
+                list?: string;
+                to?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Yalla.Application.Activity.PersonPerformance"];
+                };
+            };
+            /** @description The request violated a domain rule or arrived malformed. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description No usable token was presented, or the one presented was rejected. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description `forbidden`: the kitchen, the platform, or a branch not theirs. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description No such branch. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description A bad query value, or `branchId` missing for somebody venue-wide. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.ValidationFailedProblem"];
+                };
+            };
+            /** @description Too many requests in the window, or a one-time credential is out of attempts. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description Unexpected failure. Quote the traceId from the body. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+        };
+    };
     voidTabAdjustment: {
         parameters: {
             query?: never;
@@ -31884,6 +33452,104 @@ export interface operations {
                 };
                 content: {
                     "application/problem+json": components["schemas"]["Yalla.Api.Errors.NamedGuestRefusedProblem"] | components["schemas"]["Yalla.Api.Errors.MenuItemUnavailableProblem"] | components["schemas"]["Yalla.Api.Errors.TabNotAcceptingOrdersProblem"];
+                };
+            };
+            /** @description Too many requests in the window, or a one-time credential is out of attempts. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description Unexpected failure. Quote the traceId from the body. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+        };
+    };
+    transferTable: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                tabId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["Yalla.Api.Endpoints.TransferTableRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Yalla.Application.Activity.TableTransferResult"];
+                };
+            };
+            /** @description The request violated a domain rule or arrived malformed. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description No usable token was presented, or the one presented was rejected. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description `forbidden`: not the table's waiter nor a manager here. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description No such tab. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description `tab-not-transferable`: the sitting is over. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description `transfer-target-ineligible` (`context.reason`), or `toStaffMemberId` missing (`validation-failed`). */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.ValidationFailedProblem"];
                 };
             };
             /** @description Too many requests in the window, or a one-time credential is out of attempts. */

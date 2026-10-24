@@ -1,4 +1,4 @@
-import { serviceRequestClaimFromWire, type WireServiceRequestClaim } from './activityMapping';
+import { serviceRequestClaimFromWire } from './activityMapping';
 import type { components } from '../generated/schema';
 import { admissionFromWire, floorChangeSignal } from './admissionMapping';
 import { guestRecordFromWire } from './guestRecordMapping';
@@ -309,22 +309,21 @@ export function staffFloorDetails(state: FloorState): readonly StaffTableDetail[
       // thread and the sitting party's — only when there are some.
       ...tableUnreadMessagesFromWire(table),
       // Table ownership (2026-10-24): the waiter whose table it is, when one is.
-      ...tableServerFromWire(table as WireTableServer),
+      ...tableServerFromWire(table),
     }),
   );
 }
 
 /**
- * The table's waiter on the floor read (2026-10-24), hand-written until the
- * schema is regenerated: `serverStaffMemberId` and `serverName` on
- * `TableFloorState`. Only when there is one.
+ * The table's waiter on the floor read (2026-10-24): `serverStaffMemberId` and
+ * `serverName` on `TableFloorState`. Only when there is one.
  */
-interface WireTableServer {
-  readonly serverStaffMemberId?: string | null;
-  readonly serverName?: string | null;
-}
-
-function tableServerFromWire(table: WireTableServer): {
+function tableServerFromWire(
+  table: Pick<
+    Schemas['Yalla.Application.Floor.TableFloorState'],
+    'serverStaffMemberId' | 'serverName'
+  >,
+): {
   serverStaffMemberId?: string | null;
   serverName?: string | null;
 } {
@@ -687,7 +686,7 @@ export function serviceRequest(view: RequestView): ServiceRequest {
     requestedByParticipantId: view.requestedByParticipantId ?? null,
     bill: billRequest(view),
     // "I'm on it" (2026-10-24): who took the call, only once somebody has.
-    ...serviceRequestClaimFromWire(view as RequestView & WireServiceRequestClaim),
+    ...serviceRequestClaimFromWire(view),
   };
 }
 

@@ -20,13 +20,14 @@ import {
   activityTimelineFromWire,
   csvFileName,
   performanceParams,
+  personPerformanceParams,
   staffMemberPerformanceFromWire,
   staffPerformanceFromWire,
   staffRecentPageFromWire,
   type WireActivityPage,
   type WireActivityTimeline,
-  type WireStaffMemberPerformance,
-  type WireStaffPerformance,
+  type WirePersonPerformance,
+  type WireStaffPerformanceReport,
 } from './activityMapping';
 import {
   messageSettingsBody,
@@ -1827,12 +1828,11 @@ export function createConsoleHttpGateway(
 
     // --- Activity history and staff results (2026-10-24) -----------------------
     //
-    // Hand-written to the build spec while the backend is built beside it
-    // (`activityMapping.ts`); every route below is marked until the schema is
-    // regenerated. The CSVs are the server's own bytes, as the reports' are.
+    // Yalla `docs/activity.md` §7, read through `activityMapping.ts`. The CSVs
+    // are the server's own bytes, as the reports' are; a window over 20,000
+    // rows is a `422 activity-export-too-large`.
 
     async listActivity(branchId, query): Promise<ActivityPage> {
-      // gateway-schema: awaiting-route — activity history is built in parallel (2026-10-24)
       const { data } = await client.get<WireActivityPage>(`${BRANCHES}/${branchId}/activity`, {
         query: activityParamsFor(query, query),
       });
@@ -1840,19 +1840,17 @@ export function createConsoleHttpGateway(
     },
 
     async exportActivityCsv(branchId, filters) {
-      // gateway-schema: awaiting-route — activity history is built in parallel (2026-10-24)
       const response = await client.get<string>(`${BRANCHES}/${branchId}/activity.csv`, {
         query: activityParamsFor(filters),
         timeoutMs: REPORT_TIMEOUT_MS,
       });
-      return csvExport(response, `activity-${filters.date}.csv`);
+      return csvExport(response, `activity-${filters.date}-to-${filters.date}.csv`);
     },
 
     async getActivityTimeline(branchId, subject): Promise<ActivityTimeline | null> {
       const type = encodeURIComponent(activitySubjectSegment(subject.type));
       const id = encodeURIComponent(subject.id);
       try {
-        // gateway-schema: awaiting-route — activity history is built in parallel (2026-10-24)
         const { data } = await client.get<WireActivityTimeline>(
           `${BRANCHES}/${branchId}/activity/subjects/${type}/${id}`,
         );
@@ -1864,8 +1862,7 @@ export function createConsoleHttpGateway(
     },
 
     async getStaffPerformance(branchId, range): Promise<StaffPerformance> {
-      // gateway-schema: awaiting-route — staff results are built in parallel (2026-10-24)
-      const { data } = await client.get<WireStaffPerformance>(
+      const { data } = await client.get<WireStaffPerformanceReport>(
         `${BRANCHES}/${branchId}/staff-performance`,
         { query: performanceParams(range) },
       );
@@ -1873,12 +1870,11 @@ export function createConsoleHttpGateway(
     },
 
     async exportStaffPerformanceCsv(branchId, range) {
-      // gateway-schema: awaiting-route — staff results are built in parallel (2026-10-24)
       const response = await client.get<string>(`${BRANCHES}/${branchId}/staff-performance.csv`, {
         query: performanceParams(range),
         timeoutMs: REPORT_TIMEOUT_MS,
       });
-      return csvExport(response, `staff-${range.from}-to-${range.to}.csv`);
+      return csvExport(response, `staff-results-${range.from}-to-${range.to}.csv`);
     },
 
     async getStaffMemberPerformance(
@@ -1888,10 +1884,9 @@ export function createConsoleHttpGateway(
     ): Promise<StaffMemberPerformance | null> {
       const id = encodeURIComponent(staffMemberId);
       try {
-        // gateway-schema: awaiting-route — staff results are built in parallel (2026-10-24)
-        const { data } = await client.get<WireStaffMemberPerformance>(
+        const { data } = await client.get<WirePersonPerformance>(
           `${BRANCHES}/${branchId}/staff/${id}/performance`,
-          { query: performanceParams(range) },
+          { query: personPerformanceParams(range) },
         );
         return staffMemberPerformanceFromWire(data, { ...range, staffMemberId });
       } catch (error) {
@@ -1902,12 +1897,11 @@ export function createConsoleHttpGateway(
 
     async listStaffRecent(branchId, staffMemberId, query): Promise<StaffRecentPage> {
       const id = encodeURIComponent(staffMemberId);
-      // gateway-schema: awaiting-route — staff results are built in parallel (2026-10-24)
-      const { data } = await client.get<WireStaffMemberPerformance>(
+      const { data } = await client.get<WirePersonPerformance>(
         `${BRANCHES}/${branchId}/staff/${id}/performance`,
-        { query: performanceParams(query, { list: query.list, cursor: query.cursor }) },
+        { query: personPerformanceParams(query, query) },
       );
-      return staffRecentPageFromWire(data?.recent?.[query.list]);
+      return staffRecentPageFromWire(data?.recent, query.list);
     },
   };
 }

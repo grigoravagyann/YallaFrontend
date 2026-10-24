@@ -586,14 +586,17 @@ function EntryDetail({
   const { t } = useTranslation(['admin', 'common']);
   const { locale } = useLocale();
   const change = changeLine(entry, locale);
-  const link = subjectLink(entry.subject);
+  const link = subjectLink(entry);
   const device = deviceLabel(t, entry);
-  const details = detailParts(t, entry, locale);
+  // What changed has its own block below: said once.
+  const details = detailParts(t, entry, locale).filter(
+    (part) => !change || part !== `${change.before} → ${change.after}`,
+  );
   return (
     <aside className="yc-card yc-act-detail" aria-labelledby={headingId}>
       <span className={`yc-act-tag ${kindTone(entry)}`}>{kindLabel(t, entry.category)}</span>
       <h2 id={headingId} ref={headingRef} tabIndex={-1} className="yc-act-dh">
-        {actionLabel(t, entry)}
+        {actionLabel(t, entry, locale)}
       </h2>
       {details.length > 0 ? <p className="yc-act-dsub">{details.join(' · ')}</p> : null}
       <dl className="yc-act-dl">

@@ -753,8 +753,8 @@ export interface ConsoleGateway {
   exportStaffPerformanceCsv(branchId: string, range: PerformanceRange): Promise<ReportExport>;
 
   /**
-   * One person's page: the figures, sales by day and the first page of each
-   * recent list — `GET /api/branches/{branchId}/staff/{staffMemberId}/performance`.
+   * One person's page: the figures, sales by day and the first page of their
+   * orders — `GET /api/branches/{branchId}/staff/{staffMemberId}/performance`.
    * `null` for somebody who is not staff of this venue.
    */
   getStaffMemberPerformance(
@@ -763,7 +763,7 @@ export interface ConsoleGateway {
     range: PerformanceRange,
   ): Promise<StaffMemberPerformance | null>;
 
-  /** One more page of one of a person's lists (the same route, `list` and `cursor`). */
+  /** A page of one of a person's lists (the same route, `list` and `cursor`). */
   listStaffRecent(
     branchId: string,
     staffMemberId: string,

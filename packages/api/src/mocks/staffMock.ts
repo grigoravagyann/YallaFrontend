@@ -52,7 +52,7 @@ import {
   type TakeawayPaymentMethod,
   type TakeawayStatus,
 } from '../contracts/takeaway';
-import { requireClientCommandId, validationFailed } from './problems';
+import { requireClientCommandId } from './problems';
 import {
   ADMITTED,
   type FloorChangeSignal,
@@ -123,6 +123,8 @@ import { mockBranchMenu, mockPhoto, publishedBranchMenu } from './menuDetail';
 import { computeBill, percentOf, type BillingLine } from './billing';
 import {
   SERVING_ROLES,
+  TAB_NOT_TRANSFERABLE_CODE,
+  TRANSFER_TARGET_INELIGIBLE_CODE,
   type ClaimServiceRequestCommand,
   type TabTransferResult,
   type TransferTabCommand,
@@ -3566,26 +3568,69 @@ export function createStaffMockGateway(options: StaffMockOptions = {}): StaffGat
       const replay = transfers.get(command.clientCommandId);
       if (replay) return settle(replay);
       const tab = tabs.get(command.tabId);
-      if (!tab || tab.status === 'closed' || tab.status === 'abandoned') {
-        throw new NotFoundError({ url });
-      }
-      const target = branchPeople().find((member) => member.id === command.toStaffMemberId);
-      if (!target || !SERVING_ROLES.includes(target.role)) {
-        throw validationFailed(url, [
-          {
-            field: 'toStaffMemberId',
-            message: 'That person cannot take tables at this branch.',
-            bound: 'range',
+      if (!tab) throw new NotFoundError({ url });
+      if (tab.status === 'closed' || tab.status === 'abandoned') {
+        // As the server: 409 `tab-not-transferable`, the sitting is over.
+        throw new ConcurrencyConflictError({
+          url,
+          problem: {
+            type: 'about:blank',
+            title: 'Conflict',
+            status: 409,
+            detail:
+              'This table’s bill is closed and its party has gone; there is nothing to hand over.',
+            code: TAB_NOT_TRANSFERABLE_CODE,
+            traceId: 'mock',
+            context: { tabId: tab.id, status: tab.status === 'closed' ? 3 : 4 },
           },
-        ]);
+        });
       }
+      const member = branchPeople().find((candidate) => candidate.id === command.toStaffMemberId);
+      const reason = !member
+        ? 'not-found'
+        : !member.isActive
+          ? 'inactive'
+          : !SERVING_ROLES.includes(member.role)
+            ? 'does-not-serve'
+            : null;
+      if (!member || reason) {
+        // As the server: 422 `transfer-target-ineligible`, saying why.
+        throw new InvalidTransitionError({
+          url,
+          problem: {
+            type: 'about:blank',
+            title: 'Unprocessable',
+            status: 422,
+            detail: 'That person cannot take tables at this branch.',
+            code: TRANSFER_TARGET_INELIGIBLE_CODE,
+            traceId: 'mock',
+            context: { staffMemberId: command.toStaffMemberId, reason },
+          },
+        });
+      }
+      const target = member;
       const previous = serverOf(tab.id);
+      if (previous?.id === target.id) {
+        // Already theirs: answered as done, nothing written.
+        return settle({
+          tabId: tab.id,
+          server: { staffMemberId: target.id, name: target.fullName },
+          previousServer: { staffMemberId: previous.id, name: previous.name },
+          transferredAtUtc: iso(now()),
+          tableSessionId: null,
+          tableLabel: tab.tableLabel,
+          wasReplay: true,
+        });
+      }
       tabServers.set(tab.id, { id: target.id, name: target.fullName });
       const result: TabTransferResult = {
         tabId: tab.id,
         server: { staffMemberId: target.id, name: target.fullName },
         previousServer: previous ? { staffMemberId: previous.id, name: previous.name } : null,
         transferredAtUtc: iso(now()),
+        tableSessionId: null,
+        tableLabel: tab.tableLabel,
+        wasReplay: false,
       };
       transfers.set(command.clientCommandId, result);
       return settle(result);

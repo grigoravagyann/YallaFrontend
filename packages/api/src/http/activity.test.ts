@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { createAuthSession } from '../auth/session';
 import { createMemoryTokenStorage } from '../auth/storage';
+import { transferRefusalOf } from '../contracts/activity';
 import type { components } from '../generated/schema';
 import {
   activityActorKind,
@@ -8,8 +9,12 @@ import {
   activityEntryFromWire,
   activityParams,
   activityParamsFor,
+  activitySubjectSegment,
+  activitySubjectType,
   csvFileName,
+  type WireActivityItem,
 } from './activityMapping';
+import { floorChangeSignal } from './admissionMapping';
 import { createConsoleHttpGateway, createMemoryIdentityStore } from './consoleHttpGateway';
 import { fakeBackend, type FakeRoute } from './fakeBackend.testkit';
 import { createStaffHttpGateway } from './staffHttpGateway';
@@ -17,10 +22,12 @@ import { serviceRequest } from './staffMapping';
 
 /**
  * Activity history and staff results over HTTP (2026-10-24), against the
- * hand-written wire: the query strings, the tolerant reads (an enum as its
- * word or its 1-based number, `before`/`after`/`summary` as objects or JSON
- * text), and the floor's two writes.
+ * generated wire (Yalla `docs/activity.md`): the query strings, every value a
+ * string; the server's lowercase words; a booking's `summary.extra` and an
+ * order's `summary.lines`; the floor's two writes and their refusals.
  */
+
+type Schemas = components['schemas'];
 
 function consoleOver(routes: Record<string, FakeRoute>) {
   const backend = fakeBackend(routes);
@@ -35,25 +42,34 @@ function consoleOver(routes: Record<string, FakeRoute>) {
   return { gateway, backend };
 }
 
-const ENTRY = {
+const ENTRY: WireActivityItem = {
   id: 'a-1',
   occurredAtUtc: '2026-10-24T14:31:00Z',
-  actorKind: 'Staff',
+  local: '2026-10-24 18:31',
+  actorKind: 'staff',
   staffMemberId: 's-nare',
   actorName: 'Նարե Սարգսյան',
   deviceId: 'd-hall',
   deviceLabel: 'Սրահի պլանշետ',
-  category: 'order',
-  action: 'order.discounted',
-  subjectType: 'Tab',
+  category: 'payment',
+  action: 'payment.discount',
+  subjectType: 'tab',
   subjectId: 'tab-2',
+  tableSessionId: 'ts-2',
   tableLabel: '2',
   amountAmd: 1840,
   isMoney: true,
-  beforeJson: '{"amountAmd":18400}',
-  afterJson: '{"amountAmd":16560}',
+  before: { totalAmd: 18400 },
+  after: { totalAmd: 16560 },
   reason: 'Մշտական հյուր',
-  summary: { percent: 10, nested: { dropped: true } },
+  summary: {
+    adjustmentId: 'adj-1',
+    percent: 10,
+    amountAmd: null,
+    totalBeforeAmd: 18400,
+    totalAfterAmd: 16560,
+    nested: { dropped: true },
+  },
 };
 
 const DAY = {
@@ -64,53 +80,123 @@ const DAY = {
 };
 
 describe('reading an entry', () => {
-  it('reads every field, JSON text and objects alike, and drops what is not a plain value', () => {
+  it('reads every field and drops what is not a plain value', () => {
     expect(activityEntryFromWire(ENTRY)).toEqual({
       id: 'a-1',
       occurredAtUtc: '2026-10-24T14:31:00Z',
+      local: '2026-10-24 18:31',
       actor: { kind: 'staff', staffMemberId: 's-nare', name: 'Նարե Սարգսյան' },
       device: { id: 'd-hall', label: 'Սրահի պլանշետ', isConsole: false },
-      category: 'order',
-      action: 'order.discounted',
-      subject: { type: 'tab', id: 'tab-2' },
+      category: 'payment',
+      action: 'payment.discount',
+      subject: { type: 'tab', id: 'tab-2', code: null },
+      tableSessionId: 'ts-2',
       tableLabel: '2',
       guestName: null,
+      itemNames: null,
       amountAmd: 1840,
       isMoney: true,
-      before: { amountAmd: 18400 },
-      after: { amountAmd: 16560 },
+      before: { totalAmd: 18400 },
+      after: { totalAmd: 16560 },
       reason: 'Մշտական հյուր',
-      params: { percent: 10 },
+      params: {
+        adjustmentId: 'adj-1',
+        percent: 10,
+        amountAmd: null,
+        totalBeforeAmd: 18400,
+        totalAfterAmd: 16560,
+      },
+      lines: [],
+      seconds: null,
     });
   });
 
-  it('reads enums as words or 1-based numbers, and a missing category from the action', () => {
-    expect(activityActorKind('platform-admin')).toBe('platformAdmin');
-    expect(activityActorKind(3)).toBe('system');
-    expect(activityActorKind(2)).toBe('diner');
-    expect(activityCategory(4)).toBe('payment');
-    expect(activityCategory(null, 'takeaway.accepted')).toBe('takeaway');
-    expect(activityParams('not json')).toBeNull();
+  it('flattens a booking’s extra, reads an order’s lines and the seconds', () => {
+    const booking = activityEntryFromWire({
+      ...ENTRY,
+      category: 'booking',
+      action: 'booking.auto-declined',
+      actorKind: 'system',
+      subjectType: 'reservation',
+      subjectCode: 'B-1042',
+      summary: {
+        localDate: '2026-10-24',
+        localTime: '21:30',
+        partySize: 3,
+        status: 7,
+        extra: { declineReason: 2, deadlineUtc: '2026-10-24T14:12:00Z' },
+      },
+    });
+    expect(booking.params).toEqual({
+      localDate: '2026-10-24',
+      localTime: '21:30',
+      partySize: 3,
+      status: 7,
+      'extra.declineReason': 2,
+      'extra.deadlineUtc': '2026-10-24T14:12:00Z',
+    });
+    expect(booking.subject).toEqual({ type: 'reservation', id: 'tab-2', code: 'B-1042' });
+    const order = activityEntryFromWire({
+      ...ENTRY,
+      action: 'order.sent',
+      itemNames: 'Խաշլամա, Թան',
+      seconds: 48,
+      summary: {
+        items: 3,
+        lines: [{ name: 'Խաշլամա', quantity: 2 }, { name: 'Թան', quantity: 1 }, { quantity: 4 }],
+      },
+    });
+    expect(order.lines).toEqual([
+      { name: 'Խաշլամա', quantity: 2 },
+      { name: 'Թան', quantity: 1 },
+    ]);
+    expect(order.itemNames).toBe('Խաշլամա, Թան');
+    expect(order.seconds).toBe(48);
+    expect(order.params).toEqual({ items: 3 });
   });
 
-  it('marks a console session: a staff entry with no device', () => {
+  it('reads the server’s words, and falls back for one it does not know', () => {
+    expect(activityActorKind('guest')).toBe('guest');
+    expect(activityActorKind('platform')).toBe('platform');
+    expect(activityActorKind('robot')).toBe('system');
+    expect(activityCategory('device')).toBe('device');
+    expect(activityCategory(null, 'takeaway.accepted')).toBe('takeaway');
+    expect(activitySubjectType('menu-item')).toBe('menuItem');
+    expect(activitySubjectType('service-request')).toBe('serviceRequest');
+    expect(activitySubjectType('table-session')).toBe('tableSession');
+    expect(activitySubjectType('staff')).toBe('staffMember');
+    expect(activitySubjectType('wormhole')).toBe('other');
+    expect(activitySubjectSegment('takeaway')).toBe('takeawayOrder');
+    expect(activityParams('not an object')).toBeNull();
+  });
+
+  it('marks a console session: a staff entry with no device, labelled Console', () => {
     const entry = activityEntryFromWire({ ...ENTRY, deviceId: null, deviceLabel: 'Console' });
     expect(entry.device).toEqual({ id: null, label: 'Console', isConsole: true });
     const system = activityEntryFromWire({
       ...ENTRY,
-      actorKind: 'System',
+      actorKind: 'system',
+      staffMemberId: null,
+      actorName: null,
       deviceId: null,
       deviceLabel: null,
     });
-    expect(system.actor).toEqual({ kind: 'system', staffMemberId: null, name: 'Նարե Սարգսյան' });
+    expect(system.actor).toEqual({ kind: 'system', staffMemberId: null, name: '' });
     expect(system.device.isConsole).toBe(false);
   });
 });
 
 describe('the feed', () => {
-  it('sends the day always, the rest only when set', async () => {
+  it('sends the day always, the rest only when set, every value a string', async () => {
     const { gateway, backend } = consoleOver({
-      'GET /api/branches/b-1/activity': { body: { items: [ENTRY, { id: '' }], nextCursor: 'c2' } },
+      'GET /api/branches/b-1/activity': {
+        body: {
+          items: [ENTRY, { id: '' }],
+          nextCursor: 'c2',
+          from: '2026-10-24',
+          to: '2026-10-24',
+        },
+      },
     });
     const page = await gateway.listActivity('b-1', DAY);
     await gateway.listActivity('b-1', {
@@ -141,16 +227,17 @@ describe('the feed', () => {
   it('downloads the server’s CSV under the name it gave', async () => {
     const { gateway, backend } = consoleOver({
       'GET /api/branches/b-1/activity.csv': {
-        body: '﻿occurredAtUtc,action\r\n',
+        body: '﻿local,actorKind,action\r\n',
         headers: {
           'content-type': 'text/csv; charset=utf-8',
-          'content-disposition': "attachment; filename*=UTF-8''activity-2026-10-24.csv",
+          'content-disposition':
+            "attachment; filename*=UTF-8''activity-2026-10-24-to-2026-10-24.csv",
         },
       },
     });
     const file = await gateway.exportActivityCsv('b-1', { ...DAY, category: 'payment' });
-    expect(file.fileName).toBe('activity-2026-10-24.csv');
-    expect(await file.bytes.text()).toContain('occurredAtUtc,action');
+    expect(file.fileName).toBe('activity-2026-10-24-to-2026-10-24.csv');
+    expect(await file.bytes.text()).toContain('local,actorKind,action');
     expect(Object.fromEntries(backend.requests[0]!.query.entries())).toEqual({
       date: '2026-10-24',
       category: 'payment',
@@ -168,56 +255,123 @@ describe('the feed', () => {
 });
 
 describe('a timeline', () => {
-  it('sorts the entries oldest first and reads the lines with who added and voided them', async () => {
-    const { gateway } = consoleOver({
-      'GET /api/branches/b-1/activity/subjects/tab/tab-4': {
-        body: {
-          subjectType: 'Tab',
-          subjectId: 'tab-4',
-          tableLabel: '4',
-          partySize: 4,
-          serverStaffMemberId: 's-aram',
-          serverName: 'Արամ',
-          totals: {
-            itemsAmd: 21300,
-            paidAmd: 22300,
-            tipAmd: 2000,
-            serviceChargeAmd: 1000,
-            paidBy: 'Cash',
-          },
-          entries: [
-            { ...ENTRY, id: 'late', occurredAtUtc: '2026-10-24T14:20:00Z' },
-            { ...ENTRY, id: 'early', occurredAtUtc: '2026-10-24T13:12:00Z' },
-          ],
-          items: [
-            {
-              lineId: 'l-1',
-              name: 'Խոզի խորոված',
-              quantity: 1,
-              amountAmd: 4800,
-              addedByStaffMemberId: 's-aram',
-              addedByName: 'Արամ',
-              voided: true,
-              voidedByStaffMemberId: 's-nare',
-              voidedByName: 'Նարե',
-              voidReason: 'Հյուրը փոխեց պատվերը',
-            },
-            { lineId: 'l-2', name: 'Թան', quantity: 3, amountAmd: 2100 },
-          ],
-        },
+  const TIMELINE: Schemas['Yalla.Application.Activity.ActivityTimeline'] = {
+    subjectType: 'tab',
+    subjectId: 'tab-4',
+    tab: {
+      tabId: 'tab-4',
+      tableSessionId: 'ts-4',
+      tableLabel: '4',
+      partySize: 4,
+      openedAtUtc: '2026-10-24T13:12:30Z',
+      seatedAtUtc: '2026-10-24T13:12:00Z',
+      closedAtUtc: '2026-10-24T14:20:00Z',
+      status: 3,
+      subtotalAmd: 21300,
+      serviceChargeAmd: 1000,
+      totalAmd: 22300,
+      paidAmd: 22300,
+      tipsAmd: 2000,
+      servers: [
+        { staffMemberId: 's-aram', name: 'Արամ', fromUtc: '2026-10-24T13:40:00Z' },
+        { staffMemberId: 's-lilit', name: 'Լիլիթ', fromUtc: '2026-10-24T13:12:00Z' },
+      ],
+    },
+    lines: [
+      {
+        lineId: 'l-1',
+        orderId: 'o-2',
+        name: 'Խոզի խորոված',
+        quantity: 1,
+        unitPriceAmd: 4800,
+        lineTotalAmd: 0,
+        addedAtUtc: '2026-10-24T13:44:00Z',
+        addedByStaffMemberId: 's-aram',
+        addedByName: 'Արամ',
+        addedByGuest: false,
+        serverStaffMemberId: 's-aram',
+        voidedAtUtc: '2026-10-24T14:15:00Z',
+        voidedByStaffMemberId: 's-nare',
+        voidedByName: 'Նարե',
+        voidReason: 'Հյուրը փոխեց պատվերը',
       },
+      {
+        lineId: 'l-2',
+        orderId: 'o-3',
+        name: 'Թան',
+        quantity: 3,
+        unitPriceAmd: 700,
+        lineTotalAmd: 2100,
+        addedAtUtc: '2026-10-24T13:50:00Z',
+        addedByName: 'Անի',
+        addedByGuest: true,
+      },
+    ],
+    entries: [
+      { ...ENTRY, id: 'late', occurredAtUtc: '2026-10-24T14:20:00Z' },
+      { ...ENTRY, id: 'early', occurredAtUtc: '2026-10-24T13:12:00Z' },
+    ],
+    people: [
+      { staffMemberId: 's-lilit', name: 'Լիլիթ' },
+      { staffMemberId: 's-aram', name: 'Արամ' },
+    ],
+  };
+
+  it('reads the bill’s header, its waiters in turn, its lines and its entries oldest first', async () => {
+    const { gateway, backend } = consoleOver({
+      'GET /api/branches/b-1/activity/subjects/tab/tab-4': { body: TIMELINE },
     });
     const timeline = (await gateway.getActivityTimeline('b-1', { type: 'tab', id: 'tab-4' }))!;
+    expect(backend.requests).toHaveLength(1);
     expect(timeline.entries.map((entry) => entry.id)).toEqual(['early', 'late']);
-    expect(timeline.server).toEqual({ staffMemberId: 's-aram', name: 'Արամ' });
-    expect(timeline.totals).toMatchObject({ paidBy: 'cash', discountAmd: 0 });
-    expect(timeline.items[0]).toMatchObject({
+    expect(timeline.tab).toMatchObject({
+      tableLabel: '4',
+      status: 'closed',
+      totalAmd: 22300,
+      tipsAmd: 2000,
+    });
+    expect(timeline.tab!.servers.map((turn) => turn.staffMemberId)).toEqual(['s-lilit', 's-aram']);
+    expect(timeline.booking).toBeNull();
+    expect(timeline.lines[0]).toMatchObject({
       voided: true,
       voidedBy: { staffMemberId: 's-nare', name: 'Նարե' },
       addedBy: { staffMemberId: 's-aram', name: 'Արամ' },
     });
-    // Ordered from the guest's phone: nobody on the staff added it.
-    expect(timeline.items[1]!.addedBy).toBeNull();
+    // Ordered from the guest's phone: named, but nobody on the staff.
+    expect(timeline.lines[1]).toMatchObject({
+      addedByGuest: true,
+      addedBy: { staffMemberId: null, name: 'Անի' },
+      voided: false,
+    });
+    expect(timeline.people.map((one) => one.name)).toEqual(['Լիլիթ', 'Արամ']);
+  });
+
+  it('asks for a takeaway order under the route’s own word', async () => {
+    const { gateway } = consoleOver({
+      'GET /api/branches/b-1/activity/subjects/takeawayOrder/tk-1': {
+        body: {
+          subjectType: 'takeawayOrder',
+          subjectId: 'tk-1',
+          takeaway: {
+            orderId: 'tk-1',
+            code: 'T-482',
+            guestName: 'Կարեն',
+            status: 4,
+            totalAmd: 5400,
+            paidAmd: 5400,
+            paymentMethod: 1,
+            createdAtUtc: '2026-10-24T14:21:00Z',
+            collectedAtUtc: '2026-10-24T14:50:00Z',
+          },
+          lines: [],
+          entries: [],
+          people: [],
+        },
+      },
+    });
+    const timeline = (await gateway.getActivityTimeline('b-1', { type: 'takeaway', id: 'tk-1' }))!;
+    expect(timeline.subject).toEqual({ type: 'takeaway', id: 'tk-1' });
+    expect(timeline.takeaway).toMatchObject({ code: 'T-482', paymentMethod: 'cash' });
   });
 
   it('answers null for a 404', async () => {
@@ -227,32 +381,63 @@ describe('a timeline', () => {
 });
 
 describe('staff results', () => {
-  it('reads the rows and the totals, a role as its code or its word', async () => {
-    const { gateway, backend } = consoleOver({
-      'GET /api/branches/b-1/staff-performance': {
-        body: {
-          rows: [
-            {
-              staffMemberId: 's-aram',
-              name: 'Արամ',
-              role: 3,
-              tables: 9,
-              guests: 26,
-              salesAmd: 214600,
-              tipsAmd: 18000,
-              callClaimMedianSeconds: 48,
-              callClaims: 12,
-              messageReplyMedianSeconds: null,
-              approvals: 4,
-              cashAmd: 132000,
-              cashCount: 6,
-              discountCompCount: 1,
-            },
-            { staffMemberId: 's-nare', name: 'Նարե', role: 'Manager' },
-          ],
-          totals: { tables: 9, salesAmd: 214600 },
-        },
+  const ROW: Schemas['Yalla.Application.Activity.StaffPerformanceRow'] = {
+    staffMemberId: 's-aram',
+    name: 'Արամ',
+    role: 3,
+    isActive: true,
+    tables: 9,
+    guests: 26,
+    salesAmd: 214600,
+    averageCheckAmd: 23844,
+    tipsAmd: 18000,
+    callsClaimed: 12,
+    callClaimMedianSeconds: 48,
+    messagesAnswered: 3,
+    approvals: 4,
+    declines: 1,
+    cashAmd: 132000,
+    cashPayments: 6,
+    discounts: 1,
+    comps: 2,
+    adjustmentsAmd: 3100,
+    voids: 1,
+  };
+  const ZEROS = {
+    tables: 0,
+    guests: 0,
+    salesAmd: 0,
+    averageCheckAmd: 0,
+    tipsAmd: 0,
+    callsClaimed: 0,
+    messagesAnswered: 0,
+    approvals: 0,
+    declines: 0,
+    cashAmd: 0,
+    cashPayments: 0,
+    discounts: 0,
+    comps: 0,
+    adjustmentsAmd: 0,
+    voids: 0,
+  };
+
+  it('reads the rows and the totals the server counted once', async () => {
+    const report: Schemas['Yalla.Application.Activity.StaffPerformanceReport'] = {
+      branchId: 'b-1',
+      from: '2026-10-24',
+      to: '2026-10-24',
+      staff: [ROW, { ...ZEROS, staffMemberId: 's-nare', name: 'Նարե', role: 2, isActive: true }],
+      totals: {
+        ...ZEROS,
+        tables: 9,
+        salesAmd: 220000,
+        averageCheckAmd: 24444,
+        unattributedSalesAmd: 5400,
+        takeawayAmd: 9500,
       },
+    };
+    const { gateway, backend } = consoleOver({
+      'GET /api/branches/b-1/staff-performance': { body: report },
     });
     const result = await gateway.getStaffPerformance('b-1', {
       from: '2026-10-24',
@@ -264,59 +449,72 @@ describe('staff results', () => {
     });
     expect(result.rows[0]).toMatchObject({
       role: 'waiter',
-      averageCheckAmd: Math.round(214600 / 9),
+      averageCheckAmd: 23844,
       callMedianSeconds: 48,
       replyMedianSeconds: null,
-      cashBills: 6,
-      discountsAndComps: 1,
+      declines: 1,
+      cashPayments: 6,
+      discounts: 1,
+      comps: 2,
+      voids: 1,
     });
+    // Nothing to average is said as nothing, not the server's 0.
     expect(result.rows[1]).toMatchObject({ role: 'manager', tables: 0, averageCheckAmd: null });
-    expect(result).toMatchObject({ from: '2026-10-24', to: '2026-10-24' });
+    expect(result.totals).toMatchObject({
+      salesAmd: 220000,
+      unattributedSalesAmd: 5400,
+      takeawayAmd: 9500,
+    });
   });
 
-  it('reads one person, and asks for one more page of one list with its cursor', async () => {
+  it('reads one person, and pages one of their lists by list and cursor', async () => {
+    const person = (list: string, items: WireActivityItem[], nextCursor?: string) => ({
+      branchId: 'b-1',
+      from: '2026-10-23',
+      to: '2026-10-24',
+      kpis: ROW,
+      dailySales: [
+        { date: '2026-10-24', salesAmd: 100, tables: 1 },
+        { date: '2026-10-23', salesAmd: 50, tables: 1 },
+      ],
+      recent: { list, items, ...(nextCursor ? { nextCursor } : {}) },
+    });
     const { gateway, backend } = consoleOver({
       'GET /api/branches/b-1/staff/s-aram/performance': (request) => ({
-        body: request.query.get('list')
-          ? {
-              recent: {
-                orders: { items: [{ ...ENTRY, id: 'o-21', responseSeconds: 12 }], total: 21 },
-              },
-            }
-          : {
-              name: 'Արամ',
-              role: 'Waiter',
-              figures: { salesAmd: 100 },
-              daily: [
-                { date: '2026-10-24', salesAmd: 100 },
-                { date: '2026-10-23T00:00:00', salesAmd: 50 },
-              ],
-              recent: { orders: { items: [ENTRY], total: 21, nextCursor: 'a-1' } },
-            },
+        body:
+          request.query.get('list') === 'calls'
+            ? person('calls', [{ ...ENTRY, id: 'c-1', action: 'table.call-claimed', seconds: 31 }])
+            : person('orders', [ENTRY], 'cur-1'),
       }),
     });
     const range = { from: '2026-10-23', to: '2026-10-24' };
     const page = (await gateway.getStaffMemberPerformance('b-1', 's-aram', range))!;
-    expect(page.daily.map((day) => day.date)).toEqual(['2026-10-23', '2026-10-24']);
-    expect(page.recent.orders).toMatchObject({ total: 21, nextCursor: 'a-1' });
-    expect(page.recent.calls).toEqual({ items: [], total: 0, nextCursor: null });
-    const more = await gateway.listStaffRecent('b-1', 's-aram', {
+    expect(page).toMatchObject({ name: 'Արամ', role: 'waiter', isActive: true });
+    expect(page.figures.salesAmd).toBe(214600);
+    expect(page.daily.map((day) => [day.date, day.tables])).toEqual([
+      ['2026-10-23', 1],
+      ['2026-10-24', 1],
+    ]);
+    expect(page.recent).toMatchObject({ list: 'orders', nextCursor: 'cur-1' });
+    const calls = await gateway.listStaffRecent('b-1', 's-aram', {
       ...range,
-      list: 'orders',
-      cursor: 'a-1',
+      list: 'calls',
+      cursor: null,
     });
-    expect(more.items[0]).toMatchObject({ id: 'o-21', responseSeconds: 12 });
-    expect(Object.fromEntries(backend.requests[1]!.query.entries())).toEqual({
-      ...range,
-      list: 'orders',
-      cursor: 'a-1',
-    });
+    expect(calls).toMatchObject({ list: 'calls', nextCursor: null });
+    expect(calls.items[0]).toMatchObject({ id: 'c-1', seconds: 31 });
+    await gateway.listStaffRecent('b-1', 's-aram', { ...range, list: 'orders', cursor: 'cur-1' });
+    const queries = backend.requests.map((request) => Object.fromEntries(request.query.entries()));
+    expect(queries).toEqual([
+      range,
+      { ...range, list: 'calls', limit: '20' },
+      { ...range, list: 'orders', limit: '20', cursor: 'cur-1' },
+    ]);
   });
 });
 
 describe('the floor', () => {
-  type RequestWire = components['schemas']['Yalla.Application.Ordering.ServiceRequestView'];
-  const REQUEST: RequestWire = {
+  const REQUEST: Schemas['Yalla.Application.Ordering.ServiceRequestView'] = {
     serviceRequestId: 'sr-1',
     tabId: 'tab-4',
     tableLabel: '4',
@@ -360,7 +558,10 @@ describe('the floor', () => {
           previousServerStaffMemberId: 's-lilit',
           previousServerName: 'Լիլիթ',
           transferredAtUtc: '2026-10-24T13:40:00Z',
-        },
+          tableSessionId: 'ts-4',
+          tableLabel: '4',
+          wasReplay: false,
+        } satisfies Schemas['Yalla.Application.Activity.TableTransferResult'],
       },
     });
     const result = await createStaffHttpGateway(backend.client()).transferTab({
@@ -377,6 +578,39 @@ describe('the floor', () => {
       server: { staffMemberId: 's-aram', name: 'Արամ' },
       previousServer: { staffMemberId: 's-lilit', name: 'Լիլիթ' },
       transferredAtUtc: '2026-10-24T13:40:00Z',
+      tableSessionId: 'ts-4',
+      tableLabel: '4',
+      wasReplay: false,
     });
+  });
+
+  it('reads the change stream’s TableTransferred (7) by name', () => {
+    expect(floorChangeSignal(7)).toBe('tableTransferred');
+  });
+
+  it('says why a transfer was refused: the target, or a bill that is over', async () => {
+    const problem = (status: number, code: string, context: Record<string, unknown>) => ({
+      status,
+      body: { type: 'about:blank', title: 'Refused', status, code, detail: code, context },
+      headers: { 'content-type': 'application/problem+json' },
+    });
+    const backend = fakeBackend({
+      'POST /api/tabs/tab-1/transfer': problem(422, 'transfer-target-ineligible', {
+        staffMemberId: 's-kitchen',
+        reason: 'does-not-serve',
+      }),
+      'POST /api/tabs/tab-2/transfer': problem(409, 'tab-not-transferable', {
+        tabId: 'tab-2',
+        status: 3,
+      }),
+    });
+    const staff = createStaffHttpGateway(backend.client());
+    const refused = (tabId: string) =>
+      staff
+        .transferTab({ tabId, toStaffMemberId: 's-kitchen', clientCommandId: 'cmd' })
+        .then(() => null)
+        .catch((error: unknown) => transferRefusalOf(error));
+    expect(await refused('tab-1')).toEqual({ kind: 'ineligible', reason: 'does-not-serve' });
+    expect(await refused('tab-2')).toEqual({ kind: 'notTransferable' });
   });
 });

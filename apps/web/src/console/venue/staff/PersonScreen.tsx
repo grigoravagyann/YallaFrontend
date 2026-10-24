@@ -2,9 +2,9 @@ import {
   PERFORMANCE_PERIODS,
   STAFF_RECENT_LISTS,
   performanceRange,
+  type ActivityEntry,
   type PerformanceRange,
   type StaffMemberPerformance,
-  type StaffRecentItem,
   type StaffRecentList,
 } from '@yalla/api';
 import { useStaffMemberPerformance, useStaffRecent } from '@yalla/api/react';
@@ -33,9 +33,10 @@ import { periodCaption, periodFrom, periodLabel } from './StaffResults';
 
 /**
  * One person's results (2026-10-24, the Person board): their figures over
- * today, seven or thirty days, sales by day, and what they did — orders,
- * messages answered, bookings decided, cash taken, calls claimed — each list
- * a page at a time. `/venue/staff/:staffMemberId`, from Staff → Results.
+ * today, seven or thirty days, sales by day (a week at least), and what they
+ * did — orders, messages answered, bookings decided, cash taken, calls
+ * claimed — one list at a time (the route's `list`), a page at a time by its
+ * cursor. `/venue/staff/:staffMemberId`, from Staff → Results.
  */
 export function PersonScreen() {
   const { t } = useTranslation(['admin', 'common']);
@@ -46,10 +47,7 @@ export function PersonScreen() {
   const today = branchDayKey(new Date(), timeZoneId as TimeZone);
   const period = periodFrom(params.get('period'));
   const range = performanceRange(period, today);
-  // The chart is never one bar: today's page draws the last seven days.
-  const chartRange = performanceRange(period === 'today' ? 'week' : period, today);
   const query = useStaffMemberPerformance(branchId ?? undefined, staffMemberId, range);
-  const chart = useStaffMemberPerformance(branchId ?? undefined, staffMemberId, chartRange);
   const person = query.data ?? null;
 
   const back = (
@@ -116,20 +114,11 @@ export function PersonScreen() {
           <Kpis person={person} locale={locale} caption={periodCaption(t, range, today, locale)} />
 
           <figure className="yc-card yc-pp-chart">
+            {/* The server's series: a week ending on the day at least, so never one bar. */}
             <figcaption className="yc-h2">
-              {t('person.chart.title', {
-                count: chart.data?.daily.length ?? (period === 'month' ? 30 : 7),
-              })}
+              {t('person.chart.title', { count: person.daily.length })}
             </figcaption>
-            {chart.data ? (
-              <SalesChart daily={chart.data.daily} today={today} locale={locale} />
-            ) : chart.isError ? (
-              <QueryFailureNotice error={chart.error} onRetry={() => void chart.refetch()} />
-            ) : (
-              <p className="yc-muted" role="status">
-                {t('loading')}
-              </p>
-            )}
+            <SalesChart daily={person.daily} today={today} locale={locale} />
           </figure>
 
           <RecentLists
@@ -194,9 +183,14 @@ function Kpis({
       sub: t('person.kpi.repliesSub', { count: f.messagesAnswered }),
     },
     {
+      label: t('person.kpi.approvals'),
+      value: new Intl.NumberFormat(locale).format(f.approvals),
+      sub: t('person.kpi.declinedSub', { count: f.declines }),
+    },
+    {
       label: t('person.kpi.cash'),
       value: dram(f.cashAmd, locale),
-      sub: t('person.kpi.cashSub', { count: f.cashBills }),
+      sub: t('person.kpi.cashSub', { count: f.cashPayments }),
     },
   ];
   return (
@@ -239,14 +233,14 @@ function columnsOf(list: StaffRecentList): readonly [string, string, string, str
 function cellsOf(
   t: TFunction,
   list: StaffRecentList,
-  item: StaffRecentItem,
+  item: ActivityEntry,
   locale: Locale,
 ): readonly [string, string, string] {
   const table = item.tableLabel ? t('activity.part.table', { label: item.tableLabel }) : '—';
   const guest = item.guestName ? shortName(item.guestName) : '—';
   const amount = item.amountAmd !== null ? dram(item.amountAmd, locale) : '—';
-  const speed = durationLabel(t, item.responseSeconds) ?? '—';
-  const what = [actionLabel(t, item), ...detailParts(t, item, locale)]
+  const speed = durationLabel(t, item.seconds) ?? '—';
+  const what = [actionLabel(t, item, locale), ...detailParts(t, item, locale)]
     .filter((part) => part !== table && part !== amount)
     .join(' · ');
   switch (list) {
@@ -254,28 +248,30 @@ function cellsOf(
       const text = item.params['text'];
       return [
         item.tableLabel ? `${guest} · ${table}` : guest,
-        typeof text === 'string' ? t('activity.part.quote', { text }) : actionLabel(t, item),
+        typeof text === 'string'
+          ? t('activity.part.quote', { text })
+          : actionLabel(t, item, locale),
         speed,
       ];
     }
     case 'bookings':
       return [
         guest,
-        [table, typeof item.params['startLocal'] === 'string' ? item.params['startLocal'] : null]
+        [table, typeof item.params['localTime'] === 'string' ? item.params['localTime'] : null]
           .filter((part) => part && part !== '—')
           .join(' · ') || '—',
         [
-          actionLabel(t, item),
-          item.reason ? `«${item.reason}»` : durationLabel(t, item.responseSeconds),
+          actionLabel(t, item, locale),
+          item.reason ? `«${item.reason}»` : durationLabel(t, item.seconds),
         ]
           .filter(Boolean)
           .join(' · '),
       ];
     case 'cash': {
       const tip = item.params['tipAmd'];
-      const code = item.params['code'];
+      const code = item.subject.code;
       return [
-        item.tableLabel ? table : typeof code === 'string' ? code : '—',
+        item.tableLabel ? table : (code ?? '—'),
         amount,
         typeof tip === 'number' && tip > 0 ? dram(tip, locale) : '—',
       ];
@@ -317,11 +313,7 @@ function RecentLists({
         idPrefix={prefix}
         selected={list}
         onSelect={setList}
-        tabs={STAFF_RECENT_LISTS.map((id) => ({
-          id,
-          label: t(LIST_LABEL[id]),
-          badge: person.recent[id].total,
-        }))}
+        tabs={STAFF_RECENT_LISTS.map((id) => ({ id, label: t(LIST_LABEL[id]) }))}
       />
       <div
         role="tabpanel"
@@ -362,18 +354,10 @@ function RecentList({
   readonly locale: Locale;
 }) {
   const { t } = useTranslation(['admin', 'common']);
-  const first = person.recent[list];
-  const [wantMore, setWantMore] = useState(false);
-  const more = useStaffRecent(
-    branchId,
-    person.staffMemberId,
-    range,
-    list,
-    first.nextCursor,
-    wantMore,
-  );
-  const items = [...first.items, ...(more.data?.pages.flatMap((page) => page.items) ?? [])];
-  const hasMore = wantMore ? (more.hasNextPage ?? false) : first.nextCursor !== null;
+  // One list at a time, a page at a time by the server's cursor.
+  const recent = useStaffRecent(branchId, person.staffMemberId, range, list);
+  const items = recent.data?.pages.flatMap((page) => page.items) ?? [];
+  const hasMore = recent.hasNextPage;
   const focusRow = useRef<number | null>(null);
   const rowRefs = useRef<(HTMLTableRowElement | null)[]>([]);
   useEffect(() => {
@@ -385,6 +369,16 @@ function RecentList({
   const multiDay = range.from !== range.to;
   const [c1, c2, c3, c4] = columnsOf(list);
 
+  if (recent.isPending) {
+    return (
+      <p className="yc-empty-line" role="status">
+        {t('loading')}
+      </p>
+    );
+  }
+  if (recent.isError && items.length === 0) {
+    return <QueryFailureNotice error={recent.error} onRetry={() => void recent.refetch()} />;
+  }
   if (items.length === 0) {
     return <p className="yc-empty-line">{t('person.lists.empty')}</p>;
   }
@@ -409,7 +403,7 @@ function RecentList({
           <tbody>
             {items.map((item, index) => {
               const [a, b, c] = cellsOf(t, list, item, locale);
-              const link = subjectLink(item.subject);
+              const link = subjectLink(item);
               const when = multiDay
                 ? whenLabel(t, item, timeZoneId, today, locale)
                 : timeLabel(item, timeZoneId, locale);
@@ -437,24 +431,23 @@ function RecentList({
       </div>
       <div className="yc-mh-foot">
         <span role="status" aria-atomic="true">
-          {t('person.lists.shown', { count: items.length, total: first.total })}
+          {t('person.lists.shown', { count: items.length })}
         </span>
         {hasMore ? (
           <button
             type="button"
             className="yc-btn yc-btn-sec yc-btn-sm"
-            disabled={more.isFetching}
+            disabled={recent.isFetchingNextPage}
             onClick={() => {
               focusRow.current = items.length;
-              if (!wantMore) setWantMore(true);
-              else void more.fetchNextPage();
+              void recent.fetchNextPage();
             }}
           >
-            {more.isFetching ? t('loading') : t('person.lists.more')}
+            {recent.isFetchingNextPage ? t('loading') : t('person.lists.more')}
           </button>
         ) : null}
-        {more.isError ? (
-          <QueryFailureNotice error={more.error} onRetry={() => void more.refetch()} />
+        {recent.isFetchNextPageError ? (
+          <QueryFailureNotice error={recent.error} onRetry={() => void recent.fetchNextPage()} />
         ) : null}
       </div>
     </>

@@ -116,7 +116,11 @@
       "confirmTo": "Transfer to {{name}}",
       "needsOnline": "Transferring needs the connection.",
       "done": "Table {{label}} is now {{name}}’s",
-      "refused": "Table {{label}} could not be transferred. Try again, or ask a manager."
+      "refused": "Table {{label}} could not be transferred. Try again, or ask a manager.",
+      "notServing": "{{name}} does not serve tables.",
+      "otherBranch": "{{name}} works at another branch.",
+      "gone": "{{name}} is no longer on the staff here.",
+      "closed": "Table {{label}}’s bill is already closed: there is nothing to hand over."
     }
   },
   "queue": {

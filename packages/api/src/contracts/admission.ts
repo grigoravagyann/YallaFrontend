@@ -135,7 +135,9 @@ export interface RejectTabCommand {
  * pre-order (`reservationId`) was created, edited, cleared, sent, marked not
  * coming, put on the tab, its held ticket moved by the kitchen, "not coming"
  * cleared by a move, or the guest answered "on my way". Same-status row like
- * 4 and 5: do not fold it; read the pre-order rail (`/pre-orders/due`) again.
+ * 4 and 5: do not fold it; read the pre-order rail (`/pre-orders/due`) again —
+ * and 7 TableTransferred (2026-10-24): the table's bill was handed to another
+ * waiter (`transferTable`); re-read the floor, whose `serverName` moved.
  */
 export type FloorChangeSignal =
   | 'tabAwaitingAdmission'
@@ -144,6 +146,7 @@ export type FloorChangeSignal =
   | 'bookingCancelledByBlock'
   | 'bookingChanged'
   | 'preOrderChanged'
+  | 'tableTransferred'
   | 'unknown';
 
 /** At most this many characters in a reject's reason, as the server bounds it. */

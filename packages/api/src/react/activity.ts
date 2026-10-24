@@ -107,7 +107,7 @@ export function useStaffPerformance(branchId: string | undefined, range: Perform
   return useQuery(staffPerformanceOptions(useConsoleGateway(), branchId, range));
 }
 
-/** One person's page: the figures, sales by day and the first page of each list. */
+/** One person's page: the figures and sales by day (and the first page of their orders). */
 export function staffMemberPerformanceOptions(
   gateway: Pick<ConsoleGateway, 'getStaffMemberPerformance'>,
   branchId: string | undefined,
@@ -139,10 +139,9 @@ export function useStaffMemberPerformance(
 }
 
 /**
- * One of a person's lists past its first page: starts from the first page's
- * `nextCursor` (the person read already has the first page) and follows the
- * server's cursor. Enabled by the first "More"; each later one is
- * `fetchNextPage()`.
+ * One of a person's lists, a page at a time by the server's cursor (`list`,
+ * `cursor` on the person's route): the first page when the list's tab opens,
+ * each "More" `fetchNextPage()`.
  */
 export function staffRecentOptions(
   gateway: Pick<ConsoleGateway, 'listStaffRecent'>,
@@ -150,8 +149,6 @@ export function staffRecentOptions(
   staffMemberId: string | undefined,
   range: PerformanceRange,
   list: StaffRecentList,
-  firstCursor: string | null,
-  enabled: boolean,
 ) {
   return {
     queryKey: queryKeys.staffRecent(
@@ -160,13 +157,12 @@ export function staffRecentOptions(
       range.from,
       range.to,
       list,
-      firstCursor ?? '',
     ),
-    queryFn: ({ pageParam }: { readonly pageParam: string }) =>
+    queryFn: ({ pageParam }: { readonly pageParam: string | null }) =>
       gateway.listStaffRecent(branchId!, staffMemberId!, { ...range, list, cursor: pageParam }),
-    initialPageParam: firstCursor ?? '',
+    initialPageParam: null as string | null,
     getNextPageParam: (last: StaffRecentPage) => last.nextCursor ?? undefined,
-    enabled: enabled && Boolean(branchId) && Boolean(staffMemberId) && firstCursor !== null,
+    enabled: Boolean(branchId) && Boolean(staffMemberId),
     staleTime: staleTime.frequent,
   };
 }
@@ -176,19 +172,9 @@ export function useStaffRecent(
   staffMemberId: string | undefined,
   range: PerformanceRange,
   list: StaffRecentList,
-  firstCursor: string | null,
-  enabled: boolean,
 ) {
   return useInfiniteQuery(
-    staffRecentOptions(
-      useConsoleGateway(),
-      branchId,
-      staffMemberId,
-      range,
-      list,
-      firstCursor,
-      enabled,
-    ),
+    staffRecentOptions(useConsoleGateway(), branchId, staffMemberId, range, list),
   );
 }
 
@@ -223,9 +209,10 @@ export function useClaimServiceRequest() {
 }
 
 /**
- * Hand a table to another waiter. Online only, never retried: the command id
- * makes a deliberate retry safe. The floor is read again after (its tiles
- * name the waiter).
+ * Hand a table to another waiter. Online only, never retried (a second ask to
+ * the same waiter answers `wasReplay`). The floor is read again after (its
+ * tiles name the waiter), as every other tablet does on the change stream's
+ * `TableTransferred` (7).
  */
 export function transferTabOptions(
   queryClient: QueryClient,
