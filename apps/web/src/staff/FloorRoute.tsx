@@ -48,13 +48,13 @@ import {
   useStaffTab,
   useNow,
   useTakeawayOrders,
-  useStaffToday,
   useTabsAwaitingAdmission,
   useTransferTab,
+  useTransferTargets,
   useVoidLine,
 } from '@yalla/api/react';
-import { SERVING_ROLES, transferRefusalOf, type StaffRole } from '@yalla/api';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { transferRefusalOf } from '@yalla/api';
+import { useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from '@yalla/i18n';
 import type { TFunction } from 'i18next';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -1325,85 +1325,30 @@ export function FloorRoute({ identity, device = null, paused, onUnpair }: FloorR
     [claim, queue.online, sendAcknowledge, t],
   );
 
-  // --- Transfer a table (2026-10-24) -------------------------------------------
+  // --- Transfer a table (2026-10-24, list from the server 2026-10-25) --------
   //
-  // Who could take it, read when the chooser opens. The tablet's own roster is
-  // the branch's active people, those on shift first. A paired phone's roster
-  // is its own person alone (the PIN gate's rule), so the phone adds whoever
-  // holds a table on the floor now and, for a manager, today's shifts. The
-  // server checks the rest (that they serve here, that the actor may hand the
-  // table over).
+  // Who could take it, read from the server when the chooser opens: exactly the
+  // people the transfer accepts (active, serving here, not the table's waiter
+  // now), on shift first, each with the tables they hold. One list for the
+  // tablet and the phone alike, whose own roster is only its person.
   const transferTab = useTransferTab(branchId);
-  const [rosterWanted, setRosterWanted] = useState(false);
-  const transferRoster = useQuery({
-    queryKey: ['staff', 'transferRoster', branchId],
-    queryFn: async () => (await staffSession?.roster()) ?? [],
-    enabled: rosterWanted && Boolean(staffSession),
-    staleTime: 60_000,
-    retry: false,
-  });
-  /** A personal phone, in either layout: its roster is its own person. */
-  const ownPhone = phone || device?.kind === 'phone';
-  const transferShifts = useStaffToday(branchId, ownPhone && manager && rosterWanted);
-  const transferTargetsFor = useCallback(
-    (serverId: string | null | undefined): readonly TransferTarget[] | null => {
-      const shiftsPending = ownPhone && manager && transferShifts.isLoading;
-      if (!transferRoster.data && !(ownPhone && transferRoster.isError)) return null;
-      if (shiftsPending) return null;
-      /** Tables each person holds now: the chooser's "3 tables now". */
-      const loads = new Map<string, number>();
-      for (const detail of floor?.details ?? []) {
-        const id = detail.serverStaffMemberId;
-        if (id) loads.set(id, (loads.get(id) ?? 0) + 1);
-      }
-      const people = new Map<string, Omit<TransferTarget, 'load'>>();
-      const add = (
-        staffMemberId: string,
-        name: string,
-        role: string | null,
-        onShift: boolean | null,
-      ) => {
-        if (staffMemberId === serverId) return;
-        if (role !== null && !SERVING_ROLES.includes(role as StaffRole)) return;
-        const known = people.get(staffMemberId);
-        people.set(staffMemberId, {
-          staffMemberId,
-          name: known?.name || name,
-          roleLabel: known?.roleLabel || (role ? t(`pin.role.${role}`) : ''),
-          onShift: known?.onShift ?? onShift,
-        });
-      };
-      for (const entry of transferRoster.data ?? []) {
-        add(entry.staffMemberId, entry.fullName, entry.role, entry.onShiftNow);
-      }
-      for (const shift of transferShifts.data?.shifts ?? []) {
-        add(shift.staffMemberId, shift.fullName, shift.role, shift.onShiftNow);
-      }
-      for (const detail of floor?.details ?? []) {
-        if (detail.serverStaffMemberId && detail.serverName) {
-          // Holding a table now: at work, whatever the rota says.
-          add(detail.serverStaffMemberId, detail.serverName, null, null);
-        }
-      }
-      const rank = (onShift: boolean | null) => (onShift === true ? 0 : onShift === null ? 1 : 2);
-      return [...people.values()]
-        .map((person) => ({ ...person, load: loads.get(person.staffMemberId) ?? 0 }))
-        .sort((a, b) => rank(a.onShift) - rank(b.onShift) || a.name.localeCompare(b.name));
-    },
-    [
-      floor,
-      manager,
-      ownPhone,
-      t,
-      transferRoster.data,
-      transferRoster.isError,
-      transferShifts.data,
-      transferShifts.isLoading,
-    ],
+  /** The tab whose chooser is open: nothing is read before somebody asks. */
+  const [transferWantedFor, setTransferWantedFor] = useState<string | null>(null);
+  const transferTargetsQuery = useTransferTargets(
+    selectedTabId,
+    selectedTabId !== null && transferWantedFor === selectedTabId,
   );
-  /** The list could not be read at all: the tablet's roster, or every source on the phone. */
-  const transferTargetsFailed =
-    transferRoster.isError && (!ownPhone || (manager && transferShifts.isError));
+  const transferTargets = useMemo((): readonly TransferTarget[] | null => {
+    if (!transferTargetsQuery.data) return null;
+    return transferTargetsQuery.data.map((target) => ({
+      staffMemberId: target.staffMemberId,
+      name: target.name,
+      roleLabel: t(`pin.role.${target.role}`),
+      onShift: target.onShiftNow,
+      load: target.openTables,
+    }));
+  }, [t, transferTargetsQuery.data]);
+  const transferTargetsFailed = transferTargetsQuery.isError;
   const transfer = useCallback(
     (
       tabId: string,
@@ -1813,9 +1758,16 @@ export function FloorRoute({ identity, device = null, paused, onUnpair }: FloorR
           if (variant === 'sheet') setTimeout(back, 0);
           else back();
         }}
-        transferTargets={transferTargetsFor(selectedDetail?.serverStaffMemberId)}
+        transferTargets={transferTargets}
         transferTargetsFailed={transferTargetsFailed}
-        onWantTransfer={() => setRosterWanted(true)}
+        onWantTransfer={() => {
+          if (!selectedTabId) return;
+          // Read afresh each time it opens: who holds how many tables moves.
+          void queryClient.invalidateQueries({
+            queryKey: queryKeys.transferTargets(selectedTabId),
+          });
+          setTransferWantedFor(selectedTabId);
+        }}
         onTransfer={(target, onDone) => {
           if (selectedTabId) transfer(selectedTabId, selectedTable.label, target, onDone);
         }}

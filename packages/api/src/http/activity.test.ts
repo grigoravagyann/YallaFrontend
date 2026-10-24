@@ -615,6 +615,25 @@ describe('the floor', () => {
     });
   });
 
+  it('lists who the table can go to, in the server’s order, and drops a row with no id', async () => {
+    const backend = fakeBackend({
+      'GET /api/tabs/tab-4/transfer-targets': {
+        body: {
+          items: [
+            { staffMemberId: 's-aram', name: 'Արամ', role: 3, onShiftNow: true, openTables: 3 },
+            { staffMemberId: 's-nare', name: 'Նարե', role: 2, onShiftNow: false, openTables: 0 },
+            { staffMemberId: '', name: 'Nobody', role: 3, onShiftNow: true, openTables: 0 },
+          ],
+        } satisfies Schemas['Yalla.Application.Activity.TransferTargetsView'],
+      },
+    });
+    const targets = await createStaffHttpGateway(backend.client()).listTransferTargets('tab-4');
+    expect(targets).toEqual([
+      { staffMemberId: 's-aram', name: 'Արամ', role: 'waiter', onShiftNow: true, openTables: 3 },
+      { staffMemberId: 's-nare', name: 'Նարե', role: 'manager', onShiftNow: false, openTables: 0 },
+    ]);
+  });
+
   it('reads the change stream’s TableTransferred (7) by name', () => {
     expect(floorChangeSignal(7)).toBe('tableTransferred');
   });

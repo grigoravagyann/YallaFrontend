@@ -2782,7 +2782,8 @@
     },
     "device": {
       "console": "Վահանակ",
-      "none": "առանց սարքի"
+      "none": "առանց սարքի",
+      "phone": "Հեռախոս՝ {{name}}"
     },
     "duration": {
       "seconds_one": "{{count}} վ",
@@ -2807,6 +2808,13 @@
         "water": "ջուր",
         "napkins": "անձեռոցիկ",
         "waiter": "մատուցող"
+      },
+      "codeBy": "կոդը ստեղծեց՝ {{name}}",
+      "unpaired": {
+        "replaced": "կցվեց նոր հեռախոս",
+        "deactivated": "աշխատակիցն ապաակտիվացվեց",
+        "kitchen": "այժմ աշխատում է խոհանոցում",
+        "otherBranch": "այժմ աշխատում է այլ մասնաճյուղում"
       }
     },
     "action": {
@@ -2893,7 +2901,14 @@
       "pinLockoutCleared": "Բացեց PIN-ի արգելափակումը՝ {{name}}",
       "enrolmentCode": "Սարք միացնելու կոդ ստեղծեց",
       "deviceRevokedNamed": "Անջատեց՝ {{name}}",
-      "other": "{{kind}}"
+      "other": "{{kind}}",
+      "deviceEnrolledNamed": "Միացվեց սարք՝ {{name}}",
+      "phonePaired": "Կցեց իր հեռախոսը",
+      "phonePairedAgain": "Կրկին կցեց իր հեռախոսը",
+      "phonePairedFor": "Կցեց հեռախոսը՝ {{name}}",
+      "phoneUnpairedOwn": "Անջատեց իր հեռախոսը",
+      "phoneUnpairedNamed": "Անջատեց հեռախոսը՝ {{name}}",
+      "phoneUnpaired": "Անջատեց հեռախոս"
     },
     "timeline": {
       "back": "Պատմություն",
@@ -2934,7 +2949,8 @@
       "total": "Ընդամենը",
       "paid": "Վճարվեց {{paid}}։",
       "paidWithService": "Վճարվեց {{paid}} ({{service}} սպասարկում)։",
-      "discount": "Զեղչ՝ {{amount}}։"
+      "discount": "Զեղչ՝ {{amount}}։",
+      "noTable": "Սեղան դեռ չկա"
     }
   },
   "staffResults": {

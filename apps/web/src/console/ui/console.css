@@ -8716,6 +8716,18 @@ body:has(.yc-savebar) .yc-toast-region {
   font-weight: var(--font-weight-bold);
 }
 
+/* No table yet: the subject's icon, quieter than a label. */
+.yc-tl-mark.is-empty {
+  border-style: dashed;
+  background: transparent;
+  color: var(--console-muted);
+}
+
+.yc-tl-mark.is-empty .yc-i {
+  width: 24px;
+  height: 24px;
+}
+
 .yc-tl-title {
   flex: 1 1 260px;
   min-width: 0;

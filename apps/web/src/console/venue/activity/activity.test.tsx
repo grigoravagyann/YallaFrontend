@@ -154,11 +154,30 @@ describe('History', () => {
   it('reads the filters from the address', async () => {
     renderAt('/venue/history?who=system');
     const table = await feed();
-    await waitFor(() => expect(rows(table)).toHaveLength(1));
-    expect(within(table).getByText('SHURJ')).toBeTruthy();
-    expect(within(table).getByRole('rowheader').textContent).toContain(
-      'Declined automatically · nobody answered in time',
+    // SHURJ's own: an automatic decline, and a tablet connected with a code.
+    await waitFor(() => expect(rows(table)).toHaveLength(2));
+    expect(within(table).getAllByText('SHURJ')).toHaveLength(2);
+    const what = within(table)
+      .getAllByRole('rowheader')
+      .map((cell) => cell.textContent);
+    expect(
+      what.some((text) => text?.includes('Declined automatically · nobody answered in time')),
+    ).toBe(true);
+    expect(what.some((text) => text?.includes('Սրահի պլանշետ connected · code by Nare P.'))).toBe(
+      true,
     );
+  });
+
+  it('says who paired and unpaired phones, from whose phone, in the reader’s words', async () => {
+    renderAt('/venue/history?kind=device');
+    const table = await feed();
+    await waitFor(() => expect(rows(table).length).toBeGreaterThanOrEqual(3));
+    const paired = rows(table).find((row) => row.textContent?.includes('Paired their phone'))!;
+    expect(paired).toBeTruthy();
+    expect(within(paired).getByText('Lilit A.')).toBeTruthy();
+    expect(within(paired).getByText(/^Lilit’s phone$/u)).toBeTruthy();
+    const unpaired = rows(table).find((row) => row.textContent?.includes('Unpaired Gor'))!;
+    expect(within(unpaired).getByText('Console')).toBeTruthy();
   });
 
   it('downloads the server’s CSV for the filters on screen', async () => {
@@ -212,6 +231,48 @@ describe('a bill’s timeline', () => {
     expect(within(pork).getByText('Aram P.', { exact: false })).toBeTruthy();
     expect(within(dishes).getByText('21,300 ֏', { exact: false })).toBeTruthy();
     expect(screen.getByText('Paid 22,300 ֏ (1,000 ֏ service).')).toBeTruthy();
+  });
+
+  it('marks a booking by its table, or — with none yet — by an icon that says so', async () => {
+    const booking = {
+      reservationId: 'res-1',
+      code: 'B-1',
+      guestName: 'Տիգրան Հովհաննիսյան',
+      partySize: 4,
+      localDate: '2026-10-25',
+      localTime: '20:00',
+      status: 1,
+      tableLabel: '',
+      tabId: null,
+    };
+    const timeline = {
+      subject: { type: 'reservation' as const, id: 'res-1' },
+      tab: null,
+      booking,
+      takeaway: null,
+      lines: [],
+      entries: [],
+      people: [],
+    };
+    const console = gateway();
+    vi.spyOn(console, 'getActivityTimeline').mockResolvedValue(timeline);
+    renderAt('/venue/history/reservation/res-1', console);
+    await screen.findByRole('heading', { level: 1 }, { timeout: 8000 });
+    const head = document.querySelector<HTMLElement>('.yc-tl-head')!;
+    const mark = within(head).getByRole('img', { name: 'No table yet' });
+    expect(mark.textContent).toBe('');
+    expect(head.querySelector('.yc-tl-mark')!.textContent?.trim()).not.toBe('·');
+    cleanup();
+
+    vi.spyOn(console, 'getActivityTimeline').mockResolvedValue({
+      ...timeline,
+      booking: { ...booking, tableLabel: '9' },
+    });
+    renderAt('/venue/history/reservation/res-1', console);
+    await screen.findByRole('heading', { level: 1 }, { timeout: 8000 });
+    const withTable = document.querySelector<HTMLElement>('.yc-tl-mark')!;
+    expect(withTable.textContent).toBe('9');
+    expect(screen.queryByRole('img', { name: 'No table yet' })).toBeNull();
   });
 
   it('says so when the subject is not there', async () => {

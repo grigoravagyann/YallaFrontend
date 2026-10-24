@@ -39,6 +39,7 @@ import type {
   MyPerformanceQuery,
   StaffMemberPerformance,
   TabTransferResult,
+  TabTransferTarget,
   TransferTabCommand,
 } from './contracts/activity';
 import type { StaffFloor, TableActionCommand, TableActionResult } from './contracts/service';
@@ -416,6 +417,17 @@ export interface StaffGateway {
    * @throws {ValidationError} the target cannot take tables here.
    */
   transferTab(command: TransferTabCommand): Promise<TabTransferResult>;
+
+  /**
+   * Who the table can be handed to (2026-10-25) — `GET
+   * /api/tabs/{tabId}/transfer-targets`. Exactly the people `transferTab`
+   * accepts, the table's waiter now left out, on shift first then by name.
+   * The same people on a tablet and on a phone (whose own roster is only its
+   * person). The table's waiter or a manager and above.
+   *
+   * @throws {ForbiddenError} not the table's waiter nor a manager here, or no such tab.
+   */
+  listTransferTargets(tabId: string): Promise<readonly TabTransferTarget[]>;
 
   /**
    * My results (2026-10-25): the signed-in person's own figures, sales by day

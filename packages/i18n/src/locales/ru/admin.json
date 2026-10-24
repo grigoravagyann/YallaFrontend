@@ -2992,7 +2992,8 @@
     },
     "device": {
       "console": "Консоль",
-      "none": "без устройства"
+      "none": "без устройства",
+      "phone": "Телефон: {{name}}"
     },
     "duration": {
       "seconds_one": "{{count}} с",
@@ -3025,6 +3026,13 @@
         "water": "вода",
         "napkins": "салфетки",
         "waiter": "официант"
+      },
+      "codeBy": "код создал(а): {{name}}",
+      "unpaired": {
+        "replaced": "привязан новый телефон",
+        "deactivated": "сотрудник деактивирован",
+        "kitchen": "теперь работает на кухне",
+        "otherBranch": "теперь работает в другом филиале"
       }
     },
     "action": {
@@ -3115,7 +3123,14 @@
       "pinLockoutCleared": "Снял(а) блокировку PIN: {{name}}",
       "enrolmentCode": "Создал(а) код для подключения устройства",
       "deviceRevokedNamed": "Отключил(а): {{name}}",
-      "other": "{{kind}}"
+      "other": "{{kind}}",
+      "deviceEnrolledNamed": "Подключено устройство: {{name}}",
+      "phonePaired": "Привязал(а) свой телефон",
+      "phonePairedAgain": "Снова привязал(а) свой телефон",
+      "phonePairedFor": "Привязал(а) телефон: {{name}}",
+      "phoneUnpairedOwn": "Отвязал(а) свой телефон",
+      "phoneUnpairedNamed": "Отвязал(а) телефон: {{name}}",
+      "phoneUnpaired": "Отвязал(а) телефон"
     },
     "timeline": {
       "back": "История",
@@ -3158,7 +3173,8 @@
       "total": "Итого",
       "paid": "Оплачено {{paid}}.",
       "paidWithService": "Оплачено {{paid}} (обслуживание {{service}}).",
-      "discount": "Скидка {{amount}}."
+      "discount": "Скидка {{amount}}.",
+      "noTable": "Стол ещё не назначен"
     }
   },
   "staffResults": {

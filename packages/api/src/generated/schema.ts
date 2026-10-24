@@ -4838,6 +4838,28 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/tabs/{tabId}/transfer-targets": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Who the table can be handed to
+         * @description The transfer sheet's list - for a waiter's phone, whose own roster lists only its person. Answers `{ items: [{ staffMemberId, name, role, onShiftNow, openTables }] }`: the active staff at the tab's branch (or venue-wide) who serve - a waiter, manager, general manager or owner, never the kitchen - except the table's waiter now. On shift first, then by name. `onShiftNow`: a shift of theirs at this branch runs now. `openTables`: the live sittings at this branch whose waiter they are. Nothing else about anybody - no PIN, phone or email.
+         *
+         *     Allowed for whoever may transfer the table: its waiter, or a manager or above at the branch (stored roles) - anybody else 403, the kitchen and another branch included. A tab that does not exist is the same 403: the branch scope finds no branch for it.
+         */
+        get: operations["listTransferTargets"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/tabs/join": {
         parameters: {
             query?: never;
@@ -7935,6 +7957,30 @@ export interface components {
              * @description The waiter.
              */
             staffMemberId: string;
+        };
+        /** @description One person who may take the table. Nothing more personal than a name and a role. */
+        "Yalla.Application.Activity.TransferTarget": {
+            /** @description Their name. */
+            name: string;
+            /** @description A shift of theirs at this branch runs now. */
+            onShiftNow: boolean;
+            /**
+             * Format: int32
+             * @description The tables they serve at this branch now - live sittings whose waiter they are.
+             */
+            openTables: number;
+            /** @description What a staff member is allowed to do, coarsely. Authorisation itself is a later task. */
+            role: components["schemas"]["Yalla.Domain.Enums.StaffRole"];
+            /**
+             * Format: uuid
+             * @description Who - the `toStaffMemberId` of the transfer.
+             */
+            staffMemberId: string;
+        };
+        /** @description Who the table can be handed to - the transfer sheet's list, for a phone that lists nobody else. */
+        "Yalla.Application.Activity.TransferTargetsView": {
+            /** @description On shift first, then by name. */
+            items: components["schemas"]["Yalla.Application.Activity.TransferTarget"][];
         };
         /** @description The person a phone belongs to. */
         "Yalla.Application.Auth.BoundStaffMemberView": {
@@ -34888,6 +34934,73 @@ export interface operations {
                 };
                 content: {
                     "application/problem+json": components["schemas"]["Yalla.Api.Errors.ValidationFailedProblem"];
+                };
+            };
+            /** @description Too many requests in the window, or a one-time credential is out of attempts. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description Unexpected failure. Quote the traceId from the body. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+        };
+    };
+    listTransferTargets: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                tabId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Yalla.Application.Activity.TransferTargetsView"];
+                };
+            };
+            /** @description The request violated a domain rule or arrived malformed. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description No usable token was presented, or the one presented was rejected. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description `forbidden`: not the table's waiter nor a manager here, the kitchen, another branch, or no such tab. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
                 };
             };
             /** @description Too many requests in the window, or a one-time credential is out of attempts. */

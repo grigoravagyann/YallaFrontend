@@ -548,8 +548,20 @@ describe('transferring the table (2026-10-24)', () => {
     },
   };
   const targets = [
-    { staffMemberId: 's-aram', name: 'Aram Petrosyan', roleLabel: 'Waiter', onShift: true },
-    { staffMemberId: 's-nare', name: 'Nare Petrosyan', roleLabel: 'Manager', onShift: false },
+    {
+      staffMemberId: 's-aram',
+      name: 'Aram Petrosyan',
+      roleLabel: 'Waiter',
+      onShift: true,
+      load: 1,
+    },
+    {
+      staffMemberId: 's-nare',
+      name: 'Nare Petrosyan',
+      roleLabel: 'Manager',
+      onShift: false,
+      load: 0,
+    },
   ];
 
   it('names the waiter, and hands the table to the person picked', () => {
@@ -572,11 +584,18 @@ describe('transferring the table (2026-10-24)', () => {
       (within(chooser).getByRole('button', { name: 'Transfer' }) as HTMLButtonElement).disabled,
     ).toBe(true);
     const aram = within(chooser).getByRole('button', { name: /^Aram Petrosyan/u });
-    expect(aram.textContent).toContain('on shift now');
+    expect(aram.textContent).toContain('Waiter · on shift now · 1 table now');
     fireEvent.click(aram);
     expect(aram.getAttribute('aria-pressed')).toBe('true');
     fireEvent.click(within(chooser).getByRole('button', { name: 'Transfer to Aram' }));
     expect(onTransfer).toHaveBeenCalledWith(targets[0]);
+  });
+
+  it('says so when nobody else can take the table', () => {
+    show({ ...occupied, transferTargets: [], onTransfer: vi.fn() });
+    fireEvent.click(button('Transfer table'));
+    expect(screen.getByText('Nobody else here can take tables.')).toBeTruthy();
+    expect((button('Transfer') as HTMLButtonElement).disabled).toBe(true);
   });
 
   it('says it is reading who works while the list loads, and needs the connection', () => {

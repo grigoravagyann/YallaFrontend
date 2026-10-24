@@ -13,7 +13,7 @@ import { useId, useState } from 'react';
 import { Link, useLocation, useParams } from 'react-router-dom';
 import { QueryFailureNotice } from '../../../components/QueryFailureNotice';
 import { shortName } from '../../../messages/messageText';
-import { ChevronLeftIcon } from '../../ui/icons';
+import { CalendarIcon, ChevronLeftIcon, TabIcon } from '../../ui/icons';
 import { localDateLabel } from '../messageHistory/historyText';
 import { useVenueOutlet } from '../VenueLayout';
 import {
@@ -214,19 +214,32 @@ function Timeline({
     ? t(`activity.timeline.method.${takeaway.paymentMethod}`)
     : null;
   const adjustmentsAmd = tab ? Math.max(0, linesAmd - tab.subtotalAmd) : 0;
-  const mark =
-    timeline.subject.type === 'tab'
-      ? tab?.tableLabel || '—'
-      : timeline.subject.type === 'takeaway'
-        ? 'T'
-        : booking?.tableLabel || '·';
+  // The tile: the table's label (the title and sub line say it in words), a
+  // takeaway's T, or — a booking with no table yet — its kind as an icon
+  // that says so, never a stray separator.
+  const markLabel =
+    timeline.subject.type === 'takeaway'
+      ? 'T'
+      : timeline.subject.type === 'tab'
+        ? (tab?.tableLabel ?? '').trim()
+        : (booking?.tableLabel ?? '').trim();
 
   return (
     <>
       <div className="yc-tl-head">
-        <span className="yc-tl-mark" aria-hidden="true">
-          {mark}
-        </span>
+        {markLabel ? (
+          <span className="yc-tl-mark" aria-hidden="true">
+            {markLabel}
+          </span>
+        ) : (
+          <span
+            className="yc-tl-mark is-empty"
+            role="img"
+            aria-label={t('activity.timeline.noTable')}
+          >
+            {timeline.subject.type === 'tab' ? <TabIcon /> : <CalendarIcon />}
+          </span>
+        )}
         <div className="yc-tl-title">
           <h1 className="yc-h1">{titleOf(t, timeline)}</h1>
           {sub ? <p className="yc-sub">{sub}</p> : null}

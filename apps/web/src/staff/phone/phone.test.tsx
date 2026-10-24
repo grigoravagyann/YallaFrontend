@@ -3,6 +3,7 @@ import 'fake-indexeddb/auto';
 import {
   createQueryClient,
   createStaffMockGateway,
+  ForbiddenError,
   type EnrolledDevice,
   type StaffFloor,
   type StaffGateway,
@@ -412,32 +413,25 @@ describe('the floor', () => {
 describe('transferring a table on the phone', () => {
   it('opens the chooser in the sheet, people on shift first with their tables, and says it worked', async () => {
     signIn();
-    // A paired phone's roster is its own person: the others come from the floor
-    // (or a manager's Today); here the test hands the chooser a second waiter.
-    staff.roster.mockResolvedValue([
-      {
-        staffMemberId: 's1',
-        fullName: 'Aram Petrosyan',
-        role: 'waiter',
-        onShiftNow: true,
-        shift: null,
-      },
+    // A paired phone's roster is its own person: the chooser asks the server
+    // who can take this table, and shows them in the server's order.
+    const staffGateway = gateway();
+    const targets = vi.spyOn(staffGateway, 'listTransferTargets').mockResolvedValue([
       {
         staffMemberId: 's2',
-        fullName: 'Gor Melkonyan',
+        name: 'Gor Melkonyan',
         role: 'waiter',
         onShiftNow: true,
-        shift: null,
+        openTables: 2,
       },
       {
-        staffMemberId: 's3',
-        fullName: 'Hasmik Kitchen',
-        role: 'kitchen',
-        onShiftNow: true,
-        shift: null,
+        staffMemberId: 's4',
+        name: 'Ani Sargsyan',
+        role: 'manager',
+        onShiftNow: false,
+        openTables: 0,
       },
-    ] satisfies StaffRosterEntry[]);
-    const staffGateway = gateway();
+    ]);
     const transfer = vi.spyOn(staffGateway, 'transferTab').mockImplementation(async (command) => ({
       tabId: command.tabId,
       server: { staffMemberId: 's2', name: 'Gor Melkonyan' },
@@ -462,22 +456,51 @@ describe('transferring a table on the phone', () => {
     await user.click(await within(sheet).findByRole('button', { name: 'Transfer table' }));
     const people = await within(sheet).findByRole('group', { name: /^To whom/u });
     const radios = within(people).getAllByRole('radio');
-    // The kitchen does not take tables; on shift first, by name.
+    // The server's list, for this table's tab, in its order; the roster is not asked.
+    expect(targets).toHaveBeenCalledTimes(1);
+    expect(staff.roster).not.toHaveBeenCalled();
     expect(radios.map((radio) => radio.closest('label')?.querySelector('b')?.textContent)).toEqual([
-      'Aram Petrosyan',
       'Gor Melkonyan',
+      'Ani Sargsyan',
     ]);
-    expect(within(people).getAllByText(/on shift now · no tables now/u)).toHaveLength(2);
-    await user.click(radios[1]!);
+    expect(within(people).getByText('Waiter · on shift now · 2 tables now')).toBeTruthy();
+    expect(within(people).getByText('Manager · not on shift · no tables now')).toBeTruthy();
+    await user.click(radios[0]!);
     await user.click(within(sheet).getByRole('button', { name: 'Transfer to Gor' }));
 
     await waitFor(() => expect(transfer).toHaveBeenCalledTimes(1));
-    expect(transfer.mock.calls[0]![0]).toEqual(expect.objectContaining({ toStaffMemberId: 's2' }));
+    expect(transfer.mock.calls[0]![0]).toEqual(
+      expect.objectContaining({ tabId: targets.mock.calls[0]![0], toStaffMemberId: 's2' }),
+    );
     const status = await within(sheet).findByRole('status');
     expect(status.textContent).toMatch(/is now Gor’s/u);
     expect(status.textContent).toMatch(/Aram → Gor/u);
     await user.click(within(sheet).getByRole('button', { name: 'Done' }));
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+  });
+
+  it('says the list could not be read when the server refuses it', async () => {
+    signIn();
+    const staffGateway = gateway();
+    vi.spyOn(staffGateway, 'listTransferTargets').mockRejectedValue(
+      new ForbiddenError({ url: '/api/tabs/t/transfer-targets' }),
+    );
+    renderAt(staffGateway);
+    const user = setupUser();
+    await user.click(tab(await tabs(), /^Floor/u));
+    const tiles = await screen.findByRole('list', { name: 'Tables' });
+    const occupied = (await within(tiles).findAllByRole('button')).find((one) =>
+      /Occupied/u.test(one.getAttribute('aria-label') ?? ''),
+    )!;
+    await user.click(occupied);
+    const sheet = await screen.findByRole('dialog');
+    await user.click(await within(sheet).findByRole('button', { name: 'Transfer table' }));
+    expect((await within(sheet).findByRole('alert')).textContent).toBe(
+      'Could not read who is working. Close and try again.',
+    );
+    expect(
+      (within(sheet).getByRole('button', { name: 'Transfer' }) as HTMLButtonElement).disabled,
+    ).toBe(true);
   });
 });
 

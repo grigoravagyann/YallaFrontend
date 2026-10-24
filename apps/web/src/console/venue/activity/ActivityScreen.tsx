@@ -17,7 +17,7 @@ import { useActivity, useConsoleGateway, useStaff } from '@yalla/api/react';
 import { branchDayKey, type TimeZone } from '@yalla/format';
 import { useLocale, useTranslation } from '@yalla/i18n';
 import type { TFunction } from 'i18next';
-import { useEffect, useId, useRef, useState, type FormEvent, type Ref } from 'react';
+import { useCallback, useEffect, useId, useRef, useState, type FormEvent, type Ref } from 'react';
 import { Link, useLocation, useSearchParams } from 'react-router-dom';
 import { useCurrentUser } from '../../../auth/useCurrentUser';
 import { QueryFailureNotice } from '../../../components/QueryFailureNotice';
@@ -199,6 +199,12 @@ function ActivityHistory({
     .filter((member) => member.role !== 'kitchen' || member.isActive)
     .slice()
     .sort((a, b) => a.fullName.localeCompare(b.fullName, locale));
+  /** Anybody of the venue by id, a deactivated person too: who made a device's code. */
+  const nameOf = useCallback(
+    (staffMemberId: string) =>
+      staff.data?.find((member) => member.id === staffMemberId)?.fullName ?? null,
+    [staff.data],
+  );
 
   // --- The filters -------------------------------------------------------------
 
@@ -376,7 +382,7 @@ function ActivityHistory({
                       <span className={`yc-act-tag ${kindTone(entry)}`}>
                         {kindLabel(t, entry.category)}
                       </span>{' '}
-                      {whatLabel(t, entry, locale)}
+                      {whatLabel(t, entry, locale, nameOf)}
                     </button>
                   </th>
                   <td className="yc-act-dev">
@@ -542,6 +548,7 @@ function ActivityHistory({
         {selected && violations.length === 0 ? (
           <EntryDetail
             entry={selected}
+            nameOf={nameOf}
             timeZoneId={timeZoneId}
             today={today}
             headingId={detailHeadingId}
@@ -567,6 +574,7 @@ function ActivityHistory({
 
 function EntryDetail({
   entry,
+  nameOf,
   timeZoneId,
   today,
   headingId,
@@ -575,6 +583,7 @@ function EntryDetail({
   onBack,
 }: {
   readonly entry: ActivityEntry;
+  readonly nameOf: (staffMemberId: string) => string | null;
   readonly timeZoneId: string;
   readonly today: string;
   readonly headingId: string;
@@ -589,7 +598,7 @@ function EntryDetail({
   const link = subjectLink(entry);
   const device = deviceLabel(t, entry);
   // What changed has its own block below: said once.
-  const details = detailParts(t, entry, locale).filter(
+  const details = detailParts(t, entry, locale, nameOf).filter(
     (part) => !change || part !== `${change.before} → ${change.after}`,
   );
   return (

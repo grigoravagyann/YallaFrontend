@@ -315,7 +315,8 @@ export function createMockActivity(options: MockActivityOptions) {
       id: member.id,
       name: member.fullName,
       role: member.role,
-      phone: `Հեռախոս · ${firstName(member.fullName)}`,
+      // As the server labels a personal phone (in English, worded on screen).
+      phone: `${firstName(member.fullName)}'s phone`,
     });
     const waiters = staff
       .filter((member) => member.role === 'waiter')
@@ -1011,6 +1012,45 @@ export function createMockActivity(options: MockActivityOptions) {
       action: 'staff.pin-set',
       subject: { type: 'staffMember', id: gor.id },
       params: { name: gor.name, role: 3, branchId },
+    });
+    // Devices (2026-10-25): a tablet connected with a manager's code, a phone
+    // paired by its person, and one the console unpaired.
+    add({
+      at: at('15:40'),
+      by: 'system',
+      category: 'device',
+      action: 'device.enrolled',
+      subject: { type: 'device', id: devices.hall.id },
+      params: { name: devices.hall.label, codeCreatedByStaffMemberId: nare.id },
+    });
+    add({
+      at: at('15:45'),
+      by: lilit,
+      device: 'phone',
+      category: 'device',
+      action: 'device.phone-paired',
+      subject: { type: 'device', id: `${branchId}-dev-phone-${lilit.id}` },
+      params: {
+        name: 'Chrome on Android',
+        staffMemberId: lilit.id,
+        staffName: lilit.name,
+        repaired: false,
+        codeCreatedByStaffMemberId: nare.id,
+      },
+    });
+    add({
+      at: at('16:10'),
+      by: nare,
+      device: 'console',
+      category: 'device',
+      action: 'device.phone-unpaired',
+      subject: { type: 'device', id: `${branchId}-dev-phone-${gor.id}` },
+      params: {
+        name: 'Safari on iPhone',
+        staffMemberId: gor.id,
+        staffName: gor.name,
+        cause: 'console',
+      },
     });
     booking({
       id: res('tigran'),

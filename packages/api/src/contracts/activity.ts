@@ -155,6 +155,8 @@ export const ACTIVITY_ACTIONS = [
   'device.enrolment-code-created',
   'device.enrolled',
   'device.revoked',
+  'device.phone-paired',
+  'device.phone-unpaired',
 ] as const;
 
 export type ActivityAction = (typeof ACTIVITY_ACTIONS)[number];
@@ -712,6 +714,23 @@ export interface TabTransferResult {
   readonly tableLabel: string | null;
   /** Already theirs: answered as done, nothing written. */
   readonly wasReplay: boolean;
+}
+
+/**
+ * One person the table can be handed to — an item of `GET
+ * /api/tabs/{tabId}/transfer-targets` (`listTransferTargets`). Exactly the
+ * people `transferTab` accepts: active staff who serve at the tab's branch
+ * (never the kitchen), minus the table's waiter now. Nothing more personal than
+ * a name and a role.
+ */
+export interface TabTransferTarget {
+  readonly staffMemberId: string;
+  readonly name: string;
+  readonly role: StaffRole;
+  /** A shift of theirs at this branch runs now. */
+  readonly onShiftNow: boolean;
+  /** Live sittings at this branch whose waiter they are now. */
+  readonly openTables: number;
 }
 
 /** `422 transfer-target-ineligible`: the person named cannot take the table. */

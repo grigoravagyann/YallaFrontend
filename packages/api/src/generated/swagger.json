@@ -22964,6 +22964,89 @@
         }
       }
     },
+    "/api/tabs/{tabId}/transfer-targets": {
+      "get": {
+        "tags": [
+          "staff"
+        ],
+        "summary": "Who the table can be handed to",
+        "description": "The transfer sheet's list - for a waiter's phone, whose own roster lists only its person. Answers `{ items: [{ staffMemberId, name, role, onShiftNow, openTables }] }`: the active staff at the tab's branch (or venue-wide) who serve - a waiter, manager, general manager or owner, never the kitchen - except the table's waiter now. On shift first, then by name. `onShiftNow`: a shift of theirs at this branch runs now. `openTables`: the live sittings at this branch whose waiter they are. Nothing else about anybody - no PIN, phone or email.\n\nAllowed for whoever may transfer the table: its waiter, or a manager or above at the branch (stored roles) - anybody else 403, the kitchen and another branch included. A tab that does not exist is the same 403: the branch scope finds no branch for it.",
+        "operationId": "listTransferTargets",
+        "parameters": [
+          {
+            "name": "tabId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Application.Activity.TransferTargetsView"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request violated a domain rule or arrived malformed.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No usable token was presented, or the one presented was rejected.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "`forbidden`: not the table's waiter nor a manager here, the kitchen, another branch, or no such tab.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests in the window, or a one-time credential is out of attempts.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected failure. Quote the traceId from the body.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/branches/{branchId}/tables/floor": {
       "get": {
         "tags": [
@@ -32242,6 +32325,63 @@
         },
         "additionalProperties": false,
         "description": "A waiter's turn at a table."
+      },
+      "Yalla.Application.Activity.TransferTarget": {
+        "required": [
+          "name",
+          "onShiftNow",
+          "openTables",
+          "role",
+          "staffMemberId"
+        ],
+        "type": "object",
+        "properties": {
+          "staffMemberId": {
+            "type": "string",
+            "description": "Who - the `toStaffMemberId` of the transfer.",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string",
+            "description": "Their name."
+          },
+          "role": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Yalla.Domain.Enums.StaffRole"
+              }
+            ],
+            "description": "What a staff member is allowed to do, coarsely. Authorisation itself is a later task."
+          },
+          "onShiftNow": {
+            "type": "boolean",
+            "description": "A shift of theirs at this branch runs now."
+          },
+          "openTables": {
+            "type": "integer",
+            "description": "The tables they serve at this branch now - live sittings whose waiter they are.",
+            "format": "int32"
+          }
+        },
+        "additionalProperties": false,
+        "description": "One person who may take the table. Nothing more personal than a name and a role."
+      },
+      "Yalla.Application.Activity.TransferTargetsView": {
+        "required": [
+          "items"
+        ],
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Yalla.Application.Activity.TransferTarget"
+            },
+            "description": "On shift first, then by name."
+          }
+        },
+        "additionalProperties": false,
+        "description": "Who the table can be handed to - the transfer sheet's list, for a phone that lists nobody else."
       },
       "Yalla.Application.Auth.BoundStaffMemberView": {
         "required": [

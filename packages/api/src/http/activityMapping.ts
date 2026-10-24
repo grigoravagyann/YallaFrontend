@@ -33,6 +33,7 @@ import {
   type StaffRecentPage,
   type StaffRecentQuery,
   type TabTransferResult,
+  type TabTransferTarget,
 } from '../contracts/activity';
 import type { components, operations } from '../generated/schema';
 import { staffRole } from './staffAdminMapping';
@@ -45,6 +46,7 @@ import { staffRole } from './staffAdminMapping';
  * - `GET /api/branches/{branchId}/staff-performance` (`getStaffPerformance`, + `.csv`)
  * - `GET /api/branches/{branchId}/staff/{staffMemberId}/performance` (`getStaffMemberPerformance`)
  * - `POST /api/tabs/{tabId}/transfer` (`transferTable`)
+ * - `GET /api/tabs/{tabId}/transfer-targets` (`listTransferTargets`)
  * - `POST /api/branches/{branchId}/calls/{callId}/claim` (`claimServiceRequest`)
  *
  * The shapes are the generated schema's. Every query value is a string on the
@@ -83,6 +85,9 @@ export type WireRecentPage = Schemas['Yalla.Application.Activity.RecentPage'];
 export type WireTableTransferResult = Schemas['Yalla.Application.Activity.TableTransferResult'];
 /** `POST /api/tabs/{tabId}/transfer`'s body. */
 export type WireTransferTableRequest = Schemas['Yalla.Api.Endpoints.TransferTableRequest'];
+/** `GET /api/tabs/{tabId}/transfer-targets`' answer and one of its items. */
+export type WireTransferTargetsView = Schemas['Yalla.Application.Activity.TransferTargetsView'];
+export type WireTransferTarget = Schemas['Yalla.Application.Activity.TransferTarget'];
 
 /** The feed's query string (and the CSV's): every value a string. */
 export type WireActivityParams = NonNullable<
@@ -516,6 +521,29 @@ export function staffMemberPerformanceFromWire(
     daily: daily.sort((a, b) => a.date.localeCompare(b.date)),
     recent: staffRecentPageFromWire(wire?.recent, asked.list ?? 'orders'),
   };
+}
+
+/**
+ * `GET /api/tabs/{tabId}/transfer-targets`'s items, in the server's order (on
+ * shift first, then by name). A row with no id cannot be sent as a
+ * `toStaffMemberId`, so it is dropped rather than shown.
+ */
+export function transferTargetsFromWire(
+  wire: Partial<WireTransferTargetsView> | null | undefined,
+): readonly TabTransferTarget[] {
+  return (wire?.items ?? []).flatMap((item: Partial<WireTransferTarget>) => {
+    const staffMemberId = text(item?.staffMemberId);
+    if (staffMemberId === null) return [];
+    return [
+      {
+        staffMemberId,
+        name: text(item.name) ?? '',
+        role: typeof item.role === 'number' ? staffRole(item.role) : 'waiter',
+        onShiftNow: item.onShiftNow === true,
+        openTables: count(item.openTables),
+      },
+    ];
+  });
 }
 
 export function tabTransferFromWire(

@@ -220,6 +220,7 @@ export {
   staffPerformanceOptions,
   staffRecentOptions,
   transferTabOptions,
+  transferTargetsOptions,
   useActivity,
   useActivityTimeline,
   useClaimServiceRequest,
@@ -228,6 +229,7 @@ export {
   useStaffPerformance,
   useStaffRecent,
   useTransferTab,
+  useTransferTargets,
 } from './activity';
 export type {
   TelegramVerification,
@@ -433,6 +435,8 @@ export const queryKeys = {
   /** My results: the signed-in person's own page, by range and recent list. */
   myPerformance: (branchId: string, from: string, to: string, list: string, limit: number) =>
     ['staff', 'myPerformance', branchId, from, to, list, limit] as const,
+  /** Who a table can be handed to, read when the transfer chooser opens. */
+  transferTargets: (tabId: string) => ['staff', 'transferTargets', tabId] as const,
   /** This device's push switches: the device's own, not a branch's. */
   staffNotificationSettings: ['staff', 'device', 'notificationSettings'] as const,
   staffPushConfig: ['staff', 'pushConfig'] as const,

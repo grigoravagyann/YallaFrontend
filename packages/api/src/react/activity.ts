@@ -17,6 +17,7 @@ import type {
   StaffRecentList,
   StaffRecentPage,
   TabTransferResult,
+  TabTransferTarget,
   TransferTabCommand,
 } from '../contracts/activity';
 import type { ServiceRequest } from '../contracts/ordering';
@@ -241,6 +242,30 @@ export function useClaimServiceRequest() {
 }
 
 /**
+ * Who the table can be handed to (`GET /api/tabs/{tabId}/transfer-targets`):
+ * read when the chooser opens, the same list on a tablet and a phone. Short
+ * lived — who holds how many tables moves with the floor — and never retried:
+ * a 403 is an answer, not a blip.
+ */
+export function transferTargetsOptions(
+  gateway: Pick<StaffGateway, 'listTransferTargets'>,
+  tabId: string | null | undefined,
+  enabled = true,
+) {
+  return {
+    queryKey: queryKeys.transferTargets(tabId ?? ''),
+    queryFn: (): Promise<readonly TabTransferTarget[]> => gateway.listTransferTargets(tabId ?? ''),
+    enabled: enabled && Boolean(tabId),
+    staleTime: staleTime.frequent,
+    retry: false,
+  };
+}
+
+export function useTransferTargets(tabId: string | null | undefined, enabled = true) {
+  return useQuery(transferTargetsOptions(useStaffGateway(), tabId, enabled));
+}
+
+/**
  * Hand a table to another waiter. Online only, never retried (a second ask to
  * the same waiter answers `wasReplay`). The floor is read again after (its
  * tiles name the waiter), as every other tablet does on the change stream's
@@ -258,6 +283,7 @@ export function transferTabOptions(
       void queryClient.invalidateQueries({ queryKey: queryKeys.staffFloor(branchId ?? '') });
       if (result) {
         void queryClient.invalidateQueries({ queryKey: queryKeys.staffTab(result.tabId) });
+        void queryClient.invalidateQueries({ queryKey: queryKeys.transferTargets(result.tabId) });
       }
     },
   };

@@ -8,6 +8,7 @@ import {
   staffMemberPerformanceOptions,
   staffRecentOptions,
   transferTabOptions,
+  transferTargetsOptions,
 } from './activity';
 import { queryKeys } from './index';
 
@@ -150,5 +151,19 @@ describe('the floor', () => {
     });
     expect(invalidate).toHaveBeenCalledWith({ queryKey: queryKeys.staffFloor('b-1') });
     expect(invalidate).toHaveBeenCalledWith({ queryKey: queryKeys.staffTab('tab-4') });
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: queryKeys.transferTargets('tab-4') });
+  });
+
+  it('reads who can take a table only once there is a tab and somebody asked, and never retries', async () => {
+    const listTransferTargets = vi.fn(async () => []);
+    const off = transferTargetsOptions({ listTransferTargets }, 'tab-4', false);
+    expect(off.enabled).toBe(false);
+    expect(transferTargetsOptions({ listTransferTargets }, null).enabled).toBe(false);
+    const on = transferTargetsOptions({ listTransferTargets }, 'tab-4');
+    expect(on.enabled).toBe(true);
+    expect(on.retry).toBe(false);
+    expect(on.queryKey).toEqual(queryKeys.transferTargets('tab-4'));
+    await on.queryFn();
+    expect(listTransferTargets).toHaveBeenCalledWith('tab-4');
   });
 });

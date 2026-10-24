@@ -2782,7 +2782,8 @@
     },
     "device": {
       "console": "Console",
-      "none": "no device"
+      "none": "no device",
+      "phone": "{{name}}’s phone"
     },
     "duration": {
       "seconds_one": "{{count}} s",
@@ -2807,6 +2808,13 @@
         "water": "water",
         "napkins": "napkins",
         "waiter": "the waiter"
+      },
+      "codeBy": "code by {{name}}",
+      "unpaired": {
+        "replaced": "a new phone was paired",
+        "deactivated": "the person was deactivated",
+        "kitchen": "now works in the kitchen",
+        "otherBranch": "now works at another branch"
       }
     },
     "action": {
@@ -2893,7 +2901,14 @@
       "pinLockoutCleared": "Unlocked {{name}}’s PIN",
       "enrolmentCode": "Made a code to connect a device",
       "deviceRevokedNamed": "Disconnected {{name}}",
-      "other": "{{kind}}"
+      "other": "{{kind}}",
+      "deviceEnrolledNamed": "{{name}} connected",
+      "phonePaired": "Paired their phone",
+      "phonePairedAgain": "Paired their phone again",
+      "phonePairedFor": "Paired {{name}}’s phone",
+      "phoneUnpairedOwn": "Unpaired their phone",
+      "phoneUnpairedNamed": "Unpaired {{name}}’s phone",
+      "phoneUnpaired": "Unpaired a phone"
     },
     "timeline": {
       "back": "History",
@@ -2934,7 +2949,8 @@
       "total": "Total",
       "paid": "Paid {{paid}}.",
       "paidWithService": "Paid {{paid}} ({{service}} service).",
-      "discount": "Discount {{amount}}."
+      "discount": "Discount {{amount}}.",
+      "noTable": "No table yet"
     }
   },
   "staffResults": {

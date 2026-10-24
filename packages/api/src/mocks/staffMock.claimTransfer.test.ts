@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { transferRefusalOf } from '../contracts/activity';
-import { NotFoundError } from '../errors';
+import { ForbiddenError, NotFoundError } from '../errors';
 import { createStaffMockGateway } from './staffMock';
 
 /**
@@ -65,6 +65,31 @@ describe('transferring a table', () => {
       serverStaffMemberId: `${BRANCH}-manager`,
       serverName: 'Nare Petrosyan',
     });
+  });
+
+  it('lists who can take the table: serving people only, never its waiter, on shift first', async () => {
+    const { gateway, detail } = await seatedTab();
+    const targets = await gateway.listTransferTargets(detail.openTabId!);
+    expect(targets.length).toBeGreaterThan(0);
+    expect(targets.map((one) => one.staffMemberId)).not.toContain(detail.serverStaffMemberId);
+    expect(targets.every((one) => one.role !== 'kitchen')).toBe(true);
+    const shifts = targets.map((one) => one.onShiftNow);
+    expect(shifts).toEqual([...shifts].sort((a, b) => Number(b) - Number(a)));
+    expect(targets.map((one) => one.staffMemberId)).toContain(`${BRANCH}-manager`);
+    // After a hand-over the new waiter leaves the list and the old one joins it.
+    await gateway.transferTab({
+      tabId: detail.openTabId!,
+      toStaffMemberId: `${BRANCH}-manager`,
+      clientCommandId: '33333333-3333-4333-8333-333333333333',
+    });
+    const after = await gateway.listTransferTargets(detail.openTabId!);
+    expect(after.map((one) => one.staffMemberId)).not.toContain(`${BRANCH}-manager`);
+    expect(after.map((one) => one.staffMemberId)).toContain(detail.serverStaffMemberId);
+  });
+
+  it('refuses the list for a tab that is not there, as the server does (403)', async () => {
+    const { gateway } = await seatedTab();
+    expect(await failing(gateway.listTransferTargets('nope'))).toBeInstanceOf(ForbiddenError);
   });
 
   it('refuses the kitchen as a target, as the server does', async () => {

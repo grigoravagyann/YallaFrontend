@@ -3,6 +3,7 @@ import { cafeFloorPlan } from './roomFloors';
 import type { Menu } from '../contracts/menu';
 import {
   ConcurrencyConflictError,
+  ForbiddenError,
   InvalidTransitionError,
   NotFoundError,
   UnauthorizedError,
@@ -129,6 +130,7 @@ import {
   type MyPerformanceQuery,
   type StaffMemberPerformance,
   type TabTransferResult,
+  type TabTransferTarget,
   type TransferTabCommand,
 } from '../contracts/activity';
 import type {
@@ -3706,6 +3708,49 @@ export function createStaffMockGateway(options: StaffMockOptions = {}): StaffGat
       };
       transfers.set(command.clientCommandId, result);
       return settle(result);
+    },
+
+    async listTransferTargets(tabId: string): Promise<readonly TabTransferTarget[]> {
+      const url = `/api/tabs/${tabId}/transfer-targets`;
+      requireSession(url);
+      const tab = tabs.get(tabId);
+      // As the server: a tab that does not exist is a 403, its branch scope finds nothing.
+      if (!tab) throw new ForbiddenError({ url });
+      const at = now();
+      const current = serverOf(tab.id)?.id ?? null;
+      const people = branchPeople().filter(
+        (member) => SERVING_ROLES.includes(member.role) && member.id !== current,
+      );
+      const onShift = new Set(
+        mockRosterShiftsAround(people, branchId, at)
+          .filter(
+            (shift) =>
+              Date.parse(shift.startsAtUtc) <= at.getTime() &&
+              at.getTime() < Date.parse(shift.endsAtUtc),
+          )
+          .map((shift) => shift.staffMemberId),
+      );
+      /** Live sittings each person is the waiter of: the "3 tables now". */
+      const loads = new Map<string, number>();
+      for (const state of tables.values()) {
+        const live = state.tabId ? tabs.get(state.tabId) : undefined;
+        if (!live || live.status === 'closed' || live.status === 'abandoned') continue;
+        const holder = serverOf(live.id);
+        if (holder) loads.set(holder.id, (loads.get(holder.id) ?? 0) + 1);
+      }
+      return settle(
+        people
+          .map((member) => ({
+            staffMemberId: member.id,
+            name: member.fullName,
+            role: member.role,
+            onShiftNow: onShift.has(member.id),
+            openTables: loads.get(member.id) ?? 0,
+          }))
+          .sort(
+            (a, b) => Number(b.onShiftNow) - Number(a.onShiftNow) || a.name.localeCompare(b.name),
+          ),
+      );
     },
 
     async getMyPerformance(query: MyPerformanceQuery): Promise<StaffMemberPerformance> {

@@ -2,14 +2,17 @@ import type {
   MyPerformanceQuery,
   StaffMemberPerformance,
   TabTransferResult,
+  TabTransferTarget,
 } from '../contracts/activity';
 import {
   myPerformanceParams,
   staffMemberPerformanceFromWire,
   tabTransferFromWire,
+  transferTargetsFromWire,
   type WirePersonPerformance,
   type WireTableTransferResult,
   type WireTransferTableRequest,
+  type WireTransferTargetsView,
 } from './activityMapping';
 import type { DuePreOrder, DuePreOrders } from '../contracts/preOrder';
 import type { AskOnMyWayResult } from '../contracts/onMyWay';
@@ -799,6 +802,13 @@ export function createStaffHttpGateway(client: ApiClient): StaffGateway {
         } satisfies WireTransferTableRequest,
       );
       return tabTransferFromWire(data, command);
+    },
+
+    async listTransferTargets(tabId: string): Promise<readonly TabTransferTarget[]> {
+      const { data } = await client.get<WireTransferTargetsView>(
+        `/api/tabs/${tabId}/transfer-targets`,
+      );
+      return transferTargetsFromWire(data);
     },
 
     async getMyPerformance(query: MyPerformanceQuery): Promise<StaffMemberPerformance> {

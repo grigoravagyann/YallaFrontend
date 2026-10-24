@@ -107,10 +107,27 @@ export function whoShort(t: TFunction, entry: ActivityEntry): string {
   return entry.actor.name.split(/\s+/u)[0] || t('activity.who.unknown');
 }
 
-/** From where: the device's own name, "Console", or nothing. */
+/**
+ * The server's label for a personal phone, "Aram's phone" (always English):
+ * the name part, or `null` for any other label (a tablet's own name).
+ */
+export function phoneOwnerOf(label: string): string | null {
+  const said = /^(.+?)\s*['’]s\s+phone$/iu.exec(label.trim());
+  return said?.[1]?.trim() || null;
+}
+
+/**
+ * From where: "Console" and "Aram's phone" in the reader's language, a
+ * tablet's own name as it was given, or nothing.
+ */
 export function deviceLabel(t: TFunction, entry: ActivityEntry): string | null {
-  if (entry.device.isConsole) return t('activity.device.console');
-  return entry.device.label || null;
+  const label = entry.device.label.trim();
+  if (entry.device.isConsole || (entry.device.id === null && /^console$/iu.test(label))) {
+    return t('activity.device.console');
+  }
+  if (!label) return null;
+  const owner = phoneOwnerOf(label);
+  return owner ? t('activity.device.phone', { name: owner }) : label;
 }
 
 /** "48 s", "1 min 35 s", "4 min". */
@@ -155,6 +172,29 @@ function itemOf(entry: ActivityEntry): string {
 
 function guestOf(t: TFunction, entry: ActivityEntry): string {
   return shortName(entry.guestName ?? '') || t('activity.who.theGuest');
+}
+
+/** A phone entry about the actor's own phone: the person named is the one who acted. */
+function ownPhone(entry: ActivityEntry): boolean {
+  const owner = str(entry.params, 'staffMemberId');
+  return entry.actor.kind === 'staff' && (owner === null || owner === entry.actor.staffMemberId);
+}
+
+/** Why a phone was unpaired, when it was not somebody pressing "Unpair". */
+function unpairCause(t: TFunction, cause: string | null): string | null {
+  switch (cause) {
+    case 'replaced':
+      return t('activity.part.unpaired.replaced');
+    case 'deactivated':
+      return t('activity.part.unpaired.deactivated');
+    case 'kitchen':
+      return t('activity.part.unpaired.kitchen');
+    case 'other-branch':
+      return t('activity.part.unpaired.otherBranch');
+    default:
+      // `console` and `its-owner` are the verb itself; anything newer says nothing more.
+      return null;
+  }
 }
 
 /**
@@ -347,11 +387,31 @@ export function actionLabel(t: TFunction, entry: ActivityEntry, locale?: Locale)
     case 'device.enrolment-code-created':
       return t('activity.action.enrolmentCode');
     case 'device.enrolled':
-      return t('activity.action.deviceEnrolled');
+      // Nobody is signed in to a tablet being connected: SHURJ says it, by its name.
+      return name
+        ? t('activity.action.deviceEnrolledNamed', { name })
+        : t('activity.action.deviceEnrolled');
     case 'device.revoked':
       return name
         ? t('activity.action.deviceRevokedNamed', { name })
         : t('activity.action.deviceRevoked');
+    case 'device.phone-paired': {
+      // `name` here is what the browser called itself: the person is `staffName`.
+      const owner = shortName(str(p, 'staffName') ?? '');
+      if (owner && !ownPhone(entry)) return t('activity.action.phonePairedFor', { name: owner });
+      return bool(p, 'repaired')
+        ? t('activity.action.phonePairedAgain')
+        : t('activity.action.phonePaired');
+    }
+    case 'device.phone-unpaired': {
+      const owner = shortName(str(p, 'staffName') ?? '');
+      if (str(p, 'cause') === 'its-owner' || (ownPhone(entry) && owner)) {
+        return t('activity.action.phoneUnpairedOwn');
+      }
+      return owner
+        ? t('activity.action.phoneUnpairedNamed', { name: owner })
+        : t('activity.action.phoneUnpaired');
+    }
     default:
       return t('activity.action.other', { kind: kindLabel(t, entry.category) });
   }
@@ -387,8 +447,16 @@ export function changeLine(
  * The details after the verb, in order: the guest, the table or the code,
  * the time, the count, the money. "Discount 10%" · "table 2" · "18 400 →
  * 16 560 ֏".
+ *
+ * `nameOf` turns a staff id the entry names (the manager whose code connected
+ * a device) into a name, where the screen knows the branch's people.
  */
-export function detailParts(t: TFunction, entry: ActivityEntry, locale: Locale): string[] {
+export function detailParts(
+  t: TFunction,
+  entry: ActivityEntry,
+  locale: Locale,
+  nameOf?: (staffMemberId: string) => string | null,
+): string[] {
   const p = entry.params;
   const parts: (string | null)[] = [];
   const guest = entry.guestName ? shortName(entry.guestName) : null;
@@ -421,6 +489,13 @@ export function detailParts(t: TFunction, entry: ActivityEntry, locale: Locale):
     case 'settings':
       parts.push(change ? `${change.before} → ${change.after}` : null);
       break;
+    case 'device': {
+      if (entry.action === 'device.phone-unpaired') parts.push(unpairCause(t, str(p, 'cause')));
+      const codeBy = str(p, 'codeCreatedByStaffMemberId');
+      const codeName = codeBy && nameOf ? nameOf(codeBy) : null;
+      if (codeName) parts.push(t('activity.part.codeBy', { name: shortName(codeName) }));
+      break;
+    }
     case 'table':
       parts.push(table);
       if (entry.action === 'table.seated' && num(p, 'partySize')) {
@@ -463,8 +538,13 @@ export function detailParts(t: TFunction, entry: ActivityEntry, locale: Locale):
 }
 
 /** The whole "what": the verb and its details, " · " between. */
-export function whatLabel(t: TFunction, entry: ActivityEntry, locale: Locale): string {
-  return [actionLabel(t, entry, locale), ...detailParts(t, entry, locale)].join(' · ');
+export function whatLabel(
+  t: TFunction,
+  entry: ActivityEntry,
+  locale: Locale,
+  nameOf?: (staffMemberId: string) => string | null,
+): string {
+  return [actionLabel(t, entry, locale), ...detailParts(t, entry, locale, nameOf)].join(' · ');
 }
 
 /** The entry's clock time on the branch's clock. */

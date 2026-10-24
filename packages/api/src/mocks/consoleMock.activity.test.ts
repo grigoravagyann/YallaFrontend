@@ -113,7 +113,11 @@ describe('the History feed', () => {
     expect(lilit.every((entry) => entry.actor.staffMemberId === LILIT)).toBe(true);
 
     const system = await wholeDay({ who: { kind: 'system' } });
-    expect(system.map((entry) => entry.action)).toEqual(['booking.auto-declined']);
+    // Newest first: the automatic decline, then a tablet connected with a manager's code.
+    expect(system.map((entry) => entry.action)).toEqual([
+      'booking.auto-declined',
+      'device.enrolled',
+    ]);
 
     const money = await wholeDay({ category: 'payment' });
     expect(money.every((entry) => entry.category === 'payment')).toBe(true);

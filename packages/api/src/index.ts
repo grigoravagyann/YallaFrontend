@@ -1354,6 +1354,7 @@ export type {
   StaffRecentPage,
   StaffRecentQuery,
   TabTransferResult,
+  TabTransferTarget,
   TransferIneligibleReason,
   TransferTabCommand,
 } from './contracts/activity';
