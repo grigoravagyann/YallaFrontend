@@ -24,11 +24,17 @@ test('A diner books tomorrow with a note, and Bookings lists it', async ({ page 
   await page.waitForURL(`**/book/${demo.branchId}**`);
 
   // Tomorrow's day of slots, so the times struck or left out are known before choosing one.
-  const daySlots = page.waitForResponse(
-    (response) => response.url().includes('/availability/slots') && response.ok(),
-  );
-  await page.getByRole('button', { name: tomorrowLabel() }).click();
-  await daySlots;
+  // Late in the evening today has no bookable time left and the screen opens on tomorrow
+  // already; pressing the chosen day does nothing, so there is no new answer to wait for.
+  const tomorrow = page.getByRole('button', { name: tomorrowLabel() });
+  await expect(tomorrow).toBeVisible();
+  if ((await tomorrow.getAttribute('aria-selected')) !== 'true') {
+    const daySlots = page.waitForResponse(
+      (response) => response.url().includes('/availability/slots') && response.ok(),
+    );
+    await tomorrow.click();
+    await daySlots;
+  }
   // Party sizes are radios in a named group (their selected state reaches
   // screen readers), not plain buttons.
   await page.getByRole('radio', { name: '2', exact: true }).first().click();
