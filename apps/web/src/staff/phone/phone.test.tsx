@@ -26,7 +26,7 @@ import { initConsoleTestI18n } from '../../console/venue/reports/testHarness';
 import type * as CurrentUserModule from '../../auth/useCurrentUser';
 import { staffDeviceStore } from '../auth/deviceStore';
 import { upcomingBookings } from './nextHour';
-import { PHONE_QUERY } from './usePhoneLayout';
+import { isPhoneLayout, NARROW_QUERY, PHONE_QUERY, SHORT_TOUCH_QUERY } from './usePhoneLayout';
 
 /**
  * The staff phone (staff phone spec, "Phone layout for /staff"): below 600px
@@ -179,7 +179,49 @@ describe('which layout /staff wears', () => {
     const css = readFileSync(join(dirname(fileURLToPath(import.meta.url)), 'phone.css'), 'utf8');
     expect(PHONE_QUERY.startsWith('(max-width: 599.98px)')).toBe(true);
     expect(css).toContain("[data-layout='phone']");
-    expect(PHONE_QUERY).toContain('(display-mode: standalone)');
+    // A phone on its side is the phone in a browser tab too, not only installed.
+    expect(PHONE_QUERY).not.toContain('display-mode');
+    expect(PHONE_QUERY).toContain('(pointer: coarse)');
+  });
+
+  /**
+   * What a device answers, as `matchMedia` would: its window (CSS px), whether
+   * its pointer is coarse, and its screen's shorter side.
+   */
+  function device(width: number, height: number, coarse: boolean, screenShortSide: number) {
+    const matches = (query: string): boolean => {
+      const narrow = width < 600;
+      const shortTouch = coarse && height <= 500;
+      if (query === NARROW_QUERY) return narrow;
+      if (query === SHORT_TOUCH_QUERY) return shortTouch;
+      if (query === PHONE_QUERY) return narrow || shortTouch;
+      return false;
+    };
+    return isPhoneLayout(matches, screenShortSide);
+  }
+
+  it('keeps a phone on the phone layout upright and on its side, in a browser tab or installed', () => {
+    // iPhone 14 in Safari: upright, then sideways with the address bar.
+    expect(device(390, 664, true, 390)).toBe(true);
+    expect(device(844, 340, true, 390)).toBe(true);
+    // A large Android phone, sideways and installed.
+    expect(device(915, 412, true, 412)).toBe(true);
+  });
+
+  it('keeps 7-inch and larger tablets on the tablet layout in either orientation', () => {
+    // 1024×600dp held landscape: installed (~530px tall) and in a browser tab (~470px).
+    expect(device(1024, 530, true, 600)).toBe(false);
+    expect(device(1024, 470, true, 600)).toBe(false);
+    // An iPad mini upright and an iPad sideways.
+    expect(device(744, 1133, true, 744)).toBe(false);
+    expect(device(1180, 800, true, 820)).toBe(false);
+    // A short desktop window with a mouse is not a phone either.
+    expect(device(1280, 450, false, 1080)).toBe(false);
+  });
+
+  it('wears the phone shell in any window under 600px wide, as before', () => {
+    expect(device(560, 900, false, 1080)).toBe(true);
+    expect(device(500, 600, true, 800)).toBe(true);
   });
 
   it('keeps the tablet’s full-screen overlays clear of the notch and the home indicator', () => {
@@ -259,6 +301,9 @@ describe('Now', () => {
 
     const section = await screen.findByRole('region', { name: /bookings to approve/i });
     const row = await within(section).findByRole('button', { name: /^Table 7\b/u });
+    // Its name says the deadline, never the seconds that tick on screen.
+    expect(row.getAttribute('aria-label')).toMatch(/, answer by .*\d:\d\d,/u);
+    expect(row.getAttribute('aria-label')).not.toMatch(/left to answer/u);
     await user.click(row);
 
     // A screen of its own: Back and its heading in the bar, no tabs under it.
@@ -266,9 +311,13 @@ describe('Now', () => {
     expect(document.activeElement).toBe(heading);
     expect(screen.queryByRole('navigation', { name: 'Main' })).toBeNull();
 
+    expect(screen.getByText('Answer within')).toBeTruthy();
     await user.click(await screen.findByRole('button', { name: 'Approve' }));
     await waitFor(() => expect(approve).toHaveBeenCalledTimes(1));
     expect(await screen.findByText(/Approved\. The guest has been told\./u)).toBeTruthy();
+    // Decided: the card no longer counts down while the list catches up.
+    expect(screen.queryByText('Answer within')).toBeNull();
+    expect(screen.queryByRole('timer', { hidden: true })).toBeNull();
 
     await user.click(screen.getByRole('button', { name: 'Back to Now' }));
     expect(await tabs()).toBeTruthy();

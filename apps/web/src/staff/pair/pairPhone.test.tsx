@@ -223,6 +223,44 @@ describe('pairing a phone', () => {
     ).toBeTruthy();
   });
 
+  it('refuses to pair over a browser that is the venue’s floor tablet, and goes back to it', async () => {
+    const tabletCode = 'TBKT2345XY';
+    harness.registry.enrolmentCodes.set(tabletCode, {
+      code: tabletCode,
+      branchId: BRANCH,
+      expiresAtUtc: new Date(Date.now() + 60 * 60_000).toISOString(),
+      spentAtUtc: null,
+    });
+    await harness.session.enrol({ code: tabletCode, deviceName: 'Bar tablet' });
+    const tabletToken = harness.registry.devices.values()[0]?.deviceToken;
+    issue();
+
+    // Even straight from the manager's QR link.
+    renderAt(`/staff/pair#code=${CODE}`);
+    const user = setupUser();
+
+    expect(
+      await screen.findByRole('heading', { name: 'This browser is the venue’s floor tablet' }),
+    ).toBeTruthy();
+    expect(screen.getByText(/Lumen Coffee · Northern Avenue/u)).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Yes, it’s me' })).toBeNull();
+    expect(screen.queryByRole('group', { name: 'PIN keypad' })).toBeNull();
+
+    // Nothing was paired: the tablet is still the one device, still a tablet.
+    expect(harness.registry.devices.values()).toHaveLength(1);
+    expect(harness.registry.devices.values()[0]).toMatchObject({ deviceToken: tabletToken });
+    expect(harness.registry.devices.values()[0]?.kind ?? 'tablet').toBe('tablet');
+    expect(harness.registry.phonePairings.get(CODE)?.redeemedAtUtc).toBeNull();
+
+    await user.click(screen.getByRole('button', { name: 'Back to the floor tablet' }));
+    await waitFor(() =>
+      expect(
+        screen.queryByRole('heading', { name: 'This browser is the venue’s floor tablet' }),
+      ).toBeNull(),
+    );
+    expect(harness.session.getSnapshot().device?.deviceName).toBe('Bar tablet');
+  });
+
   it('offers the tablet’s code instead, from a phone-sized screen', async () => {
     renderAt('/staff/pair');
     const user = setupUser();

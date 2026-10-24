@@ -214,23 +214,30 @@ export function ApprovalCard({
       className={[
         'ft-item approval-card',
         fresh ? 'is-fresh' : '',
-        countdown?.urgent ? 'is-urgent' : '',
-        closed ? 'is-closed' : '',
+        countdown?.urgent && !decided ? 'is-urgent' : '',
+        closed && !decided ? 'is-closed' : '',
       ]
         .filter(Boolean)
         .join(' ')}
     >
       <div className="ft-item-top approval-head">
         <b>{requestTable(request, t)}</b>
-        {countdown && !guestAnswers ? (
+        {/* Gone once answered: the card stays until the next read of the list,
+            and a clock still running on it would say it is still waiting.
+            The ticking clock is for the eye; a screen reader gets the
+            deadline itself, which does not change under it every second. */}
+        {countdown && !guestAnswers && !decided ? (
           <span className="approval-countdown">
-            <span className="approval-countdown-label">{t('approvals.answerWithin')}</span>{' '}
-            <span
-              className="approval-countdown-value"
-              role="timer"
-              aria-label={t('approvals.leftLabel', { time: countdown.label })}
-            >
+            <span className="approval-countdown-label" aria-hidden="true">
+              {t('approvals.answerWithin')}
+            </span>{' '}
+            <span className="approval-countdown-value" role="timer" aria-hidden="true">
               {countdown.label}
+            </span>
+            <span className="visually-hidden">
+              {countdown.expired || !request.approvalExpiresAtUtc
+                ? t('approvals.timeUpShort')
+                : t('approvals.answerBy', { time: format.time(request.approvalExpiresAtUtc) })}
             </span>
           </span>
         ) : null}

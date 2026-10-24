@@ -80,11 +80,17 @@ export function PhoneApprovalList(props: PhoneApprovalListProps) {
                   ]
                     .filter(Boolean)
                     .join(' ')}
+                  // The deadline, not the seconds left: a name that changes every
+                  // second is re-read or ignored, and either way not heard.
                   aria-label={[
                     requestTable(request, t),
                     line,
-                    countdown && !countdown.expired
-                      ? t('approvals.leftLabel', { time: countdown.label })
+                    countdown && request.approvalExpiresAtUtc
+                      ? countdown.expired
+                        ? t('approvals.timeUpShort')
+                        : t('approvals.answerBy', {
+                            time: format.time(request.approvalExpiresAtUtc),
+                          })
                       : null,
                     because,
                   ]

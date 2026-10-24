@@ -1,5 +1,5 @@
 import { useSyncExternalStore } from 'react';
-import { PHONE_QUERY } from '../phone/usePhoneLayout';
+import { isPhoneLayout } from '../phone/usePhoneLayout';
 
 /**
  * Android's "Install app", kept for the button that asks for it.
@@ -35,7 +35,10 @@ function set(next: InstallState): void {
 
 /** Whether the phone shell is what this screen shows at this moment. */
 function phoneLayoutNow(): boolean {
-  return typeof window.matchMedia === 'function' && window.matchMedia(PHONE_QUERY).matches;
+  return (
+    typeof window.matchMedia === 'function' &&
+    isPhoneLayout((query) => window.matchMedia(query).matches)
+  );
 }
 
 if (typeof window !== 'undefined') {

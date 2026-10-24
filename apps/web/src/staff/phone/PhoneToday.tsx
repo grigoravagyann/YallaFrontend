@@ -170,6 +170,14 @@ export function PhoneToday(props: PhoneTodayProps) {
                         ? t('approvals.leftLabel', { time: deadline.label })
                         : null
                     }
+                    // Heard as the deadline, which holds still; seen as the time left.
+                    spokenClock={
+                      deadline && !deadline.expired && needs.soonestApprovalDeadlineUtc
+                        ? t('approvals.answerBy', {
+                            time: format.time(needs.soonestApprovalDeadlineUtc),
+                          })
+                        : null
+                    }
                     onOpen={own ? props.onOpenApprovals : null}
                   />
                 </li>
@@ -232,6 +240,8 @@ function NeedsRow(props: {
   readonly count: number;
   readonly label: string;
   readonly clock: string | null;
+  /** Said instead of `clock` to a screen reader, where `clock` counts down. */
+  readonly spokenClock?: string | null | undefined;
   /** Null for another branch: its floor is not this phone's to act on. */
   readonly onOpen: (() => void) | null;
 }) {
@@ -243,7 +253,14 @@ function NeedsRow(props: {
       <span className="ph-link-text">
         <b>{props.label}</b>
       </span>
-      {props.clock ? <span className="ph-link-sub">{props.clock}</span> : null}
+      {props.clock ? (
+        <span className="ph-link-sub" aria-hidden={props.spokenClock ? true : undefined}>
+          {props.clock}
+        </span>
+      ) : null}
+      {props.clock && props.spokenClock ? (
+        <span className="visually-hidden">{props.spokenClock}</span>
+      ) : null}
       {props.onOpen ? <PhoneIcon name="chevron" /> : null}
     </>
   );

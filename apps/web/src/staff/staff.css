@@ -83,15 +83,37 @@
 /* --------------------------------------------------------------------------
  * The top bar: brand, where, Floor / Kitchen, connection, conflicts, person
  * -------------------------------------------------------------------------- */
+/* Installed on an iPad the status bar is translucent
+   (`apple-mobile-web-app-status-bar-style: black-translucent`, with
+   `viewport-fit=cover`): the page starts under the clock and the battery. The
+   bar grows by the top inset and keeps its own height below it, so the status
+   bar's white text sits on the bar's dark ground; the sides keep clear of a
+   rounded corner or a camera. Every inset is 0 in a browser tab and on a
+   screen without them, and then the bar is exactly as it was. */
 .ft-top {
   flex: none;
   display: flex;
   align-items: center;
   gap: var(--space-md);
-  height: var(--console-size-floor-bar);
-  padding: 0 var(--space-lg);
+  height: calc(var(--console-size-floor-bar) + env(safe-area-inset-top, 0px));
+  padding: env(safe-area-inset-top, 0px) max(var(--space-lg), env(safe-area-inset-right, 0px)) 0
+    max(var(--space-lg), env(safe-area-inset-left, 0px));
   background: var(--console-sidebar);
   color: var(--console-floor-bar-text);
+}
+
+/* The tablet's frame, under the bar: clear of the home indicator at the
+   bottom. The phone shell (`.ph`) keeps its own insets in `phone.css`. */
+.floor:not(.ph) {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+/* The tablet's full-screen overlays - order entry, the tab, cash, the
+   conflicts - start at the very top too. Each opens with its own `.ft-top`
+   bar (`OverlayBar`), which takes the top and the sides as above; the
+   overlay keeps clear of the home indicator. */
+.floor:not(.ph) .staff-overlay {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
 }
 
 .ft-top :focus-visible {
@@ -1553,7 +1575,12 @@
 }
 
 .staff-gate.ft-gate {
-  padding: var(--space-xl);
+  /* The card stays clear of an installed iPad's status bar and home
+     indicator; without insets this is the plain --space-xl it always was. */
+  padding: max(var(--space-xl), env(safe-area-inset-top, 0px))
+    max(var(--space-xl), env(safe-area-inset-right, 0px))
+    max(var(--space-xl), env(safe-area-inset-bottom, 0px))
+    max(var(--space-xl), env(safe-area-inset-left, 0px));
   background: var(--console-scrim);
 }
 

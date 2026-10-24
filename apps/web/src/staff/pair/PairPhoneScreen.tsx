@@ -32,6 +32,16 @@ export interface PairPhoneScreenProps {
   readonly onTablet: () => void;
   /** "Start", after the install screen: the phone's own screens. */
   readonly onFinish: () => void;
+  /**
+   * What this browser is enrolled as already, if anything: `null` when it is
+   * nothing yet (or a phone, which may pair again), the device when it is a
+   * floor tablet, `'unknown'` while an enrolled browser's device is being read.
+   */
+  readonly enrolledTablet?: EnrolledDevice | 'unknown' | null | undefined;
+  /** Leaves pairing for the floor tablet this browser is: "Back to the floor tablet". */
+  readonly onCancel?: (() => void) | undefined;
+  /** Reads the enrolled device again, when the first read did not answer. */
+  readonly onRecheck?: (() => void) | undefined;
 }
 
 type Step = 'intro' | 'scan' | 'code' | 'checking' | 'preview' | 'pin' | 'done' | 'install';
@@ -59,7 +69,13 @@ const ASSUMED_MAX_ATTEMPTS = 5;
  * phone's own camera app (`/staff/pair#code=…`): it is taken from there and
  * wiped from the address at once, so it is not left in the history.
  */
-export function PairPhoneScreen({ onTablet, onFinish }: PairPhoneScreenProps) {
+export function PairPhoneScreen({
+  onTablet,
+  onFinish,
+  enrolledTablet = null,
+  onCancel,
+  onRecheck,
+}: PairPhoneScreenProps) {
   const { t } = useTranslation(['staff', 'common']);
   const { locale } = useLocale();
   const headingId = useId();
@@ -83,12 +99,33 @@ export function PairPhoneScreen({ onTablet, onFinish }: PairPhoneScreenProps) {
   const [pinFailure, setPinFailure] = useState<'wrong' | 'locked' | null>(null);
   const [attempts, setAttempts] = useState(0);
 
+  /**
+   * A browser that is the venue's floor tablet is not paired over (QA, staff
+   * phone): pairing writes a phone's device token where the tablet's was, and
+   * the tablet would stay live on the server with nobody holding it. A
+   * tablet cannot unenrol itself either — revoking it is a manager's, in the
+   * console — so the screen refuses and says how, rather than offering a
+   * confirm it could not carry out properly.
+   */
+  //
+  // Once this screen has sent a PIN it is pairing this browser itself, and
+  // the session passes through "signed in, device not read yet" on the way:
+  // that is not a reason to stop and check.
+  const [pairing, setPairing] = useState(false);
+  const guard = pairing
+    ? null
+    : enrolledTablet === 'unknown'
+      ? 'checkingDevice'
+      : enrolledTablet
+        ? 'tablet'
+        : null;
+
   const heading = useRef<HTMLHeadingElement>(null);
   // Each step's heading takes focus, so a screen reader hears where it is
   // and a keyboard starts from the top of it.
   useEffect(() => {
     heading.current?.focus();
-  }, [step]);
+  }, [step, guard]);
 
   const alive = useRef(true);
   useEffect(() => {
@@ -157,9 +194,12 @@ export function PairPhoneScreen({ onTablet, onFinish }: PairPhoneScreenProps) {
   }
 
   async function submitPin(digits: string): Promise<void> {
-    if (!staffSession || !code) return;
+    // Never over a floor tablet's token: the guard below draws instead of the
+    // keypad, and this holds the line should a keypad be up as it is learnt.
+    if (!staffSession || !code || guard) return;
     setPinBusy(true);
     setPinFailure(null);
+    setPairing(true);
     try {
       const device = await staffSession.pairPhone({
         code,
@@ -180,6 +220,7 @@ export function PairPhoneScreen({ onTablet, onFinish }: PairPhoneScreenProps) {
     } catch (error) {
       if (!alive.current) return;
       setPin('');
+      setPairing(false);
       if (error instanceof PinLockedError) {
         setPinFailure('locked');
       } else if (error instanceof PinRejectedError) {
@@ -483,8 +524,48 @@ export function PairPhoneScreen({ onTablet, onFinish }: PairPhoneScreenProps) {
       break;
   }
 
+  if (guard === 'checkingDevice') {
+    body = (
+      <main className="ph-pair-main" aria-labelledby={headingId} aria-busy="true">
+        {title(t('phone.pair.checkingDevice'))}
+        <span className="ph-pair-grow" />
+        {onRecheck ? (
+          <button type="button" className="ph-pair-btn" onClick={onRecheck}>
+            {t('phone.pair.tryAgain')}
+          </button>
+        ) : null}
+        {onCancel ? (
+          <button type="button" className="ph-pair-btn" onClick={onCancel}>
+            {t('phone.pair.back')}
+          </button>
+        ) : null}
+      </main>
+    );
+  } else if (guard === 'tablet' && enrolledTablet && enrolledTablet !== 'unknown') {
+    body = (
+      <main className="ph-pair-main" aria-labelledby={headingId}>
+        {title(t('phone.pair.tabletGuard.title'))}
+        <p className="ph-pair-lead">
+          {t('phone.pair.tabletGuard.body', {
+            venue: enrolledTablet.venueName,
+            branch: enrolledTablet.branchName,
+          })}
+        </p>
+        <p className="ph-pair-note" role="note">
+          {t('phone.pair.tabletGuard.how')}
+        </p>
+        <span className="ph-pair-grow" />
+        {onCancel ? (
+          <button type="button" className="ph-pair-btn is-primary" onClick={onCancel}>
+            {t('phone.pair.tabletGuard.cancel')}
+          </button>
+        ) : null}
+      </main>
+    );
+  }
+
   return (
-    <div className="ph-pair" data-surface="staff" data-step={step}>
+    <div className="ph-pair" data-surface="staff" data-step={guard ?? step}>
       <header className="ph-pair-top">
         <Wordmark />
       </header>

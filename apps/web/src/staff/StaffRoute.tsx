@@ -191,8 +191,21 @@ export function StaffRoute() {
   }
 
   if (staffAuthAvailable && onPairPath) {
+    // Already enrolled: a phone may pair again (the server reuses it), a
+    // floor tablet is refused - its device is read first if not known yet.
+    const enrolled = snapshot.state === 'locked' || snapshot.state === 'signedIn';
+    const enrolledTablet = !enrolled
+      ? null
+      : !snapshot.device
+        ? ('unknown' as const)
+        : isPhoneDevice(snapshot.device)
+          ? null
+          : snapshot.device;
     return (
       <PairPhoneScreen
+        enrolledTablet={enrolledTablet}
+        onCancel={() => navigate('/staff', { replace: true })}
+        onRecheck={() => void staffSession?.refreshDevice().catch(() => undefined)}
         onTablet={() => {
           setTabletSetup(true);
           navigate('/staff', { replace: true });
