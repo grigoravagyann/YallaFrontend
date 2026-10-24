@@ -22,6 +22,7 @@
     "@yalla/tokens": "workspace:*",
     "i18next": "^26.4.2",
     "idb-keyval": "^6.2.2",
+    "jsqr": "^1.4.0",
     "qrcode": "^1.5.4",
     "react": "19.2.3",
     "react-dom": "19.2.3",

@@ -234,6 +234,8 @@ export interface paths {
          * @description For the PIN screen. **A tablet on a counter should say where it thinks it is** - without this a browser enrolled months ago shows a keypad with no indication of which branch it will act on, and a laptop bound to the wrong one is first noticed in an audit row.
          *
          *     Authenticated by the device token. A revoked device is refused here too: showing a venue name and a keypad to somebody holding a killed tablet is the wrong answer twice.
+         *
+         *     `kind` is 1 for a tablet and 2 for a personal phone; a phone also carries `boundStaffMember` (`id`, `fullName`, `role`) - the one person whose PIN opens it.
          */
         get: operations["getEnrolledStaffDevice"];
         put?: never;
@@ -266,6 +268,56 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/auth/staff/phone-pair": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Pair a personal phone with a code and the person's own PIN
+         * @description **A phone is a tablet that belongs to one person.** A manager issues a ten-minute, single-use code for somebody (`POST /api/branches/{branchId}/staff/{staffMemberId}/phone-pairings`), the phone scans it, and the person taps their own PIN. The answer is exactly what enrolling a tablet and then tapping a PIN would give: `device` is `enrolStaffDevice`'s body - keep `deviceToken` - and `session` is `signInStaffWithPin`'s, so the person is signed in.
+         *
+         *     From then on the phone's PIN screen lists only that person (`GET /api/auth/staff/roster`), `GET /api/auth/staff/device` says `kind: 2` and names them in `boundStaffMember`, and `POST /api/auth/staff/pin` accepts only their id - anybody else's is refused as a wrong PIN.
+         *
+         *     **The PIN** is checked with the lockout every PIN sign-in has: a wrong one is `401 pin-invalid` and counts toward the person's five; the fifth is `403 account-locked`. A wrong PIN leaves the code usable until it expires.
+         *
+         *     **The same browser again.** A live phone of this person's at the branch with the same `clientDeviceId` is reused (renamed to `deviceName`, a new device token). A live phone of somebody else's with it, or this person's at another branch, is unpaired - the browser holds one device token, and now it is this one. A live **tablet** with it is refused with `409` - a manager revokes the tablet first.
+         *
+         *     Kitchen staff cannot have a phone: `409 kitchen-phone-not-allowed`.
+         */
+        post: operations["pairStaffPhone"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/auth/staff/phone-pair/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Who a phone pairing code is for - the phone's "is this you?"
+         * @description Read after scanning the QR (or typing the code) and before asking for the PIN, so the phone can show the person's name, role, venue and branch and let them say *no, wrong code*. Does not spend the code.
+         *
+         *     Refused exactly as `phone-pair` refuses the code: `401 pairing-code-invalid` (unknown, or a tablet's enrolment code), `401 pairing-code-expired` (past its ten minutes, or replaced by a newer code for the same person), `409 conflicting-state` (already used, or its person can no longer sign in at that branch). Rate limited like the other credential routes.
+         */
+        post: operations["previewStaffPhonePairing"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/auth/staff/pin": {
         parameters: {
             query?: never;
@@ -283,6 +335,8 @@ export interface paths {
          *     Send the device token as the bearer. The session token that comes back carries the staff member, their role and the tablet's branch, and lasts thirty minutes; the renewal handle keeps it alive while the tablet is in use and stops working after thirty minutes of inactivity.
          *
          *     PINs are per person, never shared. A shared PIN is faster and destroys the audit trail that answers 'who gave away my reserved table'.
+         *
+         *     **On a personal phone** (`kind` 2) only the phone's own person is accepted. Anybody else's `staffMemberId` is refused exactly as a wrong PIN is (`401 pin-invalid`), before their PIN is checked: nothing counts toward their lockout and nothing says whose PIN it was.
          */
         post: operations["signInStaffWithPin"];
         delete?: never;
@@ -330,6 +384,8 @@ export interface paths {
          *     Nothing else per person - no phone, email or PIN state - because whoever holds the tablet can read it.
          *
          *     Authenticated by the device token, and refused exactly as `GET /api/auth/staff/device` refuses: no token, or a revoked device, is a 401.
+         *
+         *     On a personal phone the list is its own person alone, with their shift - the PIN exchange takes nobody else's there.
          */
         get: operations["getStaffRoster"];
         put?: never;
@@ -571,8 +627,10 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * Every tablet enrolled to this branch
+         * Every tablet and personal phone enrolled to this branch
          * @description Revoked devices are included, so the list is an audit trail rather than a roster.
+         *
+         *     `kind` narrows it: `1` tablets, `2` personal phones; absent, both. Each item says its `kind`; a phone also names its person in `boundStaffMember` (`id`, `fullName`, `role`), and its `name` is what the phone called itself when it paired - its platform and browser, "iPhone · Safari". `lastSeenAtUtc` moves with every PIN sign-in and session renewal on the device; `revokedAtUtc` is when it was revoked or unpaired.
          */
         get: operations["listBranchDevices"];
         put?: never;
@@ -593,10 +651,12 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * Kill a lost or stolen tablet
+         * Kill a lost or stolen tablet, or unpair somebody's phone
          * @description Takes effect on the tablet's next request, not when its token expires - every request carrying a device or session token checks this row. Any session open on the tablet is ended at the same time, because the session is the thing that can act.
          *
          *     Permanent. A tablet that turns up again is enrolled afresh.
+         *
+         *     The same for a personal phone (`kind` 2): unpairing it ends its session now, and it is paired again only with a new code. A phone's unpairing is audited as `staff.phone-unpaired`.
          */
         post: operations["revokeBranchDevice"];
         delete?: never;
@@ -1578,6 +1638,34 @@ export interface paths {
          * @description The path that actually gets used mid-service. A waiter who fat-fingered their PIN during a rush cannot be made to wait out a timer, so a manager clears it.
          */
         post: operations["clearStaffPinLockout"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/branches/{branchId}/staff/{staffMemberId}/phone-pairings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Show a QR that pairs one person's own phone to them
+         * @description Returns `{ code, expiresAtUtc, pairingUrl, staffMemberId, branchId }` **once**: only the code's hash is stored. `code` is ten characters shown as `XXXXX-XXXXX`; `pairingUrl` is what the QR carries - the staff app's `/staff/pair#code=XXXXX-XXXXX` on the console's own origin, the code in the fragment so it never reaches a server log. The phone redeems it with the person's own PIN (`POST /api/auth/staff/phone-pair`).
+         *
+         *     **Ten minutes and one use.** Issuing another code for the same person supersedes their unused one, so *show a new code* takes a lost one back.
+         *
+         *     **Who may.** Manager or above, from their stored row, by the staff-admin rules: the person must be someone the caller may manage, or the caller themselves - a general manager pairs branch managers, waiters and themselves, never an owner. A branch manager pairs at their own branch, and only their own branch's people. The person must sign in at this branch (at it, or venue-wide) - anybody else is 404 here - and be active.
+         *
+         *     **Not kitchen staff**: `409 kitchen-phone-not-allowed`. The kitchen stays on its tablet.
+         *
+         *     Audited as `staff.phone-pairing-issued` (who, for whom, which branch, the expiry - never the code). Rate limited like the other credential routes (`auth`).
+         */
+        post: operations["createStaffPhonePairing"];
         delete?: never;
         options?: never;
         head?: never;
@@ -3838,6 +3926,122 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/staff/device/notification-preferences": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * This device's notification switches
+         * @description `{ approvals, guestMessages, tableCalls, takeaway, kitchenReady, onlyDuringShift, locale, subscribed, isDefault }`. Until somebody chooses (`isDefault: true`) everything is on except `kitchenReady`, and `onlyDuringShift` is on for a waiter's phone and off for a manager's and above. On a tablet `onlyDuringShift` is always false: it has no person and so no shift. `locale` is the language pushes are written in (absent: Armenian); `subscribed` whether a push subscription is on file.
+         */
+        get: operations["getStaffNotificationPreferences"];
+        /**
+         * Set this device's notification switches
+         * @description All six switches every time - `{ approvals, guestMessages, tableCalls, takeaway, kitchenReady, onlyDuringShift }` - and optionally `locale` (`hy`, `ru`, `en`) when the person changes the app's language, so pushes are written in it. Answers the settings as `GET` does. A device's switches are the device's: on a phone, its person's.
+         */
+        put: operations["saveStaffNotificationPreferences"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/staff/device/push-subscription": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Store this device's Web Push subscription
+         * @description Send `PushSubscription.toJSON()` - `{ endpoint, keys: { p256dh, auth } }` - after subscribing, and again whenever the browser's subscription changes. One subscription per device: this replaces the device's earlier one, and a subscription another device row held (the phone was paired again) moves here. Phones and tablets alike; it acts on the device the PIN session is open on.
+         *
+         *     `endpoint` must be an https URL on a known push service (Google's, Mozilla's, Apple's, Microsoft's - `WebPush:AllowedEndpointHosts`), `keys.p256dh` a P-256 public key and `keys.auth` a 16-byte secret, both base64url; otherwise `422 validation-failed` naming the field. A subscription the push service later answers 404 or 410 for is deleted by the server; subscribe again.
+         */
+        put: operations["saveStaffPushSubscription"];
+        post?: never;
+        /**
+         * Forget this device's Web Push subscription
+         * @description After `pushSubscription.unsubscribe()`, or when the person turns notifications off. Answers 204 whether or not there was one.
+         */
+        delete: operations["deleteStaffPushSubscription"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/staff/device/unpair": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Unpair this phone - the phone's own "unpair"
+         * @description Revokes the personal phone the session is open on and ends its session, as a manager's `revokeBranchDevice` would; pairing it again needs a new code from a manager. The client then forgets its device token. Answers 204 for a phone already unpaired.
+         *
+         *     A **tablet** is refused with `409 conflicting-state`: a shared device is a manager's to revoke, not whoever happens to be signed in on it. Audited as `staff.phone-unpaired` with `byItsOwner: true`.
+         */
+        post: operations["unpairOwnStaffPhone"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/staff/push-config": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Whether staff pushes are sent, and the key to subscribe with
+         * @description `{ enabled, publicKey }`. `publicKey` is the VAPID public key, base64url - the `applicationServerKey` for `pushManager.subscribe`. **When it differs from the key the browser's current subscription was made with, unsubscribe and subscribe again**: a Development server generates a new pair every time it starts, and a key rotated in a deployment does the same.
+         *
+         *     `enabled: false` (no `publicKey`) means this server has no VAPID keys and logs pushes instead of sending them - offer no switch. Readable with the device token alone, so the install screen can say so before anybody signs in.
+         */
+        get: operations["getStaffPushConfig"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/staff/today": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The manager's Today: one branch's day so far, for the staff phone
+         * @description One read for the phone's Today board: `revenue` (`totalAmd`, `hallAmd` - the Overview's closed tabs - `takeawayAmd` and `takeawayOrders` collected, all since `sinceUtc`, the service day's first opening), `guests` (`total`, `withBooking`, `walkIn`: people seated since then), `bookings` (`total`, `came` = seated + completed, `expected` = confirmed not yet seated, `late`, `noShow`, `pendingApproval` - the Overview's counts for the same service day), `room` (`occupiedTables` of `tables`, `people`), `needsYou` (`pendingApprovals` the floor can answer now with `oldestApprovalRequestedAtUtc` and `soonestApprovalDeadlineUtc`; `unansweredMessages` with `oldestUnansweredMessageAtUtc` - the Messages tab's rule) and `shifts` (the service date's shifts at the branch and last night's still running: `fullName`, `role`, `startsAt`/`endsAt`, `endsNextDay`, the instants, `onShiftNow`, and `signedIn` - a live PIN session on one of the branch's devices).
+         *
+         *     **Which branch.** `branchId` picks it; absent, the session's branch, else the caller's own. A branch manager reads their own branch only. An owner or general manager reads any branch of their venue - `branches` lists them for the switcher - from their own phone or the console. **On a shared tablet** a manager's PIN session reads that tablet's branch only, as every PIN session there is confined; `branches` is then that one. Read-only; the floor's actions stay on their own routes.
+         */
+        get: operations["getStaffToday"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/tab-adjustments/{adjustmentId}/void": {
         parameters: {
             query?: never;
@@ -5246,6 +5450,25 @@ export interface components {
              */
             quantity: number;
         };
+        /** @description Body of `POST /api/auth/staff/phone-pair/preview`. */
+        "Yalla.Api.Endpoints.PhonePairPreviewRequest": {
+            /** @description The pairing code from the QR's `#code=` or typed off the console. Case and dashes do not matter. */
+            code: string;
+        };
+        /** @description Body of `POST /api/auth/staff/phone-pair`. */
+        "Yalla.Api.Endpoints.PhonePairRequest": {
+            /**
+             * @description The identifier this browser minted for itself and keeps, as a tablet's `deviceId`. Pairing again with the same
+             *     one reuses the phone rather than adding a row.
+             */
+            clientDeviceId: string;
+            /** @description The pairing code the manager showed, from the QR or typed. */
+            code: string;
+            /** @description What the console's Phones tab shows for it - the platform and browser, such as "iPhone · Safari". */
+            deviceName: string;
+            /** @description The person's own PIN - the one they tap on the tablet. Never logged, never stored in the clear. */
+            pin: string;
+        };
         /** @description An order, from a diner's phone or a waiter's tablet. */
         "Yalla.Api.Endpoints.PlaceOrderRequest": {
             /**
@@ -5554,6 +5777,33 @@ export interface components {
              */
             minutes: number;
         };
+        /** @description Body of `PUT /api/staff/device/notification-preferences`: every switch, every time. */
+        "Yalla.Api.Endpoints.SaveStaffNotificationPreferencesRequest": {
+            /** @description A booking waits for the floor's yes or no. */
+            approvals: boolean;
+            /** @description A guest wrote, or answered "are you coming?". */
+            guestMessages: boolean;
+            /** @description The kitchen marked an order ready for the person's table. */
+            kitchenReady: boolean;
+            /**
+             * @description Optional: the language pushes are written in - `hy`, `ru` or `en` - sent when the person changes the
+             *     app's language. Absent leaves it as it was.
+             */
+            locale?: string | null;
+            /** @description A phone's pushes wait for its person's shift. Ignored on a tablet. */
+            onlyDuringShift: boolean;
+            /** @description A table called a waiter or asked for the bill. */
+            tableCalls: boolean;
+            /** @description A new takeaway order waits to be accepted. */
+            takeaway: boolean;
+        };
+        /** @description Body of `PUT /api/staff/device/push-subscription`: `PushSubscription.toJSON()`, as the browser gives it. */
+        "Yalla.Api.Endpoints.SaveStaffPushSubscriptionRequest": {
+            /** @description The push service URL. https, on Google's, Mozilla's, Apple's or Microsoft's push service. */
+            endpoint: string;
+            /** @description The two keys the payload is encrypted to. */
+            keys: components["schemas"]["Yalla.Api.Endpoints.StaffPushSubscriptionKeys"];
+        };
         /** @description Body for seating the party a hold was placed for. */
         "Yalla.Api.Endpoints.SeatHeldPartyRequest": {
             /**
@@ -5710,6 +5960,13 @@ export interface components {
              * @description Whose PIN is being tapped. The tablet lists the branch's staff.
              */
             staffMemberId: string;
+        };
+        /** @description A push subscription's keys. */
+        "Yalla.Api.Endpoints.StaffPushSubscriptionKeys": {
+            /** @description The browser's 16-byte auth secret, base64url (22 characters). */
+            auth: string;
+            /** @description The browser's P-256 public key, base64url (87 characters). */
+            p256dh: string;
         };
         /** @description Starts a Telegram phone verification. */
         "Yalla.Api.Endpoints.StartTelegramVerificationRequest": {
@@ -6836,6 +7093,18 @@ export interface components {
             /** @description A URI naming the problem type, built from Yalla.Api.Errors.ProblemShape.Code. */
             type: string;
         };
+        /** @description The person a phone belongs to. */
+        "Yalla.Application.Auth.BoundStaffMemberView": {
+            /** @description Their name. */
+            fullName: string;
+            /**
+             * Format: uuid
+             * @description Their staff member id - what `POST /api/auth/staff/pin` takes on this phone.
+             */
+            id: string;
+            /** @description What a staff member is allowed to do, coarsely. Authorisation itself is a later task. */
+            role: components["schemas"]["Yalla.Domain.Enums.StaffRole"];
+        };
         /** @description A one-time code a manager reads out to a tablet being enrolled. */
         "Yalla.Application.Auth.DeviceEnrolmentCodeResult": {
             /**
@@ -6894,6 +7163,8 @@ export interface components {
         };
         /** @description Where an enrolled device thinks it is, shown on the PIN screen before anybody taps. */
         "Yalla.Application.Auth.EnrolledDeviceView": {
+            /** @description On a phone, the one person whose PIN opens it; absent on a tablet. */
+            boundStaffMember?: components["schemas"]["Yalla.Application.Auth.BoundStaffMemberView"] | null;
             /**
              * Format: uuid
              * @description The one branch it can act on.
@@ -6915,6 +7186,8 @@ export interface components {
              * @description When it was set up.
              */
             enrolledAtUtc: string;
+            /** @description What an enrolled `StaffDevice` is. Stored as the integer; never renumber. */
+            kind: components["schemas"]["Yalla.Domain.Enums.StaffDeviceKind"];
             /**
              * Format: date-time
              * @description When it was last used.
@@ -6922,6 +7195,64 @@ export interface components {
             lastSeenAtUtc?: string | null;
             /** @description The venue, for a chain where two branches share a name. */
             venueName: string;
+        };
+        /** @description A code that pairs one person's phone to them, as the console shows it in a QR. */
+        "Yalla.Application.Auth.PhonePairingCodeResult": {
+            /**
+             * Format: uuid
+             * @description The branch the phone will be bound to.
+             */
+            branchId: string;
+            /**
+             * @description Ten characters, shown as `XXXXX-XXXXX`. Returned once; only its hash is stored. Case and the dash do not
+             *     matter when typed.
+             */
+            code: string;
+            /**
+             * Format: date-time
+             * @description Ten minutes from now. A newer code for the same person replaces this one.
+             */
+            expiresAtUtc: string;
+            /** @description What the QR carries: the staff app's pairing page with the code in the fragment. */
+            pairingUrl: string;
+            /**
+             * Format: uuid
+             * @description Whose phone it pairs.
+             */
+            staffMemberId: string;
+        };
+        /** @description Who a pairing code is for, so the phone can ask "is this you?" before the PIN. */
+        "Yalla.Application.Auth.PhonePairingPreview": {
+            /**
+             * Format: uuid
+             * @description The branch the phone will be bound to.
+             */
+            branchId: string;
+            /** @description That branch. */
+            branchName: string;
+            /**
+             * Format: date-time
+             * @description When the code stops working.
+             */
+            expiresAtUtc: string;
+            /** @description Their name. */
+            fullName: string;
+            /** @description What a staff member is allowed to do, coarsely. Authorisation itself is a later task. */
+            role: components["schemas"]["Yalla.Domain.Enums.StaffRole"];
+            /**
+             * Format: uuid
+             * @description The person.
+             */
+            staffMemberId: string;
+            /** @description Its venue. */
+            venueName: string;
+        };
+        /** @description A paired phone: its device token and a session for its person, as enrolment and a PIN would give. */
+        "Yalla.Application.Auth.PhonePairingResult": {
+            /** @description Exactly what `POST /api/auth/staff/enrol` answers - keep the device token. */
+            device: components["schemas"]["Yalla.Application.Auth.DeviceEnrolmentResult"];
+            /** @description Exactly what `POST /api/auth/staff/pin` answers - the person is signed in. */
+            session: components["schemas"]["Yalla.Application.Auth.StaffSessionResult"];
         };
         /** @description Which ways of proving a phone number this deployment offers. */
         "Yalla.Application.Auth.PhoneProofChannels": {
@@ -6955,6 +7286,8 @@ export interface components {
         };
         /** @description One enrolled tablet, as the admin panel lists it. */
         "Yalla.Application.Auth.StaffDeviceSummary": {
+            /** @description A phone's person; absent on a tablet. */
+            boundStaffMember?: components["schemas"]["Yalla.Application.Auth.BoundStaffMemberView"] | null;
             /**
              * Format: uuid
              * @description The branch it is bound to.
@@ -6972,6 +7305,8 @@ export interface components {
             id: string;
             /** @description True once a manager killed it. Revocation is permanent; re-enrol instead. */
             isRevoked: boolean;
+            /** @description What an enrolled `StaffDevice` is. Stored as the integer; never renumber. */
+            kind: components["schemas"]["Yalla.Domain.Enums.StaffDeviceKind"];
             /**
              * Format: date-time
              * @description Last time a token from it was used. Null if never.
@@ -6979,6 +7314,11 @@ export interface components {
             lastSeenAtUtc?: string | null;
             /** @description What the manager called it. */
             name: string;
+            /**
+             * Format: date-time
+             * @description When it was revoked or unpaired; absent while live.
+             */
+            revokedAtUtc?: string | null;
         };
         /**
          * @description One person who may tap a PIN on this tablet, as its PIN screen lists them - and whether they are on
@@ -9182,6 +9522,38 @@ export interface components {
              */
             sentLastDay: number;
         };
+        /** @description A device's notification settings as the staff app's switches show them: the six switches, flat. */
+        "Yalla.Application.Notifications.StaffNotificationSettings": {
+            /** @description See Yalla.Application.Notifications.StaffNotificationPreferences. */
+            approvals: boolean;
+            /** @description See Yalla.Application.Notifications.StaffNotificationPreferences. */
+            guestMessages: boolean;
+            /** @description Nothing was chosen yet: these are the defaults for the device and its person's role. */
+            isDefault: boolean;
+            /** @description See Yalla.Application.Notifications.StaffNotificationPreferences. */
+            kitchenReady: boolean;
+            /** @description The language pushes are written in (`hy`, `ru`, `en`); absent means Armenian. */
+            locale?: string | null;
+            /** @description See Yalla.Application.Notifications.StaffNotificationPreferences. */
+            onlyDuringShift: boolean;
+            /** @description This device has a push subscription on file. */
+            subscribed: boolean;
+            /** @description See Yalla.Application.Notifications.StaffNotificationPreferences. */
+            tableCalls: boolean;
+            /** @description See Yalla.Application.Notifications.StaffNotificationPreferences. */
+            takeaway: boolean;
+        };
+        /** @description Whether this server sends Web Push, and the key a browser subscribes with. */
+        "Yalla.Application.Notifications.StaffPushConfig": {
+            /** @description False when no VAPID keys are configured: pushes are logged, not sent - offer no switch. */
+            enabled: boolean;
+            /**
+             * @description The VAPID public key, base64url - `applicationServerKey` for `pushManager.subscribe`. When it differs from
+             *     the one the browser's subscription was made with, unsubscribe and subscribe again (a Development server makes a
+             *     new one every start). Absent when disabled.
+             */
+            publicKey?: string | null;
+        };
         /** @description An adjustment as the diner sees it, reason included. */
         "Yalla.Application.Ordering.AdjustmentView": {
             /**
@@ -10022,6 +10394,7 @@ export interface components {
              * @description The stable slug - `venue.create`, `venue.update`, `venue.suspend`,
              *     `venue.reactivate`, `venue.delete`, `branch.create`, `branch.update`,
              *     `branch.tier-change`, `branch.relocate`, `staff.create`, `staff.sign-in-issued`,
+             *     `staff.phone-pairing-issued`, `staff.phone-unpaired`,
              *     `venue.restore`, `review.hide`, `review.unhide`, `review.dismiss-reports`,
              *     `review.restore-reports`, `review.remove-reply` (the platform taking a venue's reply down - a
              *     venue's own replies and removals are left out of the feed), `table.regenerate-qr`,
@@ -13118,6 +13491,221 @@ export interface components {
             staffMemberId: string;
         };
         /**
+         * @description The manager's "Today" on the staff phone: one branch's day so far in one read - takings, guests, bookings, the
+         *     room, what needs them, and who is on shift.
+         */
+        "Yalla.Application.Staff.StaffToday": {
+            /**
+             * Format: date-time
+             * @description The instant it is true of.
+             */
+            asOfUtc: string;
+            /** @description The service day's bookings. */
+            bookings: components["schemas"]["Yalla.Application.Staff.TodayBookings"];
+            /** @description The branches the caller may switch to here, by name; this one among them. */
+            branches: components["schemas"]["Yalla.Application.Staff.TodayBranch"][];
+            /**
+             * Format: uuid
+             * @description The branch.
+             */
+            branchId: string;
+            /** @description Its name. */
+            branchName: string;
+            /** @description People seated so far. */
+            guests: components["schemas"]["Yalla.Application.Staff.TodayGuests"];
+            /**
+             * Format: time
+             * @description The branch's clock now.
+             */
+            localTime: string;
+            /** @description What waits for somebody. */
+            needsYou: components["schemas"]["Yalla.Application.Staff.TodayNeedsYou"];
+            /** @description Takings so far. */
+            revenue: components["schemas"]["Yalla.Application.Staff.TodayRevenue"];
+            /** @description The room now. */
+            room: components["schemas"]["Yalla.Application.Staff.TodayRoom"];
+            /**
+             * Format: date
+             * @description The service day, as the Overview has it: today, or yesterday while last night's block runs.
+             */
+            serviceDate: string;
+            /** @description Who works today: the service date's shifts at the branch, and last night's still running. */
+            shifts: components["schemas"]["Yalla.Application.Staff.TodayShift"][];
+            /** @description The zone every local value is in. */
+            timeZoneId: string;
+            /** @description Its venue. */
+            venueName: string;
+        };
+        /** @description The service day's bookings, by what became of them - the Overview's counts. */
+        "Yalla.Application.Staff.TodayBookings": {
+            /**
+             * Format: int32
+             * @description Seated now, or came and left.
+             */
+            came: number;
+            /**
+             * Format: int32
+             * @description Confirmed and not yet seated, the late ones included.
+             */
+            expected: number;
+            /**
+             * Format: int32
+             * @description Of Expected, those past their start.
+             */
+            late: number;
+            /**
+             * Format: int32
+             * @description Marked as not having come.
+             */
+            noShow: number;
+            /**
+             * Format: int32
+             * @description Requests still waiting for an answer.
+             */
+            pendingApproval: number;
+            /**
+             * Format: int32
+             * @description Every booking still on the books (not the cancelled or declined).
+             */
+            total: number;
+        };
+        /** @description A branch the switcher offers. */
+        "Yalla.Application.Staff.TodayBranch": {
+            /** Format: uuid */
+            branchId: string;
+            name: string;
+        };
+        /** @description People seated since the day's takings started. */
+        "Yalla.Application.Staff.TodayGuests": {
+            /**
+             * Format: int32
+             * @description Every party's size, added up.
+             */
+            total: number;
+            /**
+             * Format: int32
+             * @description Seated with none.
+             */
+            walkIn: number;
+            /**
+             * Format: int32
+             * @description Seated against a booking.
+             */
+            withBooking: number;
+        };
+        /** @description What waits for somebody - the board's "needs you". */
+        "Yalla.Application.Staff.TodayNeedsYou": {
+            /**
+             * Format: date-time
+             * @description When the longest-waiting of them was asked for; absent with none.
+             */
+            oldestApprovalRequestedAtUtc?: string | null;
+            /**
+             * Format: date-time
+             * @description When the longest-waiting of those guests wrote; absent with none.
+             */
+            oldestUnansweredMessageAtUtc?: string | null;
+            /**
+             * Format: int32
+             * @description Bookings the floor can answer now - the awaiting list's rule, any day.
+             */
+            pendingApprovals: number;
+            /**
+             * Format: date-time
+             * @description The nearest answer deadline among them; absent when none has one.
+             */
+            soonestApprovalDeadlineUtc?: string | null;
+            /**
+             * Format: int32
+             * @description Open threads whose guest wrote and nobody at the venue answered since.
+             */
+            unansweredMessages: number;
+        };
+        /** @description The service day's takings so far, in whole dram. */
+        "Yalla.Application.Staff.TodayRevenue": {
+            /**
+             * Format: int64
+             * @description Tabs closed since the day's first opening - the Overview's revenue.
+             */
+            hallAmd: number;
+            /**
+             * Format: date-time
+             * @description Where the day's takings start: the first opening of the service date, or its midnight.
+             */
+            sinceUtc: string;
+            /**
+             * Format: int64
+             * @description Takeaway orders collected since then.
+             */
+            takeawayAmd: number;
+            /**
+             * Format: int32
+             * @description How many were collected.
+             */
+            takeawayOrders: number;
+            /**
+             * Format: int64
+             * @description Hall and takeaway together.
+             */
+            totalAmd: number;
+        };
+        /** @description The room now. */
+        "Yalla.Application.Staff.TodayRoom": {
+            /**
+             * Format: int32
+             * @description Active tables somebody is sitting at.
+             */
+            occupiedTables: number;
+            /**
+             * Format: int32
+             * @description People sitting down now.
+             */
+            people: number;
+            /**
+             * Format: int32
+             * @description Active tables, out of service included.
+             */
+            tables: number;
+        };
+        /** @description One person's shift today at the branch. */
+        "Yalla.Application.Staff.TodayShift": {
+            /**
+             * Format: time
+             * @description Branch wall clock, on the next date when EndsNextDay.
+             */
+            endsAt: string;
+            /**
+             * Format: date-time
+             * @description The end as an instant.
+             */
+            endsAtUtc: string;
+            /** @description Ends after midnight. */
+            endsNextDay: boolean;
+            /** @description Their name. */
+            fullName: string;
+            /** @description Started and not over. */
+            onShiftNow: boolean;
+            /** @description What a staff member is allowed to do, coarsely. Authorisation itself is a later task. */
+            role: components["schemas"]["Yalla.Domain.Enums.StaffRole"];
+            /** @description Has a live PIN session on a device of this branch now - the board's "signed in". */
+            signedIn: boolean;
+            /**
+             * Format: uuid
+             * @description Who.
+             */
+            staffMemberId: string;
+            /**
+             * Format: time
+             * @description Branch wall clock.
+             */
+            startsAt: string;
+            /**
+             * Format: date-time
+             * @description The start as an instant.
+             */
+            startsAtUtc: string;
+        };
+        /**
          * @description Patch a staff member. BranchId is applied only when SetBranch
          *     is true, so that "make them venue-wide" (null) can be told apart from "leave it".
          */
@@ -14196,6 +14784,14 @@ export interface components {
         "Yalla.Domain.Enums.SpiceLevel": 0 | 1 | 2 | 3;
         /**
          * Format: int32
+         * @description What an enrolled `StaffDevice` is. Stored as the integer; never renumber.
+         *
+         *     Values: 1 Tablet, 2 Phone.
+         * @enum {integer}
+         */
+        "Yalla.Domain.Enums.StaffDeviceKind": 1 | 2;
+        /**
+         * Format: int32
          * @description What a staff member is allowed to do, coarsely. Authorisation itself is a later task.
          *
          *     Values: 0 Unknown, 1 Owner, 2 Manager, 3 Waiter, 4 Kitchen, 5 PlatformAdmin, 6 GeneralManager.
@@ -15128,6 +15724,162 @@ export interface operations {
                 };
             };
             /** @description The code has already been redeemed, or this `deviceId` is already enrolled at that branch - in which case the client should show its PIN screen instead. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description Too many requests in the window, or a one-time credential is out of attempts. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description Unexpected failure. Quote the traceId from the body. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+        };
+    };
+    pairStaffPhone: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["Yalla.Api.Endpoints.PhonePairRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Yalla.Application.Auth.PhonePairingResult"];
+                };
+            };
+            /** @description The request violated a domain rule or arrived malformed. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description `pairing-code-invalid`, `pairing-code-expired`, or `pin-invalid` (the PIN was wrong). */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description `account-locked`: too many wrong PINs; a manager clears it. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description The code was already used; its person can no longer sign in at that branch; the browser is one of the branch's tablets; or `kitchen-phone-not-allowed`. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description Too many requests in the window, or a one-time credential is out of attempts. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description Unexpected failure. Quote the traceId from the body. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+        };
+    };
+    previewStaffPhonePairing: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["Yalla.Api.Endpoints.PhonePairPreviewRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Yalla.Application.Auth.PhonePairingPreview"];
+                };
+            };
+            /** @description The request violated a domain rule or arrived malformed. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description `pairing-code-invalid` or `pairing-code-expired`. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description The caller is authenticated but not allowed to perform this action. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description The code was already used, or its person was deactivated or moved since. */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -16097,7 +16849,9 @@ export interface operations {
     };
     listBranchDevices: {
         parameters: {
-            query?: never;
+            query?: {
+                kind?: components["schemas"]["Yalla.Domain.Enums.StaffDeviceKind"];
+            };
             header?: never;
             path: {
                 branchId: string;
@@ -16115,7 +16869,7 @@ export interface operations {
                     "application/json": components["schemas"]["Yalla.Application.Auth.StaffDeviceSummary"][];
                 };
             };
-            /** @description The request violated a domain rule or arrived malformed. */
+            /** @description `kind` is not 1 or 2. */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -20611,6 +21365,92 @@ export interface operations {
                 };
             };
             /** @description Too many requests in the window, or a one-time credential is out of attempts. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description Unexpected failure. Quote the traceId from the body. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+        };
+    };
+    createStaffPhonePairing: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                branchId: string;
+                staffMemberId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Yalla.Application.Auth.PhonePairingCodeResult"];
+                };
+            };
+            /** @description The request violated a domain rule or arrived malformed. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description No usable token was presented, or the one presented was rejected. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description Not a manager or above here, a rank the caller may not manage, or a branch manager reaching past their own branch. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description No such branch, or nobody by that id signs in at it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description `kitchen-phone-not-allowed`, or the person is deactivated. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description Too many codes issued by this caller. Wait, then retry. */
             429: {
                 headers: {
                     [name: string]: unknown;
@@ -29883,6 +30723,501 @@ export interface operations {
             };
             /** @description Not staff. */
             403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description Too many requests in the window, or a one-time credential is out of attempts. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description Unexpected failure. Quote the traceId from the body. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+        };
+    };
+    getStaffNotificationPreferences: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Yalla.Application.Notifications.StaffNotificationSettings"];
+                };
+            };
+            /** @description The request violated a domain rule or arrived malformed. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description No session, or the device was revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description Not a PIN session on a staff device. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description Too many requests in the window, or a one-time credential is out of attempts. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description Unexpected failure. Quote the traceId from the body. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+        };
+    };
+    saveStaffNotificationPreferences: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["Yalla.Api.Endpoints.SaveStaffNotificationPreferencesRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Yalla.Application.Notifications.StaffNotificationSettings"];
+                };
+            };
+            /** @description The request violated a domain rule or arrived malformed. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description No session, or the device was revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description Not a PIN session on a staff device. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description A switch is missing, or `locale` is not hy, ru or en. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description Too many requests in the window, or a one-time credential is out of attempts. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description Unexpected failure. Quote the traceId from the body. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+        };
+    };
+    saveStaffPushSubscription: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["Yalla.Api.Endpoints.SaveStaffPushSubscriptionRequest"];
+            };
+        };
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description The request violated a domain rule or arrived malformed. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description No session, or the device was revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description Not a PIN session on a staff device. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description `endpoint`, `keys.p256dh` or `keys.auth` is not usable - `context.field` names it. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description Too many requests in the window, or a one-time credential is out of attempts. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description Unexpected failure. Quote the traceId from the body. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+        };
+    };
+    deleteStaffPushSubscription: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description The request violated a domain rule or arrived malformed. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description No session, or the device was revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description Not a PIN session on a staff device. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description Too many requests in the window, or a one-time credential is out of attempts. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description Unexpected failure. Quote the traceId from the body. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+        };
+    };
+    unpairOwnStaffPhone: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description The request violated a domain rule or arrived malformed. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description No session, or the device was revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description Not a PIN session on a staff device. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description The device is a tablet. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description Too many requests in the window, or a one-time credential is out of attempts. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description Unexpected failure. Quote the traceId from the body. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+        };
+    };
+    getStaffPushConfig: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Yalla.Application.Notifications.StaffPushConfig"];
+                };
+            };
+            /** @description The request violated a domain rule or arrived malformed. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description No staff device token, or the device was revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description Not a staff device or a PIN session on one. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description Too many requests in the window, or a one-time credential is out of attempts. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description Unexpected failure. Quote the traceId from the body. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+        };
+    };
+    getStaffToday: {
+        parameters: {
+            query?: {
+                branchId?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Yalla.Application.Staff.StaffToday"];
+                };
+            };
+            /** @description The request violated a domain rule or arrived malformed. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description No usable token was presented, or the one presented was rejected. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description Not a manager or above, a branch the caller does not reach, or another branch from a tablet. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description No such branch. */
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };

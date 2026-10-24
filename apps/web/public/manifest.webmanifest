@@ -1,18 +1,30 @@
 {
-  "name": "SHURJ Floor",
+  "name": "SHURJ Staff",
   "short_name": "SHURJ",
-  "description": "The floor screen for SHURJ venue staff.",
+  "description": "The floor tablet and the staff phone for SHURJ venue staff.",
   "id": "/staff",
   "start_url": "/staff",
-  "scope": "/",
+  "scope": "/staff",
   "display": "standalone",
-  "orientation": "landscape",
-  "background_color": "#FFFFFF",
+  "orientation": "any",
+  "background_color": "#3A0912",
   "theme_color": "#3A0912",
   "lang": "hy",
   "dir": "ltr",
   "categories": ["business", "food"],
   "icons": [
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
     {
       "src": "/icon.svg",
       "sizes": "any",

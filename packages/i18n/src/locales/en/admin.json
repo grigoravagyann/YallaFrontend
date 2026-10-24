@@ -1508,6 +1508,12 @@
         "overlap": "It overlaps another of their shifts, at any branch",
         "dayOffClash": "A day cannot be both a day off and a working day"
       }
+    },
+    "tabs": {
+      "label": "Section",
+      "people": "People",
+      "tablets": "Tablets",
+      "phones": "Phones"
     }
   },
   "devices": {
@@ -1536,6 +1542,48 @@
     "revokeNamed": "Revoke {{name}}",
     "revokedToast": "{{name}} was revoked",
     "revokeFailed": "It could not be revoked. Try again."
+  },
+  "phones": {
+    "title": "Staff phones",
+    "blurb": "Everyone on their own phone. You pair it with a QR code, they open it with their own PIN. Once unpaired, the phone cannot sign in again.",
+    "column": {
+      "person": "Staff member",
+      "phone": "Phone",
+      "seen": "Last seen",
+      "action": "Action"
+    },
+    "notPaired": "Not paired",
+    "never": "never",
+    "empty": "Nobody at this branch can have a phone yet.",
+    "pair": "Pair phone",
+    "pairNamed": "Pair a phone for {{name}}",
+    "unpair": "Unpair",
+    "unpairNamed": "Unpair {{name}}’s phone",
+    "kitchen": "The kitchen uses the tablet",
+    "pairFailed": "The code could not be made. Try again.",
+    "kitchenRefused": "Kitchen staff cannot have a phone: the kitchen stays on its tablet.",
+    "unpairedToast": "Phone unpaired: {{name}}",
+    "pairedNow": "Paired: {{device}}",
+    "unpairFailed": "The phone could not be unpaired. Try again.",
+    "confirm": {
+      "title": "Unpair {{name}}’s phone?",
+      "body": "{{device}} stops working at once, including a session open on it now.",
+      "again": "Pairing it again needs a new QR code.",
+      "unpair": "Yes, unpair"
+    },
+    "dialog": {
+      "title": "Pair a phone: {{name}}",
+      "lead": "Let {{name}} open SHURJ on their phone ({{site}}) and scan the code.",
+      "qr": "QR code that pairs {{name}}’s phone",
+      "orType": "Or type the code",
+      "left": "Works for {{time}} more, and only once.",
+      "minutesLeft_one": "{{count}} minute left",
+      "minutesLeft_other": "{{count}} minutes left",
+      "expired": "This code has expired.",
+      "newCode": "New code",
+      "onlyTo": "Show it only to {{name}}.",
+      "done": "Paired, close"
+    }
   },
   "approvals": {
     "title": "Waiting for your decision",

@@ -99,9 +99,12 @@ import { PhoneApprove } from './phone/PhoneApprove';
 import { PhoneMore } from './phone/PhoneMore';
 import { PhoneApprovalList, PhoneNextHour, PhoneTakeawayList } from './phone/PhoneNowSections';
 import { PhoneShell, type PhoneTab, type PhoneTabSpec } from './phone/PhoneShell';
+import { PhoneInstall } from './phone/PhoneInstall';
 import { PhoneToday } from './phone/PhoneToday';
 import { usePhoneLayout } from './phone/usePhoneLayout';
 import { useStaffRoster } from './phone/usePhoneData';
+import { usePushUpkeep } from './pwa/usePushUpkeep';
+import { staffLinkOf, type StaffLink } from './pwa/deepLinks';
 import { useConnectionState } from './useConnectionState';
 import { MessagesInbox } from './messages/MessagesInbox';
 import { MessagesRailSection } from './messages/MessagesRailSection';
@@ -152,12 +155,11 @@ export interface FloorRouteProps {
    */
   readonly paused: boolean;
   /**
-   * "Unpair this phone" in the phone's More screen.
-   *
-   * TODO(staff-phone pairing): wired by the device-pairing work; until then
-   * the button asks its question and does nothing.
+   * "Unpair this phone" in the phone's More screen, after its confirm: given
+   * only on a paired phone (`kind` 2). Rejects when the server could not be
+   * reached, and More says so.
    */
-  readonly onUnpair?: (() => void) | undefined;
+  readonly onUnpair?: (() => Promise<void>) | undefined;
 }
 
 /** The people who see the phone's Today: a manager and everyone above. */
@@ -248,6 +250,8 @@ export function FloorRoute({ identity, device = null, paused, onUnpair }: FloorR
   const manager = MANAGER_ROLES.has(identity.role);
   const homeTab: PhoneTab = manager ? 'today' : 'now';
   const [phoneTab, setPhoneTab] = useState<PhoneTab>(onMessagesPath ? 'messages' : homeTab);
+  /** A screen opened from More: its notification switches. */
+  const [moreScreen, setMoreScreen] = useState<'notifications' | null>(null);
   /** The booking open on the phone's Approve screen, as it was last read. */
   const [approving, setApproving] = useState<AwaitingApproval | null>(null);
   if (onMessagesPath !== lastMessagesPath) {
@@ -754,6 +758,93 @@ export function FloorRoute({ identity, device = null, paused, onUnpair }: FloorR
     [navigate, onMessagesPath],
   );
 
+  // --- A tapped notification (`docs/notifications.md` §6a) -------------------
+  //
+  // `/staff/approve/{id}`, `/staff/messages/{conversationId}`, `/staff/now?call=`,
+  // `/staff/takeaway/{orderId}` and `/staff/floor?table=` (`pwa/deepLinks.ts`):
+  // read once, when what it points at has loaded and the screen is unlocked,
+  // then the address goes back to the screen's own so Back does not reopen it.
+  const [pendingLink, setPendingLink] = useState<StaffLink | null>(() =>
+    staffLinkOf(location.pathname, location.search),
+  );
+  const [lastLinkKey, setLastLinkKey] = useState(location.key);
+  if (location.key !== lastLinkKey) {
+    setLastLinkKey(location.key);
+    const link = staffLinkOf(location.pathname, location.search);
+    if (link) setPendingLink(link);
+  }
+  /**
+   * Where the address goes once a link is read: a fresh object each time, so
+   * the effect below navigates once per link.
+   */
+  const [linkHome, setLinkHome] = useState<{ readonly path: string } | null>(null);
+  // Resolved while rendering, as the Messages address is above: what the
+  // link points at has loaded, so the screen it opens is set in this render.
+  if (pendingLink && active) {
+    const settle = (path: string) => {
+      setPendingLink(null);
+      setLinkHome({ path });
+    };
+    switch (pendingLink.kind) {
+      case 'approve': {
+        const list = awaitingQuery.data;
+        if (!list && !awaitingQuery.isError) break;
+        const request = list?.find((one) => one.id === pendingLink.reservationId) ?? null;
+        setSelection(null);
+        setMoreScreen(null);
+        setView('floor');
+        setPhoneTab('now');
+        // On the phone, its own screen; on the tablet, the rail beside the
+        // floor lists it already.
+        setApproving(phone ? request : null);
+        if (!request) setNotice({ kind: 'info', text: t('phone.approve.gone') });
+        settle('/staff');
+        break;
+      }
+      case 'message': {
+        if (!inbox && !inboxQuery.isError) break;
+        const item = inbox?.items.find((one) => one.conversationId === pendingLink.conversationId);
+        setSelection(null);
+        setApproving(null);
+        setMoreScreen(null);
+        setMessageSubject(item ? { kind: item.subject.kind, id: item.subject.id } : null);
+        setView('messages');
+        setPhoneTab('messages');
+        settle('/staff/messages');
+        break;
+      }
+      case 'call':
+      case 'takeaway':
+        setSelection(null);
+        setApproving(null);
+        setMoreScreen(null);
+        setView(pendingLink.kind === 'takeaway' ? 'takeaway' : 'floor');
+        setPhoneTab(pendingLink.kind === 'takeaway' ? 'takeaway' : 'now');
+        settle('/staff');
+        break;
+      case 'table': {
+        if (!floor && !floorQuery.isError) break;
+        setApproving(null);
+        setMoreScreen(null);
+        setView('floor');
+        setPhoneTab('floor');
+        const tableId = pendingLink.tableId;
+        setSelection(
+          tableId && floor?.plan.tables.some((table) => table.id === tableId) ? { tableId } : null,
+        );
+        settle('/staff');
+        break;
+      }
+    }
+  }
+  useEffect(() => {
+    if (linkHome) navigate(linkHome.path, { replace: true });
+  }, [linkHome, navigate]);
+
+  // The browser's push subscription kept the server's, and the language the
+  // pushes are written in kept the app's.
+  usePushUpkeep(active);
+
   const takeawayToAnswer = useMemo(
     () => (takeawayCounter?.active ?? []).filter((order) => order.status === 'sent'),
     [takeawayCounter],
@@ -873,11 +964,8 @@ export function FloorRoute({ identity, device = null, paused, onUnpair }: FloorR
     [t],
   );
 
-  /** Who works here and whose shift it is: the phone's More and Today. */
-  const roster = useStaffRoster(
-    branchId,
-    phone && active && (phoneTab === 'more' || phoneTab === 'today'),
-  );
+  /** Whose shift it is: the phone's More ("My shift"). A phone's roster is its own person. */
+  const roster = useStaffRoster(branchId, phone && active && phoneTab === 'more');
 
   // --- Acting ---------------------------------------------------------------
 
@@ -1852,6 +1940,7 @@ export function FloorRoute({ identity, device = null, paused, onUnpair }: FloorR
     const selectTab = (next: PhoneTab) => {
       setSelection(null);
       setApproving(null);
+      setMoreScreen(null);
       // The Messages tab again, from a conversation: back to the list.
       if (next === 'messages' && phoneTab === 'messages') setMessageSubject(null);
       setPhoneTab(next);
@@ -1913,17 +2002,19 @@ export function FloorRoute({ identity, device = null, paused, onUnpair }: FloorR
 
     const screenTitle = approving
       ? t('phone.approve.title')
-      : phoneTab === 'today'
-        ? t('phone.today.title')
-        : phoneTab === 'floor'
-          ? t('floor.title')
-          : phoneTab === 'messages'
-            ? t('messages.title')
-            : phoneTab === 'takeaway'
-              ? t('takeaway.title')
-              : phoneTab === 'more'
-                ? t('phone.tabs.more')
-                : t('rail.title');
+      : moreScreen === 'notifications'
+        ? t('phone.install.settingsTitle')
+        : phoneTab === 'today'
+          ? t('phone.today.title')
+          : phoneTab === 'floor'
+            ? t('floor.title')
+            : phoneTab === 'messages'
+              ? t('messages.title')
+              : phoneTab === 'takeaway'
+                ? t('takeaway.title')
+                : phoneTab === 'more'
+                  ? t('phone.tabs.more')
+                  : t('rail.title');
 
     return (
       <PhoneShell
@@ -1939,9 +2030,15 @@ export function FloorRoute({ identity, device = null, paused, onUnpair }: FloorR
         conflicts={queue.conflicts + queue.held.length}
         onOpenConflicts={() => setOverlay('conflicts')}
         tabs={tabs}
-        current={approving ? null : phoneTab}
+        current={approving || moreScreen ? null : phoneTab}
         onTab={selectTab}
-        back={approving ? { onBack: () => setApproving(null) } : undefined}
+        back={
+          approving
+            ? { onBack: () => setApproving(null) }
+            : moreScreen
+              ? { onBack: () => setMoreScreen(null) }
+              : undefined
+        }
         notice={noticeNode}
         announcers={announcers}
         sheet={tablePanel('sheet')}
@@ -2035,13 +2132,8 @@ export function FloorRoute({ identity, device = null, paused, onUnpair }: FloorR
         {!approving && phoneTab === 'today' && branchId ? (
           <PhoneToday
             branchId={branchId}
-            role={identity.role}
-            place={place}
             timeZoneId={timeZoneId}
             active={active}
-            awaiting={awaitingQuery.data ?? []}
-            conversations={inbox?.items ?? []}
-            roster={roster.data}
             onOpenApprovals={() => {
               const first = awaitingQuery.data?.[0];
               if (first) openApproval(first);
@@ -2051,7 +2143,13 @@ export function FloorRoute({ identity, device = null, paused, onUnpair }: FloorR
           />
         ) : null}
 
-        {!approving && phoneTab === 'more' ? (
+        {!approving && phoneTab === 'more' && moreScreen === 'notifications' ? (
+          <div className="ph-screen ph-notifications">
+            <PhoneInstall />
+          </div>
+        ) : null}
+
+        {!approving && phoneTab === 'more' && moreScreen === null ? (
           <PhoneMore
             identity={identity}
             place={place}
@@ -2061,7 +2159,8 @@ export function FloorRoute({ identity, device = null, paused, onUnpair }: FloorR
             onOpenToday={() => selectTab('today')}
             onOpenTakeaway={!takeawayTab && takeawayInUse ? () => selectTab('takeaway') : undefined}
             onLock={() => void staffSession?.signOut()}
-            onUnpair={onUnpair ?? (() => undefined)}
+            onOpenNotifications={() => setMoreScreen('notifications')}
+            onUnpair={onUnpair}
           />
         ) : null}
       </PhoneShell>

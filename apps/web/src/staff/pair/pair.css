@@ -1,0 +1,797 @@
+/*
+ * Pairing a phone, unlocking it, and its install + notification screen
+ * (staff phone, the Main, Pin and Install artboards).
+ *
+ * Tokens only (`staffStyles.test.ts`): every colour is a `--console-*`
+ * value. Every target is at least 44×44, the screens clear the notch and the
+ * home indicator, and nothing scrolls sideways at 320px.
+ */
+
+/* --------------------------------------------------------------------------
+ * The pairing frame: a cherry bar with the wordmark, one step below it.
+ * -------------------------------------------------------------------------- */
+.ph-pair {
+  --ph-gutter: 20px;
+  --ph-safe-top: env(safe-area-inset-top, 0px);
+  --ph-safe-bottom: env(safe-area-inset-bottom, 0px);
+
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  min-height: 100dvh;
+  background: var(--console-canvas);
+  color: var(--console-ink);
+  font-size: var(--font-size-md);
+}
+
+.ph-pair-top {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: calc(64px + var(--ph-safe-top));
+  padding-top: var(--ph-safe-top);
+  background: var(--console-sidebar);
+}
+
+.ph-pair-top .wordmark {
+  display: block;
+  width: auto;
+  height: 22px;
+}
+
+.ph-pair-main {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: var(--space-lg);
+  width: 100%;
+  max-width: 480px;
+  margin: 0 auto;
+  padding: 28px var(--ph-gutter) calc(24px + var(--ph-safe-bottom));
+  box-sizing: border-box;
+}
+
+.ph-pair-main.is-dark {
+  max-width: none;
+  padding: 0 0 calc(20px + var(--ph-safe-bottom));
+  background: var(--console-phone-frame);
+  color: var(--console-photo-text);
+}
+
+.ph-pair-main.is-centred {
+  align-items: center;
+  text-align: center;
+}
+
+.ph-pair-main.is-scroll {
+  padding-top: 20px;
+}
+
+.ph-pair-title {
+  margin: 0;
+  font-family: var(--font-family-display);
+  font-size: 26px;
+  line-height: 1.25;
+  text-wrap: balance;
+}
+
+/* The step's heading takes focus for a screen reader's sake; it is not a
+   control, so it shows no ring. */
+.ph-pair .ph-pair-title:focus-visible,
+.ph-pair .ph-pair-done-title:focus-visible {
+  outline: none;
+}
+
+.ph-pair-lead,
+.ph-pair-sub {
+  margin: 0;
+  font-size: var(--console-text-nav);
+  line-height: 1.55;
+  color: var(--console-muted);
+}
+
+.ph-pair-steps {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 4px 0 0;
+  padding: 0;
+  list-style: none;
+  font-size: var(--console-text-nav);
+}
+
+.ph-pair-steps li,
+.ph-install-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.ph-pair-steps b,
+.ph-install-step {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: var(--console-brand);
+  color: var(--console-brand-foreground);
+  font-size: var(--console-text-label);
+}
+
+.ph-pair-note {
+  margin: 0;
+  padding: var(--space-md) 14px;
+  border-radius: var(--console-radius-floor-button);
+  background: var(--console-amber-bg);
+  color: var(--console-amber);
+  font-size: var(--console-text-label);
+  line-height: 1.5;
+}
+
+.ph-pair-error {
+  margin: 0;
+  padding: var(--space-md) 14px;
+  border-radius: var(--console-radius-floor-button);
+  background: var(--console-red-bg);
+  color: var(--console-red);
+  font-size: var(--console-text-nav);
+  font-weight: var(--font-weight-semibold);
+  line-height: 1.45;
+}
+
+.ph-pair-grow {
+  flex-grow: 1;
+}
+
+/* --- Buttons: the artboards' pills ------------------------------------------- */
+.ph-pair-btn {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-sm);
+  min-height: 48px;
+  padding: 0 var(--space-lg);
+  border: 0;
+  border-radius: var(--console-radius-pill);
+  background: var(--console-surface);
+  box-shadow: inset 0 0 0 1px var(--console-button-edge);
+  color: var(--console-ink);
+  font: inherit;
+  font-size: var(--console-text-nav);
+  font-weight: var(--font-weight-semibold);
+  cursor: pointer;
+  transition: transform var(--duration-control) var(--easing-standard);
+}
+
+.ph-pair-btn:active:not(:disabled) {
+  transform: scale(var(--scale-press));
+}
+
+.ph-pair-btn:disabled {
+  cursor: default;
+  opacity: 0.7;
+}
+
+.ph-pair-btn.is-primary {
+  min-height: 56px;
+  background: var(--console-brand);
+  box-shadow: none;
+  color: var(--console-brand-foreground);
+  font-size: var(--font-size-md);
+}
+
+.ph-pair-btn.is-compact {
+  min-height: 48px;
+  font-size: var(--console-text-nav);
+}
+
+.ph-pair-btn.is-outline-light {
+  background: transparent;
+  box-shadow: inset 0 0 0 1px var(--console-photo-text);
+  color: var(--console-photo-text);
+}
+
+.ph-pair-btn .ph-icon {
+  width: 20px;
+  height: 20px;
+}
+
+.ph-pair-link {
+  min-height: var(--touch-minimum);
+  padding: 0 var(--space-xs);
+  border: 0;
+  background: none;
+  color: var(--console-brand);
+  font: inherit;
+  font-size: var(--console-text-nav);
+  font-weight: var(--font-weight-semibold);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+
+.ph-pair-link.is-centred {
+  align-self: center;
+}
+
+.ph-pair-tablet {
+  margin: 0;
+  font-size: var(--console-text-label);
+  color: var(--console-muted);
+  text-align: center;
+}
+
+.ph-pair-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 0 var(--ph-gutter);
+}
+
+/* --- The typed code ---------------------------------------------------------- */
+.ph-pair-form {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: var(--space-sm);
+}
+
+.ph-pair-form label {
+  font-size: var(--console-text-nav);
+  font-weight: var(--font-weight-semibold);
+}
+
+.ph-pair-code {
+  min-height: 56px;
+  padding: 0 var(--space-lg);
+  border: 1.5px solid var(--console-control);
+  border-radius: var(--console-radius-floor-button);
+  background: var(--console-surface);
+  color: var(--console-ink);
+  font: inherit;
+  font-size: 22px;
+  font-weight: var(--font-weight-bold);
+  font-variant-numeric: var(--font-feature-tabular);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.ph-pair-code::placeholder {
+  color: var(--console-code-placeholder);
+}
+
+.ph-pair-code[aria-invalid='true'] {
+  border-color: var(--console-red);
+}
+
+.ph-pair-form small {
+  font-size: var(--console-text-label);
+  line-height: 1.45;
+  color: var(--console-muted);
+}
+
+/* --- "Is this you?" ------------------------------------------------------------ */
+.ph-pair-person {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: var(--space-lg);
+  border-radius: 18px;
+  box-shadow: inset 0 0 0 1px var(--console-button-edge);
+}
+
+.ph-pair-face {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: var(--console-brand);
+  color: var(--console-brand-foreground);
+  font-family: var(--font-family-display);
+  font-size: 22px;
+  font-weight: var(--font-weight-bold);
+}
+
+.ph-pair-who {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.ph-pair-who b {
+  font-size: 18px;
+  overflow-wrap: anywhere;
+}
+
+.ph-pair-who span {
+  font-size: var(--console-text-nav);
+  color: var(--console-muted);
+}
+
+/* --- Done ---------------------------------------------------------------------- */
+.ph-pair-done {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+  padding: var(--space-lg);
+  border-radius: 18px;
+  background: var(--console-green-bg);
+  color: var(--console-green);
+  font-size: var(--console-text-nav);
+  line-height: 1.5;
+}
+
+.ph-pair-done-title {
+  margin: 0;
+  font-size: 17px;
+  font-weight: var(--font-weight-bold);
+}
+
+.ph-pair-msg {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: var(--touch-minimum);
+}
+
+.ph-pair-msg p {
+  margin: 0;
+  font-size: var(--console-text-nav);
+  font-weight: var(--font-weight-semibold);
+  color: var(--console-muted);
+}
+
+.ph-pair-msg .is-error {
+  color: var(--console-red);
+}
+
+/* --------------------------------------------------------------------------
+ * The keypad: four dots and a 3×4 pad, light (pairing) or on the cherry (PIN).
+ * -------------------------------------------------------------------------- */
+.ph-pad {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-md);
+  width: 100%;
+}
+
+.ph-pad-dots {
+  display: flex;
+  gap: 14px;
+  padding: 8px 0;
+}
+
+.ph-pad-dots span {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  box-shadow: inset 0 0 0 2px var(--console-button-edge);
+  transition: transform var(--duration-control) var(--easing-standard);
+}
+
+.ph-pad-dots span.is-filled {
+  background: var(--console-brand);
+  box-shadow: none;
+  transform: scale(1.1);
+}
+
+.ph-pad-dots.is-wrong span {
+  box-shadow: inset 0 0 0 2px var(--console-red);
+}
+
+.ph-pad-keys {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  width: 100%;
+  max-width: 340px;
+  padding: 0 12px;
+  box-sizing: border-box;
+}
+
+.ph-pad-key {
+  min-height: 64px;
+  border: 0;
+  border-radius: var(--console-radius-pill);
+  background: var(--console-surface-muted);
+  box-shadow: inset 0 0 0 1px var(--console-line);
+  color: var(--console-ink);
+  font: inherit;
+  font-size: var(--font-size-xl);
+  font-weight: var(--font-weight-semibold);
+  font-variant-numeric: var(--font-feature-tabular);
+  cursor: pointer;
+  touch-action: manipulation;
+  transition: transform var(--duration-control) var(--easing-standard);
+}
+
+.ph-pad-key:active:not(:disabled) {
+  transform: scale(var(--scale-press));
+}
+
+.ph-pad-key:disabled {
+  cursor: default;
+  opacity: 0.45;
+}
+
+.ph-pad-blank {
+  min-height: 64px;
+}
+
+/* On the cherry (the Pin artboard). */
+.ph-pad.is-dark .ph-pad-dots span {
+  box-shadow: inset 0 0 0 2px var(--console-sidebar-text-strong);
+}
+
+.ph-pad.is-dark .ph-pad-dots span.is-filled {
+  background: var(--console-sidebar-text-strong);
+  box-shadow: none;
+}
+
+.ph-pad.is-dark .ph-pad-dots.is-wrong span {
+  box-shadow: inset 0 0 0 2px var(--console-floor-failure);
+}
+
+.ph-pad.is-dark .ph-pad-keys {
+  gap: 12px;
+  padding: 0 20px;
+}
+
+.ph-pad.is-dark .ph-pad-key {
+  min-height: 68px;
+  background: var(--console-app-card-off);
+  box-shadow: none;
+  color: var(--console-sidebar-text-strong);
+}
+
+.ph-pad.is-dark .ph-pad-blank {
+  min-height: 68px;
+}
+
+.ph-pad.is-dark :focus-visible {
+  outline-color: var(--console-sidebar-focus);
+}
+
+/* --------------------------------------------------------------------------
+ * The camera (the Main artboard's scan step)
+ * -------------------------------------------------------------------------- */
+.ph-scan {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.ph-scan-view {
+  position: relative;
+  display: flex;
+  flex: 1;
+  align-items: center;
+  justify-content: center;
+  min-height: 320px;
+  overflow: hidden;
+}
+
+.ph-scan-video {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.ph-scan-frame {
+  position: relative;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  width: min(240px, 70vw);
+  aspect-ratio: 1;
+  padding-bottom: var(--space-md);
+  box-sizing: border-box;
+  border: 3px solid var(--console-photo-text);
+  border-radius: 24px;
+  box-shadow: 0 0 0 100vmax var(--console-photo-shade);
+  color: var(--console-photo-text);
+  font-size: var(--console-text-label);
+  text-shadow: var(--console-shadow-photo-text);
+}
+
+.ph-scan-help {
+  margin: 0;
+  padding: var(--space-lg) var(--ph-gutter) var(--space-sm);
+  font-size: var(--console-text-nav);
+  line-height: 1.5;
+  text-align: center;
+}
+
+/* --------------------------------------------------------------------------
+ * Install + notifications (the Install artboard; More → Notifications)
+ * -------------------------------------------------------------------------- */
+.ph-install {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.ph-install-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: var(--space-lg);
+  border-radius: 18px;
+  box-shadow: inset 0 0 0 1px var(--console-button-edge);
+}
+
+.ph-install-head h2 {
+  flex-grow: 1;
+  margin: 0;
+  font-size: var(--font-size-md);
+}
+
+.ph-install-done {
+  font-size: var(--console-text-label);
+  font-weight: var(--font-weight-bold);
+  color: var(--console-green);
+}
+
+.ph-install-tabs {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 4px;
+  padding: 4px;
+  border-radius: var(--console-radius-pill);
+  box-shadow: inset 0 0 0 1px var(--console-line);
+}
+
+.ph-install-tabs button {
+  min-height: var(--touch-minimum);
+  border: 0;
+  border-radius: var(--console-radius-pill);
+  background: transparent;
+  color: var(--console-ink);
+  font: inherit;
+  font-size: var(--console-text-nav);
+  font-weight: var(--font-weight-semibold);
+  cursor: pointer;
+}
+
+.ph-install-tabs button.is-on {
+  background: var(--console-brand);
+  color: var(--console-brand-foreground);
+}
+
+.ph-install-panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+}
+
+.ph-install-list {
+  margin: 0;
+  padding-left: 20px;
+  font-size: var(--console-text-nav);
+  line-height: 1.6;
+}
+
+.ph-install-text {
+  margin: 0;
+  font-size: var(--console-text-nav);
+  line-height: 1.5;
+  color: var(--console-muted);
+}
+
+.ph-install-text.is-small {
+  font-size: var(--console-text-label);
+}
+
+.ph-install-text.is-error {
+  color: var(--console-red);
+  font-weight: var(--font-weight-semibold);
+}
+
+.ph-switch-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 48px;
+}
+
+.ph-switch-row.is-shift {
+  padding-top: 10px;
+  border-top: 1px solid var(--console-line-soft);
+}
+
+.ph-switch-text {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.ph-switch-text > span {
+  font-size: var(--console-text-nav);
+  font-weight: var(--font-weight-semibold);
+}
+
+.ph-switch-text small {
+  font-size: var(--console-text-label);
+  line-height: 1.4;
+  color: var(--console-muted);
+}
+
+/* A 48×28 track inside a 48×44 target. */
+.ph-switch {
+  position: relative;
+  flex: none;
+  width: 52px;
+  height: var(--touch-minimum);
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+}
+
+.ph-switch span {
+  position: absolute;
+  top: 50%;
+  left: 2px;
+  width: 48px;
+  height: 28px;
+  border-radius: 14px;
+  background: var(--console-switch-off);
+  transform: translateY(-50%);
+  transition: background var(--duration-control) var(--easing-standard);
+}
+
+.ph-switch span::after {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--console-surface);
+  content: '';
+  transition: transform var(--duration-control) var(--easing-standard);
+}
+
+.ph-switch[aria-checked='true'] span {
+  background: var(--console-green);
+}
+
+.ph-switch[aria-checked='true'] span::after {
+  transform: translateX(20px);
+}
+
+/* --------------------------------------------------------------------------
+ * The phone's PIN screen (Pin artboard): the cherry, the person, the pad.
+ * -------------------------------------------------------------------------- */
+/* With its surface attribute: the staff surface's own ground is the canvas,
+   and this one is the cherry. */
+.ph-lock[data-surface='staff'] {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: flex;
+  overflow-y: auto;
+  background: var(--console-sidebar);
+  color: var(--console-sidebar-text-strong);
+}
+
+.ph-lock-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-md);
+  width: 100%;
+  max-width: 480px;
+  min-height: 100%;
+  margin: 0 auto;
+  padding: calc(40px + env(safe-area-inset-top, 0px)) 0
+    calc(24px + env(safe-area-inset-bottom, 0px));
+  box-sizing: border-box;
+}
+
+.ph-lock-card:focus {
+  outline: none;
+}
+
+.ph-lock-head {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 0 20px;
+  text-align: center;
+}
+
+.ph-lock-brand .wordmark {
+  display: block;
+  width: auto;
+  height: 22px;
+}
+
+.ph-lock-where {
+  font-size: var(--console-text-label);
+  color: var(--console-sidebar-muted);
+}
+
+.ph-lock-face {
+  display: grid;
+  place-items: center;
+  width: 72px;
+  height: 72px;
+  margin-top: var(--space-lg);
+  border-radius: 50%;
+  background: var(--console-sidebar-text-strong);
+  color: var(--console-sidebar);
+  font-family: var(--font-family-display);
+  font-size: 26px;
+  font-weight: var(--font-weight-bold);
+}
+
+.ph-lock-hello {
+  margin: 0;
+  font-size: 21px;
+  font-weight: var(--font-weight-bold);
+}
+
+.ph-lock-msg {
+  min-height: 22px;
+  margin: 0;
+  font-size: var(--console-text-nav);
+  font-weight: var(--font-weight-semibold);
+}
+
+.ph-lock-msg.is-error {
+  color: var(--console-floor-failure-text);
+}
+
+.ph-lock-msg.is-warn {
+  color: var(--console-floor-offline-text);
+}
+
+.ph-lock-foot {
+  margin: auto 0 0;
+  padding: var(--space-md) 20px 0;
+  font-size: var(--console-text-label);
+  line-height: 1.5;
+  color: var(--console-sidebar-muted);
+  text-align: center;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ph-pair-btn,
+  .ph-pad-key,
+  .ph-pad-dots span,
+  .ph-switch span,
+  .ph-switch span::after {
+    transition: none;
+  }
+}
+
+/* Focus on the dark grounds — the camera and the PIN screen's cherry — in the
+   light ring the tablet's bar uses, so it stays visible (3:1 and better). */
+.ph-pair-main.is-dark :focus-visible,
+.ph-lock[data-surface='staff'] :focus-visible {
+  outline-color: var(--console-sidebar-focus);
+}
+
+/* The switch's ring hugs its track rather than its 44px target. */
+.ph-switch:focus-visible {
+  outline: none;
+}
+
+.ph-switch:focus-visible span {
+  outline: 2px solid var(--console-focus);
+  outline-offset: 2px;
+}

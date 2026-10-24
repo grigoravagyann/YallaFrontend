@@ -3,12 +3,12 @@ import 'fake-indexeddb/auto';
 import {
   createQueryClient,
   createStaffMockGateway,
-  type BranchOverview,
   type EnrolledDevice,
   type StaffFloor,
   type StaffGateway,
   type StaffRosterEntry,
   type StaffSessionSnapshot,
+  type StaffToday,
   type UserRole,
 } from '@yalla/api';
 import { GatewayProvider } from '@yalla/api/react';
@@ -24,7 +24,6 @@ import { MemoryRouter } from 'react-router-dom';
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { initConsoleTestI18n } from '../../console/venue/reports/testHarness';
 import type * as CurrentUserModule from '../../auth/useCurrentUser';
-import type * as GatewayModule from '../../data/gateway';
 import { upcomingBookings } from './nextHour';
 import { PHONE_QUERY } from './usePhoneLayout';
 
@@ -54,10 +53,7 @@ const session = vi.hoisted(() => {
 const staff = vi.hoisted(() => ({
   signOut: vi.fn(async () => undefined),
   roster: vi.fn(async (): Promise<readonly unknown[]> => []),
-}));
-
-const overview = vi.hoisted(() => ({
-  get: vi.fn(async (_branchId: string): Promise<unknown> => null),
+  forgetDevice: vi.fn(async () => undefined),
 }));
 
 vi.mock('../../offline/commandStore', async (importOriginal) =>
@@ -70,6 +66,7 @@ vi.mock('../auth/staffSession', () => ({
     refreshDevice: async () => undefined,
     roster: staff.roster,
     signOut: staff.signOut,
+    forgetDevice: staff.forgetDevice,
   },
 }));
 vi.mock('../auth/useStaffSession', () => ({
@@ -80,10 +77,6 @@ vi.mock('../../auth/useCurrentUser', async () => {
   const actual = await vi.importActual<typeof CurrentUserModule>('../../auth/useCurrentUser');
   return { ...actual, useCurrentUser: () => ({ user: null }) };
 });
-vi.mock('../../data/gateway', async (importOriginal) => ({
-  ...(await importOriginal<typeof GatewayModule>()),
-  staffOverviewGateway: () => ({ getBranchOverview: overview.get }),
-}));
 vi.mock('../chime', () => ({ primeChime: () => undefined, playChime: async () => true }));
 
 const { StaffRoute } = await import('../StaffRoute');
@@ -98,6 +91,9 @@ const device: EnrolledDevice = {
   venueName: 'Lumen',
   enrolledAtUtc: '2026-09-01T00:00:00Z',
   lastSeenAtUtc: null,
+  // A paired phone: Aram's own, so More offers to unpair it.
+  kind: 'phone',
+  boundStaffMember: { id: 's1', fullName: 'Aram Petrosyan', role: 'waiter' },
 };
 
 function signIn(role: UserRole = 'waiter'): void {
@@ -358,39 +354,107 @@ describe('Messages', () => {
 });
 
 describe('Today', () => {
-  it('shows the branch overview, what needs a manager, and who is on shift', async () => {
-    signIn('manager');
-    overview.get.mockResolvedValue({
-      revenue: { todayAmd: 412_000, changePercent: 8.5 },
-      bookings: { people: 96, total: 34, seated: 15, completed: 6, confirmed: 11, noShow: 2 },
-      inRoom: { occupiedTables: 8, tables: 14 },
-    } as unknown as BranchOverview);
-    staff.roster.mockResolvedValue([
+  const board: StaffToday = {
+    branchId: BRANCH,
+    branchName: 'Lumen North',
+    venueName: 'Lumen',
+    timeZoneId: 'Asia/Yerevan',
+    asOfUtc: new Date().toISOString(),
+    serviceDate: '2026-10-24',
+    localTime: '18:34',
+    branches: [
+      { branchId: BRANCH, name: 'Lumen North' },
+      { branchId: 'b2', name: 'Arabkir' },
+    ],
+    revenue: {
+      totalAmd: 412_000,
+      hallAmd: 368_000,
+      takeawayAmd: 44_000,
+      takeawayOrders: 6,
+      sinceUtc: new Date().toISOString(),
+    },
+    guests: { total: 96, withBooking: 78, walkIn: 18 },
+    bookings: { total: 34, came: 21, expected: 11, late: 1, noShow: 2, pendingApproval: 1 },
+    room: { occupiedTables: 8, tables: 14, people: 31 },
+    needsYou: {
+      pendingApprovals: 1,
+      oldestApprovalRequestedAtUtc: null,
+      soonestApprovalDeadlineUtc: new Date(Date.now() + 12 * 60_000).toISOString(),
+      unansweredMessages: 1,
+      oldestUnansweredMessageAtUtc: new Date(Date.now() - 4 * 60_000).toISOString(),
+    },
+    shifts: [
       {
         staffMemberId: 's2',
         fullName: 'Lilit Abrahamyan',
         role: 'waiter',
+        startsAt: '16:00',
+        endsAt: '00:00',
+        endsNextDay: true,
+        startsAtUtc: new Date(Date.now() - 3_600_000).toISOString(),
+        endsAtUtc: new Date(Date.now() + 3_600_000).toISOString(),
         onShiftNow: true,
-        shift: null,
+        signedIn: true,
       },
-    ] satisfies StaffRosterEntry[]);
-    renderAt(gateway());
+      {
+        staffMemberId: 's3',
+        fullName: 'Gor Melkonyan',
+        role: 'kitchen',
+        startsAt: '20:00',
+        endsAt: '02:00',
+        endsNextDay: true,
+        startsAtUtc: new Date(Date.now() + 3_600_000).toISOString(),
+        endsAtUtc: new Date(Date.now() + 7 * 3_600_000).toISOString(),
+        onShiftNow: false,
+        signedIn: false,
+      },
+    ],
+  };
+
+  it('shows the takings split, the guests with and without a booking, what needs a manager and who is signed in', async () => {
+    signIn('manager');
+    const staffGateway = gateway();
+    const read = vi.spyOn(staffGateway, 'getToday').mockResolvedValue(board);
+    renderAt(staffGateway);
 
     expect(await screen.findByRole('heading', { name: 'Today' })).toBeTruthy();
-    await waitFor(() => expect(overview.get).toHaveBeenCalledWith(BRANCH));
+    await waitFor(() => expect(read).toHaveBeenCalledWith(BRANCH));
     expect(await screen.findByText('34')).toBeTruthy();
+    expect(screen.getByText(/^hall .*368.*000.* · takeaway .*44.*000/u)).toBeTruthy();
+    expect(screen.getByText('78 with a booking · 18 without')).toBeTruthy();
     expect(screen.getByText('came 21 · expected 11 · no-show 2')).toBeTruthy();
     expect(screen.getByText('8 / 14')).toBeTruthy();
-    expect(screen.getByText('+8.5% on the same day last week')).toBeTruthy();
-    expect(await screen.findByText(/bookings? to approve$/u)).toBeTruthy();
-    expect(await screen.findByText('Lilit Abrahamyan · Waiter')).toBeTruthy();
-    expect(screen.getByText('on shift')).toBeTruthy();
+    expect(screen.getByText('1 booking to approve')).toBeTruthy();
+    expect(screen.getByText('1 unanswered message')).toBeTruthy();
+    expect(screen.getByText('Lilit Abrahamyan · Waiter')).toBeTruthy();
+    expect(screen.getByText('signed in')).toBeTruthy();
+    expect(screen.getByText('from 20:00')).toBeTruthy();
   });
 
-  it('says so when the overview cannot be read, rather than showing zeros', async () => {
+  it('switches branch for an owner or a general manager, and reads that one', async () => {
+    signIn('generalManager');
+    const staffGateway = gateway();
+    const read = vi
+      .spyOn(staffGateway, 'getToday')
+      .mockImplementation(async (branchId) =>
+        branchId === 'b2' ? { ...board, branchId: 'b2', branchName: 'Arabkir' } : board,
+      );
+    renderAt(staffGateway);
+    const user = setupUser();
+
+    const switcher = await screen.findByRole('combobox', { name: 'Branch' });
+    await user.selectOptions(switcher, 'b2');
+    await waitFor(() => expect(read).toHaveBeenCalledWith('b2'));
+    // Another branch's floor is not this phone's: the rows say, and do not open.
+    expect(await screen.findByText('Answered from that branch’s own floor.')).toBeTruthy();
+    expect(screen.queryByRole('button', { name: /booking to approve/u })).toBeNull();
+  });
+
+  it('says so when Today cannot be read, rather than showing zeros', async () => {
     signIn('manager');
-    overview.get.mockRejectedValue(new Error('nope'));
-    renderAt(gateway());
+    const staffGateway = gateway();
+    vi.spyOn(staffGateway, 'getToday').mockRejectedValue(new Error('nope'));
+    renderAt(staffGateway);
     expect(await screen.findByText('Today’s numbers could not be read.')).toBeTruthy();
   });
 });
@@ -435,6 +499,71 @@ describe('More', () => {
     expect(staff.signOut).toHaveBeenCalledTimes(1);
   });
 
+  it('unpairs the phone on the server, forgets it here, and goes back to pairing', async () => {
+    signIn('waiter');
+    const staffGateway = gateway();
+    const unpair = vi.spyOn(staffGateway, 'unpairOwnPhone');
+    renderAt(staffGateway);
+    const user = setupUser();
+    await user.click(tab(await tabs(), /^More/u));
+
+    await user.click(await screen.findByRole('button', { name: 'Unpair this phone' }));
+    await user.click(screen.getByRole('button', { name: 'Yes, unpair' }));
+    await waitFor(() => expect(unpair).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(staff.forgetDevice).toHaveBeenCalledTimes(1));
+  });
+
+  it('says so when the phone could not be unpaired, and stays paired', async () => {
+    signIn('waiter');
+    const staffGateway = gateway();
+    vi.spyOn(staffGateway, 'unpairOwnPhone').mockRejectedValue(new TypeError('Failed to fetch'));
+    renderAt(staffGateway);
+    const user = setupUser();
+    await user.click(tab(await tabs(), /^More/u));
+
+    await user.click(await screen.findByRole('button', { name: 'Unpair this phone' }));
+    await user.click(screen.getByRole('button', { name: 'Yes, unpair' }));
+    expect(
+      await screen.findByText(
+        'The phone could not be unpaired. Check the connection and try again.',
+      ),
+    ).toBeTruthy();
+    expect(staff.forgetDevice).not.toHaveBeenCalled();
+  });
+
+  it('offers no unpair on a shared tablet opened narrow: a manager revokes that', async () => {
+    session.set({
+      state: 'signedIn',
+      device: { ...device, kind: 'tablet', boundStaffMember: null },
+      identity: {
+        staffMemberId: 's1',
+        fullName: 'Aram Petrosyan',
+        role: 'waiter',
+        branchId: BRANCH,
+      },
+      lastSignOut: null,
+    } satisfies StaffSessionSnapshot);
+    renderAt(gateway());
+    const user = setupUser();
+    await user.click(tab(await tabs(), /^More/u));
+    expect(await screen.findByRole('button', { name: 'Lock now' })).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Unpair this phone' })).toBeNull();
+  });
+
+  it('opens the notification switches as a screen of its own, with Back', async () => {
+    signIn('waiter');
+    renderAt(gateway());
+    const user = setupUser();
+    await user.click(tab(await tabs(), /^More/u));
+    await user.click(await screen.findByRole('button', { name: 'Notifications' }));
+    const heading = await screen.findByRole('heading', { level: 1, name: 'Notifications' });
+    expect(document.activeElement).toBe(heading);
+    expect(screen.getByRole('heading', { name: 'Add to the Home Screen' })).toBeTruthy();
+    expect(screen.getByRole('heading', { name: 'Turn on notifications' })).toBeTruthy();
+    await user.click(screen.getByRole('button', { name: 'Back' }));
+    expect(await screen.findByRole('button', { name: 'Lock now' })).toBeTruthy();
+  });
+
   it('gives a manager Today, the message history and the console', async () => {
     signIn('manager');
     renderAt(gateway());
@@ -448,5 +577,49 @@ describe('More', () => {
     ).toBe('/venue/messages');
     await user.click(within(manage).getByRole('button', { name: /Today’s summary/u }));
     expect(await screen.findByRole('heading', { name: 'Today' })).toBeTruthy();
+  });
+});
+
+describe('a tapped notification', () => {
+  it('opens the booking’s Approve screen from /staff/approve/{id}', async () => {
+    signIn();
+    const staffGateway = gateway();
+    const [request] = await staffGateway.listAwaitingApproval(BRANCH);
+    renderAt(staffGateway, `/staff/approve/${request!.id}`);
+    expect(
+      await screen.findByRole('heading', { level: 1, name: 'Booking to approve' }),
+    ).toBeTruthy();
+    expect(await screen.findByRole('button', { name: 'Approve' })).toBeTruthy();
+  });
+
+  it('says so when that booking no longer waits, and stays on Now', async () => {
+    signIn();
+    renderAt(gateway(), '/staff/approve/gone');
+    expect(await screen.findByText('No longer waiting for an answer.')).toBeTruthy();
+    expect(tab(await tabs(), /^Now/u).getAttribute('aria-current')).toBe('page');
+  });
+
+  it('opens the table’s sheet from /staff/floor?table=', async () => {
+    signIn();
+    const staffGateway = gateway();
+    const floor = await staffGateway.getFloor(BRANCH);
+    const table = floor!.plan.tables[0]!;
+    renderAt(staffGateway, `/staff/floor?table=${table.id}`);
+    const sheet = await screen.findByRole('dialog');
+    expect(sheet.classList.contains('is-sheet')).toBe(true);
+  });
+
+  it('opens the thread from /staff/messages/{conversationId}', async () => {
+    signIn();
+    const staffGateway = createStaffMockGateway({
+      latencyMs: 0,
+      branchId: BRANCH,
+      seedMessages: true,
+      staffName: 'Aram Petrosyan',
+    });
+    const inbox = await staffGateway.listConversations(BRANCH);
+    renderAt(staffGateway, `/staff/messages/${inbox.items[0]!.conversationId}`);
+    expect(await screen.findByRole('button', { name: 'All messages' })).toBeTruthy();
+    expect(document.querySelector('.msg-thread')).not.toBeNull();
   });
 });

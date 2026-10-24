@@ -1,32 +1,19 @@
-import {
-  approvalCountdown,
-  isOnShiftAt,
-  type AwaitingApproval,
-  type StaffConversationListItem,
-  type StaffRosterEntry,
-  type UserRole,
-} from '@yalla/api';
-import { useNow } from '@yalla/api/react';
+import { approvalCountdown } from '@yalla/api';
+import { useNow, useStaffToday } from '@yalla/api/react';
 import { intlTag } from '@yalla/format';
 import { useLocale, useTranslation } from '@yalla/i18n';
+import { useId, useState } from 'react';
 import { QueryFailureNotice } from '../../components/QueryFailureNotice';
 import { useBranchFormat } from '../useBranchFormat';
 import { PhoneIcon } from './PhoneShell';
-import { useStaffOverview } from './usePhoneData';
 
 export interface PhoneTodayProps {
+  /** The session's branch: the one the floor's own screens act on. */
   readonly branchId: string;
-  readonly role: UserRole;
-  /** "Lumen · Lumen North": the branch the numbers are for. */
-  readonly place: string;
   readonly timeZoneId: string;
-  /** The screen is in front: the overview is polled only then. */
+  /** The screen is in front: the board is polled only then. */
   readonly active: boolean;
-  /** The floor's own awaiting list: the "Needs you" row and its clock. */
-  readonly awaiting: readonly AwaitingApproval[];
-  /** The inbox's rows: the unanswered ones are the other "Needs you" row. */
-  readonly conversations: readonly StaffConversationListItem[];
-  readonly roster: readonly StaffRosterEntry[] | undefined;
+  /** "Needs you" → the first booking to approve, on this phone's own floor. */
   readonly onOpenApprovals: () => void;
   readonly onOpenMessages: () => void;
 }
@@ -35,97 +22,110 @@ export interface PhoneTodayProps {
 export const FULL_REPORT_PATH = '/venue/reports';
 
 /**
- * A manager's Today (the Today artboard): the day at the branch in four
- * numbers, what needs a manager now, and who is on shift — readable from
- * home as well as from the floor.
+ * A manager's Today (the Today artboard), from `GET /api/staff/today`: the
+ * day so far in four tiles — takings split hall and takeaway, guests with
+ * and without a booking, the bookings, the room now — what needs a manager,
+ * and who is on shift and signed in.
  *
- * The numbers are the venue console's Overview (`GET .../overview`), read
- * with the phone's PIN session; "Needs you" is the floor's own awaiting list
- * and inbox, so it agrees with Now to the second; the shift list is the PIN
- * gate's roster.
- *
- * TODO(staff-phone Today): two things on the artboard have no data yet, and
- * the backend's Today endpoint (being added beside device pairing and web
- * push) is where they come from — nothing is invented here meanwhile:
- * - the revenue split, "hall 368 000 · takeaway 44 000", and the guests'
- *   "78 with a booking · 18 without": the Overview gives the day's total
- *   revenue and the booked guests only, so the tiles say that;
- * - the branch switcher for a general manager or an owner: a PIN session is
- *   bound to its branch, so the screen names that branch and offers no other.
+ * **The branch switcher** is the board's `branches`: an owner or a general
+ * manager on their own phone reads any branch of the venue; a branch
+ * manager's list is their branch alone, and then there is no switcher.
+ * "Needs you" opens the floor's own screens only for the phone's own branch
+ * — a PIN session acts on that branch and no other — and says so elsewhere.
  */
 export function PhoneToday(props: PhoneTodayProps) {
   const { t } = useTranslation(['staff', 'common']);
   const { locale } = useLocale();
-  const format = useBranchFormat(props.timeZoneId);
+  const switcherId = useId();
   const now = useNow(30_000);
-  const overview = useStaffOverview(props.branchId, props.role, props.active);
-  const data = overview.data ?? null;
+  const [picked, setPicked] = useState<string | null>(null);
+  // Named, not left to the session: the same answer from the server, and the
+  // switcher's own branch is always the one asked for.
+  const today = useStaffToday(picked ?? props.branchId, props.active);
+  const data = today.data ?? null;
+  const format = useBranchFormat(data?.timeZoneId ?? props.timeZoneId);
+  const own = !data || data.branchId === props.branchId;
 
   const day = new Intl.DateTimeFormat(intlTag(locale), {
     weekday: 'long',
     day: 'numeric',
     month: 'short',
-    timeZone: props.timeZoneId,
+    timeZone: data?.timeZoneId ?? props.timeZoneId,
   }).format(now);
 
-  // "Needs you": the soonest clock among the bookings, the longest wait among
-  // the guests' messages.
-  const soonest = props.awaiting
-    .map((request) => approvalCountdown(request.approvalExpiresAtUtc, now, locale))
-    .filter((countdown) => countdown !== null && !countdown.expired)
-    .sort((a, b) => a!.secondsLeft - b!.secondsLeft)[0];
-  const unanswered = props.conversations.filter(
-    (item) => item.oldestUnansweredGuestMessageUtc !== null,
-  );
-  const longestWait = unanswered.reduce(
-    (most, item) => Math.max(most, format.minutesSince(item.oldestUnansweredGuestMessageUtc!)),
-    0,
-  );
+  const needs = data?.needsYou ?? null;
+  const deadline = needs?.soonestApprovalDeadlineUtc
+    ? approvalCountdown(needs.soonestApprovalDeadlineUtc, now, locale)
+    : null;
+  const waitedMinutes = needs?.oldestUnansweredMessageAtUtc
+    ? format.minutesSince(needs.oldestUnansweredMessageAtUtc)
+    : 0;
 
-  const shifts = [...(props.roster ?? [])]
-    .filter((entry) => entry.shift !== null || isOnShiftAt(entry, now))
-    .sort((a, b) => {
-      const onA = isOnShiftAt(a, now);
-      const onB = isOnShiftAt(b, now);
-      if (onA !== onB) return onA ? -1 : 1;
-      return (a.shift?.startsAtUtc ?? '').localeCompare(b.shift?.startsAtUtc ?? '');
-    });
+  const shifts = [...(data?.shifts ?? [])].sort((a, b) => {
+    if (a.onShiftNow !== b.onShiftNow) return a.onShiftNow ? -1 : 1;
+    return a.startsAtUtc.localeCompare(b.startsAtUtc);
+  });
 
   return (
     <div className="ph-screen ph-today">
+      {data && data.branches.length > 1 ? (
+        <div className="ph-today-switch">
+          <label htmlFor={switcherId}>{t('phone.today.branch')}</label>
+          <select
+            id={switcherId}
+            value={data.branchId}
+            onChange={(event) => setPicked(event.target.value)}
+          >
+            {data.branches.map((branch) => (
+              <option key={branch.branchId} value={branch.branchId}>
+                {data.venueName} · {branch.name}
+              </option>
+            ))}
+          </select>
+        </div>
+      ) : null}
+
       <div className="ph-screen-head">
         <h1 className="ph-title">{t('phone.today.title')}</h1>
         <span className="ph-screen-meta">
           {day} · {format.time(now)}
         </span>
       </div>
-      <p className="ph-today-branch">{props.place}</p>
+      {data && data.branches.length <= 1 ? (
+        <p className="ph-today-branch">
+          {data.venueName} · {data.branchName}
+        </p>
+      ) : null}
 
       {data ? (
-        <dl className="ph-tiles">
+        <dl className="ph-tiles" aria-busy={today.isPlaceholderData || undefined}>
           <div className="ph-tile">
             <dt>{t('phone.today.revenue')}</dt>
-            <dd className="ph-tile-value">{format.dram(data.revenue.todayAmd)}</dd>
+            <dd className="ph-tile-value">{format.dram(data.revenue.totalAmd)}</dd>
             <dd className="ph-tile-sub">
-              {data.revenue.changePercent === null
-                ? t('phone.today.revenueNoCompare')
-                : t('phone.today.revenueChange', {
-                    percent: `${data.revenue.changePercent > 0 ? '+' : ''}${data.revenue.changePercent}`,
-                  })}
+              {t('phone.today.revenueSplit', {
+                hall: format.dram(data.revenue.hallAmd),
+                takeaway: format.dram(data.revenue.takeawayAmd),
+              })}
             </dd>
           </div>
           <div className="ph-tile">
             <dt>{t('phone.today.guests')}</dt>
-            <dd className="ph-tile-value">{data.bookings.people}</dd>
-            <dd className="ph-tile-sub">{t('phone.today.guestsBooked')}</dd>
+            <dd className="ph-tile-value">{data.guests.total}</dd>
+            <dd className="ph-tile-sub">
+              {t('phone.today.guestsSplit', {
+                booked: data.guests.withBooking,
+                walkIn: data.guests.walkIn,
+              })}
+            </dd>
           </div>
           <div className="ph-tile">
             <dt>{t('phone.today.bookings')}</dt>
             <dd className="ph-tile-value">{data.bookings.total}</dd>
             <dd className="ph-tile-sub">
               {t('phone.today.bookingsSub', {
-                came: data.bookings.seated + data.bookings.completed,
-                expected: data.bookings.confirmed,
+                came: data.bookings.came,
+                expected: data.bookings.expected,
                 noShow: data.bookings.noShow,
               })}
             </dd>
@@ -134,91 +134,125 @@ export function PhoneToday(props: PhoneTodayProps) {
             <dt>{t('phone.today.inRoom')}</dt>
             <dd className="ph-tile-value">
               {t('phone.today.inRoomValue', {
-                occupied: data.inRoom.occupiedTables,
-                tables: data.inRoom.tables,
+                occupied: data.room.occupiedTables,
+                tables: data.room.tables,
               })}
             </dd>
             <dd className="ph-tile-sub">{t('phone.today.inRoomSub')}</dd>
           </div>
         </dl>
-      ) : overview.isError ? (
+      ) : today.isError ? (
         <div className="ph-today-failed">
           <p className="ft-rail-empty is-failed">{t('phone.today.unreachable')}</p>
-          <QueryFailureNotice error={overview.error} onRetry={() => void overview.refetch()} />
+          <QueryFailureNotice error={today.error} onRetry={() => void today.refetch()} />
         </div>
       ) : (
-        <p className="ft-rail-empty">{t('floor.loading')}</p>
-      )}
-
-      <h2 className="ph-section-title">{t('phone.today.needsYou')}</h2>
-      {props.awaiting.length === 0 && unanswered.length === 0 ? (
-        <p className="ft-rail-empty">{t('phone.today.nothingWaiting')}</p>
-      ) : (
-        <ul className="ph-links">
-          {props.awaiting.length > 0 ? (
-            <li>
-              <button type="button" className="ph-link is-strong" onClick={props.onOpenApprovals}>
-                <b className="ph-count" aria-hidden="true">
-                  {props.awaiting.length}
-                </b>
-                <span className="ph-link-text">
-                  <b>{t('phone.today.approvals', { count: props.awaiting.length })}</b>
-                  {soonest ? (
-                    <span className="ph-link-clock">
-                      {t('approvals.leftLabel', { time: soonest.label })}
-                    </span>
-                  ) : null}
-                </span>
-                <PhoneIcon name="chevron" />
-              </button>
-            </li>
-          ) : null}
-          {unanswered.length > 0 ? (
-            <li>
-              <button type="button" className="ph-link" onClick={props.onOpenMessages}>
-                <b className="ph-count" aria-hidden="true">
-                  {unanswered.length}
-                </b>
-                <span className="ph-link-text">
-                  <b>{t('phone.today.messages', { count: unanswered.length })}</b>
-                </span>
-                <span className="ph-link-sub">{t('rail.minutes', { count: longestWait })}</span>
-                <PhoneIcon name="chevron" />
-              </button>
-            </li>
-          ) : null}
-        </ul>
-      )}
-
-      <h2 className="ph-section-title">{t('phone.today.shift')}</h2>
-      {shifts.length === 0 ? (
-        <p className="ft-rail-empty">
-          {props.roster === undefined ? t('floor.loading') : t('phone.today.shiftNone')}
+        <p className="ft-rail-empty" role="status">
+          {t('floor.loading')}
         </p>
-      ) : (
-        <ul className="ph-rows is-static">
-          {shifts.map((entry) => {
-            const on = isOnShiftAt(entry, now);
-            return (
-              <li key={entry.staffMemberId} className="ph-row">
-                <span>
-                  {entry.fullName} · {t(`pin.role.${entry.role}`)}
-                </span>
-                <span className="ph-row-state" data-tone={on ? 'ok' : 'quiet'}>
-                  {on
-                    ? t('phone.today.onShift')
-                    : t('phone.today.from', { time: entry.shift?.startsAt ?? '' })}
-                </span>
-              </li>
-            );
-          })}
-        </ul>
       )}
+
+      {needs ? (
+        <>
+          <h2 className="ph-section-title">{t('phone.today.needsYou')}</h2>
+          {needs.pendingApprovals === 0 && needs.unansweredMessages === 0 ? (
+            <p className="ft-rail-empty">{t('phone.today.nothingWaiting')}</p>
+          ) : (
+            <ul className="ph-links">
+              {needs.pendingApprovals > 0 ? (
+                <li>
+                  <NeedsRow
+                    strong
+                    count={needs.pendingApprovals}
+                    label={t('phone.today.approvals', { count: needs.pendingApprovals })}
+                    clock={
+                      deadline && !deadline.expired
+                        ? t('approvals.leftLabel', { time: deadline.label })
+                        : null
+                    }
+                    onOpen={own ? props.onOpenApprovals : null}
+                  />
+                </li>
+              ) : null}
+              {needs.unansweredMessages > 0 ? (
+                <li>
+                  <NeedsRow
+                    count={needs.unansweredMessages}
+                    label={t('phone.today.messages', { count: needs.unansweredMessages })}
+                    clock={t('rail.minutes', { count: waitedMinutes })}
+                    onOpen={own ? props.onOpenMessages : null}
+                  />
+                </li>
+              ) : null}
+            </ul>
+          )}
+          {!own ? <p className="ph-today-note">{t('phone.today.otherBranch')}</p> : null}
+        </>
+      ) : null}
+
+      {data ? (
+        <>
+          <h2 className="ph-section-title">{t('phone.today.shift')}</h2>
+          {shifts.length === 0 ? (
+            <p className="ft-rail-empty">{t('phone.today.shiftNone')}</p>
+          ) : (
+            <ul className="ph-rows is-static">
+              {shifts.map((shift) => (
+                <li key={`${shift.staffMemberId}-${shift.startsAtUtc}`} className="ph-row">
+                  <span>
+                    {shift.fullName} · {t(`pin.role.${shift.role}`)}
+                  </span>
+                  <span
+                    className="ph-row-state"
+                    data-tone={shift.signedIn || shift.onShiftNow ? 'ok' : 'quiet'}
+                  >
+                    {shift.signedIn
+                      ? t('phone.today.signedIn')
+                      : shift.onShiftNow
+                        ? t('phone.today.onShift')
+                        : t('phone.today.from', { time: shift.startsAt })}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </>
+      ) : null}
 
       <a className="ph-wide-btn" href={FULL_REPORT_PATH}>
         {t('phone.today.fullReport')}
         <PhoneIcon name="chevron" />
       </a>
     </div>
+  );
+}
+
+function NeedsRow(props: {
+  readonly strong?: boolean;
+  readonly count: number;
+  readonly label: string;
+  readonly clock: string | null;
+  /** Null for another branch: its floor is not this phone's to act on. */
+  readonly onOpen: (() => void) | null;
+}) {
+  const inner = (
+    <>
+      <b className="ph-count" aria-hidden="true">
+        {props.count}
+      </b>
+      <span className="ph-link-text">
+        <b>{props.label}</b>
+      </span>
+      {props.clock ? <span className="ph-link-sub">{props.clock}</span> : null}
+      {props.onOpen ? <PhoneIcon name="chevron" /> : null}
+    </>
+  );
+  const className = props.strong ? 'ph-link is-strong' : 'ph-link';
+  return props.onOpen ? (
+    <button type="button" className={className} onClick={props.onOpen}>
+      {inner}
+    </button>
+  ) : (
+    <div className={`${className} is-static`}>{inner}</div>
   );
 }

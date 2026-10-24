@@ -807,6 +807,65 @@ export class EnrolmentCodeExpiredError extends ApiError {
 }
 
 /**
+ * A phone's pairing code is not one: unknown, mistyped, or a tablet's
+ * enrolment code (`401 pairing-code-invalid`). Retyping it may help.
+ */
+export class PairingCodeInvalidError extends ApiError {
+  constructor(options: { url: string; requestId?: string | undefined }) {
+    super('That pairing code is not valid.', {
+      status: 401,
+      url: options.url,
+      requestId: options.requestId,
+    });
+    this.name = 'PairingCodeInvalidError';
+  }
+}
+
+/**
+ * Past its ten minutes, or a newer code for the same person replaced it
+ * (`401 pairing-code-expired`): only a new code from a manager helps.
+ */
+export class PairingCodeExpiredError extends ApiError {
+  constructor(options: { url: string; requestId?: string | undefined }) {
+    super('That pairing code has expired.', {
+      status: 401,
+      url: options.url,
+      requestId: options.requestId,
+    });
+    this.name = 'PairingCodeExpiredError';
+  }
+}
+
+/**
+ * The code cannot pair this phone (`409 conflicting-state`): it was used
+ * already, its person can no longer sign in at that branch, or this browser is
+ * one of the branch's floor tablets. The server tells them apart only in prose,
+ * and the fix is the same for all three — a manager.
+ */
+export class PairingCodeUnusableError extends ApiError {
+  constructor(options: { url: string; requestId?: string | undefined }) {
+    super('That pairing code cannot pair this phone.', {
+      status: 409,
+      url: options.url,
+      requestId: options.requestId,
+    });
+    this.name = 'PairingCodeUnusableError';
+  }
+}
+
+/** Kitchen staff have no phone: the kitchen stays on its tablet (`409 kitchen-phone-not-allowed`). */
+export class KitchenPhoneNotAllowedError extends ApiError {
+  constructor(options: { url: string; requestId?: string | undefined }) {
+    super('Kitchen staff cannot have a phone paired.', {
+      status: 409,
+      url: options.url,
+      requestId: options.requestId,
+    });
+    this.name = 'KitchenPhoneNotAllowedError';
+  }
+}
+
+/**
  * Those four digits were not recognised.
  *
  * Deliberately says nothing more. Wrong PIN, unknown staff member and somebody

@@ -95,6 +95,11 @@ async function offered(user: User, name: string): Promise<string[]> {
   return [...direct, ...items];
 }
 
+/** Staff → People, Tablets or Phones. */
+async function openSection(user: User, name: 'People' | 'Tablets' | 'Phones') {
+  await user.click(await screen.findByRole('tab', { name }));
+}
+
 function wizard() {
   return screen.getByRole('dialog', { name: 'New staff member' });
 }
@@ -537,6 +542,7 @@ describe('the tablets', () => {
   it('revokes one after a confirm naming it, and keeps it listed as revoked', async () => {
     const user = userEvent.setup();
     renderStaff();
+    await openSection(user, 'Tablets');
     await screen.findByText('Counter tablet');
 
     await user.click(screen.getByRole('button', { name: 'Revoke Counter tablet' }));
@@ -549,6 +555,7 @@ describe('the tablets', () => {
   it('shows an enrolment code once, and says a tablet grants nothing alone', async () => {
     const user = userEvent.setup();
     renderStaff();
+    await openSection(user, 'Tablets');
     await screen.findByText('Counter tablet');
     expect(screen.getByText(/A device grants nothing on its own/u)).toBeTruthy();
 
@@ -802,6 +809,7 @@ describe('shifts, round 1', () => {
     const gateway = createConsoleMockGateway({ latencyMs: 0, role: 'owner' });
     const make = vi.spyOn(gateway, 'createEnrolmentCode');
     renderStaff({ gateway });
+    await openSection(user, 'Tablets');
     await screen.findByText('Counter tablet');
 
     await user.click(screen.getByRole('button', { name: 'Generate a code' }));
@@ -810,5 +818,124 @@ describe('shifts, round 1', () => {
     const day = formatDate(code.expiresAtUtc, 'Asia/Yerevan', 'en');
     const time = formatTime(code.expiresAtUtc, 'Asia/Yerevan', 'en');
     expect(within(once).getByText(new RegExp(`until ${day} ${time}`, 'u'))).toBeTruthy();
+  });
+});
+
+describe('the phones', () => {
+  /** A person's row in the phones table, by the name on it. */
+  function phoneRow(name: string): HTMLElement {
+    return screen.getByText(name, { selector: 'th' }).closest('tr')!;
+  }
+
+  async function openPhones(user: User) {
+    await openSection(user, 'Phones');
+    await screen.findByRole('table', { name: 'Staff phones' });
+  }
+
+  it('lists everybody with their phone, and offers the kitchen none', async () => {
+    const user = userEvent.setup();
+    renderStaff();
+    await openPhones(user);
+
+    expect(within(phoneRow(ANI)).getByText('iPhone · Safari')).toBeTruthy();
+    expect(
+      within(phoneRow(ANI)).getByRole('button', { name: `Unpair ${ANI}’s phone` }),
+    ).toBeTruthy();
+    expect(within(phoneRow('Nare Petrosyan')).getByText('Not paired')).toBeTruthy();
+    expect(
+      within(phoneRow('Nare Petrosyan')).getByRole('button', {
+        name: 'Pair a phone for Nare Petrosyan',
+      }),
+    ).toBeTruthy();
+    expect(within(phoneRow(SONA)).getByText('The kitchen uses the tablet')).toBeTruthy();
+    expect(within(phoneRow(SONA)).queryByRole('button')).toBeNull();
+    // Somebody who left has no phone to pair.
+    expect(screen.queryByText(DAVIT, { selector: 'th' })).toBeNull();
+  });
+
+  it('shows the code as a QR and typed, with the time it has left', async () => {
+    const user = userEvent.setup();
+    const gateway = createConsoleMockGateway({ latencyMs: 0, role: 'owner' });
+    const make = vi.spyOn(gateway, 'createPhonePairing');
+    renderStaff({ gateway });
+    await openPhones(user);
+
+    await user.click(screen.getByRole('button', { name: 'Pair a phone for Nare Petrosyan' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Pair a phone: Nare Petrosyan' });
+    expect(make).toHaveBeenCalledWith({ branchId: NORTH, staffMemberId: `${NORTH}-manager` });
+    const code = await make.mock.results[0]!.value;
+    expect(within(dialog).getByText(code.code)).toBeTruthy();
+    expect(code.code).toMatch(/^[A-Z2-9]{5}-[A-Z2-9]{5}$/u);
+    expect(
+      await within(dialog).findByRole('img', { name: /QR code that pairs Nare/u }),
+    ).toBeTruthy();
+    expect(within(dialog).getByText(/Works for (10:00|9:5\d) more, and only once\./u)).toBeTruthy();
+    expect(within(dialog).getByText('Show it only to Nare.')).toBeTruthy();
+
+    await user.click(within(dialog).getByRole('button', { name: 'Paired, close' }));
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+  });
+
+  it('offers a new code once the old one has run out', async () => {
+    const user = userEvent.setup();
+    const gateway = createConsoleMockGateway({ latencyMs: 0, role: 'owner' });
+    const make = vi.spyOn(gateway, 'createPhonePairing').mockResolvedValueOnce({
+      code: 'K7Q2M-9XW4P',
+      expiresAtUtc: new Date(Date.now() - 1_000).toISOString(),
+      pairingUrl: 'https://shurj.am/staff/pair#code=K7Q2M-9XW4P',
+      staffMemberId: `${NORTH}-manager`,
+      branchId: NORTH,
+    });
+    renderStaff({ gateway });
+    await openPhones(user);
+
+    await user.click(screen.getByRole('button', { name: 'Pair a phone for Nare Petrosyan' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Pair a phone: Nare Petrosyan' });
+    expect(within(dialog).getByText('This code has expired.')).toBeTruthy();
+    expect(within(dialog).queryByRole('img')).toBeNull();
+
+    await user.click(within(dialog).getByRole('button', { name: 'New code' }));
+    await waitFor(() => expect(make).toHaveBeenCalledTimes(2));
+    expect(await within(dialog).findByText(/Works for/u)).toBeTruthy();
+    expect(within(dialog).queryByText('K7Q2M-9XW4P')).toBeNull();
+  });
+
+  it('unpairs a phone after a confirm naming it', async () => {
+    const user = userEvent.setup();
+    renderStaff();
+    await openPhones(user);
+
+    await user.click(screen.getByRole('button', { name: `Unpair ${ANI}’s phone` }));
+    const confirm = screen.getByRole('alertdialog', { name: `Unpair ${ANI}’s phone?` });
+    expect(within(confirm).getByText(/iPhone · Safari stops working at once/u)).toBeTruthy();
+    await user.click(within(confirm).getByRole('button', { name: 'Yes, unpair' }));
+    expect(await screen.findByText(`Phone unpaired: ${ANI}`)).toBeTruthy();
+    await waitFor(() =>
+      expect(
+        within(phoneRow(ANI)).getByRole('button', { name: `Pair a phone for ${ANI}` }),
+      ).toBeTruthy(),
+    );
+  });
+
+  it('gives a general manager no button for an owner, and a branch manager their own', async () => {
+    const user = userEvent.setup();
+    renderStaff({ role: 'generalManager' });
+    await openPhones(user);
+    expect(within(phoneRow('Aram Sargsyan')).queryByRole('button')).toBeNull();
+    expect(within(phoneRow('Aram Sargsyan')).getByText('Above your role')).toBeTruthy();
+    expect(
+      within(phoneRow('Hasmik Karapetyan')).getByRole('button', {
+        name: 'Pair a phone for Hasmik Karapetyan',
+      }),
+    ).toBeTruthy();
+    cleanup();
+
+    renderStaff({ role: 'manager' });
+    await openPhones(user);
+    expect(
+      within(phoneRow('Nare Petrosyan')).getByRole('button', {
+        name: 'Pair a phone for Nare Petrosyan',
+      }),
+    ).toBeTruthy();
   });
 });

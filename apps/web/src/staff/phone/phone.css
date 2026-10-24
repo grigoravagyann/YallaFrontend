@@ -996,6 +996,51 @@ button.ph-row:active {
   color: var(--console-muted);
 }
 
+/* The branch switcher for an owner or a general manager (Today artboard):
+   the bar's cherry carried down over the top of the screen. */
+.ph-today-switch {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+  margin: calc(-1 * var(--space-lg)) calc(-1 * var(--ph-safe-right)) 0
+    calc(-1 * var(--ph-safe-left));
+  padding: var(--space-sm) var(--ph-safe-right) var(--space-md) var(--ph-safe-left);
+  background: var(--console-sidebar);
+  color: var(--console-sidebar-muted);
+  font-size: var(--console-text-label);
+}
+
+.ph-today-switch select {
+  min-height: var(--touch-minimum);
+  padding: 0 var(--space-md);
+  border: 1px solid var(--console-sidebar-field-edge);
+  border-radius: var(--console-radius-floor-button);
+  background: var(--console-sidebar-field);
+  color: var(--console-sidebar-text-strong);
+  font: inherit;
+  font-size: var(--font-size-md);
+  font-weight: var(--font-weight-semibold);
+}
+
+.ph-today-switch select:focus-visible {
+  outline: 2px solid var(--console-sidebar-focus);
+  outline-offset: 2px;
+}
+
+.ph-today-note {
+  margin: 0;
+  font-size: var(--console-text-label);
+  color: var(--console-muted);
+}
+
+.ph-link.is-static {
+  cursor: default;
+}
+
+.ph-notifications .ph-install {
+  padding-bottom: var(--space-lg);
+}
+
 .ph-today-failed {
   display: flex;
   flex-direction: column;
@@ -1156,6 +1201,11 @@ button.ph-list-row:active {
   font-size: 13.5px;
   line-height: 1.5;
   color: var(--console-muted);
+}
+
+.ph-confirm p.ph-confirm-error {
+  color: var(--console-red);
+  font-weight: var(--font-weight-semibold);
 }
 
 .ph-confirm-actions {

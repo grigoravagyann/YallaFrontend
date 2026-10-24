@@ -64,28 +64,6 @@ export function consoleGatewayFor(role: UserRole): ConsoleGateway {
  * audience, which reads the richer staff-only floor endpoint with the venue
  * user's token.
  */
-/**
- * The console reads a manager's phone makes on `/staff` (staff phone, the
- * Today artboard) — today's overview of the branch — with the phone's own
- * PIN session, not the console user's: `GET /api/branches/{id}/overview` is
- * `ManagerOrAbove` and branch-scoped, which a manager's PIN session passes.
- * Nothing else of the console is reached this way.
- *
- * The mock has one console world per role, so it is the console's own mock.
- */
-const realStaffConsole: ConsoleGateway | null =
-  config.api && staffSession
-    ? resolveConsoleGateway({
-        dataSource: 'real',
-        baseUrl: config.api.baseUrl,
-        auth: staffSession,
-      })
-    : null;
-
-export function staffOverviewGateway(role: UserRole): Pick<ConsoleGateway, 'getBranchOverview'> {
-  return realStaffConsole ?? consoleGatewayFor(role);
-}
-
 export const staffGateway: YallaGateway = resolveGateway({
   dataSource: config.dataSource,
   baseUrl: config.api?.baseUrl,

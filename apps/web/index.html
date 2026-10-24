@@ -12,13 +12,20 @@
          this makes sure nothing else ever carries one. -->
     <meta name="referrer" content="no-referrer" />
 
-    <!-- Installed as a PWA on Android tablets. `start_url` in the manifest
-         points at /staff, so installing from the floor screen gives a waiter an
-         icon that opens straight into the room. -->
+    <!-- Installed as a PWA on floor tablets and on staff phones. `start_url`
+         and `scope` in the manifest are /staff, so installing gives a waiter an
+         icon that opens straight into the room, or their phone. -->
     <link rel="manifest" href="/manifest.webmanifest" />
     <!-- consoleColor.sidebar (#3A0912), the floor tablet bar, from @yalla/tokens; the manifest carries the same value. -->
     <meta name="theme-color" content="#3A0912" />
-    <link rel="apple-touch-icon" href="/icon.svg" />
+    <!-- iOS reads neither the manifest's icons nor an SVG here: a PNG, and
+         the two meta tags that make "Add to Home Screen" open full screen,
+         which is also the only way iOS delivers Web Push to /staff. -->
+    <link rel="apple-touch-icon" href="/icon-512.png" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-title" content="SHURJ" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
 
     <title>SHURJ</title>
 

@@ -1,6 +1,8 @@
 import type {
   EnrolDeviceCommand,
   EnrolledDevice,
+  PairPhoneCommand,
+  PhonePairingPreview,
   PinSignInCommand,
   StaffCredentialStorage,
   StaffRosterEntry,
@@ -105,6 +107,20 @@ export interface StaffSession extends AuthSession {
   roster(): Promise<readonly StaffRosterEntry[]>;
   /** Lock the tablet. The device stays enrolled. */
   lock(reason: StaffSignOutReason): Promise<void>;
+  /** Who a phone pairing code is for, before the PIN. Spends nothing. */
+  previewPairing(code: string): Promise<PhonePairingPreview>;
+  /**
+   * Pair this browser as one person's phone with the manager's code and the
+   * person's own PIN: the device token is kept, as enrolment keeps it, and the
+   * person is signed in — `signedIn`, with the device read back.
+   */
+  pairPhone(input: Omit<PairPhoneCommand, 'clientDeviceId'>): Promise<EnrolledDevice>;
+  /**
+   * Forget the device credential here: after the phone unpaired itself, so
+   * the next screen is pairing again rather than a keypad that can never
+   * open. Not a revocation — that is the server's, and has happened.
+   */
+  forgetDevice(): Promise<void>;
   /** A tap happened. Pushes the idle deadline out. */
   touch(): void;
 }
@@ -355,6 +371,53 @@ export function createStaffSession(config: StaffSessionConfig): StaffSession {
     },
 
     lock,
+
+    previewPairing: (code) => auth.previewPhonePairing(code),
+
+    async pairPhone(input) {
+      const clientDeviceId = await this.deviceId();
+      const paired = await auth.pairPhone({ ...input, clientDeviceId });
+      await storage.writeDeviceToken(paired.device.deviceToken);
+      await adopt({
+        identity: paired.session.identity,
+        accessToken: paired.session.tokens.accessToken,
+        renewalToken: paired.session.tokens.renewalToken,
+        expiresInSeconds: paired.session.tokens.expiresInSeconds,
+      });
+      let device: EnrolledDevice;
+      try {
+        device = await auth.getDevice(paired.device.deviceToken);
+      } catch {
+        // Paired and signed in; the names come with the next device read.
+        // What the pairing itself said is enough to draw the phone meanwhile.
+        device = {
+          deviceId: paired.device.deviceId,
+          deviceName: paired.device.deviceName,
+          branchId: paired.device.branchId,
+          branchName: '',
+          venueName: '',
+          enrolledAtUtc: new Date(now()).toISOString(),
+          lastSeenAtUtc: null,
+          kind: 'phone',
+          boundStaffMember: {
+            id: paired.session.identity.staffMemberId,
+            fullName: paired.session.identity.fullName,
+            role: paired.session.identity.role,
+          },
+        };
+      }
+      set({ device });
+      return device;
+    },
+
+    async forgetDevice() {
+      accessToken = null;
+      accessExpiresAtMs = 0;
+      cancelIdle?.();
+      cancelIdle = null;
+      await Promise.all([storage.clearRenewalToken(), storage.clearDeviceToken()]);
+      set({ state: 'unenrolled', device: null, identity: null, lastSignOut: 'signedOut' });
+    },
 
     touch() {
       lastTouchMs = now();

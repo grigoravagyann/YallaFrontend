@@ -4,6 +4,10 @@ import {
   DeviceRevokedError,
   EnrolmentCodeExpiredError,
   EnrolmentCodeSpentError,
+  KitchenPhoneNotAllowedError,
+  PairingCodeExpiredError,
+  PairingCodeInvalidError,
+  PairingCodeUnusableError,
   PinLockedError,
   PinRejectedError,
 } from '../contracts/errors';
@@ -12,6 +16,9 @@ import type {
   DeviceEnrolment,
   EnrolDeviceCommand,
   EnrolledDevice,
+  PairPhoneCommand,
+  PhonePairing,
+  PhonePairingPreview,
   PinSignInCommand,
   StaffRosterEntry,
   StaffSignInResult,
@@ -83,6 +90,95 @@ export function createMockStaffAuth(options: StaffAuthMockOptions = {}): StaffAu
     return { ...found, ...located };
   }
 
+  /** The PIN as `StaffAuthService` checks it, with the five-miss lockout. */
+  function checkPin(member: StaffMember, pin: string, url: string): void {
+    const t = now().getTime();
+    const state = pinState.get(member.id) ?? { attempts: 0, lockedUntil: null };
+    if (member.isPinLocked) {
+      // The fixture's person a manager has yet to unlock: no known end.
+      throw new PinLockedError({ url, lockedUntilUtc: null });
+    }
+    if (state.lockedUntil !== null && t < state.lockedUntil) {
+      throw new PinLockedError({
+        url,
+        lockedUntilUtc: new Date(state.lockedUntil).toISOString(),
+      });
+    }
+
+    if (pin !== MOCK_STAFF_PIN) {
+      // StaffMember.RecordFailedPin: the miss that reaches the threshold is
+      // the lockout itself.
+      state.attempts += 1;
+      pinState.set(member.id, state);
+      if (state.attempts >= PIN_MAX_ATTEMPTS) {
+        state.lockedUntil = t + PIN_LOCK_MS;
+        throw new PinLockedError({
+          url,
+          lockedUntilUtc: new Date(state.lockedUntil).toISOString(),
+        });
+      }
+      throw new PinRejectedError({ url });
+    }
+
+    pinState.delete(member.id);
+  }
+
+  /** A phone's person: the only one its roster lists and its PIN takes. */
+  function boundOf(found: {
+    readonly kind?: string | undefined;
+    readonly boundStaffMemberId?: string | null | undefined;
+  }): string | null {
+    return found.kind === 'phone' ? (found.boundStaffMemberId ?? null) : null;
+  }
+
+  function boundMember(found: {
+    readonly kind?: string | undefined;
+    readonly boundStaffMemberId?: string | null | undefined;
+    readonly venue: { readonly id: string };
+  }) {
+    const bound = boundOf(found);
+    const member = bound
+      ? staffOf(found.venue.id).find((person) => person.id === bound)
+      : undefined;
+    return member
+      ? { id: member.id, fullName: member.fullName, role: staffRoleToUserRole(member.role) }
+      : null;
+  }
+
+  /** Every PIN sign-in and renewal moves the console's "last seen". */
+  function seen(deviceToken: string): void {
+    const found = registry.devices.get(deviceToken);
+    if (found) registry.devices.set(deviceToken, { ...found, lastSeenAtUtc: now().toISOString() });
+  }
+
+  /**
+   * A pairing code as `FindPairingCodeAsync` judges it: unknown is 401
+   * invalid, used is the 409, past its ten minutes or replaced is 401 expired.
+   */
+  function pairingFor(raw: string, url: string) {
+    const code = normalizeEnrolmentCode(raw);
+    const found = registry.phonePairings.get(code);
+    if (!found) throw new PairingCodeInvalidError({ url });
+    if (found.redeemedAtUtc !== null) throw new PairingCodeUnusableError({ url });
+    if (found.supersededAtUtc !== null || Date.parse(found.expiresAtUtc) <= now().getTime()) {
+      throw new PairingCodeExpiredError({ url });
+    }
+    const located = locate(found.branchId);
+    const member = located
+      ? staffOf(located.venue.id).find((person) => person.id === found.staffMemberId)
+      : undefined;
+    if (
+      !located ||
+      !member ||
+      !member.isActive ||
+      (member.branchId !== null && member.branchId !== found.branchId)
+    ) {
+      throw new PairingCodeUnusableError({ url });
+    }
+    if (member.role === 'kitchen') throw new KitchenPhoneNotAllowedError({ url });
+    return { code, pairing: found, member, ...located };
+  }
+
   function session(deviceToken: string, member: StaffMember): StaffSignInResult {
     sequence += 1;
     const renewalToken = `mockrenew_${member.id}_${sequence}`;
@@ -151,12 +247,69 @@ export function createMockStaffAuth(options: StaffAuthMockOptions = {}): StaffAu
         venueName: found.venue.name,
         enrolledAtUtc: found.enrolledAtUtc,
         lastSeenAtUtc: now().toISOString(),
+        kind: found.kind ?? 'tablet',
+        boundStaffMember: boundMember(found),
+      };
+    },
+
+    async previewPhonePairing(code: string): Promise<PhonePairingPreview> {
+      const { pairing, member, venue, branch } = pairingFor(code, `${URL_TAG}/phone-pair/preview`);
+      return {
+        staffMemberId: member.id,
+        fullName: member.fullName,
+        role: staffRoleToUserRole(member.role),
+        branchId: branch.id,
+        branchName: branch.name,
+        venueName: venue.name,
+        expiresAtUtc: pairing.expiresAtUtc,
+      };
+    },
+
+    async pairPhone(command: PairPhoneCommand): Promise<PhonePairing> {
+      const url = `${URL_TAG}/phone-pair`;
+      const { code, pairing, member } = pairingFor(command.code, url);
+      const deviceToken = `mockdev_${command.clientDeviceId}`;
+      const existing = registry.devices.get(deviceToken);
+      // A browser that is one of the branch's live tablets is refused: a
+      // manager revokes the tablet first.
+      if (existing && existing.revokedAtUtc === null && (existing.kind ?? 'tablet') === 'tablet') {
+        throw new PairingCodeUnusableError({ url });
+      }
+      // The PIN check is the PIN screen's, lockout included; a wrong one
+      // leaves the code usable.
+      checkPin(member, command.pin, url);
+      const at = now().toISOString();
+      registry.phonePairings.set(code, { ...pairing, redeemedAtUtc: at });
+      registry.devices.set(deviceToken, {
+        deviceToken,
+        deviceId: command.clientDeviceId,
+        deviceName: command.deviceName,
+        branchId: pairing.branchId,
+        enrolledAtUtc: at,
+        revokedAtUtc: null,
+        kind: 'phone',
+        boundStaffMemberId: member.id,
+        lastSeenAtUtc: at,
+      });
+      return {
+        device: {
+          deviceId: command.clientDeviceId,
+          deviceName: command.deviceName,
+          branchId: pairing.branchId,
+          deviceToken,
+          expiresAtUtc: new Date(now().getTime() + 365 * 24 * 60 * 60_000).toISOString(),
+        },
+        session: session(deviceToken, member),
       };
     },
 
     async getRoster(deviceToken: string): Promise<readonly StaffRosterEntry[]> {
       const found = device(deviceToken);
-      const people = staffOf(found.venue.id);
+      const bound = boundOf(found);
+      // A phone lists its own person alone.
+      const people = staffOf(found.venue.id).filter(
+        (person) => bound === null || person.id === bound,
+      );
       const at = now();
       return mockStaffRoster(
         people,
@@ -173,9 +326,12 @@ export function createMockStaffAuth(options: StaffAuthMockOptions = {}): StaffAu
       const found = device(deviceToken);
       const url = `${URL_TAG}/pin`;
       const member = staffOf(found.venue.id).find((person) => person.id === command.staffMemberId);
+      const bound = boundOf(found);
       // Somebody who does not sign in on this tablet does not exist as far as
-      // it is concerned: rejected, and no miss counted against anybody.
+      // it is concerned: rejected, and no miss counted against anybody. On a
+      // phone that is everybody but its own person.
       if (
+        (bound !== null && command.staffMemberId !== bound) ||
         !member ||
         !member.isActive ||
         (member.branchId !== null && member.branchId !== found.branchId)
@@ -183,35 +339,8 @@ export function createMockStaffAuth(options: StaffAuthMockOptions = {}): StaffAu
         throw new PinRejectedError({ url });
       }
 
-      const t = now().getTime();
-      const state = pinState.get(member.id) ?? { attempts: 0, lockedUntil: null };
-      if (member.isPinLocked) {
-        // The fixture's person a manager has yet to unlock: no known end.
-        throw new PinLockedError({ url, lockedUntilUtc: null });
-      }
-      if (state.lockedUntil !== null && t < state.lockedUntil) {
-        throw new PinLockedError({
-          url,
-          lockedUntilUtc: new Date(state.lockedUntil).toISOString(),
-        });
-      }
-
-      if (command.pin !== MOCK_STAFF_PIN) {
-        // StaffMember.RecordFailedPin: the miss that reaches the threshold is
-        // the lockout itself.
-        state.attempts += 1;
-        pinState.set(member.id, state);
-        if (state.attempts >= PIN_MAX_ATTEMPTS) {
-          state.lockedUntil = t + PIN_LOCK_MS;
-          throw new PinLockedError({
-            url,
-            lockedUntilUtc: new Date(state.lockedUntil).toISOString(),
-          });
-        }
-        throw new PinRejectedError({ url });
-      }
-
-      pinState.delete(member.id);
+      checkPin(member, command.pin, url);
+      seen(deviceToken);
       return session(deviceToken, member);
     },
 
@@ -228,7 +357,9 @@ export function createMockStaffAuth(options: StaffAuthMockOptions = {}): StaffAu
         return null;
       }
       const member = staffOf(found.venue.id).find((person) => person.id === handle.staffMemberId);
-      return member ? session(handle.deviceToken, member) : null;
+      if (!member) return null;
+      seen(handle.deviceToken);
+      return session(handle.deviceToken, member);
     },
 
     async signOut(renewalToken: string): Promise<void> {

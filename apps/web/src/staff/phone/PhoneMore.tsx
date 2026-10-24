@@ -19,13 +19,14 @@ export interface PhoneMoreProps {
   readonly onOpenTakeaway?: (() => void) | undefined;
   /** "Lock now": the tablet's sign-out — the PIN gate comes up over the screen. */
   readonly onLock: () => void;
+  /** "Notifications": the install screen's switches, as a screen of its own. */
+  readonly onOpenNotifications: () => void;
   /**
-   * "Unpair this phone", after its confirm.
-   *
-   * TODO(staff-phone pairing): a no-op until the device-pairing work lands —
-   * it will revoke this phone's device and go back to the pairing screen.
+   * "Unpair this phone", after its confirm: revokes this phone on the server,
+   * forgets it here and goes back to pairing. Only on a paired phone — a
+   * shared tablet is a manager's to revoke, so it has no such button.
    */
-  readonly onUnpair: () => void;
+  readonly onUnpair?: (() => Promise<void>) | undefined;
 }
 
 /** The venue console's own pages, for a manager on the phone. */
@@ -44,6 +45,8 @@ export function PhoneMore(props: PhoneMoreProps) {
   const { locale, setLocale } = useLocale();
   const now = useNow(60_000);
   const [askUnpair, setAskUnpair] = useState(false);
+  const [unpairing, setUnpairing] = useState(false);
+  const [unpairFailed, setUnpairFailed] = useState(false);
   const unpairHeading = useId();
   const languageLabel = useId();
   const keepRef = useRef<HTMLButtonElement>(null);
@@ -119,6 +122,10 @@ export function PhoneMore(props: PhoneMoreProps) {
           <span>{t('phone.more.myShift')}</span>
           <span className="ph-list-value">{shiftText}</span>
         </div>
+        <button type="button" className="ph-list-row" onClick={props.onOpenNotifications}>
+          {t('phone.more.notifications')}
+          <PhoneIcon name="chevron" />
+        </button>
         {props.onOpenTakeaway ? (
           <button type="button" className="ph-list-row" onClick={props.onOpenTakeaway}>
             {t('takeaway.title')}
@@ -148,28 +155,44 @@ export function PhoneMore(props: PhoneMoreProps) {
         {t('phone.more.lock')}
       </button>
 
-      {askUnpair ? (
+      {!props.onUnpair ? null : askUnpair ? (
         <section className="ph-confirm" aria-labelledby={unpairHeading}>
           <h2 id={unpairHeading}>{t('phone.more.unpairTitle')}</h2>
           <p>{t('phone.more.unpairBody')}</p>
+          {unpairFailed ? (
+            <p className="ph-confirm-error" role="alert">
+              {t('phone.more.unpairFailed')}
+            </p>
+          ) : null}
           <div className="ph-confirm-actions">
             <button
               type="button"
               ref={keepRef}
               className="ph-wide-btn"
-              onClick={() => setAskUnpair(false)}
+              disabled={unpairing}
+              onClick={() => {
+                setUnpairFailed(false);
+                setAskUnpair(false);
+              }}
             >
               {t('phone.more.unpairNo')}
             </button>
             <button
               type="button"
               className="ph-wide-btn is-danger-fill"
+              aria-busy={unpairing || undefined}
+              disabled={unpairing}
               onClick={() => {
-                setAskUnpair(false);
-                props.onUnpair();
+                const unpair = props.onUnpair;
+                if (!unpair || unpairing) return;
+                setUnpairing(true);
+                setUnpairFailed(false);
+                unpair()
+                  .catch(() => setUnpairFailed(true))
+                  .finally(() => setUnpairing(false));
               }}
             >
-              {t('phone.more.unpairYes')}
+              {unpairing ? t('phone.more.unpairing') : t('phone.more.unpairYes')}
             </button>
           </div>
         </section>
