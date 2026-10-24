@@ -28,6 +28,7 @@ import type {
 } from '../contracts/console';
 import type { StaffFloor } from '../contracts/service';
 import type { ConversationSubjectKind } from '../contracts/messages';
+import type { MessageHistoryFilters } from '../contracts/messageHistory';
 import type { EditorFloorPlan, ReplaceFloorPlanCommand } from '../contracts/floorPlan';
 import type { SetReviewVisibilityCommand, VenueReviewQuery } from '../contracts/reviews';
 import type {
@@ -176,6 +177,8 @@ export {
   carryClientCommandIds,
   conversationPollMs,
   dinerConversationOptions,
+  historyConversationOptions,
+  messageHistoryOptions,
   dropPendingMessage,
   hasPendingMessages,
   markConversationReadOptions,
@@ -190,9 +193,11 @@ export {
   unreadMessagesOptions,
   useBranchConversations,
   useDinerConversation,
+  useHistoryConversation,
   useMarkConversationRead,
   useMarkReadWhenSeen,
   useMarkStaffConversationRead,
+  useMessageHistory,
   useMessageSettings,
   useSaveMessageSettings,
   useSendGuestMessage,
@@ -433,6 +438,27 @@ export const queryKeys = {
     ['staff', 'conversation', kind, id] as const,
   /** The branch's message settings: the Policy page's card. */
   messageSettings: (branchId: string) => ['console', 'messageSettings', branchId] as const,
+  /** Every history list of a branch: the prefix of {@link messageHistory}. */
+  messageHistoryAll: (branchId: string) => ['console', 'messageHistory', branchId] as const,
+  /** The console's message history (2026-10-24), one key per set of filters; pages inside. */
+  messageHistory: (branchId: string, filters: MessageHistoryFilters) =>
+    [
+      'console',
+      'messageHistory',
+      branchId,
+      filters.from,
+      filters.to,
+      filters.kind,
+      filters.q.trim(),
+      filters.unansweredOnly,
+    ] as const,
+  /**
+   * One thread as the console's history reads it: under `console`, with the
+   * console's session, apart from the floor's `staffConversation` — the
+   * tablet's cache is another person's view of the same thread.
+   */
+  historyConversation: (kind: ConversationSubjectKind, id: string) =>
+    ['console', 'messageHistoryThread', kind, id] as const,
   /** Tables a scan seated with no proved number, waiting for a waiter to let them order. */
   tabsAwaitingAdmission: (branchId: string) =>
     ['staff', 'tabsAwaitingAdmission', branchId] as const,

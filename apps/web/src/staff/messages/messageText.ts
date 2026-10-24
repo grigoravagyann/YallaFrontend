@@ -1,36 +1,28 @@
 import {
   MESSAGE_MAX_LENGTH,
-  type ConversationMessage,
   type ConversationSubjectKind,
-  type MessageAnswer,
   type MessageFailure,
-  type MessageKind,
-  type MessageStatus,
   type StaffConversationListItem,
 } from '@yalla/api';
 import type { TFunction } from 'i18next';
+import { heldUntil, messageBody, shortName, statusText } from '../../messages/messageText';
 
 /**
  * Guest messages on the floor tablet (2026-10-23, the Rail and Inbox
- * artboards): the words the rail, the inbox and the thread share.
- *
- * Only a `text` message carries words of its own. The venue's ask, the
- * guest's answer buttons and the system's "booking updated" line arrive as
- * structured fields and are said here, in the reader's language.
+ * artboards): the words the rail, the inbox and the thread share. The words
+ * of a message itself — a text, the ask, an answer, a system line — are
+ * shared with the console's history (`messages/messageText.ts`) and
+ * re-exported here.
  */
-
-/** "Անի Մ.": the first name and the family name's initial, as the design has it. */
-export function shortName(name: string): string {
-  const parts = name.trim().split(/\s+/u).filter(Boolean);
-  if (parts.length < 2) return parts[0] ?? '';
-  const initial = parts[1]!.charAt(0);
-  return `${parts[0]} ${initial}.`;
-}
-
-/** The first name alone: "Write to Ani…". */
-export function firstName(name: string): string {
-  return name.trim().split(/\s+/u)[0] ?? '';
-}
+export {
+  answerText,
+  askText,
+  firstName,
+  heldUntil,
+  messageBody,
+  shortName,
+  statusText,
+} from '../../messages/messageText';
 
 /** The keys of the app's four default ready replies for a subject's kind. */
 const DEFAULT_TEMPLATE_KEYS = {
@@ -70,73 +62,6 @@ export function templateDraft(template: string): string {
   return template.replace(/(…|\.\.\.)\s*$/u, ' ');
 }
 
-/** An answer button's words: "I'm coming", "Running 15 minutes late", "Not coming". */
-export function answerText(t: TFunction, answer: MessageAnswer | null): string {
-  switch (answer?.kind) {
-    case 'coming':
-      return t('messages.thread.text.coming');
-    case 'late':
-      return answer.lateMinutes !== null
-        ? t('messages.thread.text.late', { count: answer.lateMinutes })
-        : t('messages.thread.text.answered');
-    case 'notComing':
-      return t('messages.thread.text.notComing');
-    default:
-      return t('messages.thread.text.answered');
-  }
-}
-
-/**
- * The system line: "Booking updated · table held until 19:45", "Booking
- * updated · coming", "Booking cancelled" — said from the answer it names.
- */
-export function statusText(t: TFunction, status: MessageStatus | null): string {
-  if (status?.cancelled) return t('messages.thread.text.cancelled');
-  if (status?.heldUntilLocal) {
-    return t('messages.thread.text.heldUntil', { time: status.heldUntilLocal.slice(0, 5) });
-  }
-  if (status?.answer === 'coming') return t('messages.thread.text.updatedComing');
-  return t('messages.thread.text.updated');
-}
-
-/** The venue's ask: "Are you coming at 19:30?". */
-export function askText(t: TFunction, localTime: string | null | undefined): string {
-  return localTime
-    ? t('messages.thread.text.ask', { time: localTime.slice(0, 5) })
-    : t('messages.thread.text.askPlain');
-}
-
-/** Any message's words, as its bubble shows them. */
-export function messageBody(
-  t: TFunction,
-  message: Pick<ConversationMessage, 'kind' | 'text' | 'answer' | 'status'>,
-  localTime: string | null | undefined,
-): string {
-  return bodyOf(t, message.kind, message.text, message.answer, message.status, localTime);
-}
-
-function bodyOf(
-  t: TFunction,
-  kind: MessageKind,
-  text: string | null,
-  answer: MessageAnswer | null,
-  status: MessageStatus | null,
-  localTime: string | null | undefined,
-): string {
-  switch (kind) {
-    case 'text':
-      return text ?? '';
-    case 'askComing':
-      return askText(t, localTime);
-    case 'answer':
-      return answerText(t, answer);
-    case 'status':
-      return statusText(t, status);
-    default:
-      return text ?? t('messages.thread.text.unknown');
-  }
-}
-
 /**
  * The inbox row's second line: the last message that is not a system line —
  * the guest's words or answer, "You: …" when it was the venue's. After a late
@@ -146,7 +71,11 @@ function bodyOf(
 export function lastLine(t: TFunction, item: StaffConversationListItem): string {
   const last = item.lastMessage;
   if (!last) return item.latestStatus ? statusText(t, item.latestStatus) : '';
-  const body = bodyOf(t, last.kind, last.text, last.answer, null, item.subject.localTime);
+  const body = messageBody(
+    t,
+    { kind: last.kind, text: last.text, answer: last.answer, status: null },
+    item.subject.localTime,
+  );
   if (last.author === 'venue') return t('messages.inbox.you', { text: body });
   const held = heldAfter(item);
   return held ? t('messages.inbox.lastHeld', { text: body, time: held }) : body;
@@ -211,13 +140,4 @@ export function messageFailureText(t: TFunction, failure: MessageFailure): strin
     case 'generic':
       return t('messages.thread.error.generic');
   }
-}
-
-/** "19:45": a booking's start plus the minutes the guest said they would be late. */
-export function heldUntil(localTime: string | null, lateMinutes: number | null): string | null {
-  if (!localTime || lateMinutes === null) return null;
-  const [hours, minutes] = localTime.split(':').map(Number);
-  if (hours === undefined || minutes === undefined || Number.isNaN(hours + minutes)) return null;
-  const total = (hours * 60 + minutes + lateMinutes) % (24 * 60);
-  return `${String(Math.floor(total / 60)).padStart(2, '0')}:${String(total % 60).padStart(2, '0')}`;
 }

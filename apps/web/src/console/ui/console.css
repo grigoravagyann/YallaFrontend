@@ -8101,3 +8101,313 @@ body:has(.yc-savebar) .yc-toast-region {
   flex-direction: column;
   gap: 4px;
 }
+
+/* --------------------------------------------------------------------------
+ * Message history (2026-10-24, the History board): the filters, the list of
+ * conversations and the read-only thread beside it. Side by side on a wide
+ * screen; stacked below 1180px, the table scrolling inside its own box.
+ * -------------------------------------------------------------------------- */
+.yc-mh-filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 10px var(--space-md);
+}
+
+.yc-mh-filters input[type='date'].yc-ctl {
+  width: auto;
+  min-width: 150px;
+}
+
+.yc-mh-kinds .yc-chip {
+  height: var(--console-size-button);
+}
+
+.yc-mh-check {
+  font-size: var(--console-text-body);
+}
+
+.yc-mh-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1.6fr) minmax(300px, 1fr);
+  align-items: start;
+  gap: var(--space-lg);
+}
+
+.yc-mh-list {
+  min-width: 0;
+  overflow: hidden;
+}
+
+.yc-mh-pad {
+  margin: var(--space-lg) 20px;
+}
+
+.yc-mh-tbl th,
+.yc-mh-tbl td {
+  padding-inline: var(--space-md);
+}
+
+.yc-mh-tbl td.yc-mh-wrap,
+.yc-mh-tbl td.yc-mh-staff {
+  min-width: 120px;
+  white-space: normal;
+}
+
+.yc-mh-tbl td.yc-mh-staff {
+  color: var(--console-muted);
+}
+
+.yc-mh-part {
+  white-space: nowrap;
+}
+
+/* The guest is the row's header: the body's look, not the head's. */
+.yc-mh-tbl tbody th {
+  padding: 10px var(--space-md);
+  border-bottom: 1px solid var(--console-line-soft);
+  background: none;
+  color: var(--console-ink);
+  font-size: var(--console-text-body);
+  font-weight: var(--font-weight-semibold);
+  text-align: left;
+  white-space: nowrap;
+}
+
+.yc-mh-tbl tbody tr:last-child th {
+  border-bottom: 0;
+}
+
+.yc-mh-tbl tbody tr:hover th {
+  background: var(--console-hover);
+}
+
+.yc-mh-tbl tbody tr.is-on td,
+.yc-mh-tbl tbody tr.is-on th {
+  background: var(--console-brand-tint);
+}
+
+/* The open conversation: a bar at the row's start as well as the tint. */
+.yc-mh-tbl tbody tr.is-on > :first-child {
+  box-shadow: inset 3px 0 0 var(--console-brand);
+}
+
+.yc-mh-tbl[aria-busy='true'] tbody {
+  opacity: 0.6;
+}
+
+.yc-mh-guest {
+  display: inline-flex;
+  align-items: center;
+  min-height: 32px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--console-brand);
+  font: inherit;
+  font-weight: var(--font-weight-bold);
+  text-align: left;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+
+.yc-mh-guest:hover {
+  color: var(--console-link-hover);
+}
+
+.yc-mh-guest[aria-current='true'] {
+  text-decoration-thickness: 2px;
+}
+
+.yc-mh-open {
+  display: inline-block;
+  margin-left: var(--space-sm);
+  padding: 1px var(--space-sm);
+  border: 1px solid var(--console-amber-line);
+  border-radius: var(--console-radius-pill);
+  background: var(--console-amber-bg);
+  color: var(--console-amber);
+  font-size: var(--console-text-caption);
+  font-weight: var(--font-weight-semibold);
+  font-variant-numeric: normal;
+}
+
+.yc-mh-foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-md);
+  padding: var(--space-md) var(--space-lg);
+  border-top: 1px solid var(--console-line-soft);
+  color: var(--console-muted);
+}
+
+.yc-mh-thread {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  /* Beside a long list, the open conversation stays in view. */
+  position: sticky;
+  top: var(--space-lg);
+}
+
+.yc-mh-thead {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  padding: var(--space-lg) 18px;
+  border-bottom: 1px solid var(--console-line-soft);
+}
+
+.yc-mh-who {
+  margin: 0;
+  font-size: var(--console-text-section);
+  font-weight: var(--font-weight-bold);
+  line-height: 1.3;
+}
+
+.yc-mh-who:focus {
+  outline: none;
+}
+
+.yc-mh-who:focus-visible {
+  outline: 2px solid var(--console-focus);
+  outline-offset: 2px;
+}
+
+.yc-mh-sub {
+  margin: 0;
+  color: var(--console-muted);
+}
+
+/* Only when the panes are stacked: the list is above, out of sight. */
+.yc-mh-back {
+  display: none;
+  margin-bottom: var(--space-sm);
+}
+
+.yc-mh-note {
+  margin: 0;
+  padding: var(--space-lg) 18px;
+  color: var(--console-muted);
+}
+
+.yc-mh-logbox {
+  max-height: 560px;
+  overflow-y: auto;
+}
+
+.yc-mh-log {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 0;
+  padding: var(--space-lg) 18px;
+  list-style: none;
+}
+
+.yc-mh-day {
+  align-self: center;
+  color: var(--console-muted);
+  font-size: var(--console-text-caption);
+  font-weight: var(--font-weight-semibold);
+}
+
+.yc-mh-msg {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+  max-width: 80%;
+}
+
+.yc-mh-msg.is-guest {
+  align-self: flex-start;
+  align-items: flex-start;
+}
+
+.yc-mh-msg.is-venue {
+  align-self: flex-end;
+  align-items: flex-end;
+}
+
+.yc-mh-bubble {
+  margin: 0;
+  padding: 10px var(--space-md);
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+.yc-mh-msg.is-guest .yc-mh-bubble {
+  border-radius: 16px 16px 16px 4px;
+  background: var(--console-brand-tint);
+  color: var(--console-ink);
+}
+
+.yc-mh-msg.is-venue .yc-mh-bubble {
+  border-radius: 16px 16px 4px 16px;
+  background: var(--console-brand);
+  color: var(--console-brand-foreground);
+}
+
+.yc-mh-meta {
+  color: var(--console-muted);
+  font-size: var(--console-text-caption);
+}
+
+.yc-mh-sys {
+  align-self: center;
+  max-width: 90%;
+  padding: 6px var(--space-md);
+  border-radius: var(--console-radius-control);
+  background: var(--console-green-bg);
+  color: var(--console-green);
+  font-size: var(--console-text-label);
+  font-weight: var(--font-weight-semibold);
+  text-align: center;
+}
+
+.yc-mh-privacy {
+  margin: 0;
+  margin-top: auto;
+  padding: var(--space-md) 18px;
+  border-top: 1px solid var(--console-line-soft);
+  color: var(--console-muted);
+  font-size: var(--console-text-label);
+}
+
+@media (max-width: 1179px) {
+  .yc-mh-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .yc-mh-thread {
+    position: static;
+  }
+
+  .yc-mh-back {
+    display: inline-flex;
+  }
+
+  .yc-mh-logbox {
+    max-height: 70vh;
+  }
+}
+
+@media (max-width: 560px) {
+  .yc-mh-filters .yc-fld {
+    flex: 1 1 140px;
+  }
+
+  .yc-mh-filters input[type='date'].yc-ctl {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .yc-mh-msg {
+    max-width: 92%;
+  }
+}

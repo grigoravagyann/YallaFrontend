@@ -25,6 +25,7 @@ import { ReservationPolicyScreen } from './console/venue/policy/ReservationPolic
 import { PublicPageScreen } from './console/venue/public/PublicPageScreen';
 import { RoomsEditorScreen } from './console/venue/rooms/RoomsEditorScreen';
 import { VenueReviewsScreen } from './console/venue/reviews/VenueReviewsScreen';
+import { MessageHistoryScreen } from './console/venue/messageHistory/MessageHistoryScreen';
 import { VenueOverviewScreen } from './console/venue/VenueOverviewScreen';
 import { StaffScreen } from './console/venue/staff/StaffScreen';
 
@@ -280,6 +281,9 @@ export function AppRoutes({ user }: { user: ConsoleUser }) {
             <Route path="policy" element={<ReservationPolicyScreen />} />
             <Route path="public" element={<PublicPageScreen />} />
             <Route path="reviews" element={<VenueReviewsScreen />} />
+            {/* Every guest conversation of the branch, read only: owner, GM
+                and the branch manager (their own branch), as Reviews. */}
+            <Route path="messages" element={<MessageHistoryScreen />} />
             <Route path="staff" element={<StaffScreen />} />
             {/* My account: opened from the person at the sidebar's foot. */}
             <Route path="account" element={<AccountScreen />} />

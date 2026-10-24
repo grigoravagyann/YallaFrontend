@@ -91,7 +91,10 @@ import {
   messageSettingsViolations,
   normalizeMessageTemplates,
   type MessageSettings,
+  type StaffConversation,
 } from '../contracts/messages';
+import type { MessageHistoryPage } from '../contracts/messageHistory';
+import { createMockMessageHistory } from './messageHistory';
 import { addDayKeys, createMockShiftStore } from './shiftStore';
 import { approvalExpiryFor, localDateAndTime } from './approvalWindow';
 import {
@@ -487,6 +490,23 @@ export function createConsoleMockGateway(options: ConsoleMockOptions = {}): Cons
 
   /** Each branch's message settings (2026-10-23). Absent: the server's default. */
   const messageSettings = new Map<string, MessageSettings>();
+
+  /**
+   * A year of each branch's guest threads (2026-10-24), seeded on first read
+   * relative to `now`. Read only: the console never writes or marks read.
+   */
+  const messageHistory = createMockMessageHistory({
+    now,
+    branch: (branchId) => {
+      const venueId = venueOfBranch(branchId);
+      if (venueId === null) return null;
+      return {
+        timeZoneId: branchTimeZone(branchId),
+        venueName: venues.get(venueId)?.name ?? '',
+      };
+    },
+    branchIds: () => allBranches().map((branch) => branch.id),
+  });
 
   function takeawaySettingsOf(branchId: string): TakeawaySettings {
     return { ...DEFAULT_TAKEAWAY_SETTINGS, ...takeawaySettings.get(branchId) };
@@ -5213,6 +5233,27 @@ export function createConsoleMockGateway(options: ConsoleMockOptions = {}): Cons
       };
       messageSettings.set(branchId, saved);
       return saved;
+    },
+
+    // --- Message history (2026-10-24) -------------------------------------------
+
+    async listMessageHistory(branchId, query): Promise<MessageHistoryPage> {
+      await wait();
+      const url = `${URL_TAG}/branches/${branchId}/conversations/history`;
+      requireManagerAtBranch(branchId, url);
+      return messageHistory.list(url, branchId, query);
+    },
+
+    async getStaffConversation(subject): Promise<StaffConversation | null> {
+      await wait();
+      const segment = subject.kind === 'takeaway' ? 'takeaway-orders' : 'reservations';
+      const url = `${URL_TAG}/${segment}/${subject.id}/conversation`;
+      if (role === 'waiter' || role === 'kitchen') throw new ForbiddenError({ url });
+      const found = messageHistory.thread(subject);
+      if (!found) return null;
+      // Another branch's thread is refused as the server refuses it, not hidden.
+      requireManagerAtBranch(found.branchId, url);
+      return found.thread;
     },
   };
 }

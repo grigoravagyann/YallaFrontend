@@ -41,6 +41,7 @@ const PAGES: readonly (readonly [string, string])[] = [
   ['/venue/public', 'Public page'],
   ['/venue/staff', 'Staff'],
   ['/venue/reviews', 'Reviews'],
+  ['/venue/messages', 'Messages'],
   ['/venue/reports', 'Reports'],
   ['/venue/account', 'My account'],
 ];
