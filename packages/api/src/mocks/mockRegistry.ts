@@ -66,6 +66,26 @@ export interface MockEnrolledDevice {
   readonly branchId: string;
   readonly enrolledAtUtc: string;
   readonly revokedAtUtc: string | null;
+  /** A phone paired to one person; absent on a tablet (and on a drawer from before phones). */
+  readonly kind?: 'tablet' | 'phone' | undefined;
+  /** The phone's person: the only PIN it takes. */
+  readonly boundStaffMemberId?: string | null | undefined;
+  /** Moved by every PIN sign-in and renewal, for the console's "last seen". */
+  readonly lastSeenAtUtc?: string | null | undefined;
+}
+
+/**
+ * A phone pairing code the console issued for one person: ten minutes, one
+ * use, and a newer one for the same person supersedes it.
+ */
+export interface MockPhonePairing {
+  /** Normalised: upper case, no dash. */
+  readonly code: string;
+  readonly branchId: string;
+  readonly staffMemberId: string;
+  readonly expiresAtUtc: string;
+  readonly redeemedAtUtc: string | null;
+  readonly supersededAtUtc: string | null;
 }
 
 export interface MockStaffHandle {
@@ -119,6 +139,12 @@ class Drawer<T> {
     this.save();
   }
 
+  /** Everything in the drawer, for the lists that are read across it (a branch's phones). */
+  values(): T[] {
+    this.load();
+    return [...this.items.values()];
+  }
+
   delete(key: string): void {
     this.load();
     this.items.delete(key);
@@ -137,6 +163,7 @@ export interface MockRegistry {
   readonly enrolmentCodes: Drawer<MockEnrolmentCode>;
   readonly devices: Drawer<MockEnrolledDevice>;
   readonly staffHandles: Drawer<MockStaffHandle>;
+  readonly phonePairings: Drawer<MockPhonePairing>;
   /** Empty every drawer. Tests call it between cases. */
   reset(): void;
 }
@@ -147,6 +174,7 @@ export function createMockRegistry(storage: () => MockJournalStorage | null): Mo
     enrolmentCodes: new Drawer<MockEnrolmentCode>('enrolment-codes', storage),
     devices: new Drawer<MockEnrolledDevice>('devices', storage),
     staffHandles: new Drawer<MockStaffHandle>('staff-handles', storage),
+    phonePairings: new Drawer<MockPhonePairing>('phone-pairings', storage),
   };
   return {
     ...drawers,

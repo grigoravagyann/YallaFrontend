@@ -40,6 +40,18 @@ const REDESIGNED = [
   'messages/MessagesInbox.tsx',
   'messages/MessageThread.tsx',
   'messages/MessagesRailSection.tsx',
+  'phone/phone.css',
+  'phone/PhoneShell.tsx',
+  'phone/PhoneNowSections.tsx',
+  'phone/PhoneApprove.tsx',
+  'phone/PhoneToday.tsx',
+  'phone/PhoneMore.tsx',
+  'phone/PhoneInstall.tsx',
+  'phone/PhonePinScreen.tsx',
+  'pair/pair.css',
+  'pair/PairPhoneScreen.tsx',
+  'pair/PhoneKeypad.tsx',
+  'pair/QrScanner.tsx',
 ];
 
 /** Comments may quote a value; only code is checked. */

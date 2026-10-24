@@ -96,6 +96,7 @@ import {
   VenueDeletionBlockedError,
   CategoryInUseError,
   FloorPlanChangedError,
+  KitchenPhoneNotAllowedError,
   RelocationNotAllowedError,
   ReportRangeTooLongError,
   ReviewHiddenByPlatformError,
@@ -154,6 +155,7 @@ import {
 import {
   createStaffBody,
   enrolmentCode,
+  phonePairingCode,
   staffDevice,
   staffMember,
   staffSignInLink,
@@ -332,6 +334,7 @@ type WireDecision = components['schemas']['Yalla.Api.Endpoints.DecideReservation
 type WireStaffMember = components['schemas']['Yalla.Application.Staff.StaffMemberView'];
 type WireDevice = components['schemas']['Yalla.Application.Auth.StaffDeviceSummary'];
 type WireCode = components['schemas']['Yalla.Application.Auth.DeviceEnrolmentCodeResult'];
+type WirePhonePairing = components['schemas']['Yalla.Application.Auth.PhonePairingCodeResult'];
 type WireSignInLink = components['schemas']['Yalla.Application.Staff.StaffSignInLink'];
 
 /**
@@ -1642,9 +1645,28 @@ export function createConsoleHttpGateway(
 
     // --- Devices --------------------------------------------------------------
 
-    async listDevices(branchId) {
-      const { data } = await client.get<WireDevice[]>(`${BRANCHES}/${branchId}/devices`);
+    async listDevices(branchId, kind) {
+      // `kind` 1 the tablets, 2 the phones; absent, the server answers both.
+      const { data } = await client.get<WireDevice[]>(
+        `${BRANCHES}/${branchId}/devices`,
+        kind ? { query: { kind: kind === 'phone' ? 2 : 1 } } : undefined,
+      );
       return data.map(staffDevice);
+    },
+
+    async createPhonePairing({ branchId, staffMemberId }) {
+      try {
+        const { data } = await client.post<WirePhonePairing>(
+          `${BRANCHES}/${branchId}/staff/${staffMemberId}/phone-pairings`,
+        );
+        return phonePairingCode(data);
+      } catch (error) {
+        // The kitchen stays on its tablet: said, not a generic conflict.
+        if (error instanceof ApiError && error.code === 'kitchen-phone-not-allowed') {
+          throw new KitchenPhoneNotAllowedError({ url: error.url, requestId: error.requestId });
+        }
+        throw error;
+      }
     },
 
     async createEnrolmentCode(branchId) {

@@ -652,6 +652,19 @@ export interface StaffMemberPerformance extends PerformanceRange {
   readonly recent: StaffRecentPage;
 }
 
+/**
+ * `GET /api/staff/me/performance` (`getMyPerformance`): the signed-in
+ * person's own page — My results on the phone.
+ */
+export interface MyPerformanceQuery extends PerformanceRange {
+  /** An owner or general manager, who has no home branch, names the branch. */
+  readonly branchId?: string | undefined;
+  /** The recent list to read (`orders` when absent). */
+  readonly list?: StaffRecentList | undefined;
+  /** How many of it: 1 to 100, the server's 50 when absent. */
+  readonly limit?: number | undefined;
+}
+
 /** One page of one list. */
 export interface StaffRecentQuery extends PerformanceRange {
   readonly list: StaffRecentList;

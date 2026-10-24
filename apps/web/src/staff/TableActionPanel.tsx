@@ -21,6 +21,10 @@ import { GuestRecordLine } from '../console/venue/overview/GuestRecordLine';
 import { AdmissionDecision, type AdmissionOutcome, type AdmissionSubject } from './AdmissionPanel';
 import { billRequestText } from './billRequestText';
 import { OnMyWayAsk } from './OnMyWayAsk';
+import { PhoneTransfer, type TransferDone } from './phone/PhoneTransfer';
+import { transferTargetDetail, type TransferTarget } from './transferTarget';
+
+export type { TransferTarget } from './transferTarget';
 import { PreOrderCard, type PreOrderOutcome } from './PreOrderPanel';
 import { seatedMinutes } from './seatedMinutes';
 import { tableCardText, tableTone } from './tableCard';
@@ -116,6 +120,17 @@ export interface TableActionPanelProps {
   readonly onOrder: () => void;
   readonly onClose: () => void;
   /**
+   * Where the panel is: beside the floor on the tablet (the default), or a
+   * bottom sheet over the phone's floor (staff phone, the Floor artboard),
+   * which is modal — the screen under it is inert while it is up.
+   */
+  readonly variant?: 'rail' | 'sheet' | undefined;
+  /**
+   * "Write to the guest" for the next booking: opens its conversation. Left
+   * out where the Messages screen is a tab away anyway (the tablet's rail).
+   */
+  readonly onMessageGuest?: ((reservationId: string) => void) | undefined;
+  /**
    * Transfer the table (2026-10-24): who could take it — the branch's people
    * who serve, its waiter left out — or `null` while that is being read.
    * Absent, the action is not offered.
@@ -125,16 +140,16 @@ export interface TableActionPanelProps {
   readonly transferTargetsFailed?: boolean | undefined;
   /** The chooser opened: the caller reads who is on shift. */
   readonly onWantTransfer?: (() => void) | undefined;
-  readonly onTransfer?: ((target: TransferTarget) => void) | undefined;
+  /**
+   * Hand the table over. `onDone`, given by the phone's sheet, hears the
+   * success and keeps the sheet up to say it; without it the caller closes
+   * the panel and says it in the notice (the tablet).
+   */
+  readonly onTransfer?:
+    ((target: TransferTarget, onDone?: (done: TransferDone) => void) => void) | undefined;
   readonly transferring?: boolean | undefined;
-}
-
-/** Somebody a table can be handed to. */
-export interface TransferTarget {
-  readonly staffMemberId: string;
-  readonly name: string;
-  readonly roleLabel: string;
-  readonly onShift: boolean;
+  /** Who is signed in here: "Lilit → Aram" when the table had no waiter yet. */
+  readonly actorName?: string | undefined;
 }
 
 export function TableActionPanel(props: TableActionPanelProps) {
@@ -325,508 +340,557 @@ export function TableActionPanel(props: TableActionPanelProps) {
     <p className="tp-hint">{t('table.late.noBookingId')}</p>
   );
 
+  /** The phone's sheet hands the table over on a screen of its own (Transfer artboard). */
+  const phoneTransfer =
+    props.variant === 'sheet' && transferOpen && Boolean(props.onTransfer && detail?.openTabId);
+
   return (
     <aside
       ref={panelRef}
-      className="tp"
+      className={props.variant === 'sheet' ? 'tp is-sheet' : 'tp'}
       role="dialog"
-      aria-modal="false"
+      aria-modal={props.variant === 'sheet' ? 'true' : 'false'}
       aria-label={t('table.panelLabel', { label: table.label })}
       tabIndex={-1}
       onKeyDown={(event) => {
         if (event.key !== 'Escape' || event.defaultPrevented) return;
         event.preventDefault();
-        onClose();
+        // On the phone the chooser is the whole sheet: Escape goes back to the table.
+        if (phoneTransfer) setTransferOpen(false);
+        else onClose();
       }}
     >
-      <header className="tp-head">
-        <span className="tp-mark" data-tone={tone} aria-hidden="true">
-          {table.label}
-        </span>
-        <div className="tp-title">
-          <h2 id={headingId}>{t('table.title', { label: table.label })}</h2>
-          <p className="tp-state" data-ink={tone}>
-            {card.state}
-          </p>
-          <p className="tp-sub">{room ? t('table.subRoom', { seats, room }) : seats}</p>
-        </div>
-        <button type="button" className="tp-close" onClick={onClose} aria-label={t('table.close')}>
-          <svg className="ft-icon" viewBox="0 0 24 24" aria-hidden="true">
-            <path
-              d="M18 6 6 18M6 6l12 12"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2.4"
-              strokeLinecap="round"
-            />
-          </svg>
-        </button>
-      </header>
-
-      <div className="tp-body">
-        {/* First, whatever the table's state: the kitchen is waiting on the
-            answer, and it is what the waiter opened the table for. */}
-        {props.preOrder && props.branchId ? (
-          <section className="tp-preorder" aria-labelledby={`${headingId}-po`}>
-            <h3 id={`${headingId}-po`}>{t('preOrders.panelTitle')}</h3>
-            <PreOrderCard
-              branchId={props.branchId}
-              item={props.preOrder}
-              timeZoneId={timeZoneId}
-              online={online}
-              variant="panel"
-              onDone={(outcome) => props.onPreOrderDone?.(outcome)}
-            />
-          </section>
-        ) : null}
-
-        {/* Whether the next booking's guest is coming, and "Ask now", for a
-            booking with no pre-order card here (the Ask artboard). */}
-        {askOpen && props.branchId && reservationId && bookingStart ? (
-          <section className="tp-ask" aria-labelledby={`${headingId}-ask`}>
-            <h3 id={`${headingId}-ask`}>
-              {t('onMyWay.panelTitle', { time: format.time(bookingStart) })}
-            </h3>
-            <OnMyWayAsk
-              branchId={props.branchId}
-              timeZoneId={timeZoneId}
-              online={online}
-              variant="panel"
-              subject={{
-                reservationId,
-                status: 'confirmed',
-                startUtc: bookingStart,
-                guestName: null,
-                guestPhone: null,
-                guestConfirmedOnWayAtUtc: detail?.nextReservationGuestConfirmedOnWayAtUtc,
-                guestRunningLateMinutes: detail?.nextReservationGuestRunningLateMinutes,
-                staffAskedOnMyWayAtUtc: detail?.nextReservationStaffAskedOnMyWayAtUtc,
-                autoAskAtUtc: onYourWayFromUtc(bookingStart, false),
-              }}
-            />
-          </section>
-        ) : null}
-
-        {/* --- Free ---------------------------------------------------------- */}
-        {status === 'free' ? (
-          <>
-            <Facts>
-              <Fact label={t('table.fact.seats')}>{table.seats}</Fact>
-              <Fact label={t('table.nextBooking')}>{nextBooking}</Fact>
-              <Fact label={t('table.fact.room')}>{room ?? '—'}</Fact>
-              {balance !== null && balance > 0 ? (
-                <Fact label={t('table.balance')} warn>
-                  {format.dram(balance)}
-                </Fact>
-              ) : null}
-            </Facts>
-
-            {lateOpen ? (
-              // A booking whose party has not turned up. Nothing here expires
-              // on its own, and nothing here is a default.
-              <section className="tp-late" aria-label={t('table.late.title')}>
-                <Warn tone="blue">
-                  {t('table.late.body', { time: bookingWhen, late: lateText(t, lateBy ?? 0) })}
-                </Warn>
-                <div className="tp-acts">
-                  {reservationId ? (
-                    <button
-                      type="button"
-                      className="tp-btn tp-ok"
-                      onClick={() => onAct('seatReservation', bookedParty(detail))}
-                    >
-                      {t('table.action.seatBooking', { time: bookingWhen })}
-                    </button>
-                  ) : null}
-                  <button type="button" className="tp-btn tp-sec" onClick={() => onAct('hold')}>
-                    {t('table.action.hold')}
-                  </button>
-                  <hr className="tp-sep" />
-                  {releaseBooking}
-                </div>
-              </section>
-            ) : seating === 'walkIn' ? (
-              <SeatConfirm
-                partySize={partySize}
-                seats={table.seats}
-                onChange={setPartySize}
-                warning={
-                  bookingStart
-                    ? t('table.warn.upcoming', { time: format.time(bookingStart) })
-                    : null
-                }
-                onConfirm={() => onAct('seatWalkIn', { partySize })}
-                onCancel={() => setSeating(false)}
-              />
-            ) : (
-              <>
-                {table.state === 'reservedSoon' && bookingStart ? (
-                  <Warn tone="amber">
-                    <b>{t('table.warn.bookedAt', { time: format.time(bookingStart) })}</b>{' '}
-                    {detail?.freeUntilUtc
-                      ? t('table.warn.freeBy', { time: format.time(detail.freeUntilUtc) })
-                      : null}
-                  </Warn>
-                ) : null}
-                <div className="tp-acts">
-                  <button
-                    type="button"
-                    className="tp-btn tp-pri"
-                    onClick={() => startSeating('walkIn', Math.min(2, table.seats))}
-                  >
-                    {t('table.action.seatWalkIn')}
-                  </button>
-                  {offerSeatBooking && bookingStart ? (
-                    <button
-                      type="button"
-                      className="tp-btn tp-sec"
-                      onClick={() => onAct('seatReservation', bookedParty(detail))}
-                    >
-                      {preOrderParty
-                        ? t('table.action.seatBookingGuest', {
-                            name: preOrderParty.guestName,
-                            time: format.time(bookingStart),
-                          })
-                        : t('table.action.seatBooking', { time: format.time(bookingStart) })}
-                    </button>
-                  ) : null}
-                  <button type="button" className="tp-btn tp-sec" onClick={() => onAct('hold')}>
-                    {t('table.action.holdLate')}
-                  </button>
-                  <button
-                    type="button"
-                    className="tp-btn tp-ghost"
-                    onClick={() => onAct('outOfService')}
-                  >
-                    {t('table.action.outOfService')}
-                  </button>
-                </div>
-              </>
-            )}
-          </>
-        ) : null}
-
-        {/* --- Occupied ------------------------------------------------------- */}
-        {status === 'occupied' ? (
-          <>
-            <Facts>
-              <Fact label={t('table.seatedFor')} warn={card.long}>
-                {seatedFor !== null ? t('table.minutes', { count: seatedFor }) : '—'}
-                {/* The party sitting here promised to be gone by a time: said with it. */}
-                {detail?.sittingPromisedFreeByUtc ? (
-                  <small>
-                    {t('table.mustFreeBy', { time: format.time(detail.sittingPromisedFreeByUtc) })}
-                  </small>
-                ) : null}
-              </Fact>
-              <Fact label={t('table.party')}>
-                {detail?.partySize ?? '—'}
-                {/* Seated on a proved guest's booking: their record (wire §0a). */}
-                <GuestRecordLine
-                  record={detail?.sittingGuestRecord}
-                  surface="staff"
-                  timeZoneId={timeZoneId}
-                  now={new Date()}
-                  className="tp-record"
+      {phoneTransfer ? (
+        <PhoneTransfer
+          label={table.label}
+          serverName={detail?.serverName ?? null}
+          actorName={props.actorName ?? ''}
+          targets={props.transferTargets ?? null}
+          failed={props.transferTargetsFailed ?? false}
+          online={online}
+          busy={pending || (props.transferring ?? false)}
+          timeZoneId={timeZoneId}
+          onTransfer={(target, onDone) => props.onTransfer?.(target, onDone)}
+          onCancel={() => setTransferOpen(false)}
+          onDone={onClose}
+        />
+      ) : (
+        <>
+          <header className="tp-head">
+            <span className="tp-mark" data-tone={tone} aria-hidden="true">
+              {table.label}
+            </span>
+            <div className="tp-title">
+              <h2 id={headingId}>{t('table.title', { label: table.label })}</h2>
+              <p className="tp-state" data-ink={tone}>
+                {card.state}
+              </p>
+              <p className="tp-sub">{room ? t('table.subRoom', { seats, room }) : seats}</p>
+            </div>
+            <button
+              type="button"
+              className="tp-close"
+              onClick={onClose}
+              aria-label={t('table.close')}
+            >
+              <svg className="ft-icon" viewBox="0 0 24 24" aria-hidden="true">
+                <path
+                  d="M18 6 6 18M6 6l12 12"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2.4"
+                  strokeLinecap="round"
                 />
-              </Fact>
-              <Fact label={t('table.fact.bill')}>
-                {balance !== null ? format.dram(balance) : '—'}
-              </Fact>
-              {detail?.serverName ? (
-                <Fact label={t('table.fact.server')}>{detail.serverName}</Fact>
-              ) : null}
-              {bookingStart ? <Fact label={t('table.nextBooking')}>{nextBooking}</Fact> : null}
-            </Facts>
+              </svg>
+            </button>
+          </header>
 
-            {card.long ? (
-              <Warn tone="amber">
-                <b>{t('table.warn.long')}</b>{' '}
-                {bookingStart
-                  ? t('table.warn.longNext', { time: format.time(bookingStart) })
-                  : detail?.sittingPromisedFreeByUtc
-                    ? t('table.warn.longPromised', {
-                        time: format.time(detail.sittingPromisedFreeByUtc),
-                      })
-                    : null}
-              </Warn>
-            ) : null}
-
-            {props.billRequest?.bill ? (
-              <Warn tone="blue">
-                <b>
-                  {t('table.billAsked', {
-                    count: Math.max(0, format.minutesSince(props.billRequest.requestedAtUtc)),
-                  })}
-                </b>{' '}
-                {billRequestText(props.billRequest.bill, t, format.dram, 'wants')}
-              </Warn>
-            ) : null}
-
-            {/* A scan with no verified number: nobody on the tab can order until
-                a waiter who can see the table lets them. */}
-            {props.admission && props.branchId ? (
-              <section className="tp-admission" aria-label={t('admission.panelTitle')}>
-                <Warn tone="amber">
-                  <b>{t('admission.panelTitle')}</b> {t('admission.why')}
-                </Warn>
-                <AdmissionDecision
+          <div className="tp-body">
+            {/* First, whatever the table's state: the kitchen is waiting on the
+            answer, and it is what the waiter opened the table for. */}
+            {props.preOrder && props.branchId ? (
+              <section className="tp-preorder" aria-labelledby={`${headingId}-po`}>
+                <h3 id={`${headingId}-po`}>{t('preOrders.panelTitle')}</h3>
+                <PreOrderCard
                   branchId={props.branchId}
-                  subject={props.admission}
+                  item={props.preOrder}
+                  timeZoneId={timeZoneId}
                   online={online}
                   variant="panel"
-                  onDecided={(outcome) => props.onAdmissionDecided?.(outcome)}
+                  onDone={(outcome) => props.onPreOrderDone?.(outcome)}
                 />
               </section>
             ) : null}
 
-            <div className="tp-acts">
-              {/* Orders need a tab. A guest opens one by scanning; for a party
+            {/* Whether the next booking's guest is coming, and "Ask now", for a
+            booking with no pre-order card here (the Ask artboard). */}
+            {askOpen && props.branchId && reservationId && bookingStart ? (
+              <section className="tp-ask" aria-labelledby={`${headingId}-ask`}>
+                <h3 id={`${headingId}-ask`}>
+                  {t('onMyWay.panelTitle', { time: format.time(bookingStart) })}
+                </h3>
+                <OnMyWayAsk
+                  branchId={props.branchId}
+                  timeZoneId={timeZoneId}
+                  online={online}
+                  variant="panel"
+                  subject={{
+                    reservationId,
+                    status: 'confirmed',
+                    startUtc: bookingStart,
+                    guestName: null,
+                    guestPhone: null,
+                    guestConfirmedOnWayAtUtc: detail?.nextReservationGuestConfirmedOnWayAtUtc,
+                    guestRunningLateMinutes: detail?.nextReservationGuestRunningLateMinutes,
+                    staffAskedOnMyWayAtUtc: detail?.nextReservationStaffAskedOnMyWayAtUtc,
+                    autoAskAtUtc: onYourWayFromUtc(bookingStart, false),
+                  }}
+                />
+              </section>
+            ) : null}
+
+            {props.onMessageGuest && reservationId && status !== 'occupied' ? (
+              <div className="tp-acts tp-message">
+                <button
+                  type="button"
+                  className="tp-btn tp-sec"
+                  onClick={() => props.onMessageGuest?.(reservationId)}
+                >
+                  {t('messages.writeToGuest')}
+                </button>
+              </div>
+            ) : null}
+
+            {/* --- Free ---------------------------------------------------------- */}
+            {status === 'free' ? (
+              <>
+                <Facts>
+                  <Fact label={t('table.fact.seats')}>{table.seats}</Fact>
+                  <Fact label={t('table.nextBooking')}>{nextBooking}</Fact>
+                  <Fact label={t('table.fact.room')}>{room ?? '—'}</Fact>
+                  {balance !== null && balance > 0 ? (
+                    <Fact label={t('table.balance')} warn>
+                      {format.dram(balance)}
+                    </Fact>
+                  ) : null}
+                </Facts>
+
+                {lateOpen ? (
+                  // A booking whose party has not turned up. Nothing here expires
+                  // on its own, and nothing here is a default.
+                  <section className="tp-late" aria-label={t('table.late.title')}>
+                    <Warn tone="blue">
+                      {t('table.late.body', { time: bookingWhen, late: lateText(t, lateBy ?? 0) })}
+                    </Warn>
+                    <div className="tp-acts">
+                      {reservationId ? (
+                        <button
+                          type="button"
+                          className="tp-btn tp-ok"
+                          onClick={() => onAct('seatReservation', bookedParty(detail))}
+                        >
+                          {t('table.action.seatBooking', { time: bookingWhen })}
+                        </button>
+                      ) : null}
+                      <button type="button" className="tp-btn tp-sec" onClick={() => onAct('hold')}>
+                        {t('table.action.hold')}
+                      </button>
+                      <hr className="tp-sep" />
+                      {releaseBooking}
+                    </div>
+                  </section>
+                ) : seating === 'walkIn' ? (
+                  <SeatConfirm
+                    partySize={partySize}
+                    seats={table.seats}
+                    onChange={setPartySize}
+                    warning={
+                      bookingStart
+                        ? t('table.warn.upcoming', { time: format.time(bookingStart) })
+                        : null
+                    }
+                    onConfirm={() => onAct('seatWalkIn', { partySize })}
+                    onCancel={() => setSeating(false)}
+                  />
+                ) : (
+                  <>
+                    {table.state === 'reservedSoon' && bookingStart ? (
+                      <Warn tone="amber">
+                        <b>{t('table.warn.bookedAt', { time: format.time(bookingStart) })}</b>{' '}
+                        {detail?.freeUntilUtc
+                          ? t('table.warn.freeBy', { time: format.time(detail.freeUntilUtc) })
+                          : null}
+                      </Warn>
+                    ) : null}
+                    <div className="tp-acts">
+                      <button
+                        type="button"
+                        className="tp-btn tp-pri"
+                        onClick={() => startSeating('walkIn', Math.min(2, table.seats))}
+                      >
+                        {t('table.action.seatWalkIn')}
+                      </button>
+                      {offerSeatBooking && bookingStart ? (
+                        <button
+                          type="button"
+                          className="tp-btn tp-sec"
+                          onClick={() => onAct('seatReservation', bookedParty(detail))}
+                        >
+                          {preOrderParty
+                            ? t('table.action.seatBookingGuest', {
+                                name: preOrderParty.guestName,
+                                time: format.time(bookingStart),
+                              })
+                            : t('table.action.seatBooking', { time: format.time(bookingStart) })}
+                        </button>
+                      ) : null}
+                      <button type="button" className="tp-btn tp-sec" onClick={() => onAct('hold')}>
+                        {t('table.action.holdLate')}
+                      </button>
+                      <button
+                        type="button"
+                        className="tp-btn tp-ghost"
+                        onClick={() => onAct('outOfService')}
+                      >
+                        {t('table.action.outOfService')}
+                      </button>
+                    </div>
+                  </>
+                )}
+              </>
+            ) : null}
+
+            {/* --- Occupied ------------------------------------------------------- */}
+            {status === 'occupied' ? (
+              <>
+                <Facts>
+                  <Fact label={t('table.seatedFor')} warn={card.long}>
+                    {seatedFor !== null ? t('table.minutes', { count: seatedFor }) : '—'}
+                    {/* The party sitting here promised to be gone by a time: said with it. */}
+                    {detail?.sittingPromisedFreeByUtc ? (
+                      <small>
+                        {t('table.mustFreeBy', {
+                          time: format.time(detail.sittingPromisedFreeByUtc),
+                        })}
+                      </small>
+                    ) : null}
+                  </Fact>
+                  <Fact label={t('table.party')}>
+                    {detail?.partySize ?? '—'}
+                    {/* Seated on a proved guest's booking: their record (wire §0a). */}
+                    <GuestRecordLine
+                      record={detail?.sittingGuestRecord}
+                      surface="staff"
+                      timeZoneId={timeZoneId}
+                      now={new Date()}
+                      className="tp-record"
+                    />
+                  </Fact>
+                  <Fact label={t('table.fact.bill')}>
+                    {balance !== null ? format.dram(balance) : '—'}
+                  </Fact>
+                  {detail?.serverName ? (
+                    <Fact label={t('table.fact.server')} text>
+                      {detail.serverName}
+                    </Fact>
+                  ) : null}
+                  {bookingStart ? <Fact label={t('table.nextBooking')}>{nextBooking}</Fact> : null}
+                </Facts>
+
+                {card.long ? (
+                  <Warn tone="amber">
+                    <b>{t('table.warn.long')}</b>{' '}
+                    {bookingStart
+                      ? t('table.warn.longNext', { time: format.time(bookingStart) })
+                      : detail?.sittingPromisedFreeByUtc
+                        ? t('table.warn.longPromised', {
+                            time: format.time(detail.sittingPromisedFreeByUtc),
+                          })
+                        : null}
+                  </Warn>
+                ) : null}
+
+                {props.billRequest?.bill ? (
+                  <Warn tone="blue">
+                    <b>
+                      {t('table.billAsked', {
+                        count: Math.max(0, format.minutesSince(props.billRequest.requestedAtUtc)),
+                      })}
+                    </b>{' '}
+                    {billRequestText(props.billRequest.bill, t, format.dram, 'wants')}
+                  </Warn>
+                ) : null}
+
+                {/* A scan with no verified number: nobody on the tab can order until
+                a waiter who can see the table lets them. */}
+                {props.admission && props.branchId ? (
+                  <section className="tp-admission" aria-label={t('admission.panelTitle')}>
+                    <Warn tone="amber">
+                      <b>{t('admission.panelTitle')}</b> {t('admission.why')}
+                    </Warn>
+                    <AdmissionDecision
+                      branchId={props.branchId}
+                      subject={props.admission}
+                      online={online}
+                      variant="panel"
+                      onDecided={(outcome) => props.onAdmissionDecided?.(outcome)}
+                    />
+                  </section>
+                ) : null}
+
+                <div className="tp-acts">
+                  {/* Orders need a tab. A guest opens one by scanning; for a party
                   that will not, the waiter starts one here. Online only — it
                   is not a floor command the tablet queues — and not while this
                   table's seating is itself still waiting to sync, because the
                   server has nobody seated there to bill yet. */}
-              {detail && detail.openTabId === null ? (
-                <>
-                  <Warn tone="amber">
-                    <b>{t('table.noTab')}</b> {t('table.noTabWhy')}
-                  </Warn>
-                  <button
-                    type="button"
-                    className="tp-btn tp-pri"
-                    onClick={props.onStartTab}
-                    disabled={!online || pending || props.startingTab}
-                  >
-                    {props.startingTab ? t('table.action.startingTab') : t('table.action.startTab')}
-                  </button>
-                  {!online ? <p className="tp-hint">{t('table.startTabNeedsOnline')}</p> : null}
-                </>
-              ) : (
-                <>
-                  <div className="tp-row">
-                    <button type="button" className="tp-btn tp-pri" onClick={props.onOrder}>
-                      {t('table.action.takeOrder')}
-                    </button>
-                    <button type="button" className="tp-btn tp-sec" onClick={props.onOpenTab}>
-                      {t('table.action.openTab')}
-                    </button>
-                  </div>
-                  {/* A payment recorded against a balance this tablet cannot
+                  {detail && detail.openTabId === null ? (
+                    <>
+                      <Warn tone="amber">
+                        <b>{t('table.noTab')}</b> {t('table.noTabWhy')}
+                      </Warn>
+                      <button
+                        type="button"
+                        className="tp-btn tp-pri"
+                        onClick={props.onStartTab}
+                        disabled={!online || pending || props.startingTab}
+                      >
+                        {props.startingTab
+                          ? t('table.action.startingTab')
+                          : t('table.action.startTab')}
+                      </button>
+                      {!online ? <p className="tp-hint">{t('table.startTabNeedsOnline')}</p> : null}
+                    </>
+                  ) : (
+                    <>
+                      <div className="tp-row">
+                        <button type="button" className="tp-btn tp-pri" onClick={props.onOrder}>
+                          {t('table.action.takeOrder')}
+                        </button>
+                        <button type="button" className="tp-btn tp-sec" onClick={props.onOpenTab}>
+                          {t('table.action.openTab')}
+                        </button>
+                      </div>
+                      {/* A payment recorded against a balance this tablet cannot
                       verify is how a table pays twice, so cash waits for the
                       connection, as it does on the tab. */}
-                  <button
-                    type="button"
-                    className="tp-btn tp-ok"
-                    disabled={!online || tabDone}
-                    onClick={props.onCash}
-                  >
-                    {/* The keypad opens on the newest bill request when there
+                      <button
+                        type="button"
+                        className="tp-btn tp-ok"
+                        disabled={!online || tabDone}
+                        onClick={props.onCash}
+                      >
+                        {/* The keypad opens on the newest bill request when there
                         is one — a share, or with a tip — so the label names
                         the balance only when that is what the keypad shows. */}
-                    {balance !== null && balance > 0 && !props.billRequest?.bill
-                      ? t('table.action.cash', { amount: format.dram(balance) })
-                      : t('tab.takeCash')}
-                  </button>
-                  {!online ? <p className="tp-hint">{t('table.cashNeedsOnline')}</p> : null}
-                </>
-              )}
+                        {balance !== null && balance > 0 && !props.billRequest?.bill
+                          ? t('table.action.cash', { amount: format.dram(balance) })
+                          : t('tab.takeCash')}
+                      </button>
+                      {!online ? <p className="tp-hint">{t('table.cashNeedsOnline')}</p> : null}
+                    </>
+                  )}
 
-              {/* Hand the table to another waiter (2026-10-24): the bill, its
+                  {/* Hand the table to another waiter (2026-10-24): the bill, its
                   messages and its calls go to them from now on. Online only:
                   it is not a command the tablet queues. */}
-              {props.onTransfer && detail?.openTabId ? (
-                transferOpen ? (
-                  <TransferChoice
-                    label={table.label}
-                    targets={props.transferTargets ?? null}
-                    failed={props.transferTargetsFailed ?? false}
-                    disabled={!online || pending || (props.transferring ?? false)}
-                    online={online}
-                    onTransfer={(target) => props.onTransfer?.(target)}
-                    onCancel={() => setTransferOpen(false)}
-                  />
-                ) : (
-                  <>
-                    <button
-                      type="button"
-                      className="tp-btn tp-sec"
-                      disabled={!online}
-                      onClick={() => {
-                        setTransferOpen(true);
-                        props.onWantTransfer?.();
-                      }}
-                    >
-                      {t('table.transfer.action')}
-                    </button>
-                    {!online ? <p className="tp-hint">{t('table.transfer.needsOnline')}</p> : null}
-                  </>
-                )
-              ) : null}
+                  {props.onTransfer && detail?.openTabId ? (
+                    transferOpen ? (
+                      <TransferChoice
+                        label={table.label}
+                        targets={props.transferTargets ?? null}
+                        failed={props.transferTargetsFailed ?? false}
+                        disabled={!online || pending || (props.transferring ?? false)}
+                        online={online}
+                        onTransfer={(target) => props.onTransfer?.(target)}
+                        onCancel={() => setTransferOpen(false)}
+                      />
+                    ) : (
+                      <>
+                        <button
+                          type="button"
+                          className="tp-btn tp-sec"
+                          disabled={!online}
+                          onClick={() => {
+                            setTransferOpen(true);
+                            props.onWantTransfer?.();
+                          }}
+                        >
+                          {t('table.transfer.action')}
+                        </button>
+                        {!online ? (
+                          <p className="tp-hint">{t('table.transfer.needsOnline')}</p>
+                        ) : null}
+                      </>
+                    )
+                  ) : null}
 
-              {/* Destructive, so it sits under a rule rather than beside the
+                  {/* Destructive, so it sits under a rule rather than beside the
                   thumb that just tapped "take an order", and asks first. The
                   diners have physically left, so nothing stops it: the money
                   goes to "needs resolving", it is not lost. */}
-              <hr className="tp-sep" />
-              {confirmFree ? (
-                <Confirm title={t('table.free.title', { label: table.label })}>
-                  <p className="tp-hint">
-                    {balance !== null && balance > 0
-                      ? t('table.free.owed', { amount: format.dram(balance) })
-                      : t('table.free.note')}
-                  </p>
-                  <div className="tp-row">
+                  <hr className="tp-sep" />
+                  {confirmFree ? (
+                    <Confirm title={t('table.free.title', { label: table.label })}>
+                      <p className="tp-hint">
+                        {balance !== null && balance > 0
+                          ? t('table.free.owed', { amount: format.dram(balance) })
+                          : t('table.free.note')}
+                      </p>
+                      <div className="tp-row">
+                        <button
+                          type="button"
+                          className="tp-btn tp-sec"
+                          onClick={() => setConfirmFree(false)}
+                        >
+                          {t('common:action.cancel')}
+                        </button>
+                        <button
+                          type="button"
+                          className="tp-btn tp-danger-fill"
+                          onClick={() => onAct('freeTable')}
+                        >
+                          {t('table.action.freeConfirm')}
+                        </button>
+                      </div>
+                    </Confirm>
+                  ) : (
                     <button
                       type="button"
-                      className="tp-btn tp-sec"
-                      onClick={() => setConfirmFree(false)}
+                      className="tp-btn tp-danger"
+                      onClick={() => setConfirmFree(true)}
                     >
-                      {t('common:action.cancel')}
+                      {t('table.action.free')}
                     </button>
+                  )}
+                </div>
+              </>
+            ) : null}
+
+            {/* --- Held ----------------------------------------------------------- */}
+            {status === 'held' ? (
+              <>
+                {lateBy !== null && reservationId ? (
+                  <Warn tone="blue">
+                    <b>{t('table.held.title')}</b>{' '}
+                    {t('table.held.body', { time: bookingWhen, late: lateText(t, lateBy) })}
+                  </Warn>
+                ) : (
+                  <Warn tone="blue">{t('table.held.kept')}</Warn>
+                )}
+                <Facts>
+                  <Fact label={t('table.fact.booked')}>
+                    {bookingWhen ?? '—'}
+                    {bookingWhen ? bookingFlag : null}
+                  </Fact>
+                  <Fact label={t('table.party')}>{detail?.nextReservationPartySize ?? '—'}</Fact>
+                  <Fact label={t('table.fact.room')}>{room ?? '—'}</Fact>
+                </Facts>
+                {seating === 'heldParty' ? (
+                  <SeatConfirm
+                    partySize={partySize}
+                    seats={table.seats}
+                    onChange={setPartySize}
+                    warning={null}
+                    onConfirm={() => onAct('seatHeldParty', { partySize })}
+                    onCancel={() => setSeating(false)}
+                  />
+                ) : (
+                  <div className="tp-acts">
                     <button
                       type="button"
-                      className="tp-btn tp-danger-fill"
-                      onClick={() => onAct('freeTable')}
+                      className="tp-btn tp-ok"
+                      onClick={() =>
+                        startSeating(
+                          'heldParty',
+                          (lateBy !== null ? detail?.nextReservationPartySize : null) ??
+                            Math.min(2, table.seats),
+                        )
+                      }
                     >
-                      {t('table.action.freeConfirm')}
+                      {t('table.action.seatHeld')}
+                    </button>
+                    <hr className="tp-sep" />
+                    {lateBy !== null && reservationId ? releaseBooking : null}
+                    {/* The hold alone, with no verdict on the booking: a queued
+                    table command, so it works offline as it always has. */}
+                    <button
+                      type="button"
+                      className="tp-btn tp-ghost"
+                      onClick={() => onAct('releaseHold')}
+                    >
+                      {t('table.action.releaseHold')}
                     </button>
                   </div>
-                </Confirm>
-              ) : (
-                <button
-                  type="button"
-                  className="tp-btn tp-danger"
-                  onClick={() => setConfirmFree(true)}
-                >
-                  {t('table.action.free')}
-                </button>
-              )}
-            </div>
-          </>
-        ) : null}
+                )}
+              </>
+            ) : null}
 
-        {/* --- Held ----------------------------------------------------------- */}
-        {status === 'held' ? (
-          <>
-            {lateBy !== null && reservationId ? (
-              <Warn tone="blue">
-                <b>{t('table.held.title')}</b>{' '}
-                {t('table.held.body', { time: bookingWhen, late: lateText(t, lateBy) })}
-              </Warn>
-            ) : (
-              <Warn tone="blue">{t('table.held.kept')}</Warn>
-            )}
-            <Facts>
-              <Fact label={t('table.fact.booked')}>
-                {bookingWhen ?? '—'}
-                {bookingWhen ? bookingFlag : null}
-              </Fact>
-              <Fact label={t('table.party')}>{detail?.nextReservationPartySize ?? '—'}</Fact>
-              <Fact label={t('table.fact.room')}>{room ?? '—'}</Fact>
-            </Facts>
-            {seating === 'heldParty' ? (
-              <SeatConfirm
-                partySize={partySize}
-                seats={table.seats}
-                onChange={setPartySize}
-                warning={null}
-                onConfirm={() => onAct('seatHeldParty', { partySize })}
-                onCancel={() => setSeating(false)}
-              />
-            ) : (
-              <div className="tp-acts">
-                <button
-                  type="button"
-                  className="tp-btn tp-ok"
-                  onClick={() =>
-                    startSeating(
-                      'heldParty',
-                      (lateBy !== null ? detail?.nextReservationPartySize : null) ??
-                        Math.min(2, table.seats),
-                    )
-                  }
-                >
-                  {t('table.action.seatHeld')}
-                </button>
-                <hr className="tp-sep" />
-                {lateBy !== null && reservationId ? releaseBooking : null}
-                {/* The hold alone, with no verdict on the booking: a queued
-                    table command, so it works offline as it always has. */}
-                <button
-                  type="button"
-                  className="tp-btn tp-ghost"
-                  onClick={() => onAct('releaseHold')}
-                >
-                  {t('table.action.releaseHold')}
-                </button>
-              </div>
-            )}
-          </>
-        ) : null}
+            {/* --- Out of service --------------------------------------------------- */}
+            {status === 'outOfService' ? (
+              <>
+                <Facts>
+                  <Fact label={t('table.fact.seats')}>{table.seats}</Fact>
+                  <Fact label={t('table.fact.room')}>{room ?? '—'}</Fact>
+                </Facts>
+                <div className="tp-acts">
+                  <button
+                    type="button"
+                    className="tp-btn tp-ok"
+                    onClick={() => onAct('returnToService')}
+                  >
+                    {t('table.action.returnToService')}
+                  </button>
+                </div>
+              </>
+            ) : null}
 
-        {/* --- Out of service --------------------------------------------------- */}
-        {status === 'outOfService' ? (
-          <>
-            <Facts>
-              <Fact label={t('table.fact.seats')}>{table.seats}</Fact>
-              <Fact label={t('table.fact.room')}>{room ?? '—'}</Fact>
-            </Facts>
-            <div className="tp-acts">
-              <button
-                type="button"
-                className="tp-btn tp-ok"
-                onClick={() => onAct('returnToService')}
-              >
-                {t('table.action.returnToService')}
-              </button>
-            </div>
-          </>
-        ) : null}
-
-        {/* Bookings stranded by this table going out of service. Time, party
+            {/* Bookings stranded by this table going out of service. Time, party
             size, name, code and a number to call — everything needed to make
             the call, because nobody is going to look them up on another
             screen. */}
-        {props.affectedReservations.length > 0 ? (
-          <section className="tp-affected" aria-label={t('table.affected.title')}>
-            <Warn tone="red">
-              <b>{t('table.affected.count', { count: props.affectedReservations.length })}</b>{' '}
-              {t('table.affected.body')}
-            </Warn>
-            <ul className="tp-affected-list">
-              {props.affectedReservations.map((booking) => (
-                <li key={booking.reservationId} className="tp-affected-row">
-                  <span>
-                    <b>
-                      {format.time(booking.startUtc)} · {booking.guestName} ·{' '}
-                      {t('table.guests', { count: booking.partySize })}
-                    </b>
-                    <small>
-                      <a href={`tel:${booking.guestPhone}`}>{booking.guestPhone}</a> ·{' '}
-                      {t('table.affected.code', { code: booking.code })}
-                    </small>
-                  </span>
-                  {/* The venue broke the table, so releasing one of these is
+            {props.affectedReservations.length > 0 ? (
+              <section className="tp-affected" aria-label={t('table.affected.title')}>
+                <Warn tone="red">
+                  <b>{t('table.affected.count', { count: props.affectedReservations.length })}</b>{' '}
+                  {t('table.affected.body')}
+                </Warn>
+                <ul className="tp-affected-list">
+                  {props.affectedReservations.map((booking) => (
+                    <li key={booking.reservationId} className="tp-affected-row">
+                      <span>
+                        <b>
+                          {format.time(booking.startUtc)} · {booking.guestName} ·{' '}
+                          {t('table.guests', { count: booking.partySize })}
+                        </b>
+                        <small>
+                          <a href={`tel:${booking.guestPhone}`}>{booking.guestPhone}</a> ·{' '}
+                          {t('table.affected.code', { code: booking.code })}
+                        </small>
+                      </span>
+                      {/* The venue broke the table, so releasing one of these is
                       never a no-show. There is one button here and it is the
                       forgiving outcome. */}
-                  <button
-                    type="button"
-                    className="tp-btn tp-sec tp-small"
-                    disabled={!online || props.releasing}
-                    onClick={() => onRelease(booking.reservationId, 'guestCancelled')}
-                  >
-                    {t('table.affected.release')}
-                  </button>
-                </li>
-              ))}
-            </ul>
-            {!online ? <p className="tp-hint">{t('table.release.needsOnline')}</p> : null}
-          </section>
-        ) : null}
+                      <button
+                        type="button"
+                        className="tp-btn tp-sec tp-small"
+                        disabled={!online || props.releasing}
+                        onClick={() => onRelease(booking.reservationId, 'guestCancelled')}
+                      >
+                        {t('table.affected.release')}
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+                {!online ? <p className="tp-hint">{t('table.release.needsOnline')}</p> : null}
+              </section>
+            ) : null}
 
-        {pending ? <p className="tp-pending">{t('table.pendingHere')}</p> : null}
-        {!online ? <p className="tp-hint">{t('table.offlineNote')}</p> : null}
-      </div>
+            {pending ? <p className="tp-pending">{t('table.pendingHere')}</p> : null}
+            {!online ? <p className="tp-hint">{t('table.offlineNote')}</p> : null}
+          </div>
+        </>
+      )}
     </aside>
   );
 }
@@ -843,14 +907,17 @@ function Facts({ children }: { readonly children: ReactNode }) {
 function Fact({
   label,
   warn = false,
+  text = false,
   children,
 }: {
   readonly label: string;
   readonly warn?: boolean;
+  /** Words, not a figure (a name): wrapped between words, and a row of its own on the phone. */
+  readonly text?: boolean;
   readonly children: ReactNode;
 }) {
   return (
-    <div className="tp-fact">
+    <div className={text ? 'tp-fact is-text' : 'tp-fact'}>
       <dt>{label}</dt>
       <dd className={warn ? 'is-warn' : undefined}>{children}</dd>
     </div>
@@ -1001,12 +1068,7 @@ function TransferChoice({
               onClick={() => setChosen(candidate.staffMemberId)}
             >
               <b>{candidate.name}</b>
-              <small>
-                {[
-                  candidate.roleLabel,
-                  candidate.onShift ? t('table.transfer.onShift') : t('table.transfer.offShift'),
-                ].join(' · ')}
-              </small>
+              <small>{transferTargetDetail(candidate, t)}</small>
             </button>
           ))}
         </div>

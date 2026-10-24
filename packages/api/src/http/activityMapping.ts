@@ -23,6 +23,7 @@ import {
   type ActivityValue,
   type DailySales,
   type PerformanceFigures,
+  type MyPerformanceQuery,
   type PerformanceRange,
   type StaffMemberPerformance,
   type StaffPerformance,
@@ -90,6 +91,10 @@ export type WireActivityParams = NonNullable<
 /** The results' query string. */
 export type WireStaffPerformanceParams = NonNullable<
   operations['getStaffPerformance']['parameters']['query']
+>;
+/** My results' query string. */
+export type WireMyPerformanceParams = NonNullable<
+  operations['getMyPerformance']['parameters']['query']
 >;
 /** A person's page's query string. */
 export type WirePersonPerformanceParams = NonNullable<
@@ -599,6 +604,19 @@ export function personPerformanceParams(
           limit: String(STAFF_RECENT_PAGE_SIZE),
           ...(list.cursor ? { cursor: list.cursor } : {}),
         }
+      : {}),
+  };
+}
+
+/** `GET /api/staff/me/performance`'s query: every value a string, as the server reads them. */
+export function myPerformanceParams(query: MyPerformanceQuery): WireMyPerformanceParams {
+  return {
+    from: query.from,
+    to: query.to,
+    ...(query.branchId ? { branchId: query.branchId } : {}),
+    ...(query.list ? { list: query.list } : {}),
+    ...(query.limit !== undefined
+      ? { limit: String(Math.min(100, Math.max(1, Math.round(query.limit)))) }
       : {}),
   };
 }

@@ -80,3 +80,22 @@ describe('transferring a table', () => {
     expect(transferRefusalOf(error)).toEqual({ kind: 'ineligible', reason: 'does-not-serve' });
   });
 });
+
+describe('My results', () => {
+  it('answers the signed-in waiter’s own page from the branch’s month of work', async () => {
+    const gateway = createStaffMockGateway({
+      branchId: BRANCH,
+      latencyMs: 0,
+      now: () => new Date('2026-10-24T15:00:00Z'),
+    });
+    const week = { from: '2026-10-18', to: '2026-10-24' };
+    const mine = await gateway.getMyPerformance({ ...week, limit: 3 });
+    expect(mine.name).toMatch(/^Ani Hakobyan/u);
+    expect(mine.daily).toHaveLength(7);
+    expect(mine.figures.salesAmd).toBeGreaterThan(0);
+    expect(mine.recent.items.length).toBeLessThanOrEqual(3);
+    const messages = await gateway.getMyPerformance({ ...week, list: 'messages', limit: 3 });
+    expect(messages.recent.list).toBe('messages');
+    expect(messages.recent.items.every((entry) => entry.category === 'message')).toBe(true);
+  });
+});

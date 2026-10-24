@@ -296,9 +296,12 @@ describe('the floor tablet', () => {
     const request = await card('7');
 
     // Made two minutes before the mock started: about thirteen left.
-    const timer = within(request).getByRole('timer');
+    const timer = within(request).getByRole('timer', { hidden: true });
     expect(timer.textContent).toMatch(/^1[23]:\d\d$/u);
-    expect(timer.getAttribute('aria-label')).toMatch(/left to answer$/u);
+    // The ticking clock is for the eye; a screen reader hears the deadline, which holds still.
+    expect(timer.getAttribute('aria-hidden')).toBe('true');
+    expect(within(request).getByText(/^answer by .*\d:\d\d/u)).toBeTruthy();
+    expect(within(request).queryByText(/left to answer/u)).toBeNull();
     expect(within(request).getByText('Short notice')).toBeTruthy();
     expect(
       within(request).getByText(/^Before: .* · 4 guests · Anna Petrosyan · seated now/u),
@@ -311,7 +314,7 @@ describe('the floor tablet', () => {
 
     // The large party waits with no clock, after every request that has one.
     const party = await card('11');
-    expect(within(party).queryByRole('timer')).toBeNull();
+    expect(within(party).queryByRole('timer', { hidden: true })).toBeNull();
     expect(within(party).getByText('Large party')).toBeTruthy();
     expect(request.compareDocumentPosition(party) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
@@ -400,12 +403,17 @@ describe('the floor tablet', () => {
     renderFloor(stale);
 
     const request = await card('7');
+    expect(within(request).getByRole('timer', { hidden: true })).toBeTruthy();
     await user.dblClick(within(request).getByRole('button', { name: 'Approve' }));
 
     expect(await within(request).findByText('Approved. The guest has been told.')).toBeTruthy();
     expect(approve).toHaveBeenCalledTimes(1);
     expect(within(request).queryByRole('button', { name: 'Approve' })).toBeNull();
     expect(within(request).queryByRole('button', { name: 'Decline' })).toBeNull();
+    // Answered: no clock still running on it while the list catches up.
+    expect(within(request).queryByRole('timer', { hidden: true })).toBeNull();
+    expect(within(request).queryByText(/^Answer within/u)).toBeNull();
+    expect(within(request).queryByText(/^answer by/u)).toBeNull();
   });
 
   it("says somebody else answered first, in its own words, not the server's", async () => {
@@ -524,7 +532,7 @@ describe('the floor tablet', () => {
     renderFloor(floors);
 
     const request = await card('7');
-    const timer = within(request).getByRole('timer');
+    const timer = within(request).getByRole('timer', { hidden: true });
     expect(timer.textContent).toMatch(/^1 hr [34]\d mins?$/u);
     expect(within(request).getByRole('button', { name: 'Approve' })).toBeTruthy();
     expect(within(request).getByRole('button', { name: 'Decline' })).toBeTruthy();
@@ -638,7 +646,7 @@ describe('the floor tablet', () => {
     renderFloor(closed);
 
     const request = await card('7');
-    expect(within(request).getByRole('timer').textContent).toBe('00:00');
+    expect(within(request).getByRole('timer', { hidden: true }).textContent).toBe('00:00');
     expect(within(request).getByText(/^Time is up\./u)).toBeTruthy();
     expect(within(request).queryByRole('button', { name: 'Approve' })).toBeNull();
   });

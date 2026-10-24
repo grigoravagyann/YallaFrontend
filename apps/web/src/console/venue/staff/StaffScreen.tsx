@@ -33,8 +33,8 @@ import {
 } from '../../ui/icons';
 import { OnceLinkDialog } from '../../ui/OnceLinkDialog';
 import { PageHeader } from '../../ui/PageHeader';
-import { Tabs, panelId, tabId } from '../../ui/Tabs';
 import { RowMenu, type RowMenuItem } from '../../ui/RowMenu';
+import { Tabs, panelId, tabId } from '../../ui/Tabs';
 import { useToast } from '../../ui/toast';
 import { useVenueOutlet } from '../VenueLayout';
 import { AddStaffWizard, type Hired } from './AddStaffWizard';
@@ -43,6 +43,7 @@ import { DeactivateDialog } from './DeactivateDialog';
 import { DevicesPanel } from './DevicesPanel';
 import { EditStaffDialog } from './EditStaffDialog';
 import { IssueSignInDialog } from './IssueSignInDialog';
+import { PhonesPanel } from './PhonesPanel';
 import { ShiftDialog } from './ShiftDialog';
 import {
   canChangeOwnPin,
@@ -125,6 +126,13 @@ type Open =
  * people who work at the branch in the sidebar — its own and the venue-wide
  * owners and general managers — as the artboard does.
  */
+type StaffSection = 'people' | 'results' | 'tablets' | 'phones';
+
+const SECTIONS: readonly StaffSection[] = ['people', 'results', 'tablets', 'phones'];
+
+/** The ids of the section tabs and their panel. */
+const SECTION_PREFIX = 'staff-section';
+
 export function StaffScreen() {
   const { t } = useTranslation(['admin', 'common']);
   const labels = useStaffLabels();
@@ -143,9 +151,27 @@ export function StaffScreen() {
   const setPin = useSetStaffPin(venueId);
   const clearLockout = useClearPinLockout(venueId);
 
-  // People or Results (2026-10-24): in the address, so a Results link opens Results.
+  // People, Results (2026-10-24), the branch's tablets, or everybody's own
+  // phones (Devices artboard): in the address, so a Results link opens Results.
   const [params, setParams] = useSearchParams();
-  const section: 'people' | 'results' = params.get('tab') === 'results' ? 'results' : 'people';
+  const section: StaffSection =
+    SECTIONS.find((one) => one !== 'people' && one === params.get('tab')) ?? 'people';
+  const setSection = (next: StaffSection) =>
+    setParams(
+      (current) => {
+        const copy = new URLSearchParams(current);
+        if (next === 'people') copy.delete('tab');
+        else copy.set('tab', next);
+        // The period and the sort are the Results table's own.
+        if (next !== 'results') {
+          copy.delete('period');
+          copy.delete('sort');
+          copy.delete('dir');
+        }
+        return copy;
+      },
+      { replace: true },
+    );
   const [search, setSearch] = useState('');
   const [roleFilter, setRoleFilter] = useState<RoleFilter>('all');
   const [showInactive, setShowInactive] = useState(false);
@@ -417,91 +443,65 @@ export function StaffScreen() {
       />
 
       <Tabs
-        label={t('staffResults.tabs.label')}
-        idPrefix="st"
+        label={t('staff.tabs.label')}
+        idPrefix={SECTION_PREFIX}
         selected={section}
-        onSelect={(next) =>
-          setParams(
-            (current) => {
-              const copy = new URLSearchParams(current);
-              if (next === 'results') copy.set('tab', 'results');
-              else {
-                copy.delete('tab');
-                copy.delete('period');
-                copy.delete('sort');
-                copy.delete('dir');
-              }
-              return copy;
-            },
-            { replace: true },
-          )
-        }
+        onSelect={setSection}
         tabs={[
-          { id: 'people', label: t('staffResults.tabs.people') },
+          { id: 'people', label: t('staff.tabs.people') },
           { id: 'results', label: t('staffResults.tabs.results') },
+          { id: 'tablets', label: t('staff.tabs.tablets') },
+          { id: 'phones', label: t('staff.tabs.phones') },
         ]}
       />
 
-      {section === 'results' ? (
-        <div
-          role="tabpanel"
-          id={panelId('st', 'results')}
-          aria-labelledby={tabId('st', 'results')}
-          className="yc-panel"
-        >
-          {branchId ? (
-            <StaffResults branchId={branchId} timeZoneId={timeZoneId} />
-          ) : (
-            <p className="yc-card yc-empty-line">{t('menu.noBranch')}</p>
-          )}
-        </div>
-      ) : (
-        <div
-          role="tabpanel"
-          id={panelId('st', 'people')}
-          aria-labelledby={tabId('st', 'people')}
-          className="yc-panel yc-panel-body"
-        >
-          <div className="yc-tools">
-            <div className="yc-fld yc-search yc-st-search">
-              <label htmlFor="st-q">{t('staff.filter.search')}</label>
-              <SearchIcon />
-              <input
-                id="st-q"
-                className="yc-ctl"
-                type="search"
-                placeholder={t('staff.filter.searchPlaceholder')}
-                value={search}
-                onChange={(event) => setSearch(event.currentTarget.value)}
-              />
+      <div
+        className="yc-panel yc-st-panel"
+        role="tabpanel"
+        id={panelId(SECTION_PREFIX, section)}
+        aria-labelledby={tabId(SECTION_PREFIX, section)}
+      >
+        {section === 'people' ? (
+          <>
+            <div className="yc-tools">
+              <div className="yc-fld yc-search yc-st-search">
+                <label htmlFor="st-q">{t('staff.filter.search')}</label>
+                <SearchIcon />
+                <input
+                  id="st-q"
+                  className="yc-ctl"
+                  type="search"
+                  placeholder={t('staff.filter.searchPlaceholder')}
+                  value={search}
+                  onChange={(event) => setSearch(event.currentTarget.value)}
+                />
+              </div>
+              <div className="yc-fld">
+                <label htmlFor="st-role">{t('staff.filter.role')}</label>
+                <select
+                  id="st-role"
+                  className="yc-ctl"
+                  value={roleFilter}
+                  onChange={(event) => setRoleFilter(event.currentTarget.value as RoleFilter)}
+                >
+                  <option value="all">{t('staff.filter.all')}</option>
+                  {ROLE_ORDER.map((role) => (
+                    <option key={role} value={role}>
+                      {t(`role.${role}`)}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <label className="yc-check-line">
+                <input
+                  type="checkbox"
+                  checked={showInactive}
+                  onChange={(event) => setShowInactive(event.currentTarget.checked)}
+                />
+                {t('staff.filter.inactive')}
+              </label>
             </div>
-            <div className="yc-fld">
-              <label htmlFor="st-role">{t('staff.filter.role')}</label>
-              <select
-                id="st-role"
-                className="yc-ctl"
-                value={roleFilter}
-                onChange={(event) => setRoleFilter(event.currentTarget.value as RoleFilter)}
-              >
-                <option value="all">{t('staff.filter.all')}</option>
-                {ROLE_ORDER.map((role) => (
-                  <option key={role} value={role}>
-                    {t(`role.${role}`)}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <label className="yc-check-line">
-              <input
-                type="checkbox"
-                checked={showInactive}
-                onChange={(event) => setShowInactive(event.currentTarget.checked)}
-              />
-              {t('staff.filter.inactive')}
-            </label>
-          </div>
 
-          <div className="yc-st-layout">
             <div className="yc-st-groups">
               {staff.isError ? (
                 <div className="yc-card yc-ov-pad">
@@ -639,23 +639,36 @@ export function StaffScreen() {
                 ))
               )}
             </div>
-
-            <aside className="yc-st-side">
-              {/* Keyed by branch: a code or an open revoke confirmation belongs to
-              the branch it was made for, not the one switched to. */}
-              {branchId ? (
-                <DevicesPanel
-                  key={branchId}
-                  branchId={branchId}
-                  branchName={here}
-                  timeZoneId={timeZoneId}
-                  locale={locale}
-                />
-              ) : null}
-            </aside>
-          </div>
-        </div>
-      )}
+          </>
+        ) : section === 'results' ? (
+          branchId ? (
+            <StaffResults branchId={branchId} timeZoneId={timeZoneId} />
+          ) : (
+            <p className="yc-card yc-empty-line">{t('menu.noBranch')}</p>
+          )
+        ) : section === 'tablets' ? (
+          // Keyed by branch: a code or an open revoke confirmation belongs to
+          // the branch it was made for, not the one switched to.
+          branchId ? (
+            <DevicesPanel
+              key={branchId}
+              branchId={branchId}
+              branchName={here}
+              timeZoneId={timeZoneId}
+              locale={locale}
+            />
+          ) : null
+        ) : branchId ? (
+          <PhonesPanel
+            key={branchId}
+            branchId={branchId}
+            timeZoneId={timeZoneId}
+            locale={locale}
+            people={atBranch}
+            actor={actor}
+          />
+        ) : null}
+      </div>
 
       {open?.kind === 'add' ? (
         <AddStaffWizard

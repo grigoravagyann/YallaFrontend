@@ -54,20 +54,27 @@ export interface FloorRailProps {
   readonly ordersFailed: boolean;
   readonly timeZoneId: string;
   readonly onAcknowledge: (request: ServiceRequest) => void;
+  readonly onAdvance: (order: OrderQueueEntry, next: OrderStatus) => void;
+  readonly unresolved: readonly UnresolvedTab[];
+  readonly onSettle: (tabId: string) => void;
+  /** Under the table panel: kept mounted, so nothing in it is lost, but out of sight. */
+  readonly hidden?: boolean | undefined;
   /**
-   * "I'm on it" (2026-10-24): take the call, so every tablet shows who is
-   * going. Online only; absent, the button is not offered.
+   * "I'm on it" (2026-10-24): take the call, so every tablet and phone shows
+   * who is going. Online only; absent, the button is not offered.
    */
   readonly onClaim?: ((request: ServiceRequest) => void) | undefined;
   /** Calls whose claim is in flight from here. */
   readonly claiming?: ReadonlySet<string> | undefined;
   /** Who is signed in here: their own claim reads "You're on it". */
   readonly selfStaffMemberId?: string | undefined;
-  readonly onAdvance: (order: OrderQueueEntry, next: OrderStatus) => void;
-  readonly unresolved: readonly UnresolvedTab[];
-  readonly onSettle: (tabId: string) => void;
-  /** Under the table panel: kept mounted, so nothing in it is lost, but out of sight. */
-  readonly hidden?: boolean | undefined;
+  /**
+   * The phone's Now screen (staff phone, the Now artboard): the same sections
+   * in the phone's order — people calling first, then the bookings, the
+   * messages and the takeaway — with `after` ("In the next hour") last.
+   */
+  readonly phone?: boolean | undefined;
+  readonly after?: ReactNode;
 }
 
 /**
@@ -97,6 +104,91 @@ export function FloorRail(props: FloorRailProps) {
   const dishes = (order: OrderQueueEntry) =>
     order.lines.reduce((sum, line) => sum + line.quantity, 0);
 
+  const calls = (
+    <RailSection
+      title={t('panel.calls.title')}
+      count={props.requests.length}
+      tone="waiting"
+      icon={ICONS.bell}
+    >
+      {props.requestsFailed ? (
+        <p className="ft-rail-empty is-failed">{t('panel.calls.unreachable')}</p>
+      ) : props.requestsLoading ? (
+        <p className="ft-rail-empty">{t('floor.loading')}</p>
+      ) : props.requests.length === 0 ? (
+        <p className="ft-rail-empty">{t('panel.calls.empty')}</p>
+      ) : (
+        <ul className="ft-items">
+          {props.requests.map((request) => {
+            const band = ageBand(request.waitingMinutes);
+            return (
+              <li key={request.id} className={`ft-item${band === 'late' ? ' is-urgent' : ''}`}>
+                <div className="ft-item-top">
+                  <b>{t('table.title', { label: request.tableLabel })}</b>
+                  <span>{t(`rail.calls.reason.${request.reason}`)}</span>
+                  <span className={`ft-item-age age-${band}`}>
+                    {t('rail.minutes', { count: request.waitingMinutes })}
+                  </span>
+                </div>
+                {/* The bill from the app's pay sheet says how much and the
+                          tip, so the waiter brings the right bill the first time. */}
+                {request.reason === 'bill' && request.bill ? (
+                  <p className="ft-item-bill">
+                    {billRequestText(request.bill, t, format.dram, 'short')}
+                  </p>
+                ) : null}
+                {request.note ? <p>{request.note}</p> : null}
+                {/* Who took it (2026-10-24): the name on every tablet and
+                    phone, so nobody else walks over. */}
+                {request.claimedByName ? (
+                  <p className="ft-item-claim">
+                    <span className="ft-claim-dot" aria-hidden="true" />
+                    {request.claimedByStaffMemberId &&
+                    request.claimedByStaffMemberId === props.selfStaffMemberId
+                      ? t('rail.calls.claimedByYou')
+                      : t('rail.calls.claimedBy', { name: firstName(request.claimedByName) })}
+                    {request.claimedAtUtc ? (
+                      <span className="ft-claim-at">
+                        {' · '}
+                        {format.time(request.claimedAtUtc)}
+                      </span>
+                    ) : null}
+                  </p>
+                ) : null}
+                <div className="ft-item-actions">
+                  {props.onClaim && !request.claimedByName ? (
+                    <button
+                      type="button"
+                      className="ft-btn ft-btn-primary"
+                      disabled={props.claiming?.has(request.id) ?? false}
+                      aria-label={t('rail.calls.claimFor', { label: request.tableLabel })}
+                      onClick={() => props.onClaim?.(request)}
+                    >
+                      {t('rail.calls.claim')}
+                    </button>
+                  ) : null}
+                  <button
+                    type="button"
+                    className={
+                      props.onClaim &&
+                      (!request.claimedByName ||
+                        request.claimedByStaffMemberId !== props.selfStaffMemberId)
+                        ? 'ft-btn ft-btn-secondary'
+                        : 'ft-btn ft-btn-primary'
+                    }
+                    onClick={() => props.onAcknowledge(request)}
+                  >
+                    {t('panel.calls.acknowledge')}
+                  </button>
+                </div>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </RailSection>
+  );
+
   return (
     <aside className="ft-rail" aria-label={t('rail.label')} hidden={props.hidden}>
       <div className="ft-rail-head">
@@ -105,13 +197,24 @@ export function FloorRail(props: FloorRailProps) {
       </div>
 
       <div className="ft-rail-body">
-        {props.messagesFirst ? props.messages : null}
+        {props.phone ? (
+          <>
+            {calls}
+            {props.approvals}
+            {props.messages}
+            {props.takeaway}
+          </>
+        ) : (
+          <>
+            {props.messagesFirst ? props.messages : null}
 
-        {props.approvals}
+            {props.approvals}
 
-        {props.takeaway}
+            {props.takeaway}
 
-        {props.messagesFirst ? null : props.messages}
+            {props.messagesFirst ? null : props.messages}
+          </>
+        )}
 
         {props.admissions}
 
@@ -119,88 +222,7 @@ export function FloorRail(props: FloorRailProps) {
 
         {props.noShows}
 
-        <RailSection
-          title={t('panel.calls.title')}
-          count={props.requests.length}
-          tone="waiting"
-          icon={ICONS.bell}
-        >
-          {props.requestsFailed ? (
-            <p className="ft-rail-empty is-failed">{t('panel.calls.unreachable')}</p>
-          ) : props.requestsLoading ? (
-            <p className="ft-rail-empty">{t('floor.loading')}</p>
-          ) : props.requests.length === 0 ? (
-            <p className="ft-rail-empty">{t('panel.calls.empty')}</p>
-          ) : (
-            <ul className="ft-items">
-              {props.requests.map((request) => {
-                const band = ageBand(request.waitingMinutes);
-                return (
-                  <li key={request.id} className={`ft-item${band === 'late' ? ' is-urgent' : ''}`}>
-                    <div className="ft-item-top">
-                      <b>{t('table.title', { label: request.tableLabel })}</b>
-                      <span>{t(`rail.calls.reason.${request.reason}`)}</span>
-                      <span className={`ft-item-age age-${band}`}>
-                        {t('rail.minutes', { count: request.waitingMinutes })}
-                      </span>
-                    </div>
-                    {/* The bill from the app's pay sheet says how much and the
-                        tip, so the waiter brings the right bill the first time. */}
-                    {request.reason === 'bill' && request.bill ? (
-                      <p className="ft-item-bill">
-                        {billRequestText(request.bill, t, format.dram, 'short')}
-                      </p>
-                    ) : null}
-                    {request.note ? <p>{request.note}</p> : null}
-                    {/* Who took it (2026-10-24): the name on every tablet, so
-                        nobody else walks over. */}
-                    {request.claimedByName ? (
-                      <p className="ft-item-claim">
-                        <span className="ft-claim-dot" aria-hidden="true" />
-                        {request.claimedByStaffMemberId &&
-                        request.claimedByStaffMemberId === props.selfStaffMemberId
-                          ? t('rail.calls.claimedByYou')
-                          : t('rail.calls.claimedBy', { name: firstName(request.claimedByName) })}
-                        {request.claimedAtUtc ? (
-                          <span className="ft-claim-at">
-                            {' · '}
-                            {format.time(request.claimedAtUtc)}
-                          </span>
-                        ) : null}
-                      </p>
-                    ) : null}
-                    <div className="ft-item-actions">
-                      {props.onClaim && !request.claimedByName ? (
-                        <button
-                          type="button"
-                          className="ft-btn ft-btn-primary"
-                          disabled={props.claiming?.has(request.id) ?? false}
-                          aria-label={t('rail.calls.claimFor', { label: request.tableLabel })}
-                          onClick={() => props.onClaim?.(request)}
-                        >
-                          {t('rail.calls.claim')}
-                        </button>
-                      ) : null}
-                      <button
-                        type="button"
-                        className={
-                          props.onClaim &&
-                          (!request.claimedByName ||
-                            request.claimedByStaffMemberId !== props.selfStaffMemberId)
-                            ? 'ft-btn ft-btn-secondary'
-                            : 'ft-btn ft-btn-primary'
-                        }
-                        onClick={() => props.onAcknowledge(request)}
-                      >
-                        {t('panel.calls.acknowledge')}
-                      </button>
-                    </div>
-                  </li>
-                );
-              })}
-            </ul>
-          )}
-        </RailSection>
+        {props.phone ? null : calls}
 
         {toSend.length > 0 ? (
           <RailSection
@@ -267,6 +289,8 @@ export function FloorRail(props: FloorRailProps) {
             </ul>
           </RailSection>
         ) : null}
+
+        {props.after}
       </div>
     </aside>
   );

@@ -236,8 +236,10 @@ export type {
   BranchShifts,
   CreateStaffInput,
   EnrolmentCode,
+  PhonePairingCode,
   ShiftInput,
   StaffDevice,
+  StaffDevicePerson,
   StaffMember,
   StaffActorRef,
   StaffShift,
@@ -685,6 +687,18 @@ export type {
 } from './staffGateway';
 export { resolveStaffGateway } from './resolveStaffGateway';
 export type { ResolveStaffGatewayOptions } from './resolveStaffGateway';
+export { STAFF_NOTIFICATION_KINDS } from './contracts/staffPhone';
+export type {
+  SaveStaffNotificationSettings,
+  StaffNotificationKind,
+  StaffNotificationSettings,
+  StaffNotificationSwitches,
+  StaffPushConfig,
+  StaffPushPayload,
+  StaffPushSubscriptionInput,
+  StaffToday,
+  StaffTodayShift,
+} from './contracts/staffPhone';
 export { createStaffMockGateway } from './mocks/staffMock';
 export type { StaffMockOptions } from './mocks/staffMock';
 export { createStaffHttpGateway } from './http/staffHttpGateway';
@@ -701,10 +715,15 @@ export type {
   StaffSessionState,
 } from './auth/staffSession';
 export type {
+  BoundStaffMember,
   DeviceEnrolment,
   EnrolDeviceCommand,
   EnrolledDevice,
+  PairPhoneCommand,
+  PhonePairing,
+  PhonePairingPreview,
   PinSignInCommand,
+  StaffDeviceKind,
   StaffCredentialStorage,
   StaffRosterEntry,
   StaffRosterShift,
@@ -716,8 +735,13 @@ export type {
 export {
   ENROLMENT_CODE_ALPHABET,
   ENROLMENT_CODE_LENGTH,
+  PHONE_PAIRING_MINUTES,
+  PHONE_PAIRING_PATH,
+  formatPairingCode,
   isOnShiftAt,
+  isPhoneDevice,
   normalizeEnrolmentCode,
+  pairingCodeFrom,
 } from './contracts/staffAuth';
 export {
   createStaffRosterMock,
@@ -734,6 +758,10 @@ export {
   DeviceRevokedError,
   EnrolmentCodeExpiredError,
   EnrolmentCodeSpentError,
+  KitchenPhoneNotAllowedError,
+  PairingCodeExpiredError,
+  PairingCodeInvalidError,
+  PairingCodeUnusableError,
   LineAlreadyPaidError,
   MenuItemUnavailableError,
   OrderGuestUnavailableError,
@@ -1314,6 +1342,7 @@ export type {
   ActivityWho,
   ClaimServiceRequestCommand,
   DailySales,
+  MyPerformanceQuery,
   PerformanceFigures,
   PerformancePeriod,
   PerformanceRange,

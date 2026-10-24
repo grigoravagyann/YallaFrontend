@@ -75,11 +75,40 @@ export interface UpdateStaffInput {
  */
 export interface StaffDevice {
   readonly id: string;
+  /** A tablet's name as the manager gave it; a phone's is what it reported: "iPhone · Safari". */
   readonly name: string;
   readonly branchId: string;
   readonly enrolledAtUtc: string;
   readonly lastSeenAtUtc: string | null;
   readonly isRevoked: boolean;
+  /** A shared tablet or one person's phone. Absent reads as a tablet. */
+  readonly kind?: 'tablet' | 'phone' | undefined;
+  /** On a phone, whose it is; null or absent on a tablet. */
+  readonly boundStaffMember?: StaffDevicePerson | null | undefined;
+  /** When it was revoked or unpaired; null while live. */
+  readonly revokedAtUtc?: string | null | undefined;
+}
+
+/** The person a phone is paired to, as the device list names them. */
+export interface StaffDevicePerson {
+  readonly id: string;
+  readonly fullName: string;
+  readonly role: StaffRole;
+}
+
+/**
+ * A code that pairs one person's own phone, returned **once** (`POST
+ * /api/branches/{branchId}/staff/{staffMemberId}/phone-pairings`). Ten minutes
+ * and one use; another for the same person supersedes it. `pairingUrl` is what
+ * the QR carries: `<origin>/staff/pair#code=XXXXX-XXXXX`.
+ */
+export interface PhonePairingCode {
+  /** As the server shows it, `XXXXX-XXXXX`. */
+  readonly code: string;
+  readonly expiresAtUtc: string;
+  readonly pairingUrl: string;
+  readonly staffMemberId: string;
+  readonly branchId: string;
 }
 
 /**

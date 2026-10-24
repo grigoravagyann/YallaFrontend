@@ -12,6 +12,7 @@ import type {
   ActivityPage,
   ActivitySubjectType,
   ClaimServiceRequestCommand,
+  MyPerformanceQuery,
   PerformanceRange,
   StaffRecentList,
   StaffRecentPage,
@@ -84,6 +85,37 @@ export function useActivityTimeline(
   subject: { readonly type: ActivitySubjectType; readonly id: string } | null,
 ) {
   return useQuery(activityTimelineOptions(useConsoleGateway(), branchId, subject));
+}
+
+// --- My results (the staff phone) --------------------------------------------------
+
+/**
+ * The signed-in person's own page (`GET /api/staff/me/performance`): one
+ * range, one recent list. Read from the staff session — a waiter's phone or
+ * tablet — never a console token, so nobody else's numbers come back.
+ */
+export function myPerformanceOptions(
+  gateway: Pick<StaffGateway, 'getMyPerformance'>,
+  query: MyPerformanceQuery,
+  enabled = true,
+) {
+  return {
+    queryKey: queryKeys.myPerformance(
+      query.branchId ?? '',
+      query.from,
+      query.to,
+      query.list ?? 'orders',
+      query.limit ?? 0,
+    ),
+    queryFn: () => gateway.getMyPerformance(query),
+    enabled,
+    staleTime: staleTime.frequent,
+    placeholderData: keepPreviousData,
+  };
+}
+
+export function useMyPerformance(query: MyPerformanceQuery, enabled = true) {
+  return useQuery(myPerformanceOptions(useStaffGateway(), query, enabled));
 }
 
 // --- Staff results ---------------------------------------------------------------

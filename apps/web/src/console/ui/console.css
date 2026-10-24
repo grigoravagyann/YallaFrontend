@@ -6933,17 +6933,15 @@ body:has(.yc-savebar) .yc-toast-region {
 }
 
 /* --------------------------------------------------------------------------
- * Staff (venue-console Staff artboard): people by role, the tablets beside them
+ * Staff (venue-console Staff artboard): people by role; the tablets and the phones on tabs
  * -------------------------------------------------------------------------- */
-.yc-st-layout {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 320px;
-  align-items: start;
+.yc-st-panel {
+  display: flex;
+  flex-direction: column;
   gap: var(--space-lg);
 }
 
-.yc-st-groups,
-.yc-st-side {
+.yc-st-groups {
   display: flex;
   flex-direction: column;
   gap: var(--space-lg);
@@ -7166,6 +7164,72 @@ body:has(.yc-savebar) .yc-toast-region {
   font-size: var(--console-text-caption);
 }
 
+/* The phones (Devices artboard): a row per person, and the pairing QR. */
+.yc-phones-who {
+  font-weight: var(--font-weight-semibold);
+  text-align: left;
+}
+
+.yc-phones-who span {
+  display: block;
+  color: var(--console-muted);
+  font-size: var(--console-text-caption);
+  font-weight: var(--font-weight-regular);
+}
+
+.yc-phones-act {
+  text-align: right;
+}
+
+.yc-pair {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-sm);
+  margin: var(--space-md) 0;
+  text-align: center;
+}
+
+.yc-pair-qr {
+  width: 200px;
+  height: 200px;
+  border: 2px solid var(--console-ink);
+  border-radius: var(--console-radius-small);
+  background: var(--console-surface);
+}
+
+.yc-pair-qr.is-gone {
+  border-style: dashed;
+  border-color: var(--console-line);
+  background: var(--console-grey-bg);
+}
+
+.yc-pair-code {
+  font-size: var(--console-text-title);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.08em;
+  user-select: all;
+}
+
+.yc-pair-code.is-gone {
+  color: var(--console-muted);
+  text-decoration: line-through;
+}
+
+.yc-pair-left,
+.yc-pair-ok {
+  margin: 0;
+  font-weight: var(--font-weight-semibold);
+}
+
+.yc-pair-left.is-gone {
+  color: var(--console-red);
+}
+
+.yc-pair-ok {
+  color: var(--console-green);
+}
+
 /* A person's shifts: the days to come, then the one-line form. */
 .yc-h3 {
   margin: 0;
@@ -7247,12 +7311,6 @@ body:has(.yc-savebar) .yc-toast-region {
 
   .yc-st-acts {
     justify-content: flex-end;
-  }
-}
-
-@media (max-width: 1180px) {
-  .yc-st-layout {
-    grid-template-columns: minmax(0, 1fr);
   }
 }
 

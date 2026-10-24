@@ -24,8 +24,8 @@ const spaced = (code: string) =>
   code.length === 10 ? `${code.slice(0, 5)}-${code.slice(5)}` : code;
 
 /**
- * The tablets a branch runs on, and the code that enrols one (Staff artboard,
- * the card beside the people).
+ * The tablets a branch runs on, and the code that enrols one (Staff → Tablets;
+ * the Staff artboard's card).
  *
  * The card says plainly what a device grants, which is **nothing on its own**.
  * Every action still needs a PIN on top, so a stolen tablet is not a stolen
@@ -43,7 +43,7 @@ export function DevicesPanel({ branchId, branchName, timeZoneId, locale }: Devic
   const toast = useToast();
   const titleId = useId();
 
-  const devices = useDevices(branchId);
+  const devices = useDevices(branchId, { kind: 'tablet' });
   const createCode = useCreateEnrolmentCode();
   const revoke = useRevokeDevice();
 

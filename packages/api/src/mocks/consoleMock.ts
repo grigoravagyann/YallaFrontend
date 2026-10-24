@@ -48,12 +48,19 @@ import {
   ValidationError,
 } from '../errors';
 import {
+  KitchenPhoneNotAllowedError,
   ReservationNotStartedError,
   StaffPermissionError,
   StaffPinTakenError,
   NoShowUndoWindowClosedError,
 } from '../contracts/errors';
-import { assignableRoles, branchBindingFor, isAdminRole, outranks } from '../contracts/staff';
+import {
+  assignableRoles,
+  branchBindingFor,
+  canSetStaffPin,
+  isAdminRole,
+  outranks,
+} from '../contracts/staff';
 
 /** `PinTakenException.Sentence`, word for word. */
 const PIN_TAKEN = 'Somebody who signs in on this tablet already uses that PIN. Choose another.';
@@ -65,7 +72,13 @@ const GENERAL_MANAGER_HAS_NO_BRANCH =
   'A general manager runs every branch, so leave the branch empty.';
 import type { StaffDevice, StaffMember, StaffShift, StaffSignInLink } from '../contracts/staff';
 import type { BranchPublicProfile } from '../contracts/publicProfile';
-import { ENROLMENT_CODE_ALPHABET, ENROLMENT_CODE_LENGTH } from '../contracts/staffAuth';
+import {
+  ENROLMENT_CODE_ALPHABET,
+  ENROLMENT_CODE_LENGTH,
+  PHONE_PAIRING_MINUTES,
+  PHONE_PAIRING_PATH,
+  formatPairingCode,
+} from '../contracts/staffAuth';
 import type { BranchReadiness } from '../contracts/readiness';
 import {
   MAX_MODERATION_TEXT,
@@ -1234,6 +1247,9 @@ export function createConsoleMockGateway(options: ConsoleMockOptions = {}): Cons
         enrolledAtUtc: '2026-08-21T08:00:00Z',
         lastSeenAtUtc: new Date(Date.now() - 4 * 60_000).toISOString(),
         isRevoked: false,
+        kind: 'tablet',
+        boundStaffMember: null,
+        revokedAtUtc: null,
       },
       {
         id: `${branchId}-device-old`,
@@ -1243,11 +1259,65 @@ export function createConsoleMockGateway(options: ConsoleMockOptions = {}): Cons
         lastSeenAtUtc: '2026-08-14T22:10:00Z',
         // Revoked and still listed: the list is an audit trail, not a roster.
         isRevoked: true,
+        kind: 'tablet',
+        boundStaffMember: null,
+        revokedAtUtc: '2026-08-15T09:00:00Z',
       },
     ];
 
+    // One waiter's own phone, so the Phones tab of a fixture branch is not
+    // empty on first look (the Devices artboard has some paired, some not).
+    const venueId = venueOfBranch(branchId);
+    const waiter = venueId
+      ? staffFor(venueId).find(
+          (member) => member.role === 'waiter' && member.isActive && member.branchId === branchId,
+        )
+      : undefined;
+    if (waiter) {
+      seeded.push({
+        id: `${branchId}-phone-${waiter.id}`,
+        name: 'iPhone · Safari',
+        branchId,
+        enrolledAtUtc: '2026-10-20T15:00:00Z',
+        lastSeenAtUtc: new Date(Date.now() - 12 * 60_000).toISOString(),
+        isRevoked: false,
+        kind: 'phone',
+        boundStaffMember: { id: waiter.id, fullName: waiter.fullName, role: waiter.role },
+        revokedAtUtc: null,
+      });
+    }
+
     devicesByBranch.set(branchId, seeded);
     return seeded;
+  }
+
+  /**
+   * The phones the mock staff app paired at this branch (`staffAuthMock`'s
+   * pairing, from a code `createPhonePairing` issued), as the console's list
+   * shows them.
+   */
+  function pairedPhonesFor(branchId: string): StaffDevice[] {
+    const venueId = venueOfBranch(branchId);
+    const people = venueId ? staffFor(venueId) : [];
+    return registry.devices
+      .values()
+      .filter((device) => device.kind === 'phone' && device.branchId === branchId)
+      .map((device) => {
+        const person = people.find((member) => member.id === device.boundStaffMemberId);
+        return {
+          id: device.deviceId,
+          name: device.deviceName,
+          branchId,
+          enrolledAtUtc: device.enrolledAtUtc,
+          lastSeenAtUtc: device.lastSeenAtUtc ?? device.enrolledAtUtc,
+          isRevoked: device.revokedAtUtc !== null,
+          kind: 'phone' as const,
+          boundStaffMember: person
+            ? { id: person.id, fullName: person.fullName, role: person.role }
+            : null,
+          revokedAtUtc: device.revokedAtUtc,
+        };
+      });
   }
 
   /** Every branch in the fixture, flattened once for the report scope lookups. */
@@ -2691,7 +2761,9 @@ export function createConsoleMockGateway(options: ConsoleMockOptions = {}): Cons
             (member) =>
               member.isActive && (member.branchId === null || member.branchId === branchId),
           ).length;
-    const deviceCount = devicesFor(branchId).filter((device) => !device.isRevoked).length;
+    const deviceCount = devicesFor(branchId).filter(
+      (device) => !device.isRevoked && device.kind !== 'phone',
+    ).length;
 
     const floorPlanDrawn = active.length > 0;
     const tablesLabelled = floorPlanDrawn && active.every((table) => table.label.trim() !== '');
@@ -5043,10 +5115,79 @@ export function createConsoleMockGateway(options: ConsoleMockOptions = {}): Cons
 
     // --- Devices --------------------------------------------------------------
 
-    async listDevices(branchId) {
+    async listDevices(branchId, kind) {
       await wait();
       requireBranchInVenue(branchId);
-      return [...devicesFor(branchId)];
+      const all = [...devicesFor(branchId), ...pairedPhonesFor(branchId)];
+      return kind ? all.filter((device) => (device.kind ?? 'tablet') === kind) : all;
+    },
+
+    async createPhonePairing({ branchId, staffMemberId }) {
+      await wait();
+      const url = `${URL_TAG}/branches/${branchId}/staff/${staffMemberId}/phone-pairings`;
+      requireManagerAtBranch(branchId, url);
+      const venueId = venueOfBranch(branchId);
+      const person = venueId
+        ? staffFor(venueId).find((member) => member.id === staffMemberId)
+        : undefined;
+      // Somebody who does not sign in at this branch, or no longer works, is not
+      // there as far as this route is concerned.
+      if (
+        !venueId ||
+        !person ||
+        !person.isActive ||
+        (person.branchId !== null && person.branchId !== branchId)
+      ) {
+        throw new NotFoundError({ url });
+      }
+      // The staff-admin rule: somebody the caller may manage, or the caller.
+      const actor = actingStaff(venueId);
+      if (actor.role !== 'platformAdmin' && !canSetStaffPin(actor, person)) {
+        throw staffPermission(
+          `Pairing a phone for a ${SERVER_ROLE[person.role]}`,
+          person.role === 'manager' ? 'generalManager' : 'owner',
+        );
+      }
+      if (person.role === 'kitchen') throw new KitchenPhoneNotAllowedError({ url });
+
+      const at = now();
+      // A newer code takes a lost one back.
+      for (const earlier of registry.phonePairings.values()) {
+        if (
+          earlier.staffMemberId === staffMemberId &&
+          earlier.redeemedAtUtc === null &&
+          earlier.supersededAtUtc === null
+        ) {
+          registry.phonePairings.set(earlier.code, {
+            ...earlier,
+            supersededAtUtc: at.toISOString(),
+          });
+        }
+      }
+      const code = Array.from({ length: ENROLMENT_CODE_LENGTH }, () => {
+        sequence = (sequence * 1103515245 + 12345) % 2147483648;
+        return ENROLMENT_CODE_ALPHABET[sequence % ENROLMENT_CODE_ALPHABET.length];
+      }).join('');
+      const expiresAtUtc = new Date(at.getTime() + PHONE_PAIRING_MINUTES * 60_000).toISOString();
+      registry.phonePairings.set(code, {
+        code,
+        branchId,
+        staffMemberId,
+        expiresAtUtc,
+        redeemedAtUtc: null,
+        supersededAtUtc: null,
+      });
+      const shown = formatPairingCode(code);
+      const origin =
+        (globalThis as { location?: { origin?: string } }).location?.origin ??
+        'http://localhost:5173';
+      return {
+        code: shown,
+        expiresAtUtc,
+        pairingUrl: `${origin}${PHONE_PAIRING_PATH}#code=${shown}`,
+        staffMemberId,
+        branchId,
+      };
     },
 
     async createEnrolmentCode(branchId) {
@@ -5080,12 +5221,29 @@ export function createConsoleMockGateway(options: ConsoleMockOptions = {}): Cons
     async revokeDevice({ branchId, deviceId }) {
       await wait();
       requireManagerAtBranch(branchId, `${URL_TAG}/branches/${branchId}/devices`);
+      // A phone the mock staff app paired lives in the registry: unpairing it
+      // there is what stops its next request, as revoking does on the server.
+      const paired = registry.devices
+        .values()
+        .find(
+          (device) =>
+            device.kind === 'phone' && device.branchId === branchId && device.deviceId === deviceId,
+        );
+      if (paired) {
+        if (paired.revokedAtUtc === null) {
+          registry.devices.set(paired.deviceToken, {
+            ...paired,
+            revokedAtUtc: now().toISOString(),
+          });
+        }
+        return;
+      }
       const list = devicesFor(branchId);
       const index = list.findIndex((device) => device.id === deviceId);
       if (index < 0) throw new NotFoundError({ url: URL_TAG });
       // Revoked, not removed: the list is an audit trail, and "which tablet was
       // this done from, and was it still ours" is asked after the fact.
-      list[index] = { ...list[index]!, isRevoked: true };
+      list[index] = { ...list[index]!, isRevoked: true, revokedAtUtc: now().toISOString() };
     },
 
     // --- Reports ------------------------------------------------------------

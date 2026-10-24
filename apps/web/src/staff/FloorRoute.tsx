@@ -48,14 +48,13 @@ import {
   useStaffTab,
   useNow,
   useTakeawayOrders,
+  useStaffToday,
   useTabsAwaitingAdmission,
   useTransferTab,
   useVoidLine,
 } from '@yalla/api/react';
 import { SERVING_ROLES, transferRefusalOf, type StaffRole } from '@yalla/api';
-import { useQuery } from '@tanstack/react-query';
-import { staffSession } from './auth/staffSession';
-import { useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from '@yalla/i18n';
 import type { TFunction } from 'i18next';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -97,6 +96,20 @@ import { TableList } from './TableList';
 import { TabPanel } from './TabPanel';
 import { useBranchFormat } from './useBranchFormat';
 import { useCachedMenu } from './useCachedMenu';
+import { staffSession } from './auth/staffSession';
+import { connectionChip } from './StaffHeader';
+import { upcomingBookings } from './phone/nextHour';
+import { PhoneApprove } from './phone/PhoneApprove';
+import { PhoneMore } from './phone/PhoneMore';
+import { PhoneResults } from './phone/PhoneResults';
+import { PhoneApprovalList, PhoneNextHour, PhoneTakeawayList } from './phone/PhoneNowSections';
+import { PhoneShell, type PhoneTab, type PhoneTabSpec } from './phone/PhoneShell';
+import { PhoneInstall } from './phone/PhoneInstall';
+import { PhoneToday } from './phone/PhoneToday';
+import { usePhoneLayout } from './phone/usePhoneLayout';
+import { useStaffRoster } from './phone/usePhoneData';
+import { usePushUpkeep } from './pwa/usePushUpkeep';
+import { staffLinkOf, type StaffLink } from './pwa/deepLinks';
 import { useConnectionState } from './useConnectionState';
 import { MessagesInbox } from './messages/MessagesInbox';
 import { MessagesRailSection } from './messages/MessagesRailSection';
@@ -146,7 +159,19 @@ export interface FloorRouteProps {
    * because there is no session token behind any of them.
    */
   readonly paused: boolean;
+  /**
+   * "Unpair this phone" in the phone's More screen, after its confirm: given
+   * only on a paired phone (`kind` 2). Rejects when the server could not be
+   * reached, and More says so.
+   */
+  readonly onUnpair?: (() => Promise<void>) | undefined;
 }
+
+/** Venue-wide people: My results names the branch for them. */
+const VENUE_WIDE_ROLES: ReadonlySet<string> = new Set(['generalManager', 'owner']);
+
+/** The people who see the phone's Today: a manager and everyone above. */
+const MANAGER_ROLES: ReadonlySet<string> = new Set(['manager', 'generalManager', 'owner']);
 
 /** The table key an unresolved tab is filed under. Never a real table id. */
 const UNRESOLVED_KEY = '__unresolved__';
@@ -200,7 +225,7 @@ function minuteOf(at: number): number {
   return at - (at % 60_000);
 }
 
-export function FloorRoute({ identity, device = null, paused }: FloorRouteProps) {
+export function FloorRoute({ identity, device = null, paused, onUnpair }: FloorRouteProps) {
   const { t } = useTranslation(['staff', 'admin', 'common']);
   const queryClient = useQueryClient();
   const gateway = useStaffGateway();
@@ -224,11 +249,26 @@ export function FloorRoute({ identity, device = null, paused }: FloorRouteProps)
   const onMessagesPath = /\/messages\/?$/u.test(location.pathname);
   const [view, setView] = useState<StaffView>(onMessagesPath ? 'messages' : 'floor');
   const [lastMessagesPath, setLastMessagesPath] = useState(onMessagesPath);
+  /**
+   * The phone shell (staff phone spec): below 600px, or installed on a phone.
+   * The same state, queries and commands as the tablet below; only what is
+   * drawn differs.
+   */
+  const phone = usePhoneLayout();
+  const manager = MANAGER_ROLES.has(identity.role);
+  const homeTab: PhoneTab = manager ? 'today' : 'now';
+  const [phoneTab, setPhoneTab] = useState<PhoneTab>(onMessagesPath ? 'messages' : homeTab);
+  /** A screen opened from More: its notification switches, or My results. */
+  const [moreScreen, setMoreScreen] = useState<'notifications' | 'results' | null>(null);
+  /** The booking open on the phone's Approve screen, as it was last read. */
+  const [approving, setApproving] = useState<AwaitingApproval | null>(null);
   if (onMessagesPath !== lastMessagesPath) {
     // Back and forward in the browser move between the floor and the inbox.
     setLastMessagesPath(onMessagesPath);
     if (onMessagesPath) setView('messages');
     else if (view === 'messages') setView('floor');
+    if (onMessagesPath) setPhoneTab('messages');
+    else if (phoneTab === 'messages') setPhoneTab(homeTab);
   }
   /** The conversation open in the Messages tab; null for the first in its list. */
   const [messageSubject, setMessageSubject] = useState<ConversationSubjectRef | null>(null);
@@ -717,12 +757,101 @@ export function FloorRoute({ identity, device = null, paused }: FloorRouteProps)
   const openConversation = useCallback(
     (subject: ConversationSubjectRef | null) => {
       setSelection(null);
+      setApproving(null);
       setMessageSubject(subject);
       setView('messages');
+      setPhoneTab('messages');
       if (!onMessagesPath) navigate('/staff/messages');
     },
     [navigate, onMessagesPath],
   );
+
+  // --- A tapped notification (`docs/notifications.md` §6a) -------------------
+  //
+  // `/staff/approve/{id}`, `/staff/messages/{conversationId}`, `/staff/now?call=`,
+  // `/staff/takeaway/{orderId}` and `/staff/floor?table=` (`pwa/deepLinks.ts`):
+  // read once, when what it points at has loaded and the screen is unlocked,
+  // then the address goes back to the screen's own so Back does not reopen it.
+  const [pendingLink, setPendingLink] = useState<StaffLink | null>(() =>
+    staffLinkOf(location.pathname, location.search),
+  );
+  const [lastLinkKey, setLastLinkKey] = useState(location.key);
+  if (location.key !== lastLinkKey) {
+    setLastLinkKey(location.key);
+    const link = staffLinkOf(location.pathname, location.search);
+    if (link) setPendingLink(link);
+  }
+  /**
+   * Where the address goes once a link is read: a fresh object each time, so
+   * the effect below navigates once per link.
+   */
+  const [linkHome, setLinkHome] = useState<{ readonly path: string } | null>(null);
+  // Resolved while rendering, as the Messages address is above: what the
+  // link points at has loaded, so the screen it opens is set in this render.
+  if (pendingLink && active) {
+    const settle = (path: string) => {
+      setPendingLink(null);
+      setLinkHome({ path });
+    };
+    switch (pendingLink.kind) {
+      case 'approve': {
+        const list = awaitingQuery.data;
+        if (!list && !awaitingQuery.isError) break;
+        const request = list?.find((one) => one.id === pendingLink.reservationId) ?? null;
+        setSelection(null);
+        setMoreScreen(null);
+        setView('floor');
+        setPhoneTab('now');
+        // On the phone, its own screen; on the tablet, the rail beside the
+        // floor lists it already.
+        setApproving(phone ? request : null);
+        if (!request) setNotice({ kind: 'info', text: t('phone.approve.gone') });
+        settle('/staff');
+        break;
+      }
+      case 'message': {
+        if (!inbox && !inboxQuery.isError) break;
+        const item = inbox?.items.find((one) => one.conversationId === pendingLink.conversationId);
+        setSelection(null);
+        setApproving(null);
+        setMoreScreen(null);
+        setMessageSubject(item ? { kind: item.subject.kind, id: item.subject.id } : null);
+        setView('messages');
+        setPhoneTab('messages');
+        settle('/staff/messages');
+        break;
+      }
+      case 'call':
+      case 'takeaway':
+        setSelection(null);
+        setApproving(null);
+        setMoreScreen(null);
+        setView(pendingLink.kind === 'takeaway' ? 'takeaway' : 'floor');
+        setPhoneTab(pendingLink.kind === 'takeaway' ? 'takeaway' : 'now');
+        settle('/staff');
+        break;
+      case 'table': {
+        if (!floor && !floorQuery.isError) break;
+        setApproving(null);
+        setMoreScreen(null);
+        setView('floor');
+        setPhoneTab('floor');
+        const tableId = pendingLink.tableId;
+        setSelection(
+          tableId && floor?.plan.tables.some((table) => table.id === tableId) ? { tableId } : null,
+        );
+        settle('/staff');
+        break;
+      }
+    }
+  }
+  useEffect(() => {
+    if (linkHome) navigate(linkHome.path, { replace: true });
+  }, [linkHome, navigate]);
+
+  // The browser's push subscription kept the server's, and the language the
+  // pushes are written in kept the app's.
+  usePushUpkeep(active);
 
   const takeawayToAnswer = useMemo(
     () => (takeawayCounter?.active ?? []).filter((order) => order.status === 'sent'),
@@ -817,6 +946,34 @@ export function FloorRoute({ identity, device = null, paused }: FloorRouteProps)
       }),
     [t],
   );
+
+  /** A booking answered from the rail or the phone's Approve screen: said in the notice. */
+  const approvalDecided = useCallback(
+    ({ approved, request }: { readonly approved: boolean; readonly request: AwaitingApproval }) =>
+      setNotice({
+        kind: 'info',
+        // Dated like the card when the booking is not for today.
+        text: decidedNotice(
+          request,
+          approved,
+          t,
+          format.time,
+          branchToday(timeZoneId, (iso) => format.dayAndTime(iso).date, new Date()),
+        ),
+      }),
+    [format, t, timeZoneId],
+  );
+  const approvalRefused = useCallback(
+    ({ request, text }: { readonly request: AwaitingApproval; readonly text: string }) =>
+      setNotice({
+        kind: 'warning',
+        text: `${t('table.title', { label: request.tableLabel })} · ${text}`,
+      }),
+    [t],
+  );
+
+  /** Whose shift it is: the phone's More ("My shift"). A phone's roster is its own person. */
+  const roster = useStaffRoster(branchId, phone && active && phoneTab === 'more');
 
   // --- Acting ---------------------------------------------------------------
 
@@ -1078,29 +1235,6 @@ export function FloorRoute({ identity, device = null, paused }: FloorRouteProps)
     [branchId, queryClient, queue, t],
   );
 
-  /**
-   * The staff acknowledgement, through the queue like every other command —
-   * the same call "On my way" makes.
-   */
-  const sendAcknowledge = useCallback(
-    (request: ServiceRequest) => {
-      const clientCommandId = newCommandId();
-      queue.enqueue({
-        id: clientCommandId,
-        scope: request.tabId,
-        precondition: null,
-        subject: { tableId: null, tableLabel: request.tableLabel, tabId: request.tabId },
-        body: {
-          kind: 'acknowledgeServiceRequest',
-          command: { requestId: request.id, clientCommandId },
-        },
-      });
-      queue.sync();
-      void queryClient.invalidateQueries({ queryKey: queryKeys.serviceRequests(branchId) });
-    },
-    [branchId, queryClient, queue],
-  );
-
   // --- "I'm on it" (2026-10-24) ---------------------------------------------
   //
   // A claim is online only: the first one wins on the server, so a claim
@@ -1150,6 +1284,29 @@ export function FloorRoute({ identity, device = null, paused }: FloorRouteProps)
     [branchId, claimMutation, identity.staffMemberId, queue.online, t],
   );
 
+  /**
+   * The staff acknowledgement, through the queue like every other command —
+   * the same call "On my way" makes.
+   */
+  const sendAcknowledge = useCallback(
+    (request: ServiceRequest) => {
+      const clientCommandId = newCommandId();
+      queue.enqueue({
+        id: clientCommandId,
+        scope: request.tabId,
+        precondition: null,
+        subject: { tableId: null, tableLabel: request.tableLabel, tabId: request.tabId },
+        body: {
+          kind: 'acknowledgeServiceRequest',
+          command: { requestId: request.id, clientCommandId },
+        },
+      });
+      queue.sync();
+      void queryClient.invalidateQueries({ queryKey: queryKeys.serviceRequests(branchId) });
+    },
+    [branchId, queryClient, queue],
+  );
+
   const acknowledge = useCallback(
     (request: ServiceRequest) => {
       if (request.reason === 'bill' && request.bill) {
@@ -1170,48 +1327,103 @@ export function FloorRoute({ identity, device = null, paused }: FloorRouteProps)
 
   // --- Transfer a table (2026-10-24) -------------------------------------------
   //
-  // Who could take it: the tablet's own roster, read when the chooser opens —
-  // active people of this branch, those on shift first. The server checks the
-  // rest (that they serve here, that the actor may hand the table over).
+  // Who could take it, read when the chooser opens. The tablet's own roster is
+  // the branch's active people, those on shift first. A paired phone's roster
+  // is its own person alone (the PIN gate's rule), so the phone adds whoever
+  // holds a table on the floor now and, for a manager, today's shifts. The
+  // server checks the rest (that they serve here, that the actor may hand the
+  // table over).
   const transferTab = useTransferTab(branchId);
   const [rosterWanted, setRosterWanted] = useState(false);
-  const roster = useQuery({
+  const transferRoster = useQuery({
     queryKey: ['staff', 'transferRoster', branchId],
     queryFn: async () => (await staffSession?.roster()) ?? [],
     enabled: rosterWanted && Boolean(staffSession),
     staleTime: 60_000,
     retry: false,
   });
+  /** A personal phone, in either layout: its roster is its own person. */
+  const ownPhone = phone || device?.kind === 'phone';
+  const transferShifts = useStaffToday(branchId, ownPhone && manager && rosterWanted);
   const transferTargetsFor = useCallback(
     (serverId: string | null | undefined): readonly TransferTarget[] | null => {
-      if (!roster.data) return null;
-      return roster.data
-        .filter(
-          (entry) =>
-            SERVING_ROLES.includes(entry.role as StaffRole) && entry.staffMemberId !== serverId,
-        )
-        .map((entry) => ({
-          staffMemberId: entry.staffMemberId,
-          name: entry.fullName,
-          roleLabel: t(`pin.role.${entry.role}`),
-          onShift: entry.onShiftNow,
-        }))
-        .sort((a, b) => Number(b.onShift) - Number(a.onShift) || a.name.localeCompare(b.name));
+      const shiftsPending = ownPhone && manager && transferShifts.isLoading;
+      if (!transferRoster.data && !(ownPhone && transferRoster.isError)) return null;
+      if (shiftsPending) return null;
+      /** Tables each person holds now: the chooser's "3 tables now". */
+      const loads = new Map<string, number>();
+      for (const detail of floor?.details ?? []) {
+        const id = detail.serverStaffMemberId;
+        if (id) loads.set(id, (loads.get(id) ?? 0) + 1);
+      }
+      const people = new Map<string, Omit<TransferTarget, 'load'>>();
+      const add = (
+        staffMemberId: string,
+        name: string,
+        role: string | null,
+        onShift: boolean | null,
+      ) => {
+        if (staffMemberId === serverId) return;
+        if (role !== null && !SERVING_ROLES.includes(role as StaffRole)) return;
+        const known = people.get(staffMemberId);
+        people.set(staffMemberId, {
+          staffMemberId,
+          name: known?.name || name,
+          roleLabel: known?.roleLabel || (role ? t(`pin.role.${role}`) : ''),
+          onShift: known?.onShift ?? onShift,
+        });
+      };
+      for (const entry of transferRoster.data ?? []) {
+        add(entry.staffMemberId, entry.fullName, entry.role, entry.onShiftNow);
+      }
+      for (const shift of transferShifts.data?.shifts ?? []) {
+        add(shift.staffMemberId, shift.fullName, shift.role, shift.onShiftNow);
+      }
+      for (const detail of floor?.details ?? []) {
+        if (detail.serverStaffMemberId && detail.serverName) {
+          // Holding a table now: at work, whatever the rota says.
+          add(detail.serverStaffMemberId, detail.serverName, null, null);
+        }
+      }
+      const rank = (onShift: boolean | null) => (onShift === true ? 0 : onShift === null ? 1 : 2);
+      return [...people.values()]
+        .map((person) => ({ ...person, load: loads.get(person.staffMemberId) ?? 0 }))
+        .sort((a, b) => rank(a.onShift) - rank(b.onShift) || a.name.localeCompare(b.name));
     },
-    [roster.data, t],
+    [
+      floor,
+      manager,
+      ownPhone,
+      t,
+      transferRoster.data,
+      transferRoster.isError,
+      transferShifts.data,
+      transferShifts.isLoading,
+    ],
   );
+  /** The list could not be read at all: the tablet's roster, or every source on the phone. */
+  const transferTargetsFailed =
+    transferRoster.isError && (!ownPhone || (manager && transferShifts.isError));
   const transfer = useCallback(
-    (tabId: string, tableLabel: string, target: TransferTarget) => {
+    (
+      tabId: string,
+      tableLabel: string,
+      target: TransferTarget,
+      onDone?: (result: { readonly name: string; readonly atUtc: string }) => void,
+    ) => {
       transferTab.mutate(
         { tabId, toStaffMemberId: target.staffMemberId, clientCommandId: newCommandId() },
         {
           onSuccess: (result) => {
+            const name = result.server.name || target.name;
+            // The phone's sheet says it itself, and stays up until "Done".
+            if (onDone) {
+              onDone({ name, atUtc: new Date().toISOString() });
+              return;
+            }
             setNotice({
               kind: 'info',
-              text: t('table.transfer.done', {
-                label: tableLabel,
-                name: result.server.name || target.name,
-              }),
+              text: t('table.transfer.done', { label: tableLabel, name }),
             });
             setSelection(null);
           },
@@ -1391,60 +1603,9 @@ export function FloorRoute({ identity, device = null, paused }: FloorRouteProps)
   const ordersFailed = ordersQuery.isError || (isOfflinePaused(ordersQuery) && !ordersQuery.data);
   const now = new Date();
 
-  return (
-    <div className="floor" data-surface="staff">
-      <StaffHeader
-        title={
-          view === 'kitchen'
-            ? t('kitchen.title')
-            : view === 'takeaway'
-              ? t('takeaway.title')
-              : view === 'messages'
-                ? t('messages.title')
-                : t('floor.title')
-        }
-        place={place}
-        timeZoneId={timeZoneId}
-        who={identity.fullName}
-        state={state}
-        updatedAt={
-          Math.max(
-            (streamFailing || floorQuery.isError ? staleSince : answeredAt) ?? 0,
-            floorQuery.dataUpdatedAt,
-          ) || null
-        }
-        // A command waiting for its person is not waiting to sync: it is on
-        // the conflicts chip, and counted there alone.
-        pending={queue.pending - queue.held.length}
-        // Held commands need a decision too: whose name they go under.
-        conflicts={queue.conflicts + queue.held.length}
-        online={queue.online}
-        onOpenConflicts={() => setOverlay('conflicts')}
-        onRefresh={() => void floorQuery.refetch()}
-        view={view}
-        kitchenWaiting={kitchenWaiting(orders)}
-        // The counter's tab once the branch has a takeaway order today (or it
-        // is on screen): a venue that never took one is not shown an empty tab.
-        takeawayWaiting={
-          takeawayCounter && (takeawayInUse || view === 'takeaway')
-            ? takeawayCounter.sentCount + takeawayCounter.readyCount
-            : undefined
-        }
-        messagesWaiting={inbox?.unreadTotal ?? floor?.messages?.unreadTotal ?? 0}
-        floorWaiting={
-          (awaitingQuery.data?.length ?? 0) +
-          waitingTables.length +
-          duePreOrders.filter(preOrderNeedsAction).length +
-          (requestsQuery.data?.length ?? 0)
-        }
-        onSelectView={(next) => {
-          setSelection(null);
-          setView(next);
-          if (next === 'messages' && !onMessagesPath) navigate('/staff/messages');
-          if (next !== 'messages' && onMessagesPath) navigate('/staff');
-        }}
-      />
-
+  const wideNotice = !phone && view !== 'floor';
+  const noticeNode = (
+    <>
       {/* Never over the PIN gate: a notice that lands as the tablet locks is
           somebody else's news, and the next person should not read it. */}
       {notice?.undo && !paused && branchId ? (
@@ -1455,13 +1616,13 @@ export function FloorRoute({ identity, device = null, paused }: FloorRouteProps)
           noShow={notice.undo}
           text={notice.text}
           online={queue.online}
-          wide={view !== 'floor'}
+          wide={wideNotice}
           timeZoneId={timeZoneId}
           onSettled={(outcome) => undoSettled(notice.undo!.reservationId, outcome)}
         />
       ) : notice && !paused ? (
         <p
-          className={`floor-notice notice-${notice.kind}${view !== 'floor' ? ' is-wide' : ''}`}
+          className={`floor-notice notice-${notice.kind}${wideNotice ? ' is-wide' : ''}`}
           role="status"
         >
           {notice.blockCancelled?.length === 1
@@ -1477,7 +1638,11 @@ export function FloorRoute({ identity, device = null, paused }: FloorRouteProps)
               : notice.text}
         </p>
       ) : null}
+    </>
+  );
 
+  const announcers = (
+    <>
       {/* New booking requests, said once for a screen reader. Here rather than
           in the rail, so it is heard with the rail folded or the kitchen on
           screen; always in the tree, so a reader is listening before it speaks. */}
@@ -1487,337 +1652,236 @@ export function FloorRoute({ identity, device = null, paused }: FloorRouteProps)
       <p className="visually-hidden" role="status" data-testid="message-reminder-announcer">
         {reminders.announcement}
       </p>
+    </>
+  );
 
-      {view === 'kitchen' ? (
-        // The kitchen board as the kitchen sees it, from the floor's own queue
-        // and orders. Quiet: the floor's chime is for bookings.
-        <div className="kitchen-body">
-          <OrderQueuePanel
-            orders={board.orders}
-            now={minute}
-            pendingOrderIds={board.pendingOrderIds}
-            heldOrders={heldMarks.orders}
-            onUnknownDish={menu.refetch}
-            menu={menu.data}
-            timeZoneId={timeZoneId}
-            role={identity.role}
-            onAdvance={advanceOrder}
-            loading={ordersLoading}
-            failed={ordersFailed}
-            onTakeawayReady={takeawayReady.markReady}
-            takeawayMarking={takeawayReady.marking}
-            online={queue.online}
+  const takeawayCounterNode = branchId ? (
+    <TakeawayCounter
+      branchId={branchId}
+      counter={takeawayCounter}
+      timeZoneId={timeZoneId}
+      online={queue.online}
+      loading={takeawayQuery.isLoading && !isOfflinePaused(takeawayQuery)}
+      failed={takeawayQuery.isError || (isOfflinePaused(takeawayQuery) && !takeawayQuery.data)}
+      onRetry={() => void takeawayQuery.refetch()}
+    />
+  ) : null;
+
+  const messagesInbox = (stacked: boolean) =>
+    branchId ? (
+      <MessagesInbox
+        branchId={branchId}
+        inbox={inbox}
+        loading={inboxQuery.isLoading && !isOfflinePaused(inboxQuery)}
+        failed={inboxQuery.isError || (isOfflinePaused(inboxQuery) && !inboxQuery.data)}
+        error={inboxQuery.error}
+        onRetry={() => void inboxQuery.refetch()}
+        selected={messageSubject}
+        onSelect={setMessageSubject}
+        staffName={identity.fullName}
+        timeZoneId={timeZoneId}
+        online={queue.online}
+        active={active}
+        now={reminderClock}
+        stacked={stacked}
+        onBack={() => setMessageSubject(null)}
+      />
+    ) : null;
+
+  const floorTables = (
+    <>
+      {!branchId ? (
+        <p className="floor-note">{t('floor.noBranch')}</p>
+      ) : plan ? (
+        <>
+          <TableList
+            tables={plan.tables}
+            selectedTableId={selection?.tableId ?? null}
+            pendingTableIds={pendingTableIds}
+            heldTables={heldMarks.tables}
+            onSelect={(tableId) => setSelection({ tableId })}
+            room={room}
+            onRoom={setRoom}
+            describe={(table) => {
+              const debt = debts.get(table.id);
+              const detail = tableDetail(floor, table.id);
+              return {
+                ...tableCardText({
+                  table,
+                  detail,
+                  debt: debt ? format.dram(debt) : null,
+                  now,
+                  t,
+                  time: format.time,
+                  minutesSince: format.minutesSince,
+                }),
+                // The next booking's thread and the sitting party's: either badges.
+                messages:
+                  (detail?.nextReservationUnreadMessages ?? 0) +
+                  (detail?.sittingUnreadMessages ?? 0),
+              };
+            }}
           />
+        </>
+      ) : offline ? (
+        <div className="floor-note">
+          <QueryFailureNotice offline onRetry={() => void floorQuery.refetch()} />
         </div>
-      ) : null}
-
-      {view === 'takeaway' && branchId ? (
-        <div className="kitchen-body">
-          <TakeawayCounter
-            branchId={branchId}
-            counter={takeawayCounter}
-            timeZoneId={timeZoneId}
-            online={queue.online}
-            loading={takeawayQuery.isLoading && !isOfflinePaused(takeawayQuery)}
-            failed={
-              takeawayQuery.isError || (isOfflinePaused(takeawayQuery) && !takeawayQuery.data)
-            }
-            onRetry={() => void takeawayQuery.refetch()}
-          />
+      ) : floorQuery.isLoading || paused ? (
+        <p className="floor-note">{t('floor.loading')}</p>
+      ) : (
+        <div className="floor-note">
+          <QueryFailureNotice error={floorQuery.error} onRetry={() => void floorQuery.refetch()} />
         </div>
-      ) : null}
+      )}
+    </>
+  );
 
-      {view === 'messages' && branchId ? (
-        <div className="kitchen-body">
-          <MessagesInbox
-            branchId={branchId}
-            inbox={inbox}
-            loading={inboxQuery.isLoading && !isOfflinePaused(inboxQuery)}
-            failed={inboxQuery.isError || (isOfflinePaused(inboxQuery) && !inboxQuery.data)}
-            error={inboxQuery.error}
-            onRetry={() => void inboxQuery.refetch()}
-            selected={messageSubject}
-            onSelect={setMessageSubject}
-            staffName={identity.fullName}
-            timeZoneId={timeZoneId}
-            online={queue.online}
-            active={active}
-            now={reminderClock}
-          />
-        </div>
-      ) : null}
+  const tablePanel = (variant: 'rail' | 'sheet') =>
+    selection && selectedTable ? (
+      <TableActionPanel
+        // A fresh panel per table: a question opened, a reason picked or a
+        // party counted on one table never carries over to the next.
+        key={selection.tableId}
+        table={selectedTable}
+        detail={selectedDetail}
+        timeZoneId={timeZoneId}
+        projectedStatus={queue.projected(selection.tableId)}
+        tab={selectedTabQuery.data ?? null}
+        billRequest={billRequestsFor(selectedTabId)[0] ?? null}
+        pending={pendingTableIds.has(selection.tableId)}
+        online={queue.online}
+        affectedReservations={affected.get(selection.tableId) ?? []}
+        // The floor's own (wire §0a), or the awaiting list's for a next
+        // booking that still waits for an answer, from a server before it.
+        nextBookingRecord={
+          selectedDetail?.nextReservationGuestRecord ??
+          awaitingQuery.data?.find((request) => request.id === selectedDetail?.nextReservationId)
+            ?.guestRecord ??
+          null
+        }
+        releasing={releaseReservation.isPending}
+        onAct={act}
+        onRelease={release}
+        onOpenTab={() => {
+          setActiveTableId(selection.tableId);
+          setOverlayTabId(selectedTabId);
+          setCashFirst(false);
+          setOverlay('tab');
+          setSelection(null);
+        }}
+        onCash={() => {
+          setActiveTableId(selection.tableId);
+          setOverlayTabId(selectedTabId);
+          setCashFirst(true);
+          setOverlay('tab');
+          setSelection(null);
+        }}
+        admission={selectedAdmission}
+        // The booking's pre-order, while it is on the rail: the same card.
+        preOrder={preOrderForTable(
+          duePreOrders,
+          selection.tableId,
+          selectedDetail?.nextReservationId,
+          selectedDetail?.physicalStatus === 'occupied',
+        )}
+        onPreOrderDone={preOrderDone}
+        nextBookingAwaiting={
+          awaitingQuery.data?.some((request) => request.id === selectedDetail?.nextReservationId) ??
+          false
+        }
+        branchId={branchId}
+        onAdmissionDecided={admissionDecided}
+        onStartTab={() => startTab(selection.tableId)}
+        startingTab={openTabForStaff.isPending}
+        onOrder={() => {
+          setActiveTableId(selection.tableId);
+          setOverlayTabId(selectedTabId);
+          setOverlay('order');
+          setSelection(null);
+        }}
+        onClose={() => {
+          const tableId = selection.tableId;
+          setSelection(null);
+          // Back to the card it was opened from, not the top of the page.
+          // On the phone the floor under the sheet is inert until the
+          // sheet has gone, so the focus waits for that render.
+          const back = () =>
+            document
+              .querySelector<HTMLElement>(`.table-row[data-table-id="${CSS.escape(tableId)}"]`)
+              ?.focus();
+          if (variant === 'sheet') setTimeout(back, 0);
+          else back();
+        }}
+        transferTargets={transferTargetsFor(selectedDetail?.serverStaffMemberId)}
+        transferTargetsFailed={transferTargetsFailed}
+        onWantTransfer={() => setRosterWanted(true)}
+        onTransfer={(target, onDone) => {
+          if (selectedTabId) transfer(selectedTabId, selectedTable.label, target, onDone);
+        }}
+        transferring={transferTab.isPending}
+        actorName={identity.fullName}
+        variant={variant}
+        onMessageGuest={
+          variant === 'sheet'
+            ? (reservationId: string) =>
+                openConversation({ kind: 'reservation', id: reservationId })
+            : undefined
+        }
+      />
+    ) : null;
 
-      {/* Hidden, not unmounted, while the kitchen shows: a half-typed decline,
-          an answer in flight and its notice all live in here, and a trip to
-          the kitchen must not cost any of them. */}
-      <div className="ft-body" hidden={view !== 'floor'} data-panel={panelOpen || undefined}>
-        <section className="ft-floor" aria-label={t('floor.tables')}>
-          {!branchId ? (
-            <p className="floor-note">{t('floor.noBranch')}</p>
-          ) : plan ? (
-            <>
-              <TableList
-                tables={plan.tables}
-                selectedTableId={selection?.tableId ?? null}
-                pendingTableIds={pendingTableIds}
-                heldTables={heldMarks.tables}
-                onSelect={(tableId) => setSelection({ tableId })}
-                room={room}
-                onRoom={setRoom}
-                describe={(table) => {
-                  const debt = debts.get(table.id);
-                  const detail = tableDetail(floor, table.id);
-                  return {
-                    ...tableCardText({
-                      table,
-                      detail,
-                      debt: debt ? format.dram(debt) : null,
-                      now,
-                      t,
-                      time: format.time,
-                      minutesSince: format.minutesSince,
-                    }),
-                    // The next booking's thread and the sitting party's: either badges.
-                    messages:
-                      (detail?.nextReservationUnreadMessages ?? 0) +
-                      (detail?.sittingUnreadMessages ?? 0),
-                  };
-                }}
-              />
-            </>
-          ) : offline ? (
-            <div className="floor-note">
-              <QueryFailureNotice offline onRetry={() => void floorQuery.refetch()} />
-            </div>
-          ) : floorQuery.isLoading || paused ? (
-            <p className="floor-note">{t('floor.loading')}</p>
-          ) : (
-            <div className="floor-note">
-              <QueryFailureNotice
-                error={floorQuery.error}
-                onRetry={() => void floorQuery.refetch()}
-              />
-            </div>
-          )}
-        </section>
+  const noShowsSection = branchId ? (
+    <NoShowSection
+      branchId={branchId}
+      marked={undoableNoShows}
+      online={queue.online}
+      timeZoneId={timeZoneId}
+      onSettled={(noShow, outcome) => undoSettled(noShow.reservationId, outcome)}
+    />
+  ) : null;
+  const preOrdersSection = branchId ? (
+    <PreOrderSection
+      branchId={branchId}
+      items={duePreOrders}
+      timeZoneId={timeZoneId}
+      loading={preOrdersQuery.isLoading && !isOfflinePaused(preOrdersQuery)}
+      failed={preOrdersQuery.isError || (isOfflinePaused(preOrdersQuery) && !preOrdersQuery.data)}
+      online={queue.online}
+      onDone={preOrderDone}
+    />
+  ) : null;
+  const admissionsSection = branchId ? (
+    <AdmissionSection
+      branchId={branchId}
+      waiting={waitingTables}
+      timeZoneId={timeZoneId}
+      loading={admissionQuery.isLoading && !isOfflinePaused(admissionQuery)}
+      failed={admissionQuery.isError || (isOfflinePaused(admissionQuery) && !admissionQuery.data)}
+      online={queue.online}
+      onDecided={admissionDecided}
+      heldForLateParty={heldForLateParty}
+    />
+  ) : null;
+  const messagesRailSection = branchId ? (
+    <MessagesRailSection
+      branchId={branchId}
+      items={inbox?.items ?? []}
+      remindAfterMinutes={inbox?.remindAfterMinutes ?? 3}
+      now={reminderClock}
+      canWrite={canWriteMessages}
+      staffName={identity.fullName}
+      timeZoneId={timeZoneId}
+      online={queue.online}
+      failed={inboxQuery.isError && !inboxQuery.data}
+      icon={ICONS.chat}
+      onReply={openConversation}
+      onOpenInbox={() => openConversation(null)}
+    />
+  ) : null;
 
-        {/* The table's panel takes the rail's place, as on the Table artboard;
-            the rail stays mounted under it (hidden), so an answer in flight,
-            a half-typed decline and the countdowns are all still there when
-            the panel closes. */}
-        {selection && selectedTable ? (
-          <TableActionPanel
-            // A fresh panel per table: a question opened, a reason picked or a
-            // party counted on one table never carries over to the next.
-            key={selection.tableId}
-            table={selectedTable}
-            detail={selectedDetail}
-            timeZoneId={timeZoneId}
-            projectedStatus={queue.projected(selection.tableId)}
-            tab={selectedTabQuery.data ?? null}
-            billRequest={billRequestsFor(selectedTabId)[0] ?? null}
-            pending={pendingTableIds.has(selection.tableId)}
-            online={queue.online}
-            affectedReservations={affected.get(selection.tableId) ?? []}
-            // The floor's own (wire §0a), or the awaiting list's for a next
-            // booking that still waits for an answer, from a server before it.
-            nextBookingRecord={
-              selectedDetail?.nextReservationGuestRecord ??
-              awaitingQuery.data?.find(
-                (request) => request.id === selectedDetail?.nextReservationId,
-              )?.guestRecord ??
-              null
-            }
-            releasing={releaseReservation.isPending}
-            onAct={act}
-            onRelease={release}
-            onOpenTab={() => {
-              setActiveTableId(selection.tableId);
-              setOverlayTabId(selectedTabId);
-              setCashFirst(false);
-              setOverlay('tab');
-              setSelection(null);
-            }}
-            onCash={() => {
-              setActiveTableId(selection.tableId);
-              setOverlayTabId(selectedTabId);
-              setCashFirst(true);
-              setOverlay('tab');
-              setSelection(null);
-            }}
-            admission={selectedAdmission}
-            // The booking's pre-order, while it is on the rail: the same card.
-            preOrder={preOrderForTable(
-              duePreOrders,
-              selection.tableId,
-              selectedDetail?.nextReservationId,
-              selectedDetail?.physicalStatus === 'occupied',
-            )}
-            onPreOrderDone={preOrderDone}
-            nextBookingAwaiting={
-              awaitingQuery.data?.some(
-                (request) => request.id === selectedDetail?.nextReservationId,
-              ) ?? false
-            }
-            branchId={branchId}
-            onAdmissionDecided={admissionDecided}
-            onStartTab={() => startTab(selection.tableId)}
-            startingTab={openTabForStaff.isPending}
-            onOrder={() => {
-              setActiveTableId(selection.tableId);
-              setOverlayTabId(selectedTabId);
-              setOverlay('order');
-              setSelection(null);
-            }}
-            transferTargets={transferTargetsFor(selectedDetail?.serverStaffMemberId)}
-            transferTargetsFailed={roster.isError}
-            onWantTransfer={() => setRosterWanted(true)}
-            onTransfer={(target) => {
-              if (selectedTabId) transfer(selectedTabId, selectedTable.label, target);
-            }}
-            transferring={transferTab.isPending}
-            onClose={() => {
-              const tableId = selection.tableId;
-              setSelection(null);
-              // Back to the card it was opened from, not the top of the page.
-              document
-                .querySelector<HTMLElement>(`.table-row[data-table-id="${CSS.escape(tableId)}"]`)
-                ?.focus();
-            }}
-          />
-        ) : null}
-
-        <FloorRail
-          hidden={panelOpen}
-          summary={summary}
-          requests={requestsQuery.data ?? []}
-          requestsFailed={
-            requestsQuery.isError || (isOfflinePaused(requestsQuery) && !requestsQuery.data)
-          }
-          requestsLoading={requestsQuery.isLoading && !isOfflinePaused(requestsQuery)}
-          orders={orders}
-          ordersLoading={ordersLoading}
-          ordersFailed={ordersFailed}
-          timeZoneId={timeZoneId}
-          onAcknowledge={acknowledge}
-          onClaim={queue.online ? (request) => claim(request) : undefined}
-          claiming={claiming}
-          selfStaffMemberId={identity.staffMemberId}
-          onAdvance={advanceOrder}
-          noShows={
-            branchId ? (
-              <NoShowSection
-                branchId={branchId}
-                marked={undoableNoShows}
-                online={queue.online}
-                timeZoneId={timeZoneId}
-                onSettled={(noShow, outcome) => undoSettled(noShow.reservationId, outcome)}
-              />
-            ) : null
-          }
-          preOrders={
-            branchId ? (
-              <PreOrderSection
-                branchId={branchId}
-                items={duePreOrders}
-                timeZoneId={timeZoneId}
-                loading={preOrdersQuery.isLoading && !isOfflinePaused(preOrdersQuery)}
-                failed={
-                  preOrdersQuery.isError ||
-                  (isOfflinePaused(preOrdersQuery) && !preOrdersQuery.data)
-                }
-                online={queue.online}
-                onDone={preOrderDone}
-              />
-            ) : null
-          }
-          admissions={
-            branchId ? (
-              <AdmissionSection
-                branchId={branchId}
-                waiting={waitingTables}
-                timeZoneId={timeZoneId}
-                loading={admissionQuery.isLoading && !isOfflinePaused(admissionQuery)}
-                failed={
-                  admissionQuery.isError ||
-                  (isOfflinePaused(admissionQuery) && !admissionQuery.data)
-                }
-                online={queue.online}
-                onDecided={admissionDecided}
-                heldForLateParty={heldForLateParty}
-              />
-            ) : null
-          }
-          unresolved={unresolvedList}
-          onSettle={settleUnresolved}
-          messagesFirst={reminders.due.length > 0}
-          messages={
-            branchId ? (
-              <MessagesRailSection
-                branchId={branchId}
-                items={inbox?.items ?? []}
-                remindAfterMinutes={inbox?.remindAfterMinutes ?? 3}
-                now={reminderClock}
-                canWrite={canWriteMessages}
-                staffName={identity.fullName}
-                timeZoneId={timeZoneId}
-                online={queue.online}
-                failed={inboxQuery.isError && !inboxQuery.data}
-                icon={ICONS.chat}
-                onReply={openConversation}
-                onOpenInbox={() => openConversation(null)}
-              />
-            ) : null
-          }
-          takeaway={
-            branchId ? (
-              <TakeawayRailSection
-                branchId={branchId}
-                orders={takeawayToAnswer}
-                timeZoneId={timeZoneId}
-                online={queue.online}
-                failed={takeawayInUse && takeawayQuery.isError}
-                icon={ICONS.bag}
-              />
-            ) : null
-          }
-          approvals={
-            branchId ? (
-              <ApprovalPanel
-                branchId={branchId}
-                requests={awaitingQuery.data ?? []}
-                timeZoneId={timeZoneId}
-                loading={awaitingQuery.isLoading && !isOfflinePaused(awaitingQuery)}
-                failed={
-                  awaitingQuery.isError || (isOfflinePaused(awaitingQuery) && !awaitingQuery.data)
-                }
-                online={queue.online}
-                fresh={awaiting.fresh}
-                onDecided={({ approved, request }) =>
-                  setNotice({
-                    kind: 'info',
-                    // Dated like the card when the booking is not for today.
-                    text: decidedNotice(
-                      request,
-                      approved,
-                      t,
-                      format.time,
-                      branchToday(timeZoneId, (iso) => format.dayAndTime(iso).date, new Date()),
-                    ),
-                  })
-                }
-                onRefused={({ request, text }) =>
-                  setNotice({
-                    kind: 'warning',
-                    text: `${t('table.title', { label: request.tableLabel })} · ${text}`,
-                  })
-                }
-              />
-            ) : null
-          }
-        />
-      </div>
-
+  const overlays = (
+    <>
       {overlay === 'conflicts' ? (
         <ConflictList
           conflicts={queue.state.conflicts}
@@ -2061,6 +2125,417 @@ export function FloorRoute({ identity, device = null, paused }: FloorRouteProps)
           onClose={closeOverlay}
         />
       ) : null}
+    </>
+  );
+
+  if (phone) {
+    // --- The phone (staff phone spec, "Phone layout for /staff") -------------
+    const selectTab = (next: PhoneTab) => {
+      setSelection(null);
+      setApproving(null);
+      setMoreScreen(null);
+      // The Messages tab again, from a conversation: back to the list.
+      if (next === 'messages' && phoneTab === 'messages') setMessageSubject(null);
+      setPhoneTab(next);
+      setView(next === 'messages' ? 'messages' : next === 'takeaway' ? 'takeaway' : 'floor');
+      if (next === 'messages' && !onMessagesPath) navigate('/staff/messages');
+      if (next !== 'messages' && onMessagesPath) navigate('/staff');
+      document.querySelector<HTMLElement>('.ph-main')?.scrollTo?.({ top: 0 });
+    };
+    const openTable = (tableId: string) => {
+      setApproving(null);
+      setPhoneTab('floor');
+      setView('floor');
+      if (onMessagesPath) navigate('/staff');
+      setSelection({ tableId });
+    };
+    const openApproval = (request: AwaitingApproval) => {
+      setSelection(null);
+      setApproving(request);
+    };
+
+    const nowWaiting =
+      (awaitingQuery.data?.length ?? 0) +
+      waitingTables.length +
+      duePreOrders.filter(preOrderNeedsAction).length +
+      (requestsQuery.data?.length ?? 0);
+    const takeawayCount = takeawayCounter
+      ? takeawayCounter.sentCount + takeawayCounter.readyCount
+      : 0;
+    // A manager's bar has Today first, and no room left for the counter: it
+    // is a row in More, and Now's takeaway rows open it all the same.
+    const takeawayTab = (takeawayInUse || phoneTab === 'takeaway') && !manager;
+    const tabs: PhoneTabSpec[] = [
+      ...(manager ? [{ key: 'today' as const }] : []),
+      { key: 'now', count: nowWaiting },
+      { key: 'floor' },
+      { key: 'messages', count: inbox?.unreadTotal ?? floor?.messages?.unreadTotal ?? 0 },
+      ...(takeawayTab ? [{ key: 'takeaway' as const, count: takeawayCount }] : []),
+      { key: 'more' },
+    ];
+
+    const updatedAt =
+      Math.max(
+        (streamFailing || floorQuery.isError ? staleSince : answeredAt) ?? 0,
+        floorQuery.dataUpdatedAt,
+      ) || null;
+    const chip = connectionChip({
+      state,
+      online: queue.online,
+      pending: queue.pending - queue.held.length,
+      updatedAt,
+      now: minute.getTime(),
+      t,
+      time: format.time,
+    });
+
+    const approvingNow = approving
+      ? (awaitingQuery.data?.find((request) => request.id === approving.id) ?? null)
+      : null;
+
+    const screenTitle = approving
+      ? t('phone.approve.title')
+      : moreScreen === 'notifications'
+        ? t('phone.install.settingsTitle')
+        : moreScreen === 'results'
+          ? t('phone.results.title')
+          : phoneTab === 'today'
+            ? t('phone.today.title')
+            : phoneTab === 'floor'
+              ? t('floor.title')
+              : phoneTab === 'messages'
+                ? t('messages.title')
+                : phoneTab === 'takeaway'
+                  ? t('takeaway.title')
+                  : phoneTab === 'more'
+                    ? t('phone.tabs.more')
+                    : t('rail.title');
+
+    return (
+      <PhoneShell
+        title={screenTitle}
+        place={place}
+        who={identity.fullName}
+        chip={chip}
+        chipLabel={t('connection.chip.name', {
+          chip: chip.text,
+          action: t('connection.refresh'),
+        })}
+        onRefresh={() => void floorQuery.refetch()}
+        conflicts={queue.conflicts + queue.held.length}
+        onOpenConflicts={() => setOverlay('conflicts')}
+        tabs={tabs}
+        current={approving || moreScreen ? null : phoneTab}
+        onTab={selectTab}
+        back={
+          approving
+            ? { onBack: () => setApproving(null) }
+            : moreScreen
+              ? { onBack: () => setMoreScreen(null) }
+              : undefined
+        }
+        notice={noticeNode}
+        announcers={announcers}
+        sheet={tablePanel('sheet')}
+        onCloseSheet={() => setSelection(null)}
+        overlays={overlays}
+      >
+        {approving && branchId ? (
+          <PhoneApprove
+            // A fresh card per booking: a reason typed for one never carries over.
+            key={approving.id}
+            branchId={branchId}
+            request={approvingNow ?? approving}
+            waiting={approvingNow !== null}
+            timeZoneId={timeZoneId}
+            online={queue.online}
+            onDecided={approvalDecided}
+            onRefused={approvalRefused}
+            onDone={() => setApproving(null)}
+          />
+        ) : null}
+
+        {/* Now and the floor stay mounted under the other screens, as the
+            tablet's floor does under its kitchen: a half-typed answer and the
+            countdowns are still there on the way back. */}
+        <div className="ph-screen ph-now" hidden={approving !== null || phoneTab !== 'now'}>
+          <FloorRail
+            phone
+            summary={summary}
+            requests={requestsQuery.data ?? []}
+            requestsFailed={
+              requestsQuery.isError || (isOfflinePaused(requestsQuery) && !requestsQuery.data)
+            }
+            requestsLoading={requestsQuery.isLoading && !isOfflinePaused(requestsQuery)}
+            orders={orders}
+            ordersLoading={ordersLoading}
+            ordersFailed={ordersFailed}
+            timeZoneId={timeZoneId}
+            onAcknowledge={acknowledge}
+            onClaim={queue.online ? (request) => claim(request) : undefined}
+            claiming={claiming}
+            selfStaffMemberId={identity.staffMemberId}
+            onAdvance={advanceOrder}
+            noShows={noShowsSection}
+            preOrders={preOrdersSection}
+            admissions={admissionsSection}
+            unresolved={unresolvedList}
+            onSettle={settleUnresolved}
+            messages={messagesRailSection}
+            takeaway={
+              <PhoneTakeawayList
+                orders={takeawayToAnswer}
+                failed={takeawayInUse && takeawayQuery.isError}
+                onOpen={() => selectTab('takeaway')}
+              />
+            }
+            approvals={
+              <PhoneApprovalList
+                requests={awaitingQuery.data ?? []}
+                timeZoneId={timeZoneId}
+                loading={awaitingQuery.isLoading && !isOfflinePaused(awaitingQuery)}
+                failed={
+                  awaitingQuery.isError || (isOfflinePaused(awaitingQuery) && !awaitingQuery.data)
+                }
+                fresh={awaiting.fresh}
+                onOpen={openApproval}
+              />
+            }
+            after={
+              <PhoneNextHour
+                rows={upcomingBookings(floor, minute)}
+                timeZoneId={timeZoneId}
+                onOpenTable={openTable}
+              />
+            }
+          />
+        </div>
+
+        <section
+          className="ph-screen ph-floor"
+          aria-label={t('floor.tables')}
+          hidden={approving !== null || phoneTab !== 'floor'}
+        >
+          {floorTables}
+        </section>
+
+        {!approving && phoneTab === 'messages' ? (
+          <div className="ph-screen ph-messages">{messagesInbox(true)}</div>
+        ) : null}
+
+        {!approving && phoneTab === 'takeaway' ? (
+          <div className="ph-screen ph-takeaway">{takeawayCounterNode}</div>
+        ) : null}
+
+        {!approving && phoneTab === 'today' && branchId ? (
+          <PhoneToday
+            branchId={branchId}
+            timeZoneId={timeZoneId}
+            active={active}
+            onOpenApprovals={() => {
+              const first = awaitingQuery.data?.[0];
+              if (first) openApproval(first);
+              else selectTab('now');
+            }}
+            onOpenMessages={() => selectTab('messages')}
+          />
+        ) : null}
+
+        {!approving && phoneTab === 'more' && moreScreen === 'notifications' ? (
+          <div className="ph-screen ph-notifications">
+            <PhoneInstall />
+          </div>
+        ) : null}
+
+        {!approving && phoneTab === 'more' && moreScreen === 'results' ? (
+          <PhoneResults
+            // An owner or a general manager has no home branch: they name this one.
+            branchId={VENUE_WIDE_ROLES.has(identity.role) && branchId ? branchId : undefined}
+            timeZoneId={timeZoneId}
+            active={active}
+          />
+        ) : null}
+
+        {!approving && phoneTab === 'more' && moreScreen === null ? (
+          <PhoneMore
+            identity={identity}
+            place={place}
+            roster={roster.data}
+            rosterFailed={roster.isError}
+            manager={manager}
+            onOpenToday={() => selectTab('today')}
+            onOpenTakeaway={!takeawayTab && takeawayInUse ? () => selectTab('takeaway') : undefined}
+            onLock={() => void staffSession?.signOut()}
+            onOpenNotifications={() => setMoreScreen('notifications')}
+            // The kitchen has no results of its own (the server refuses it).
+            onOpenResults={identity.role === 'kitchen' ? undefined : () => setMoreScreen('results')}
+            onUnpair={onUnpair}
+          />
+        ) : null}
+      </PhoneShell>
+    );
+  }
+
+  return (
+    <div className="floor" data-surface="staff">
+      <StaffHeader
+        title={
+          view === 'kitchen'
+            ? t('kitchen.title')
+            : view === 'takeaway'
+              ? t('takeaway.title')
+              : view === 'messages'
+                ? t('messages.title')
+                : t('floor.title')
+        }
+        place={place}
+        timeZoneId={timeZoneId}
+        who={identity.fullName}
+        state={state}
+        updatedAt={
+          Math.max(
+            (streamFailing || floorQuery.isError ? staleSince : answeredAt) ?? 0,
+            floorQuery.dataUpdatedAt,
+          ) || null
+        }
+        // A command waiting for its person is not waiting to sync: it is on
+        // the conflicts chip, and counted there alone.
+        pending={queue.pending - queue.held.length}
+        // Held commands need a decision too: whose name they go under.
+        conflicts={queue.conflicts + queue.held.length}
+        online={queue.online}
+        onOpenConflicts={() => setOverlay('conflicts')}
+        onRefresh={() => void floorQuery.refetch()}
+        view={view}
+        kitchenWaiting={kitchenWaiting(orders)}
+        // The counter's tab once the branch has a takeaway order today (or it
+        // is on screen): a venue that never took one is not shown an empty tab.
+        takeawayWaiting={
+          takeawayCounter && (takeawayInUse || view === 'takeaway')
+            ? takeawayCounter.sentCount + takeawayCounter.readyCount
+            : undefined
+        }
+        messagesWaiting={inbox?.unreadTotal ?? floor?.messages?.unreadTotal ?? 0}
+        floorWaiting={
+          (awaitingQuery.data?.length ?? 0) +
+          waitingTables.length +
+          duePreOrders.filter(preOrderNeedsAction).length +
+          (requestsQuery.data?.length ?? 0)
+        }
+        onSelectView={(next) => {
+          setSelection(null);
+          setView(next);
+          if (next === 'messages' && !onMessagesPath) navigate('/staff/messages');
+          if (next !== 'messages' && onMessagesPath) navigate('/staff');
+        }}
+      />
+
+      {noticeNode}
+
+      {announcers}
+
+      {view === 'kitchen' ? (
+        // The kitchen board as the kitchen sees it, from the floor's own queue
+        // and orders. Quiet: the floor's chime is for bookings.
+        <div className="kitchen-body">
+          <OrderQueuePanel
+            orders={board.orders}
+            now={minute}
+            pendingOrderIds={board.pendingOrderIds}
+            heldOrders={heldMarks.orders}
+            onUnknownDish={menu.refetch}
+            menu={menu.data}
+            timeZoneId={timeZoneId}
+            role={identity.role}
+            onAdvance={advanceOrder}
+            loading={ordersLoading}
+            failed={ordersFailed}
+            onTakeawayReady={takeawayReady.markReady}
+            takeawayMarking={takeawayReady.marking}
+            online={queue.online}
+          />
+        </div>
+      ) : null}
+
+      {view === 'takeaway' && branchId ? (
+        <div className="kitchen-body">{takeawayCounterNode}</div>
+      ) : null}
+
+      {view === 'messages' && branchId ? (
+        <div className="kitchen-body">{messagesInbox(false)}</div>
+      ) : null}
+
+      {/* Hidden, not unmounted, while the kitchen shows: a half-typed decline,
+          an answer in flight and its notice all live in here, and a trip to
+          the kitchen must not cost any of them. */}
+      <div className="ft-body" hidden={view !== 'floor'} data-panel={panelOpen || undefined}>
+        <section className="ft-floor" aria-label={t('floor.tables')}>
+          {floorTables}
+        </section>
+
+        {/* The table's panel takes the rail's place, as on the Table artboard;
+            the rail stays mounted under it (hidden), so an answer in flight,
+            a half-typed decline and the countdowns are all still there when
+            the panel closes. */}
+        {tablePanel('rail')}
+
+        <FloorRail
+          hidden={panelOpen}
+          summary={summary}
+          requests={requestsQuery.data ?? []}
+          requestsFailed={
+            requestsQuery.isError || (isOfflinePaused(requestsQuery) && !requestsQuery.data)
+          }
+          requestsLoading={requestsQuery.isLoading && !isOfflinePaused(requestsQuery)}
+          orders={orders}
+          ordersLoading={ordersLoading}
+          ordersFailed={ordersFailed}
+          timeZoneId={timeZoneId}
+          onAcknowledge={acknowledge}
+          onClaim={queue.online ? (request) => claim(request) : undefined}
+          claiming={claiming}
+          selfStaffMemberId={identity.staffMemberId}
+          onAdvance={advanceOrder}
+          noShows={noShowsSection}
+          preOrders={preOrdersSection}
+          admissions={admissionsSection}
+          unresolved={unresolvedList}
+          onSettle={settleUnresolved}
+          messagesFirst={reminders.due.length > 0}
+          messages={messagesRailSection}
+          takeaway={
+            branchId ? (
+              <TakeawayRailSection
+                branchId={branchId}
+                orders={takeawayToAnswer}
+                timeZoneId={timeZoneId}
+                online={queue.online}
+                failed={takeawayInUse && takeawayQuery.isError}
+                icon={ICONS.bag}
+              />
+            ) : null
+          }
+          approvals={
+            branchId ? (
+              <ApprovalPanel
+                branchId={branchId}
+                requests={awaitingQuery.data ?? []}
+                timeZoneId={timeZoneId}
+                loading={awaitingQuery.isLoading && !isOfflinePaused(awaitingQuery)}
+                failed={
+                  awaitingQuery.isError || (isOfflinePaused(awaitingQuery) && !awaitingQuery.data)
+                }
+                online={queue.online}
+                fresh={awaiting.fresh}
+                onDecided={approvalDecided}
+                onRefused={approvalRefused}
+              />
+            ) : null
+          }
+        />
+      </div>
+
+      {overlays}
     </div>
   );
 }

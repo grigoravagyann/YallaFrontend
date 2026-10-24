@@ -298,7 +298,7 @@ export function StaffHeader({
   );
 }
 
-type ChipTone = 'live' | 'waiting' | 'offline' | 'failure';
+export type ChipTone = 'live' | 'waiting' | 'offline' | 'failure';
 
 /**
  * The connection chip's words and tone.
@@ -310,7 +310,7 @@ type ChipTone = 'live' | 'waiting' | 'offline' | 'failure';
  * - **Reconnecting**: the network is there and the polls fail. The one real
  *   failure, so the one red; once the data is minutes old, it says how old.
  */
-function connectionChip({
+export function connectionChip({
   state,
   online,
   pending,

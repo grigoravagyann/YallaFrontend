@@ -511,6 +511,37 @@ describe('staff results', () => {
       { ...range, list: 'orders', limit: '20', cursor: 'cur-1' },
     ]);
   });
+  it('reads My results from the staff session, the branch named only when asked', async () => {
+    const backend = fakeBackend({
+      'GET /api/staff/me/performance': (request) => ({
+        body: {
+          branchId: 'b-1',
+          from: request.query.get('from') ?? '',
+          to: request.query.get('to') ?? '',
+          kpis: ROW,
+          dailySales: [{ date: '2026-10-24', salesAmd: 100, tables: 1 }],
+          recent: {
+            list: request.query.get('list') ?? 'orders',
+            items: [{ ...ENTRY, id: 'm-1', action: 'message.sent', seconds: 95 }],
+          },
+        },
+      }),
+    });
+    const staff = createStaffHttpGateway(backend.client());
+    const range = { from: '2026-10-24', to: '2026-10-24' };
+    const mine = await staff.getMyPerformance({ ...range, list: 'messages', limit: 5 });
+    expect(mine).toMatchObject({ name: 'Արամ', from: '2026-10-24', to: '2026-10-24' });
+    expect(mine.figures.salesAmd).toBe(214600);
+    expect(mine.recent).toMatchObject({ list: 'messages', nextCursor: null });
+    expect(mine.recent.items[0]).toMatchObject({ id: 'm-1', seconds: 95 });
+    await staff.getMyPerformance({ ...range, branchId: 'b-2', limit: 500 });
+    const queries = backend.requests.map((request) => Object.fromEntries(request.query.entries()));
+    expect(queries).toEqual([
+      { ...range, list: 'messages', limit: '5' },
+      // An owner names the branch; the limit is the server's 1 to 100.
+      { ...range, branchId: 'b-2', limit: '100' },
+    ]);
+  });
 });
 
 describe('the floor', () => {

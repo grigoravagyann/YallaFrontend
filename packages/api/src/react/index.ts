@@ -27,6 +27,10 @@ import type {
   UpdateVenueCommand,
 } from '../contracts/console';
 import type { StaffFloor } from '../contracts/service';
+import type {
+  SaveStaffNotificationSettings,
+  StaffNotificationSettings,
+} from '../contracts/staffPhone';
 import type { ConversationSubjectKind } from '../contracts/messages';
 import type { MessageHistoryFilters } from '../contracts/messageHistory';
 import type { ActivityFilters } from '../contracts/activity';
@@ -211,6 +215,7 @@ export {
   activityOptions,
   activityTimelineOptions,
   claimServiceRequestOptions,
+  myPerformanceOptions,
   staffMemberPerformanceOptions,
   staffPerformanceOptions,
   staffRecentOptions,
@@ -218,6 +223,7 @@ export {
   useActivity,
   useActivityTimeline,
   useClaimServiceRequest,
+  useMyPerformance,
   useStaffMemberPerformance,
   useStaffPerformance,
   useStaffRecent,
@@ -422,6 +428,14 @@ export const queryKeys = {
   serviceRequests: (branchId: string) => ['staff', 'serviceRequests', branchId] as const,
   /** Bookings waiting for the floor's yes or no. */
   awaitingApproval: (branchId: string) => ['staff', 'awaitingApproval', branchId] as const,
+  /** A manager's Today board; `''` for the session's own branch. */
+  staffToday: (branchId: string) => ['staff', 'today', branchId] as const,
+  /** My results: the signed-in person's own page, by range and recent list. */
+  myPerformance: (branchId: string, from: string, to: string, list: string, limit: number) =>
+    ['staff', 'myPerformance', branchId, from, to, list, limit] as const,
+  /** This device's push switches: the device's own, not a branch's. */
+  staffNotificationSettings: ['staff', 'device', 'notificationSettings'] as const,
+  staffPushConfig: ['staff', 'pushConfig'] as const,
   /**
    * The floor's pre-order cards (2026-10-21). Invalidate on the change
    * stream's `preOrderChanged` and `bookingChanged`.
@@ -549,7 +563,10 @@ export const queryKeys = {
       query.pageSize ?? null,
     ] as const,
   staff: (venueId: string) => ['console', 'staff', venueId] as const,
-  devices: (branchId: string) => ['console', 'devices', branchId] as const,
+  devices: (branchId: string, kind?: 'tablet' | 'phone') =>
+    kind
+      ? (['console', 'devices', branchId, kind] as const)
+      : (['console', 'devices', branchId] as const),
   shifts: (branchId: string) => ['console', 'shifts', branchId] as const,
   platformOverview: ['console', 'platformOverview'] as const,
   outboxHealth: ['console', 'outboxHealth'] as const,
@@ -1456,6 +1473,84 @@ export function useRegenerateTableQr() {
  * over the same cache entry, and neither would be the one the screen is
  * reasoning about.
  */
+/**
+ * A manager's Today board (`GET /api/staff/today`), every 30 seconds while it
+ * is in front. `branchId` undefined reads the session's own branch; an owner
+ * or general manager on their own phone may name another of the venue's.
+ */
+export function useStaffToday(branchId: string | undefined, enabled = true) {
+  const gateway = useStaffGateway();
+  return useQuery({
+    queryKey: queryKeys.staffToday(branchId ?? ''),
+    queryFn: () => gateway.getToday(branchId),
+    enabled,
+    staleTime: 15_000,
+    refetchInterval: 30_000,
+    refetchIntervalInBackground: false,
+    // Switching branch keeps the last board up until the next one answers.
+    placeholderData: (previous) => previous,
+  });
+}
+
+/** Whether this server sends staff pushes, and the VAPID key (`GET /api/staff/push-config`). */
+export function useStaffPushConfig(enabled = true) {
+  const gateway = useStaffGateway();
+  return useQuery({
+    queryKey: queryKeys.staffPushConfig,
+    queryFn: () => gateway.getPushConfig(),
+    enabled,
+    // A Development server makes a new key every start; a minute is plenty.
+    staleTime: 60_000,
+  });
+}
+
+/** This device's push switches (`GET /api/staff/device/notification-preferences`). */
+export function useStaffNotificationSettings(enabled = true) {
+  const gateway = useStaffGateway();
+  return useQuery({
+    queryKey: queryKeys.staffNotificationSettings,
+    queryFn: () => gateway.getNotificationSettings(),
+    enabled,
+    staleTime: 30_000,
+  });
+}
+
+/**
+ * Save the six switches (and the app's language). Optimistic: a switch moves
+ * under the thumb, and moves back with the server's answer if it refused.
+ */
+export function useSaveStaffNotificationSettings() {
+  const gateway = useStaffGateway();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (settings: SaveStaffNotificationSettings) =>
+      gateway.saveNotificationSettings(settings),
+    onMutate: async (settings) => {
+      await queryClient.cancelQueries({ queryKey: queryKeys.staffNotificationSettings });
+      const before = queryClient.getQueryData<StaffNotificationSettings>(
+        queryKeys.staffNotificationSettings,
+      );
+      if (before) {
+        queryClient.setQueryData<StaffNotificationSettings>(queryKeys.staffNotificationSettings, {
+          ...before,
+          ...settings,
+          locale: settings.locale ?? before.locale,
+          isDefault: false,
+        });
+      }
+      return { before };
+    },
+    onError: (_error, _settings, context) => {
+      if (context?.before) {
+        queryClient.setQueryData(queryKeys.staffNotificationSettings, context.before);
+      }
+    },
+    onSuccess: (saved) => {
+      queryClient.setQueryData(queryKeys.staffNotificationSettings, saved);
+    },
+  });
+}
+
 /**
  * The staff floor. `enabled: false` pauses it and keeps what it last read —
  * the tablet locks over a floor that stays mounted, and a query keyed on no
@@ -2496,18 +2591,20 @@ export function useShiftMutations(branchId: string | null | undefined) {
 }
 
 /**
- * The branch's tablets. `pollMs` reads the list again on a clock, while the
- * tab is in front — for a screen that judges how long ago each was last seen,
- * which a list read once would get more wrong by the minute.
+ * The branch's devices: `kind` the tablets or the personal phones, absent
+ * both. `pollMs` reads the list again on a clock, while the tab is in front —
+ * for a screen that judges how long ago each was last seen, which a list read
+ * once would get more wrong by the minute.
  */
 export function useDevices(
   branchId: string | undefined,
-  { pollMs }: { readonly pollMs?: number } = {},
+  { pollMs, kind }: { readonly pollMs?: number; readonly kind?: 'tablet' | 'phone' } = {},
 ) {
   const gateway = useConsoleGateway();
   return useQuery({
-    queryKey: queryKeys.devices(branchId ?? ''),
-    queryFn: () => gateway.listDevices(branchId!),
+    // Under the branch's key, so one invalidation reaches every kind.
+    queryKey: queryKeys.devices(branchId ?? '', kind),
+    queryFn: () => gateway.listDevices(branchId!, kind),
     enabled: Boolean(branchId),
     staleTime: pollMs ?? staleTime.reference,
     ...(pollMs ? { refetchInterval: pollMs, refetchIntervalInBackground: false } : {}),
@@ -2526,6 +2623,19 @@ export function useCreateEnrolmentCode() {
   const gateway = useConsoleGateway();
   return useMutation({
     mutationFn: (branchId: string) => gateway.createEnrolmentCode(branchId),
+  });
+}
+
+/**
+ * Mint a code that pairs one person's phone. Uncached for the same reason as
+ * an enrolment code: it is returned once and is a live credential for ten
+ * minutes.
+ */
+export function useCreatePhonePairing() {
+  const gateway = useConsoleGateway();
+  return useMutation({
+    mutationFn: (input: { branchId: string; staffMemberId: string }) =>
+      gateway.createPhonePairing(input),
   });
 }
 

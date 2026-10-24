@@ -7,7 +7,7 @@ import type {
   StaffTableDetail,
 } from '@yalla/api';
 import { I18nextProvider, i18next } from '@yalla/i18n';
-import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { initConsoleTestI18n } from '../console/venue/reports/testHarness';
 import { TableActionPanel, type TableActionPanelProps } from './TableActionPanel';
@@ -587,6 +587,61 @@ describe('transferring the table (2026-10-24)', () => {
     show({ ...occupied, online: false, transferTargets: targets, onTransfer: vi.fn() });
     expect((button('Transfer table') as HTMLButtonElement).disabled).toBe(true);
     expect(screen.getByText('Transferring needs the connection.')).toBeTruthy();
+  });
+
+  it('on the phone, is the whole sheet: who has it, the load, a confirm, then the success in place', () => {
+    const onTransfer = vi.fn();
+    const handlers = show({
+      ...occupied,
+      tab: tabOwing(5000),
+      variant: 'sheet',
+      actorName: 'Lilit Avetisyan',
+      transferTargets: [
+        { ...targets[0]!, load: 3 },
+        { ...targets[1]!, load: 0 },
+      ],
+      onTransfer,
+    });
+    fireEvent.click(button('Transfer table'));
+    const sheet = screen.getByRole('dialog');
+    const chooser = within(sheet).getByRole('group', { name: 'Transfer table 6' });
+    // The table's ordinary actions are gone: this is a screen of its own.
+    expect(within(sheet).queryByRole('button', { name: 'Transfer table' })).toBeNull();
+    expect(within(chooser).getByText('Waiter now: Lilit Avetisyan')).toBeTruthy();
+    expect(within(chooser).getByText('Waiter · on shift now · 3 tables now')).toBeTruthy();
+    expect(within(chooser).getByText('Manager · not on shift · no tables now')).toBeTruthy();
+
+    const confirm = within(chooser).getByRole('button', { name: 'Transfer' }) as HTMLButtonElement;
+    expect(confirm.disabled).toBe(true);
+    fireEvent.click(within(chooser).getByRole('radio', { name: /^Aram Petrosyan/u }));
+    fireEvent.click(within(chooser).getByRole('button', { name: 'Transfer to Aram' }));
+    expect(onTransfer).toHaveBeenCalledWith(
+      expect.objectContaining({ staffMemberId: 's-aram' }),
+      expect.any(Function),
+    );
+
+    // The server took it: the sheet says so, with the history line, until "Done".
+    const onDone = onTransfer.mock.calls[0]![1] as (done: { name: string; atUtc: string }) => void;
+    act(() => onDone({ name: 'Aram Petrosyan', atUtc: '2026-10-24T13:40:00Z' }));
+    const status = within(sheet).getByRole('status');
+    expect(status.textContent).toContain('Table 6 is now Aram’s');
+    expect(status.textContent).toContain('17:40: Lilit → Aram');
+    fireEvent.click(within(sheet).getByRole('button', { name: 'Done' }));
+    expect(handlers.onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it('on the phone, Escape goes back from the chooser to the table, not off the sheet', () => {
+    const handlers = show({
+      ...occupied,
+      tab: tabOwing(5000),
+      variant: 'sheet',
+      transferTargets: targets,
+      onTransfer: vi.fn(),
+    });
+    fireEvent.click(button('Transfer table'));
+    fireEvent.keyDown(screen.getByRole('dialog'), { key: 'Escape' });
+    expect(handlers.onClose).not.toHaveBeenCalled();
+    expect(button('Transfer table')).toBeTruthy();
   });
 
   it('is not offered on a table with no bill', () => {
