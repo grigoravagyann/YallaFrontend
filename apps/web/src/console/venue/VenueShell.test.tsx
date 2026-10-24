@@ -74,7 +74,7 @@ describe('the venue sidebar', () => {
       ['/venue'],
       ['/venue/menu', '/venue/floorplan', '/venue/hours', '/venue/policy', '/venue/public'],
       ['/venue/staff'],
-      ['/venue/reviews', '/venue/reports'],
+      ['/venue/reviews', '/venue/messages', '/venue/reports'],
     ]);
   });
 

@@ -14,6 +14,7 @@ import {
   ClockIcon,
   MapPinIcon,
   MenuIcon,
+  MessagesIcon,
   OverviewIcon,
   PolicyIcon,
   PublicPageIcon,
@@ -37,7 +38,8 @@ export const VENUE_ACCOUNT_PATH = '/venue/account';
 
 /**
  * The venue console's four groups (venue HANDOFF section 2), with the live
- * counts on Overview, Menu and Reviews. Every role under `/venue` gets the
+ * counts on Overview, Menu and Reviews, and Messages (the history, read only)
+ * after Reviews. Every role under `/venue` gets the
  * same links: what an owner, a general manager and a branch manager may *do*
  * on each screen is the server's rank check, and the screens say so.
  *
@@ -100,6 +102,8 @@ export function venueNavGroups(
           icon: <StarIcon />,
           badge: badge(counts.reportedReviews, 'nav.badge.reportedReviews'),
         },
+        // Every guest conversation of the branch, read only (2026-10-24).
+        { to: '/venue/messages', labelKey: 'nav.messages', icon: <MessagesIcon /> },
         { to: '/venue/reports', labelKey: 'nav.reports', icon: <ReportsIcon /> },
       ],
     },

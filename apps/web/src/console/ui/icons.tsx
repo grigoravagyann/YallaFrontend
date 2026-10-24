@@ -459,6 +459,15 @@ export function StarIcon(props: IconProps) {
   );
 }
 
+/** Messages with guests: a speech bubble. */
+export function MessagesIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+    </Icon>
+  );
+}
+
 /** Reports: a line going up. */
 export function ReportsIcon(props: IconProps) {
   return (

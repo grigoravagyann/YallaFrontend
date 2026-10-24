@@ -1,11 +1,23 @@
 import type { PreOrderSettings } from '../contracts/preOrder';
 import type { TakeawaySettings } from '../contracts/takeaway';
-import type { MessageSettings } from '../contracts/messages';
+import type {
+  ConversationSubjectRef,
+  MessageSettings,
+  StaffConversation,
+} from '../contracts/messages';
+import type { MessageHistoryPage } from '../contracts/messageHistory';
 import {
   messageSettingsBody,
   messageSettingsFromWire,
+  staffConversationFromWire,
   type WireMessageSettings,
+  type WireStaffConversation,
 } from './messagesMapping';
+import {
+  messageHistoryPageFromWire,
+  messageHistoryParams,
+  type WireMessageHistoryPage,
+} from './messageHistoryMapping';
 import {
   takeawaySettingsBody,
   takeawaySettingsFromWire,
@@ -79,6 +91,7 @@ import {
   ConcurrencyConflictError,
   ForbiddenError,
   NetworkError,
+  NotFoundError,
   TimeoutError,
   UnauthorizedError,
   ValidationError,
@@ -1759,6 +1772,35 @@ export function createConsoleHttpGateway(
         messageSettingsBody(settings),
       );
       return messageSettingsFromWire(data);
+    },
+
+    // --- Message history (2026-10-24) -----------------------------------------
+    //
+    // Read only, with the console's own session: nothing here marks a thread
+    // read, so the tablet's unread counts stay as they are. A bad parameter is
+    // a `422 validation-failed` naming every field — the client's
+    // `ValidationError`.
+
+    async listMessageHistory(branchId, query): Promise<MessageHistoryPage> {
+      const { data } = await client.get<WireMessageHistoryPage>(
+        `${BRANCHES}/${branchId}/conversations/history`,
+        { query: messageHistoryParams(query) },
+      );
+      return messageHistoryPageFromWire(data, query);
+    },
+
+    async getStaffConversation(subject: ConversationSubjectRef): Promise<StaffConversation | null> {
+      const id = encodeURIComponent(subject.id);
+      try {
+        const { data } =
+          subject.kind === 'takeaway'
+            ? await client.get<WireStaffConversation>(`/api/takeaway-orders/${id}/conversation`)
+            : await client.get<WireStaffConversation>(`/api/reservations/${id}/conversation`);
+        return staffConversationFromWire(data, subject);
+      } catch (error) {
+        if (error instanceof NotFoundError) return null;
+        throw error;
+      }
     },
   };
 }

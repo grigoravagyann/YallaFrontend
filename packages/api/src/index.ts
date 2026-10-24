@@ -1203,8 +1203,39 @@ export type {
   StaffConversationLastMessage,
   StaffConversationListItem,
   StaffConversationSubject,
+  StaffConversationThreadSubject,
   UnreadConversation,
 } from './contracts/messages';
+// Message history (2026-10-24): every guest thread of a branch, in the console, read only.
+export {
+  MESSAGE_HISTORY_DEFAULT_DAYS,
+  MESSAGE_HISTORY_KEPT_DAYS,
+  MESSAGE_HISTORY_KINDS,
+  MESSAGE_HISTORY_MAX_RANGE_DAYS,
+  MESSAGE_HISTORY_PAGE_MAX,
+  MESSAGE_HISTORY_PAGE_SIZE,
+  MESSAGE_HISTORY_QUERY_MAX,
+  addLocalDays,
+  compareHistoryItems,
+  defaultHistoryFrom,
+  defaultMessageHistoryFilters,
+  historySearchText,
+  isLocalDate,
+  localDaysBetween,
+  matchesHistorySearch,
+  messageHistoryRange,
+  messageHistoryViolations,
+  oldestHistoryDate,
+} from './contracts/messageHistory';
+export type {
+  ConversationOutcome,
+  MessageHistoryFilters,
+  MessageHistoryItem,
+  MessageHistoryKind,
+  MessageHistoryPage,
+  MessageHistoryQuery,
+  MessageHistorySubject,
+} from './contracts/messageHistory';
 export {
   CONVERSATION_CLOSED_CODE,
   ConversationClosedError,

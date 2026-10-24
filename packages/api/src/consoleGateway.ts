@@ -2,7 +2,13 @@ import type { ConsoleBooking, DecideReservationCommand } from './contracts/appro
 import type { BookingBlock, LiftBookingBlockCommand } from './contracts/guestRecord';
 import type { PreOrderSettings, PreOrderSettingsInput } from './contracts/preOrder';
 import type { TakeawaySettings, TakeawaySettingsInput } from './contracts/takeaway';
-import type { MessageSettings, MessageSettingsInput } from './contracts/messages';
+import type {
+  ConversationSubjectRef,
+  MessageSettings,
+  MessageSettingsInput,
+  StaffConversation,
+} from './contracts/messages';
+import type { MessageHistoryPage, MessageHistoryQuery } from './contracts/messageHistory';
 import type {
   BranchOverview,
   ConsoleBookingActionCommand,
@@ -673,6 +679,32 @@ export interface ConsoleGateway {
     readonly branchId: string;
     readonly settings: MessageSettingsInput;
   }): Promise<MessageSettings>;
+
+  // --- Message history (2026-10-24) ---------------------------------------------
+
+  /**
+   * The branch's guest threads from the last twelve months, newest last
+   * message first, a page at a time — `GET
+   * /api/branches/{branchId}/conversations/history`, manager or above at the
+   * branch (a branch manager their own; a platform admin may read). Read
+   * only: nothing is marked read.
+   *
+   * @throws {ValidationError} every bad parameter named (`from`, `to`,
+   * `kind`, `q`, `limit`, `cursor`); see `messageHistoryViolations`.
+   * @throws {ForbiddenError} not a manager of this branch.
+   */
+  listMessageHistory(branchId: string, query: MessageHistoryQuery): Promise<MessageHistoryPage>;
+
+  /**
+   * One thread as the floor reads it, with who wrote each venue message —
+   * `GET /api/reservations/{id}/conversation` or
+   * `/api/takeaway-orders/{id}/conversation`, with the console's own
+   * session. A GET never marks read. `null` for a subject that is gone (or a
+   * thread the sweep deleted).
+   *
+   * @throws {ForbiddenError} not a manager of the subject's branch.
+   */
+  getStaffConversation(subject: ConversationSubjectRef): Promise<StaffConversation | null>;
 
   // --- Bookings waiting for approval ------------------------------------------
 

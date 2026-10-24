@@ -11,6 +11,7 @@
     "overview": "Overview",
     "public": "Public page",
     "reviews": "Reviews",
+    "messages": "Messages",
     "home": "Home",
     "settings": "Settings",
     "account": "My account",
@@ -2557,5 +2558,90 @@
     "saveFailed": "The message settings were not saved.",
     "noChanges": "Nothing has changed.",
     "unsaved": "Unsaved changes"
+  },
+  "messageHistory": {
+    "title": "Messages",
+    "sub": "{{branch}} · Every conversation with guests from the last 12 months. Read only: replies go from the tablet.",
+    "filters": {
+      "label": "Filter the messages",
+      "from": "From",
+      "to": "To",
+      "search": "Guest, table or T-code",
+      "searchPlaceholder": "E.g. Ani, 6, T-482",
+      "kind": "Kind",
+      "kinds": {
+        "all": "All",
+        "reservation": "Bookings",
+        "takeaway": "Takeaway"
+      },
+      "unansweredOnly": "Unanswered only"
+    },
+    "errors": {
+      "badDate": "Enter a date.",
+      "fromAfterTo": "The start is after the end.",
+      "tooOld": "History is kept for 12 months: choose {{date}} or later.",
+      "tooLong": "At most {{max}} days at once.",
+      "searchTooLong": "At most {{max}} characters.",
+      "refused": "The list could not be filtered that way. Check the dates and the search."
+    },
+    "table": {
+      "label": "Conversations",
+      "caption": "Conversations with guests, the newest first",
+      "when": "When",
+      "guest": "Guest",
+      "subject": "About",
+      "messages": "Messages",
+      "staff": "Written by",
+      "today": "Today {{time}}",
+      "yesterday": "Yesterday {{time}}",
+      "dated": "{{date}} {{time}}",
+      "table": "Table {{label}}",
+      "takeaway": "Takeaway {{code}}",
+      "party_one": "{{count}} guest",
+      "party_other": "{{count}} guests",
+      "unanswered": "unanswered",
+      "noStaff": "No one from the venue wrote"
+    },
+    "shown_one": "{{count}} conversation",
+    "shown_other": "{{count}} conversations",
+    "more": "More",
+    "updating": "Updating…",
+    "empty": {
+      "title": "No conversations on these dates",
+      "filtered": "Nothing matches the search or the filters.",
+      "hint": "Choose earlier dates to look further back — up to 12 months.",
+      "reset": "Clear the filters"
+    },
+    "thread": {
+      "pick": "Choose a guest in the list to read the conversation.",
+      "booking": "Booking",
+      "takeaway": "Takeaway",
+      "today": "today {{time}}",
+      "yesterday": "yesterday {{time}}",
+      "dated": "{{date}} {{time}}",
+      "table": "table {{label}}",
+      "messages": "Messages",
+      "venue": "The venue",
+      "meta": "{{name}} · {{time}}",
+      "askMeta": "question",
+      "loading": "Loading the conversation…",
+      "gone": "This conversation is no longer here.",
+      "empty": "There are no messages left in this conversation.",
+      "back": "Back to the list",
+      "privacy": "When a guest deletes their account, what they wrote is deleted. Conversations older than 12 months are deleted automatically."
+    },
+    "outcome": {
+      "came": "came",
+      "noShow": "did not come",
+      "cancelled": "cancelled",
+      "declined": "declined",
+      "upcoming": "upcoming",
+      "collected": "collected",
+      "inProgress": "in progress"
+    },
+    "day": {
+      "today": "Today",
+      "yesterday": "Yesterday"
+    }
   }
 }

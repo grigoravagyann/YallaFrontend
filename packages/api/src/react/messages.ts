@@ -1,5 +1,7 @@
 import {
+  keepPreviousData,
   replaceEqualDeep,
+  useInfiniteQuery,
   useMutation,
   useQuery,
   useQueryClient,
@@ -8,6 +10,7 @@ import {
 import { useEffect, useRef } from 'react';
 import type { ConsoleGateway } from '../consoleGateway';
 import type { Booking } from '../contracts/booking';
+import type { MessageHistoryFilters, MessageHistoryPage } from '../contracts/messageHistory';
 import {
   messageText,
   newestShownMessageUtc,
@@ -540,9 +543,13 @@ export function useBranchConversations(branchId: string | undefined, enabled = t
   return useQuery(branchConversationsOptions(useStaffGateway(), branchId, enabled));
 }
 
-/** One thread with who wrote each venue message. Polled while in front. */
+/**
+ * One thread with who wrote each venue message. Polled while in front. Any
+ * gateway that reads the floor's view will do: the tablet's, or the
+ * console's for its history.
+ */
 export function staffConversationOptions(
-  gateway: StaffGateway,
+  gateway: Pick<StaffGateway, 'getStaffConversation'>,
   subject: ConversationSubjectRef | null | undefined,
   options: ConversationQueryOptions = {},
 ) {
@@ -702,4 +709,60 @@ export function saveMessageSettingsOptions(
 
 export function useSaveMessageSettings(branchId: string | undefined) {
   return useMutation(saveMessageSettingsOptions(useQueryClient(), useConsoleGateway(), branchId));
+}
+
+// --- The console's message history (2026-10-24) ------------------------------------
+
+/**
+ * The branch's guest threads for one set of filters, newest last message
+ * first, a page at a time by the server's cursor ("More"). The previous list
+ * stays on screen while new filters load (`isPlaceholderData`). Read only.
+ */
+export function messageHistoryOptions(
+  gateway: Pick<ConsoleGateway, 'listMessageHistory'>,
+  branchId: string | undefined,
+  filters: MessageHistoryFilters,
+  enabled = true,
+) {
+  return {
+    queryKey: queryKeys.messageHistory(branchId ?? '', filters),
+    queryFn: ({ pageParam }: { readonly pageParam: string | null }) =>
+      gateway.listMessageHistory(branchId!, { ...filters, cursor: pageParam }),
+    initialPageParam: null as string | null,
+    getNextPageParam: (last: MessageHistoryPage) => last.nextCursor ?? undefined,
+    enabled: Boolean(branchId) && enabled,
+    staleTime: staleTime.frequent,
+    placeholderData: keepPreviousData,
+  };
+}
+
+/** Pass `enabled: false` while the filters on screen cannot be sent (a 422 would answer). */
+export function useMessageHistory(
+  branchId: string | undefined,
+  filters: MessageHistoryFilters,
+  enabled = true,
+) {
+  return useInfiniteQuery(messageHistoryOptions(useConsoleGateway(), branchId, filters, enabled));
+}
+
+/**
+ * One thread for the history's right pane: the floor's own read
+ * (`staffConversationOptions`), with the console's session, **never polled**
+ * and never followed by a read mark — reading history must leave the tablet's
+ * unread counts as they are. Under its own key, apart from the tablet's.
+ */
+export function historyConversationOptions(
+  gateway: Pick<ConsoleGateway, 'getStaffConversation'>,
+  subject: ConversationSubjectRef | null | undefined,
+) {
+  return {
+    ...staffConversationOptions(gateway, subject, { focused: false }),
+    queryKey: queryKeys.historyConversation(subject?.kind ?? 'reservation', subject?.id ?? ''),
+    refetchInterval: false as const,
+    staleTime: staleTime.frequent,
+  };
+}
+
+export function useHistoryConversation(subject: ConversationSubjectRef | null | undefined) {
+  return useQuery(historyConversationOptions(useConsoleGateway(), subject));
 }
