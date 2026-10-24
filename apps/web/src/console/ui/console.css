@@ -8411,3 +8411,707 @@ body:has(.yc-savebar) .yc-toast-region {
     max-width: 92%;
   }
 }
+
+/* --------------------------------------------------------------------------
+ * Activity history (2026-10-24, the Main board): the kind pills, the feed
+ * with its tags and money rows, and the detail pane beside it. The filters,
+ * the two panes, the foot and the stacking below 1180px are message
+ * history's (`yc-mh-*`).
+ * -------------------------------------------------------------------------- */
+.yc-act-kinds .yc-chip {
+  height: var(--console-size-button);
+}
+
+.yc-act-tbl th,
+.yc-act-tbl td {
+  padding-inline: var(--space-md);
+}
+
+/* A row's header is its "what" (or its name): the body's look, not the head's. */
+.yc-act-tbl tbody th,
+.yc-res-tbl tbody th,
+.yc-res-tbl tfoot th,
+.yc-pp-tbl tbody th,
+.yc-sc-table tbody th,
+.yc-tl-items tfoot th {
+  padding: 10px var(--space-md);
+  border-bottom: 1px solid var(--console-line-soft);
+  background: none;
+  color: var(--console-ink);
+  font-size: var(--console-text-body);
+  font-weight: var(--font-weight-regular);
+  text-align: left;
+}
+
+.yc-act-tbl tbody tr:last-child th,
+.yc-pp-tbl tbody tr:last-child th,
+.yc-sc-table tbody tr:last-child th {
+  border-bottom: 0;
+}
+
+.yc-act-tbl tbody tr:hover th,
+.yc-res-tbl tbody tr:hover th,
+.yc-pp-tbl tbody tr:hover th {
+  background: var(--console-hover);
+}
+
+.yc-act-tbl tbody th.yc-act-what {
+  min-width: 260px;
+  white-space: normal;
+}
+
+/* Money is kept three years and checked first: its rows carry a warm wash. */
+.yc-act-tbl tbody tr.is-money td,
+.yc-act-tbl tbody tr.is-money th {
+  background: var(--console-surface-muted);
+}
+
+.yc-act-tbl tbody tr.is-on td,
+.yc-act-tbl tbody tr.is-on th {
+  background: var(--console-brand-tint);
+}
+
+.yc-act-tbl tbody tr.is-on > :first-child {
+  box-shadow: inset 3px 0 0 var(--console-brand);
+}
+
+.yc-act-tbl[aria-busy='true'] tbody {
+  opacity: 0.6;
+}
+
+.yc-num-time {
+  font-variant-numeric: tabular-nums;
+}
+
+.yc-act-who {
+  font-weight: var(--font-weight-bold);
+}
+
+.yc-act-dev {
+  color: var(--console-muted);
+}
+
+.yc-act-pick {
+  display: inline;
+  min-height: 32px;
+  padding: 4px 0;
+  border: 0;
+  background: none;
+  color: var(--console-ink);
+  font: inherit;
+  line-height: 1.5;
+  text-align: left;
+  cursor: pointer;
+}
+
+.yc-act-pick:hover {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.yc-act-pick[aria-current='true'] {
+  font-weight: var(--font-weight-semibold);
+}
+
+.yc-act-tag {
+  display: inline-block;
+  margin-right: 6px;
+  padding: 1px var(--space-sm);
+  border-radius: var(--console-radius-pill);
+  background: var(--console-brand-tint);
+  color: var(--console-brand);
+  font-size: var(--console-text-caption);
+  font-weight: var(--font-weight-bold);
+  line-height: 1.6;
+  white-space: nowrap;
+}
+
+.yc-act-tag.is-booking {
+  background: var(--console-green-bg);
+  color: var(--console-green);
+}
+
+.yc-act-tag.is-table {
+  background: var(--console-amber-bg);
+  color: var(--console-amber);
+}
+
+.yc-act-tag.is-money {
+  background: var(--console-red-bg);
+  color: var(--console-red);
+}
+
+.yc-act-tag.is-quiet {
+  background: var(--console-grey-bg);
+  color: var(--console-ink);
+}
+
+.yc-act-detail {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--space-md);
+  min-width: 0;
+  padding: 18px;
+  position: sticky;
+  top: var(--space-lg);
+}
+
+.yc-act-detail > .yc-act-tag {
+  align-self: flex-start;
+}
+
+.yc-act-dh {
+  margin: 0;
+  font-size: var(--console-text-section);
+  line-height: 1.3;
+}
+
+.yc-act-dh:focus {
+  outline: none;
+}
+
+.yc-act-dsub {
+  margin: -6px 0 0;
+  color: var(--console-muted);
+}
+
+.yc-act-dl {
+  display: grid;
+  grid-template-columns: minmax(80px, 110px) minmax(0, 1fr);
+  gap: var(--space-sm) var(--space-md);
+  margin: 0;
+}
+
+.yc-act-dl dt {
+  color: var(--console-muted);
+}
+
+.yc-act-dl dd {
+  margin: 0;
+}
+
+.yc-act-strong {
+  font-weight: var(--font-weight-semibold);
+}
+
+.yc-act-change {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: var(--space-md);
+  border-radius: var(--console-radius-control);
+  background: var(--console-surface-muted);
+}
+
+.yc-act-change-h {
+  color: var(--console-muted);
+  font-weight: var(--font-weight-semibold);
+}
+
+.yc-act-before {
+  color: var(--console-red);
+}
+
+.yc-act-after {
+  color: var(--console-green);
+}
+
+.yc-act-open {
+  justify-content: center;
+  text-decoration: none;
+}
+
+@media (max-width: 1179px) {
+  .yc-act-detail {
+    position: static;
+  }
+}
+
+/* --------------------------------------------------------------------------
+ * One bill's or booking's timeline (2026-10-24, the Check board).
+ * -------------------------------------------------------------------------- */
+.yc-tl-back {
+  align-self: flex-start;
+  min-height: 32px;
+  text-decoration: none;
+}
+
+.yc-tl-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 14px;
+}
+
+.yc-tl-mark {
+  display: grid;
+  place-items: center;
+  width: 56px;
+  height: 56px;
+  flex: none;
+  border: 2px solid var(--console-floor-occupied-edge);
+  border-radius: var(--console-radius-tile);
+  background: var(--console-floor-occupied);
+  font-family: var(--font-family-display);
+  font-size: var(--console-text-section);
+  font-weight: var(--font-weight-bold);
+}
+
+.yc-tl-title {
+  flex: 1 1 260px;
+  min-width: 0;
+}
+
+.yc-tl-total {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  text-align: right;
+}
+
+.yc-tl-total b {
+  font-size: var(--console-text-kpi);
+  font-variant-numeric: tabular-nums;
+}
+
+.yc-tl-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1.3fr) minmax(300px, 1fr);
+  align-items: start;
+  gap: var(--space-lg);
+}
+
+.yc-tl-steps,
+.yc-tl-items {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+  min-width: 0;
+  padding: 18px;
+}
+
+.yc-tl-items {
+  padding-inline: 0;
+}
+
+.yc-tl-items > .yc-h2,
+.yc-tl-items > .yc-muted,
+.yc-tl-paid {
+  margin: 0;
+  padding-inline: 18px;
+}
+
+.yc-tl-list {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.yc-tl-step {
+  display: grid;
+  grid-template-columns: 52px 14px minmax(0, 1fr);
+  align-items: start;
+  gap: 10px;
+  padding-bottom: 14px;
+  position: relative;
+}
+
+/* The thread between the dots. */
+.yc-tl-step:not(:last-child)::after {
+  content: '';
+  position: absolute;
+  top: 18px;
+  bottom: 0;
+  left: calc(52px + 10px + 6px);
+  width: 2px;
+  background: var(--console-line);
+}
+
+.yc-tl-time {
+  padding-top: 1px;
+  color: var(--console-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.yc-tl-dot {
+  position: relative;
+  z-index: 1;
+  width: 12px;
+  height: 12px;
+  margin-top: 5px;
+  border-radius: 50%;
+  background: var(--console-brand);
+}
+
+.yc-tl-dot.is-money {
+  background: var(--console-red);
+}
+
+.yc-tl-dot.is-handover {
+  background: var(--console-amber);
+}
+
+.yc-tl-what {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.yc-tl-note {
+  color: var(--console-muted);
+  font-size: var(--console-text-label);
+}
+
+.yc-tl-note.is-reason,
+.yc-tl-void {
+  color: var(--console-red);
+}
+
+.yc-tl-comp {
+  margin-left: var(--space-sm);
+}
+
+.yc-tl-items .yc-tl-sum th,
+.yc-tl-items .yc-tl-sum td {
+  border-top: 2px solid var(--console-line);
+  font-weight: var(--font-weight-bold);
+}
+
+.yc-tl-paid {
+  color: var(--console-muted);
+}
+
+@media (max-width: 1179px) {
+  .yc-tl-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* --------------------------------------------------------------------------
+ * Staff → Results (2026-10-24, the Team board).
+ * -------------------------------------------------------------------------- */
+.yc-res-tools {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.yc-res-tools .yc-chip {
+  height: var(--console-size-button);
+}
+
+.yc-res-card {
+  overflow: hidden;
+}
+
+.yc-res-cap {
+  padding: 14px var(--space-lg) 6px;
+  color: var(--console-muted);
+  text-align: left;
+}
+
+.yc-res-tbl th,
+.yc-res-tbl td {
+  padding-inline: 10px;
+}
+
+.yc-res-tbl thead th {
+  padding-block: 4px;
+}
+
+.yc-res-sort {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 2px;
+  width: 100%;
+  min-height: 36px;
+  padding: 0 4px;
+  border: 0;
+  border-radius: var(--console-radius-small);
+  background: none;
+  color: var(--console-muted);
+  font: inherit;
+  font-weight: var(--font-weight-semibold);
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.yc-res-sort:hover {
+  color: var(--console-ink);
+}
+
+.yc-res-sort.is-on {
+  color: var(--console-brand);
+}
+
+.yc-res-arrow {
+  width: 14px;
+  height: 14px;
+  flex: none;
+}
+
+.yc-res-tbl tbody th.yc-res-name {
+  min-width: 170px;
+  padding-left: var(--space-lg);
+  white-space: nowrap;
+}
+
+.yc-res-name a {
+  font-weight: var(--font-weight-bold);
+}
+
+.yc-res-role {
+  display: block;
+  color: var(--console-muted);
+  font-size: var(--console-text-caption);
+}
+
+.yc-res-tbl tfoot th,
+.yc-res-tbl tfoot td {
+  border-top: 2px solid var(--console-line);
+  border-bottom: 0;
+  background: var(--console-surface-muted);
+  font-weight: var(--font-weight-bold);
+}
+
+.yc-res-tbl tfoot th {
+  padding-left: var(--space-lg);
+}
+
+.yc-res-note {
+  max-width: 80ch;
+  margin: 0;
+  color: var(--console-muted);
+  line-height: 1.6;
+}
+
+/* --------------------------------------------------------------------------
+ * One person's results (2026-10-24, the Person board): the head, the figures,
+ * sales by day and the lists.
+ * -------------------------------------------------------------------------- */
+.yc-pp-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-lg);
+}
+
+.yc-pp-av {
+  display: grid;
+  place-items: center;
+  width: 64px;
+  height: 64px;
+  flex: none;
+  border-radius: 50%;
+  background: var(--console-brand);
+  color: var(--console-brand-foreground);
+  font-family: var(--font-family-display);
+  font-size: var(--console-text-section);
+  font-weight: var(--font-weight-bold);
+}
+
+.yc-pp-title {
+  flex: 1 1 240px;
+  min-width: 0;
+}
+
+.yc-pp-kpis {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 10px;
+}
+
+.yc-pp-kpi {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 14px var(--space-lg);
+}
+
+.yc-pp-kpi-n {
+  font-size: var(--console-text-section);
+  font-weight: var(--font-weight-bold);
+  line-height: 1.3;
+}
+
+.yc-pp-chart {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+  margin: 0;
+  padding: var(--space-lg);
+}
+
+.yc-pp-chart > figcaption {
+  margin: 0;
+}
+
+.yc-pp-lists {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+}
+
+.yc-pp-panel {
+  overflow: hidden;
+}
+
+.yc-pp-tbl td.yc-wrap {
+  min-width: 140px;
+}
+
+.yc-pp-tbl tbody th.yc-pp-when {
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.yc-pp-tbl tbody tr:focus {
+  outline: 2px solid var(--console-focus);
+  outline-offset: -2px;
+}
+
+/* Sales by day: columns from one baseline, three clean ticks, a hairline grid. */
+.yc-sc {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+}
+
+.yc-sc-chart {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: var(--space-sm);
+}
+
+.yc-sc-y {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  height: 170px;
+  margin-top: -0.6em;
+  color: var(--console-muted);
+  font-size: var(--console-text-caption);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.yc-sc-bars {
+  display: flex;
+  align-items: flex-end;
+  gap: 12px;
+  height: 170px;
+  border-top: 1px solid var(--console-line-soft);
+  border-bottom: 1px solid var(--console-line);
+  background: linear-gradient(var(--console-line-soft), var(--console-line-soft)) 0 50% / 100% 1px
+    no-repeat;
+}
+
+.yc-sc-bars.is-dense {
+  gap: 2px;
+}
+
+.yc-sc-bars.is-dense .yc-sc-hit {
+  min-width: 0;
+}
+
+.yc-sc-col {
+  position: relative;
+  display: flex;
+  flex: 1 1 0;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  height: 100%;
+  min-width: 0;
+}
+
+.yc-sc-hit {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  width: 100%;
+  height: 100%;
+  min-width: 24px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--console-radius-small);
+  background: none;
+  font: inherit;
+  cursor: default;
+}
+
+.yc-sc-bar {
+  display: block;
+  width: 100%;
+  max-width: 24px;
+  border-radius: 4px 4px 0 0;
+  background: var(--console-report-bar);
+}
+
+.yc-sc-hit.is-today .yc-sc-bar {
+  background: var(--console-brand);
+}
+
+.yc-sc-hit:hover:not(.is-today) .yc-sc-bar,
+.yc-sc-hit:focus-visible:not(.is-today) .yc-sc-bar {
+  background: var(--console-chart-bar);
+}
+
+.yc-sc-v {
+  margin-bottom: 4px;
+  color: var(--console-ink);
+  font-size: var(--console-text-caption);
+  font-weight: var(--font-weight-semibold);
+  font-variant-numeric: tabular-nums;
+}
+
+.yc-sc-tip {
+  top: -2.4em;
+  bottom: auto;
+}
+
+.yc-sc-x {
+  display: flex;
+  gap: 12px;
+  padding-top: 6px;
+}
+
+.yc-sc-x.is-dense {
+  gap: 2px;
+}
+
+.yc-sc-x span {
+  flex: 1 1 0;
+  min-width: 0;
+  color: var(--console-muted);
+  font-size: var(--console-text-caption);
+  text-align: center;
+  white-space: nowrap;
+}
+
+.yc-sc-x span.is-today {
+  color: var(--console-ink);
+  font-weight: var(--font-weight-bold);
+}
+
+.yc-sc-toggle {
+  align-self: flex-start;
+  min-height: 32px;
+}
+
+@media (forced-colors: active) {
+  .yc-sc-bar {
+    background: CanvasText;
+  }
+
+  .yc-sc-hit.is-today .yc-sc-bar {
+    background: Highlight;
+  }
+}

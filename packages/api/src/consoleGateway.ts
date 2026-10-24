@@ -10,6 +10,18 @@ import type {
 } from './contracts/messages';
 import type { MessageHistoryPage, MessageHistoryQuery } from './contracts/messageHistory';
 import type {
+  ActivityFilters,
+  ActivityPage,
+  ActivityQuery,
+  ActivitySubjectType,
+  ActivityTimeline,
+  PerformanceRange,
+  StaffMemberPerformance,
+  StaffPerformance,
+  StaffRecentPage,
+  StaffRecentQuery,
+} from './contracts/activity';
+import type {
   BranchOverview,
   ConsoleBookingActionCommand,
   ConsoleBookingActionResult,
@@ -705,6 +717,58 @@ export interface ConsoleGateway {
    * @throws {ForbiddenError} not a manager of the subject's branch.
    */
   getStaffConversation(subject: ConversationSubjectRef): Promise<StaffConversation | null>;
+
+  // --- Activity history and staff results (2026-10-24) --------------------------
+
+  /**
+   * Who did what at the branch on one day, newest first, a page at a time —
+   * `GET /api/branches/{branchId}/activity`. Manager or above at the branch.
+   *
+   * @throws {ValidationError} a bad `date`, `category`, `q` or `cursor`.
+   * @throws {ForbiddenError} not a manager of this branch.
+   */
+  listActivity(branchId: string, query: ActivityQuery): Promise<ActivityPage>;
+
+  /** The same filters as the server's CSV: `GET …/activity.csv`. */
+  exportActivityCsv(branchId: string, filters: ActivityFilters): Promise<ReportExport>;
+
+  /**
+   * One bill's, booking's or takeaway order's whole timeline, with the bill's
+   * lines and who added and voided each —
+   * `GET /api/branches/{branchId}/activity/subjects/{subjectType}/{subjectId}`.
+   * `null` for a subject the branch does not have (or the purge removed).
+   */
+  getActivityTimeline(
+    branchId: string,
+    subject: { readonly type: ActivitySubjectType; readonly id: string },
+  ): Promise<ActivityTimeline | null>;
+
+  /**
+   * Every person's results over a range, with the totals —
+   * `GET /api/branches/{branchId}/staff-performance?from&to`.
+   */
+  getStaffPerformance(branchId: string, range: PerformanceRange): Promise<StaffPerformance>;
+
+  /** The same as the server's CSV: `GET …/staff-performance.csv`. */
+  exportStaffPerformanceCsv(branchId: string, range: PerformanceRange): Promise<ReportExport>;
+
+  /**
+   * One person's page: the figures, sales by day and the first page of each
+   * recent list — `GET /api/branches/{branchId}/staff/{staffMemberId}/performance`.
+   * `null` for somebody who is not staff of this venue.
+   */
+  getStaffMemberPerformance(
+    branchId: string,
+    staffMemberId: string,
+    range: PerformanceRange,
+  ): Promise<StaffMemberPerformance | null>;
+
+  /** One more page of one of a person's lists (the same route, `list` and `cursor`). */
+  listStaffRecent(
+    branchId: string,
+    staffMemberId: string,
+    query: StaffRecentQuery,
+  ): Promise<StaffRecentPage>;
 
   // --- Bookings waiting for approval ------------------------------------------
 

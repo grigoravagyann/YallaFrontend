@@ -28,7 +28,8 @@
       "incompleteDishes_other": "{{count}} unfinished dishes",
       "reportedReviews_one": "{{count}} reported review",
       "reportedReviews_other": "{{count}} reported reviews"
-    }
+    },
+    "history": "History"
   },
   "publicPage": {
     "noBranch": "Pick a branch to edit its public page.",
@@ -2642,6 +2643,314 @@
     "day": {
       "today": "Today",
       "yesterday": "Yesterday"
+    }
+  },
+  "activity": {
+    "title": "History",
+    "sub": "{{branch}} · who did what, when and from which device",
+    "csv": "Download CSV",
+    "csvPreparing": "Preparing…",
+    "csvReady": "The file is downloading.",
+    "csvFailed": "The file could not be made. Try again.",
+    "filters": {
+      "label": "Filter the history",
+      "date": "Day",
+      "who": "Who",
+      "everyone": "Everyone",
+      "person": "{{name}} · {{role}}",
+      "someone": "The person in the link",
+      "system": "SHURJ (automatic)",
+      "search": "Table, guest, T-code or dish",
+      "searchPlaceholder": "E.g. 6, Ani, T-482",
+      "kind": "Kind",
+      "kinds": {
+        "all": "All",
+        "booking": "Booking",
+        "table": "Table",
+        "order": "Order",
+        "payment": "Payment & discount",
+        "takeaway": "Takeaway",
+        "message": "Message",
+        "settings": "Settings",
+        "staff": "Staff",
+        "device": "Device"
+      }
+    },
+    "errors": {
+      "badDate": "Pick a day.",
+      "future": "Pick today or an earlier day.",
+      "tooOld": "The history is kept 12 months (money 3 years).",
+      "searchTooLong": "At most {{max}} characters.",
+      "refused": "The history could not be filtered like that. Check the day and the search."
+    },
+    "table": {
+      "label": "Actions",
+      "caption": "Who did what, newest first",
+      "time": "Time",
+      "who": "Who",
+      "what": "What they did",
+      "device": "From where"
+    },
+    "shownToday_one": "{{count}} action today",
+    "shownToday_other": "{{count}} actions today",
+    "shown_one": "{{count}} action",
+    "shown_other": "{{count}} actions",
+    "more": "Earlier",
+    "updating": "Updating…",
+    "empty": {
+      "title": "Nothing happened on this day",
+      "filtered": "Nothing matches the search or the filters.",
+      "hint": "Pick another day to see what was done then.",
+      "reset": "Clear the filters"
+    },
+    "detail": {
+      "label": "Details",
+      "pick": "Pick an action in the list to see it in full.",
+      "who": "Who",
+      "when": "When",
+      "device": "Device",
+      "today": "today, {{time}}",
+      "yesterday": "yesterday, {{time}}",
+      "dated": "{{date}}, {{time}}",
+      "changed": "What changed",
+      "before": "Before:",
+      "after": "After:",
+      "reason": "Reason: “{{reason}}”",
+      "back": "Back to the list"
+    },
+    "link": {
+      "tab": "Open the bill",
+      "reservation": "Open the booking",
+      "takeaway": "Open the order",
+      "menu": "Open the menu",
+      "person": "Open their page"
+    },
+    "who": {
+      "system": "SHURJ",
+      "platformAdmin": "SHURJ support",
+      "guest": "Guest · {{name}}",
+      "theGuest": "the guest",
+      "unknown": "Someone"
+    },
+    "device": {
+      "console": "Console",
+      "none": "no device"
+    },
+    "duration": {
+      "seconds_one": "{{count}} s",
+      "seconds_other": "{{count}} s",
+      "minutes_one": "{{count}} min",
+      "minutes_other": "{{count}} min",
+      "minutesSeconds": "{{minutes}} min {{seconds}} s"
+    },
+    "part": {
+      "table": "table {{label}}",
+      "party_one": "{{count}} person",
+      "party_other": "{{count}} people",
+      "dishes_one": "{{count}} dish",
+      "dishes_other": "{{count}} dishes",
+      "tip": "tip {{amount}}",
+      "ready": "ready {{time}}",
+      "booking": "booking {{name}}",
+      "quote": "“{{text}}”",
+      "call": {
+        "bill": "the bill",
+        "water": "water",
+        "napkins": "napkins",
+        "waiter": "the waiter"
+      }
+    },
+    "action": {
+      "bookingRequested": "Booked a table",
+      "bookingCreated": "Booked for the guest",
+      "bookingApproved": "Approved the booking",
+      "bookingDeclined": "Declined the booking",
+      "bookingAutoDeclined_one": "Declined automatically · nobody answered in {{count}} minute",
+      "bookingAutoDeclined_other": "Declined automatically · nobody answered in {{count}} minutes",
+      "bookingMoved": "Moved the booking",
+      "bookingCancelled": "Cancelled the booking",
+      "bookingCancelledByGuest": "Cancelled their booking",
+      "bookingNoShow": "Marked a no-show",
+      "bookingSeated": "Seated the booking",
+      "bookingReleased": "Released the booking",
+      "bookingOnMyWay": "Said they are on their way",
+      "bookingRunningLate_one": "Running {{count}} minute late",
+      "bookingRunningLate_other": "Running {{count}} minutes late",
+      "tableSeated": "Seated",
+      "tableTransferred": "Handed the table to {{name}}",
+      "tableReleased": "Freed the table",
+      "callClaimed": "Pressed “I’m on it”",
+      "orderSent": "Sent to the kitchen",
+      "preOrderSent": "Sent the pre-order to the kitchen",
+      "orderReady": "Marked ready · {{item}}",
+      "lineVoided": "Voided a dish · {{item}}",
+      "lineChanged": "Changed a dish · {{item}}",
+      "comped": "On the house · {{item}}",
+      "discounted": "Discount {{percent}}%",
+      "paidCash": "Took cash",
+      "paidCard": "Card payment",
+      "unpaid": "Left unpaid",
+      "takeawayAccepted": "Accepted {{code}}",
+      "takeawayDeclined": "Declined {{code}}",
+      "takeawayReady": "Marked {{code}} ready",
+      "takeawayCollected": "Handed over {{code}}",
+      "takeawayNoShow": "Marked {{code}} not collected",
+      "messageSent": "Replied to {{guest}}",
+      "askedComing": "Asked {{guest}} whether they are coming",
+      "menuPrice": "Changed the price · {{item}}",
+      "menuOff": "Took {{item}} off the menu",
+      "menuBack": "Put {{item}} back on the menu",
+      "hours": "Changed the opening hours",
+      "policy": "Changed the booking rules",
+      "takeawaySettings": "Changed the takeaway settings",
+      "messageSettings": "Changed the message settings",
+      "pinSet": "Set a new PIN for {{name}}",
+      "signInIssued": "Gave {{name}} a sign-in",
+      "staffAdded": "Added {{name}}",
+      "staffDeactivated": "Deactivated {{name}}",
+      "deviceEnrolled": "Connected a device",
+      "deviceRevoked": "Disconnected a device",
+      "other": "{{kind}}"
+    },
+    "timeline": {
+      "back": "History",
+      "gone": "This bill or booking is not in the history.",
+      "titleTab": "Table {{label}} · bill",
+      "titleBill": "Bill",
+      "titleBooking": "Booking · {{guest}}",
+      "titleTakeaway": "Takeaway {{code}}",
+      "today": "Today",
+      "whenRange": "{{day}} {{from}}–{{to}}",
+      "whenOpen": "{{day}} from {{from}}",
+      "server": "waiter: {{name}}",
+      "serverFrom": "waiter: {{name}} (from {{from}} at {{time}})",
+      "open": "still open",
+      "method": {
+        "cash": "cash",
+        "card": "card",
+        "mixed": "cash and card",
+        "unpaid": "unpaid"
+      },
+      "steps": "Who did what",
+      "byPerson": "Filter by person",
+      "everyone": "Everyone",
+      "noSteps": "Nothing by this person here.",
+      "reason": "Reason: “{{reason}}”",
+      "items": "Dishes",
+      "itemsCaption": "The bill’s dishes, who took each and who voided it",
+      "noItems": "No dishes on this bill.",
+      "itemWhat": "What",
+      "itemWho": "Who took it",
+      "itemAmount": "Amount",
+      "line_one": "{{count}} × {{name}}",
+      "line_other": "{{count}} × {{name}}",
+      "voided": "(voided)",
+      "voidedBy": "voided: {{name}}",
+      "comped": "on the house",
+      "guestOrdered": "Guest’s phone",
+      "total": "Total",
+      "paid": "Paid {{paid}}.",
+      "paidWithService": "Paid {{paid}} ({{service}} service).",
+      "discount": "Discount {{amount}}."
+    }
+  },
+  "staffResults": {
+    "tabs": {
+      "label": "Section",
+      "people": "People",
+      "results": "Results"
+    },
+    "label": "Results",
+    "periods": {
+      "label": "Period",
+      "today": "Today",
+      "week": "7 days",
+      "month": "30 days"
+    },
+    "caption": {
+      "today": "Today, {{date}}",
+      "day": "{{date}}",
+      "range": "{{from}} – {{to}}"
+    },
+    "col": {
+      "name": "Staff member",
+      "tables": "Tables",
+      "guests": "Guests",
+      "sales": "Sales",
+      "avgCheck": "Average bill",
+      "tips": "Tips",
+      "calls": "To a call",
+      "replies": "To a message",
+      "approvals": "Approved",
+      "cash": "Cash",
+      "discounts": "Discount / comp"
+    },
+    "total": "Total",
+    "none": "not measured",
+    "csvReady": "The file is downloading.",
+    "empty": {
+      "title": "No results in this period",
+      "body": "Nobody served a table, answered a call or a message here yet."
+    },
+    "note": "Sales and guests count to the table’s waiter; after a transfer, to the new waiter. “To a call” runs from the call to “I’m on it”, “To a message” from the guest’s text to the first reply (medians). Waiters see only their own results."
+  },
+  "person": {
+    "back": "Results",
+    "gone": "This person is not on the staff of this branch.",
+    "kpi": {
+      "label": "Results · {{period}}",
+      "none": "—",
+      "sales": "Sales",
+      "tables_one": "{{count}} table",
+      "tables_other": "{{count}} tables",
+      "guests": "Guests",
+      "avgCheck": "average bill {{amount}}",
+      "tips": "Tips",
+      "tipShare": "{{share}} of sales",
+      "calls": "Response to a call",
+      "callsSub_one": "median · {{count}} call",
+      "callsSub_other": "median · {{count}} calls",
+      "replies": "Reply to a message",
+      "repliesSub_one": "median · {{count}} message",
+      "repliesSub_other": "median · {{count}} messages",
+      "cash": "Cash taken",
+      "cashSub_one": "{{count}} bill",
+      "cashSub_other": "{{count}} bills"
+    },
+    "chart": {
+      "title_one": "Sales by day · the last {{count}} day",
+      "title_other": "Sales by day · the last {{count}} days",
+      "label": "Sales by day: use the arrow keys to go from day to day",
+      "bar": "{{day}}: {{amount}}",
+      "today": "Today",
+      "showTable": "Show the numbers",
+      "hideTable": "Hide the numbers",
+      "tableCaption": "Sales by day",
+      "day": "Day",
+      "sales": "Sales"
+    },
+    "lists": {
+      "label": "What they did",
+      "orders": "Orders",
+      "messages": "Messages",
+      "bookings": "Bookings",
+      "cash": "Cash",
+      "calls": "Calls",
+      "empty": "Nothing in this period.",
+      "more": "More",
+      "shown": "{{count}} of {{total}}"
+    },
+    "col": {
+      "time": "Time",
+      "table": "Table",
+      "what": "What",
+      "amount": "Amount",
+      "guest": "Guest",
+      "reply": "Reply",
+      "speed": "How fast",
+      "decision": "Decision",
+      "tip": "Tip",
+      "response": "Response"
     }
   }
 }

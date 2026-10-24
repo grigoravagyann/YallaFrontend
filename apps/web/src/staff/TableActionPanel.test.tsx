@@ -535,3 +535,67 @@ describe("the next booking's guest record", () => {
     );
   });
 });
+
+describe('transferring the table (2026-10-24)', () => {
+  const occupied = {
+    table: { state: 'occupied' as const, occupiedSinceUtc: minutesFromNow(-30) },
+    detail: {
+      physicalStatus: 'occupied' as const,
+      partySize: 4,
+      openTabId: 'tab-1',
+      serverStaffMemberId: 's-lilit',
+      serverName: 'Lilit Avetisyan',
+    },
+  };
+  const targets = [
+    { staffMemberId: 's-aram', name: 'Aram Petrosyan', roleLabel: 'Waiter', onShift: true },
+    { staffMemberId: 's-nare', name: 'Nare Petrosyan', roleLabel: 'Manager', onShift: false },
+  ];
+
+  it('names the waiter, and hands the table to the person picked', () => {
+    const onTransfer = vi.fn();
+    const onWantTransfer = vi.fn();
+    show({
+      ...occupied,
+      tab: tabOwing(5000),
+      transferTargets: targets,
+      onTransfer,
+      onWantTransfer,
+    });
+    expect(screen.getByText('Waiter').nextElementSibling?.textContent).toBe('Lilit Avetisyan');
+
+    fireEvent.click(button('Transfer table'));
+    expect(onWantTransfer).toHaveBeenCalledTimes(1);
+    const chooser = screen.getByRole('group', { name: 'Transfer table 6' });
+    // Nobody is chosen for the waiter: the confirm waits for a pick.
+    expect(
+      (within(chooser).getByRole('button', { name: 'Transfer' }) as HTMLButtonElement).disabled,
+    ).toBe(true);
+    const aram = within(chooser).getByRole('button', { name: /^Aram Petrosyan/u });
+    expect(aram.textContent).toContain('on shift now');
+    fireEvent.click(aram);
+    expect(aram.getAttribute('aria-pressed')).toBe('true');
+    fireEvent.click(within(chooser).getByRole('button', { name: 'Transfer to Aram' }));
+    expect(onTransfer).toHaveBeenCalledWith(targets[0]);
+  });
+
+  it('says it is reading who works while the list loads, and needs the connection', () => {
+    show({ ...occupied, transferTargets: null, onTransfer: vi.fn() });
+    fireEvent.click(button('Transfer table'));
+    expect(screen.getByText('Reading who is working…')).toBeTruthy();
+    cleanup();
+    show({ ...occupied, online: false, transferTargets: targets, onTransfer: vi.fn() });
+    expect((button('Transfer table') as HTMLButtonElement).disabled).toBe(true);
+    expect(screen.getByText('Transferring needs the connection.')).toBeTruthy();
+  });
+
+  it('is not offered on a table with no bill', () => {
+    show({
+      ...occupied,
+      detail: { ...occupied.detail, openTabId: null },
+      transferTargets: targets,
+      onTransfer: vi.fn(),
+    });
+    expect(screen.queryByRole('button', { name: 'Transfer table' })).toBeNull();
+  });
+});

@@ -29,6 +29,7 @@ import type {
 import type { StaffFloor } from '../contracts/service';
 import type { ConversationSubjectKind } from '../contracts/messages';
 import type { MessageHistoryFilters } from '../contracts/messageHistory';
+import type { ActivityFilters } from '../contracts/activity';
 import type { EditorFloorPlan, ReplaceFloorPlanCommand } from '../contracts/floorPlan';
 import type { SetReviewVisibilityCommand, VenueReviewQuery } from '../contracts/reviews';
 import type {
@@ -206,6 +207,22 @@ export {
   useUnreadMessages,
 } from './messages';
 export type { ConversationQueryOptions } from './messages';
+export {
+  activityOptions,
+  activityTimelineOptions,
+  claimServiceRequestOptions,
+  staffMemberPerformanceOptions,
+  staffPerformanceOptions,
+  staffRecentOptions,
+  transferTabOptions,
+  useActivity,
+  useActivityTimeline,
+  useClaimServiceRequest,
+  useStaffMemberPerformance,
+  useStaffPerformance,
+  useStaffRecent,
+  useTransferTab,
+} from './activity';
 export type {
   TelegramVerification,
   TelegramVerificationStatus,
@@ -459,6 +476,37 @@ export const queryKeys = {
    */
   historyConversation: (kind: ConversationSubjectKind, id: string) =>
     ['console', 'messageHistoryThread', kind, id] as const,
+  /** Every activity list of a branch: the prefix of {@link activity}. */
+  activityAll: (branchId: string) => ['console', 'activity', branchId] as const,
+  /** The console's History feed (2026-10-24), one key per set of filters; pages inside. */
+  activity: (branchId: string, filters: ActivityFilters) =>
+    [
+      'console',
+      'activity',
+      branchId,
+      filters.date,
+      filters.who.kind === 'staff' ? filters.who.staffMemberId : filters.who.kind,
+      filters.category,
+      filters.q.trim(),
+    ] as const,
+  /** One bill's, booking's or order's timeline. */
+  activityTimeline: (branchId: string, type: string, id: string) =>
+    ['console', 'activityTimeline', branchId, type, id] as const,
+  /** Staff → Results over one range. */
+  staffPerformance: (branchId: string, from: string, to: string) =>
+    ['console', 'staffPerformance', branchId, from, to] as const,
+  /** One person's page over one range. */
+  staffMemberPerformance: (branchId: string, staffMemberId: string, from: string, to: string) =>
+    ['console', 'staffMemberPerformance', branchId, staffMemberId, from, to] as const,
+  /** One of a person's lists, past its first page. */
+  staffRecent: (
+    branchId: string,
+    staffMemberId: string,
+    from: string,
+    to: string,
+    list: string,
+    firstCursor: string,
+  ) => ['console', 'staffRecent', branchId, staffMemberId, from, to, list, firstCursor] as const,
   /** Tables a scan seated with no proved number, waiting for a waiter to let them order. */
   tabsAwaitingAdmission: (branchId: string) =>
     ['staff', 'tabsAwaitingAdmission', branchId] as const,

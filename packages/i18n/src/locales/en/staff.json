@@ -86,7 +86,8 @@
       "seats": "Seats",
       "room": "Room",
       "bill": "Open bill",
-      "booked": "Booked for"
+      "booked": "Booked for",
+      "server": "Waiter"
     },
     "overSeats_one": "More than {{count}} seat",
     "overSeats_other": "More than {{count}} seats",
@@ -100,7 +101,23 @@
     },
     "lateFor_one": "{{count}} min late",
     "lateFor_other": "{{count}} min late",
-    "lateForHours": "{{hours}} h {{minutes}} min late"
+    "lateForHours": "{{hours}} h {{minutes}} min late",
+    "transfer": {
+      "action": "Transfer table",
+      "title": "Transfer table {{label}}",
+      "body": "The bill, the messages and the calls go to the new waiter from now on. What was done before stays under the earlier name.",
+      "legend": "To whom",
+      "onShift": "on shift now",
+      "offShift": "not on shift",
+      "loading": "Reading who is working…",
+      "failed": "Could not read who is working. Close and try again.",
+      "nobody": "Nobody else here can take tables.",
+      "confirm": "Transfer",
+      "confirmTo": "Transfer to {{name}}",
+      "needsOnline": "Transferring needs the connection.",
+      "done": "Table {{label}} is now {{name}}’s",
+      "refused": "Table {{label}} could not be transferred. Try again, or ask a manager."
+    }
   },
   "queue": {
     "conflicts_one": "{{count}} needs a decision",
@@ -880,7 +897,14 @@
         "other": "calls the waiter"
       },
       "ackNotice": "Table {{label}} · the guest can see you are coming",
-      "ackQueued": "Table {{label}} · saved; the guest sees it when the connection returns"
+      "ackQueued": "Table {{label}} · saved; the guest sees it when the connection returns",
+      "claim": "I’m on it",
+      "claimFor": "I’m on it · table {{label}}",
+      "claimedBy": "{{name}} is on it",
+      "claimedByYou": "You’re on it",
+      "claimNotice": "Table {{label}} · you’re on it; everyone sees your name",
+      "claimTaken": "Table {{label}} · {{name}} is already on it",
+      "claimFailed": "Table {{label}} · could not take the call. Try again."
     },
     "ready": {
       "title": "Ready to serve",

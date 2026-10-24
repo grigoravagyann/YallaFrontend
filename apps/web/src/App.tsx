@@ -28,6 +28,9 @@ import { VenueReviewsScreen } from './console/venue/reviews/VenueReviewsScreen';
 import { MessageHistoryScreen } from './console/venue/messageHistory/MessageHistoryScreen';
 import { VenueOverviewScreen } from './console/venue/VenueOverviewScreen';
 import { StaffScreen } from './console/venue/staff/StaffScreen';
+import { PersonScreen } from './console/venue/staff/PersonScreen';
+import { ActivityScreen } from './console/venue/activity/ActivityScreen';
+import { TimelineScreen } from './console/venue/activity/TimelineScreen';
 
 /**
  * Behind `lazy()` because it is the only screen in the console that needs a
@@ -285,6 +288,11 @@ export function AppRoutes({ user }: { user: ConsoleUser }) {
                 and the branch manager (their own branch), as Reviews. */}
             <Route path="messages" element={<MessageHistoryScreen />} />
             <Route path="staff" element={<StaffScreen />} />
+            {/* Activity history and staff results (2026-10-24): who did what,
+                one bill's or booking's story, and one person's page. */}
+            <Route path="staff/:staffMemberId" element={<PersonScreen />} />
+            <Route path="history" element={<ActivityScreen />} />
+            <Route path="history/:subjectType/:subjectId" element={<TimelineScreen />} />
             {/* My account: opened from the person at the sidebar's foot. */}
             <Route path="account" element={<AccountScreen />} />
             {/* Lazy: the reports screen is the only thing in the console

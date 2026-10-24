@@ -713,6 +713,37 @@ describe('the "Now" rail', () => {
     expect(await screen.findByText('Table 5 · the guest can see you are coming')).toBeTruthy();
   });
 
+  it('takes a call with "I’m on it", names who took it, and does not take it twice', async () => {
+    signIn();
+    const user = setupUser();
+    let claimed: ServiceRequest = water;
+    const claim = vi.fn(async () => {
+      claimed = {
+        ...water,
+        claimedByStaffMemberId: 'someone-else',
+        claimedByName: 'Aram Petrosyan',
+        claimedAtUtc: new Date().toISOString(),
+      };
+      return claimed;
+    });
+    const gateway = gatewayWith({
+      listServiceRequests: async () => [claimed],
+      claimServiceRequest: claim,
+    });
+    renderFloor(gateway);
+
+    const item = (await within(await rail()).findByText('asks for water')).closest('li')!;
+    await user.click(within(item).getByRole('button', { name: 'I’m on it · table 5' }));
+    await waitFor(() =>
+      expect(claim).toHaveBeenCalledWith({ branchId: BRANCH, requestId: 'sr-water' }),
+    );
+    // Somebody else was first: their name, and no second claim.
+    expect(await screen.findByText('Table 5 · Aram Petrosyan is already on it')).toBeTruthy();
+    const after = (await within(await rail()).findByText('asks for water')).closest('li')!;
+    expect(await within(after).findByText('Aram is on it')).toBeTruthy();
+    expect(within(after).queryByRole('button', { name: /I’m on it/u })).toBeNull();
+  });
+
   it('does not claim the guest saw "On my way" while it waits for the connection', async () => {
     signIn();
     const user = setupUser();

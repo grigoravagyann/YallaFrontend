@@ -115,6 +115,26 @@ export interface TableActionPanelProps {
   readonly nextBookingAwaiting?: boolean | undefined;
   readonly onOrder: () => void;
   readonly onClose: () => void;
+  /**
+   * Transfer the table (2026-10-24): who could take it — the branch's people
+   * who serve, its waiter left out — or `null` while that is being read.
+   * Absent, the action is not offered.
+   */
+  readonly transferTargets?: readonly TransferTarget[] | null | undefined;
+  /** The list could not be read. */
+  readonly transferTargetsFailed?: boolean | undefined;
+  /** The chooser opened: the caller reads who is on shift. */
+  readonly onWantTransfer?: (() => void) | undefined;
+  readonly onTransfer?: ((target: TransferTarget) => void) | undefined;
+  readonly transferring?: boolean | undefined;
+}
+
+/** Somebody a table can be handed to. */
+export interface TransferTarget {
+  readonly staffMemberId: string;
+  readonly name: string;
+  readonly roleLabel: string;
+  readonly onShift: boolean;
 }
 
 export function TableActionPanel(props: TableActionPanelProps) {
@@ -127,6 +147,7 @@ export function TableActionPanel(props: TableActionPanelProps) {
   const [partySize, setPartySize] = useState(2);
   const [confirmFree, setConfirmFree] = useState(false);
   const [askingRelease, setAskingRelease] = useState(false);
+  const [transferOpen, setTransferOpen] = useState(false);
   /**
    * The booking has been released, so this device stops offering to hold it and
    * the table's ordinary actions come back. Optimistic only: the floor refetch
@@ -151,7 +172,7 @@ export function TableActionPanel(props: TableActionPanelProps) {
   useEffect(() => {
     const panel = panelRef.current;
     if (panel && !panel.contains(document.activeElement)) panel.focus();
-  }, [seating, confirmFree, askingRelease]);
+  }, [seating, confirmFree, askingRelease, transferOpen]);
 
   const bookingStart = detail?.nextReservationStartUtc ?? table.nextReservationStartUtc;
   /**
@@ -512,6 +533,9 @@ export function TableActionPanel(props: TableActionPanelProps) {
               <Fact label={t('table.fact.bill')}>
                 {balance !== null ? format.dram(balance) : '—'}
               </Fact>
+              {detail?.serverName ? (
+                <Fact label={t('table.fact.server')}>{detail.serverName}</Fact>
+              ) : null}
               {bookingStart ? <Fact label={t('table.nextBooking')}>{nextBooking}</Fact> : null}
             </Facts>
 
@@ -606,6 +630,38 @@ export function TableActionPanel(props: TableActionPanelProps) {
                   {!online ? <p className="tp-hint">{t('table.cashNeedsOnline')}</p> : null}
                 </>
               )}
+
+              {/* Hand the table to another waiter (2026-10-24): the bill, its
+                  messages and its calls go to them from now on. Online only:
+                  it is not a command the tablet queues. */}
+              {props.onTransfer && detail?.openTabId ? (
+                transferOpen ? (
+                  <TransferChoice
+                    label={table.label}
+                    targets={props.transferTargets ?? null}
+                    failed={props.transferTargetsFailed ?? false}
+                    disabled={!online || pending || (props.transferring ?? false)}
+                    online={online}
+                    onTransfer={(target) => props.onTransfer?.(target)}
+                    onCancel={() => setTransferOpen(false)}
+                  />
+                ) : (
+                  <>
+                    <button
+                      type="button"
+                      className="tp-btn tp-sec"
+                      disabled={!online}
+                      onClick={() => {
+                        setTransferOpen(true);
+                        props.onWantTransfer?.();
+                      }}
+                    >
+                      {t('table.transfer.action')}
+                    </button>
+                    {!online ? <p className="tp-hint">{t('table.transfer.needsOnline')}</p> : null}
+                  </>
+                )
+              ) : null}
 
               {/* Destructive, so it sits under a rule rather than beside the
                   thumb that just tapped "take an order", and asks first. The
@@ -887,6 +943,90 @@ function ReleaseChoice({
           }}
         >
           {t('table.release.confirm')}
+        </button>
+      </div>
+    </Confirm>
+  );
+}
+
+/**
+ * Who takes the table: the branch's people who serve, those on shift first,
+ * none chosen until one is tapped, and the confirm naming them.
+ */
+function TransferChoice({
+  label,
+  targets,
+  failed,
+  disabled,
+  online,
+  onTransfer,
+  onCancel,
+}: {
+  readonly label: string;
+  readonly targets: readonly TransferTarget[] | null;
+  readonly failed: boolean;
+  readonly disabled: boolean;
+  readonly online: boolean;
+  readonly onTransfer: (target: TransferTarget) => void;
+  readonly onCancel: () => void;
+}) {
+  const { t } = useTranslation(['staff', 'common']);
+  const [chosen, setChosen] = useState<string | null>(null);
+  const target = targets?.find((candidate) => candidate.staffMemberId === chosen) ?? null;
+  const legendId = useId();
+  return (
+    <Confirm title={t('table.transfer.title', { label })}>
+      <p className="tp-hint">{t('table.transfer.body')}</p>
+      {failed ? (
+        <p className="tp-hint is-failed" role="alert">
+          {t('table.transfer.failed')}
+        </p>
+      ) : targets === null ? (
+        <p className="tp-hint" role="status">
+          {t('table.transfer.loading')}
+        </p>
+      ) : targets.length === 0 ? (
+        <p className="tp-hint">{t('table.transfer.nobody')}</p>
+      ) : (
+        <div className="tp-choices" role="group" aria-labelledby={legendId}>
+          <span id={legendId} className="tp-legend">
+            {t('table.transfer.legend')}
+          </span>
+          {targets.map((candidate) => (
+            <button
+              key={candidate.staffMemberId}
+              type="button"
+              className="tp-choice tp-person"
+              aria-pressed={chosen === candidate.staffMemberId}
+              onClick={() => setChosen(candidate.staffMemberId)}
+            >
+              <b>{candidate.name}</b>
+              <small>
+                {[
+                  candidate.roleLabel,
+                  candidate.onShift ? t('table.transfer.onShift') : t('table.transfer.offShift'),
+                ].join(' · ')}
+              </small>
+            </button>
+          ))}
+        </div>
+      )}
+      {!online ? <p className="tp-hint">{t('table.transfer.needsOnline')}</p> : null}
+      <div className="tp-row">
+        <button type="button" className="tp-btn tp-sec" onClick={onCancel}>
+          {t('common:action.cancel')}
+        </button>
+        <button
+          type="button"
+          className="tp-btn tp-pri"
+          disabled={disabled || target === null}
+          onClick={() => {
+            if (target) onTransfer(target);
+          }}
+        >
+          {target
+            ? t('table.transfer.confirmTo', { name: target.name.split(/\s+/u)[0] ?? target.name })
+            : t('table.transfer.confirm')}
         </button>
       </div>
     </Confirm>

@@ -16,6 +16,7 @@ import {
 } from '@yalla/api/react';
 import { useLocale, useTranslation } from '@yalla/i18n';
 import { useCallback, useMemo, useState, type ReactNode } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useCurrentUser } from '../../../auth/useCurrentUser';
 import { QueryFailureNotice } from '../../../components/QueryFailureNotice';
 import { initialsOf } from '../../ui/ConsoleShell';
@@ -32,6 +33,7 @@ import {
 } from '../../ui/icons';
 import { OnceLinkDialog } from '../../ui/OnceLinkDialog';
 import { PageHeader } from '../../ui/PageHeader';
+import { Tabs, panelId, tabId } from '../../ui/Tabs';
 import { RowMenu, type RowMenuItem } from '../../ui/RowMenu';
 import { useToast } from '../../ui/toast';
 import { useVenueOutlet } from '../VenueLayout';
@@ -52,6 +54,7 @@ import {
 import { asStaffRefusal, type StaffRefusal } from './staffRefusal';
 import { shiftLineOf, type ShiftLine } from './staffShifts';
 import { useStaffLabels } from './staffLabels';
+import { StaffResults } from './StaffResults';
 
 /** The groups' order, most senior first (Staff artboard). */
 const ROLE_ORDER: readonly StaffRole[] = [
@@ -140,6 +143,9 @@ export function StaffScreen() {
   const setPin = useSetStaffPin(venueId);
   const clearLockout = useClearPinLockout(venueId);
 
+  // People or Results (2026-10-24): in the address, so a Results link opens Results.
+  const [params, setParams] = useSearchParams();
+  const section: 'people' | 'results' = params.get('tab') === 'results' ? 'results' : 'people';
   const [search, setSearch] = useState('');
   const [roleFilter, setRoleFilter] = useState<RoleFilter>('all');
   const [showInactive, setShowInactive] = useState(false);
@@ -410,192 +416,246 @@ export function StaffScreen() {
         }
       />
 
-      <div className="yc-tools">
-        <div className="yc-fld yc-search yc-st-search">
-          <label htmlFor="st-q">{t('staff.filter.search')}</label>
-          <SearchIcon />
-          <input
-            id="st-q"
-            className="yc-ctl"
-            type="search"
-            placeholder={t('staff.filter.searchPlaceholder')}
-            value={search}
-            onChange={(event) => setSearch(event.currentTarget.value)}
-          />
-        </div>
-        <div className="yc-fld">
-          <label htmlFor="st-role">{t('staff.filter.role')}</label>
-          <select
-            id="st-role"
-            className="yc-ctl"
-            value={roleFilter}
-            onChange={(event) => setRoleFilter(event.currentTarget.value as RoleFilter)}
-          >
-            <option value="all">{t('staff.filter.all')}</option>
-            {ROLE_ORDER.map((role) => (
-              <option key={role} value={role}>
-                {t(`role.${role}`)}
-              </option>
-            ))}
-          </select>
-        </div>
-        <label className="yc-check-line">
-          <input
-            type="checkbox"
-            checked={showInactive}
-            onChange={(event) => setShowInactive(event.currentTarget.checked)}
-          />
-          {t('staff.filter.inactive')}
-        </label>
-      </div>
+      <Tabs
+        label={t('staffResults.tabs.label')}
+        idPrefix="st"
+        selected={section}
+        onSelect={(next) =>
+          setParams(
+            (current) => {
+              const copy = new URLSearchParams(current);
+              if (next === 'results') copy.set('tab', 'results');
+              else {
+                copy.delete('tab');
+                copy.delete('period');
+                copy.delete('sort');
+                copy.delete('dir');
+              }
+              return copy;
+            },
+            { replace: true },
+          )
+        }
+        tabs={[
+          { id: 'people', label: t('staffResults.tabs.people') },
+          { id: 'results', label: t('staffResults.tabs.results') },
+        ]}
+      />
 
-      <div className="yc-st-layout">
-        <div className="yc-st-groups">
-          {staff.isError ? (
-            <div className="yc-card yc-ov-pad">
-              <QueryFailureNotice error={staff.error} onRetry={() => void staff.refetch()} />
-            </div>
-          ) : staff.isLoading ? (
-            <p className="yc-card yc-empty-line" role="status">
-              {t('loading')}
-            </p>
-          ) : atBranch.length === 0 ? (
-            /* The common state during onboarding, so it routes straight into
-               hiring somebody rather than saying "no staff" and stopping. */
-            <div className="yc-card yc-empty">
-              <h2 className="yc-h2">{t('staff.empty.title')}</h2>
-              <p className="yc-muted">{t('staff.empty.body')}</p>
-              {canAdd ? (
-                <button
-                  type="button"
-                  className="yc-btn yc-btn-pri"
-                  onClick={() => setOpen({ kind: 'add' })}
-                >
-                  {t('staff.empty.action')}
-                </button>
-              ) : null}
-            </div>
-          ) : groups.length === 0 ? (
-            <div className="yc-card yc-empty">
-              <h2 className="yc-h2">{t('staff.empty.noMatch')}</h2>
-              <p className="yc-muted">{t('staff.empty.noMatchBody')}</p>
-            </div>
+      {section === 'results' ? (
+        <div
+          role="tabpanel"
+          id={panelId('st', 'results')}
+          aria-labelledby={tabId('st', 'results')}
+          className="yc-panel"
+        >
+          {branchId ? (
+            <StaffResults branchId={branchId} timeZoneId={timeZoneId} />
           ) : (
-            groups.map((group) => (
-              <section key={group.role} className="yc-card" aria-labelledby={`grp-${group.role}`}>
-                <div className="yc-card-h">
-                  <div>
-                    <h2 className="yc-h2" id={`grp-${group.role}`}>
-                      {labels.group(group.role)}{' '}
-                      <span className="yc-st-count">{group.members.length}</span>
-                    </h2>
-                    <p className="yc-cap">{labels.roleInfo(group.role)}</p>
-                  </div>
-                </div>
-                <ul className="yc-people">
-                  {group.members.map((member) => {
-                    const actions = rowActionsFor(member, actor, { canUnlock: branchId !== null });
-                    const status = staffStatusOf(member);
-                    const line = shiftLineOf(member.id, member.isActive, shifts.data, nextDay);
-                    const items: RowMenuItem[] = actions.menu.map((action) => ({
-                      key: action,
-                      label: labels.action(action, member),
-                      icon: menuIcon[action],
-                      ...(action === 'deactivate' ? { danger: true } : {}),
-                      onSelect: () => act(member, action),
-                    }));
-                    return (
-                      <li
-                        key={member.id}
-                        className={member.isActive ? 'yc-st-row' : 'yc-st-row is-off'}
-                      >
-                        <div className="yc-person">
-                          <span className="yc-av" aria-hidden="true">
-                            {initialsOf(member.fullName)}
-                          </span>
-                          <div className="yc-st-who">
-                            <div className="yc-pn">
-                              {member.fullName}
-                              {actions.isSelf ? (
-                                <span className="yc-you">{t('staff.card.you')}</span>
-                              ) : null}
-                            </div>
-                            <div className="yc-pe">{member.email ?? member.phone}</div>
-                          </div>
-                        </div>
-                        <span className="yc-st-branch">{branchLabel(member)}</span>
-                        <span
-                          className={
-                            line?.kind === 'today' ? 'yc-st-shift' : 'yc-st-shift is-quiet'
-                          }
-                        >
-                          {line ? (
-                            <>
-                              <i className={`yc-st-dot is-${line.kind}`} aria-hidden="true" />
-                              {shiftText(line)}
-                            </>
-                          ) : null}
-                        </span>
-                        <span className="yc-st-status">
-                          <span className={PILL[status]}>
-                            <span className="yc-dot" aria-hidden="true" />
-                            {labels.status(status)}
-                          </span>
-                        </span>
-                        <div className="yc-st-acts">
-                          {actions.locked ? (
-                            <span className="yc-above">
-                              <LockIcon />
-                              {t('staff.action.notYours')}
-                            </span>
-                          ) : null}
-                          {actions.primary ? (
-                            <button
-                              type="button"
-                              className="yc-btn yc-btn-sec yc-btn-sm"
-                              data-prim={member.id}
-                              aria-label={t('venuePage.staff.actionFor', {
-                                action: primaryLabel(actions.primary),
-                                name: member.fullName,
-                              })}
-                              onClick={() => act(member, actions.primary!)}
-                            >
-                              {primaryLabel(actions.primary)}
-                            </button>
-                          ) : null}
-                          {items.length > 0 ? (
-                            <RowMenu
-                              id={member.id}
-                              label={t('staff.action.moreFor', { name: member.fullName })}
-                              items={items}
-                              open={menuFor === member.id}
-                              onOpenChange={(next) => setMenuFor(next ? member.id : null)}
-                            />
-                          ) : null}
-                        </div>
-                      </li>
-                    );
-                  })}
-                </ul>
-              </section>
-            ))
+            <p className="yc-card yc-empty-line">{t('menu.noBranch')}</p>
           )}
         </div>
+      ) : (
+        <div
+          role="tabpanel"
+          id={panelId('st', 'people')}
+          aria-labelledby={tabId('st', 'people')}
+          className="yc-panel yc-panel-body"
+        >
+          <div className="yc-tools">
+            <div className="yc-fld yc-search yc-st-search">
+              <label htmlFor="st-q">{t('staff.filter.search')}</label>
+              <SearchIcon />
+              <input
+                id="st-q"
+                className="yc-ctl"
+                type="search"
+                placeholder={t('staff.filter.searchPlaceholder')}
+                value={search}
+                onChange={(event) => setSearch(event.currentTarget.value)}
+              />
+            </div>
+            <div className="yc-fld">
+              <label htmlFor="st-role">{t('staff.filter.role')}</label>
+              <select
+                id="st-role"
+                className="yc-ctl"
+                value={roleFilter}
+                onChange={(event) => setRoleFilter(event.currentTarget.value as RoleFilter)}
+              >
+                <option value="all">{t('staff.filter.all')}</option>
+                {ROLE_ORDER.map((role) => (
+                  <option key={role} value={role}>
+                    {t(`role.${role}`)}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <label className="yc-check-line">
+              <input
+                type="checkbox"
+                checked={showInactive}
+                onChange={(event) => setShowInactive(event.currentTarget.checked)}
+              />
+              {t('staff.filter.inactive')}
+            </label>
+          </div>
 
-        <aside className="yc-st-side">
-          {/* Keyed by branch: a code or an open revoke confirmation belongs to
+          <div className="yc-st-layout">
+            <div className="yc-st-groups">
+              {staff.isError ? (
+                <div className="yc-card yc-ov-pad">
+                  <QueryFailureNotice error={staff.error} onRetry={() => void staff.refetch()} />
+                </div>
+              ) : staff.isLoading ? (
+                <p className="yc-card yc-empty-line" role="status">
+                  {t('loading')}
+                </p>
+              ) : atBranch.length === 0 ? (
+                /* The common state during onboarding, so it routes straight into
+               hiring somebody rather than saying "no staff" and stopping. */
+                <div className="yc-card yc-empty">
+                  <h2 className="yc-h2">{t('staff.empty.title')}</h2>
+                  <p className="yc-muted">{t('staff.empty.body')}</p>
+                  {canAdd ? (
+                    <button
+                      type="button"
+                      className="yc-btn yc-btn-pri"
+                      onClick={() => setOpen({ kind: 'add' })}
+                    >
+                      {t('staff.empty.action')}
+                    </button>
+                  ) : null}
+                </div>
+              ) : groups.length === 0 ? (
+                <div className="yc-card yc-empty">
+                  <h2 className="yc-h2">{t('staff.empty.noMatch')}</h2>
+                  <p className="yc-muted">{t('staff.empty.noMatchBody')}</p>
+                </div>
+              ) : (
+                groups.map((group) => (
+                  <section
+                    key={group.role}
+                    className="yc-card"
+                    aria-labelledby={`grp-${group.role}`}
+                  >
+                    <div className="yc-card-h">
+                      <div>
+                        <h2 className="yc-h2" id={`grp-${group.role}`}>
+                          {labels.group(group.role)}{' '}
+                          <span className="yc-st-count">{group.members.length}</span>
+                        </h2>
+                        <p className="yc-cap">{labels.roleInfo(group.role)}</p>
+                      </div>
+                    </div>
+                    <ul className="yc-people">
+                      {group.members.map((member) => {
+                        const actions = rowActionsFor(member, actor, {
+                          canUnlock: branchId !== null,
+                        });
+                        const status = staffStatusOf(member);
+                        const line = shiftLineOf(member.id, member.isActive, shifts.data, nextDay);
+                        const items: RowMenuItem[] = actions.menu.map((action) => ({
+                          key: action,
+                          label: labels.action(action, member),
+                          icon: menuIcon[action],
+                          ...(action === 'deactivate' ? { danger: true } : {}),
+                          onSelect: () => act(member, action),
+                        }));
+                        return (
+                          <li
+                            key={member.id}
+                            className={member.isActive ? 'yc-st-row' : 'yc-st-row is-off'}
+                          >
+                            <div className="yc-person">
+                              <span className="yc-av" aria-hidden="true">
+                                {initialsOf(member.fullName)}
+                              </span>
+                              <div className="yc-st-who">
+                                <div className="yc-pn">
+                                  {member.fullName}
+                                  {actions.isSelf ? (
+                                    <span className="yc-you">{t('staff.card.you')}</span>
+                                  ) : null}
+                                </div>
+                                <div className="yc-pe">{member.email ?? member.phone}</div>
+                              </div>
+                            </div>
+                            <span className="yc-st-branch">{branchLabel(member)}</span>
+                            <span
+                              className={
+                                line?.kind === 'today' ? 'yc-st-shift' : 'yc-st-shift is-quiet'
+                              }
+                            >
+                              {line ? (
+                                <>
+                                  <i className={`yc-st-dot is-${line.kind}`} aria-hidden="true" />
+                                  {shiftText(line)}
+                                </>
+                              ) : null}
+                            </span>
+                            <span className="yc-st-status">
+                              <span className={PILL[status]}>
+                                <span className="yc-dot" aria-hidden="true" />
+                                {labels.status(status)}
+                              </span>
+                            </span>
+                            <div className="yc-st-acts">
+                              {actions.locked ? (
+                                <span className="yc-above">
+                                  <LockIcon />
+                                  {t('staff.action.notYours')}
+                                </span>
+                              ) : null}
+                              {actions.primary ? (
+                                <button
+                                  type="button"
+                                  className="yc-btn yc-btn-sec yc-btn-sm"
+                                  data-prim={member.id}
+                                  aria-label={t('venuePage.staff.actionFor', {
+                                    action: primaryLabel(actions.primary),
+                                    name: member.fullName,
+                                  })}
+                                  onClick={() => act(member, actions.primary!)}
+                                >
+                                  {primaryLabel(actions.primary)}
+                                </button>
+                              ) : null}
+                              {items.length > 0 ? (
+                                <RowMenu
+                                  id={member.id}
+                                  label={t('staff.action.moreFor', { name: member.fullName })}
+                                  items={items}
+                                  open={menuFor === member.id}
+                                  onOpenChange={(next) => setMenuFor(next ? member.id : null)}
+                                />
+                              ) : null}
+                            </div>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  </section>
+                ))
+              )}
+            </div>
+
+            <aside className="yc-st-side">
+              {/* Keyed by branch: a code or an open revoke confirmation belongs to
               the branch it was made for, not the one switched to. */}
-          {branchId ? (
-            <DevicesPanel
-              key={branchId}
-              branchId={branchId}
-              branchName={here}
-              timeZoneId={timeZoneId}
-              locale={locale}
-            />
-          ) : null}
-        </aside>
-      </div>
+              {branchId ? (
+                <DevicesPanel
+                  key={branchId}
+                  branchId={branchId}
+                  branchName={here}
+                  timeZoneId={timeZoneId}
+                  locale={locale}
+                />
+              ) : null}
+            </aside>
+          </div>
+        </div>
+      )}
 
       {open?.kind === 'add' ? (
         <AddStaffWizard

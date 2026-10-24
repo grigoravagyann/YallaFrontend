@@ -52,7 +52,7 @@ import {
   type TakeawayPaymentMethod,
   type TakeawayStatus,
 } from '../contracts/takeaway';
-import { requireClientCommandId } from './problems';
+import { requireClientCommandId, validationFailed } from './problems';
 import {
   ADMITTED,
   type FloorChangeSignal,
@@ -121,6 +121,14 @@ import type { Photo } from '../contracts/menuAdmin';
 import { mockMenuFor } from './menu';
 import { mockBranchMenu, mockPhoto, publishedBranchMenu } from './menuDetail';
 import { computeBill, percentOf, type BillingLine } from './billing';
+import {
+  SERVING_ROLES,
+  type ClaimServiceRequestCommand,
+  type TabTransferResult,
+  type TransferTabCommand,
+} from '../contracts/activity';
+import { fixtureStaffFor } from './staffFixture';
+import { mockVenues } from './venues';
 
 /**
  * A whole service, in memory.
@@ -561,6 +569,37 @@ export function createStaffMockGateway(options: StaffMockOptions = {}): StaffGat
   const tabs = new Map<string, MockTab>();
   const orders = new Map<string, MockOrder>();
   const serviceRequests = new Map<string, ServiceRequest>();
+  /**
+   * Each tab's waiter (2026-10-24): whoever the mock says is signed in when a
+   * table is seated, until a transfer. By tab id.
+   */
+  const tabServers = new Map<string, { readonly id: string; readonly name: string }>();
+  /** Transfers by `clientCommandId`: a retry answers with the first one. */
+  const transfers = new Map<string, TabTransferResult>();
+
+  /** The branch's people, as the mock tablet's roster has them (`staffFixture.ts`). */
+  function branchPeople() {
+    for (const venue of mockVenues) {
+      if (venue.branches.some((branch) => branch.id === branchId)) {
+        return fixtureStaffFor(venue.id, venue.name, venue.branches).filter(
+          (member) => member.isActive && (member.branchId === null || member.branchId === branchId),
+        );
+      }
+    }
+    return [];
+  }
+
+  /** The signed-in waiter the mock stands in for: the fixture's, by the name it acts under. */
+  function me(): { readonly id: string; readonly name: string } {
+    const name = options.staffName ?? 'Ani Hakobyan';
+    const found = branchPeople().find((member) => member.fullName.startsWith(name));
+    return { id: found?.id ?? `${branchId}-waiter-1`, name: found?.fullName ?? name };
+  }
+
+  function serverOf(tabId: string | null): { readonly id: string; readonly name: string } | null {
+    if (!tabId || !tabs.has(tabId)) return null;
+    return tabServers.get(tabId) ?? me();
+  }
   const reservations = new Map<string, MockReservation>();
   /** clientCommandId -> the original response. The idempotency log. */
   const applied = new Map<string, TableActionResult>();
@@ -2540,6 +2579,13 @@ export function createStaffMockGateway(options: StaffMockOptions = {}): StaffGat
           sittingGuestRecord: null,
           // Guest messages (2026-10-23): the tile's badges, only when there are some.
           ...unreadOnTable(state),
+          // Table ownership (2026-10-24): the tab's waiter.
+          ...(serverOf(state.tabId)
+            ? {
+                serverStaffMemberId: serverOf(state.tabId)!.id,
+                serverName: serverOf(state.tabId)!.name,
+              }
+            : {}),
         });
         return {
           ...table,
@@ -3493,6 +3539,56 @@ export function createStaffMockGateway(options: StaffMockOptions = {}): StaffGat
       const acknowledged = { ...request, acknowledgedAtUtc: iso(now()) };
       serviceRequests.set(request.id, acknowledged);
       return settle(acknowledged);
+    },
+
+    async claimServiceRequest(command: ClaimServiceRequestCommand): Promise<ServiceRequest> {
+      const url = `/api/branches/${command.branchId}/calls/${command.requestId}/claim`;
+      requireSession(url);
+      const request = serviceRequests.get(command.requestId);
+      if (!request) throw new NotFoundError({ url });
+      // The first claim wins; a second answers the call as it stands.
+      if (request.claimedByName) return settle(request);
+      const who = me();
+      const claimed: ServiceRequest = {
+        ...request,
+        claimedByStaffMemberId: who.id,
+        claimedByName: who.name,
+        claimedAtUtc: iso(now()),
+      };
+      serviceRequests.set(request.id, claimed);
+      return settle(claimed);
+    },
+
+    async transferTab(command: TransferTabCommand): Promise<TabTransferResult> {
+      const url = `/api/tabs/${command.tabId}/transfer`;
+      requireSession(url);
+      requireClientCommandId(url, command.clientCommandId);
+      const replay = transfers.get(command.clientCommandId);
+      if (replay) return settle(replay);
+      const tab = tabs.get(command.tabId);
+      if (!tab || tab.status === 'closed' || tab.status === 'abandoned') {
+        throw new NotFoundError({ url });
+      }
+      const target = branchPeople().find((member) => member.id === command.toStaffMemberId);
+      if (!target || !SERVING_ROLES.includes(target.role)) {
+        throw validationFailed(url, [
+          {
+            field: 'toStaffMemberId',
+            message: 'That person cannot take tables at this branch.',
+            bound: 'range',
+          },
+        ]);
+      }
+      const previous = serverOf(tab.id);
+      tabServers.set(tab.id, { id: target.id, name: target.fullName });
+      const result: TabTransferResult = {
+        tabId: tab.id,
+        server: { staffMemberId: target.id, name: target.fullName },
+        previousServer: previous ? { staffMemberId: previous.id, name: previous.name } : null,
+        transferredAtUtc: iso(now()),
+      };
+      transfers.set(command.clientCommandId, result);
+      return settle(result);
     },
 
     async voidLine(command: VoidLineCommand): Promise<readonly TabLine[]> {

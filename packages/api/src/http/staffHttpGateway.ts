@@ -1,3 +1,10 @@
+import type { TabTransferResult } from '../contracts/activity';
+import {
+  tabTransferFromWire,
+  type WireServiceRequestClaim,
+  type WireTabTransfer,
+  type WireTransferTabRequest,
+} from './activityMapping';
 import type { DuePreOrder, DuePreOrders } from '../contracts/preOrder';
 import type { AskOnMyWayResult } from '../contracts/onMyWay';
 import {
@@ -760,6 +767,27 @@ export function createStaffHttpGateway(client: ApiClient): StaffGateway {
         { clientCommandId: command.clientCommandId },
       );
       return serviceRequest(data);
+    },
+
+    async claimServiceRequest(command): Promise<ServiceRequest> {
+      // gateway-schema: awaiting-route — call claims are built in parallel (2026-10-24)
+      const { data } = await client.post<
+        Schemas['Yalla.Application.Ordering.ServiceRequestView'] & WireServiceRequestClaim
+      >(`/api/branches/${command.branchId}/calls/${command.requestId}/claim`, {});
+      return serviceRequest(data);
+    },
+
+    async transferTab(command): Promise<TabTransferResult> {
+      const body: WireTransferTabRequest = {
+        toStaffMemberId: command.toStaffMemberId,
+        clientCommandId: command.clientCommandId,
+      };
+      // gateway-schema: awaiting-route — table transfer is built in parallel (2026-10-24)
+      const { data } = await client.post<WireTabTransfer>(
+        `/api/tabs/${command.tabId}/transfer`,
+        body,
+      );
+      return tabTransferFromWire(data, command);
     },
 
     // --- Money --------------------------------------------------------------

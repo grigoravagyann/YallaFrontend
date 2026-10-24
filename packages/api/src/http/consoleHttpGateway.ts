@@ -6,6 +6,28 @@ import type {
   StaffConversation,
 } from '../contracts/messages';
 import type { MessageHistoryPage } from '../contracts/messageHistory';
+import type {
+  ActivityPage,
+  ActivityTimeline,
+  StaffMemberPerformance,
+  StaffPerformance,
+  StaffRecentPage,
+} from '../contracts/activity';
+import {
+  activityPageFromWire,
+  activityParamsFor,
+  activitySubjectSegment,
+  activityTimelineFromWire,
+  csvFileName,
+  performanceParams,
+  staffMemberPerformanceFromWire,
+  staffPerformanceFromWire,
+  staffRecentPageFromWire,
+  type WireActivityPage,
+  type WireActivityTimeline,
+  type WireStaffMemberPerformance,
+  type WireStaffPerformance,
+} from './activityMapping';
 import {
   messageSettingsBody,
   messageSettingsFromWire,
@@ -1802,6 +1824,104 @@ export function createConsoleHttpGateway(
         throw error;
       }
     },
+
+    // --- Activity history and staff results (2026-10-24) -----------------------
+    //
+    // Hand-written to the build spec while the backend is built beside it
+    // (`activityMapping.ts`); every route below is marked until the schema is
+    // regenerated. The CSVs are the server's own bytes, as the reports' are.
+
+    async listActivity(branchId, query): Promise<ActivityPage> {
+      // gateway-schema: awaiting-route — activity history is built in parallel (2026-10-24)
+      const { data } = await client.get<WireActivityPage>(`${BRANCHES}/${branchId}/activity`, {
+        query: activityParamsFor(query, query),
+      });
+      return activityPageFromWire(data);
+    },
+
+    async exportActivityCsv(branchId, filters) {
+      // gateway-schema: awaiting-route — activity history is built in parallel (2026-10-24)
+      const response = await client.get<string>(`${BRANCHES}/${branchId}/activity.csv`, {
+        query: activityParamsFor(filters),
+        timeoutMs: REPORT_TIMEOUT_MS,
+      });
+      return csvExport(response, `activity-${filters.date}.csv`);
+    },
+
+    async getActivityTimeline(branchId, subject): Promise<ActivityTimeline | null> {
+      const type = encodeURIComponent(activitySubjectSegment(subject.type));
+      const id = encodeURIComponent(subject.id);
+      try {
+        // gateway-schema: awaiting-route — activity history is built in parallel (2026-10-24)
+        const { data } = await client.get<WireActivityTimeline>(
+          `${BRANCHES}/${branchId}/activity/subjects/${type}/${id}`,
+        );
+        return activityTimelineFromWire(data, subject);
+      } catch (error) {
+        if (error instanceof NotFoundError) return null;
+        throw error;
+      }
+    },
+
+    async getStaffPerformance(branchId, range): Promise<StaffPerformance> {
+      // gateway-schema: awaiting-route — staff results are built in parallel (2026-10-24)
+      const { data } = await client.get<WireStaffPerformance>(
+        `${BRANCHES}/${branchId}/staff-performance`,
+        { query: performanceParams(range) },
+      );
+      return staffPerformanceFromWire(data, range);
+    },
+
+    async exportStaffPerformanceCsv(branchId, range) {
+      // gateway-schema: awaiting-route — staff results are built in parallel (2026-10-24)
+      const response = await client.get<string>(`${BRANCHES}/${branchId}/staff-performance.csv`, {
+        query: performanceParams(range),
+        timeoutMs: REPORT_TIMEOUT_MS,
+      });
+      return csvExport(response, `staff-${range.from}-to-${range.to}.csv`);
+    },
+
+    async getStaffMemberPerformance(
+      branchId,
+      staffMemberId,
+      range,
+    ): Promise<StaffMemberPerformance | null> {
+      const id = encodeURIComponent(staffMemberId);
+      try {
+        // gateway-schema: awaiting-route — staff results are built in parallel (2026-10-24)
+        const { data } = await client.get<WireStaffMemberPerformance>(
+          `${BRANCHES}/${branchId}/staff/${id}/performance`,
+          { query: performanceParams(range) },
+        );
+        return staffMemberPerformanceFromWire(data, { ...range, staffMemberId });
+      } catch (error) {
+        if (error instanceof NotFoundError) return null;
+        throw error;
+      }
+    },
+
+    async listStaffRecent(branchId, staffMemberId, query): Promise<StaffRecentPage> {
+      const id = encodeURIComponent(staffMemberId);
+      // gateway-schema: awaiting-route — staff results are built in parallel (2026-10-24)
+      const { data } = await client.get<WireStaffMemberPerformance>(
+        `${BRANCHES}/${branchId}/staff/${id}/performance`,
+        { query: performanceParams(query, { list: query.list, cursor: query.cursor }) },
+      );
+      return staffRecentPageFromWire(data?.recent?.[query.list]);
+    },
+  };
+}
+
+/** A CSV as the server wrote it, BOM and all, under the name it gave. */
+function csvExport(
+  response: { readonly data: unknown; readonly headers: Headers },
+  fallbackName: string,
+): ReportExport {
+  const csv = typeof response.data === 'string' ? response.data : '';
+  return {
+    fileName: csvFileName(response.headers.get('content-disposition'), fallbackName),
+    contentType: response.headers.get('content-type') ?? 'text/csv; charset=utf-8',
+    bytes: new Blob([csv], { type: 'text/csv;charset=utf-8' }),
   };
 }
 

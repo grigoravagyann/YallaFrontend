@@ -27,6 +27,11 @@ import type {
 } from './contracts/takeaway';
 import type { ReservationStatusCode } from './contracts/push';
 import type { Menu } from './contracts/menu';
+import type {
+  ClaimServiceRequestCommand,
+  TabTransferResult,
+  TransferTabCommand,
+} from './contracts/activity';
 import type { StaffFloor, TableActionCommand, TableActionResult } from './contracts/service';
 import type {
   AbandonTabCommand,
@@ -383,6 +388,25 @@ export interface StaffGateway {
   listServiceRequests(branchId: string): Promise<readonly ServiceRequest[]>;
 
   acknowledgeServiceRequest(command: AcknowledgeServiceRequestCommand): Promise<ServiceRequest>;
+
+  /**
+   * "I'm on it" (2026-10-24): the caller takes the call, and every tablet
+   * shows their name — `POST /api/branches/{branchId}/calls/{callId}/claim`.
+   * The first claim wins: claiming a call somebody already took answers it
+   * as it stands, with their name. Online only.
+   */
+  claimServiceRequest(command: ClaimServiceRequestCommand): Promise<ServiceRequest>;
+
+  /**
+   * Give the table to another waiter from now on — `POST
+   * /api/tabs/{tabId}/transfer`. The table's waiter or a manager and above;
+   * the target serves at this branch. What was done before stays with the
+   * earlier person. Online only.
+   *
+   * @throws {ForbiddenError} not the table's waiter nor a manager.
+   * @throws {ValidationError} the target cannot take tables here.
+   */
+  transferTab(command: TransferTabCommand): Promise<TabTransferResult>;
 
   // --- Money --------------------------------------------------------------
 

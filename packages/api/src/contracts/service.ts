@@ -347,6 +347,13 @@ export interface StaffTableDetail {
    */
   readonly nextReservationUnreadMessages?: number | undefined;
   /**
+   * The waiter whose table this is (2026-10-24): whoever seated it or opened
+   * the bill, or the first to order on it, until a transfer. Absent or `null`
+   * while nobody is, and from a server before table ownership.
+   */
+  readonly serverStaffMemberId?: string | null | undefined;
+  readonly serverName?: string | null | undefined;
+  /**
    * …and on the thread of the booking the party sitting here came in on: the
    * tile badges either. Absent or 0 when none.
    */

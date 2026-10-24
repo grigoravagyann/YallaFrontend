@@ -35,6 +35,7 @@ import {
   useAwaitingApproval,
   useBeginClosing,
   useBranchConversations,
+  useClaimServiceRequest,
   useCompLine,
   useDuePreOrders,
   useOpenTabForStaff,
@@ -48,8 +49,12 @@ import {
   useNow,
   useTakeawayOrders,
   useTabsAwaitingAdmission,
+  useTransferTab,
   useVoidLine,
 } from '@yalla/api/react';
+import { SERVING_ROLES, type StaffRole } from '@yalla/api';
+import { useQuery } from '@tanstack/react-query';
+import { staffSession } from './auth/staffSession';
 import { useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from '@yalla/i18n';
 import type { TFunction } from 'i18next';
@@ -86,7 +91,7 @@ import { useMinuteClock } from './useMinuteClock';
 import { useBehindHeldNotice, useCancelReadsWhileLocked, useHeldMarks } from './useHandover';
 import { kitchenWaiting, OrderQueuePanel } from './OrderQueuePanel';
 import { StaffHeader, type StaffView } from './StaffHeader';
-import { TableActionPanel } from './TableActionPanel';
+import { TableActionPanel, type TransferTarget } from './TableActionPanel';
 import { tableCardText } from './tableCard';
 import { TableList } from './TableList';
 import { TabPanel } from './TabPanel';
@@ -1096,11 +1101,61 @@ export function FloorRoute({ identity, device = null, paused }: FloorRouteProps)
     [branchId, queryClient, queue],
   );
 
+  // --- "I'm on it" (2026-10-24) ---------------------------------------------
+  //
+  // A claim is online only: the first one wins on the server, so a claim
+  // queued offline would be a guess. "On my way" on a call nobody has taken
+  // claims it too, quietly — the response time is measured to the claim.
+  const claimMutation = useClaimServiceRequest();
+  const [claiming, setClaiming] = useState<ReadonlySet<string>>(new Set());
+  const claim = useCallback(
+    (request: ServiceRequest, quiet = false) => {
+      if (!queue.online || request.claimedByName) return;
+      setClaiming((current) => new Set(current).add(request.id));
+      claimMutation.mutate(
+        { branchId, requestId: request.id },
+        {
+          onSuccess: (claimed) => {
+            if (quiet) return;
+            const mine =
+              !claimed.claimedByStaffMemberId ||
+              claimed.claimedByStaffMemberId === identity.staffMemberId;
+            setNotice({
+              kind: mine ? 'info' : 'race',
+              text: mine
+                ? t('rail.calls.claimNotice', { label: request.tableLabel })
+                : t('rail.calls.claimTaken', {
+                    label: request.tableLabel,
+                    name: claimed.claimedByName ?? '',
+                  }),
+            });
+          },
+          onError: () => {
+            if (!quiet) {
+              setNotice({
+                kind: 'warning',
+                text: t('rail.calls.claimFailed', { label: request.tableLabel }),
+              });
+            }
+          },
+          onSettled: () =>
+            setClaiming((current) => {
+              const next = new Set(current);
+              next.delete(request.id);
+              return next;
+            }),
+        },
+      );
+    },
+    [branchId, claimMutation, identity.staffMemberId, queue.online, t],
+  );
+
   const acknowledge = useCallback(
     (request: ServiceRequest) => {
       if (request.reason === 'bill' && request.bill) {
         setAcknowledgedBills((current) => new Map(current).set(request.id, request));
       }
+      claim(request, true);
       sendAcknowledge(request);
       setNotice({
         kind: 'info',
@@ -1110,7 +1165,65 @@ export function FloorRoute({ identity, device = null, paused }: FloorRouteProps)
         }),
       });
     },
-    [queue.online, sendAcknowledge, t],
+    [claim, queue.online, sendAcknowledge, t],
+  );
+
+  // --- Transfer a table (2026-10-24) -------------------------------------------
+  //
+  // Who could take it: the tablet's own roster, read when the chooser opens —
+  // active people of this branch, those on shift first. The server checks the
+  // rest (that they serve here, that the actor may hand the table over).
+  const transferTab = useTransferTab(branchId);
+  const [rosterWanted, setRosterWanted] = useState(false);
+  const roster = useQuery({
+    queryKey: ['staff', 'transferRoster', branchId],
+    queryFn: async () => (await staffSession?.roster()) ?? [],
+    enabled: rosterWanted && Boolean(staffSession),
+    staleTime: 60_000,
+    retry: false,
+  });
+  const transferTargetsFor = useCallback(
+    (serverId: string | null | undefined): readonly TransferTarget[] | null => {
+      if (!roster.data) return null;
+      return roster.data
+        .filter(
+          (entry) =>
+            SERVING_ROLES.includes(entry.role as StaffRole) && entry.staffMemberId !== serverId,
+        )
+        .map((entry) => ({
+          staffMemberId: entry.staffMemberId,
+          name: entry.fullName,
+          roleLabel: t(`pin.role.${entry.role}`),
+          onShift: entry.onShiftNow,
+        }))
+        .sort((a, b) => Number(b.onShift) - Number(a.onShift) || a.name.localeCompare(b.name));
+    },
+    [roster.data, t],
+  );
+  const transfer = useCallback(
+    (tabId: string, tableLabel: string, target: TransferTarget) => {
+      transferTab.mutate(
+        { tabId, toStaffMemberId: target.staffMemberId, clientCommandId: newCommandId() },
+        {
+          onSuccess: (result) => {
+            setNotice({
+              kind: 'info',
+              text: t('table.transfer.done', {
+                label: tableLabel,
+                name: result.server.name || target.name,
+              }),
+            });
+            setSelection(null);
+          },
+          onError: () =>
+            setNotice({
+              kind: 'warning',
+              text: t('table.transfer.refused', { label: tableLabel }),
+            }),
+        },
+      );
+    },
+    [t, transferTab],
   );
 
   const submitOrder = useCallback(
@@ -1542,6 +1655,13 @@ export function FloorRoute({ identity, device = null, paused }: FloorRouteProps)
               setOverlay('order');
               setSelection(null);
             }}
+            transferTargets={transferTargetsFor(selectedDetail?.serverStaffMemberId)}
+            transferTargetsFailed={roster.isError}
+            onWantTransfer={() => setRosterWanted(true)}
+            onTransfer={(target) => {
+              if (selectedTabId) transfer(selectedTabId, selectedTable.label, target);
+            }}
+            transferring={transferTab.isPending}
             onClose={() => {
               const tableId = selection.tableId;
               setSelection(null);
@@ -1566,6 +1686,9 @@ export function FloorRoute({ identity, device = null, paused }: FloorRouteProps)
           ordersFailed={ordersFailed}
           timeZoneId={timeZoneId}
           onAcknowledge={acknowledge}
+          onClaim={queue.online ? (request) => claim(request) : undefined}
+          claiming={claiming}
+          selfStaffMemberId={identity.staffMemberId}
           onAdvance={advanceOrder}
           noShows={
             branchId ? (

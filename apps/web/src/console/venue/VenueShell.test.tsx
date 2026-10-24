@@ -71,7 +71,7 @@ describe('the venue sidebar', () => {
         .map((link) => link.getAttribute('href')),
     );
     expect(hrefs).toEqual([
-      ['/venue'],
+      ['/venue', '/venue/history'],
       ['/venue/menu', '/venue/floorplan', '/venue/hours', '/venue/policy', '/venue/public'],
       ['/venue/staff'],
       ['/venue/reviews', '/venue/messages', '/venue/reports'],
@@ -88,6 +88,7 @@ describe('the venue sidebar', () => {
     ).toEqual([
       ['/venue', expect.stringMatching(/^Overview/u)],
       ['/staff', 'Floor'],
+      ['/venue/history', 'History'],
     ]);
   });
 

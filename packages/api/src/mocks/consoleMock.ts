@@ -95,6 +95,14 @@ import {
 } from '../contracts/messages';
 import type { MessageHistoryPage } from '../contracts/messageHistory';
 import { createMockMessageHistory } from './messageHistory';
+import { createMockActivity } from './activity';
+import type {
+  ActivityPage,
+  ActivityTimeline,
+  StaffMemberPerformance,
+  StaffPerformance,
+  StaffRecentPage,
+} from '../contracts/activity';
 import { addDayKeys, createMockShiftStore } from './shiftStore';
 import { approvalExpiryFor, localDateAndTime } from './approvalWindow';
 import {
@@ -187,6 +195,29 @@ import {
 } from '../contracts/guestRecord';
 
 const URL_TAG = 'mock://yalla/console';
+
+/** The branch the activity boards are seeded for (2026-10-24). */
+const ACTIVITY_BRANCH = 'b-lumen-north';
+
+/** The boards' three waiters, at one branch: Aram, Lilit and Gor. */
+function activityWaiters(venueId: string, branchId: string): StaffMember[] {
+  return [
+    ['aram', 'Aram Petrosyan', '+37477501001'],
+    ['lilit', 'Lilit Avetisyan', '+37477501002'],
+    ['gor', 'Gor Melkonyan', '+37477501003'],
+  ].map(([key, fullName, phone]) => ({
+    id: `${branchId}-act-${key}`,
+    venueId,
+    branchId,
+    fullName: fullName!,
+    phone: phone!,
+    role: 'waiter',
+    isActive: true,
+    email: null,
+    hasPasswordSignIn: false,
+    isPinLocked: false,
+  }));
+}
 // ---------------------------------------------------------------------------
 // The menu editor, opening hours and the reservation policy
 // ---------------------------------------------------------------------------
@@ -371,6 +402,13 @@ export interface ConsoleMockOptions {
    * are "only in the hall". Off unless asked: every branch starts off.
    */
   readonly seedTakeaway?: boolean | undefined;
+  /**
+   * Activity history (2026-10-24), for mock mode: Northern Avenue gets the
+   * boards' three waiters (Aram, Lilit, Gor) beside its manager, so its
+   * History and Results read like the boards. The history itself is always
+   * there, made of whoever works at the branch.
+   */
+  readonly seedActivity?: boolean | undefined;
 }
 
 /**
@@ -506,6 +544,22 @@ export function createConsoleMockGateway(options: ConsoleMockOptions = {}): Cons
       };
     },
     branchIds: () => allBranches().map((branch) => branch.id),
+  });
+
+  /**
+   * A month of each branch's activity (2026-10-24), seeded on first read
+   * relative to `now`, made of the branch's own people. Read only.
+   */
+  const branchActivity = createMockActivity({
+    now,
+    timeZoneOf: (branchId) => (venueOfBranch(branchId) === null ? null : branchTimeZone(branchId)),
+    staffAt: (branchId) => {
+      const venueId = venueOfBranch(branchId);
+      if (venueId === null) return [];
+      return staffFor(venueId).filter(
+        (member) => member.isActive && (member.branchId === null || member.branchId === branchId),
+      );
+    },
   });
 
   function takeawaySettingsOf(branchId: string): TakeawaySettings {
@@ -1048,6 +1102,10 @@ export function createConsoleMockGateway(options: ConsoleMockOptions = {}): Cons
 
     // The same people the mock tablet's roster shows; see `staffFixture.ts`.
     const seeded: StaffMember[] = fixtureStaffFor(venueId, record?.name ?? 'venue', branches);
+    // The activity boards' waiters (2026-10-24), at Northern Avenue only.
+    if (options.seedActivity && branches.some((branch) => branch.id === ACTIVITY_BRANCH)) {
+      seeded.push(...activityWaiters(venueId, ACTIVITY_BRANCH));
+    }
 
     staffByVenue.set(venueId, seeded);
     return seeded;
@@ -5254,6 +5312,57 @@ export function createConsoleMockGateway(options: ConsoleMockOptions = {}): Cons
       // Another branch's thread is refused as the server refuses it, not hidden.
       requireManagerAtBranch(found.branchId, url);
       return found.thread;
+    },
+
+    // --- Activity history and staff results (2026-10-24) -------------------------
+
+    async listActivity(branchId, query): Promise<ActivityPage> {
+      await wait();
+      const url = `${URL_TAG}/branches/${branchId}/activity`;
+      requireManagerAtBranch(branchId, url);
+      return branchActivity.list(url, branchId, query);
+    },
+
+    async exportActivityCsv(branchId, filters) {
+      await wait();
+      requireManagerAtBranch(branchId, `${URL_TAG}/branches/${branchId}/activity.csv`);
+      return branchActivity.csv(branchId, filters);
+    },
+
+    async getActivityTimeline(branchId, subject): Promise<ActivityTimeline | null> {
+      await wait();
+      requireManagerAtBranch(branchId, `${URL_TAG}/branches/${branchId}/activity/subjects`);
+      return branchActivity.timeline(branchId, subject);
+    },
+
+    async getStaffPerformance(branchId, range): Promise<StaffPerformance> {
+      await wait();
+      requireManagerAtBranch(branchId, `${URL_TAG}/branches/${branchId}/staff-performance`);
+      return branchActivity.performance(branchId, range);
+    },
+
+    async exportStaffPerformanceCsv(branchId, range) {
+      await wait();
+      requireManagerAtBranch(branchId, `${URL_TAG}/branches/${branchId}/staff-performance.csv`);
+      return branchActivity.performanceCsv(branchId, range);
+    },
+
+    async getStaffMemberPerformance(
+      branchId,
+      staffMemberId,
+      range,
+    ): Promise<StaffMemberPerformance | null> {
+      await wait();
+      const url = `${URL_TAG}/branches/${branchId}/staff/${staffMemberId}/performance`;
+      requireManagerAtBranch(branchId, url);
+      return branchActivity.member(url, branchId, staffMemberId, range);
+    },
+
+    async listStaffRecent(branchId, staffMemberId, query): Promise<StaffRecentPage> {
+      await wait();
+      const url = `${URL_TAG}/branches/${branchId}/staff/${staffMemberId}/performance`;
+      requireManagerAtBranch(branchId, url);
+      return branchActivity.recent(url, branchId, staffMemberId, query, query.list, query.cursor);
     },
   };
 }
