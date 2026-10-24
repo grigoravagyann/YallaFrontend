@@ -7,7 +7,7 @@
  * Only Windows needs this, and for one reason: the first `bash` on the Windows
  * PATH is usually `C:\Windows\System32\bash.exe`, which is WSL — a different
  * machine with its own `node_modules`, no `dotnet` and no SQL Server. pnpm runs
- * package scripts through cmd.exe, so `"dev:real": "bash scripts/dev-real.sh"`
+ * package scripts through cmd.exe, so `"e2e:local": "bash scripts/e2e-local.sh"`
  * would start that one and fail in a confusing way. Git for Windows ships the
  * right bash; this finds it. Everywhere else it is plain `bash`.
  *

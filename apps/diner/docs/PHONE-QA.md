@@ -14,10 +14,11 @@ the pull request's `Phone QA:` line, for example
 - The laptop and the phone are on the same wifi, and it is not a guest network
   that isolates devices.
 - The backend runs in Development with the dev seed on, reachable from the
-  phone: `pnpm dev:real --only api`, or `dotnet run --project src/Yalla.Api`
-  in the backend repo. Check by opening `http://<laptop LAN address>:5086/swagger`
+  phone: `pnpm dev:stack` (API on 5199, see `docs/dev-stack.md`), or
+  `dotnet run --project src/Yalla.Api` in the backend repo (5086). Check by opening
+  `http://<laptop LAN address>:<api port>/health`
   in the phone's browser.
-- The console runs (`pnpm dev:real --only console`) and you are signed in with
+- The console runs (`pnpm dev:stack` starts it on http://localhost:5192) and you are signed in with
   the backend's platform admin (`PlatformAdmin:Email` and
   `PlatformAdmin:Password` from its user secrets), so you can show a table's QR
   code. The dev seed gives the demo manager and owner no console sign-in.
@@ -26,7 +27,7 @@ the pull request's `Phone QA:` line, for example
   pushes: by default it is on the `Log` channel, which writes the reminder to
   the server log and the in-app feed and sends nothing to the phone. Start it
   with `Notifications__Channel=Expo` in its environment, for example
-  `Notifications__Channel=Expo pnpm dev:real --only api`, plus
+  `Notifications__Channel=Expo pnpm dev:stack`, plus
   `Notifications__ExpoAccessToken` if push security is on for the Expo
   project. Without a project id, mark step 6 "not run: no EAS project"; with
   the backend on `Log`, mark it "not run: backend on Log channel". Neither is a

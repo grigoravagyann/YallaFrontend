@@ -35,13 +35,15 @@ pnpm install
 Then run whichever surface you're working on:
 
 ```bash
-pnpm dev:real     # backend + console + diner web, all on real data (see below)
+pnpm dev:stack    # backend + console/tablet/public page + diner app in Expo Go (see below)
+pnpm dev:stack --mock   # the same apps on mock data, no backend
 pnpm dev:diner    # Expo dev server, then scan the QR with Expo Go
 pnpm dev:web      # http://localhost:5173
 ```
 
-`pnpm dev:real` needs the backend cloned beside this repo and its user secrets
-set once — see [Run everything on real data](#run-everything-on-real-data).
+`pnpm dev:stack` needs the backend cloned beside this repo and its user secrets
+set once — see [Run everything on real data](#run-everything-on-real-data) and
+[docs/dev-stack.md](docs/dev-stack.md).
 
 In development the console shows a **dev-only role switcher** in the sidebar (and
 in the floor screen's header, which has no sidebar). It changes which role the
@@ -85,17 +87,18 @@ after the build. See [Everything live, on this machine](#everything-live-on-this
 
 ### Workspace scripts
 
-| Script              | What it does                                                          |
-| ------------------- | --------------------------------------------------------------------- |
-| `pnpm dev:real`     | Backend, console and diner web on real data                           |
-| `pnpm e2e:local`    | Drift gate, live contract suite and Playwright on a throwaway backend |
-| `pnpm typecheck`    | `tsc --noEmit` across every package and app                           |
-| `pnpm test`         | Vitest across the shared packages                                     |
-| `pnpm lint`         | ESLint across the workspace                                           |
-| `pnpm format`       | Prettier, write mode (`format:check` to verify only)                  |
-| `pnpm build:web`    | Production build of the web app                                       |
-| `pnpm i18n:check`   | Fails if translation keys drift between languages                     |
-| `pnpm api:generate` | Regenerates API types from the backend's OpenAPI document             |
+| Script              | What it does                                                           |
+| ------------------- | ---------------------------------------------------------------------- |
+| `pnpm dev:stack`    | Backend, web app and diner app (Expo Go) in one go; `--help`, `--mock` |
+| `pnpm dev:real`     | Alias of `pnpm dev:stack`, kept for old habits                         |
+| `pnpm e2e:local`    | Drift gate, live contract suite and Playwright on a throwaway backend  |
+| `pnpm typecheck`    | `tsc --noEmit` across every package and app                            |
+| `pnpm test`         | Vitest across the shared packages                                      |
+| `pnpm lint`         | ESLint across the workspace                                            |
+| `pnpm format`       | Prettier, write mode (`format:check` to verify only)                   |
+| `pnpm build:web`    | Production build of the web app                                        |
+| `pnpm i18n:check`   | Fails if translation keys drift between languages                      |
+| `pnpm api:generate` | Regenerates API types from the backend's OpenAPI document              |
 
 ## Pointing an app at a local backend
 
@@ -1067,7 +1070,7 @@ author cannot choose `backend_ref`. Every other trigger fails rather than skips.
 **Status:** configured; first green run: not yet recorded. Fill in the run id
 here after the first `workflow_dispatch` run with `backend_ref` set.
 
-To run it locally, start the backend on 5086 (`pnpm dev:real --only api`) and:
+To run it locally, start the backend on 5086 (`dotnet run --project src/Yalla.Api` in the backend repo) and:
 
 ```bash
 YALLA_CONTRACT_BASE_URL=http://localhost:5086 \
@@ -1124,8 +1127,9 @@ exits non-zero. A clean run ends with `live contract + e2e passed`.
 - SQL Server is `(localdb)\MSSQLLocalDB` on Windows and `localhost` elsewhere;
   `E2E_SQL_SERVER`, `E2E_SQL_USER` with `E2E_SQL_PASSWORD`, and `E2E_SQLCMD`
   change that.
-- The ports (5199, 8199, 5198) are clear of `pnpm dev:real`'s, so both can run at
-  once; `E2E_API_PORT`, `E2E_DINER_PORT` and `E2E_CONSOLE_PORT` move them.
+- The API port 5199 is also `pnpm dev:stack`'s default, so with the stack up,
+  move one of them: `E2E_API_PORT` here (and `E2E_DINER_PORT`, `E2E_CONSOLE_PORT`),
+  or `--api-port` there.
 - Chromium once: `pnpm --filter @yalla/e2e install:browsers`.
 - `scripts/e2e-local.sh --help` for the rest.
 
@@ -1222,30 +1226,25 @@ it.
 
 ## Run everything on real data
 
-One command runs the backend, the console and the diner app's web target, all on
-real data:
+One command builds and runs the backend, waits for its `/health`, then starts
+the web app and the diner app's Metro server for Expo Go, all on real data:
 
 ```bash
-pnpm dev:real
+pnpm dev:stack            # add --lan to use /staff from a real phone too
 ```
 
-| Process | URL                   | Runs with                                                                            |
-| ------- | --------------------- | ------------------------------------------------------------------------------------ |
-| api     | http://localhost:5086 | `$YALLA_BACKEND_DIR` (default `../Yalla-browse`, then `../Yalla`), Development, http |
-| console | http://localhost:5173 | `VITE_DATA_SOURCE=real`, `VITE_API_URL=http://localhost:5086`                        |
-| diner   | http://localhost:8095 | `EXPO_PUBLIC_DATA_SOURCE=real`, `EXPO_PUBLIC_API_URL=http://localhost:5086`          |
+| Part  | URL                                           | Runs with                                                                           |
+| ----- | --------------------------------------------- | ----------------------------------------------------------------------------------- |
+| api   | http://localhost:5199                         | `$YALLA_BACKEND_DIR` (default `../Yalla`), built to a temp folder, Development      |
+| web   | http://localhost:5192 (`/staff`, public page) | `VITE_DATA_SOURCE=real`, `VITE_API_URL=http://localhost:5199` (LAN IP with `--lan`) |
+| phone | `exp://<LAN IP>:8110` (QR printed)            | `EXPO_PUBLIC_DATA_SOURCE=real`, `EXPO_PUBLIC_API_URL=http://<LAN IP>:5199`          |
 
-`--only api` (or `console`, `diner`) runs one of them, `--no-api` runs the two
-apps against a backend you started yourself, and a backend already answering on
-5086 is reused rather than started twice. Ctrl+C stops all three; if one exits,
-the others are stopped too. The ports move with `YALLA_API_PORT`,
-`YALLA_CONSOLE_PORT` and `YALLA_DINER_PORT`. The same three processes are in
-`.claude/launch.json`. The script is `scripts/dev-real.sh`; on Windows
-`pnpm dev:real` runs it with Git Bash rather than WSL's `bash`.
-
-The diner process is the **web** target, for checking on the laptop. A phone
-needs the laptop's LAN address rather than localhost: use `pnpm dev:diner` with
-the backend running, as described below.
+`--only api,web`, `--skip phone`, `--mock` (no backend), `--db <name>` (a
+throwaway database), `--rebuild` and the rest are in `pnpm dev:stack --help`
+and [docs/dev-stack.md](docs/dev-stack.md), with troubleshooting for busy
+ports, the firewall prompt and phones. Ctrl+C stops everything, process trees
+included. The script is `scripts/dev-stack.mjs`, plain Node, so no bash is
+involved. `pnpm dev:real` is now an alias of it.
 
 ### Once per machine
 
@@ -1254,7 +1253,7 @@ the backend running, as described below.
    `global.json` names, and a SQL Server reachable as `localhost` (the connection
    string is in its `src/Yalla.Api/appsettings.Development.json`).
 2. **Set its user secrets**, from the backend repo. The API refuses to start
-   without them, and `pnpm dev:real` checks for them before starting anything:
+   without them; `pnpm dev:stack` names them when the backend stops for want of them:
 
    ```bash
    dotnet user-secrets set "Jwt:SigningKey" "$(openssl rand -base64 48)" --project src/Yalla.Api
@@ -1277,8 +1276,8 @@ the backend running, as described below.
   `+37499000xxx` range. There is no SMS in Development:
   `POST /api/auth/diner/request-code` returns the code in `developmentCode`, and
   the code screen shows it. The same pair of calls works from
-  http://localhost:5086/swagger.
-- **The console.** Sign in at http://localhost:5173 with the
+  http://localhost:5199/swagger (5086 when started by hand).
+- **The console.** Sign in at http://localhost:5192 (5173 with `pnpm dev:web`) with the
   `PlatformAdmin:Email` and `PlatformAdmin:Password` you set. That account sees
   every venue. A venue's own screens — floor plan, public page with its cover
   and pins, staff — are its owner's and managers', and the platform admin

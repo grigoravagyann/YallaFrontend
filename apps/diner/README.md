@@ -13,7 +13,7 @@ and what it deliberately does not.
 | Command                           | What you get                                                                                   |
 | --------------------------------- | ---------------------------------------------------------------------------------------------- |
 | `pnpm dev:diner`                  | The Expo dev server. Open it on a phone with Expo Go or a development build, on the same wifi. |
-| `pnpm dev:real`                   | Backend, console and this app's **web** target on http://localhost:8095, all on real data.     |
+| `pnpm dev:stack`                  | Backend, console and this app in Expo Go on the LAN (QR printed), all on real data.            |
 | `EXPO_PUBLIC_DATA_SOURCE=mock`    | The whole app on the in-memory mock, with no backend. Put it in `apps/diner/.env` and restart. |
 | `pnpm --filter @yalla/diner test` | Vitest.                                                                                        |
 
