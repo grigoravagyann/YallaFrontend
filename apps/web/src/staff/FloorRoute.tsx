@@ -8,6 +8,7 @@ import {
   newCommandId,
   noShowUndoableUntil,
   readsPreOrderRail,
+  staffMayWrite,
   tableDetail,
   type AdjustmentKind,
   type AffectedReservation,
@@ -19,6 +20,7 @@ import {
   type ReleaseOutcome,
   type ServiceRequest,
   type AwaitingApproval,
+  type ConversationSubjectRef,
   type StaffFloor,
   type StaffSessionIdentity,
   type TabLine,
@@ -32,6 +34,7 @@ import {
   useAbandonTab,
   useAwaitingApproval,
   useBeginClosing,
+  useBranchConversations,
   useCompLine,
   useDuePreOrders,
   useOpenTabForStaff,
@@ -51,6 +54,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from '@yalla/i18n';
 import type { TFunction } from 'i18next';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { QueryFailureNotice } from '../components/QueryFailureNotice';
 import {
   AdmissionSection,
@@ -89,6 +93,9 @@ import { TabPanel } from './TabPanel';
 import { useBranchFormat } from './useBranchFormat';
 import { useCachedMenu } from './useCachedMenu';
 import { useConnectionState } from './useConnectionState';
+import { MessagesInbox } from './messages/MessagesInbox';
+import { MessagesRailSection } from './messages/MessagesRailSection';
+import { useMessageReminders } from './messages/useMessageReminders';
 import { TakeawayRailSection } from './takeaway/TakeawayAccept';
 import { TakeawayCounter } from './takeaway/TakeawayCounter';
 import { useTakeawayReady } from './takeaway/useTakeawayReady';
@@ -202,7 +209,24 @@ export function FloorRoute({ identity, device = null, paused }: FloorRouteProps)
   const timeZoneId = floor?.plan.timeZoneId ?? 'Asia/Yerevan';
   const format = useBranchFormat(timeZoneId);
 
-  const [view, setView] = useState<StaffView>('floor');
+  /**
+   * The screen on show. The Messages tab has its own address, `/staff/messages`
+   * (2026-10-23), so a tablet reloaded there — or opened from a link — comes
+   * back to it; the others are the floor's own and keep `/staff`.
+   */
+  const location = useLocation();
+  const navigate = useNavigate();
+  const onMessagesPath = /\/messages\/?$/u.test(location.pathname);
+  const [view, setView] = useState<StaffView>(onMessagesPath ? 'messages' : 'floor');
+  const [lastMessagesPath, setLastMessagesPath] = useState(onMessagesPath);
+  if (onMessagesPath !== lastMessagesPath) {
+    // Back and forward in the browser move between the floor and the inbox.
+    setLastMessagesPath(onMessagesPath);
+    if (onMessagesPath) setView('messages');
+    else if (view === 'messages') setView('floor');
+  }
+  /** The conversation open in the Messages tab; null for the first in its list. */
+  const [messageSubject, setMessageSubject] = useState<ConversationSubjectRef | null>(null);
   /** The room chip that is on; null for every room. */
   const [room, setRoom] = useState<string | null>(null);
   const [selection, setSelection] = useState<Selection | null>(null);
@@ -668,6 +692,33 @@ export function FloorRoute({ identity, device = null, paused }: FloorRouteProps)
   const takeawayInUse =
     takeawayCounter !== null &&
     (takeawayCounter.active.length > 0 || takeawayCounter.finishedToday.length > 0);
+  /**
+   * Guest messages (2026-10-23): the Messages tab and its badge, the rail's
+   * section and the reminder. Polled every ten seconds, in the background too:
+   * a guest's message pushes nothing to the tablet.
+   */
+  const inboxQuery = useBranchConversations(branchId, active);
+  const inbox = inboxQuery.data ?? null;
+  const reminderClock = useNow(15_000);
+  const reminders = useMessageReminders(
+    inbox?.items,
+    inbox?.remindAfterMinutes ?? 3,
+    reminderClock,
+    active,
+  );
+  const canWriteMessages = staffMayWrite(identity.role, {
+    waitersCanWrite: inbox?.waitersCanWrite ?? true,
+  });
+  const openConversation = useCallback(
+    (subject: ConversationSubjectRef | null) => {
+      setSelection(null);
+      setMessageSubject(subject);
+      setView('messages');
+      if (!onMessagesPath) navigate('/staff/messages');
+    },
+    [navigate, onMessagesPath],
+  );
+
   const takeawayToAnswer = useMemo(
     () => (takeawayCounter?.active ?? []).filter((order) => order.status === 'sent'),
     [takeawayCounter],
@@ -1221,7 +1272,9 @@ export function FloorRoute({ identity, device = null, paused }: FloorRouteProps)
             ? t('kitchen.title')
             : view === 'takeaway'
               ? t('takeaway.title')
-              : t('floor.title')
+              : view === 'messages'
+                ? t('messages.title')
+                : t('floor.title')
         }
         place={place}
         timeZoneId={timeZoneId}
@@ -1250,6 +1303,7 @@ export function FloorRoute({ identity, device = null, paused }: FloorRouteProps)
             ? takeawayCounter.sentCount + takeawayCounter.readyCount
             : undefined
         }
+        messagesWaiting={inbox?.unreadTotal ?? floor?.messages?.unreadTotal ?? 0}
         floorWaiting={
           (awaitingQuery.data?.length ?? 0) +
           waitingTables.length +
@@ -1259,6 +1313,8 @@ export function FloorRoute({ identity, device = null, paused }: FloorRouteProps)
         onSelectView={(next) => {
           setSelection(null);
           setView(next);
+          if (next === 'messages' && !onMessagesPath) navigate('/staff/messages');
+          if (next !== 'messages' && onMessagesPath) navigate('/staff');
         }}
       />
 
@@ -1301,6 +1357,9 @@ export function FloorRoute({ identity, device = null, paused }: FloorRouteProps)
       <p className="visually-hidden" role="status" data-testid="approval-announcer">
         {awaiting.announcement}
       </p>
+      <p className="visually-hidden" role="status" data-testid="message-reminder-announcer">
+        {reminders.announcement}
+      </p>
 
       {view === 'kitchen' ? (
         // The kitchen board as the kitchen sees it, from the floor's own queue
@@ -1341,6 +1400,26 @@ export function FloorRoute({ identity, device = null, paused }: FloorRouteProps)
         </div>
       ) : null}
 
+      {view === 'messages' && branchId ? (
+        <div className="kitchen-body">
+          <MessagesInbox
+            branchId={branchId}
+            inbox={inbox}
+            loading={inboxQuery.isLoading && !isOfflinePaused(inboxQuery)}
+            failed={inboxQuery.isError || (isOfflinePaused(inboxQuery) && !inboxQuery.data)}
+            error={inboxQuery.error}
+            onRetry={() => void inboxQuery.refetch()}
+            selected={messageSubject}
+            onSelect={setMessageSubject}
+            staffName={identity.fullName}
+            timeZoneId={timeZoneId}
+            online={queue.online}
+            active={active}
+            now={reminderClock}
+          />
+        </div>
+      ) : null}
+
       {/* Hidden, not unmounted, while the kitchen shows: a half-typed decline,
           an answer in flight and its notice all live in here, and a trip to
           the kitchen must not cost any of them. */}
@@ -1360,15 +1439,22 @@ export function FloorRoute({ identity, device = null, paused }: FloorRouteProps)
                 onRoom={setRoom}
                 describe={(table) => {
                   const debt = debts.get(table.id);
-                  return tableCardText({
-                    table,
-                    detail: tableDetail(floor, table.id),
-                    debt: debt ? format.dram(debt) : null,
-                    now,
-                    t,
-                    time: format.time,
-                    minutesSince: format.minutesSince,
-                  });
+                  const detail = tableDetail(floor, table.id);
+                  return {
+                    ...tableCardText({
+                      table,
+                      detail,
+                      debt: debt ? format.dram(debt) : null,
+                      now,
+                      t,
+                      time: format.time,
+                      minutesSince: format.minutesSince,
+                    }),
+                    // The next booking's thread and the sitting party's: either badges.
+                    messages:
+                      (detail?.nextReservationUnreadMessages ?? 0) +
+                      (detail?.sittingUnreadMessages ?? 0),
+                  };
                 }}
               />
             </>
@@ -1527,6 +1613,25 @@ export function FloorRoute({ identity, device = null, paused }: FloorRouteProps)
           }
           unresolved={unresolvedList}
           onSettle={settleUnresolved}
+          messagesFirst={reminders.due.length > 0}
+          messages={
+            branchId ? (
+              <MessagesRailSection
+                branchId={branchId}
+                items={inbox?.items ?? []}
+                remindAfterMinutes={inbox?.remindAfterMinutes ?? 3}
+                now={reminderClock}
+                canWrite={canWriteMessages}
+                staffName={identity.fullName}
+                timeZoneId={timeZoneId}
+                online={queue.online}
+                failed={inboxQuery.isError && !inboxQuery.data}
+                icon={ICONS.chat}
+                onReply={openConversation}
+                onOpenInbox={() => openConversation(null)}
+              />
+            ) : null
+          }
           takeaway={
             branchId ? (
               <TakeawayRailSection

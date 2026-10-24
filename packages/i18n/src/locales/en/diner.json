@@ -1396,6 +1396,19 @@
       },
       "takeawayDeclinedReason": {
         "body": "{{place}}: {{reason}}. Nothing was charged."
+      },
+      "venueMessage": {
+        "title": "{{place}} wrote",
+        "body": "“{{text}}”"
+      },
+      "venueAsk": {
+        "body": "Are you coming? Answer in one tap."
+      },
+      "venueAskAt": {
+        "body": "Are you coming at {{time}}? Answer in one tap."
+      },
+      "venueMessagePlain": {
+        "body": "Open the conversation to read it."
       }
     },
     "yesterday": "Yesterday",
@@ -1740,5 +1753,142 @@
     "change": "Change my answer",
     "preOrderWaiting": "Pre-order: they'll start it when you say you're coming, or when the venue asks.",
     "preOrderGoing": "Pre-order: the kitchen is starting it so it's ready as you arrive."
+  },
+  "messages": {
+    "ask": "Are you coming at {{time}}?",
+    "askPlain": "Are you coming?",
+    "answer": {
+      "coming": "I'm coming",
+      "late": "Running late {{minutes}} min",
+      "latePlain": "Running late",
+      "notComing": "Not coming"
+    },
+    "status": {
+      "coming": "Booking updated · coming",
+      "held": "Booking updated · table held until {{time}}",
+      "cancelled": "Booking cancelled",
+      "updated": "Booking updated"
+    },
+    "day": {
+      "today": "Today",
+      "yesterday": "Yesterday"
+    },
+    "subject": {
+      "booking": "Booking",
+      "takeaway": "Takeaway",
+      "today": "today",
+      "tomorrow": "tomorrow",
+      "guests_one": "{{count}} guest",
+      "guests_other": "{{count}} guests",
+      "table": "table {{label}}",
+      "ready": "ready {{time}}",
+      "ended": "finished"
+    },
+    "meta": {
+      "venue": "{{place}} · {{time}}",
+      "mine": "You · {{time}}",
+      "sent": "{{time}} · sent",
+      "seen": "{{time}} · seen",
+      "sending": "Sending…"
+    },
+    "a11y": {
+      "venue": "{{place}} wrote: {{text}}. {{time}}",
+      "mine": "You wrote: {{text}}. {{meta}}"
+    },
+    "thread": {
+      "back": "Back",
+      "call": "Call the venue",
+      "log": "Messages",
+      "newMessage": "New message ↓",
+      "newMessageLabel": "New message. Show the newest",
+      "empty": "No messages yet. Write to {{place}} about this booking: a high chair, an allergy, running a little late.",
+      "emptyTakeaway": "No messages yet. Write to {{place}} about this order.",
+      "closed": "The conversation is closed: the booking has ended. Messages stay here for 30 days.",
+      "closedTakeaway": "The conversation is closed: the order is finished. Messages stay here for 30 days.",
+      "noWrite": "{{place}} doesn't take written messages here. Answer with the buttons, or call the venue.",
+      "callVenue": "Questions? Call the venue",
+      "notFound": {
+        "title": "This conversation isn't available",
+        "body": "It closed more than 30 days ago, or the booking is no longer on your account."
+      },
+      "signedOut": {
+        "title": "Your conversations are kept on your account",
+        "body": "Log in to read and answer the venue.",
+        "action": "Log in"
+      }
+    },
+    "bar": {
+      "label": "The venue's question",
+      "title": "Answer with one tap",
+      "coming": "I'm coming",
+      "late": "Running late",
+      "notComing": "Not coming",
+      "lateGroup": "How late are you running",
+      "minutes": "{{minutes}} min",
+      "back": "Back",
+      "noBody": "The booking will be cancelled and your pre-order won't go to the kitchen.",
+      "noBodyPlain": "The booking will be cancelled and the table goes back to the venue.",
+      "keep": "No, I'm coming",
+      "confirm": "Yes, not coming",
+      "cancelling": "Cancelling…",
+      "sending": "Sending…"
+    },
+    "composer": {
+      "label": "Message to {{place}}",
+      "placeholder": "Write to the venue…",
+      "send": "Send",
+      "count": "{{count}} of {{max}}"
+    },
+    "failure": {
+      "closed": "The conversation has closed, so the message was not sent.",
+      "guestsCannotWrite": "The venue doesn't take written messages. Answer with the buttons, or call them.",
+      "forbidden": "You can't write in this conversation.",
+      "tooFast": "Too many messages at once. Wait a moment and try again.",
+      "tooFastWait": "Too many messages at once. Try again in {{seconds}} s.",
+      "tooFastThread": "This conversation has reached its message limit. Please call the venue instead.",
+      "invalid": "A message is 1 to 500 characters.",
+      "notFound": "This booking is no longer on your account.",
+      "offline": "No connection, so the message wasn't sent. Try again.",
+      "generic": "The message wasn't sent. Try again."
+    },
+    "card": {
+      "title": "Messages with the venue",
+      "new_one": "{{count}} new",
+      "new_other": "{{count}} new",
+      "none": "No messages yet.",
+      "quick": "Quick answer",
+      "reply": "Reply",
+      "open": "Open the conversation",
+      "write": "Write to the venue",
+      "privacy": "Only {{place}} sees these messages. The conversation closes 2 hours after the booking ends.",
+      "privacyTakeaway": "Only {{place}} sees these messages. The conversation closes 2 hours after the order is finished.",
+      "closed": "The conversation is closed. Messages stay here for 30 days."
+    },
+    "row": {
+      "new": "New message",
+      "newAt": "New message · {{time}}",
+      "unreadLabel_one": "Messages from {{place}}, {{count}} new",
+      "unreadLabel_other": "Messages from {{place}}, {{count}} new",
+      "label": "Messages with {{place}}",
+      "write": "Write to the venue",
+      "none": "no messages",
+      "closed": "Messages · the conversation is closed",
+      "open": "Open the conversation",
+      "answered": "You answered"
+    },
+    "feed": {
+      "booking": "booking",
+      "takeaway": "takeaway"
+    },
+    "push": {
+      "coming": "I'm coming",
+      "late15": "Late 15 min",
+      "reply": "Reply",
+      "replyPlaceholder": "Reply…",
+      "send": "Send"
+    },
+    "nav": {
+      "bookingsUnread": "{{label}}, new messages"
+    }
   }
 }

@@ -44,6 +44,7 @@ import type {
 } from '../contracts/ordering';
 import type { Menu } from '../contracts/menu';
 import { instantOrNull, type WireFloorTableTimes } from './bookingTimesWire';
+import { tableUnreadMessagesFromWire } from './messagesMapping';
 import { derivedTableState } from './mapping';
 import { absolutePhoto } from './photoUrl';
 import { photo } from './venueSettingsMapping';
@@ -303,6 +304,9 @@ export function staffFloorDetails(state: FloorState): readonly StaffTableDetail[
       // Guest record (wire §0a): the next booking's guest, and the party sitting now.
       nextReservationGuestRecord: guestRecordFromWire(table.nextReservationGuestRecord),
       sittingGuestRecord: guestRecordFromWire(table.sittingGuestRecord),
+      // Guest messages (2026-10-23): the tile's badges — the next booking's
+      // thread and the sitting party's — only when there are some.
+      ...tableUnreadMessagesFromWire(table),
     }),
   );
 }

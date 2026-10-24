@@ -1,3 +1,4 @@
+import type { FloorMessages } from './messages';
 import type { GuestRecord } from './guestRecord';
 /**
  * The counter screen's contracts, for the endpoints the backend has shipped.
@@ -339,6 +340,17 @@ export interface StaffTableDetail {
   readonly nextReservationGuestRecord?: GuestRecord | null | undefined;
   /** The record of the party sitting here now, seated on a proved account's booking. */
   readonly sittingGuestRecord?: GuestRecord | null | undefined;
+  /**
+   * Guest messages nobody at the venue has read on the next booking's thread
+   * (2026-10-23): the table tile's message badge. Absent or 0 when none, and
+   * from a server before messages.
+   */
+  readonly nextReservationUnreadMessages?: number | undefined;
+  /**
+   * …and on the thread of the booking the party sitting here came in on: the
+   * tile badges either. Absent or 0 when none.
+   */
+  readonly sittingUnreadMessages?: number | undefined;
 }
 
 /**
@@ -357,6 +369,12 @@ export interface StaffFloor {
   readonly lastSequence: number;
   /** The instant the derived states were computed for, per the server. */
   readonly asOfUtc: string;
+  /**
+   * Guest messages across the branch (2026-10-23): the Messages tab's badge and
+   * the Now rail's section without a second call. Absent from a server before
+   * messages.
+   */
+  readonly messages?: FloorMessages | undefined;
 }
 
 /** The detail for one table, or undefined. Small enough to inline everywhere. */

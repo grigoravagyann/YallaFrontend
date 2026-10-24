@@ -1,4 +1,10 @@
-import { ON_YOUR_WAY_PUSH_KIND, isTakeawayNotificationKind } from '@yalla/api';
+import {
+  ON_YOUR_WAY_PUSH_KIND,
+  isTakeawayNotificationKind,
+  venueMessagePushTarget,
+  type ConversationSubjectRef,
+} from '@yalla/api';
+import { threadRoute, type ThreadRoute } from '../messages/copy';
 
 /**
  * What a notification means, and where it lands.
@@ -27,6 +33,7 @@ import { ON_YOUR_WAY_PUSH_KIND, isTakeawayNotificationKind } from '@yalla/api';
  * | `bookings-blocked-no-shows` | `blockedUntilUtc` — three no-shows in three days: booking paused for a week |
  * | `bookings-unblocked`      | `liftedBecause` ("1" lifted, "2" a no-show undone) — the pause ended early |
  * | `reservation-on-your-way` | `reservationId`, `code`, `actions` — "Are you on your way?", 45 minutes before a booking with a pre-order; Yes / Can't come buttons |
+ * | `venue-message`           | `conversationId`, `reservationId` or `takeawayOrderId`, `ask` — the venue wrote in the thread (2026-10-23); category `venue-ask` (I'm coming / Late 15 min / Reply), `venue-ask-buttons` (I'm coming / Late 15 min), `venue-message` (Reply) or `venue-message-readonly` (none; a tap opens the thread) |
  *
  * `expired` is `"true"` on the decision nobody made: a short-notice request
  * the floor did not answer in its fifteen minutes, declined by the server with
@@ -80,6 +87,16 @@ export type PushTarget =
    */
   | { readonly kind: 'takeaway'; readonly orderId: string }
   /**
+   * The venue wrote in a booking's or a takeaway order's thread (guest
+   * messages, 2026-10-23): the thread. `ask` — it was the venue's "are you
+   * coming?", whose push carries the one-tap answers.
+   */
+  | {
+      readonly kind: 'thread';
+      readonly subject: ConversationSubjectRef;
+      readonly ask: boolean;
+    }
+  /**
    * A payload this build does not understand, or one missing the id its screen
    * needs.
    *
@@ -114,6 +131,8 @@ export function parsePushTarget(data: PushData | null | undefined): PushTarget {
 
   const kind = str(data, 'kind');
   if (kind !== null && BOOKINGS_TAB_PUSH_KINDS.includes(kind)) return { kind: 'bookings' };
+  const thread = venueMessagePushTarget(data);
+  if (thread) return { kind: 'thread', subject: thread.subject, ask: thread.ask };
   if (isTakeawayNotificationKind(kind)) {
     const orderId = str(data, 'orderId');
     return orderId ? { kind: 'takeaway', orderId } : { kind: 'unknown' };
@@ -200,6 +219,7 @@ export type PushRoute =
     }
   | { readonly pathname: '/tab/[tabId]'; readonly params: { tabId: string } }
   | { readonly pathname: '/takeaway/[orderId]'; readonly params: { orderId: string } }
+  | ThreadRoute
   | { readonly pathname: '/(tabs)/bookings' };
 
 export function routeFor(target: PushTarget): PushRoute | null {
@@ -216,6 +236,8 @@ export function routeFor(target: PushTarget): PushRoute | null {
       return { pathname: '/(tabs)/bookings' };
     case 'takeaway':
       return { pathname: '/takeaway/[orderId]', params: { orderId: target.orderId } };
+    case 'thread':
+      return threadRoute(target.subject);
     default:
       return null;
   }
@@ -261,6 +283,15 @@ export const PUSH_ACTIONS = {
   /** The `on-your-way` category's two answers: "Yes, I'm on my way" and "I can't come". */
   onMyWay: 'on-my-way',
   cantCome: 'on-your-way-cant-come',
+  /**
+   * Guest messages (2026-10-23): the `venue-ask` and `venue-ask-buttons`
+   * categories' "I'm coming" and "Late 15 min", and the "Reply" with a text
+   * field that `venue-ask` and `venue-message` carry. `venue-message-readonly`
+   * has none: its tap opens the thread.
+   */
+  venueComing: 'venue-ask-coming',
+  venueLate15: 'venue-ask-late-15',
+  venueReply: 'venue-reply',
 } as const;
 
 export type PushActionId = (typeof PUSH_ACTIONS)[keyof typeof PUSH_ACTIONS];
@@ -281,6 +312,17 @@ export function actionFor(actionId: string | null | undefined): PushActionId | n
 export function tableRequestAnswer(action: PushActionId | null): boolean | null {
   if (action === PUSH_ACTIONS.tableRequestYes) return true;
   if (action === PUSH_ACTIONS.tableRequestNo) return false;
+  return null;
+}
+
+/** What a venue-message button does: answer the ask, or send the typed reply. */
+export type VenueMessageAction = 'coming' | 'late15' | 'reply';
+
+/** The venue-message action a button is, or `null` for any other button. */
+export function venueMessageAction(action: PushActionId | null): VenueMessageAction | null {
+  if (action === PUSH_ACTIONS.venueComing) return 'coming';
+  if (action === PUSH_ACTIONS.venueLate15) return 'late15';
+  if (action === PUSH_ACTIONS.venueReply) return 'reply';
   return null;
 }
 

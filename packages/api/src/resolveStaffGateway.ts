@@ -49,6 +49,12 @@ export interface ResolveStaffGatewayOptions {
    * `StaffMockOptions.seedTakeaway`.
    */
   readonly mockTakeaway?: boolean | undefined;
+  /**
+   * Mock only: guest messages (2026-10-23) — an inbox in the design's words
+   * and the guest replying after a venue text. See `StaffMockOptions.seedMessages`.
+   * Follows `mockTakeaway` when absent.
+   */
+  readonly mockMessages?: boolean | undefined;
 }
 
 /**
@@ -73,6 +79,7 @@ export function resolveStaffGateway(options: ResolveStaffGatewayOptions): StaffG
       ...(options.mockUnverifiedGuests ? { seedUnverifiedGuests: true } : {}),
       ...(options.mockPreOrders ? { seedPreOrders: true } : {}),
       ...(options.mockTakeaway ? { seedTakeaway: true } : {}),
+      ...((options.mockMessages ?? options.mockTakeaway) ? { seedMessages: true } : {}),
     };
     if (options.persist) {
       return persistMockGateway<StaffGateway>({

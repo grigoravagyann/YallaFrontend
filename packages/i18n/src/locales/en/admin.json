@@ -2518,5 +2518,44 @@
     "saved": "Takeaway settings saved",
     "saveFailed": "Could not save the takeaway settings. Try again.",
     "noChanges": "Nothing to save"
+  },
+  "messages": {
+    "title": "Messages with guests",
+    "body": "A conversation exists only inside a booking or a takeaway order. It opens when you confirm and closes two hours after the end.",
+    "guestsCanWrite": {
+      "label": "Guests can write to us",
+      "why": "When off, the guest reads your messages and answers only with the buttons (I’m coming / Running late / Not coming)."
+    },
+    "writers": {
+      "legend": "Who can write from the tablet",
+      "why": "Managers, the general manager and the owner can always write.",
+      "waiters": "Waiters"
+    },
+    "templates": {
+      "label": "Ready replies",
+      "why": "They are buttons on the tablet. A tap puts the text in the field, and it can be changed before sending.",
+      "defaults": "Until you change them, the tablet offers its own replies — one set for bookings and one for takeaway orders.",
+      "item": "Reply {{n}}",
+      "delete": "Delete “{{text}}”",
+      "deleteEmpty": "Delete reply {{n}}",
+      "add": "+ Add a reply",
+      "max": "At most {{count}} replies.",
+      "length": "1 to {{max}} characters.",
+      "none": "No ready replies: the tablet will show no buttons."
+    },
+    "remind": {
+      "label": "Remind the tablet",
+      "why": "If a guest’s message has had no answer this long, the tablet sounds and the message rises to the top of “Now”.",
+      "unit": "min"
+    },
+    "notAllowed": {
+      "title": "What is not allowed",
+      "body": "Writing without a booking or an order, sending photos or links, seeing the guest’s number. Promotional messages cannot be sent."
+    },
+    "save": "Save",
+    "saved": "Message settings saved.",
+    "saveFailed": "The message settings were not saved.",
+    "noChanges": "Nothing has changed.",
+    "unsaved": "Unsaved changes"
   }
 }

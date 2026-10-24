@@ -264,8 +264,8 @@ describe('the top bar', () => {
     renderFloor(gatewayWith([]));
     const views = await screen.findByRole('navigation', { name: 'Screens' }, { timeout: 5000 });
     await within(views).findByRole('button', { name: /^Floor/u });
-    // Give the counter's read its turn: still no tab.
-    await waitFor(() => expect(within(views).getAllByRole('button')).toHaveLength(2));
+    // Give the counter's read its turn: still no tab — Floor, Kitchen and Messages.
+    await waitFor(() => expect(within(views).getAllByRole('button')).toHaveLength(3));
     expect(within(views).queryByRole('button', { name: /^Takeaway/u })).toBeNull();
   });
 

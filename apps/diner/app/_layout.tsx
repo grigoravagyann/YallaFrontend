@@ -210,6 +210,9 @@ function AppRoot({ onReady }: { readonly onReady: () => void }) {
               <Stack.Screen name="takeaway/menu/[placeId]" />
               <Stack.Screen name="takeaway/checkout/[placeId]" />
               <Stack.Screen name="takeaway/[orderId]" />
+              {/* Guest messages (2026-10-23): a booking's or a takeaway order's thread with the venue. */}
+              <Stack.Screen name="messages/reservation/[id]" />
+              <Stack.Screen name="messages/takeaway/[id]" />
               <Stack.Screen name="favorites" />
               <Stack.Screen name="settings" />
               {/* Scanning in and the shared tab. One entry: `tab/[tabId]` has its

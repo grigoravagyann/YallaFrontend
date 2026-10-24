@@ -8,10 +8,12 @@ import { useSession } from '../stores/session';
  * The prefixes are written out, so this module imports nothing but the session
  * store. `['dinerOrders']` is `dinerOrderKeys.all` (`orders/keys`),
  * `['favorites']` is `favoriteKeys.all` (`data/favoriteKeys`),
- * `['notifications']` is `notificationKeys.all`, and `['bookings']`,
- * `['booking']` and `['reservationState']` are `bookingKeys`
- * (`data/bookingKeys`, spread into `keys`). The sign-out and scope tests seed
- * keys built by those factories, so a prefix missing here fails there.
+ * `['notifications']` is `notificationKeys.all`, `['bookings']`, `['booking']`
+ * and `['reservationState']` are `bookingKeys` (`data/bookingKeys`, spread
+ * into `keys`), and `['messages']` is every guest-messages key
+ * (`queryKeys.dinerConversation`, `queryKeys.unreadMessages`). The sign-out
+ * and scope tests seed keys built by those factories, so a prefix missing
+ * here fails there.
  */
 export const DINER_SCOPED_KEYS = [
   ['dinerOrders'],
@@ -21,6 +23,7 @@ export const DINER_SCOPED_KEYS = [
   ['bookings'],
   ['booking'],
   ['reservationState'],
+  ['messages'],
 ] as const;
 
 /** This diner's own review of one place — `GET /api/diner/branches/{id}/review`. */

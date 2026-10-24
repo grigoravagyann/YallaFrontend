@@ -35,5 +35,17 @@
   "floorPlan": {
     "table_one": "Table {{label}}, {{count}} seat, {{status}}",
     "table_other": "Table {{label}}, {{count}} seats, {{status}}"
+  },
+  "messages": {
+    "defaultTemplates": {
+      "reservation1": "OK, we’ll wait",
+      "reservation2": "Your table is ready",
+      "reservation3": "We’re running a little late",
+      "reservation4": "Your pre-order is ready",
+      "takeaway1": "Yes, you can",
+      "takeaway2": "Your order is ready",
+      "takeaway3": "We’re 10 minutes behind",
+      "takeaway4": "Something has run out…"
+    }
   }
 }

@@ -1,6 +1,8 @@
 import {
   isKnownNotificationKind,
   isTakeawayNotificationKind,
+  isVenueMessageNotificationKind,
+  venueMessageFeedSubject,
   type DinerNotification,
   type KnownDinerNotificationKind,
 } from '@yalla/api';
@@ -74,6 +76,8 @@ export interface NotificationCopy {
     readonly readyTime?: string;
     /** …or, declined, what the venue said. */
     readonly reason?: string;
+    /** A venue's message (2026-10-23): its words, cut at 140 by the server. */
+    readonly text?: string;
   };
 }
 
@@ -259,6 +263,35 @@ function takeawayCopy(
 }
 
 /**
+ * A venue's message (2026-10-23): "{venue} wrote" and its words in quotes;
+ * the venue's "are you coming?" with no words of its own says so. `null` for
+ * any other row.
+ */
+function venueMessageCopy(
+  notification: Pick<DinerNotification, 'kind' | 'params'>,
+  place: string,
+): NotificationCopy | null {
+  if (!isVenueMessageNotificationKind(notification.kind)) return null;
+  // The thread says the venue's name, never the branch's: so does its row.
+  const venue = text(notification.params['venueName']) ?? place;
+  const words = text(notification.params['text']);
+  // The ask carries no words: the booking's time, as the push says it.
+  const time = flag(notification, 'ask') ? text(notification.params['time']) : null;
+  const body = words
+    ? 'venueMessage'
+    : flag(notification, 'ask')
+      ? time
+        ? 'venueAskAt'
+        : 'venueAsk'
+      : 'venueMessagePlain';
+  return {
+    titleKey: 'notifications.kind.venueMessage.title',
+    bodyKey: `notifications.kind.${body}.body`,
+    params: { place: venue, ...(words ? { text: words } : {}), ...(time ? { time } : {}) },
+  };
+}
+
+/**
  * The title and body keys for a row. A kind this build has no copy for — a
  * newer server — gets the generic pair rather than being dropped or guessed.
  */
@@ -275,6 +308,8 @@ export function notificationCopy(
   if (record) return record;
   const takeaway = takeawayCopy(notification, place);
   if (takeaway) return takeaway;
+  const message = venueMessageCopy(notification, place);
+  if (message) return message;
   const change = declinedChange(notification);
   if (change) {
     return {
@@ -371,6 +406,8 @@ export type NotificationRoute =
   | { readonly pathname: '/tab/[tabId]'; readonly params: { tabId: string } }
   | { readonly pathname: '/place/[placeId]'; readonly params: { placeId: string } }
   | { readonly pathname: '/takeaway/[orderId]'; readonly params: { orderId: string } }
+  | { readonly pathname: '/messages/reservation/[id]'; readonly params: { id: string } }
+  | { readonly pathname: '/messages/takeaway/[id]'; readonly params: { id: string } }
   | { readonly pathname: '/(tabs)/bookings' };
 
 function bookingRoute(id: string | null): NotificationRoute | null {
@@ -400,6 +437,14 @@ export function notificationRoute(
   >,
 ): NotificationRoute | null {
   const { kind, reservationId, orderId, tabId, branchId } = notification;
+  // A venue's message (2026-10-23) opens its thread.
+  if (isVenueMessageNotificationKind(kind)) {
+    const subject = venueMessageFeedSubject(notification);
+    if (!subject) return placeRoute(branchId);
+    return subject.kind === 'takeaway'
+      ? { pathname: '/messages/takeaway/[id]', params: { id: subject.id } }
+      : { pathname: '/messages/reservation/[id]', params: { id: subject.id } };
+  }
   // A takeaway order's rows open its status screen (2026-10-22).
   if (isTakeawayNotificationKind(kind)) {
     return orderId

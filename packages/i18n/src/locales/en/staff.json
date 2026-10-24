@@ -865,7 +865,9 @@
     "floorWaiting_one": "{{count}} waiting on the floor",
     "floorWaiting_other": "{{count}} waiting on the floor",
     "takeawayWaiting_one": "{{count}} takeaway order waiting",
-    "takeawayWaiting_other": "{{count}} takeaway orders waiting"
+    "takeawayWaiting_other": "{{count}} takeaway orders waiting",
+    "messagesWaiting_one": "{{count}} new message",
+    "messagesWaiting_other": "{{count}} new messages"
   },
   "rail": {
     "label": "Needs attention",
@@ -1148,5 +1150,109 @@
       "offline": "No connection. Try again when it is back.",
       "generic": "That did not work. Try again."
     }
+  },
+  "messages": {
+    "title": "Messages",
+    "rail": {
+      "title": "Messages",
+      "titleBooking": "Table {{label}} · {{name}} · {{time}}",
+      "titleBookingPlain": "Table {{label}} · {{name}}",
+      "titleTakeaway": "Takeaway {{code}} · {{name}}",
+      "quote": "“{{text}}”",
+      "heldUntil": "Table held until {{time}}",
+      "okWait": "“OK, we’ll wait”",
+      "reply": "Reply",
+      "open": "Open",
+      "answered": "Answered: “{{text}}” · {{name}}, {{time}}",
+      "unreachable": "The messages could not be read.",
+      "ago_one": "{{count}} min ago",
+      "ago_other": "{{count}} min ago",
+      "more_one": "{{count}} more in Messages",
+      "more_other": "{{count}} more in Messages"
+    },
+    "inbox": {
+      "label": "Conversations",
+      "filters": {
+        "label": "Filter",
+        "all": "All · {{count}}",
+        "unanswered": "Unanswered · {{count}}",
+        "takeaway": "Takeaway"
+      },
+      "rowTakeaway": "{{name}} · {{code}}",
+      "you": "You: {{text}}",
+      "lastHeld": "{{text}} · held until {{time}}",
+      "tag": {
+        "newAnswer": "Guest answered",
+        "new": "New · reply",
+        "waiting": "Waiting for their answer",
+        "answered": "Answered",
+        "closed": "Closed",
+        "late_one": "Waiting {{count}} min",
+        "late_other": "Waiting {{count}} min"
+      },
+      "empty": "No conversations yet. A guest writes only inside a booking or a takeaway order.",
+      "emptyFilter": "Nothing here with this filter.",
+      "choose": "Choose a conversation on the left.",
+      "unreachable": "The conversations could not be read."
+    },
+    "thread": {
+      "log": "Messages",
+      "newMessage": "New message ↓",
+      "newMessageLabel": "New message. Show the newest",
+      "today": "today {{time}}",
+      "tomorrow": "tomorrow {{time}}",
+      "dated": "{{date}}, {{time}}",
+      "takeaway": "Takeaway",
+      "readyAt": "ready {{time}}",
+      "call": "Call",
+      "callLabel": "Call {{name}}",
+      "askWaiting": "Asked · waiting for the answer",
+      "venue": "The venue",
+      "meta": "{{name}} · {{time}}",
+      "askMeta": "a question with answer buttons",
+      "seen": "seen",
+      "sending": "Sending…",
+      "templates": "Ready replies",
+      "draftLabel": "Message to the guest",
+      "placeholder": "Write to {{name}}…",
+      "send": "Send",
+      "hint": "The guest sees the venue’s name, not yours. Who wrote what shows only here and in the console.",
+      "closed": "This conversation is closed: it closes two hours after the booking or order ends. It can still be read.",
+      "readOnlyWaiters": "At this venue only managers write to guests. You can read the conversation.",
+      "readOnly": "You can read this conversation but not write in it.",
+      "gone": "This booking or order is no longer here.",
+      "unreachable": "The conversation could not be read.",
+      "needsOnline": "Sending needs a connection.",
+      "text": {
+        "ask": "Are you coming at {{time}}?",
+        "askPlain": "Are you coming?",
+        "coming": "I’m coming",
+        "notComing": "Not coming",
+        "answered": "Answered",
+        "heldUntil": "Booking updated · table held until {{time}}",
+        "cancelled": "Booking cancelled",
+        "updated": "Booking updated",
+        "updatedComing": "Booking updated · coming",
+        "unknown": "A message this tablet cannot show",
+        "late_one": "Running {{count}} minute late",
+        "late_other": "Running {{count}} minutes late"
+      },
+      "error": {
+        "closed": "The conversation has closed: nothing more can be sent.",
+        "waitersCannotWrite": "Only managers can write to guests now.",
+        "forbidden": "This account cannot write to guests.",
+        "tooFast": "Too many messages at once. Try again in a moment.",
+        "invalid": "A message is 1 to {{max}} characters.",
+        "notFound": "This booking or order is no longer here.",
+        "offline": "Not sent: no connection. Your text is kept — send it again.",
+        "generic": "Not sent. Try again."
+      },
+      "party_one": "{{count}} guest",
+      "party_other": "{{count}} guests"
+    },
+    "tile_one": "{{count}} new message",
+    "tile_other": "{{count}} new messages",
+    "reminder_one": "{{label}} · a guest has waited {{count}} minute for an answer",
+    "reminder_other": "{{label}} · a guest has waited {{count}} minutes for an answer"
   }
 }

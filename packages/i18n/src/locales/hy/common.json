@@ -35,5 +35,17 @@
   "floorPlan": {
     "table_one": "Սեղան {{label}}, {{count}} տեղ, {{status}}",
     "table_other": "Սեղան {{label}}, {{count}} տեղ, {{status}}"
+  },
+  "messages": {
+    "defaultTemplates": {
+      "reservation1": "Լավ, սպասում ենք",
+      "reservation2": "Սեղանը պատրաստ է",
+      "reservation3": "Մի փոքր ուշանում ենք",
+      "reservation4": "Նախապատվերը պատրաստ է",
+      "takeaway1": "Այո, կարող եք",
+      "takeaway2": "Պատվերը պատրաստ է",
+      "takeaway3": "Ուշանում ենք 10 րոպե",
+      "takeaway4": "Ինչ-որ բան վերջացել է…"
+    }
   }
 }

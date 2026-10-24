@@ -86,6 +86,12 @@ import {
   type TakeawaySettings,
   type TakeawaySettingsInput,
 } from '../contracts/takeaway';
+import {
+  DEFAULT_MESSAGE_SETTINGS,
+  messageSettingsViolations,
+  normalizeMessageTemplates,
+  type MessageSettings,
+} from '../contracts/messages';
 import { addDayKeys, createMockShiftStore } from './shiftStore';
 import { approvalExpiryFor, localDateAndTime } from './approvalWindow';
 import {
@@ -478,6 +484,9 @@ export function createConsoleMockGateway(options: ConsoleMockOptions = {}): Cons
       maxInProgress: 5,
     });
   }
+
+  /** Each branch's message settings (2026-10-23). Absent: the server's default. */
+  const messageSettings = new Map<string, MessageSettings>();
 
   function takeawaySettingsOf(branchId: string): TakeawaySettings {
     return { ...DEFAULT_TAKEAWAY_SETTINGS, ...takeawaySettings.get(branchId) };
@@ -5168,6 +5177,42 @@ export function createConsoleMockGateway(options: ConsoleMockOptions = {}): Cons
         maxInProgress: settings.maxInProgress,
       });
       return takeawaySettingsOf(branchId);
+    },
+
+    // --- Messages with guests (2026-10-23) ----------------------------------------
+
+    async getMessageSettings(branchId): Promise<MessageSettings> {
+      await wait();
+      requireManagerAtBranch(branchId, `${URL_TAG}/branches/${branchId}/message-settings`);
+      return messageSettings.get(branchId) ?? DEFAULT_MESSAGE_SETTINGS;
+    },
+
+    async saveMessageSettings({ branchId, settings }): Promise<MessageSettings> {
+      await wait();
+      const url = `${URL_TAG}/branches/${branchId}/message-settings`;
+      requireManagerAtBranch(branchId, url);
+      // Every bad field named, nothing saved.
+      const violations = messageSettingsViolations(settings);
+      if (violations.length > 0) {
+        throw validationFailed(
+          url,
+          violations.map((violation) => ({
+            field: violation.field,
+            message: violation.message,
+            ...(violation.bound !== undefined ? { bound: violation.bound } : {}),
+            ...(violation.min !== undefined ? { min: violation.min } : {}),
+            ...(violation.max !== undefined ? { max: violation.max } : {}),
+          })),
+        );
+      }
+      const saved: MessageSettings = {
+        guestsCanWrite: settings.guestsCanWrite,
+        waitersCanWrite: settings.waitersCanWrite,
+        templates: normalizeMessageTemplates(settings.templates),
+        remindAfterMinutes: settings.remindAfterMinutes,
+      };
+      messageSettings.set(branchId, saved);
+      return saved;
     },
   };
 }

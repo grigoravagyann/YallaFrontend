@@ -116,7 +116,11 @@ function blockText(t: TFunction, block: AskOnMyWayBlock, time: (iso: string) => 
 }
 
 /** A refused ask, in the floor's words. */
-function failureText(t: TFunction, error: unknown, time: (iso: string) => string): string {
+export function askFailureText(
+  t: TFunction,
+  error: unknown,
+  time: (iso: string) => string,
+): string {
   if (error instanceof AskOnMyWayTooEarlyError) {
     return error.opensAtUtc
       ? t('onMyWay.error.tooEarly', { time: time(error.opensAtUtc) })
@@ -202,7 +206,7 @@ export function OnMyWayAsk({ branchId, subject, timeZoneId, online, variant }: O
       },
       onError: (error) => {
         sending.current = false;
-        setAnswer({ kind: 'failed', text: failureText(t, error, time) });
+        setAnswer({ kind: 'failed', text: askFailureText(t, error, time) });
       },
     });
   }

@@ -28,6 +28,7 @@ import {
   type WireReservationTimes,
 } from './bookingTimesWire';
 import { cancellationCause } from './guestRecordMapping';
+import { conversationSummaryFromWire, type WireMessagesSummary } from './messagesMapping';
 import { bookingPreOrderFields, type WireBookingPreOrderFields } from './preOrderMapping';
 import { absolutePhoto } from './photoUrl';
 import { orderStatus, totals } from './staffMapping';
@@ -343,7 +344,15 @@ export function booking(view: ReservationViewWire, venueName: string | null): Bo
     incomingTableRequest: incomingTableRequestFromWire(view.incomingTableRequest),
     // Pre-orders (2026-10-21): the pre-order, the editor's window, the answer.
     ...bookingPreOrderFields(view),
+    // Guest messages (2026-10-23): the thread's row, only when there is one.
+    ...messagesField(view.messages),
   };
+}
+
+/** `messages` when the read carries a thread, and nothing otherwise. */
+export function messagesField(wire: WireMessagesSummary | null | undefined) {
+  const messages = conversationSummaryFromWire(wire);
+  return messages ? { messages } : {};
 }
 
 export function reservationState(view: ReservationViewWire): ReservationState {

@@ -31,15 +31,26 @@ import type { ReservationStatusCode } from '../contracts/push';
 import { createMockPreOrderBook } from './preOrders';
 import { createMockTakeawayBook } from './takeaway';
 import { publicBranchFixtures } from './publicVenues';
-import type { AskOnMyWayResult } from '../contracts/onMyWay';
+import { canAnswerOnMyWay, type AskOnMyWayResult } from '../contracts/onMyWay';
 import type {
-  AcceptTakeawayOrderCommand,
-  BranchTakeawayOrders,
-  CollectTakeawayOrderCommand,
-  DeclineTakeawayOrderCommand,
-  StaffTakeawayOrder,
-  TakeawayPaymentMethod,
-  TakeawayStatus,
+  BranchConversations,
+  ConversationSubjectRef,
+  MessageSettingsInput,
+  MessageWriterRole,
+  SentMessage,
+  StaffConversation,
+} from '../contracts/messages';
+import { createMockConversationBook, type MockConversationSubjectInfo } from './messages';
+import {
+  isTakeawayActive,
+  takeawayItemCount,
+  type AcceptTakeawayOrderCommand,
+  type BranchTakeawayOrders,
+  type CollectTakeawayOrderCommand,
+  type DeclineTakeawayOrderCommand,
+  type StaffTakeawayOrder,
+  type TakeawayPaymentMethod,
+  type TakeawayStatus,
 } from '../contracts/takeaway';
 import { requireClientCommandId } from './problems';
 import {
@@ -223,6 +234,22 @@ export interface StaffMockOptions {
   readonly takeawaySeeds?: readonly StaffTakeawaySeed[];
   /** The branch's takeaway auto-accept: off (staff accept) when absent. */
   readonly takeawayAutoAccept?: boolean;
+  /**
+   * Guest messages (2026-10-23), for mock mode, in the design's words: Ani at
+   * table 5 running 15 minutes late after the venue asked (one unread), Karen's
+   * takeaway T-485 asking to come early (unread), Davit at table 8 asked "are
+   * you coming?" and silent, and Mariam at table 3 answered an hour ago — and
+   * the guest replying ten seconds after a venue text, "coming" after an ask.
+   * Off in tests, which write as the guest through nothing: the floor's side only.
+   */
+  readonly seedMessages?: boolean;
+  /** The branch's message settings. The server's default when absent. */
+  readonly messageSettings?: Partial<MessageSettingsInput>;
+  /**
+   * Who is writing from this tablet, for the "who may write" rule: a waiter
+   * when absent (who may, while the branch lets waiters write).
+   */
+  readonly staffRole?: MessageWriterRole;
   /**
    * Whether a staff session is signed in now. When given, every staff read
    * and write answers 401 without one, as the server does with no token — so
@@ -1626,6 +1653,103 @@ export function createStaffMockGateway(options: StaffMockOptions = {}): StaffGat
   /** reservationId -> the tab its pre-order went onto. */
   const preOrderTabs = new Map<string, string>();
 
+  /**
+   * Guest messages on this floor (2026-10-23): keyed by the floor's one
+   * branch, whichever id the room adopts. The bookings and the takeaway orders
+   * stay here; the book reads them as they stand.
+   */
+  const staffRole: MessageWriterRole = options.staffRole ?? 'waiter';
+  const conversations = createMockConversationBook({
+    now,
+    subject: conversationSubject,
+    settings: options.messageSettings ? { [FLOOR_BRANCH]: options.messageSettings } : undefined,
+    simulate: options.seedMessages
+      ? {
+          guestReplyAfterMs: 10_000,
+          // The simulated guest's "coming" is an answer on the booking, as the app's is.
+          onGuestAnswer: (ref, answer) => {
+            if (ref.kind !== 'reservation' || answer.kind !== 'coming') return;
+            preOrderBook.seedOnMyWay(ref.id, now().toISOString());
+            preOrderChanged(ref.id, now());
+          },
+        }
+      : undefined,
+  });
+
+  /** "19:30" on the floor's clock. */
+  function floorClock(instant: string): string {
+    return localDateAndTime(instant, plan.timeZoneId).localStartTime.slice(0, 5);
+  }
+
+  function conversationSubject(ref: ConversationSubjectRef): MockConversationSubjectInfo | null {
+    const venue = { venueName: 'Lumen Coffee', branchId: FLOOR_BRANCH, owner: null } as const;
+    const venuePhone = publicBranchFixtures['b-lumen-north']?.phoneE164 ?? null;
+    if (ref.kind === 'reservation') {
+      const reservation = reservations.get(ref.id);
+      if (!reservation) return null;
+      const booking = preOrderBookingOf(reservation);
+      const local = localDateAndTime(reservation.startUtc, plan.timeZoneId);
+      const active = !reservation.released;
+      return {
+        ref,
+        ...venue,
+        venuePhone,
+        guestName: reservation.guestName,
+        guestPhone: reservation.guestPhone,
+        startUtc: reservation.startUtc,
+        localDate: local.localDate,
+        localTime: local.localStartTime.slice(0, 5),
+        partySize: reservation.partySize,
+        tableLabel: plan.tables.find((table) => table.id === reservation.tableId)?.label ?? null,
+        takeawayCode: null,
+        readyAtLocal: null,
+        readyAtUtc: null,
+        itemCount: null,
+        totalAmd: null,
+        active,
+        endUtc: booking.endUtc,
+        endedAtUtc: active ? null : booking.endUtc,
+        acceptsAnswer: canAnswerOnMyWay(
+          { status: booking.status, startUtc: booking.startUtc, endUtc: booking.endUtc },
+          now(),
+        ),
+      };
+    }
+    const record = takeawayBook.record(ref.id);
+    if (!record) return null;
+    return {
+      ref,
+      ...venue,
+      venuePhone,
+      guestName: record.guestName,
+      guestPhone: record.guestPhone,
+      startUtc: null,
+      localDate: null,
+      localTime: null,
+      partySize: null,
+      tableLabel: null,
+      takeawayCode: record.code,
+      readyAtLocal: floorClock(record.readyAtUtc ?? record.requestedPickupUtc),
+      readyAtUtc: record.readyAtUtc,
+      itemCount: takeawayItemCount(record.lines),
+      totalAmd: record.lines.reduce((sum, line) => sum + line.unitPriceDram * line.quantity, 0),
+      active: isTakeawayActive(record.status),
+      endUtc: null,
+      endedAtUtc:
+        record.collectedAtUtc ??
+        record.noShowAtUtc ??
+        record.declinedAtUtc ??
+        record.cancelledAtUtc ??
+        null,
+      acceptsAnswer: false,
+    };
+  }
+
+  function conversationUrl(ref: ConversationSubjectRef, tail = ''): string {
+    const segment = ref.kind === 'takeaway' ? 'takeaway-orders' : 'reservations';
+    return `/api/${segment}/${ref.id}/conversation${tail}`;
+  }
+
   function bookingStatusOf(reservation: MockReservation): ReservationStatusCode {
     if (reservation.released) {
       return reservation.releasedAs === 'noShow' ? 'noShow' : 'cancelledByDiner';
@@ -2191,6 +2315,178 @@ export function createStaffMockGateway(options: StaffMockOptions = {}): StaffGat
     seedPreOrder(seed);
   }
 
+  /** A booking with no pre-order, on a table, for a thread to be about. */
+  function seedBooking(seed: {
+    readonly id: string;
+    readonly tableId: string;
+    readonly code: string;
+    readonly guestName: string;
+    readonly guestPhone: string;
+    readonly partySize: number;
+    readonly startsInMinutes: number;
+  }): void {
+    const startUtc = minutesFrom(start, seed.startsInMinutes);
+    reservations.set(seed.id, {
+      id: seed.id,
+      tableId: seed.tableId,
+      code: seed.code,
+      guestName: seed.guestName,
+      guestPhone: seed.guestPhone,
+      partySize: seed.partySize,
+      startUtc,
+      released: false,
+    });
+    const state = tables.get(seed.tableId);
+    const current = state?.nextReservationStartUtc ?? null;
+    if (
+      state &&
+      state.physicalStatus === 'free' &&
+      (current === null || Date.parse(current) < start.getTime() || startUtc < current)
+    ) {
+      state.nextReservationId = seed.id;
+      state.nextReservationStartUtc = startUtc;
+      state.nextReservationPartySize = seed.partySize;
+      state.freeUntilUtc = startUtc;
+    }
+  }
+
+  /** Mock mode's inbox (2026-10-23), in the design's words. */
+  function seedMessageThreads(): void {
+    const ago = (minutes: number) => minutesFrom(start, -minutes);
+    // Ani, table 5: asked for a high chair this morning, asked "are you
+    // coming?" three minutes ago, answered "15 minutes late" a minute ago.
+    seedPreOrder({
+      reservationId: 'res-msg-ani',
+      tableId: 't5',
+      code: 'A6N3MK',
+      startsInMinutes: 50,
+      guestName: 'Անի Մելքոնյան',
+      guestPhone: '+37491556677',
+      partySize: 4,
+      lines: [
+        { menuItemId: 'cappuccino', quantity: 2 },
+        { menuItemId: 'croissant', quantity: 1 },
+        { menuItemId: 'cheesecake', quantity: 1 },
+        { menuItemId: 'avocado-toast', quantity: 1 },
+      ],
+    });
+    preOrderBook.seedStaffAsked('res-msg-ani', ago(3));
+    preOrderBook.seedRunningLate('res-msg-ani', 15, ago(1));
+    const aniStart = reservations.get('res-msg-ani')?.startUtc ?? minutesFrom(start, 50);
+    conversations.seed(
+      { kind: 'reservation', id: 'res-msg-ani' },
+      [
+        {
+          author: 'guest',
+          text: 'Բարև։ Մենք 4 հոգի ենք, մեկը մանկական աթոռ է պետք։',
+          minutesAgo: 6 * 60 + 25,
+        },
+        {
+          author: 'venue',
+          text: 'Բարև, Անի։ Աթոռը կդնենք սեղան 5-ի մոտ։',
+          minutesAgo: 6 * 60 + 10,
+          staffName: 'Լիլիթ',
+        },
+        { author: 'venue', kind: 'askComing', minutesAgo: 3, staffName: 'Արամ' },
+        {
+          author: 'guest',
+          kind: 'answer',
+          answer: { kind: 'late', lateMinutes: 15 },
+          minutesAgo: 1,
+        },
+        {
+          author: 'system',
+          kind: 'status',
+          status: { heldUntilLocal: floorClock(minutesFrom(new Date(aniStart), 15)) },
+          minutesAgo: 1,
+        },
+      ],
+      { guestLastReadMinutesAgo: 1, venueLastReadMinutesAgo: 2 },
+    );
+
+    // Karen, takeaway T-485: asks to come ten minutes early, four minutes ago.
+    seedTakeaway({
+      id: 'tk-msg-karen',
+      code: 'T-485',
+      status: 'accepted',
+      guestName: 'Կարեն Սահակյան',
+      guestPhone: '+37493884411',
+      lines: [
+        { menuItemId: 'flat-white', quantity: 1 },
+        { menuItemId: 'napoleon', quantity: 1 },
+      ],
+      sentMinutesAgo: 14,
+      pickupInMinutes: 22,
+    });
+    conversations.seed(
+      { kind: 'takeaway', id: 'tk-msg-karen' },
+      [{ author: 'guest', text: 'Կարո՞ղ եմ 10 րոպե շուտ գալ վերցնելու', minutesAgo: 4 }],
+      { venueLastReadMinutesAgo: 10 },
+    );
+
+    // Davit, table 8: asked "are you coming?" fourteen minutes ago, no answer.
+    seedBooking({
+      id: 'res-msg-davit',
+      tableId: 't8',
+      code: 'D7H2PQ',
+      guestName: 'Դավիթ Հովսեփյան',
+      guestPhone: '+37477331122',
+      partySize: 2,
+      startsInMinutes: 80,
+    });
+    preOrderBook.seedStaffAsked('res-msg-davit', ago(14));
+    conversations.seed(
+      { kind: 'reservation', id: 'res-msg-davit' },
+      [{ author: 'venue', kind: 'askComing', minutesAgo: 14, staffName: 'Արամ' }],
+      { venueLastReadMinutesAgo: 14 },
+    );
+
+    // Mariam, table 3: asked for the terrace, answered within minutes.
+    seedBooking({
+      id: 'res-msg-mariam',
+      tableId: 't3',
+      code: 'M4K9RT',
+      guestName: 'Մարիամ Կարապետյան',
+      guestPhone: '+37494002233',
+      partySize: 6,
+      startsInMinutes: 150,
+    });
+    conversations.seed(
+      { kind: 'reservation', id: 'res-msg-mariam' },
+      [
+        { author: 'guest', text: 'Կարո՞ղ ենք պատշգամբում նստել։', minutesAgo: 84 },
+        {
+          author: 'venue',
+          text: 'Այո, սեղան 3-ը պատշգամբում է։ Երեկոյան զով է լինում, վերմակ կբերենք։',
+          minutesAgo: 80,
+          staffName: 'Լիլիթ',
+        },
+      ],
+      { guestLastReadMinutesAgo: 78, venueLastReadMinutesAgo: 80 },
+    );
+  }
+
+  if (options.seedMessages) seedMessageThreads();
+
+  /**
+   * A table's unread guest messages, as the floor carries them: the next
+   * booking's thread, and the thread of the booking the party sitting there
+   * came in on. Each only when there are some.
+   */
+  function unreadOnTable(state: MockTableState) {
+    const unreadOf = (reservationId: string | null | undefined) =>
+      reservationId ? conversations.unreadFromGuest({ kind: 'reservation', id: reservationId }) : 0;
+    const next = unreadOf(state.nextReservationId);
+    const sittingId = state.sessionId
+      ? [...seatedBookings].find((id) => reservations.get(id)?.tableId === state.tableId)
+      : undefined;
+    const sitting = unreadOf(sittingId);
+    return {
+      ...(next > 0 ? { nextReservationUnreadMessages: next } : {}),
+      ...(sitting > 0 ? { sittingUnreadMessages: sitting } : {}),
+    };
+  }
+
   // --- The gateway ----------------------------------------------------------
 
   return {
@@ -2242,6 +2538,8 @@ export function createStaffMockGateway(options: StaffMockOptions = {}): StaffGat
             ? (reservations.get(state.nextReservationId)?.guestRecord ?? null)
             : null,
           sittingGuestRecord: null,
+          // Guest messages (2026-10-23): the tile's badges, only when there are some.
+          ...unreadOnTable(state),
         });
         return {
           ...table,
@@ -2256,6 +2554,8 @@ export function createStaffMockGateway(options: StaffMockOptions = {}): StaffGat
         details,
         lastSequence: sequence,
         asOfUtc: iso(at),
+        // Guest messages (2026-10-23): the Messages tab's badge and the rail's section.
+        messages: conversations.floor(FLOOR_BRANCH),
       });
     },
 
@@ -2707,7 +3007,43 @@ export function createStaffMockGateway(options: StaffMockOptions = {}): StaffGat
       const notified = reservation.guestPhone.trim() !== '';
       const answer = preOrderBook.askOnMyWay(url, preOrderBookingOf(reservation), notified);
       preOrderChanged(reservation.id, now());
+      // The ask is a message in the booking's thread, with the asker's name.
+      conversations.appendAsk({ kind: 'reservation', id: reservation.id }, staffName);
       return settle(answer);
+    },
+
+    // --- Messages with guests (2026-10-23) -----------------------------------
+
+    async listConversations(): Promise<BranchConversations> {
+      requireSession('/api/branches/conversations');
+      return settle(conversations.branchConversations(FLOOR_BRANCH));
+    },
+
+    async getStaffConversation(subject): Promise<StaffConversation | null> {
+      requireSession(conversationUrl(subject));
+      return settle(conversations.staffConversation(subject, staffRole));
+    },
+
+    async sendStaffMessage(command): Promise<SentMessage> {
+      const url = conversationUrl(command.subject, '/messages');
+      requireSession(url);
+      return settle(
+        conversations.sendAsVenue({
+          url,
+          ref: command.subject,
+          role: staffRole,
+          staffName,
+          text: command.text,
+          clientCommandId: command.clientCommandId,
+        }),
+      );
+    },
+
+    async markStaffConversationRead(subject): Promise<void> {
+      const url = conversationUrl(subject, '/read');
+      requireSession(url);
+      conversations.readAsVenue(url, { kind: subject.kind, id: subject.id }, subject.upToUtc);
+      return settle(undefined);
     },
 
     // --- Takeaway at the counter (2026-10-22) --------------------------------

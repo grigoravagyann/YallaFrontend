@@ -1,3 +1,4 @@
+import type { ConversationSummary } from './messages';
 import type { SpecialDay } from './branchSettings';
 import type { VenueType } from './booking';
 import type { Photo } from './menuAdmin';
@@ -269,6 +270,12 @@ export interface DinerOrder {
    * times; `null` on dine-in. Optional for fixtures written before takeaway.
    */
   readonly takeaway?: DinerTakeawaySummary | null | undefined;
+  /**
+   * The takeaway order's thread with the venue (guest messages, 2026-10-23):
+   * the Orders-tab card's row. Absent or `null` on dine-in, and when there is
+   * no thread and none can be opened.
+   */
+  readonly messages?: ConversationSummary | null | undefined;
 }
 
 export type DinerOrderSegment = 'active' | 'history';

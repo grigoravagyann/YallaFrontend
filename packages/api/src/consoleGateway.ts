@@ -2,6 +2,7 @@ import type { ConsoleBooking, DecideReservationCommand } from './contracts/appro
 import type { BookingBlock, LiftBookingBlockCommand } from './contracts/guestRecord';
 import type { PreOrderSettings, PreOrderSettingsInput } from './contracts/preOrder';
 import type { TakeawaySettings, TakeawaySettingsInput } from './contracts/takeaway';
+import type { MessageSettings, MessageSettingsInput } from './contracts/messages';
 import type {
   BranchOverview,
   ConsoleBookingActionCommand,
@@ -650,6 +651,28 @@ export interface ConsoleGateway {
     readonly branchId: string;
     readonly settings: TakeawaySettingsInput;
   }): Promise<TakeawaySettings>;
+
+  // --- Messages with guests (2026-10-23) ----------------------------------------
+
+  /**
+   * The branch's message settings — `GET /api/branches/{branchId}/message-settings`,
+   * manager or above at the branch. Default: guests may write, waiters may
+   * write, the app's default templates, remind after 3 minutes.
+   *
+   * @throws {ForbiddenError} not a manager of this branch.
+   */
+  getMessageSettings(branchId: string): Promise<MessageSettings>;
+
+  /**
+   * Save all four — `PUT /api/branches/{branchId}/message-settings`.
+   *
+   * @throws {ValidationError} every bad field named (`templates`,
+   * `templates[i]`, `remindAfterMinutes`); see `messageSettingsViolations`.
+   */
+  saveMessageSettings(input: {
+    readonly branchId: string;
+    readonly settings: MessageSettingsInput;
+  }): Promise<MessageSettings>;
 
   // --- Bookings waiting for approval ------------------------------------------
 

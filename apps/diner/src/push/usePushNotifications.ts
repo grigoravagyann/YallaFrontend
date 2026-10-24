@@ -1,4 +1,5 @@
-import { useGateway } from '@yalla/api/react';
+import { messageText, messageViolations } from '@yalla/api';
+import { afterGuestAnswered, afterGuestMessageSent, useGateway } from '@yalla/api/react';
 import { useLocale, useTranslation } from '@yalla/i18n';
 import { useQueryClient } from '@tanstack/react-query';
 import * as Notifications from 'expo-notifications';
@@ -6,6 +7,7 @@ import { useRouter } from 'expo-router';
 import { useEffect, useRef } from 'react';
 import { Platform } from 'react-native';
 import { newCommandId } from '../lib/commandId';
+import { threadRoute } from '../messages/copy';
 import { invalidateForPush } from './invalidation';
 import {
   actionFor,
@@ -16,7 +18,10 @@ import {
   routeFor,
   tableRequestAnswer,
   tableRequestRoute,
+  venueMessageAction,
   type PushData,
+  type PushTarget,
+  type VenueMessageAction,
 } from './payload';
 import { onTokenRotation, platformCode, registerCategories, registerDevice } from './registration';
 
@@ -46,7 +51,9 @@ import { onTokenRotation, platformCode, registerCategories, registerDevice } fro
  *
  * The two lock-screen buttons are the exception, and they are the point of the
  * feature: those run without opening the app. They are handled here rather than
- * on a screen for exactly that reason — there is no screen.
+ * on a screen for exactly that reason — there is no screen. The venue's
+ * message (2026-10-23) is the other: "I'm coming", "Late 15 min" and a typed
+ * "Reply" answer from the banner, and a refusal opens the thread instead.
  */
 
 /**
@@ -96,6 +103,15 @@ export function usePushNotifications({ projectId, signedIn }: PushOptions): void
    * attempt at extending a hold is refused.
    */
   const commandIds = useRef(new Map<string, string>());
+  /**
+   * Read by the response handler at the moment of the tap, not captured when
+   * its effect ran: a banner answered on a phone nobody is signed in on has
+   * nobody to answer as.
+   */
+  const signedInNow = useRef(signedIn);
+  useEffect(() => {
+    signedInNow.current = signedIn;
+  }, [signedIn]);
   const commandIdFor = (key: string): string => {
     const existing = commandIds.current.get(key);
     if (existing) return existing;
@@ -115,6 +131,11 @@ export function usePushNotifications({ projectId, signedIn }: PushOptions): void
       tableRequestNo: t('booking.tableRequest.no'),
       onMyWay: t('preOrder.onYourWay.yes'),
       cantCome: t('preOrder.onYourWay.cantCome'),
+      venueComing: t('messages.push.coming'),
+      venueLate15: t('messages.push.late15'),
+      venueReply: t('messages.push.reply'),
+      venueReplyPlaceholder: t('messages.push.replyPlaceholder'),
+      venueReplySend: t('messages.push.send'),
     });
   }, [t]);
 
@@ -176,6 +197,61 @@ export function usePushNotifications({ projectId, signedIn }: PushOptions): void
     if (!supported) return;
     let cancelled = false;
 
+    /**
+     * The venue's message answered from its banner (2026-10-23): the ask's
+     * "I'm coming" or "Late 15 min" through the existing endpoints, or the
+     * typed reply as a message in the thread. Anything that does not go
+     * through — a refusal, no signal, words too long — opens the thread, the
+     * reply's words in its field, rather than failing unseen.
+     */
+    async function answerVenueMessage(
+      target: Extract<PushTarget, { kind: 'thread' }>,
+      what: VenueMessageAction,
+      userText: string | undefined,
+    ): Promise<void> {
+      const { subject } = target;
+      const words = messageText(userText);
+      const openThread = () => {
+        if (!cancelled) router.push(threadRoute(subject, what === 'reply' ? words : null));
+      };
+      // Signed out (or signed out since the push came): nothing is sent as
+      // nobody; the thread opens and asks for a log-in, the words in its field.
+      if (!signedInNow.current) {
+        openThread();
+        return;
+      }
+      try {
+        if (what === 'reply') {
+          if (messageViolations(words).length > 0) {
+            openThread();
+            return;
+          }
+          await gateway.sendGuestMessage({
+            subject,
+            text: words,
+            // The same words from the same banner twice are one message.
+            clientCommandId: commandIdFor(`reply:${subject.kind}:${subject.id}:${words}`),
+          });
+          afterGuestMessageSent(queryClient, subject);
+          return;
+        }
+        // Only a booking is asked "are you coming?".
+        if (subject.kind !== 'reservation') {
+          openThread();
+          return;
+        }
+        if (what === 'coming') await gateway.confirmOnMyWay(subject.id);
+        else await gateway.reportRunningLate({ reservationId: subject.id, minutes: 15 });
+        afterGuestAnswered(queryClient, subject.id);
+        invalidateForPush(queryClient, {
+          kind: 'reservation-on-your-way',
+          reservationId: subject.id,
+        });
+      } catch {
+        openThread();
+      }
+    }
+
     /** One path for all three states, so cold start cannot drift from the others. */
     async function handle(response: Notifications.NotificationResponse): Promise<void> {
       const data = response.notification.request.content.data as PushData | undefined;
@@ -194,6 +270,13 @@ export function usePushNotifications({ projectId, signedIn }: PushOptions): void
       const accept = tableRequestAnswer(action);
       if (accept !== null && target.kind === 'tableRequest') {
         if (!cancelled) router.push(tableRequestRoute(target, accept));
+        return;
+      }
+
+      // The venue's message: answered from the banner, or its thread opened.
+      const venueAction = venueMessageAction(action);
+      if (venueAction !== null && target.kind === 'thread') {
+        await answerVenueMessage(target, venueAction, response.userText);
         return;
       }
 

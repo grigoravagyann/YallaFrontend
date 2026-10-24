@@ -9,6 +9,7 @@ import {
   routeFor,
   tableRequestAnswer,
   tableRequestRoute,
+  venueMessageAction,
 } from './payload';
 
 /**
@@ -549,5 +550,55 @@ describe('a takeaway order', () => {
 
   it('is not routable without its order', () => {
     expect(parsePushTarget({ kind: 'takeaway-ready' })).toEqual({ kind: 'unknown' });
+  });
+});
+
+/**
+ * Guest messages (2026-10-23): the venue wrote in a thread. The push opens the
+ * thread; the ask's banner carries "I'm coming", "Late 15 min" and "Reply".
+ */
+describe('a venue message', () => {
+  it("opens the booking's thread, and says whether it was the ask", () => {
+    const target = parsePushTarget({
+      kind: 'venue-message',
+      conversationId: 'c1',
+      reservationId: 'r1',
+      ask: 'true',
+    });
+    expect(target).toEqual({
+      kind: 'thread',
+      subject: { kind: 'reservation', id: 'r1' },
+      ask: true,
+    });
+    expect(routeFor(target)).toEqual({
+      pathname: '/messages/reservation/[id]',
+      params: { id: 'r1' },
+    });
+  });
+
+  it("opens a takeaway order's thread", () => {
+    const target = parsePushTarget({
+      kind: 'venue-message',
+      takeawayOrderId: 'tw-1',
+      ask: 'false',
+    });
+    expect(routeFor(target)).toEqual({
+      pathname: '/messages/takeaway/[id]',
+      params: { id: 'tw-1' },
+    });
+  });
+
+  it('is not routable without its subject', () => {
+    expect(parsePushTarget({ kind: 'venue-message', conversationId: 'c1' })).toEqual({
+      kind: 'unknown',
+    });
+  });
+
+  it("reads the banner's three buttons, and no others", () => {
+    expect(venueMessageAction(actionFor(PUSH_ACTIONS.venueComing))).toBe('coming');
+    expect(venueMessageAction(actionFor(PUSH_ACTIONS.venueLate15))).toBe('late15');
+    expect(venueMessageAction(actionFor(PUSH_ACTIONS.venueReply))).toBe('reply');
+    expect(venueMessageAction(actionFor(PUSH_ACTIONS.onMyWay))).toBeNull();
+    expect(venueMessageAction(null)).toBeNull();
   });
 });

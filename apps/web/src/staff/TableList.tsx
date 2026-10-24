@@ -140,6 +140,7 @@ export function TableList({
             leads ? null : card.state,
             card.sub,
             card.flag,
+            card.messages ? t('messages.tile', { count: card.messages }) : null,
             pending ? mark : null,
             table.floorAreaName,
           ]
@@ -153,6 +154,7 @@ export function TableList({
                 className="table-row"
                 data-tone={tone}
                 data-late={card.late ? 'true' : undefined}
+                data-messages={card.messages ? 'true' : undefined}
                 aria-pressed={table.id === selectedTableId}
                 aria-label={name}
                 onClick={() => onSelect(table.id)}
@@ -171,6 +173,21 @@ export function TableList({
                   ) : null}
                 </span>
                 {pending ? <span className="ft-table-pending">{mark}</span> : null}
+                {card.messages ? (
+                  <span className="ft-table-msg" aria-hidden="true">
+                    <svg
+                      className="ft-icon"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
+                      <path d="M4 5h16v11H9l-5 4z" />
+                    </svg>
+                  </span>
+                ) : null}
               </button>
             </li>
           );

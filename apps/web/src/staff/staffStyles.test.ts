@@ -37,6 +37,9 @@ const REDESIGNED = [
   'OnMyWayAsk.tsx',
   'takeaway/TakeawayAccept.tsx',
   'takeaway/TakeawayCounter.tsx',
+  'messages/MessagesInbox.tsx',
+  'messages/MessageThread.tsx',
+  'messages/MessagesRailSection.tsx',
 ];
 
 /** Comments may quote a value; only code is checked. */

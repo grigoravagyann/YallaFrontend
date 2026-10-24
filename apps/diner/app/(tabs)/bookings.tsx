@@ -22,11 +22,14 @@ import { useToast } from '../../src/components/motion/Toast';
 import { Screen, useNavClearance } from '../../src/components/Screen';
 import { SegmentedControl } from '../../src/components/SegmentedControl';
 import { Text } from '../../src/components/Text';
+import { useUnreadMessages } from '../../src/data/messageQueries';
 import { useBookings, useCancelBooking } from '../../src/data/queries';
 import { useNow } from '../../src/hooks/useNow';
 import { bookingsFailureCopy } from '../../src/lib/bookingsList';
 import { blockedUntil } from '../../src/lib/guestRecord';
 import { haptics } from '../../src/lib/haptics';
+import { BookingMessagesRow } from '../../src/messages/BookingMessagesRow';
+import { messageRow, threadRoute, unreadFor } from '../../src/messages/copy';
 import { useSession } from '../../src/stores/session';
 import { actionIcon, colors, displayWeight, layout, space, typography } from '../../src/theme';
 
@@ -60,6 +63,9 @@ export default function BookingsScreen() {
   const { data, isLoading, isError, error, refetch, isRefetching } = bookingsQuery;
   const offline = isOfflinePaused(bookingsQuery) && !data;
   const cancel = useCancelBooking();
+  // The threads with something unread, read every thirty seconds: fresher
+  // than the list's own `messages` line, which waits for the list.
+  const unread = useUnreadMessages().data;
 
   // Upcoming and past exactly as the server split them: a sitting that has not
   // ended and still holds a table is upcoming, which keeps a diner running five
@@ -92,6 +98,20 @@ export default function BookingsScreen() {
   const changeBooking = (booking: Booking) => router.push(changeBookingRoute(booking));
   const editPreOrder = (booking: Booking) =>
     router.push({ pathname: '/booking/[bookingId]/pre-order', params: { bookingId: booking.id } });
+  /** The booking's thread row at its card's foot, or nothing (guest messages, 2026-10-23). */
+  const messagesFor = (booking: Booking) => {
+    const subject = { kind: 'reservation' as const, id: booking.id };
+    const row = messageRow(booking.messages, unreadFor(unread?.items, subject));
+    if (!row) return undefined;
+    return (
+      <BookingMessagesRow
+        row={row}
+        place={booking.venueName ?? booking.branchName}
+        timeZoneId={booking.timeZoneId}
+        onPress={() => router.push(threadRoute(subject))}
+      />
+    );
+  };
   const bookPlace = (booking: Booking) =>
     router.push({ pathname: '/book/[placeId]', params: { placeId: booking.branchId } });
 
@@ -232,6 +252,7 @@ export default function BookingsScreen() {
                   {...(heroChangeable ? { onChange: () => changeBooking(hero) } : {})}
                   onCancel={() => openCancel(hero)}
                   onPreOrder={() => editPreOrder(hero)}
+                  messages={justCancelled ? undefined : messagesFor(hero)}
                   {...(justCancelled ? { onBookAgain: () => bookPlace(hero) } : {})}
                 />
                 {rows.length > 0 ? (
@@ -250,6 +271,7 @@ export default function BookingsScreen() {
               now={now}
               style={styles.row}
               onOpen={() => openDetail(item)}
+              messages={messagesFor(item)}
             />
           </Rise>
         )}

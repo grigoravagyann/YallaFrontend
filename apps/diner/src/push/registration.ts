@@ -1,4 +1,11 @@
-import type { RegisterPushDeviceCommand, YallaGateway } from '@yalla/api';
+import {
+  VENUE_ASK_BUTTONS_PUSH_CATEGORY,
+  VENUE_ASK_PUSH_CATEGORY,
+  VENUE_MESSAGE_PUSH_CATEGORY,
+  VENUE_MESSAGE_READONLY_PUSH_CATEGORY,
+  type RegisterPushDeviceCommand,
+  type YallaGateway,
+} from '@yalla/api';
 import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
 import { PUSH_ACTIONS } from './payload';
@@ -57,6 +64,12 @@ export async function registerCategories(labels: {
   readonly tableRequestNo: string;
   readonly onMyWay: string;
   readonly cantCome: string;
+  /** Guest messages (2026-10-23): "I'm coming", "Late 15 min", "Reply" and its field. */
+  readonly venueComing: string;
+  readonly venueLate15: string;
+  readonly venueReply: string;
+  readonly venueReplyPlaceholder: string;
+  readonly venueReplySend: string;
 }): Promise<void> {
   await Notifications.setNotificationCategoryAsync('reservation-reminder', [
     {
@@ -116,6 +129,38 @@ export async function registerCategories(labels: {
       options: { ...answer, isDestructive: true },
     },
   ]);
+
+  /*
+   * Guest messages (2026-10-23, the Push board): the venue wrote in the
+   * thread. Its "are you coming?" (`venue-ask`) is answered from the banner —
+   * "I'm coming", "Late 15 min" — and either kind takes a typed "Reply". At a
+   * venue that takes no guest texts the server sends the same two without the
+   * Reply: `venue-ask-buttons` (the two answers) and `venue-message-readonly`
+   * (no actions — a tap opens the thread). All four are registered, so
+   * whichever the server picks has its buttons. These
+   * run without opening the app, as the board shows ("Sent: I'm coming"); the
+   * phone must be unlocked first, so the session can be read from the
+   * keychain. A refusal or a failure opens the thread, the reply's words in
+   * its field (`usePushNotifications`) — nothing is lost unseen.
+   */
+  const inPlace = { opensAppToForeground: false, isAuthenticationRequired: true } as const;
+  const reply = {
+    identifier: PUSH_ACTIONS.venueReply,
+    buttonTitle: labels.venueReply,
+    textInput: {
+      submitButtonTitle: labels.venueReplySend,
+      placeholder: labels.venueReplyPlaceholder,
+    },
+    options: inPlace,
+  };
+  const answers = [
+    { identifier: PUSH_ACTIONS.venueComing, buttonTitle: labels.venueComing, options: inPlace },
+    { identifier: PUSH_ACTIONS.venueLate15, buttonTitle: labels.venueLate15, options: inPlace },
+  ];
+  await Notifications.setNotificationCategoryAsync(VENUE_ASK_PUSH_CATEGORY, [...answers, reply]);
+  await Notifications.setNotificationCategoryAsync(VENUE_ASK_BUTTONS_PUSH_CATEGORY, answers);
+  await Notifications.setNotificationCategoryAsync(VENUE_MESSAGE_PUSH_CATEGORY, [reply]);
+  await Notifications.setNotificationCategoryAsync(VENUE_MESSAGE_READONLY_PUSH_CATEGORY, []);
 }
 
 /**

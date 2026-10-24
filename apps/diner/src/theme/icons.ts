@@ -98,6 +98,10 @@ export const actionIcon = {
   takeaway: 'bag-handle-outline',
   /** "Pay at pickup, cash or card". */
   payment: 'card-outline',
+  /** Guest messages (2026-10-23): the speech bubble on a booking's and an order's thread. */
+  message: 'chatbubble-outline',
+  /** The thread composer's send. */
+  send: 'arrow-forward-outline',
   /** The glyph standing in for the brand on the welcome screen. */
   brandMark: 'restaurant-outline',
 } as const satisfies Record<string, IoniconName>;

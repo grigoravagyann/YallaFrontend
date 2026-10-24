@@ -136,6 +136,16 @@ export const colors = {
    */
   accent: '#4B0C18',
 
+  /**
+   * Guest messages (2026-10-23): the venue's bubble in a thread — a whisper of
+   * the cherry, so the guest's own cherry bubbles stay the loud ones.
+   */
+  bubbleVenue: '#F4ECEC',
+  /** A row holding something new: an unread message row, its feed entry, the answer bar. */
+  unreadTint: '#FBF6F6',
+  /** The day chip ("Today") in a thread. */
+  dayChip: '#F7F3F2',
+
   /** The soft burgundy behind an initials avatar. */
   secondary: '#F2E4E6',
   border: '#E7E0D7',

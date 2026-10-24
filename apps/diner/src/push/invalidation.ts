@@ -41,6 +41,14 @@ export function queryKeysForPush(data: PushData | null | undefined): QueryKey[] 
   const orderId = id(data, 'orderId');
   if (orderId !== null && kind?.startsWith('takeaway-')) keys.push(['takeaway', 'order', orderId]);
 
+  // The venue wrote (2026-10-23): every thread and the unread summary — the
+  // nav's dot, the Bookings cards' rows — read again (`['messages']`), and a
+  // takeaway order's card on the Orders tab.
+  if (kind === 'venue-message') {
+    keys.push(['messages']);
+    if (id(data, 'takeawayOrderId') !== null) keys.push(['dinerOrders']);
+  }
+
   const reservationId = id(data, 'reservationId');
   // The pause on booking names no booking: the list says it, and is read again.
   const aboutThePause = kind !== null && BOOKINGS_TAB_PUSH_KINDS.includes(kind);
