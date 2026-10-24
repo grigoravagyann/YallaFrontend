@@ -6,6 +6,7 @@ import {
   compareHistoryItems,
   localDaysBetween,
   matchesHistorySearch,
+  messageHistoryRange,
   messageHistoryViolations,
   type ConversationOutcome,
   type MessageHistoryItem,
@@ -256,8 +257,9 @@ export function createMockMessageHistory(options: MockMessageHistoryOptions) {
         venueName,
         branchId,
         startUtc,
-        localDate: subject.localDate,
-        localTime: subject.localTime,
+        // The staff view says a booking's day and start only; an order's time is `readyAtLocal`.
+        localDate: subject.kind === 'reservation' ? subject.localDate : null,
+        localTime: subject.kind === 'reservation' ? subject.localTime : null,
         partySize: subject.partySize,
         tableLabel: subject.kind === 'reservation' ? subject.label : null,
         takeawayCode: subject.kind === 'takeaway' ? subject.label : null,
@@ -266,6 +268,7 @@ export function createMockMessageHistory(options: MockMessageHistoryOptions) {
           subject.kind === 'takeaway'
             ? new Date(atClock(subject.localDate, subject.localTime, zone)).toISOString()
             : null,
+        outcome: subject.outcome,
       },
       open: subject.open,
       closesAtUtc: subject.open ? null : new Date(Date.parse(last.createdAtUtc)).toISOString(),
@@ -705,9 +708,11 @@ export function createMockMessageHistory(options: MockMessageHistoryOptions) {
 
   return {
     /**
-     * `GET …/conversations/history`: the 422 names every bad field, as the
-     * server's does; otherwise the range by the last message's day, then the
-     * kind, the search and "unanswered only", newest first, a page at a time.
+     * `GET …/conversations/history`: the 422 names every bad field with the
+     * server's names and bounds; otherwise the range by the last message's
+     * day (a blank end defaulted as the server defaults it, and answered
+     * filled in), then the kind, the search and "unanswered only", newest
+     * first, a page at a time.
      */
     list(url: string, branchId: string, query: MessageHistoryQuery): MessageHistoryPage {
       const zone = zoneOf(branchId);
@@ -718,7 +723,11 @@ export function createMockMessageHistory(options: MockMessageHistoryOptions) {
       if (query.cursor) {
         const at = records.findIndex((record) => cursorOf(record.item) === query.cursor);
         if (at < 0) {
-          violations.push({ field: 'cursor', message: 'The cursor is not one this list gave.' });
+          violations.push({
+            field: 'cursor',
+            message: 'That cursor was not issued by this list. Start again without it.',
+            bound: 'required',
+          });
         } else {
           start = at + 1;
         }
@@ -735,13 +744,15 @@ export function createMockMessageHistory(options: MockMessageHistoryOptions) {
           })),
         );
       }
+      // No violation, so both dates read.
+      const range = messageHistoryRange(query, today)!;
       const limit = query.limit ?? MESSAGE_HISTORY_PAGE_SIZE;
       const matching: MessageHistoryItem[] = [];
       let nextCursor: string | null = null;
       for (let at = start; at < records.length; at += 1) {
         const item = records[at]!.item;
         const day = item.lastLocal.slice(0, 10);
-        if (day < query.from || day > query.to) continue;
+        if (day < range.from || day > range.to) continue;
         if (query.kind !== 'all' && item.subject.kind !== query.kind) continue;
         if (query.unansweredOnly && !item.unanswered) continue;
         if (!matchesHistorySearch(item.subject, query.q)) continue;
@@ -751,7 +762,7 @@ export function createMockMessageHistory(options: MockMessageHistoryOptions) {
         }
         matching.push(item);
       }
-      return { items: matching, nextCursor, from: query.from, to: query.to };
+      return { items: matching, nextCursor, from: range.from, to: range.to };
     },
 
     /**

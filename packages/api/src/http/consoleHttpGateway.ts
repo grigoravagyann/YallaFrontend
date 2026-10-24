@@ -1782,7 +1782,6 @@ export function createConsoleHttpGateway(
     // `ValidationError`.
 
     async listMessageHistory(branchId, query): Promise<MessageHistoryPage> {
-      // gateway-schema: awaiting-route — message history is built in parallel (2026-10-24)
       const { data } = await client.get<WireMessageHistoryPage>(
         `${BRANCHES}/${branchId}/conversations/history`,
         { query: messageHistoryParams(query) },

@@ -537,6 +537,32 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/branches/{branchId}/conversations/history": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The console's Messages page: the branch's threads with guests over the last year
+         * @description Read only - nobody answers from here (replies go from the tablet), and **nothing is marked read**: the tablet's unread counts stay as they were. The right pane is the thread's own staff read, `getStaffReservationConversation` / `getStaffTakeawayConversation`, which never marks read either.
+         *
+         *     Query, all optional: `from`, `to` - branch-local dates, `yyyy-MM-dd`, inclusive, matched against the day of the thread's **last** message on the branch's clock; `to` defaults to today and `from` to six days before `to`. `from` is not after `to`, the range is at most 366 days, and neither is before today - 365 (older threads are deleted, see `docs/messages.md` §history). `kind`: `all` (default), `reservation` or `takeaway`. `q`: at most 60 characters, case-insensitive - the guest's name (contains), the table (exact) or the takeaway code (`T-482` or `482`). `unansweredOnly`: `true` keeps the threads whose guest's last typed message has no venue message (text or ask) after it. `limit`: 1 to 100, default 50. `cursor`: the page before's `nextCursor`. A bad value is **422 `validation-failed`** naming every bad field in `context.fields` (`from`, `to`, `kind`, `q`, `unansweredOnly`, `cursor`, `limit`).
+         *
+         *     Answers `{ items, nextCursor, from, to }` - `from` and `to` the dates read, defaults filled in; `nextCursor` absent on the last page. Newest last message first, then by thread, so equal instants neither repeat nor skip across pages; a thread written to after the first page moves above the cursor and shows on a fresh read. Each item: `conversationId`, `subject` (`kind`, `id`, `label` - the table or the `T-` code, `guestName`, `localDate`, `localTime` - a booking's start or an order's ready time, `partySize` or `itemCount`/`totalAmd`, and `outcome`: a booking `came`, `no-show`, `cancelled`, `declined` or `upcoming`; an order `collected`, `no-show`, `declined`, `cancelled` or `in-progress`), `messageCount` (the guest's and the venue's - not the system's status lines), `firstAtUtc`, `lastAtUtc`, `lastLocal` (`yyyy-MM-dd HH:mm` on the branch's clock), `staffNames` (who at the venue wrote, as they were named then, each once in the order they first wrote), `unanswered`, `open`.
+         *
+         *     Manager or above, scoped like the Reviews page: a branch manager reaches their own branch only, the owner and the general manager every branch of their venue, a platform admin any. Waiters and the kitchen: 403.
+         */
+        get: operations["listBranchMessageHistory"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/branches/{branchId}/devices": {
         parameters: {
             query?: never;
@@ -3384,7 +3410,7 @@ export interface paths {
         };
         /**
          * The booking's thread with its guest, as the venue reads it
-         * @description The guest's view plus `staffName` on each venue message (who wrote it, as they were named then), `guestName`, `guestPhone` (the number the booking or order holds, for the Call button - empty for a platform admin), `guestLastReadUtc` (a venue message not after it is "seen") and `canWrite` - open, and the caller a manager, the general manager or the owner, or a waiter while the venue lets waiters write; never a platform admin. `unreadCount`: guest messages since anybody at the venue last read it. Waiter or above at the subject's branch.
+         * @description The guest's view plus `staffName` on each venue message (who wrote it, as they were named then), `guestName`, `guestPhone` (the number the booking or order holds, for the Call button - empty for a platform admin), `guestLastReadUtc` (a venue message not after it is "seen") and `canWrite` - open, and the caller a manager, the general manager or the owner, or a waiter while the venue lets waiters write; never a platform admin. `unreadCount`: guest messages since anybody at the venue last read it. `subject.outcome` (staff only): a booking `came`, `no-show`, `cancelled`, `declined` or `upcoming`; an order `collected`, `no-show`, `declined`, `cancelled` or `in-progress`. Reading never marks read - only `.../conversation/read` does - and works however old the thread (the console's history opens threads up to a year old here). Waiter or above at the subject's branch.
          *
          *     `open`: a booking's thread takes messages until two hours after the booking ends - or after it was cancelled, declined, missed or completed; a takeaway order's until two hours after it was collected, declined, cancelled or not collected. `closesAtUtc` says when (absent while an order is still moving).
          *
@@ -4477,7 +4503,7 @@ export interface paths {
         };
         /**
          * The takeaway order's thread with its guest, as the venue reads it
-         * @description The guest's view plus `staffName` on each venue message (who wrote it, as they were named then), `guestName`, `guestPhone` (the number the booking or order holds, for the Call button - empty for a platform admin), `guestLastReadUtc` (a venue message not after it is "seen") and `canWrite` - open, and the caller a manager, the general manager or the owner, or a waiter while the venue lets waiters write; never a platform admin. `unreadCount`: guest messages since anybody at the venue last read it. Waiter or above at the subject's branch.
+         * @description The guest's view plus `staffName` on each venue message (who wrote it, as they were named then), `guestName`, `guestPhone` (the number the booking or order holds, for the Call button - empty for a platform admin), `guestLastReadUtc` (a venue message not after it is "seen") and `canWrite` - open, and the caller a manager, the general manager or the owner, or a waiter while the venue lets waiters write; never a platform admin. `unreadCount`: guest messages since anybody at the venue last read it. `subject.outcome` (staff only): a booking `came`, `no-show`, `cancelled`, `declined` or `upcoming`; an order `collected`, `no-show`, `declined`, `cancelled` or `in-progress`. Reading never marks read - only `.../conversation/read` does - and works however old the thread (the console's history opens threads up to a year old here). Waiter or above at the subject's branch.
          *
          *     `open`: a booking's thread takes messages until two hours after the booking ends - or after it was cancelled, declined, missed or completed; a takeaway order's until two hours after it was collected, declined, cancelled or not collected. `closesAtUtc` says when (absent while an order is still moving).
          *
@@ -8589,6 +8615,12 @@ export interface components {
             /** @description A booking's start on the branch's wall clock, `HH:mm`. Absent on a takeaway order. */
             localTime?: string | null;
             /**
+             * @description The staff view only - absent on the guest's: what became of the subject. A booking: `came`, `no-show`,
+             *     `cancelled`, `declined` or `upcoming`. An order: `collected`, `no-show`, `declined`,
+             *     `cancelled` or `in-progress`.
+             */
+            outcome?: string | null;
+            /**
              * Format: int32
              * @description A booking's party. Absent on a takeaway order.
              */
@@ -8829,6 +8861,94 @@ export interface components {
              * @description For `late`: 10, 15 or 30. Absent otherwise.
              */
             lateMinutes?: number | null;
+        };
+        /** @description One thread on the console's Messages page. */
+        "Yalla.Application.Messages.MessageHistoryItem": {
+            /**
+             * Format: uuid
+             * @description The thread.
+             */
+            conversationId: string;
+            /**
+             * Format: date-time
+             * @description When the first message still in the thread was written.
+             */
+            firstAtUtc: string;
+            /**
+             * Format: date-time
+             * @description When the last was - the row's "when", and the order of the list.
+             */
+            lastAtUtc: string;
+            /** @description The same instant on the branch's clock, `yyyy-MM-dd HH:mm`. */
+            lastLocal: string;
+            /**
+             * Format: int32
+             * @description The guest's and the venue's messages - the system's status lines are not counted.
+             */
+            messageCount: number;
+            /** @description The thread still takes messages - from the tablet; nobody answers from here. */
+            open: boolean;
+            /** @description Who at the venue wrote, as they were named then - each once, in the order they first wrote. */
+            staffNames: string[];
+            /** @description What it is about. */
+            subject: components["schemas"]["Yalla.Application.Messages.MessageHistorySubject"];
+            /** @description The guest's last typed message has no venue message after it. */
+            unanswered: boolean;
+        };
+        /** @description A page of the branch's message history, newest last message first. */
+        "Yalla.Application.Messages.MessageHistoryPage": {
+            /**
+             * Format: date
+             * @description The first date the page was read for - the default filled in when none was sent.
+             */
+            from: string;
+            /** @description This page. */
+            items: components["schemas"]["Yalla.Application.Messages.MessageHistoryItem"][];
+            /** @description Pass back as `cursor` for the next page; absent on the last. */
+            nextCursor?: string | null;
+            /**
+             * Format: date
+             * @description The last date, inclusive.
+             */
+            to: string;
+        };
+        /** @description A thread's subject on a history row. */
+        "Yalla.Application.Messages.MessageHistorySubject": {
+            /** @description The guest, as the booking or order names them. */
+            guestName: string;
+            /**
+             * Format: uuid
+             * @description The booking's or the order's id - the thread's route.
+             */
+            id: string;
+            /**
+             * Format: int32
+             * @description An order's dishes in all. Absent on a booking.
+             */
+            itemCount?: number | null;
+            /** @description `reservation` or `takeaway`. */
+            kind: string;
+            /** @description The table's label for a booking, the code ("T-485") for an order. */
+            label: string;
+            /** @description A booking's day, or an order's ready day, `yyyy-MM-dd` on the branch's clock. */
+            localDate: string;
+            /** @description A booking's start, or an order's ready time, `HH:mm` on the branch's clock. */
+            localTime: string;
+            /**
+             * @description What became of it. A booking: `came`, `no-show`, `cancelled`, `declined` or `upcoming`. An
+             *     order: `collected`, `no-show`, `declined`, `cancelled` or `in-progress`.
+             */
+            outcome?: string | null;
+            /**
+             * Format: int32
+             * @description A booking's party. Absent on an order.
+             */
+            partySize?: number | null;
+            /**
+             * Format: int64
+             * @description An order's total. Absent on a booking.
+             */
+            totalAmd?: number | null;
         };
         /** @description The bounds of the message settings, and of a message. */
         "Yalla.Application.Messages.MessageSettingsBounds": {
@@ -15860,6 +15980,99 @@ export interface operations {
                 };
                 content: {
                     "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description Too many requests in the window, or a one-time credential is out of attempts. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description Unexpected failure. Quote the traceId from the body. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+        };
+    };
+    listBranchMessageHistory: {
+        parameters: {
+            query?: {
+                cursor?: string;
+                from?: string;
+                kind?: string;
+                limit?: string;
+                q?: string;
+                to?: string;
+                unansweredOnly?: string;
+            };
+            header?: never;
+            path: {
+                branchId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Yalla.Application.Messages.MessageHistoryPage"];
+                };
+            };
+            /** @description The request violated a domain rule or arrived malformed. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description No usable token was presented, or the one presented was rejected. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description `forbidden`: not a manager or above, another venue's, or a manager of another branch of this venue. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description No such branch. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description A bad query value; `context.fields` names each. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.ValidationFailedProblem"];
                 };
             };
             /** @description Too many requests in the window, or a one-time credential is out of attempts. */

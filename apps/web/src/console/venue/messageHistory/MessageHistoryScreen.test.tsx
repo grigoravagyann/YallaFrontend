@@ -238,6 +238,66 @@ describe('the message history page', () => {
     ).toBeTruthy();
   });
 
+  it('names an end before the kept year as too old, not as too long, and asks nothing', async () => {
+    const console = gateway();
+    const list = vi.spyOn(console, 'listMessageHistory');
+    // Only `to` in the address: `from` follows it (six days before, never before the kept year).
+    renderHistory(console, `?to=${addLocalDays(TODAY, -400)}`);
+    const to = await screen.findByLabelText('To');
+    await waitFor(() => expect(to.getAttribute('aria-invalid')).toBe('true'));
+    expect(screen.getByText(/History is kept for 12 months: choose .+ or later\./u).id).toBe(
+      to.getAttribute('aria-describedby'),
+    );
+    expect(screen.queryByText(/At most \d+ days at once/u)).toBeNull();
+    expect(list).not.toHaveBeenCalled();
+  });
+
+  it('reads the week before `to` when the address has no `from`, as the server would', async () => {
+    const console = gateway();
+    const list = vi.spyOn(console, 'listMessageHistory');
+    const to = addLocalDays(TODAY, -30);
+    renderHistory(console, `?to=${to}`);
+    await waitFor(() => expect(list).toHaveBeenCalled());
+    expect(list.mock.calls[0]![1]).toMatchObject({ from: addLocalDays(to, -6), to });
+    expect((screen.getByLabelText('From') as HTMLInputElement).value).toBe(addLocalDays(to, -6));
+  });
+
+  it('asks for a date when a date box is emptied, rather than reading a default it does not show', async () => {
+    const console = gateway();
+    const list = vi.spyOn(console, 'listMessageHistory');
+    renderHistory(console);
+    await table();
+    const calls = list.mock.calls.length;
+    fireEvent.change(screen.getByLabelText('From'), { target: { value: '' } });
+    expect(await screen.findByText('Enter a date.')).toBeTruthy();
+    expect(list.mock.calls.length).toBe(calls);
+  });
+
+  it('says the outcome of a conversation opened from the address that is not on the page', async () => {
+    const year = await gateway().listMessageHistory(NORTH, {
+      from: addLocalDays(TODAY, -365),
+      to: TODAY,
+      kind: 'takeaway',
+      q: '',
+      unansweredOnly: false,
+      limit: 100,
+    });
+    const old = year.items.find(
+      (item) =>
+        item.subject.outcome === 'collected' &&
+        item.lastLocal.slice(0, 10) < addLocalDays(TODAY, -7),
+    )!;
+    expect(old).toBeTruthy();
+    renderHistory(gateway(), `?thread=takeaway:${old.subject.id}`);
+    const list = await table();
+    // Not a row of this week's list…
+    expect(within(list).queryByText(old.subject.label)).toBeNull();
+    // …but the thread itself says what became of it.
+    expect(
+      await screen.findByText(`Takeaway · ${old.subject.label} · collected`, {}, { timeout: 5000 }),
+    ).toBeTruthy();
+  });
+
   it('loads older conversations with More, and puts the focus on the first new one', async () => {
     const user = userEvent.setup();
     renderHistory(gateway(), `?from=${addLocalDays(TODAY, -365)}`);

@@ -7,10 +7,11 @@ import { fakeBackend, problemReply, type FakeRoute } from './fakeBackend.testkit
 import { conversationOutcome } from './messageHistoryMapping';
 
 /**
- * Message history over HTTP (2026-10-24 spec): the list's query string, the
+ * Message history over HTTP (`listBranchMessageHistory`, Yalla
+ * `docs/messages.md` §8): the list's query string (every value a string), the
  * page read tolerantly (the API leaves a null property out), and the thread
  * read through the floor's own route with the console's session — a GET,
- * never a read mark.
+ * never a read mark — with its `subject.outcome`.
  */
 
 function gatewayOver(routes: Record<string, FakeRoute>) {
@@ -42,7 +43,7 @@ const ROW = {
     label: '6',
     guestName: 'Անի Մարտիրոսյան',
     localDate: '2026-10-24',
-    localTime: '19:30:00',
+    localTime: '19:30',
     partySize: 4,
     outcome: 'no-show',
   },
@@ -84,6 +85,25 @@ describe('the history list', () => {
       cursor: 'opaque==',
       limit: '20',
     });
+  });
+
+  it('leaves a blank date out for the server to default, and reads the dates it answers', async () => {
+    const { gateway, backend } = gatewayOver({
+      'GET /api/branches/b-1/conversations/history': {
+        body: { items: [], from: '2026-04-25', to: '2026-05-01' },
+      },
+    });
+    const page = await gateway.listMessageHistory('b-1', {
+      ...FILTERS,
+      from: '',
+      to: '2026-05-01',
+    });
+    expect(Object.fromEntries(backend.requests[0]!.query.entries())).toEqual({
+      to: '2026-05-01',
+      kind: 'all',
+      limit: '50',
+    });
+    expect(page).toMatchObject({ from: '2026-04-25', to: '2026-05-01' });
   });
 
   it('reads a row, its outcome and its cursor, and a thin row as empty', async () => {
@@ -193,12 +213,25 @@ describe('the history list', () => {
     ]);
   });
 
-  it('keeps a 422 naming every bad field, and a 403 as itself', async () => {
+  it('keeps a 422 naming every bad field with its bound, and a 403 as itself', async () => {
     const { gateway } = gatewayOver({
+      // As `MessageHistoryRules.Check` writes them: a date's bound is a date, a count's a number.
       'GET /api/branches/b-1/conversations/history': problemReply(422, 'validation-failed', {
         fields: [
-          { field: 'from', message: 'from must be on or before to.' },
-          { field: 'q', message: 'At most 60 characters.' },
+          {
+            field: 'from',
+            message: 'from (2026-10-25) is after to (2026-10-24).',
+            bound: 'conflict',
+            max: '2026-10-24',
+            value: '2026-10-25',
+          },
+          {
+            field: 'q',
+            message: 'A search is at most 60 characters.',
+            bound: 'max',
+            max: 60,
+            value: 61,
+          },
         ],
       }),
       'GET /api/branches/b-2/conversations/history': problemReply(403, 'forbidden'),
@@ -207,6 +240,14 @@ describe('the history list', () => {
       .listMessageHistory('b-1', FILTERS)
       .catch((error: unknown) => error);
     expect(refused).toBeInstanceOf(ValidationError);
+    expect((refused as ValidationError).violations).toEqual([
+      {
+        field: 'from',
+        message: 'from (2026-10-25) is after to (2026-10-24).',
+        bound: 'conflict',
+      },
+      { field: 'q', message: 'A search is at most 60 characters.', bound: 'max', max: 60 },
+    ]);
     await expect(gateway.listMessageHistory('b-2', FILTERS)).rejects.toBeInstanceOf(ForbiddenError);
   });
 });
@@ -214,7 +255,13 @@ describe('the history list', () => {
 describe('the thread beside it', () => {
   const THREAD = {
     conversationId: 'c-1',
-    subject: { kind: 'reservation', id: 'res-1', tableLabel: '6', localTime: '19:30' },
+    subject: {
+      kind: 'reservation',
+      id: 'res-1',
+      tableLabel: '6',
+      localTime: '19:30',
+      outcome: 'came',
+    },
     open: false,
     messages: [
       {
@@ -240,13 +287,16 @@ describe('the thread beside it', () => {
     const { gateway, backend } = gatewayOver({
       'GET /api/reservations/res-1/conversation': { body: THREAD },
       'GET /api/takeaway-orders/ord-2/conversation': {
-        body: { ...THREAD, subject: { kind: 'takeaway', id: 'ord-2' } },
+        body: { ...THREAD, subject: { kind: 'takeaway', id: 'ord-2', takeawayCode: 'T-485' } },
       },
     });
     const thread = await gateway.getStaffConversation({ kind: 'reservation', id: 'res-1' });
     expect(thread?.messages.map((message) => message.staffName)).toEqual([null, 'Լիլիթ Հակոբյան']);
     expect(thread?.canWrite).toBe(false);
-    await gateway.getStaffConversation({ kind: 'takeaway', id: 'ord-2' });
+    expect(thread?.subject.outcome).toBe('came');
+    const order = await gateway.getStaffConversation({ kind: 'takeaway', id: 'ord-2' });
+    // A server that says nothing of it: unknown, never a guess.
+    expect(order?.subject.outcome).toBe('unknown');
     expect(backend.requests.map((request) => `${request.method} ${request.path}`)).toEqual([
       'GET /api/reservations/res-1/conversation',
       'GET /api/takeaway-orders/ord-2/conversation',

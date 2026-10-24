@@ -21,6 +21,7 @@ import {
   staffMayWrite,
   type BranchConversations,
   type ConversationMessage,
+  type ConversationOutcome,
   type ConversationSubject,
   type ConversationSubjectRef,
   type ConversationSummary,
@@ -91,6 +92,8 @@ export interface MockConversationSubjectInfo {
   readonly endedAtUtc: string | null;
   /** The "on my way" answers are still taken: an unanswered ask shows the answer bar. */
   readonly acceptsAnswer: boolean;
+  /** The staff thread's `subject.outcome`; `unknown` when the world does not say. */
+  readonly outcome?: ConversationOutcome | undefined;
 }
 
 /** A message the mock world says in mock mode, and when. */
@@ -377,6 +380,7 @@ export function createMockConversationBook(options: MockConversationBookOptions)
     const base = dinerView(info, record);
     return {
       ...base,
+      subject: { ...base.subject, outcome: info.outcome ?? 'unknown' },
       messages: (record ? shown(record) : []).map((message) => messageView(message, true)),
       // The floor's own unread: guest messages nobody at the venue has read.
       unreadCount: record ? unreadForVenue(record) : 0,

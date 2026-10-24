@@ -3,6 +3,7 @@ import {
   MESSAGE_HISTORY_MAX_RANGE_DAYS,
   MESSAGE_HISTORY_QUERY_MAX,
   ValidationError,
+  defaultHistoryFrom,
   defaultMessageHistoryFilters,
   historySearchText,
   isLocalDate,
@@ -100,13 +101,25 @@ function threadParam(subject: ConversationSubjectRef): string {
   return `${subject.kind}:${subject.id}`;
 }
 
-/** The filters the address says, the server's defaults for whatever it leaves out. */
+/**
+ * The server's `from` for a given `to` (six days before it, never before the
+ * kept year); today−6 while `to` is not a day.
+ */
+function defaultFromFor(to: string, today: string): string {
+  return isLocalDate(to) ? defaultHistoryFrom(to, today) : defaultMessageHistoryFilters(today).from;
+}
+
+/**
+ * The filters the address says, the server's defaults for whatever it leaves
+ * out: `to` today, `from` six days before `to` — so `?to=2026-05-01` reads
+ * the week the server would.
+ */
 function filtersFrom(params: URLSearchParams, today: string): MessageHistoryFilters {
-  const defaults = defaultMessageHistoryFilters(today);
   const kind = params.get('kind');
+  const to = params.get('to') ?? today;
   return {
-    from: params.get('from') ?? defaults.from,
-    to: params.get('to') ?? defaults.to,
+    from: params.get('from') ?? defaultFromFor(to, today),
+    to,
     kind: MESSAGE_HISTORY_KINDS.includes(kind as MessageHistoryKind)
       ? (kind as MessageHistoryKind)
       : 'all',
@@ -121,14 +134,13 @@ function writeFilters(
   next: MessageHistoryFilters,
   today: string,
 ): URLSearchParams {
-  const defaults = defaultMessageHistoryFilters(today);
   const copy = new URLSearchParams(current);
   const put = (key: string, value: string | null) => {
     if (value === null) copy.delete(key);
     else copy.set(key, value);
   };
-  put('from', next.from === defaults.from ? null : next.from);
-  put('to', next.to === defaults.to ? null : next.to);
+  put('from', next.from === defaultFromFor(next.to, today) ? null : next.from);
+  put('to', next.to === today ? null : next.to);
   put('kind', next.kind === 'all' ? null : next.kind);
   const q = historySearchText(next.q);
   put('q', q === '' ? null : q);
@@ -136,7 +148,12 @@ function writeFilters(
   return copy;
 }
 
-/** A filter's own sentence for the first thing wrong with it. */
+/**
+ * A filter's own sentence for the first thing wrong with it, by the field and
+ * the bound the server names (`MessageHistoryRules.Check`): a date that is
+ * not one `required`; before the kept year `min` (either end); `from` after
+ * `to` `from:conflict`; over 366 days `to:max`; a long search `q:max`.
+ */
 function violationText(
   t: TFunction,
   violation: FieldViolation | undefined,
@@ -147,16 +164,34 @@ function violationText(
   if (violation.field === 'q') {
     return t('messageHistory.errors.searchTooLong', { max: MESSAGE_HISTORY_QUERY_MAX });
   }
-  if (violation.bound === 'required') return t('messageHistory.errors.badDate');
-  if (violation.field === 'from' && violation.bound === 'min') {
-    const oldest = oldestHistoryDate(today);
-    return t('messageHistory.errors.tooOld', { date: localDateLabel(oldest, today, locale) });
+  if (violation.field !== 'from' && violation.field !== 'to') {
+    return t('messageHistory.errors.refused');
   }
-  if (violation.field === 'from') return t('messageHistory.errors.fromAfterTo');
-  if (violation.field === 'to') {
-    return t('messageHistory.errors.tooLong', { max: MESSAGE_HISTORY_MAX_RANGE_DAYS });
+  switch (violation.bound) {
+    case 'required':
+      return t('messageHistory.errors.badDate');
+    case 'min':
+      return t('messageHistory.errors.tooOld', {
+        date: localDateLabel(oldestHistoryDate(today), today, locale),
+      });
+    case 'conflict':
+      return t('messageHistory.errors.fromAfterTo');
+    case 'max':
+      return t('messageHistory.errors.tooLong', { max: MESSAGE_HISTORY_MAX_RANGE_DAYS });
+    default:
+      return t('messageHistory.errors.refused');
   }
-  return t('messageHistory.errors.refused');
+}
+
+/**
+ * A date box left empty. The server would take it as "not sent" and read its
+ * default, which the box would not show — so the screen asks for a date
+ * instead, under the server's own name for a missing one.
+ */
+function blankDates(filters: MessageHistoryFilters): FieldViolation[] {
+  return (['from', 'to'] as const)
+    .filter((field) => filters[field].trim() === '')
+    .map((field) => ({ field, message: `${field} is a date, yyyy-MM-dd.`, bound: 'required' }));
 }
 
 function MessageHistory({
@@ -183,7 +218,7 @@ function MessageHistory({
 
   // --- The filters -----------------------------------------------------------
 
-  const local = messageHistoryViolations(filters, today);
+  const local = [...blankDates(filters), ...messageHistoryViolations(filters, today)];
   const list = useMessageHistory(branchId, filters, local.length === 0);
   const server =
     list.error instanceof ValidationError && !list.isFetching ? list.error.violations : [];

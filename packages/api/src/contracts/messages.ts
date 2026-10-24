@@ -63,6 +63,28 @@ export interface ConversationSubjectRef {
 }
 
 /**
+ * How the subject ended, from its status (`subject.outcome` on the staff
+ * thread and on a history row, never on the guest's view):
+ *
+ * - a booking: `came` (seated or completed), `noShow`, `cancelled`,
+ *   `declined` (the venue's no, or nobody's answer in time), or `upcoming`
+ *   (pending or confirmed);
+ * - a takeaway order: `collected`, `noShow`, `declined`, `cancelled`, or
+ *   `inProgress` (sent, accepted or ready).
+ *
+ * `unknown` for a word a newer server adds, and when the server says nothing.
+ */
+export type ConversationOutcome =
+  | 'came'
+  | 'noShow'
+  | 'cancelled'
+  | 'declined'
+  | 'upcoming'
+  | 'collected'
+  | 'inProgress'
+  | 'unknown';
+
+/**
  * The subject as a thread's header shows it: "Today 19:30 · 4 guests · table
  * 6" for a booking, "T-485 · ready 19:25" for a takeaway order. The parts come
  * as fields, never as prose; the ones a kind does not have are `null`.
@@ -85,6 +107,11 @@ export interface ConversationSubject extends ConversationSubjectRef {
   readonly readyAtLocal: string | null;
   /** The same moment in UTC; `null` until accepted, and on a booking. */
   readonly readyAtUtc: string | null;
+}
+
+/** The subject on the floor's (and the console's) read of a thread: the guest's parts and the outcome. */
+export interface StaffConversationThreadSubject extends ConversationSubject {
+  readonly outcome: ConversationOutcome;
 }
 
 // ---------------------------------------------------------------------------
@@ -201,6 +228,8 @@ export interface DinerConversation {
  * the caller may write.
  */
 export interface StaffConversation extends DinerConversation {
+  /** The guest's subject, plus what became of it — the staff view's own `subject.outcome`. */
+  readonly subject: StaffConversationThreadSubject;
   /** On the floor's view: guest messages nobody at the venue has read. */
   readonly unreadCount: number;
   /** "Անի Մ." — a name, never a number. */

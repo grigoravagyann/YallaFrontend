@@ -14,6 +14,7 @@ import {
   normalizeMessageTemplates,
   type BranchConversations,
   type ConversationMessage,
+  type ConversationOutcome,
   type ConversationSubject,
   type ConversationSubjectKind,
   type ConversationSubjectRef,
@@ -206,6 +207,27 @@ export function subjectKind(value: unknown): ConversationSubjectKind {
     : 'reservation';
 }
 
+/** The outcome words, booking's and order's; no number — the server sends only words. */
+const OUTCOMES: Readonly<Record<string, ConversationOutcome>> = {
+  came: 'came',
+  noshow: 'noShow',
+  cancelled: 'cancelled',
+  canceled: 'cancelled',
+  declined: 'declined',
+  upcoming: 'upcoming',
+  collected: 'collected',
+  inprogress: 'inProgress',
+};
+
+/**
+ * `subject.outcome` (the staff thread's and a history row's): "no-show",
+ * "noShow", "NoShow", "no_show" all read as `noShow`; anything else, and
+ * nothing, is `unknown`.
+ */
+export function conversationOutcome(value: unknown): ConversationOutcome {
+  return enumOf(OUTCOMES, value, 'unknown');
+}
+
 function answerKind(value: unknown): MessageAnswerKind {
   return enumOf(ANSWERS, value, 'unknown');
 }
@@ -319,6 +341,8 @@ export function staffConversationFromWire(
   const base = dinerConversationFromWire(wire, fallback);
   return {
     ...base,
+    // The staff view's own: what became of the booking or the order.
+    subject: { ...base.subject, outcome: conversationOutcome(wire.subject?.outcome) },
     messages: (wire.messages ?? []).map(conversationMessageFromWire),
     guestName: wire.guestName ?? '',
     // Empty for a platform admin: no Call button.

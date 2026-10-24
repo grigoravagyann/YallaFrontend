@@ -1203,6 +1203,7 @@ export type {
   StaffConversationLastMessage,
   StaffConversationListItem,
   StaffConversationSubject,
+  StaffConversationThreadSubject,
   UnreadConversation,
 } from './contracts/messages';
 // Message history (2026-10-24): every guest thread of a branch, in the console, read only.
@@ -1216,11 +1217,13 @@ export {
   MESSAGE_HISTORY_QUERY_MAX,
   addLocalDays,
   compareHistoryItems,
+  defaultHistoryFrom,
   defaultMessageHistoryFilters,
   historySearchText,
   isLocalDate,
   localDaysBetween,
   matchesHistorySearch,
+  messageHistoryRange,
   messageHistoryViolations,
   oldestHistoryDate,
 } from './contracts/messageHistory';

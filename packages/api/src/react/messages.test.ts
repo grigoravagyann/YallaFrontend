@@ -83,6 +83,7 @@ const THREAD: DinerConversation = {
 
 const STAFF_THREAD: StaffConversation = {
   ...THREAD,
+  subject: { ...THREAD.subject, outcome: 'upcoming' },
   unreadCount: 1,
   guestName: 'Անի Մ.',
   guestPhone: '+37491556677',

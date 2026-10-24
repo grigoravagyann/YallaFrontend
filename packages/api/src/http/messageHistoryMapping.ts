@@ -1,89 +1,47 @@
 import {
   MESSAGE_HISTORY_PAGE_SIZE,
   historySearchText,
-  type ConversationOutcome,
   type MessageHistoryItem,
   type MessageHistoryPage,
   type MessageHistoryQuery,
 } from '../contracts/messageHistory';
-import { subjectKind } from './messagesMapping';
+import type { components, operations } from '../generated/schema';
+import { conversationOutcome, subjectKind } from './messagesMapping';
+
+export { conversationOutcome } from './messagesMapping';
 
 /**
- * The message-history wire (`docs/messages.md` §history, 2026-10-24):
- * `GET /api/branches/{branchId}/conversations/history`.
+ * The message-history wire (Yalla `docs/messages.md` §8, 2026-10-24):
+ * `GET /api/branches/{branchId}/conversations/history`
+ * (`listBranchMessageHistory`).
  *
- * ## Hand-written, on purpose, for now
- *
- * The backend is built in parallel to the same spec, so `generated/schema.ts`
- * does not have this shape yet. The `Wire…` interfaces below are the spec's
- * JSON, every field optional and read tolerantly — an enum as its word
- * ("no-show") **or** its number, a missing list as empty. When the schema is
- * regenerated, each becomes `Schemas['Yalla.Application.Messages.…']` here
- * and nothing outside this file changes; any drift shows up as a compile
- * error in the mapper.
+ * The shapes are the generated schema's. Every query value is a string on the
+ * wire — the server reads them as strings so one that does not parse is named
+ * in the one `422 validation-failed` with the rest. The answer is read
+ * tolerantly, as `messagesMapping.ts` reads its own: an outcome as its word
+ * ("no-show") and anything else as `unknown`, a property the API leaves out
+ * (it omits nulls) as `null`.
  */
 
 // ---------------------------------------------------------------------------
-// The wire (hand-written to the build spec)
+// The wire
 // ---------------------------------------------------------------------------
 
-type WireEnum = string | number | null | undefined;
+type Schemas = components['schemas'];
 
 /** `subject` on a history row. */
-export interface WireMessageHistorySubject {
-  /** "reservation" / "takeaway" (or 1 / 2). */
-  readonly kind?: WireEnum;
-  readonly id?: string | null;
-  /** The table's label for a booking, the code ("T-485") for an order. */
-  readonly label?: string | null;
-  readonly guestName?: string | null;
-  readonly localDate?: string | null;
-  readonly localTime?: string | null;
-  readonly partySize?: number | null;
-  readonly itemCount?: number | null;
-  readonly totalAmd?: number | null;
-  /**
-   * A booking: `came`, `no-show`, `cancelled`, `declined`, `upcoming`. An
-   * order: `collected`, `no-show`, `declined`, `cancelled`, `in-progress`.
-   */
-  readonly outcome?: WireEnum;
-}
+export type WireMessageHistorySubject = Schemas['Yalla.Application.Messages.MessageHistorySubject'];
 
 /** One row. */
-export interface WireMessageHistoryItem {
-  readonly conversationId?: string | null;
-  readonly subject?: WireMessageHistorySubject | null;
-  /** Without system lines. */
-  readonly messageCount?: number | null;
-  readonly firstAtUtc?: string | null;
-  readonly lastAtUtc?: string | null;
-  /** "yyyy-MM-dd HH:mm" on the branch's calendar and clock. */
-  readonly lastLocal?: string | null;
-  /** Distinct, in the order they first wrote. */
-  readonly staffNames?: readonly (string | null)[] | null;
-  readonly unanswered?: boolean | null;
-  readonly open?: boolean | null;
-}
+export type WireMessageHistoryItem = Schemas['Yalla.Application.Messages.MessageHistoryItem'];
 
 /** The page: `{ items, nextCursor?, from, to }`. */
-export interface WireMessageHistoryPage {
-  readonly items?: readonly WireMessageHistoryItem[] | null;
-  readonly nextCursor?: string | null;
-  readonly from?: string | null;
-  readonly to?: string | null;
-}
+export type WireMessageHistoryPage = Schemas['Yalla.Application.Messages.MessageHistoryPage'];
 
-/** The query string the route reads. */
-export interface WireMessageHistoryParams {
-  readonly [key: string]: string | number | boolean | undefined;
-  readonly from: string;
-  readonly to: string;
-  readonly kind: string;
-  readonly q?: string | undefined;
-  readonly unansweredOnly?: boolean | undefined;
-  readonly cursor?: string | undefined;
-  readonly limit: number;
-}
+/** The query string the route reads: every value a string. */
+export type WireMessageHistoryParams = NonNullable<
+  operations['listBranchMessageHistory']['parameters']['query']
+>;
 
 // ---------------------------------------------------------------------------
 // Reading it
@@ -101,14 +59,14 @@ function finite(value: unknown): number | null {
   return typeof value === 'number' && Number.isFinite(value) ? value : null;
 }
 
-/** "19:30:00" as the server may write a wall clock, said as "19:30". */
+/** "19:30" — and "19:30:00", should a server write the seconds — said as "19:30". */
 function wallClock(value: unknown): string | null {
   const said = text(value);
   if (said === null) return null;
   return /^\d{2}:\d{2}/u.test(said) ? said.slice(0, 5) : said;
 }
 
-/** "2026-10-24 18:31", "2026-10-24T18:31:00": the day and the minute, as "2026-10-24 18:31". */
+/** "2026-10-24 18:31" (or "2026-10-24T18:31:00"): the day and the minute, as "2026-10-24 18:31". */
 function localStamp(value: unknown): string {
   const said = text(value);
   if (said === null) return '';
@@ -116,25 +74,10 @@ function localStamp(value: unknown): string {
   return match ? `${match[1]} ${match[2]}` : said;
 }
 
-const OUTCOMES: Readonly<Record<string, ConversationOutcome>> = {
-  came: 'came',
-  noshow: 'noShow',
-  cancelled: 'cancelled',
-  canceled: 'cancelled',
-  declined: 'declined',
-  upcoming: 'upcoming',
-  collected: 'collected',
-  inprogress: 'inProgress',
-};
-
-/** "no-show", "noShow", "NoShow", "no_show" all read as `noShow`; anything else is `unknown`. */
-export function conversationOutcome(value: unknown): ConversationOutcome {
-  if (typeof value !== 'string') return 'unknown';
-  return OUTCOMES[value.replace(/[-_\s]/gu, '').toLowerCase()] ?? 'unknown';
-}
-
-export function messageHistoryItemFromWire(wire: WireMessageHistoryItem): MessageHistoryItem {
-  const subject = wire.subject ?? {};
+export function messageHistoryItemFromWire(
+  wire: Partial<WireMessageHistoryItem>,
+): MessageHistoryItem {
+  const subject: Partial<WireMessageHistorySubject> = wire.subject ?? {};
   const lastAtUtc = text(wire.lastAtUtc) ?? '';
   return {
     conversationId: text(wire.conversationId) ?? '',
@@ -165,10 +108,11 @@ export function messageHistoryItemFromWire(wire: WireMessageHistoryItem): Messag
 
 /**
  * The page. A row with no subject id cannot open its thread and is left out;
- * `from`/`to` fall back to what was asked.
+ * `from`/`to` are the dates the server read (its defaults filled in), else
+ * what was asked.
  */
 export function messageHistoryPageFromWire(
-  wire: WireMessageHistoryPage | null | undefined,
+  wire: Partial<WireMessageHistoryPage> | null | undefined,
   asked: Pick<MessageHistoryQuery, 'from' | 'to'>,
 ): MessageHistoryPage {
   return {
@@ -186,19 +130,22 @@ export function messageHistoryPageFromWire(
 // ---------------------------------------------------------------------------
 
 /**
- * The query string: the dates and the kind always (so the range is the one on
- * screen, not the server's default), the search only when there is one,
- * `unansweredOnly` only when on, the cursor only after the first page.
+ * The query string, every value a string: the dates (so the range is the one
+ * on screen, not the server's default; a blank one is left out for the server
+ * to default), the kind and the page size always, the search only when there
+ * is one, `unansweredOnly` only when on, the cursor only after the first page.
  */
 export function messageHistoryParams(query: MessageHistoryQuery): WireMessageHistoryParams {
   const q = historySearchText(query.q);
+  const from = query.from.trim();
+  const to = query.to.trim();
   return {
-    from: query.from,
-    to: query.to,
+    ...(from !== '' ? { from } : {}),
+    ...(to !== '' ? { to } : {}),
     kind: query.kind,
     ...(q !== '' ? { q } : {}),
-    ...(query.unansweredOnly ? { unansweredOnly: true } : {}),
+    ...(query.unansweredOnly ? { unansweredOnly: 'true' } : {}),
     ...(query.cursor ? { cursor: query.cursor } : {}),
-    limit: query.limit ?? MESSAGE_HISTORY_PAGE_SIZE,
+    limit: String(query.limit ?? MESSAGE_HISTORY_PAGE_SIZE),
   };
 }

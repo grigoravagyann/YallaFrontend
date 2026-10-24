@@ -117,7 +117,7 @@ describe('the history list', () => {
     expect(table.items.every((item) => item.subject.label === '6')).toBe(true);
   });
 
-  it('names every bad field in one 422, the cursor too', async () => {
+  it('names every bad field in one 422 with the server’s bounds, the cursor too', async () => {
     const refused = await failing(
       gateway().listMessageHistory(NORTH, {
         ...filters({ from: '2026-10-25', q: 'x'.repeat(61) }),
@@ -125,10 +125,32 @@ describe('the history list', () => {
       }),
     );
     expect(refused).toBeInstanceOf(ValidationError);
-    const fields = (
-      (refused as ValidationError).problem?.context?.['fields'] as { field: string }[]
-    ).map((violation) => violation.field);
-    expect(fields).toEqual(['from', 'q', 'cursor']);
+    expect(
+      (refused as ValidationError).violations.map(
+        (violation) => `${violation.field}:${violation.bound ?? ''}`,
+      ),
+    ).toEqual(['from:conflict', 'q:max', 'cursor:required']);
+    const old = await failing(
+      gateway().listMessageHistory(NORTH, filters({ from: '2025-09-01', to: '2025-09-30' })),
+    );
+    expect(
+      (old as ValidationError).violations.map(
+        (violation) => `${violation.field}:${violation.bound ?? ''}`,
+      ),
+    ).toEqual(['from:min', 'to:min']);
+  });
+
+  it('defaults a blank start to six days before the end, and answers the range it read', async () => {
+    const page = await gateway().listMessageHistory(NORTH, filters({ from: '', to: '2026-10-20' }));
+    expect(page).toMatchObject({ from: '2026-10-14', to: '2026-10-20' });
+    for (const item of page.items) {
+      const day = item.lastLocal.slice(0, 10);
+      expect(day >= '2026-10-14' && day <= '2026-10-20').toBe(true);
+    }
+    expect(await gateway().listMessageHistory(NORTH, filters({ from: '', to: '' }))).toMatchObject({
+      from: '2026-10-18',
+      to: TODAY,
+    });
   });
 
   it('is a branch manager’s own branch only; waiters are refused; the platform may read', async () => {
@@ -177,6 +199,9 @@ describe('the thread beside it', () => {
       ['system', 'status', null],
     ]);
     expect(thread?.unreadCount).toBe(0);
+    // The staff view's own outcome, the same as the row's.
+    expect(thread?.subject.outcome).toBe(ani.subject.outcome);
+    expect(thread?.subject.tableLabel).toBe('6');
   });
 
   it('refuses another branch’s thread to a branch manager, and answers null for no such subject', async () => {

@@ -9,7 +9,11 @@ import { dayOf, localDateLabel, threadSubtitle } from './historyText';
 
 export interface HistoryThreadProps {
   readonly subject: ConversationSubjectRef;
-  /** The list's row, while the list has it: the name and the outcome before the thread lands. */
+  /**
+   * The list's row, while the list has it: the name and the outcome before
+   * the thread lands. A thread opened from the address whose row is not on
+   * the page takes them from the thread itself (`subject.outcome`).
+   */
   readonly item: MessageHistoryItem | null;
   readonly timeZoneId: string;
   /** The branch's today, `yyyy-MM-dd`. */
@@ -62,7 +66,7 @@ export function HistoryThread({
             (subject.kind === 'takeaway'
               ? thread?.subject.takeawayCode
               : thread?.subject.tableLabel) ?? null,
-          outcome: null,
+          outcome: thread?.subject.outcome ?? null,
         },
     today,
     locale,

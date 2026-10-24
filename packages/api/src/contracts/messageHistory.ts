@@ -1,5 +1,11 @@
 import type { FieldViolation } from '../errors';
-import type { ConversationSubjectKind, ConversationSubjectRef } from './messages';
+import type {
+  ConversationOutcome,
+  ConversationSubjectKind,
+  ConversationSubjectRef,
+} from './messages';
+
+export type { ConversationOutcome } from './messages';
 
 /**
  * Message history in the venue console (2026-10-24, the History board): every
@@ -8,16 +14,18 @@ import type { ConversationSubjectKind, ConversationSubjectRef } from './messages
  * tablet — and reading here never marks anything read, so the tablet's unread
  * counts stay as they are.
  *
- * `GET /api/branches/{branchId}/conversations/history`, manager or above at
- * the branch (a branch manager their own only, as on Reviews; waiters and the
- * kitchen 403; a platform admin may read). The thread on the right is the
+ * `GET /api/branches/{branchId}/conversations/history`
+ * (`listBranchMessageHistory`, Yalla `docs/messages.md` §8), manager or above
+ * at the branch (a branch manager their own only, as on Reviews; waiters and
+ * the kitchen 403; a platform admin may read). The thread on the right is the
  * floor's own `GET /api/reservations/{id}/conversation` or
  * `/api/takeaway-orders/{id}/conversation`, read without polling and without
- * the read mark.
+ * the read mark; its `subject.outcome` names the outcome when the row is not
+ * on the page.
  *
- * Hand-written to the 2026-10-24 build spec while the backend is built beside
- * it; `http/messageHistoryMapping.ts` alone reads the wire, so the regenerated
- * schema changes that file and nothing here.
+ * `http/messageHistoryMapping.ts` alone reads the wire (the generated
+ * schema's shapes); the rules below are `MessageHistoryRules.Check`'s, so the
+ * screen and the mock refuse what the server refuses, under the same names.
  */
 
 // ---------------------------------------------------------------------------
@@ -79,26 +87,6 @@ export interface MessageHistoryQuery extends MessageHistoryFilters {
 // ---------------------------------------------------------------------------
 // The answer
 // ---------------------------------------------------------------------------
-
-/**
- * How the subject ended, from its status:
- *
- * - a booking: `came` (seated or completed), `noShow`, `cancelled`,
- *   `declined`, or `upcoming` (pending or confirmed);
- * - a takeaway order: `collected`, `noShow`, `declined`, `cancelled`, or
- *   `inProgress` (sent, accepted or ready).
- *
- * `unknown` for a word a newer server adds, and when the server says nothing.
- */
-export type ConversationOutcome =
-  | 'came'
-  | 'noShow'
-  | 'cancelled'
-  | 'declined'
-  | 'upcoming'
-  | 'collected'
-  | 'inProgress'
-  | 'unknown';
 
 /** The subject as a history row shows it. */
 export interface MessageHistorySubject extends ConversationSubjectRef {
@@ -190,6 +178,40 @@ export function oldestHistoryDate(today: string): string {
   return addLocalDays(today, -MESSAGE_HISTORY_KEPT_DAYS);
 }
 
+/**
+ * The server's `from` when none is sent: six days before `to`, never before
+ * the oldest day kept. `to` must be a day.
+ */
+export function defaultHistoryFrom(to: string, today: string): string {
+  const from = addLocalDays(to, -(MESSAGE_HISTORY_DEFAULT_DAYS - 1));
+  const oldest = oldestHistoryDate(today);
+  return (localDaysBetween(oldest, from) ?? 0) < 0 ? oldest : from;
+}
+
+/** A date as the server reads it: trimmed, and blank is "not sent". */
+function sentDate(value: string | null | undefined): string | null {
+  const said = (value ?? '').trim();
+  return said === '' ? null : said;
+}
+
+/**
+ * The range the server reads, its defaults filled in as the answer's `from`
+ * and `to` say them: `to` today when not sent, `from` {@link defaultHistoryFrom}
+ * when not sent. `null` when a sent date is not a day (a 422).
+ */
+export function messageHistoryRange(
+  query: Pick<MessageHistoryFilters, 'from' | 'to'>,
+  today: string,
+): { readonly from: string; readonly to: string } | null {
+  const fromSent = sentDate(query.from);
+  const toSent = sentDate(query.to);
+  if ((fromSent !== null && !isLocalDate(fromSent)) || (toSent !== null && !isLocalDate(toSent))) {
+    return null;
+  }
+  const to = toSent ?? today;
+  return { from: fromSent ?? defaultHistoryFrom(to, today), to };
+}
+
 /** The server's defaults: today−6 to today, every kind, no search. */
 export function defaultMessageHistoryFilters(today: string): MessageHistoryFilters {
   return {
@@ -207,58 +229,81 @@ export function historySearchText(value: string | null | undefined): string {
 }
 
 /**
- * Every bad field in the server's names (`from`, `to`, `kind`, `q`, `limit`),
- * so the screen marks the same fields before asking as the server's 422
- * would. `today` is the branch's. Empty when the query may be sent.
+ * Every bad field under the server's names and bounds
+ * (`MessageHistoryRules.Check`), so the screen marks the same fields before
+ * asking as the server's 422 would, and the mock refuses the same way. `today`
+ * is the branch's. Empty when the query may be sent.
  *
- * - `from` must be a day, on or after today−365 and on or before `to`;
- * - `to` must be a day, and the range at most 366 days, both ends counted;
- * - `q` at most 60 characters after trim; `limit` 1–100.
+ * - a blank date is not sent: `to` is then today and `from` six days before
+ *   `to` (never before the oldest day kept);
+ * - a date that is not `yyyy-MM-dd`: that field, `required`. The other date
+ *   rules wait until both dates read;
+ * - a sent `from` before today−365: `from`, `min`; a `to` before it: `to`,
+ *   `min`;
+ * - a sent `from` after `to`: `from`, `conflict`; otherwise more than 366
+ *   days, both ends counted: `to`, `max` (366);
+ * - a `kind` other than all/reservation/takeaway: `kind`, `range`;
+ * - a search over 60 characters after trim: `q`, `max` (60);
+ * - a `limit` outside 1–100: `limit`, `range`.
+ *
+ * (`cursor` and `unansweredOnly` are the gateway's to send well-formed; the
+ * server names them `required` when they are not.)
  */
 export function messageHistoryViolations(
   query: MessageHistoryFilters & { readonly limit?: number | undefined },
   today: string,
 ): readonly FieldViolation[] {
   const violations: FieldViolation[] = [];
-  const fromOk = isLocalDate(query.from);
-  const toOk = isLocalDate(query.to);
-  if (!fromOk) {
-    violations.push({
-      field: 'from',
-      message: 'from must be a date (yyyy-MM-dd).',
-      bound: 'required',
-    });
+  const oldest = oldestHistoryDate(today);
+  const fromSent = sentDate(query.from);
+  const toSent = sentDate(query.to);
+  const fromBad = fromSent !== null && !isLocalDate(fromSent);
+  const toBad = toSent !== null && !isLocalDate(toSent);
+  if (fromBad) {
+    violations.push({ field: 'from', message: 'from is a date, yyyy-MM-dd.', bound: 'required' });
   }
-  if (!toOk) {
-    violations.push({ field: 'to', message: 'to must be a date (yyyy-MM-dd).', bound: 'required' });
+  if (toBad) {
+    violations.push({ field: 'to', message: 'to is a date, yyyy-MM-dd.', bound: 'required' });
   }
-  if (fromOk && (localDaysBetween(oldestHistoryDate(today), query.from) ?? 0) < 0) {
-    violations.push({
-      field: 'from',
-      message: `History is kept for ${MESSAGE_HISTORY_KEPT_DAYS} days.`,
-      bound: 'min',
-    });
-  }
-  if (fromOk && toOk) {
-    const days = localDaysBetween(query.from, query.to)!;
-    if (days < 0) {
-      violations.push({ field: 'from', message: 'from must be on or before to.', bound: 'range' });
-    } else if (days + 1 > MESSAGE_HISTORY_MAX_RANGE_DAYS) {
+  if (!fromBad && !toBad) {
+    const to = toSent ?? today;
+    const from = fromSent ?? defaultHistoryFrom(to, today);
+    const beforeOldest = (date: string) => (localDaysBetween(oldest, date) ?? 0) < 0;
+    const kept = `The history goes back ${MESSAGE_HISTORY_KEPT_DAYS} days, to ${oldest}.`;
+    if (fromSent !== null && beforeOldest(from)) {
+      violations.push({ field: 'from', message: kept, bound: 'min' });
+    }
+    if (beforeOldest(to)) {
+      violations.push({ field: 'to', message: kept, bound: 'min' });
+    }
+    const days = localDaysBetween(from, to)!;
+    // An unsent `from` follows `to`: it is after `to` only when `to` is before the oldest day, named above.
+    if (days < 0 && fromSent !== null) {
+      violations.push({
+        field: 'from',
+        message: `from (${from}) is after to (${to}).`,
+        bound: 'conflict',
+      });
+    } else if (days >= 0 && days + 1 > MESSAGE_HISTORY_MAX_RANGE_DAYS) {
       violations.push({
         field: 'to',
-        message: `At most ${MESSAGE_HISTORY_MAX_RANGE_DAYS} days at once.`,
+        message: `A page reads at most ${MESSAGE_HISTORY_MAX_RANGE_DAYS} days.`,
         bound: 'max',
         max: MESSAGE_HISTORY_MAX_RANGE_DAYS,
       });
     }
   }
   if (!MESSAGE_HISTORY_KINDS.includes(query.kind)) {
-    violations.push({ field: 'kind', message: 'kind must be all, reservation or takeaway.' });
+    violations.push({
+      field: 'kind',
+      message: 'kind is all, reservation or takeaway.',
+      bound: 'range',
+    });
   }
   if (historySearchText(query.q).length > MESSAGE_HISTORY_QUERY_MAX) {
     violations.push({
       field: 'q',
-      message: `At most ${MESSAGE_HISTORY_QUERY_MAX} characters.`,
+      message: `A search is at most ${MESSAGE_HISTORY_QUERY_MAX} characters.`,
       bound: 'max',
       max: MESSAGE_HISTORY_QUERY_MAX,
     });
@@ -269,7 +314,7 @@ export function messageHistoryViolations(
   ) {
     violations.push({
       field: 'limit',
-      message: `limit must be between 1 and ${MESSAGE_HISTORY_PAGE_MAX}.`,
+      message: `limit is 1 to ${MESSAGE_HISTORY_PAGE_MAX}.`,
       bound: 'range',
       min: 1,
       max: MESSAGE_HISTORY_PAGE_MAX,
