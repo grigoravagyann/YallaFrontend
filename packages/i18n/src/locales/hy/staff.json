@@ -1193,7 +1193,8 @@
       "empty": "Դեռ զրույցներ չկան։ Հյուրը գրում է միայն ամրագրման կամ տանելու պատվերի ներսում։",
       "emptyFilter": "Այս զտիչով ոչինչ չկա։",
       "choose": "Ընտրեք զրույցը ձախից։",
-      "unreachable": "Զրույցները չհաջողվեց կարդալ։"
+      "unreachable": "Զրույցները չհաջողվեց կարդալ։",
+      "back": "Բոլոր նամակները"
     },
     "thread": {
       "log": "Նամակներ",
@@ -1253,6 +1254,81 @@
     "tile_one": "{{count}} նոր նամակ",
     "tile_other": "{{count}} նոր նամակ",
     "reminder_one": "{{label}} · հյուրը {{count}} րոպե սպասում է պատասխանի",
-    "reminder_other": "{{label}} · հյուրը {{count}} րոպե սպասում է պատասխանի"
+    "reminder_other": "{{label}} · հյուրը {{count}} րոպե սպասում է պատասխանի",
+    "writeToGuest": "Գրել հյուրին"
+  },
+  "phone": {
+    "back": "Հետ",
+    "myPage": "{{name}}, իմ էջը",
+    "tabs": {
+      "label": "Գլխավոր",
+      "today": "Այսօր",
+      "now": "Հիմա",
+      "floor": "Սրահ",
+      "messages": "Նամակներ",
+      "takeaway": "Տանելու",
+      "more": "Ավելին",
+      "waiting_one": "{{name}}, {{count}} նոր",
+      "waiting_other": "{{name}}, {{count}} նոր"
+    },
+    "takeaway": {
+      "newOrder": "{{code}} · նոր պատվեր",
+      "answerIn": "ընդունել {{time}}-ում"
+    },
+    "nextHour": {
+      "title": "Մոտակա ժամին",
+      "empty": "Մոտակա ժամին ամրագրում չկա։",
+      "asked": "Չի պատասխանել",
+      "overdue": "Դեռ չեն եկել"
+    },
+    "approve": {
+      "title": "Ամրագրում՝ հաստատման",
+      "gone": "Այլևս պատասխանի չի սպասում։",
+      "backToNow": "Վերադառնալ «Հիմա»"
+    },
+    "today": {
+      "title": "Այսօր",
+      "revenue": "Հասույթ",
+      "revenueNoCompare": "նախորդ շաբաթվա հետ համեմատելու բան չկա",
+      "revenueChange": "{{percent}}% նախորդ շաբաթվա նույն օրվա համեմատ",
+      "guests": "Հյուրեր",
+      "guestsBooked": "այսօր ամրագրումով",
+      "bookings": "Ամրագրումներ",
+      "bookingsSub": "եկան {{came}} · սպասվում {{expected}} · չեկավ {{noShow}}",
+      "inRoom": "Հիմա սրահում",
+      "inRoomValue": "{{occupied}} / {{tables}}",
+      "inRoomSub": "սեղան զբաղված",
+      "unreachable": "Այսօրվա թվերը չհաջողվեց կարդալ։",
+      "needsYou": "Պետք է քեզ",
+      "nothingWaiting": "Քեզ ոչինչ չի սպասում։",
+      "approvals_one": "{{count}} ամրագրում՝ հաստատման",
+      "approvals_other": "{{count}} ամրագրում՝ հաստատման",
+      "messages_one": "{{count}} չպատասխանված նամակ",
+      "messages_other": "{{count}} չպատասխանված նամակ",
+      "shift": "Այսօր հերթափոխում",
+      "shiftNone": "Մոտակա 12 ժամում հերթափոխ չկա։",
+      "onShift": "հերթափոխում է",
+      "from": "{{time}}-ից",
+      "fullReport": "Ամբողջ հաշվետվությունը"
+    },
+    "more": {
+      "profile": "Իմ էջը",
+      "manage": "Կառավարում",
+      "today": "Այսօրվա ամփոփում",
+      "history": "Նամակների պատմություն",
+      "console": "Բացել վահանակը (մենյու, ժամեր, անձնակազմ)",
+      "mine": "Իմ",
+      "myShift": "Իմ հերթափոխը",
+      "shiftUnknown": "չհաջողվեց կարդալ",
+      "shiftNow": "հիմա, մինչև {{to}}",
+      "shiftNext": "{{from}}–{{to}}",
+      "shiftNone": "պլանավորված չէ",
+      "lock": "Կողպել հիմա",
+      "unpair": "Անջատել այս հեռախոսը",
+      "unpairTitle": "Անջատե՞լ այս հեռախոսը",
+      "unpairBody": "Նորից կցելու համար պետք կլինի կառավարչի նոր QR կոդը։",
+      "unpairNo": "Ոչ",
+      "unpairYes": "Այո, անջատել"
+    }
   }
 }

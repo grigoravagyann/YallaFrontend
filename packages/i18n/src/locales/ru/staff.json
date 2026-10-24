@@ -1351,7 +1351,8 @@
       "empty": "Разговоров пока нет. Гость пишет только внутри брони или заказа навынос.",
       "emptyFilter": "С этим фильтром ничего нет.",
       "choose": "Выберите разговор слева.",
-      "unreachable": "Не удалось загрузить разговоры."
+      "unreachable": "Не удалось загрузить разговоры.",
+      "back": "Все сообщения"
     },
     "thread": {
       "log": "Сообщения",
@@ -1419,6 +1420,87 @@
     "reminder_one": "{{label}} · гость ждёт ответа {{count}} минуту",
     "reminder_few": "{{label}} · гость ждёт ответа {{count}} минуты",
     "reminder_many": "{{label}} · гость ждёт ответа {{count}} минут",
-    "reminder_other": "{{label}} · гость ждёт ответа {{count}} минуты"
+    "reminder_other": "{{label}} · гость ждёт ответа {{count}} минуты",
+    "writeToGuest": "Написать гостю"
+  },
+  "phone": {
+    "back": "Назад",
+    "myPage": "{{name}}, моя страница",
+    "tabs": {
+      "label": "Главное",
+      "today": "Сегодня",
+      "now": "Сейчас",
+      "floor": "Зал",
+      "messages": "Сообщения",
+      "takeaway": "Навынос",
+      "more": "Ещё",
+      "waiting_one": "{{name}}, {{count}} новое",
+      "waiting_few": "{{name}}, {{count}} новых",
+      "waiting_many": "{{name}}, {{count}} новых",
+      "waiting_other": "{{name}}, {{count}} новых"
+    },
+    "takeaway": {
+      "newOrder": "{{code}} · новый заказ",
+      "answerIn": "ответить за {{time}}"
+    },
+    "nextHour": {
+      "title": "В ближайший час",
+      "empty": "В ближайший час броней нет.",
+      "asked": "Не ответил",
+      "overdue": "Ещё не пришли"
+    },
+    "approve": {
+      "title": "Бронь ждёт подтверждения",
+      "gone": "Больше не ждёт ответа.",
+      "backToNow": "Вернуться в «Сейчас»"
+    },
+    "today": {
+      "title": "Сегодня",
+      "revenue": "Выручка",
+      "revenueNoCompare": "не с чем сравнить с прошлой неделей",
+      "revenueChange": "{{percent}}% к тому же дню прошлой недели",
+      "guests": "Гости",
+      "guestsBooked": "по броням сегодня",
+      "bookings": "Брони",
+      "bookingsSub": "пришли {{came}} · ждём {{expected}} · не пришли {{noShow}}",
+      "inRoom": "Сейчас в зале",
+      "inRoomValue": "{{occupied}} / {{tables}}",
+      "inRoomSub": "столов занято",
+      "unreachable": "Не удалось загрузить цифры за сегодня.",
+      "needsYou": "Нужно вам",
+      "nothingWaiting": "Вас ничего не ждёт.",
+      "approvals_one": "{{count}} бронь ждёт подтверждения",
+      "approvals_few": "{{count}} брони ждут подтверждения",
+      "approvals_many": "{{count}} броней ждут подтверждения",
+      "approvals_other": "{{count}} брони ждут подтверждения",
+      "messages_one": "{{count}} сообщение без ответа",
+      "messages_few": "{{count}} сообщения без ответа",
+      "messages_many": "{{count}} сообщений без ответа",
+      "messages_other": "{{count}} сообщения без ответа",
+      "shift": "На смене сегодня",
+      "shiftNone": "В ближайшие 12 часов смен нет.",
+      "onShift": "на смене",
+      "from": "с {{time}}",
+      "fullReport": "Полный отчёт"
+    },
+    "more": {
+      "profile": "Моя страница",
+      "manage": "Управление",
+      "today": "Сводка за сегодня",
+      "history": "История сообщений",
+      "console": "Открыть консоль (меню, часы, персонал)",
+      "mine": "Моё",
+      "myShift": "Моя смена",
+      "shiftUnknown": "не удалось загрузить",
+      "shiftNow": "сейчас, до {{to}}",
+      "shiftNext": "{{from}}–{{to}}",
+      "shiftNone": "не запланирована",
+      "lock": "Заблокировать",
+      "unpair": "Отвязать этот телефон",
+      "unpairTitle": "Отвязать этот телефон?",
+      "unpairBody": "Чтобы привязать его снова, понадобится новый QR-код от менеджера.",
+      "unpairNo": "Нет",
+      "unpairYes": "Да, отвязать"
+    }
   }
 }

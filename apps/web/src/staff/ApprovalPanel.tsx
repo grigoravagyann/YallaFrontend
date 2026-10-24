@@ -109,7 +109,13 @@ export function ApprovalPanel(props: ApprovalPanelProps) {
   );
 }
 
-function ApprovalCard({
+/**
+ * One booking's card: the clock, the table around it, the guest's record and
+ * Approve / Decline. The rail lists them; the phone's Approve screen shows one
+ * (staff phone, the Approve artboard), so the decision is the same code on
+ * both.
+ */
+export function ApprovalCard({
   request,
   now,
   fresh,

@@ -8,7 +8,7 @@ import {
   type StaffConversationListItem,
 } from '@yalla/api';
 import { useTranslation } from '@yalla/i18n';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { QueryFailureNotice } from '../../components/QueryFailureNotice';
 import { useBranchFormat } from '../useBranchFormat';
 import { MessageThread } from './MessageThread';
@@ -40,6 +40,15 @@ export interface MessagesInboxProps {
   readonly active: boolean;
   /** The clock the reminders are judged by. */
   readonly now: Date;
+  /**
+   * The phone (staff phone, the Messages artboard): the list, or one
+   * conversation with a way back to it — never both side by side, and
+   * nothing opened by itself: a guest's message is marked read when its
+   * thread is on screen, and on a phone that is the whole screen.
+   */
+  readonly stacked?: boolean | undefined;
+  /** Stacked: back from the conversation to the list. */
+  readonly onBack?: (() => void) | undefined;
 }
 
 const FILTERS: readonly ConversationFilter[] = ['all', 'unanswered', 'takeaway'];
@@ -53,7 +62,8 @@ export function MessagesInbox(props: MessagesInboxProps) {
   const shown = filterConversations(items, filter);
   const remindAfter = props.inbox?.remindAfterMinutes ?? 3;
   const first = shown[0] ? { kind: shown[0].subject.kind, id: shown[0].subject.id } : null;
-  const current = props.selected ?? first;
+  const stacked = props.stacked ?? false;
+  const current = stacked ? props.selected : (props.selected ?? first);
   // Nothing chosen yet: the first row is opened, and stays the one open. The
   // list re-sorts on every read (an answer moves a row down), and a pane that
   // followed the top row would swap the conversation under the waiter — the
@@ -62,8 +72,17 @@ export function MessagesInbox(props: MessagesInboxProps) {
   const firstKind = first?.kind;
   const firstId = first?.id;
   useEffect(() => {
+    if (stacked) return;
     if (!selected && firstKind && firstId) onSelect({ kind: firstKind, id: firstId });
-  }, [selected, firstKind, firstId, onSelect]);
+  }, [stacked, selected, firstKind, firstId, onSelect]);
+  /** Stacked: the row a conversation was opened from, focused again on the way back. */
+  const backTo = useRef<string | null>(null);
+  useEffect(() => {
+    if (!stacked || current || !backTo.current) return;
+    const key = backTo.current;
+    backTo.current = null;
+    document.querySelector<HTMLElement>(`.msg-row-btn[data-subject="${CSS.escape(key)}"]`)?.focus();
+  }, [stacked, current]);
   const currentItem = current
     ? (items.find((item) => sameSubject(item.subject, current)) ?? null)
     : null;
@@ -77,8 +96,49 @@ export function MessagesInbox(props: MessagesInboxProps) {
           })
         : t('messages.inbox.filters.takeaway');
 
+  if (stacked && current) {
+    return (
+      <div className="msg-inbox is-stacked">
+        <button
+          type="button"
+          className="msg-back"
+          onClick={() => {
+            backTo.current = `${current.kind}:${current.id}`;
+            props.onBack?.();
+          }}
+        >
+          <svg
+            className="ft-icon"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            aria-hidden="true"
+          >
+            <path d="m15 5-7 7 7 7" />
+          </svg>
+          {t('messages.inbox.back')}
+        </button>
+        <MessageThread
+          key={`${current.kind}:${current.id}`}
+          branchId={props.branchId}
+          subject={current}
+          item={currentItem}
+          templates={props.inbox?.templates ?? null}
+          waitersCanWrite={props.inbox?.waitersCanWrite ?? true}
+          staffName={props.staffName}
+          timeZoneId={props.timeZoneId}
+          online={props.online}
+          active={props.active}
+        />
+      </div>
+    );
+  }
+
   return (
-    <div className="msg-inbox">
+    <div className={stacked ? 'msg-inbox is-stacked' : 'msg-inbox'}>
       <section className="msg-list" aria-label={t('messages.inbox.label')}>
         <div className="msg-filters" role="group" aria-label={t('messages.inbox.filters.label')}>
           {FILTERS.map((key) => (
@@ -127,7 +187,7 @@ export function MessagesInbox(props: MessagesInboxProps) {
         </div>
       </section>
 
-      {current ? (
+      {stacked ? null : current ? (
         <MessageThread
           // A fresh pane per conversation: a half-typed reply never carries over.
           key={`${current.kind}:${current.id}`}
@@ -200,6 +260,7 @@ function InboxRow({
       <button
         type="button"
         className="msg-row-btn"
+        data-subject={`${item.subject.kind}:${item.subject.id}`}
         aria-label={name}
         aria-current={current ? 'true' : undefined}
         data-unread={item.unreadFromGuest > 0 ? 'true' : undefined}

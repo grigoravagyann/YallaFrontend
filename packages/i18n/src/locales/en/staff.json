@@ -1193,7 +1193,8 @@
       "empty": "No conversations yet. A guest writes only inside a booking or a takeaway order.",
       "emptyFilter": "Nothing here with this filter.",
       "choose": "Choose a conversation on the left.",
-      "unreachable": "The conversations could not be read."
+      "unreachable": "The conversations could not be read.",
+      "back": "All messages"
     },
     "thread": {
       "log": "Messages",
@@ -1253,6 +1254,81 @@
     "tile_one": "{{count}} new message",
     "tile_other": "{{count}} new messages",
     "reminder_one": "{{label}} · a guest has waited {{count}} minute for an answer",
-    "reminder_other": "{{label}} · a guest has waited {{count}} minutes for an answer"
+    "reminder_other": "{{label}} · a guest has waited {{count}} minutes for an answer",
+    "writeToGuest": "Write to the guest"
+  },
+  "phone": {
+    "back": "Back",
+    "myPage": "{{name}}, my page",
+    "tabs": {
+      "label": "Main",
+      "today": "Today",
+      "now": "Now",
+      "floor": "Floor",
+      "messages": "Messages",
+      "takeaway": "Takeaway",
+      "more": "More",
+      "waiting_one": "{{name}}, {{count}} new",
+      "waiting_other": "{{name}}, {{count}} new"
+    },
+    "takeaway": {
+      "newOrder": "{{code}} · new order",
+      "answerIn": "answer within {{time}}"
+    },
+    "nextHour": {
+      "title": "In the next hour",
+      "empty": "No bookings in the next hour.",
+      "asked": "Not answered",
+      "overdue": "Not here yet"
+    },
+    "approve": {
+      "title": "Booking to approve",
+      "gone": "No longer waiting for an answer.",
+      "backToNow": "Back to Now"
+    },
+    "today": {
+      "title": "Today",
+      "revenue": "Revenue",
+      "revenueNoCompare": "nothing to compare with last week",
+      "revenueChange": "{{percent}}% on the same day last week",
+      "guests": "Guests",
+      "guestsBooked": "with a booking today",
+      "bookings": "Bookings",
+      "bookingsSub": "came {{came}} · expected {{expected}} · no-show {{noShow}}",
+      "inRoom": "In the room now",
+      "inRoomValue": "{{occupied}} / {{tables}}",
+      "inRoomSub": "tables occupied",
+      "unreachable": "Today’s numbers could not be read.",
+      "needsYou": "Needs you",
+      "nothingWaiting": "Nothing is waiting for you.",
+      "approvals_one": "{{count}} booking to approve",
+      "approvals_other": "{{count}} bookings to approve",
+      "messages_one": "{{count}} unanswered message",
+      "messages_other": "{{count}} unanswered messages",
+      "shift": "On shift today",
+      "shiftNone": "No shift in the next 12 hours.",
+      "onShift": "on shift",
+      "from": "from {{time}}",
+      "fullReport": "Full report"
+    },
+    "more": {
+      "profile": "My page",
+      "manage": "Manage",
+      "today": "Today’s summary",
+      "history": "Message history",
+      "console": "Open the console (menu, hours, staff)",
+      "mine": "Mine",
+      "myShift": "My shift",
+      "shiftUnknown": "could not be read",
+      "shiftNow": "now, until {{to}}",
+      "shiftNext": "{{from}}–{{to}}",
+      "shiftNone": "none planned",
+      "lock": "Lock now",
+      "unpair": "Unpair this phone",
+      "unpairTitle": "Unpair this phone?",
+      "unpairBody": "To pair it again you will need a new QR code from a manager.",
+      "unpairNo": "No",
+      "unpairYes": "Yes, unpair"
+    }
   }
 }

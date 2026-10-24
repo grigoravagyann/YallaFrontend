@@ -115,6 +115,17 @@ export interface TableActionPanelProps {
   readonly nextBookingAwaiting?: boolean | undefined;
   readonly onOrder: () => void;
   readonly onClose: () => void;
+  /**
+   * Where the panel is: beside the floor on the tablet (the default), or a
+   * bottom sheet over the phone's floor (staff phone, the Floor artboard),
+   * which is modal — the screen under it is inert while it is up.
+   */
+  readonly variant?: 'rail' | 'sheet' | undefined;
+  /**
+   * "Write to the guest" for the next booking: opens its conversation. Left
+   * out where the Messages screen is a tab away anyway (the tablet's rail).
+   */
+  readonly onMessageGuest?: ((reservationId: string) => void) | undefined;
 }
 
 export function TableActionPanel(props: TableActionPanelProps) {
@@ -307,9 +318,9 @@ export function TableActionPanel(props: TableActionPanelProps) {
   return (
     <aside
       ref={panelRef}
-      className="tp"
+      className={props.variant === 'sheet' ? 'tp is-sheet' : 'tp'}
       role="dialog"
-      aria-modal="false"
+      aria-modal={props.variant === 'sheet' ? 'true' : 'false'}
       aria-label={t('table.panelLabel', { label: table.label })}
       tabIndex={-1}
       onKeyDown={(event) => {
@@ -384,6 +395,18 @@ export function TableActionPanel(props: TableActionPanelProps) {
               }}
             />
           </section>
+        ) : null}
+
+        {props.onMessageGuest && reservationId && status !== 'occupied' ? (
+          <div className="tp-acts tp-message">
+            <button
+              type="button"
+              className="tp-btn tp-sec"
+              onClick={() => props.onMessageGuest?.(reservationId)}
+            >
+              {t('messages.writeToGuest')}
+            </button>
+          </div>
         ) : null}
 
         {/* --- Free ---------------------------------------------------------- */}
