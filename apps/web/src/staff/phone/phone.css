@@ -723,6 +723,18 @@ button.ph-row:active {
   padding-top: var(--space-xs);
 }
 
+/* The floor tablet's full-screen overlays on a phone: order entry, the tab,
+ * cash, the conflicts. Installed on an iPhone the status bar is translucent
+ * (`apple-mobile-web-app-status-bar-style`), so they started under the clock
+ * and the notch and ended under the home indicator. The top inset is the
+ * cherry of their bar, for the status bar's white text; the rest is padding. */
+[data-layout='phone'] .staff-overlay {
+  box-sizing: border-box;
+  border-top: env(safe-area-inset-top, 0px) solid var(--console-sidebar);
+  padding: 0 env(safe-area-inset-right, 0px) env(safe-area-inset-bottom, 0px)
+    env(safe-area-inset-left, 0px);
+}
+
 /* The sheet: over everything but the full-screen overlays, its own scroll. */
 .ph-sheet-layer {
   position: fixed;

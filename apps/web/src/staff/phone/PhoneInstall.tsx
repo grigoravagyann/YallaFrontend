@@ -77,7 +77,8 @@ export function PhoneInstall({ onboarding = false, onStart, support }: PhoneInst
     try {
       const result = await enablePush(gateway, key);
       if (result !== 'subscribed') {
-        setOutcome(result);
+        // Closed without an answer is not "blocked": the button stays, to ask again.
+        setOutcome(result === 'dismissed' ? null : result);
         return;
       }
       // Saved once now, so the server writes pushes in the app's language

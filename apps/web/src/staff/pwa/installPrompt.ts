@@ -1,4 +1,5 @@
 import { useSyncExternalStore } from 'react';
+import { PHONE_QUERY } from '../phone/usePhoneLayout';
 
 /**
  * Android's "Install app", kept for the button that asks for it.
@@ -32,10 +33,18 @@ function set(next: InstallState): void {
   for (const listener of listeners) listener();
 }
 
+/** Whether the phone shell is what this screen shows at this moment. */
+function phoneLayoutNow(): boolean {
+  return typeof window.matchMedia === 'function' && window.matchMedia(PHONE_QUERY).matches;
+}
+
 if (typeof window !== 'undefined') {
   window.addEventListener('beforeinstallprompt', (event) => {
-    // Kept for the button, rather than shown as the browser's own mini bar.
-    event.preventDefault();
+    // On a phone, kept for the Install screen's button rather than shown as
+    // the browser's own mini bar. A floor tablet has no Install screen: there
+    // Chrome's own "Add to home screen" bar is how it gets installed, as it
+    // always was, so it is left to show.
+    if (phoneLayoutNow()) event.preventDefault();
     set({ ...state, prompt: event as BeforeInstallPromptEvent });
   });
   window.addEventListener('appinstalled', () => set({ prompt: null, installed: true }));

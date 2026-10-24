@@ -24,6 +24,7 @@ import { MemoryRouter } from 'react-router-dom';
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { initConsoleTestI18n } from '../../console/venue/reports/testHarness';
 import type * as CurrentUserModule from '../../auth/useCurrentUser';
+import { staffDeviceStore } from '../auth/deviceStore';
 import { upcomingBookings } from './nextHour';
 import { PHONE_QUERY } from './usePhoneLayout';
 
@@ -139,6 +140,7 @@ function renderAt(staffGateway: StaffGateway, path = '/staff') {
       </QueryClientProvider>
     </I18nextProvider>,
   );
+  return queryClient;
 }
 
 const setupUser = () => userEvent.setup({ delay: null });
@@ -178,6 +180,21 @@ describe('which layout /staff wears', () => {
     expect(PHONE_QUERY.startsWith('(max-width: 599.98px)')).toBe(true);
     expect(css).toContain("[data-layout='phone']");
     expect(PHONE_QUERY).toContain('(display-mode: standalone)');
+  });
+
+  it('keeps the tablet’s full-screen overlays clear of the notch and the home indicator', () => {
+    const css = readFileSync(join(dirname(fileURLToPath(import.meta.url)), 'phone.css'), 'utf8');
+    const rule = /\[data-layout='phone'\] \.staff-overlay \{([^}]*)\}/u.exec(css)?.[1] ?? '';
+    expect(rule).toContain('safe-area-inset-top');
+    expect(rule).toContain('safe-area-inset-bottom');
+  });
+
+  it('leaves an installed 7-inch tablet held landscape (about 530px tall) on the tablet layout', () => {
+    // The landscape clause's height: over a phone on its side (~480px at
+    // most), under a 1024×600dp tablet less its status and navigation bars.
+    const height = /\(max-height: ([\d.]+)px\)/u.exec(PHONE_QUERY)?.[1];
+    expect(Number(height)).toBeGreaterThanOrEqual(480);
+    expect(Number(height)).toBeLessThan(520);
   });
 
   it('keeps the floor tablet at 600px and wider: its bar, its Kitchen tab, no phone tabs', async () => {
@@ -343,13 +360,22 @@ describe('Messages', () => {
     const rows = await within(list).findAllByRole('button', { name: /,/u });
     expect(document.querySelector('.msg-thread')).toBeNull();
 
+    const opened = rows[0]!.getAttribute('data-subject');
     await user.click(rows[0]!);
     const back = await screen.findByRole('button', { name: 'All messages' });
     expect(document.querySelector('.msg-thread')).not.toBeNull();
     expect(screen.queryByRole('region', { name: 'Conversations' })).toBeNull();
+    // The row that opened it went with the list: focus is on the way back,
+    // not dropped to the page.
+    await waitFor(() => expect(document.activeElement).toBe(back));
 
     await user.click(back);
     expect(await screen.findByRole('region', { name: 'Conversations' })).toBeTruthy();
+    await waitFor(() =>
+      expect((document.activeElement as HTMLElement | null)?.getAttribute('data-subject')).toBe(
+        opened,
+      ),
+    );
   });
 });
 
@@ -503,14 +529,29 @@ describe('More', () => {
     signIn('waiter');
     const staffGateway = gateway();
     const unpair = vi.spyOn(staffGateway, 'unpairOwnPhone');
-    renderAt(staffGateway);
+    await staffDeviceStore.rememberStaff({ staffMemberId: 's1', fullName: 'Aram Petrosyan' });
+    const queryClient = renderAt(staffGateway);
     const user = setupUser();
     await user.click(tab(await tabs(), /^More/u));
+    await waitFor(() => expect(queryClient.getQueryCache().getAll().length).toBeGreaterThan(0));
 
     await user.click(await screen.findByRole('button', { name: 'Unpair this phone' }));
     await user.click(screen.getByRole('button', { name: 'Yes, unpair' }));
     await waitFor(() => expect(unpair).toHaveBeenCalledTimes(1));
     await waitFor(() => expect(staff.forgetDevice).toHaveBeenCalledTimes(1));
+    // Nothing of the person is left for the next pairing: not their name on
+    // the device, not a floor or a switch read under their session.
+    await waitFor(async () =>
+      expect(
+        (await staffDeviceStore.readKnownStaff()).map((known) => known.staffMemberId),
+      ).not.toContain('s1'),
+    );
+    expect(
+      queryClient
+        .getQueryCache()
+        .getAll()
+        .filter((query) => query.state.data !== undefined),
+    ).toEqual([]);
   });
 
   it('says so when the phone could not be unpaired, and stays paired', async () => {

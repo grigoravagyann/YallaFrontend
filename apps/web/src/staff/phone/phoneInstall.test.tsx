@@ -133,6 +133,21 @@ describe('turning notifications on', () => {
     expect(store).not.toHaveBeenCalled();
   });
 
+  it('asks again when the prompt was closed without an answer, rather than calling it blocked', async () => {
+    pushableBrowser('default');
+    const gateway = createStaffMockGateway({ latencyMs: 0 });
+    vi.spyOn(gateway, 'getPushConfig').mockResolvedValue({ enabled: true, publicKey: KEY });
+    const store = vi.spyOn(gateway, 'savePushSubscription');
+    renderInstall(gateway);
+    const user = userEvent.setup({ delay: null });
+    await user.click(await screen.findByRole('button', { name: 'Turn on notifications' }));
+
+    const again = await screen.findByRole('button', { name: 'Turn on notifications' });
+    await waitFor(() => expect(again.hasAttribute('disabled')).toBe(false));
+    expect(screen.queryByText(/^Notifications are blocked for SHURJ\./u)).toBeNull();
+    expect(store).not.toHaveBeenCalled();
+  });
+
   it('offers no switch on a server that sends no pushes', async () => {
     pushableBrowser();
     const gateway = createStaffMockGateway({ latencyMs: 0 });

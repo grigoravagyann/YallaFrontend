@@ -126,6 +126,11 @@ export type EnableOutcome =
   | 'subscribed'
   /** The person said no, now or before: only the browser's settings change it. */
   | 'denied'
+  /**
+   * The prompt was closed without an answer (still `default`): nothing is
+   * blocked, and the button may ask again.
+   */
+  | 'dismissed'
   /** No worker to subscribe through (development, an old browser, http). */
   | 'unavailable';
 
@@ -140,7 +145,8 @@ export async function enablePush(
   if (typeof Notification === 'undefined') return 'unavailable';
   const permission =
     Notification.permission === 'granted' ? 'granted' : await Notification.requestPermission();
-  if (permission !== 'granted') return 'denied';
+  if (permission === 'denied') return 'denied';
+  if (permission !== 'granted') return 'dismissed';
 
   const worker = await staffWorker();
   if (!worker) return 'unavailable';

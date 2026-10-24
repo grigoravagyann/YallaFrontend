@@ -141,7 +141,9 @@ self.addEventListener('push', (event) => {
     // A replaced one buzzes again: it is news, not a duplicate.
     renotify: typeof data.tag === 'string' && data.tag !== '',
     icon: '/icon-512.png',
-    badge: '/icon-maskable-512.png',
+    // No `badge`: Android draws a badge from its alpha channel alone, and
+    // both icons are opaque squares, so either would sit in the status bar as
+    // a blank white tile. Without one it shows the browser's own small glyph.
     data: { url: staffPath(data.url), kind: typeof data.kind === 'string' ? data.kind : null },
   };
   event.waitUntil(self.registration.showNotification(title, options));

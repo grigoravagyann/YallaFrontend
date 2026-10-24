@@ -83,6 +83,20 @@ export function MessagesInbox(props: MessagesInboxProps) {
     backTo.current = null;
     document.querySelector<HTMLElement>(`.msg-row-btn[data-subject="${CSS.escape(key)}"]`)?.focus();
   }, [stacked, current]);
+  /**
+   * Stacked: the row that opened a conversation is gone with the list, and
+   * focus with it, to the page itself. It goes to the way back instead, the
+   * top of the screen that replaced the list. Focus that is still somewhere
+   * real (the composer, a tab) is left where it is.
+   */
+  const backButton = useRef<HTMLButtonElement>(null);
+  const openKey = stacked && current ? `${current.kind}:${current.id}` : null;
+  useEffect(() => {
+    if (!openKey) return;
+    const active = document.activeElement;
+    if (active && active !== document.body && active.isConnected) return;
+    backButton.current?.focus();
+  }, [openKey]);
   const currentItem = current
     ? (items.find((item) => sameSubject(item.subject, current)) ?? null)
     : null;
@@ -100,6 +114,7 @@ export function MessagesInbox(props: MessagesInboxProps) {
     return (
       <div className="msg-inbox is-stacked">
         <button
+          ref={backButton}
           type="button"
           className="msg-back"
           onClick={() => {

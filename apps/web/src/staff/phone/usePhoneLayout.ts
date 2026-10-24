@@ -4,17 +4,22 @@ import { useSyncExternalStore } from 'react';
  * When `/staff` wears the phone shell (staff phone spec, "Phone layout").
  *
  * - **Narrower than 600px**: a phone held upright, in the browser or installed.
- * - **Installed and short** (`display-mode: standalone`, at most 599px tall,
+ * - **Installed and short** (`display-mode: standalone`, under 500px tall,
  *   a coarse pointer): the same phone turned on its side, launched from the
- *   home screen. A tablet installed the same way is taller than that, and
- *   keeps the floor tablet's layout.
+ *   home screen. A phone on its side is at most ~480px tall.
+ *
+ * **Not 600px tall.** A 7-inch floor tablet (1024×600dp, the cheap Android
+ * ones counters run on) installed and held landscape is 600 less its status
+ * and navigation bars, about 530px, and must keep the floor tablet's layout:
+ * under a 600px rule it became a phone, and an unenrolled one was sent to
+ * phone pairing instead of the tablet's code.
  *
  * At 600px and wider, in a browser, the floor tablet's layout is untouched.
- * `phone.css` reads the first condition verbatim, and `phoneShell.test.tsx`
+ * `phone.css` reads the first condition verbatim, and `phone.test.tsx`
  * holds the two together.
  */
 export const PHONE_QUERY =
-  '(max-width: 599.98px), (display-mode: standalone) and (max-height: 599.98px) and (pointer: coarse)';
+  '(max-width: 599.98px), (display-mode: standalone) and (max-height: 499.98px) and (pointer: coarse)';
 
 function subscribe(listener: () => void): () => void {
   if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') {

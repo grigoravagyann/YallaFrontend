@@ -3,9 +3,11 @@ import { useTranslation } from '@yalla/i18n';
 import { useCallback, useEffect, useState } from 'react';
 import { Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { useStaffGateway } from '@yalla/api/react';
+import { useQueryClient } from '@tanstack/react-query';
 import { usingMockData } from '../data/gateway';
 import { registerServiceWorker } from '../offline/registerServiceWorker';
 import { useCurrentUser } from '../auth/useCurrentUser';
+import { staffDeviceStore } from './auth/deviceStore';
 import { EnrolDeviceScreen } from './auth/EnrolDeviceScreen';
 import { PinScreen } from './auth/PinScreen';
 import { staffAuthAvailable, staffSession } from './auth/staffSession';
@@ -88,14 +90,25 @@ export function StaffRoute() {
    * More → "Unpair this phone", after its confirm: the server revokes this
    * phone and ends its session, the browser's push subscription goes, the
    * device token is forgotten, and the next screen is pairing again.
+   *
+   * Nothing of the person stays behind either: their name on the device's
+   * list of known people, and every answer read under their session — the
+   * floor, the guests' messages, this device's notification switches — which
+   * the next pairing, perhaps somebody else's, would otherwise be shown first.
    */
   const gateway = useStaffGateway();
+  const queryClient = useQueryClient();
+  const boundStaffId = isPhoneDevice(snapshot.device)
+    ? (snapshot.device.boundStaffMember?.id ?? null)
+    : null;
   const unpair = useCallback(async () => {
     await gateway.unpairOwnPhone();
     await disablePush(null);
     await staffSession?.forgetDevice();
+    if (boundStaffId) await staffDeviceStore.forgetStaff(boundStaffId);
+    queryClient.clear();
     navigate('/staff/pair', { replace: true });
-  }, [gateway, navigate]);
+  }, [gateway, navigate, queryClient, boundStaffId]);
 
   /**
    * Whose session this is, or was.

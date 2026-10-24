@@ -81,6 +81,10 @@ describe('a staff push', () => {
         data: { url: '/staff/now?call=sr1', kind: 'tableCalls' },
       }),
     );
+    // Android draws a badge from its alpha alone; both icons are opaque, so
+    // either would be a white tile in the status bar.
+    const calls = worker.showNotification.mock.calls as unknown as [string, object][];
+    expect(calls[0]![1]).not.toHaveProperty('badge');
   });
 
   it('never follows a link out of the staff app', async () => {
