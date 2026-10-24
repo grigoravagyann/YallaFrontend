@@ -4,23 +4,23 @@
     {
       "name": "api-real",
       "runtimeExecutable": "node",
-      "runtimeArgs": ["scripts/bash.mjs", "scripts/dev-real.sh", "--only", "api"],
+      "runtimeArgs": ["scripts/dev-stack.mjs", "--only", "api"],
       "cwd": ".",
-      "port": 5086
+      "port": 5199
     },
     {
       "name": "console-real",
       "runtimeExecutable": "node",
-      "runtimeArgs": ["scripts/bash.mjs", "scripts/dev-real.sh", "--only", "console"],
+      "runtimeArgs": ["scripts/dev-stack.mjs", "--only", "web"],
       "cwd": ".",
-      "port": 5173
+      "port": 5192
     },
     {
       "name": "diner-web-real",
       "runtimeExecutable": "node",
-      "runtimeArgs": ["scripts/bash.mjs", "scripts/dev-real.sh", "--only", "diner"],
+      "runtimeArgs": ["scripts/dev-stack.mjs", "--only", "phone"],
       "cwd": ".",
-      "port": 8095
+      "port": 8110
     }
   ]
 }
