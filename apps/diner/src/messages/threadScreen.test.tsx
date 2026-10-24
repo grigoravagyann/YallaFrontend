@@ -165,10 +165,81 @@ describe('a booking thread', () => {
     // The venue's question, from its fields.
     expect(screen.getByText(/^messages\.ask time=/)).toBeTruthy();
     expect(screen.getByLabelText('messages.thread.call')).toBeTruthy();
-    // Seen, so read: the venue's message is no longer unread.
+    // Seen, so read — up to the newest message on screen, so one arriving
+    // meanwhile stays unread.
     await waitFor(() =>
-      expect(gateway.markConversationRead).toHaveBeenCalledWith({ kind: 'reservation', id: 'r1' }),
+      expect(gateway.markConversationRead).toHaveBeenCalledWith({
+        kind: 'reservation',
+        id: 'r1',
+        upToUtc: at(2),
+      }),
     );
+  });
+
+  it('stays where the reader scrolled up to, and says "New message ↓" when one comes', async () => {
+    gateway.getConversation.mockResolvedValue(thread());
+    const { client } = renderScreen();
+    await screen.findByText('Of course, by table 6');
+
+    // Scrolled up to read back: 1000 tall, 400 in view, at the top.
+    const log = screen.getByRole('log');
+    Object.defineProperty(log, 'scrollHeight', { configurable: true, value: 1000 });
+    Object.defineProperty(log, 'clientHeight', { configurable: true, value: 400 });
+    log.scrollTop = 0;
+    fireEvent.scroll(log);
+
+    gateway.getConversation.mockResolvedValue(
+      thread({
+        messages: [
+          ...thread().messages,
+          {
+            id: 'm4',
+            author: 'venue',
+            kind: 'text',
+            text: 'Your table is ready',
+            answer: null,
+            status: null,
+            createdAtUtc: at(0),
+            staffName: null,
+          },
+        ],
+      }),
+    );
+    await client.invalidateQueries();
+    expect(await screen.findByText('Your table is ready')).toBeTruthy();
+
+    const pill = await screen.findByRole('button', { name: 'messages.thread.newMessageLabel' });
+    expect(pill.textContent).toBe('messages.thread.newMessage');
+    fireEvent.click(pill);
+    await waitFor(() =>
+      expect(screen.queryByRole('button', { name: 'messages.thread.newMessageLabel' })).toBeNull(),
+    );
+  });
+
+  it('shows no pill while the reader is at the newest message', async () => {
+    gateway.getConversation.mockResolvedValue(thread());
+    const { client } = renderScreen();
+    await screen.findByText('Of course, by table 6');
+    gateway.getConversation.mockResolvedValue(
+      thread({
+        messages: [
+          ...thread().messages,
+          {
+            id: 'm4',
+            author: 'venue',
+            kind: 'text',
+            text: 'Your table is ready',
+            answer: null,
+            status: null,
+            createdAtUtc: at(0),
+            staffName: null,
+          },
+        ],
+      }),
+    );
+    await client.invalidateQueries();
+    expect(await screen.findByText('Your table is ready')).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'messages.thread.newMessageLabel' })).toBeNull();
   });
 
   it('answers "I\'m coming" in one tap, through the on-my-way', async () => {

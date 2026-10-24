@@ -32,6 +32,7 @@ import {
   branchConversationsFromWire,
   floorMessagesFromWire,
   rethrowMessageRefusal,
+  markReadBody,
   sendMessageBody,
   sentMessageFromWire,
   staffConversationFromWire,
@@ -581,12 +582,9 @@ export function createStaffHttpGateway(client: ApiClient): StaffGateway {
       }
     },
 
-    async markStaffConversationRead(subject): Promise<void> {
-      if (subject.kind === 'takeaway') {
-        await client.post(`/api/takeaway-orders/${subject.id}/conversation/read`);
-      } else {
-        await client.post(`/api/reservations/${subject.id}/conversation/read`);
-      }
+    async markStaffConversationRead(command): Promise<void> {
+      const segment = command.kind === 'takeaway' ? 'takeaway-orders' : 'reservations';
+      await client.post(`/api/${segment}/${command.id}/conversation/read`, markReadBody(command));
     },
 
     // --- Tables waiting to be let in ---------------------------------------

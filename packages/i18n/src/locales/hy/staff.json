@@ -1182,6 +1182,7 @@
       "you": "Դուք՝ {{text}}",
       "lastHeld": "{{text}} · պահված է մինչև {{time}}",
       "tag": {
+        "newAnswer": "Հյուրը պատասխանեց",
         "new": "Նոր · պատասխանել",
         "waiting": "Սպասում ենք պատասխանի",
         "answered": "Պատասխանված",
@@ -1196,6 +1197,8 @@
     },
     "thread": {
       "log": "Նամակներ",
+      "newMessage": "Նոր նամակ ↓",
+      "newMessageLabel": "Նոր նամակ։ Ցույց տալ վերջինը",
       "today": "այսօր {{time}}",
       "tomorrow": "վաղը {{time}}",
       "dated": "{{date}}, {{time}}",

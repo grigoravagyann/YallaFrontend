@@ -143,7 +143,11 @@ export interface ConversationMessage {
    * answered yet (the optimistic append). Absent on everything the server sent.
    */
   readonly pending?: boolean | undefined;
-  /** Client only: the send's command id, on a pending message. */
+  /**
+   * Client only: the send's command id — on a pending message, and on the
+   * server's message it settled into, which later reads of the same cache keep
+   * (`carryClientCommandIds`).
+   */
   readonly clientCommandId?: string | undefined;
 }
 
@@ -223,6 +227,58 @@ export interface SendMessageCommand {
   readonly text: string;
   /** One per send attempt, reused on a retry: a replay answers the first send's message. */
   readonly clientCommandId: string;
+}
+
+/**
+ * "Read" — `POST …/conversation/read`, the guest's or the floor's: the subject,
+ * and `upToUtc`, the `createdAtUtc` of the newest message the screen has
+ * shown (see {@link newestShownMessageUtc}). The server moves the read mark to
+ * `min(now, upToUtc)` and never back, so a message that arrived between the
+ * last poll and this call stays unread. Absent or `null`: now.
+ */
+export interface MarkConversationReadCommand extends ConversationSubjectRef {
+  readonly upToUtc?: string | null | undefined;
+}
+
+/**
+ * The `createdAtUtc` of the newest message the server sent that a thread
+ * shows — the read mark's `upToUtc`. A pending (optimistic) message is never
+ * it: its time is this device's clock, not the server's. `null` with none.
+ */
+export function newestShownMessageUtc(
+  messages: readonly Pick<ConversationMessage, 'createdAtUtc' | 'pending'>[],
+): string | null {
+  let newest: string | null = null;
+  let newestMs = Number.NEGATIVE_INFINITY;
+  for (const message of messages) {
+    if (message.pending) continue;
+    const ms = Date.parse(message.createdAtUtc);
+    if (Number.isNaN(ms) || ms < newestMs) continue;
+    newest = message.createdAtUtc;
+    newestMs = ms;
+  }
+  return newest;
+}
+
+/**
+ * How many of `author`'s messages a read up to `upToUtc` leaves unread — the
+ * ones after the mark — never more than the server's own count. With no
+ * `upToUtc` (a read up to now) nothing is left.
+ */
+export function unreadAfterMark(
+  messages: readonly Pick<ConversationMessage, 'author' | 'createdAtUtc' | 'pending'>[],
+  author: MessageAuthor,
+  upToUtc: string | null | undefined,
+  serverUnread: number,
+): number {
+  if (!upToUtc) return 0;
+  const mark = Date.parse(upToUtc);
+  if (Number.isNaN(mark)) return 0;
+  const after = messages.filter(
+    (message) =>
+      !message.pending && message.author === author && Date.parse(message.createdAtUtc) > mark,
+  ).length;
+  return Math.min(Math.max(0, serverUnread), after);
 }
 
 // ---------------------------------------------------------------------------
@@ -314,11 +370,16 @@ export interface StaffConversationListItem {
    * ("held until 19:45", cancelled). `null` when there is none.
    */
   readonly latestStatus: MessageStatus | null;
-  /** Guest messages nobody at the venue has read. */
+  /** Guest messages nobody at the venue has read — typed ones and answers. */
   readonly unreadFromGuest: number;
   /** The last message is the venue's ask, and the guest has not answered. */
   readonly awaitingGuestAnswer: boolean;
-  /** The oldest guest message after the venue's last one: the clock the reminder runs on. */
+  /**
+   * The oldest typed guest message after the venue's last one (a text or an
+   * ask), in a thread still open: the clock the reminder runs on, and what
+   * puts the row first and under "Unanswered". A guest's answer to "are you
+   * coming?" asks nothing back and never sets it — it is only unread.
+   */
   readonly oldestUnansweredGuestMessageUtc: string | null;
   readonly open: boolean;
 }
@@ -344,7 +405,9 @@ export interface BranchConversations {
 
 /** The floor state's message line: the rail's section and the header's badge, without a second call. */
 export interface FloorMessages {
+  /** Guest messages nobody at the venue has read — typed ones and answers. */
   readonly unreadTotal: number;
+  /** The oldest typed guest message waiting for an answer in an open thread; answers never wait. */
   readonly oldestUnansweredUtc: string | null;
 }
 
@@ -447,8 +510,25 @@ export const VENUE_MESSAGE_FEED_KIND = 'venue-message';
 export const VENUE_MESSAGE_PUSH_KIND = VENUE_MESSAGE_FEED_KIND;
 /** The push category of the venue's ask: actions "I'm coming", "Late 15 min", "Reply" (text). */
 export const VENUE_ASK_PUSH_CATEGORY = 'venue-ask';
+/**
+ * The venue's ask while the venue has `guestsCanWrite` off: the two answers
+ * ("I'm coming", "Late 15 min") and no Reply.
+ */
+export const VENUE_ASK_BUTTONS_PUSH_CATEGORY = 'venue-ask-buttons';
 /** The push category of any other venue message: "Reply" (text). */
 export const VENUE_MESSAGE_PUSH_CATEGORY = 'venue-message';
+/**
+ * Any other venue message while the venue has `guestsCanWrite` off: no
+ * actions at all — a tap opens the thread.
+ */
+export const VENUE_MESSAGE_READONLY_PUSH_CATEGORY = 'venue-message-readonly';
+/** Every category a venue-message push may carry; the app registers all four. */
+export const VENUE_MESSAGE_PUSH_CATEGORIES = [
+  VENUE_ASK_PUSH_CATEGORY,
+  VENUE_ASK_BUTTONS_PUSH_CATEGORY,
+  VENUE_MESSAGE_PUSH_CATEGORY,
+  VENUE_MESSAGE_READONLY_PUSH_CATEGORY,
+] as const;
 
 /** Whether a feed entry or a push is a venue message: a tap opens the thread. */
 export function isVenueMessageNotificationKind(kind: string | null | undefined): boolean {
@@ -627,8 +707,9 @@ export function hasUnansweredAsk(messages: readonly Pick<ConversationMessage, 'k
 }
 
 /**
- * The floor's reminder: a thread whose oldest unanswered guest message has
- * waited `remindAfterMinutes` or more. The tablet chimes and lifts these.
+ * The floor's reminder: a thread whose oldest unanswered typed guest message
+ * has waited `remindAfterMinutes` or more. The tablet chimes and lifts these;
+ * an answer to "are you coming?" never rings.
  */
 export function needsReminder(
   item: Pick<StaffConversationListItem, 'oldestUnansweredGuestMessageUtc'>,

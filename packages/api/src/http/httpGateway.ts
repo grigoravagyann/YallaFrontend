@@ -28,6 +28,7 @@ import type {
 import {
   dinerConversationFromWire,
   rethrowMessageRefusal,
+  markReadBody,
   sendMessageBody,
   sentMessageFromWire,
   unreadMessagesFromWire,
@@ -1242,13 +1243,10 @@ export function createHttpGateway(client: ApiClient, options: HttpGatewayOptions
       }
     },
 
-    async markConversationRead(subject): Promise<void> {
-      const id = encodeURIComponent(subject.id);
-      if (subject.kind === 'takeaway') {
-        await client.post(`/api/diner/takeaway-orders/${id}/conversation/read`);
-      } else {
-        await client.post(`/api/diner/reservations/${id}/conversation/read`);
-      }
+    async markConversationRead(command): Promise<void> {
+      const id = encodeURIComponent(command.id);
+      const segment = command.kind === 'takeaway' ? 'takeaway-orders' : 'reservations';
+      await client.post(`/api/diner/${segment}/${id}/conversation/read`, markReadBody(command));
     },
 
     async getUnreadMessages(): Promise<DinerUnreadMessages> {

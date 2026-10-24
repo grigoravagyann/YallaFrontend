@@ -3884,8 +3884,9 @@ export function createMockGateway(options: MockGatewayOptions = {}): MockGateway
       const segment = subject.kind === 'takeaway' ? 'takeaway-orders' : 'reservations';
       conversations.readAsGuest(
         `${URL_TAG}/api/diner/${segment}/${subject.id}/conversation/read`,
-        subject,
+        { kind: subject.kind, id: subject.id },
         me(),
+        subject.upToUtc,
       );
     },
 

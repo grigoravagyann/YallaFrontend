@@ -11,14 +11,16 @@ import {
 } from '@yalla/api';
 import { GatewayProvider } from '@yalla/api/react';
 import { I18nextProvider, i18next } from '@yalla/i18n';
-import { QueryClientProvider } from '@tanstack/react-query';
-import { act, cleanup, render, screen, waitFor, within } from '@testing-library/react';
+import { QueryClientProvider, type QueryClient } from '@tanstack/react-query';
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { useSyncExternalStore } from 'react';
 import { MemoryRouter } from 'react-router-dom';
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { initConsoleTestI18n } from '../console/venue/reports/testHarness';
 import type { StaffConversationListItem } from '@yalla/api';
+import { isNearBottom, messageKey } from './messages/MessageThread';
+import { railConversations } from './messages/MessagesRailSection';
 import { heldUntil, lastLine, shortName, statusText, templateDraft } from './messages/messageText';
 import { resetCommandStore } from './testCommandStore';
 import type * as CurrentUserModule from '../auth/useCurrentUser';
@@ -117,7 +119,7 @@ function gatewayWith(options: Partial<StaffMockOptions> = {}): StaffGateway {
   });
 }
 
-function renderAt(gateway: StaffGateway, path = '/staff'): void {
+function renderAt(gateway: StaffGateway, path = '/staff'): QueryClient {
   const queryClient = createQueryClient({ retry: false, mutationNetworkMode: 'always' });
   render(
     <I18nextProvider i18n={i18next}>
@@ -130,6 +132,7 @@ function renderAt(gateway: StaffGateway, path = '/staff'): void {
       </QueryClientProvider>
     </I18nextProvider>,
   );
+  return queryClient;
 }
 
 const setupUser = () => userEvent.setup({ delay: null });
@@ -258,6 +261,68 @@ describe('the words', () => {
   });
 });
 
+describe('the log and the rail, as rules', () => {
+  it('follows the newest message only while the reader is at it', () => {
+    // 1000 tall, 400 in view: at the end, and just above it.
+    expect(isNearBottom(600, 400, 1000)).toBe(true);
+    expect(isNearBottom(540, 400, 1000)).toBe(true);
+    // Scrolled up to read back.
+    expect(isNearBottom(200, 400, 1000)).toBe(false);
+  });
+
+  it('keys a sent message by its send, pending or settled', () => {
+    expect(messageKey({ id: 'pending:cmd-1', clientCommandId: 'cmd-1' })).toBe('cmd:cmd-1');
+    expect(messageKey({ id: 'm-9', clientCommandId: 'cmd-1' })).toBe('cmd:cmd-1');
+    expect(messageKey({ id: 'm-1' })).toBe('m-1');
+  });
+
+  it('keeps an answer on the rail while unread, and never makes it wait', () => {
+    const row = (
+      id: string,
+      overrides: Partial<StaffConversationListItem>,
+    ): StaffConversationListItem => ({
+      conversationId: `c-${id}`,
+      subject: {
+        kind: 'reservation',
+        id,
+        label: id,
+        guestName: 'Անի Մելքոնյան',
+        localTime: '19:30',
+        localDate: '2026-10-23',
+        partySize: 4,
+        itemCount: null,
+        totalAmd: null,
+      },
+      lastMessage: {
+        author: 'guest',
+        kind: 'answer',
+        text: null,
+        createdAtUtc: '2026-10-23T12:59:00Z',
+        staffName: null,
+        answer: { kind: 'late', lateMinutes: 15 },
+      },
+      latestStatus: null,
+      unreadFromGuest: 1,
+      awaitingGuestAnswer: false,
+      oldestUnansweredGuestMessageUtc: null,
+      open: true,
+      ...overrides,
+    });
+    const now = new Date('2026-10-23T13:00:00Z');
+    const unread = row('5', {});
+    const read = row('6', { unreadFromGuest: 0 });
+    const closed = row('7', { open: false });
+    const typed = row('8', {
+      lastMessage: { ...unread.lastMessage!, kind: 'text', text: 'Hi', answer: null },
+      oldestUnansweredGuestMessageUtc: '2026-10-23T12:50:00Z',
+      unreadFromGuest: 0,
+    });
+    expect(
+      railConversations([unread, read, closed, typed], 3, now).map((item) => item.subject.id),
+    ).toEqual(['8', '5']);
+  });
+});
+
 describe('the top bar', () => {
   it('has a Messages tab counting the guest messages nobody has read', async () => {
     signIn();
@@ -328,6 +393,20 @@ describe('the Now rail', () => {
     ).toBeTruthy();
   });
 
+  it('reads no thread of its own: every card is the inbox row', async () => {
+    signIn();
+    const gateway = gatewayWith();
+    const threads = vi.spyOn(gateway, 'getStaffConversation');
+    renderAt(gateway);
+
+    const card = await railCard(/^Table 5 · Անի Մ\./u);
+    // The answer and the held-until line from the row's lastMessage and latestStatus.
+    expect(within(card).getByText('“Running 15 minutes late”')).toBeTruthy();
+    expect(within(card).getByText(/^Table held until \d\d:\d\d$/u)).toBeTruthy();
+    expect(within(await railMessages()).getAllByRole('listitem')).toHaveLength(2);
+    expect(threads).not.toHaveBeenCalled();
+  });
+
   it('opens the Messages tab on the conversation from "Reply"', async () => {
     const user = setupUser();
     signIn();
@@ -384,12 +463,15 @@ describe('the Messages tab', () => {
     const list = conversations();
     const filters = within(list).getByRole('group', { name: 'Filter' });
     expect(within(filters).getByRole('button', { name: 'All · 4' })).toBeTruthy();
-    expect(within(filters).getByRole('button', { name: 'Unanswered · 2' })).toBeTruthy();
+    // Only a typed message waits: Ani's late answer is new, not unanswered.
+    expect(within(filters).getByRole('button', { name: 'Unanswered · 1' })).toBeTruthy();
     const rows = within(list).getAllByRole('listitem');
     expect(rows).toHaveLength(4);
     expect(rows[0]!.textContent).toMatch(/Կարեն Ս\. · T-485/u);
     expect(rows[0]!.textContent).toMatch(/Waiting \d+ min/u);
-    expect(rows[1]!.textContent).toMatch(/New · reply/u);
+    expect(
+      within(list).getByRole('button', { name: /^Table 5, Անի Մ\..*Guest answered$/u }),
+    ).toBeTruthy();
     expect(within(list).getByText('Waiting for their answer')).toBeTruthy();
     expect(within(list).getByText(/^You: Այո, սեղան 3-ը/u)).toBeTruthy();
     // Ani's late answer, with the time the table is held until — not "Booking updated".
@@ -400,8 +482,8 @@ describe('the Messages tab', () => {
 
     await user.click(within(filters).getByRole('button', { name: 'Takeaway' }));
     expect(within(list).getAllByRole('listitem')).toHaveLength(1);
-    await user.click(within(filters).getByRole('button', { name: 'Unanswered · 2' }));
-    expect(within(list).getAllByRole('listitem')).toHaveLength(2);
+    await user.click(within(filters).getByRole('button', { name: 'Unanswered · 1' }));
+    expect(within(list).getAllByRole('listitem')).toHaveLength(1);
   });
 
   it('opens at /staff/messages on the first conversation, a takeaway order with no ask', async () => {
@@ -442,11 +524,20 @@ describe('the Messages tab', () => {
   it('keeps the conversation it opened on when an answer moves it down the list', async () => {
     const user = setupUser();
     signIn();
-    renderAt(gatewayWith(), '/staff/messages');
+    const gateway = gatewayWith();
+    const list = gateway.listConversations.bind(gateway);
+    let answered = false;
+    // Once Karen is answered, another guest's typed message waits longer: hers moves down.
+    vi.spyOn(gateway, 'listConversations').mockImplementation(async (branchId) => {
+      const inbox = await list(branchId);
+      return answered ? { ...inbox, items: [...inbox.items].reverse() } : inbox;
+    });
+    renderAt(gateway, '/staff/messages');
 
     const pane = await thread(/^Կարեն Ս\. · T-485$/u);
     const field = await within(pane).findByRole('textbox', { name: 'Message to the guest' });
     await user.type(field, 'Yes, come at 18:40');
+    answered = true;
     await user.click(within(pane).getByRole('button', { name: 'Send' }));
 
     // Answered, Karen's row leaves the top of the list…
@@ -510,13 +601,97 @@ describe('the Messages tab', () => {
     const read = vi.spyOn(gateway, 'markStaffConversationRead');
     renderAt(gateway, '/staff/messages');
     await thread(/^Կարեն Ս\. · T-485$/u);
+    // Up to the newest message the pane shows, so one arriving meanwhile stays unread.
     await waitFor(() =>
-      expect(read).toHaveBeenCalledWith({ kind: 'takeaway', id: 'tk-msg-karen' }),
+      expect(read).toHaveBeenCalledWith({
+        kind: 'takeaway',
+        id: 'tk-msg-karen',
+        upToUtc: expect.stringMatching(/^\d{4}-\d\d-\d\dT/u),
+      }),
     );
     // The badge loses Karen's.
     expect(
       await within(await views()).findByRole('button', { name: 'Messages, 1 new message' }),
     ).toBeTruthy();
+  });
+
+  it('stays where the reader scrolled up to, and says "New message ↓" when one comes', async () => {
+    signIn();
+    const gateway = gatewayWith();
+    const queryClient = renderAt(gateway, '/staff/messages');
+    const pane = await thread(/^Կարեն Ս\. · T-485$/u);
+    const log = within(pane).getByRole('log', { name: 'Messages' });
+    await within(log).findByText('Կարո՞ղ եմ 10 րոպե շուտ գալ վերցնելու');
+
+    // Scrolled up to read back: 1000 tall, 400 in view, at the top.
+    Object.defineProperty(log, 'scrollHeight', { configurable: true, value: 1000 });
+    Object.defineProperty(log, 'clientHeight', { configurable: true, value: 400 });
+    log.scrollTop = 0;
+    fireEvent.scroll(log);
+
+    const read = gateway.getStaffConversation.bind(gateway);
+    vi.spyOn(gateway, 'getStaffConversation').mockImplementation(async (subject) => {
+      const found = await read(subject);
+      return found
+        ? {
+            ...found,
+            messages: [
+              ...found.messages,
+              {
+                id: 'm-new',
+                author: 'guest',
+                kind: 'text',
+                text: 'I am outside',
+                answer: null,
+                status: null,
+                createdAtUtc: new Date().toISOString(),
+                staffName: null,
+              },
+            ],
+          }
+        : found;
+    });
+    await act(() => queryClient.invalidateQueries());
+    expect(await within(log).findByText('I am outside')).toBeTruthy();
+
+    const pill = await within(pane).findByRole('button', {
+      name: 'New message. Show the newest',
+    });
+    expect(pill.textContent).toBe('New message ↓');
+    expect(pill.className).toMatch(/msg-new-below/u);
+    fireEvent.click(pill);
+    expect(within(pane).queryByRole('button', { name: 'New message. Show the newest' })).toBeNull();
+  });
+
+  it('keeps the bubble of a sent message the same element from pending to sent', async () => {
+    const user = setupUser();
+    signIn();
+    const gateway = gatewayWith();
+    const send = gateway.sendStaffMessage.bind(gateway);
+    let release: () => void = () => undefined;
+    vi.spyOn(gateway, 'sendStaffMessage').mockImplementation(
+      (command) =>
+        new Promise((resolve, reject) => {
+          release = () => void send(command).then(resolve, reject);
+        }),
+    );
+    const queryClient = renderAt(gateway, '/staff/messages');
+    const pane = await thread(/^Կարեն Ս\. · T-485$/u);
+    const log = within(pane).getByRole('log', { name: 'Messages' });
+    const field = await within(pane).findByRole('textbox', { name: 'Message to the guest' });
+    await user.type(field, 'Yes, come at 18:40');
+    await user.click(within(pane).getByRole('button', { name: 'Send' }));
+
+    // Pending: the live region gets the bubble once…
+    const bubble = await within(log).findByText('Yes, come at 18:40');
+    expect(within(log).getByText(/Sending…/u)).toBeTruthy();
+    release();
+    await waitFor(() => expect(within(log).queryByText(/Sending…/u)).toBeNull());
+    // …and the server's message is the same element, not a new one to announce.
+    expect(within(log).getByText('Yes, come at 18:40')).toBe(bubble);
+    // Still the same after the next read, which no longer carries the command id.
+    await act(() => queryClient.invalidateQueries());
+    await waitFor(() => expect(within(log).getByText('Yes, come at 18:40')).toBe(bubble));
   });
 
   it('gives the text back and says why when a send is refused', async () => {

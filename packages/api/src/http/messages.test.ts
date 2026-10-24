@@ -507,6 +507,26 @@ describe("the guest's routes", () => {
     expect(send?.body).toEqual({ text: 'Hi', clientCommandId: COMMAND });
   });
 
+  it('marks read up to the newest message shown, and up to now with none', async () => {
+    const { backend, gateway } = dinerOver({
+      [`POST /api/diner/reservations/${RESERVATION}/conversation/read`]: { status: 204 },
+      [`POST /api/diner/takeaway-orders/${ORDER}/conversation/read`]: { status: 204 },
+    });
+    await gateway.markConversationRead({
+      kind: 'reservation',
+      id: RESERVATION,
+      upToUtc: '2026-10-23T14:32:00Z',
+    });
+    await gateway.markConversationRead({ kind: 'takeaway', id: ORDER });
+    expect(backend.requests.map((request) => [request.path, request.body ?? null])).toEqual([
+      [
+        `/api/diner/reservations/${RESERVATION}/conversation/read`,
+        { upToUtc: '2026-10-23T14:32:00Z' },
+      ],
+      [`/api/diner/takeaway-orders/${ORDER}/conversation/read`, null],
+    ]);
+  });
+
   it("answers somebody else's thread as none", async () => {
     const { gateway } = dinerOver({});
     expect(await gateway.getConversation({ kind: 'reservation', id: RESERVATION })).toBeNull();
@@ -666,10 +686,16 @@ describe("the floor's routes", () => {
         clientCommandId: COMMAND,
       }),
     ).toMatchObject({ staffName: 'Արամ', conversationId: 'c-2', wasReplay: false });
-    await gateway.markStaffConversationRead({ kind: 'takeaway', id: ORDER });
-    expect(backend.requests.map((request) => `${request.method} ${request.path}`)).toContain(
-      `POST /api/takeaway-orders/${ORDER}/conversation/read`,
+    await gateway.markStaffConversationRead({
+      kind: 'takeaway',
+      id: ORDER,
+      upToUtc: '2026-10-23T14:41:00Z',
+    });
+    const read = backend.requests.find(
+      (request) => request.path === `/api/takeaway-orders/${ORDER}/conversation/read`,
     );
+    expect(read?.method).toBe('POST');
+    expect(read?.body).toEqual({ upToUtc: '2026-10-23T14:41:00Z' });
   });
 
   it.each([

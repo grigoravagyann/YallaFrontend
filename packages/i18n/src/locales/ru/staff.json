@@ -1338,6 +1338,7 @@
       "you": "Вы: {{text}}",
       "lastHeld": "{{text}} · держим до {{time}}",
       "tag": {
+        "newAnswer": "Гость ответил",
         "new": "Новое · ответить",
         "waiting": "Ждём ответа",
         "answered": "Отвечено",
@@ -1354,6 +1355,8 @@
     },
     "thread": {
       "log": "Сообщения",
+      "newMessage": "Новое сообщение ↓",
+      "newMessageLabel": "Новое сообщение. Показать последнее",
       "today": "сегодня {{time}}",
       "tomorrow": "завтра {{time}}",
       "dated": "{{date}}, {{time}}",

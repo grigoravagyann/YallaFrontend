@@ -3,6 +3,7 @@ import { NetworkError, NotFoundError, ValidationError } from '../errors';
 import { ConversationClosedError, GuestsCannotWriteError, WaitersCannotWriteError } from './errors';
 import { messageFailure } from './messageFailure';
 import {
+  VENUE_MESSAGE_PUSH_CATEGORIES,
   compareConversationItems,
   conversationClosesAtUtc,
   filterConversations,
@@ -12,9 +13,11 @@ import {
   messageSettingsViolations,
   messageViolations,
   needsReminder,
+  newestShownMessageUtc,
   seenByGuest,
   seenByVenue,
   staffMayWrite,
+  unreadAfterMark,
   venueMessageFeedSubject,
   venueMessagePushTarget,
   type StaffConversationListItem,
@@ -289,5 +292,49 @@ describe('a failure, as the kind of sentence to show', () => {
       kind: 'invalid',
       violations: [{ field: 'text', message: 'Too long.', bound: 'max', max: 500 }],
     });
+  });
+});
+
+describe('the read mark', () => {
+  const at = (createdAtUtc: string, author: 'guest' | 'venue' = 'venue', pending = false) => ({
+    createdAtUtc,
+    author,
+    ...(pending ? { pending: true } : {}),
+  });
+
+  it("is the newest message the server sent, never a pending one's", () => {
+    expect(
+      newestShownMessageUtc([
+        at('2026-10-23T14:31:00Z'),
+        at('2026-10-23T14:35:00Z', 'guest'),
+        at('2026-10-23T14:40:00Z', 'guest', true),
+      ]),
+    ).toBe('2026-10-23T14:35:00Z');
+    expect(newestShownMessageUtc([at('2026-10-23T14:40:00Z', 'guest', true)])).toBeNull();
+    expect(newestShownMessageUtc([])).toBeNull();
+  });
+
+  it("leaves the other side's messages after it unread, never more than the server counted", () => {
+    const messages = [
+      at('2026-10-23T14:31:00Z'),
+      at('2026-10-23T14:36:00Z'),
+      at('2026-10-23T14:37:00Z', 'guest'),
+    ];
+    expect(unreadAfterMark(messages, 'venue', '2026-10-23T14:31:00Z', 2)).toBe(1);
+    expect(unreadAfterMark(messages, 'venue', '2026-10-23T14:31:00Z', 0)).toBe(0);
+    expect(unreadAfterMark(messages, 'venue', '2026-10-23T14:36:00Z', 2)).toBe(0);
+    // Up to now: nothing is left.
+    expect(unreadAfterMark(messages, 'venue', null, 2)).toBe(0);
+  });
+});
+
+describe('the push categories', () => {
+  it('names all four a venue message may carry', () => {
+    expect([...VENUE_MESSAGE_PUSH_CATEGORIES]).toEqual([
+      'venue-ask',
+      'venue-ask-buttons',
+      'venue-message',
+      'venue-message-readonly',
+    ]);
   });
 });

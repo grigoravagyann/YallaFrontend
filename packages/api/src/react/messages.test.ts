@@ -21,6 +21,7 @@ import {
   afterStaffConversationRead,
   afterVenueAsked,
   appendPendingMessage,
+  carryClientCommandIds,
   conversationPollMs,
   dropPendingMessage,
   markConversationReadOptions,
@@ -153,6 +154,32 @@ describe('the optimistic append', () => {
     // The first message makes the thread: the answer names it.
     const unborn = { ...THREAD, conversationId: null, messages: [pending] };
     expect(settleSentMessage(unborn, COMMAND, SENT)?.conversationId).toBe('c-1');
+  });
+
+  it("keeps the send's command id on the server's message, so a screen keys it as before", () => {
+    const pending = pendingMessage(COMMAND_SEND, 'venue');
+    const settled = settleSentMessage(appendPendingMessage(THREAD, pending), COMMAND, SENT)!;
+    expect(settled.messages.at(-1)).toMatchObject({ id: 'm-2', clientCommandId: COMMAND });
+    expect(settled.messages.at(-1)?.pending).toBeUndefined();
+    // A read brought it first: that one carries the id now.
+    const raced = { ...THREAD, messages: [...THREAD.messages, SENT, pending] };
+    expect(settleSentMessage(raced, COMMAND, SENT)!.messages.at(-1)).toMatchObject({
+      id: 'm-2',
+      clientCommandId: COMMAND,
+    });
+  });
+
+  it('keeps the command id on that message through the reads after, which never send it', () => {
+    const settled = {
+      ...THREAD,
+      messages: [...THREAD.messages, { ...SENT, clientCommandId: COMMAND }],
+    };
+    const polled = { ...THREAD, messages: [...THREAD.messages, SENT] };
+    expect(carryClientCommandIds(settled, polled)?.messages.at(-1)?.clientCommandId).toBe(COMMAND);
+    expect(carryClientCommandIds(settled, polled)?.messages[0]).toBe(THREAD.messages[0]);
+    // Nothing to carry: the read as it came.
+    expect(carryClientCommandIds(THREAD, polled)).toBe(polled);
+    expect(carryClientCommandIds(undefined, polled)).toBe(polled);
   });
 
   it('pauses the poll while a send is in flight, and when the thread is not in front', () => {
@@ -332,6 +359,60 @@ describe('reading', () => {
     expect(invalidated(queryClient, queryKeys.booking('r-1'))).toBe(true);
   });
 
+  it('reads up to the newest message shown: a venue message after the mark stays unread', async () => {
+    const queryClient = client();
+    const later = {
+      ...THREAD.messages[0]!,
+      id: 'm-3',
+      kind: 'text' as const,
+      text: 'Սեղանը պատրաստ է',
+      createdAtUtc: '2026-10-23T14:36:00Z',
+    };
+    queryClient.setQueryData(queryKeys.dinerConversation('reservation', 'r-1'), {
+      ...THREAD,
+      messages: [...THREAD.messages, later],
+    });
+    queryClient.setQueryData<DinerUnreadMessages>(queryKeys.unreadMessages, {
+      total: 2,
+      items: [
+        {
+          conversationId: 'c-1',
+          subjectKind: 'reservation',
+          subjectId: 'r-1',
+          venueName: 'Լավա ռեստորան',
+          unread: 2,
+          lastText: 'Սեղանը պատրաստ է',
+          lastKind: 'text',
+          lastAuthor: 'venue',
+          lastAtUtc: '2026-10-23T14:36:00Z',
+          open: true,
+        },
+      ],
+    });
+    const sent: unknown[] = [];
+    const gateway = {
+      markConversationRead: (command: unknown) => {
+        sent.push(command);
+        return Promise.resolve();
+      },
+    } as unknown as YallaGateway;
+
+    const observer = new MutationObserver(
+      queryClient,
+      markConversationReadOptions(queryClient, gateway),
+    );
+    await observer.mutate({ ...BOOKING, upToUtc: '2026-10-23T14:31:00Z' });
+
+    expect(sent).toEqual([{ ...BOOKING, upToUtc: '2026-10-23T14:31:00Z' }]);
+    expect(
+      queryClient.getQueryData<DinerConversation>(queryKeys.dinerConversation('reservation', 'r-1'))
+        ?.unreadCount,
+    ).toBe(1);
+    const summary = queryClient.getQueryData<DinerUnreadMessages>(queryKeys.unreadMessages)!;
+    expect(summary.total).toBe(1);
+    expect(summary.items[0]?.unread).toBe(1);
+  });
+
   it('leaves a summary with nothing to clear as it was', () => {
     const queryClient = client();
     const summary: DinerUnreadMessages = { total: 0, items: [] };
@@ -386,6 +467,66 @@ describe('reading', () => {
     ).toBe(0);
     expect(invalidated(queryClient, queryKeys.staffConversations(BRANCH))).toBe(true);
     expect(invalidated(queryClient, queryKeys.staffFloor(BRANCH))).toBe(true);
+  });
+
+  it("keeps a guest message after the floor's mark unread on the row and the badge", () => {
+    const queryClient = client();
+    const guest = (id: string, at: string) => ({
+      id,
+      author: 'guest' as const,
+      kind: 'text' as const,
+      text: 'Բարև',
+      answer: null,
+      status: null,
+      createdAtUtc: at,
+      staffName: null,
+    });
+    queryClient.setQueryData<StaffConversation>(queryKeys.staffConversation('reservation', 'r-1'), {
+      ...STAFF_THREAD,
+      unreadCount: 2,
+      messages: [guest('g-1', '2026-10-23T14:32:00Z'), guest('g-2', '2026-10-23T14:38:00Z')],
+    });
+    queryClient.setQueryData<BranchConversations>(queryKeys.staffConversations(BRANCH), {
+      items: [
+        {
+          conversationId: 'c-1',
+          subject: {
+            kind: 'reservation',
+            id: 'r-1',
+            label: '6',
+            guestName: 'Անի Մ.',
+            localTime: '19:30',
+            localDate: '2026-10-23',
+            partySize: 4,
+            itemCount: null,
+            totalAmd: null,
+          },
+          lastMessage: null,
+          latestStatus: null,
+          unreadFromGuest: 2,
+          awaitingGuestAnswer: false,
+          oldestUnansweredGuestMessageUtc: '2026-10-23T14:32:00Z',
+          open: true,
+        },
+      ],
+      unreadTotal: 2,
+      remindAfterMinutes: 3,
+      templates: null,
+      waitersCanWrite: true,
+      asOfUtc: '2026-10-23T14:38:00Z',
+    });
+
+    afterStaffConversationRead(queryClient, BRANCH, BOOKING, '2026-10-23T14:32:00Z');
+
+    expect(
+      queryClient.getQueryData<StaffConversation>(queryKeys.staffConversation('reservation', 'r-1'))
+        ?.unreadCount,
+    ).toBe(1);
+    const inbox = queryClient.getQueryData<BranchConversations>(
+      queryKeys.staffConversations(BRANCH),
+    )!;
+    expect(inbox.items[0]?.unreadFromGuest).toBe(1);
+    expect(inbox.unreadTotal).toBe(1);
   });
 });
 

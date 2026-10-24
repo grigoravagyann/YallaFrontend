@@ -3042,7 +3042,7 @@ export function createStaffMockGateway(options: StaffMockOptions = {}): StaffGat
     async markStaffConversationRead(subject): Promise<void> {
       const url = conversationUrl(subject, '/read');
       requireSession(url);
-      conversations.readAsVenue(url, subject);
+      conversations.readAsVenue(url, { kind: subject.kind, id: subject.id }, subject.upToUtc);
       return settle(undefined);
     },
 

@@ -168,16 +168,20 @@ function InboxRow({
   readonly onPick: () => void;
 }) {
   const { t } = useTranslation(['staff', 'common']);
+  // Only a typed guest message waits for a reply; an answer to "are you
+  // coming?" asks nothing back, and is only new until somebody reads it.
   const unanswered = item.oldestUnansweredGuestMessageUtc !== null;
   const tag = unanswered
     ? reminded
       ? { text: t('messages.inbox.tag.late', { count: waitingMinutes }), tone: 'urgent' }
       : { text: t('messages.inbox.tag.new'), tone: 'new' }
-    : item.awaitingGuestAnswer
-      ? { text: t('messages.inbox.tag.waiting'), tone: 'waiting' }
-      : !item.open
-        ? { text: t('messages.inbox.tag.closed'), tone: 'quiet' }
-        : { text: t('messages.inbox.tag.answered'), tone: 'quiet' };
+    : item.unreadFromGuest > 0 && item.lastMessage?.kind === 'answer'
+      ? { text: t('messages.inbox.tag.newAnswer'), tone: 'new' }
+      : item.awaitingGuestAnswer
+        ? { text: t('messages.inbox.tag.waiting'), tone: 'waiting' }
+        : !item.open
+          ? { text: t('messages.inbox.tag.closed'), tone: 'quiet' }
+          : { text: t('messages.inbox.tag.answered'), tone: 'quiet' };
   const title = rowTitle(t, item);
   const last = lastLine(t, item);
   // Said in the order it is read, with the pauses the layout gives the eye.

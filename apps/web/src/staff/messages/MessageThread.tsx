@@ -5,6 +5,7 @@ import {
   messageViolations,
   newCommandId,
   seenByGuest,
+  type ConversationMessage,
   type ConversationSubjectRef,
   type StaffConversation,
   type StaffConversationListItem,
@@ -84,6 +85,13 @@ export function MessageThread({
   const [askNote, setAskNote] = useState<string | null>(null);
   /** The last send that never got an answer: the same text again reuses its id (`wasReplay`). */
   const lost = useRef<{ readonly text: string; readonly id: string } | null>(null);
+  /**
+   * The reader is at the newest message (or has just sent): what arrives is
+   * scrolled to. Scrolled up to read back, they stay there and "New message
+   * ↓" says something came.
+   */
+  const atBottom = useRef(true);
+  const [newBelow, setNewBelow] = useState(false);
 
   const messages = thread?.messages ?? [];
   const lastId = messages.at(-1)?.id ?? null;
@@ -91,16 +99,37 @@ export function MessageThread({
   useMarkReadWhenSeen({
     subject,
     unread: thread?.unreadCount ?? 0,
-    lastMessageId: lastId,
+    messages,
     active: active && thread !== null,
     markRead: read.mutate,
   });
 
-  // The newest message in view, as a chat opens.
+  // The newest message in view, as a chat opens and as messages arrive —
+  // unless the reader has scrolled up: then the pill, and they stay put.
+  const seenLast = useRef<string | null>(null);
   useEffect(() => {
     const element = log.current;
-    if (element) element.scrollTop = element.scrollHeight;
+    if (!element) return;
+    const arrived = seenLast.current !== null && lastId !== seenLast.current;
+    seenLast.current = lastId;
+    if (atBottom.current) element.scrollTop = element.scrollHeight;
+    else if (arrived) setNewBelow(true);
   }, [lastId, messages.length]);
+
+  function onLogScroll() {
+    const element = log.current;
+    if (!element) return;
+    const near = isNearBottom(element.scrollTop, element.clientHeight, element.scrollHeight);
+    atBottom.current = near;
+    if (near) setNewBelow(false);
+  }
+
+  function toNewest() {
+    const element = log.current;
+    atBottom.current = true;
+    setNewBelow(false);
+    if (element) element.scrollTop = element.scrollHeight;
+  }
 
   const guestName = thread?.guestName ?? item?.subject.guestName ?? '';
   // The thread's own `guestPhone`, for Call only and never printed; empty for
@@ -124,6 +153,9 @@ export function MessageThread({
     const clientCommandId = lost.current?.text === text ? lost.current.id : newCommandId();
     setFailure(null);
     setDraft('');
+    // Their own words are always brought into view.
+    atBottom.current = true;
+    setNewBelow(false);
     send.mutate(
       { subject, text, clientCommandId },
       {
@@ -203,57 +235,71 @@ export function MessageThread({
         </p>
       ) : null}
 
-      <div
-        ref={log}
-        className="msg-log"
-        role="log"
-        aria-live="polite"
-        aria-label={t('messages.thread.log')}
-      >
-        {query.isError && !thread ? (
-          <p className="ft-rail-empty is-failed">{t('messages.thread.unreachable')}</p>
-        ) : query.isSuccess && thread === null ? (
-          <p className="ft-rail-empty">{t('messages.thread.gone')}</p>
-        ) : !thread ? (
-          <p className="ft-rail-empty">{t('floor.loading')}</p>
-        ) : (
-          messages.map((message) => {
-            const body = messageBody(t, message, localTime);
-            if (message.author === 'system') {
+      <div className="msg-log-wrap">
+        <div
+          ref={log}
+          className="msg-log"
+          role="log"
+          aria-live="polite"
+          aria-label={t('messages.thread.log')}
+          onScroll={onLogScroll}
+        >
+          {query.isError && !thread ? (
+            <p className="ft-rail-empty is-failed">{t('messages.thread.unreachable')}</p>
+          ) : query.isSuccess && thread === null ? (
+            <p className="ft-rail-empty">{t('messages.thread.gone')}</p>
+          ) : !thread ? (
+            <p className="ft-rail-empty">{t('floor.loading')}</p>
+          ) : (
+            messages.map((message) => {
+              const body = messageBody(t, message, localTime);
+              const key = messageKey(message);
+              if (message.author === 'system') {
+                return (
+                  <p key={key} className="msg-system">
+                    {body}
+                  </p>
+                );
+              }
+              const venue = message.author === 'venue';
+              const who = venue
+                ? message.staffName
+                  ? firstName(message.staffName)
+                  : t('messages.thread.venue')
+                : firstName(guestName);
+              const meta = [
+                t('messages.thread.meta', { name: who, time: format.time(message.createdAtUtc) }),
+                message.kind === 'askComing' ? t('messages.thread.askMeta') : null,
+                message.pending ? t('messages.thread.sending') : null,
+                message.id === lastSeenId ? t('messages.thread.seen') : null,
+              ]
+                .filter(Boolean)
+                .join(' · ');
               return (
-                <p key={message.id} className="msg-system">
-                  {body}
-                </p>
-              );
-            }
-            const venue = message.author === 'venue';
-            const who = venue
-              ? message.staffName
-                ? firstName(message.staffName)
-                : t('messages.thread.venue')
-              : firstName(guestName);
-            const meta = [
-              t('messages.thread.meta', { name: who, time: format.time(message.createdAtUtc) }),
-              message.kind === 'askComing' ? t('messages.thread.askMeta') : null,
-              message.pending ? t('messages.thread.sending') : null,
-              message.id === lastSeenId ? t('messages.thread.seen') : null,
-            ]
-              .filter(Boolean)
-              .join(' · ');
-            return (
-              <div
-                key={message.id}
-                className={`msg-row ${venue ? 'is-venue' : 'is-guest'}`}
-                data-pending={message.pending ? 'true' : undefined}
-              >
-                <div className={`msg-bubble${message.kind === 'askComing' ? ' is-ask' : ''}`}>
-                  {body}
+                <div
+                  key={key}
+                  className={`msg-row ${venue ? 'is-venue' : 'is-guest'}`}
+                  data-pending={message.pending ? 'true' : undefined}
+                >
+                  <div className={`msg-bubble${message.kind === 'askComing' ? ' is-ask' : ''}`}>
+                    {body}
+                  </div>
+                  <span className="msg-meta">{meta}</span>
                 </div>
-                <span className="msg-meta">{meta}</span>
-              </div>
-            );
-          })
-        )}
+              );
+            })
+          )}
+        </div>
+        {newBelow ? (
+          <button
+            type="button"
+            className="ft-btn ft-btn-primary msg-new-below"
+            aria-label={t('messages.thread.newMessageLabel')}
+            onClick={toNewest}
+          >
+            {t('messages.thread.newMessage')}
+          </button>
+        ) : null}
       </div>
 
       <div className="msg-compose">
@@ -319,6 +365,29 @@ export function MessageThread({
       </div>
     </section>
   );
+}
+
+/** Within this many pixels of the end counts as at the newest message. */
+const NEAR_BOTTOM_PX = 80;
+
+/** The log is scrolled to (about) its end. */
+export function isNearBottom(
+  scrollTop: number,
+  viewHeight: number,
+  contentHeight: number,
+): boolean {
+  return contentHeight - (scrollTop + viewHeight) <= NEAR_BOTTOM_PX;
+}
+
+/**
+ * A message's React key, the same from its pending bubble to the server's
+ * message and every read after: the send's `clientCommandId`, which the cache
+ * keeps on the settled message (`settleSentMessage`, `carryClientCommandIds`),
+ * else the message's id. A changed key would remount the bubble, and the log's
+ * live region would say the person's own words again.
+ */
+export function messageKey(message: Pick<ConversationMessage, 'id' | 'clientCommandId'>): string {
+  return message.clientCommandId ? `cmd:${message.clientCommandId}` : message.id;
 }
 
 /** "Table 6 · today 19:30 · 4 guests", "Takeaway · ready 19:25". */

@@ -1625,7 +1625,6 @@ export function FloorRoute({ identity, device = null, paused }: FloorRouteProps)
                 staffName={identity.fullName}
                 timeZoneId={timeZoneId}
                 online={queue.online}
-                visible={active && view === 'floor' && !panelOpen}
                 failed={inboxQuery.isError && !inboxQuery.data}
                 icon={ICONS.chat}
                 onReply={openConversation}

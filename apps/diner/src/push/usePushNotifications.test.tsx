@@ -89,13 +89,19 @@ describe('the tap that opened the app', () => {
  * does not go through opens the thread, the reply's words in its field.
  */
 describe("a venue message's buttons", () => {
-  function respond(actionIdentifier: string, userText?: string, signedIn = true) {
+  function respond(
+    actionIdentifier: string,
+    userText?: string,
+    signedIn = true,
+    categoryIdentifier = 'venue-ask',
+  ) {
     notifications.getLastNotificationResponseAsync.mockResolvedValue({
       actionIdentifier,
       ...(userText === undefined ? {} : { userText }),
       notification: {
         request: {
           content: {
+            categoryIdentifier,
             data: {
               kind: 'venue-message',
               conversationId: 'c1',
@@ -158,6 +164,29 @@ describe("a venue message's buttons", () => {
       }),
     );
     expect(gateway.confirmOnMyWay).not.toHaveBeenCalled();
+  });
+
+  it("'I'm coming' from the Reply-less ask (venue-ask-buttons) answers the same way", async () => {
+    gateway.confirmOnMyWay.mockResolvedValue({ wasReplay: false });
+    respond('venue-ask-coming', undefined, true, 'venue-ask-buttons');
+    await waitFor(() => expect(gateway.confirmOnMyWay).toHaveBeenCalledWith('r-1'));
+    expect(router.push).not.toHaveBeenCalled();
+  });
+
+  it('a read-only venue message (venue-message-readonly) opens its thread on a tap', async () => {
+    respond(
+      'expo.modules.notifications.actions.DEFAULT',
+      undefined,
+      true,
+      'venue-message-readonly',
+    );
+    await waitFor(() =>
+      expect(router.push).toHaveBeenCalledWith({
+        pathname: '/messages/reservation/[id]',
+        params: { id: 'r-1' },
+      }),
+    );
+    expect(gateway.sendGuestMessage).not.toHaveBeenCalled();
   });
 
   it('sends nothing as nobody: signed out, the thread opens with the words', async () => {

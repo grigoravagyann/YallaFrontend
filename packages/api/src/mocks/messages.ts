@@ -307,16 +307,32 @@ export function createMockConversationBook(options: MockConversationBookOptions)
     return after(shown(record), record.venueLastReadUtc).filter((m) => m.author === 'guest').length;
   }
 
-  /** The oldest guest message after the venue's last one. */
+  /**
+   * The oldest typed guest message after the venue's last one (a text or an
+   * ask). A guest's answer to "are you coming?" asks nothing back: it never
+   * waits, and is only unread until somebody opens the thread.
+   */
   function oldestUnanswered(record: MockConversationRecord): string | null {
     const messages = shown(record);
     let oldest: string | null = null;
     for (let index = messages.length - 1; index >= 0; index -= 1) {
       const message = messages[index]!;
       if (message.author === 'venue') break;
-      if (message.author === 'guest') oldest = message.createdAtUtc;
+      if (message.author === 'guest' && message.kind === 'text') oldest = message.createdAtUtc;
     }
     return oldest;
+  }
+
+  /**
+   * The read mark a `…/conversation/read` leaves: `upToUtc` (the newest
+   * message the screen showed), never past now and never back.
+   */
+  function movedMark(current: string | null, upToUtc: string | null | undefined): string {
+    const t = now().getTime();
+    const asked = upToUtc ? Date.parse(upToUtc) : Number.NaN;
+    const to = Number.isNaN(asked) ? t : Math.min(t, asked);
+    if (current !== null && Date.parse(current) >= to) return current;
+    return iso(to);
   }
 
   function guestOwns(info: MockConversationSubjectInfo, actor: string | null): boolean {
@@ -655,11 +671,16 @@ export function createMockConversationBook(options: MockConversationBookOptions)
     },
 
     /** `POST …/conversation/read`: nothing to read is a success. */
-    readAsGuest(url: string, ref: ConversationSubjectRef, actor: string | null): void {
+    readAsGuest(
+      url: string,
+      ref: ConversationSubjectRef,
+      actor: string | null,
+      upToUtc?: string | null,
+    ): void {
       const info = options.subject(ref);
       if (!info || !guestOwns(info, actor)) throw new NotFoundError({ url });
       const record = records.get(mapKey(ref));
-      if (record) record.guestLastReadUtc = now().toISOString();
+      if (record) record.guestLastReadUtc = movedMark(record.guestLastReadUtc, upToUtc);
     },
 
     /** `GET /api/diner/messages/unread`: open threads, and closed ones with unread messages. */
@@ -797,10 +818,10 @@ export function createMockConversationBook(options: MockConversationBookOptions)
     },
 
     /** `POST …/conversation/read` from the floor: anybody's read counts for the venue. */
-    readAsVenue(url: string, ref: ConversationSubjectRef): void {
+    readAsVenue(url: string, ref: ConversationSubjectRef, upToUtc?: string | null): void {
       if (!options.subject(ref)) throw new NotFoundError({ url });
       const record = records.get(mapKey(ref));
-      if (record) record.venueLastReadUtc = now().toISOString();
+      if (record) record.venueLastReadUtc = movedMark(record.venueLastReadUtc, upToUtc);
     },
 
     // --- What the other endpoints add to a thread ---------------------------------

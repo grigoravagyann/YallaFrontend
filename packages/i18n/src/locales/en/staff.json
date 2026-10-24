@@ -1182,6 +1182,7 @@
       "you": "You: {{text}}",
       "lastHeld": "{{text}} · held until {{time}}",
       "tag": {
+        "newAnswer": "Guest answered",
         "new": "New · reply",
         "waiting": "Waiting for their answer",
         "answered": "Answered",
@@ -1196,6 +1197,8 @@
     },
     "thread": {
       "log": "Messages",
+      "newMessage": "New message ↓",
+      "newMessageLabel": "New message. Show the newest",
       "today": "today {{time}}",
       "tomorrow": "tomorrow {{time}}",
       "dated": "{{date}}, {{time}}",

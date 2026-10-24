@@ -173,6 +173,7 @@ export {
   afterVenueAsked,
   appendPendingMessage,
   branchConversationsOptions,
+  carryClientCommandIds,
   conversationPollMs,
   dinerConversationOptions,
   dropPendingMessage,

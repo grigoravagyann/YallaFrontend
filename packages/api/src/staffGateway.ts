@@ -13,6 +13,7 @@ import type { AskOnMyWayResult } from './contracts/onMyWay';
 import type {
   BranchConversations,
   ConversationSubjectRef,
+  MarkConversationReadCommand,
   SendMessageCommand,
   SentMessage,
   StaffConversation,
@@ -307,8 +308,12 @@ export interface StaffGateway {
    */
   sendStaffMessage(command: SendMessageCommand): Promise<SentMessage>;
 
-  /** "The venue has read it" — `POST …/conversation/read`; anybody's read counts for the venue. */
-  markStaffConversationRead(subject: ConversationSubjectRef): Promise<void>;
+  /**
+   * "The venue has read it" — `POST …/conversation/read`; anybody's read
+   * counts for the venue. Up to `upToUtc` (the newest message the screen
+   * showed), else now.
+   */
+  markStaffConversationRead(command: MarkConversationReadCommand): Promise<void>;
 
   // --- The tab ------------------------------------------------------------
 

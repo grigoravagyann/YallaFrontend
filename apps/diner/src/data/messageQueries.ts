@@ -52,7 +52,10 @@ export function useSendGuestMessage() {
   );
 }
 
-/** "Read up to now": the thread, the summary and the booking's row lose their unread at once. */
+/**
+ * "Read up to the newest message on screen" (`upToUtc`, else now): the
+ * thread, the summary and the booking's row lose that unread at once.
+ */
 export function useMarkConversationRead() {
   return useMutation(markConversationReadOptions(useQueryClient(), useGateway()));
 }

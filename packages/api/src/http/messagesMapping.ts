@@ -102,6 +102,8 @@ export type WireMessageSettings = Schemas['Yalla.Application.Messages.MessageSet
 export type WireMessageSettingsRequest = Schemas['Yalla.Api.Endpoints.MessageSettingsRequest'];
 /** `SendMessageRequest`: the send's body, the guest's and the floor's. */
 export type WireSendMessageRequest = Schemas['Yalla.Api.Endpoints.SendMessageRequest'];
+export type WireMarkConversationReadRequest =
+  Schemas['Yalla.Api.Endpoints.MarkConversationReadRequest'];
 
 // ---------------------------------------------------------------------------
 // Routes
@@ -494,6 +496,16 @@ export function sendMessageBody(command: {
   return { text: messageText(command.text), clientCommandId: command.clientCommandId };
 }
 
+/**
+ * The optional body of a `…/conversation/read`: `{ upToUtc }` when the screen
+ * says which message it showed last, else none — the server reads that as now.
+ */
+export function markReadBody(command: {
+  readonly upToUtc?: string | null | undefined;
+}): WireMarkConversationReadRequest | undefined {
+  return command.upToUtc ? { upToUtc: command.upToUtc } : undefined;
+}
+
 // ---------------------------------------------------------------------------
 // The refusals
 // ---------------------------------------------------------------------------
@@ -531,8 +543,9 @@ export function messageRefusal(error: unknown): ApiError | null {
         conversationId: text(context['conversationId']),
         retryAfterUtc,
         retryAfterSeconds: headerSeconds ?? secondsUntil(retryAfterUtc),
-        // The server leaves `retryAfterUtc` (and `Retry-After`) out once the
-        // thread's own sixty are spent: waiting will not help.
+        // `Retry-After` is the same moment as `retryAfterUtc`. The server
+        // leaves both out once the thread's own sixty are spent: waiting will
+        // not help.
         perConversation: retryAfterUtc === null && headerSeconds === null,
       });
     }

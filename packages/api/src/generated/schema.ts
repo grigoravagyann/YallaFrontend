@@ -526,7 +526,7 @@ export interface paths {
         };
         /**
          * The Messages tab: the branch's threads with guests
-         * @description Threads that are open or had a message in the last 24 hours. A guest message the venue has not answered since puts its thread first (`oldestUnansweredGuestMessageUtc` - the longest waiting first); the rest newest first. Each: the subject (`kind`, `id`, `label` - the table or the `T-` code, `guestName`, `localTime`, and `localDate`/`partySize` or `itemCount`/`totalAmd`), `lastMessage` (the last that is not a system status line - the guest's words or answer, or the venue's - with `answer` on an answer and `staffName` on a venue message), `latestStatus` (the newest status line's `heldUntilLocal` / `cancelled`), `unreadFromGuest`, `awaitingGuestAnswer` (the last is the venue's "are you coming?"), `open`. `unreadTotal` is the tab's badge; ring when a guest message has waited `remindAfterMinutes`. `templates`: the venue's quick replies, absent for the app's default four. `waitersCanWrite`: whether a waiter's composer shows. The floor (`getBranchFloor`) carries the badge too - poll this when the tab is open. Waiter or above at the branch.
+         * @description Threads that are open or had a message in the last 24 hours. A guest's typed message (`text`) the venue has not answered since - with a text or an ask - in a thread still open, puts its thread first (`oldestUnansweredGuestMessageUtc` - the longest waiting first; absent once the thread closed, as nobody can answer it then); the rest newest first. A guest's answer to "are you coming?" (coming, late, not coming) asks nothing back: it never waits and never rings, but is unread (`unreadFromGuest`) until somebody opens the thread. Each: the subject (`kind`, `id`, `label` - the table or the `T-` code, `guestName`, `localTime`, and `localDate`/`partySize` or `itemCount`/`totalAmd`), `lastMessage` (the last that is not a system status line - the guest's words or answer, or the venue's - with `answer` on an answer and `staffName` on a venue message), `latestStatus` (the newest status line's `heldUntilLocal` / `cancelled`), `unreadFromGuest`, `awaitingGuestAnswer` (the last is the venue's "are you coming?"), `open`. `unreadTotal` is the tab's badge; ring when a guest message has waited `remindAfterMinutes`. `templates`: the venue's quick replies, absent for the app's default four. `waitersCanWrite`: whether a waiter's composer shows. The floor (`getBranchFloor`) carries the badge too - poll this when the tab is open. Waiter or above at the branch.
          */
         get: operations["listBranchConversations"];
         put?: never;
@@ -2220,7 +2220,7 @@ export interface paths {
         put?: never;
         /**
          * Write to the venue about the booking
-         * @description The first message makes the thread. `text` is 1 to 500 characters after trimming (422 `validation-failed` naming `text`). **Idempotent on `clientCommandId`**: a retry answers the message the first try wrote, `wasReplay: true`. A closed thread: **409 `conversation-closed`** (`context.subjectKind`, `subjectId`, `closedAtUtc`). The venue switched typed messages off: **403 `guests-cannot-write`** (`context.branchId`) - the answer buttons still work. At most 5 messages a minute and 60 in a thread: **429 `messages-too-fast`** (`context.conversationId`, `perMinute`, `perConversation`, and `retryAfterUtc` when waiting helps). The venue is not pushed - the tablet polls.
+         * @description The first message makes the thread. `text` is 1 to 500 characters after trimming (422 `validation-failed` naming `text`). **Idempotent on `clientCommandId`**: a retry answers the message the first try wrote, `wasReplay: true`; the same id with other words (or from another member of staff) is **409 `client-command-id-in-use`**. A closed thread: **409 `conversation-closed`** (`context.subjectKind`, `subjectId`, `closedAtUtc`). The venue switched typed messages off: **403 `guests-cannot-write`** (`context.branchId`) - the answer buttons still work. At most 5 messages a minute and 60 in a thread: **429 `messages-too-fast`** (`context.conversationId`, `perMinute`, `perConversation`, and `retryAfterUtc` when waiting helps). The venue is not pushed - the tablet polls.
          */
         post: operations["sendReservationMessage"];
         delete?: never;
@@ -2240,7 +2240,7 @@ export interface paths {
         put?: never;
         /**
          * The guest read the thread
-         * @description Everything the venue wrote until now is read - the unread count and the nav dot go. Call it on open and when new messages arrive while open. No thread yet: nothing to mark, still 204. No body.
+         * @description What the venue wrote up to the mark is read - the unread count and the nav dot go. Call it on open and when new messages arrive while open. No thread yet: nothing to mark, still 204. Optional JSON body `{ upToUtc }`: the `createdAtUtc` of the newest message the screen has shown - the read mark moves to it, so a message that arrived between the last poll and this call stays unread. Never past now (a later `upToUtc` counts as now) and never backwards (an earlier one than the mark changes nothing). No body, or no `upToUtc`: now.
          */
         post: operations["markReservationConversationRead"];
         delete?: never;
@@ -2334,7 +2334,7 @@ export interface paths {
         put?: never;
         /**
          * Write to the venue about the takeaway order
-         * @description The first message makes the thread. `text` is 1 to 500 characters after trimming (422 `validation-failed` naming `text`). **Idempotent on `clientCommandId`**: a retry answers the message the first try wrote, `wasReplay: true`. A closed thread: **409 `conversation-closed`** (`context.subjectKind`, `subjectId`, `closedAtUtc`). The venue switched typed messages off: **403 `guests-cannot-write`** (`context.branchId`) - the answer buttons still work. At most 5 messages a minute and 60 in a thread: **429 `messages-too-fast`** (`context.conversationId`, `perMinute`, `perConversation`, and `retryAfterUtc` when waiting helps). The venue is not pushed - the tablet polls.
+         * @description The first message makes the thread. `text` is 1 to 500 characters after trimming (422 `validation-failed` naming `text`). **Idempotent on `clientCommandId`**: a retry answers the message the first try wrote, `wasReplay: true`; the same id with other words (or from another member of staff) is **409 `client-command-id-in-use`**. A closed thread: **409 `conversation-closed`** (`context.subjectKind`, `subjectId`, `closedAtUtc`). The venue switched typed messages off: **403 `guests-cannot-write`** (`context.branchId`) - the answer buttons still work. At most 5 messages a minute and 60 in a thread: **429 `messages-too-fast`** (`context.conversationId`, `perMinute`, `perConversation`, and `retryAfterUtc` when waiting helps). The venue is not pushed - the tablet polls.
          */
         post: operations["sendTakeawayMessage"];
         delete?: never;
@@ -2354,7 +2354,7 @@ export interface paths {
         put?: never;
         /**
          * The guest read the thread
-         * @description Everything the venue wrote until now is read - the unread count and the nav dot go. Call it on open and when new messages arrive while open. No thread yet: nothing to mark, still 204. No body.
+         * @description What the venue wrote up to the mark is read - the unread count and the nav dot go. Call it on open and when new messages arrive while open. No thread yet: nothing to mark, still 204. Optional JSON body `{ upToUtc }`: the `createdAtUtc` of the newest message the screen has shown - the read mark moves to it, so a message that arrived between the last poll and this call stays unread. Never past now (a later `upToUtc` counts as now) and never backwards (an earlier one than the mark changes nothing). No body, or no `upToUtc`: now.
          */
         post: operations["markTakeawayConversationRead"];
         delete?: never;
@@ -3410,7 +3410,7 @@ export interface paths {
         put?: never;
         /**
          * Write to the booking's guest
-         * @description The guest is told at once: push `message.to-guest` (data `kind` `venue-message`, `categoryId` `venue-message`, the venue's name over the text) and feed `venue-message`. The message keeps the writer's name for staff; the guest sees the venue's. `text` is 1 to 500 characters after trimming (422 `validation-failed` naming `text`). **Idempotent on `clientCommandId`**: a retry answers the message the first try wrote, `wasReplay: true`. A closed thread: **409 `conversation-closed`** (`context.subjectKind`, `subjectId`, `closedAtUtc`). A platform admin reads only, the kitchen never writes: 403 `forbidden`. A waiter where the venue keeps messages to managers: **403 `waiters-cannot-write`** (`context.branchId`). "Ask: are you coming?" is `askOnMyWay` - it writes its own message.
+         * @description The guest is told at once: push `message.to-guest` (data `kind` `venue-message`, the venue's name over the text; `categoryId` `venue-message` - a Reply action - or `venue-message-readonly` - no actions - while the venue has `guestsCanWrite` off) and feed `venue-message`. The message keeps the writer's name for staff; the guest sees the venue's. `text` is 1 to 500 characters after trimming (422 `validation-failed` naming `text`). **Idempotent on `clientCommandId`**: a retry answers the message the first try wrote, `wasReplay: true`; the same id with other words (or from another member of staff) is **409 `client-command-id-in-use`**. A closed thread: **409 `conversation-closed`** (`context.subjectKind`, `subjectId`, `closedAtUtc`). A platform admin reads only, the kitchen never writes: 403 `forbidden`. A waiter where the venue keeps messages to managers: **403 `waiters-cannot-write`** (`context.branchId`). "Ask: are you coming?" is `askOnMyWay` - it writes its own message.
          */
         post: operations["sendStaffReservationMessage"];
         delete?: never;
@@ -3430,7 +3430,7 @@ export interface paths {
         put?: never;
         /**
          * Somebody at the venue read the thread
-         * @description Everything the guest wrote until now is read for the whole venue - any member of staff reading counts. A platform admin's read changes nothing. No thread yet: still 204. No body.
+         * @description What the guest wrote up to the mark is read for the whole venue - any member of staff reading counts. A platform admin's read changes nothing. No thread yet: still 204. Optional JSON body `{ upToUtc }`: the `createdAtUtc` of the newest message the screen has shown - the read mark moves to it, so a message that arrived between the last poll and this call stays unread. Never past now (a later `upToUtc` counts as now) and never backwards (an earlier one than the mark changes nothing). No body, or no `upToUtc`: now.
          */
         post: operations["markStaffReservationConversationRead"];
         delete?: never;
@@ -3579,7 +3579,7 @@ export interface paths {
         put?: never;
         /**
          * "Ask: are you coming?" now
-         * @description Writes the question into the booking's thread with guests - an `ask-coming` message with the asker's name, made in the same transaction (see `getStaffReservationConversation`) - and tells the guest now: push `message.to-guest` (data `kind` `venue-message`, `ask` `"true"`, `categoryId` `venue-ask`) and feed entry `venue-message`. Records `staffAskedOnMyWayAtUtc` on the booking; the automatic question is then not asked on top. A **confirmed** booking only, from two hours before its start until its start, while the guest has not answered, at most once every 15 minutes. Refusals, each its own code: **409 `ask-on-my-way-too-early`** (`context.opensAtUtc`), **409 `ask-on-my-way-not-open`** (not confirmed, or started: `context.status`, `startUtc`), **409 `guest-already-answered`** (`context.answeredAtUtc`, and `runningLateMinutes` when late), **409 `ask-on-my-way-asked-recently`** (`context.askedAtUtc`, `nextAllowedAtUtc`). `notified` false: no live account behind the booking - call. Waiter or above at the booking's branch. No body.
+         * @description Writes the question into the booking's thread with guests - an `ask-coming` message with the asker's name, made in the same transaction (see `getStaffReservationConversation`) - and tells the guest now: push `message.to-guest` (data `kind` `venue-message`, `ask` `"true"`, `categoryId` `venue-ask` - or `venue-ask-buttons`, the answers without a Reply, while the venue has `guestsCanWrite` off) and feed entry `venue-message`. Records `staffAskedOnMyWayAtUtc` on the booking; the automatic question is then not asked on top. A **confirmed** booking only, from two hours before its start until its start, while the guest has not answered, at most once every 15 minutes. Refusals, each its own code: **409 `ask-on-my-way-too-early`** (`context.opensAtUtc`), **409 `ask-on-my-way-not-open`** (not confirmed, or started: `context.status`, `startUtc`), **409 `guest-already-answered`** (`context.answeredAtUtc`, and `runningLateMinutes` when late), **409 `ask-on-my-way-asked-recently`** (`context.askedAtUtc`, `nextAllowedAtUtc`). `notified` false: no live account behind the booking - call. Waiter or above at the booking's branch. No body.
          */
         post: operations["askOnMyWay"];
         delete?: never;
@@ -4503,7 +4503,7 @@ export interface paths {
         put?: never;
         /**
          * Write to the takeaway order's guest
-         * @description The guest is told at once: push `message.to-guest` (data `kind` `venue-message`, `categoryId` `venue-message`, the venue's name over the text) and feed `venue-message`. The message keeps the writer's name for staff; the guest sees the venue's. `text` is 1 to 500 characters after trimming (422 `validation-failed` naming `text`). **Idempotent on `clientCommandId`**: a retry answers the message the first try wrote, `wasReplay: true`. A closed thread: **409 `conversation-closed`** (`context.subjectKind`, `subjectId`, `closedAtUtc`). A platform admin reads only, the kitchen never writes: 403 `forbidden`. A waiter where the venue keeps messages to managers: **403 `waiters-cannot-write`** (`context.branchId`). "Ask: are you coming?" is `askOnMyWay` - it writes its own message.
+         * @description The guest is told at once: push `message.to-guest` (data `kind` `venue-message`, the venue's name over the text; `categoryId` `venue-message` - a Reply action - or `venue-message-readonly` - no actions - while the venue has `guestsCanWrite` off) and feed `venue-message`. The message keeps the writer's name for staff; the guest sees the venue's. `text` is 1 to 500 characters after trimming (422 `validation-failed` naming `text`). **Idempotent on `clientCommandId`**: a retry answers the message the first try wrote, `wasReplay: true`; the same id with other words (or from another member of staff) is **409 `client-command-id-in-use`**. A closed thread: **409 `conversation-closed`** (`context.subjectKind`, `subjectId`, `closedAtUtc`). A platform admin reads only, the kitchen never writes: 403 `forbidden`. A waiter where the venue keeps messages to managers: **403 `waiters-cannot-write`** (`context.branchId`). "Ask: are you coming?" is `askOnMyWay` - it writes its own message.
          */
         post: operations["sendStaffTakeawayMessage"];
         delete?: never;
@@ -4523,7 +4523,7 @@ export interface paths {
         put?: never;
         /**
          * Somebody at the venue read the thread
-         * @description Everything the guest wrote until now is read for the whole venue - any member of staff reading counts. A platform admin's read changes nothing. No thread yet: still 204. No body.
+         * @description What the guest wrote up to the mark is read for the whole venue - any member of staff reading counts. A platform admin's read changes nothing. No thread yet: still 204. Optional JSON body `{ upToUtc }`: the `createdAtUtc` of the newest message the screen has shown - the read mark moves to it, so a message that arrived between the last poll and this call stays unread. Never past now (a later `upToUtc` counts as now) and never backwards (an earlier one than the mark changes nothing). No body, or no `upToUtc`: now.
          */
         post: operations["markStaffTakeawayConversationRead"];
         delete?: never;
@@ -5087,6 +5087,15 @@ export interface components {
             localeCode?: string | null;
             /** @description The password. */
             password: string;
+        };
+        /** @description Optional body of a `.../conversation/read` - the guest's and the venue's. */
+        "Yalla.Api.Endpoints.MarkConversationReadRequest": {
+            /**
+             * Format: date-time
+             * @description The `createdAtUtc` of the newest message the screen has shown. The read mark moves to it - never past now, never
+             *     backwards. Absent: now.
+             */
+            upToUtc?: string | null;
         };
         /** @description Body of `POST /api/reservations/{id}/no-show`. */
         "Yalla.Api.Endpoints.MarkNoShowRequest": {
@@ -8233,14 +8242,15 @@ export interface components {
         "Yalla.Application.Floor.FloorMessages": {
             /**
              * Format: date-time
-             * @description The oldest guest message the venue has not answered since, across those threads: ring once it has waited the venue's
-             *     `remindAfterMinutes`. Absent when every thread has the venue's last word.
+             * @description The oldest typed guest message the venue has not answered since (with a text or an ask), across those threads that
+             *     are still open: ring once it has waited the venue's `remindAfterMinutes`. A guest's answer to "are you
+             *     coming?" never waits - it is counted in UnreadTotal only. Absent when nothing waits.
              */
             oldestUnansweredUtc?: string | null;
             /**
              * Format: int32
-             * @description Guest messages nobody at the venue has read, in threads that are open or had a message in the last 24 hours - the
-             *     same threads as the Messages tab.
+             * @description Guest messages nobody at the venue has read - typed ones and answers - in threads that are open or had a message in
+             *     the last 24 hours: the same threads as the Messages tab.
              */
             unreadTotal: number;
         };
@@ -8538,13 +8548,13 @@ export interface components {
              */
             asOfUtc: string;
             /**
-             * @description Threads that are open or had a message in the last 24 hours: those with a guest message unanswered first (the
+             * @description Threads that are open or had a message in the last 24 hours: those with a typed guest message unanswered first (the
              *     longest waiting first), then the rest, newest first.
              */
             items: components["schemas"]["Yalla.Application.Messages.InboxItem"][];
             /**
              * Format: int32
-             * @description Ring when a guest message has waited this long unanswered.
+             * @description Ring when a typed guest message has waited this long unanswered.
              */
             remindAfterMinutes: number;
             /** @description The venue's quick replies; absent for the app's default set. */
@@ -8762,8 +8772,9 @@ export interface components {
             latestStatus?: components["schemas"]["Yalla.Application.Messages.MessageStatusView"] | null;
             /**
              * Format: date-time
-             * @description The first guest message since the venue last wrote - the one to remind about after `remindAfterMinutes`.
-             *     Absent when the venue has the last word.
+             * @description The first typed guest message since the venue last wrote - the one to remind about after `remindAfterMinutes`.
+             *     A guest's answer to "are you coming?" asks nothing back and never counts. Absent when nothing waits, and once the
+             *     thread has closed - nobody can answer it any more.
              */
             oldestUnansweredGuestMessageUtc?: string | null;
             /** @description The thread takes messages now. */
@@ -8772,7 +8783,7 @@ export interface components {
             subject: components["schemas"]["Yalla.Application.Messages.InboxSubject"];
             /**
              * Format: int32
-             * @description What the guest wrote since anybody at the venue last read it.
+             * @description What the guest wrote since anybody at the venue last read it - typed messages and answers.
              */
             unreadFromGuest: number;
         };
@@ -23540,7 +23551,11 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["Yalla.Api.Endpoints.MarkConversationReadRequest"];
+            };
+        };
         responses: {
             /** @description No Content */
             204: {
@@ -23980,7 +23995,11 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["Yalla.Api.Endpoints.MarkConversationReadRequest"];
+            };
+        };
         responses: {
             /** @description No Content */
             204: {
@@ -28175,7 +28194,11 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["Yalla.Api.Endpoints.MarkConversationReadRequest"];
+            };
+        };
         responses: {
             /** @description No Content */
             204: {
@@ -32105,7 +32128,11 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["Yalla.Api.Endpoints.MarkConversationReadRequest"];
+            };
+        };
         responses: {
             /** @description No Content */
             204: {

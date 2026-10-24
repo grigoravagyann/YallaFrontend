@@ -5197,6 +5197,27 @@ a.ft-btn {
   color: var(--console-muted);
 }
 
+.msg-log-wrap {
+  position: relative;
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+}
+
+/* "New message ↓": the reader scrolled up to read back, and something came. */
+.msg-new-below {
+  position: absolute;
+  bottom: var(--space-md);
+  left: 50%;
+  min-height: 44px;
+  min-width: 44px;
+  padding: 0 var(--space-lg);
+  border-radius: 999px;
+  transform: translateX(-50%);
+  box-shadow: var(--console-shadow-toast);
+}
+
 .msg-log {
   display: flex;
   flex: 1;

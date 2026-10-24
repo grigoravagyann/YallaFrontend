@@ -1,14 +1,23 @@
-import { useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query';
+import {
+  replaceEqualDeep,
+  useMutation,
+  useQuery,
+  useQueryClient,
+  type QueryClient,
+} from '@tanstack/react-query';
 import { useEffect, useRef } from 'react';
 import type { ConsoleGateway } from '../consoleGateway';
 import type { Booking } from '../contracts/booking';
 import {
   messageText,
+  newestShownMessageUtc,
+  unreadAfterMark,
   type BranchConversations,
   type ConversationMessage,
   type ConversationSubjectRef,
   type DinerConversation,
   type DinerUnreadMessages,
+  type MarkConversationReadCommand,
   type MessageSettings,
   type MessageSettingsInput,
   type SendMessageCommand,
@@ -105,7 +114,9 @@ export function appendPendingMessage<T extends DinerConversation>(
 
 /**
  * The server answered a send: its message replaces the pending one (or, when
- * a read already brought it, the pending one simply goes).
+ * a read already brought it, the pending one simply goes). The settled
+ * message keeps the send's `clientCommandId`, so a screen can key it as it
+ * keyed the pending bubble.
  */
 export function settleSentMessage<T extends DinerConversation>(
   conversation: T | null | undefined,
@@ -113,9 +124,11 @@ export function settleSentMessage<T extends DinerConversation>(
   sent: SentMessage,
 ): T | null | undefined {
   if (!conversation) return conversation;
-  const { wasReplay: _wasReplay, conversationId, ...message } = sent;
+  const { wasReplay: _wasReplay, conversationId, ...server } = sent;
+  const message: ConversationMessage = { ...server, clientCommandId };
   const already = conversation.messages.some((entry) => entry.id === message.id);
   const messages = conversation.messages.flatMap((entry) => {
+    if (entry.id === message.id) return [{ ...entry, clientCommandId }];
     if (entry.clientCommandId !== clientCommandId || !entry.pending) return [entry];
     return already ? [] : [message];
   });
@@ -125,6 +138,45 @@ export function settleSentMessage<T extends DinerConversation>(
     conversationId: conversation.conversationId ?? conversationId,
     messages: messages.some((entry) => entry.id === message.id) ? messages : [...messages, message],
   };
+}
+
+/**
+ * A read of a thread keeps the `clientCommandId` this device put on the
+ * server's message its send settled into (`settleSentMessage`): the server
+ * never sends it back, and a screen keys its own message by it, so the bubble
+ * is the same element — and a live region says nothing again — from pending
+ * through every poll after.
+ */
+export function carryClientCommandIds<T extends Pick<DinerConversation, 'messages'>>(
+  previous: T | null | undefined,
+  next: T | null | undefined,
+): T | null | undefined {
+  if (!previous || !next) return next;
+  const ids = new Map<string, string>();
+  for (const message of previous.messages) {
+    if (message.clientCommandId && !message.pending) ids.set(message.id, message.clientCommandId);
+  }
+  if (ids.size === 0) return next;
+  return {
+    ...next,
+    messages: next.messages.map((message) => {
+      const clientCommandId = ids.get(message.id);
+      return clientCommandId && !message.clientCommandId
+        ? { ...message, clientCommandId }
+        : message;
+    }),
+  };
+}
+
+/** A thread's structural sharing: the usual, over the carried command ids. */
+function shareThread(previous: unknown, next: unknown): unknown {
+  return replaceEqualDeep(
+    previous,
+    carryClientCommandIds(
+      previous as DinerConversation | null | undefined,
+      next as DinerConversation | null | undefined,
+    ),
+  );
 }
 
 /** A refused send: its pending message goes; the composer keeps the text. */
@@ -188,34 +240,43 @@ export function afterGuestAnswered(queryClient: QueryClient, reservationId: stri
 }
 
 /**
- * The guest read the thread: nothing unread on it at once — the thread, the
- * summary and the booking's row — then the summary and the rows read again.
+ * The guest read the thread up to `upToUtc` (else now): what the venue wrote
+ * up to the mark is read at once — on the thread, the summary and the
+ * booking's row; a venue message after the mark (in the cache, not yet on the
+ * screen) stays unread, as the server keeps it — then the summary and the
+ * rows read again.
  */
 export function afterGuestConversationRead(
   queryClient: QueryClient,
   subject: ConversationSubjectRef,
+  upToUtc?: string | null,
 ): void {
   let cleared = 0;
+  let left = 0;
   queryClient.setQueryData<DinerConversation | null>(dinerThreadKey(subject), (thread) => {
     if (!thread) return thread;
-    cleared = thread.unreadCount;
-    return thread.unreadCount === 0 ? thread : { ...thread, unreadCount: 0 };
+    left = unreadAfterMark(thread.messages, 'venue', upToUtc, thread.unreadCount);
+    cleared = thread.unreadCount - left;
+    return thread.unreadCount === left ? thread : { ...thread, unreadCount: left };
   });
   queryClient.setQueryData<DinerUnreadMessages>(queryKeys.unreadMessages, (summary) => {
     if (!summary) return summary;
     const row = summary.items.find(
       (item) => item.subjectKind === subject.kind && item.subjectId === subject.id,
     );
-    const unread = row?.unread ?? cleared;
-    if (!row && unread === 0) return summary;
+    const rowLeft = row ? Math.min(row.unread, left) : 0;
+    const unread = row ? row.unread - rowLeft : cleared;
+    if (unread === 0) return summary;
     return {
       total: Math.max(0, summary.total - unread),
-      items: summary.items.map((item) => (item === row ? { ...item, unread: 0 } : item)),
+      items: summary.items.map((item) => (item === row ? { ...item, unread: rowLeft } : item)),
     };
   });
   if (subject.kind === 'reservation') {
     queryClient.setQueryData<Booking | null>(queryKeys.booking(subject.id), (booking) =>
-      booking?.messages ? { ...booking, messages: { ...booking.messages, unread: 0 } } : booking,
+      booking?.messages && booking.messages.unread > left
+        ? { ...booking, messages: { ...booking.messages, unread: left } }
+        : booking,
     );
   }
   invalidateGuestRows(queryClient, subject);
@@ -236,22 +297,30 @@ export function afterStaffMessageSent(
 }
 
 /**
- * Somebody at the venue read the thread: its row and the badge lose its
- * unread at once, then the inbox and the floor read again.
+ * Somebody at the venue read the thread up to `upToUtc` (else now): its row
+ * and the badge lose what the guest wrote up to the mark at once — a guest
+ * message after it stays unread, as the server keeps it — then the inbox and
+ * the floor read again.
  */
 export function afterStaffConversationRead(
   queryClient: QueryClient,
   branchId: string,
   subject: ConversationSubjectRef,
+  upToUtc?: string | null,
 ): void {
-  queryClient.setQueryData<StaffConversation | null>(staffThreadKey(subject), (thread) =>
-    thread && thread.unreadCount > 0 ? { ...thread, unreadCount: 0 } : thread,
-  );
+  let left = 0;
+  queryClient.setQueryData<StaffConversation | null>(staffThreadKey(subject), (thread) => {
+    if (!thread) return thread;
+    left = unreadAfterMark(thread.messages, 'guest', upToUtc, thread.unreadCount);
+    return thread.unreadCount === left ? thread : { ...thread, unreadCount: left };
+  });
   queryClient.setQueryData<BranchConversations>(queryKeys.staffConversations(branchId), (inbox) => {
     if (!inbox) return inbox;
     const items = inbox.items.map((item) =>
-      item.subject.kind === subject.kind && item.subject.id === subject.id && item.unreadFromGuest
-        ? { ...item, unreadFromGuest: 0 }
+      item.subject.kind === subject.kind &&
+      item.subject.id === subject.id &&
+      item.unreadFromGuest > left
+        ? { ...item, unreadFromGuest: left }
         : item,
     );
     return {
@@ -310,6 +379,7 @@ export function dinerConversationOptions(
     queryFn: () => gateway.getConversation(subject!),
     enabled: Boolean(subject?.id) && (options.enabled ?? true),
     staleTime: staleTime.live,
+    structuralSharing: shareThread,
     refetchInterval: (query: {
       readonly state: { readonly data: DinerConversation | null | undefined };
     }) => conversationPollMs(query.state.data, focused),
@@ -371,15 +441,24 @@ export function useSendGuestMessage() {
   return useMutation(sendGuestMessageOptions(useQueryClient(), useGateway()));
 }
 
-/** "Read up to now": on opening the thread and on new venue messages. Takes the subject. */
+/**
+ * "Read": on opening the thread and on new venue messages. Takes the subject
+ * and `upToUtc`, the newest message the screen showed (`useMarkReadWhenSeen`
+ * passes it); without one, up to now.
+ */
 export function markConversationReadOptions(queryClient: QueryClient, gateway: YallaGateway) {
   return {
-    mutationFn: (subject: ConversationSubjectRef) => gateway.markConversationRead(subject),
+    mutationFn: (command: MarkConversationReadCommand) => gateway.markConversationRead(command),
     retry: false,
-    onMutate: (subject: ConversationSubjectRef) => afterGuestConversationRead(queryClient, subject),
-    onError: (_error: unknown, subject: ConversationSubjectRef) =>
-      invalidateGuestRows(queryClient, subject),
+    onMutate: (command: MarkConversationReadCommand) =>
+      afterGuestConversationRead(queryClient, subjectOf(command), command.upToUtc),
+    onError: (_error: unknown, command: MarkConversationReadCommand) =>
+      invalidateGuestRows(queryClient, subjectOf(command)),
   };
+}
+
+function subjectOf(command: ConversationSubjectRef): ConversationSubjectRef {
+  return { kind: command.kind, id: command.id };
 }
 
 export function useMarkConversationRead() {
@@ -406,29 +485,32 @@ export function useUnreadMessages(enabled = true) {
 /**
  * Mark a thread read when it is seen: on opening it and whenever a message
  * nobody has read arrives while it is in front. `unread` is the thread's
- * `unreadCount`; `lastMessageId` its newest message's id. Fires `markRead`
- * at most once per newest message. The same for the guest's thread and the
- * floor's.
+ * `unreadCount`; `messages` what it shows. The read goes up to the newest
+ * message the server sent that is on screen (`upToUtc`, never a pending
+ * one's), so one that arrives between the poll and the call stays unread.
+ * Fires `markRead` at most once per newest message. The same for the guest's
+ * thread and the floor's.
  */
 export function useMarkReadWhenSeen(input: {
   readonly subject: ConversationSubjectRef | null | undefined;
   readonly unread: number;
-  readonly lastMessageId: string | null;
+  readonly messages: readonly Pick<ConversationMessage, 'createdAtUtc' | 'pending'>[];
   /** The thread is in front, and its read has landed. */
   readonly active: boolean;
-  readonly markRead: (subject: ConversationSubjectRef) => void;
+  readonly markRead: (command: MarkConversationReadCommand) => void;
 }): void {
   const marked = useRef<string | null>(null);
-  const { subject, unread, lastMessageId, active, markRead } = input;
+  const { subject, unread, messages, active, markRead } = input;
   const kind = subject?.kind;
   const id = subject?.id;
+  const upToUtc = newestShownMessageUtc(messages);
   useEffect(() => {
     if (!active || !kind || !id || unread <= 0) return;
-    const key = `${kind}:${id}:${lastMessageId ?? ''}`;
+    const key = `${kind}:${id}:${upToUtc ?? ''}`;
     if (marked.current === key) return;
     marked.current = key;
-    markRead({ kind, id });
-  }, [active, kind, id, unread, lastMessageId, markRead]);
+    markRead(upToUtc ? { kind, id, upToUtc } : { kind, id });
+  }, [active, kind, id, unread, upToUtc, markRead]);
 }
 
 // --- The floor tablet --------------------------------------------------------------
@@ -470,6 +552,7 @@ export function staffConversationOptions(
     queryFn: () => gateway.getStaffConversation(subject!),
     enabled: Boolean(subject?.id) && (options.enabled ?? true),
     staleTime: staleTime.live,
+    structuralSharing: shareThread,
     refetchInterval: (query: {
       readonly state: { readonly data: StaffConversation | null | undefined };
     }) => conversationPollMs(query.state.data, focused),
@@ -539,17 +622,20 @@ export function useSendStaffMessage(branchId: string | undefined, staffName?: st
   );
 }
 
-/** The floor's "read": the row and the badge clear at once. Takes the subject. */
+/**
+ * The floor's "read": the row and the badge clear at once, up to `upToUtc`
+ * (the newest message the screen showed; else now). Takes the subject and it.
+ */
 export function markStaffConversationReadOptions(
   queryClient: QueryClient,
   branchId: string,
-  read: (subject: ConversationSubjectRef) => Promise<void>,
+  read: (command: MarkConversationReadCommand) => Promise<void>,
 ) {
   return {
     mutationFn: read,
     retry: false,
-    onMutate: (subject: ConversationSubjectRef) =>
-      afterStaffConversationRead(queryClient, branchId, subject),
+    onMutate: (command: MarkConversationReadCommand) =>
+      afterStaffConversationRead(queryClient, branchId, subjectOf(command), command.upToUtc),
     onError: () => {
       void queryClient.invalidateQueries({ queryKey: queryKeys.staffConversations(branchId) });
       void queryClient.invalidateQueries({ queryKey: queryKeys.staffFloor(branchId) });
@@ -561,8 +647,8 @@ export function useMarkStaffConversationRead(branchId: string | undefined) {
   const gateway = useStaffGateway();
   const queryClient = useQueryClient();
   return useMutation(
-    markStaffConversationReadOptions(queryClient, branchId ?? '', (subject) =>
-      gateway.markStaffConversationRead(subject),
+    markStaffConversationReadOptions(queryClient, branchId ?? '', (command) =>
+      gateway.markStaffConversationRead(command),
     ),
   );
 }

@@ -6,7 +6,7 @@ import {
   type ConversationSubjectRef,
   type StaffConversationListItem,
 } from '@yalla/api';
-import { useSendStaffMessage, useStaffConversation } from '@yalla/api/react';
+import { useSendStaffMessage } from '@yalla/api/react';
 import { useTranslation } from '@yalla/i18n';
 import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import { RailSection } from '../FloorRail';
@@ -19,10 +19,18 @@ import { firstName, heldUntil, messageBody, messageFailureText, railTitle } from
  * words and — for an answer to "are you coming?" — "OK, we'll wait" in one
  * tap, beside "Reply", which opens the Messages tab on it.
  *
- * Those a guest has waited on past the branch's "remind after" come first,
- * with how long in red; the screen also lifts the whole section to the top of
- * the rail and chimes (`useMessageReminders`). Only there while somebody is
- * waiting, or just answered from here, or the inbox could not be read.
+ * A typed guest message waits (`oldestUnansweredGuestMessageUtc`); those a
+ * guest has waited on past the branch's "remind after" come first, with how
+ * long in red, and the screen lifts the whole section to the top of the rail
+ * and chimes (`useMessageReminders`). A guest's answer to "are you coming?"
+ * asks nothing back — it never waits or rings — but its card stays, with
+ * "OK, we'll wait", until somebody reads the thread. Only there while
+ * somebody is waiting or answered unread, or just answered from here, or the
+ * inbox could not be read.
+ *
+ * Everything a card says comes from the inbox's row — `lastMessage` (the last
+ * that is not a system line, with `answer` and `staffName`) and
+ * `latestStatus` — so the rail reads no thread of its own.
  */
 export interface MessagesRailSectionProps {
   readonly branchId: string;
@@ -34,8 +42,6 @@ export interface MessagesRailSectionProps {
   readonly staffName: string;
   readonly timeZoneId: string;
   readonly online: boolean;
-  /** The rail is on screen: the cards' threads are read while it is. */
-  readonly visible: boolean;
   /** The inbox could not be read and never was. */
   readonly failed: boolean;
   readonly icon: ReactNode;
@@ -54,13 +60,31 @@ interface Answered {
   readonly atUtc: string;
 }
 
-/** Waiting for us: a guest message after the venue's last one. Reminded first, then newest. */
+/**
+ * A guest's answer to "are you coming?" nobody has read yet: no reply is
+ * owed, but "OK, we'll wait" is one tap away until the thread is opened.
+ */
+export function isUnreadGuestAnswer(item: StaffConversationListItem): boolean {
+  return (
+    item.open &&
+    item.unreadFromGuest > 0 &&
+    item.lastMessage?.author === 'guest' &&
+    item.lastMessage.kind === 'answer'
+  );
+}
+
+/**
+ * The rail's cards: a typed guest message after the venue's last one, or an
+ * unread answer. Reminded first, then newest.
+ */
 export function railConversations(
   items: readonly StaffConversationListItem[],
   remindAfterMinutes: number,
   now: Date,
 ): readonly StaffConversationListItem[] {
-  const waiting = items.filter((item) => item.oldestUnansweredGuestMessageUtc !== null);
+  const waiting = items.filter(
+    (item) => item.oldestUnansweredGuestMessageUtc !== null || isUnreadGuestAnswer(item),
+  );
   const lastAt = (item: StaffConversationListItem) =>
     item.lastMessage ? Date.parse(item.lastMessage.createdAtUtc) : 0;
   return [...waiting].sort((a, b) => {
@@ -140,7 +164,6 @@ function MessageRailCard({
   staffName,
   timeZoneId,
   online,
-  visible,
   now,
   onReply,
 }: MessagesRailSectionProps & {
@@ -153,33 +176,29 @@ function MessageRailCard({
   const format = useBranchFormat(timeZoneId);
   const titleId = useId();
   const subject: ConversationSubjectRef = { kind: item.subject.kind, id: item.subject.id };
-  // The guest's own words and the line the system added: the list carries only the last message.
-  const thread = useStaffConversation(subject, { focused: visible }).data ?? null;
   const send = useSendStaffMessage(branchId, staffName);
   const sending = useRef(false);
   const [failure, setFailure] = useState<string | null>(null);
 
-  const messages = thread?.messages ?? [];
+  // The row's last message is the guest's on every card the rail shows: a
+  // typed message waiting, or an answer.
+  const last = item.lastMessage;
   const lastGuest: ConversationMessage | null =
-    [...messages].reverse().find((message) => message.author === 'guest') ??
-    (item.lastMessage?.author === 'guest'
+    last?.author === 'guest'
       ? {
-          id: 'last',
+          id: `last:${item.conversationId}`,
           author: 'guest',
-          kind: item.lastMessage.kind,
-          text: item.lastMessage.text,
-          answer: item.lastMessage.answer,
+          kind: last.kind,
+          text: last.text,
+          answer: last.answer,
           status: null,
-          createdAtUtc: item.lastMessage.createdAtUtc,
+          createdAtUtc: last.createdAtUtc,
           staffName: null,
         }
-      : null);
-  const after = lastGuest ? messages.slice(messages.findIndex((m) => m.id === lastGuest.id)) : [];
-  // The line after the guest's answer in the thread, else the list's latest
-  // status — which follows the row's last message, the guest's answer.
-  const status =
-    after.find((message) => message.kind === 'status')?.status ??
-    (lastGuest?.kind === 'answer' ? item.latestStatus : null);
+      : null;
+  // The newest system line follows the guest's answer, when the answer is the
+  // row's last message: "held until 19:45".
+  const status = lastGuest?.kind === 'answer' ? item.latestStatus : null;
   const held =
     (status?.cancelled ? null : status?.heldUntilLocal?.slice(0, 5)) ??
     (lastGuest?.kind === 'answer' && lastGuest.answer?.kind === 'late'

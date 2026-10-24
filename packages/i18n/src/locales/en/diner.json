@@ -1799,6 +1799,8 @@
       "back": "Back",
       "call": "Call the venue",
       "log": "Messages",
+      "newMessage": "New message ↓",
+      "newMessageLabel": "New message. Show the newest",
       "empty": "No messages yet. Write to {{place}} about this booking: a high chair, an allergy, running a little late.",
       "emptyTakeaway": "No messages yet. Write to {{place}} about this order.",
       "closed": "The conversation is closed: the booking has ended. Messages stay here for 30 days.",

@@ -49,6 +49,7 @@ import type {
 import type { Photo } from './contracts/menuAdmin';
 import type {
   ConversationSubjectRef,
+  MarkConversationReadCommand,
   DinerConversation,
   DinerUnreadMessages,
   SendMessageCommand,
@@ -412,8 +413,11 @@ export interface YallaGateway {
    */
   sendGuestMessage(command: SendMessageCommand): Promise<SentMessage>;
 
-  /** "Read up to now" — `POST …/conversation/read`, on opening the thread and on new messages. */
-  markConversationRead(subject: ConversationSubjectRef): Promise<void>;
+  /**
+   * "Read" — `POST …/conversation/read`, on opening the thread and on new
+   * messages: up to `upToUtc` (the newest message the screen showed), else now.
+   */
+  markConversationRead(command: MarkConversationReadCommand): Promise<void>;
 
   /**
    * The diner's threads that are open or have unread venue messages —

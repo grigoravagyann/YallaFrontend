@@ -1,6 +1,8 @@
 import {
+  VENUE_ASK_BUTTONS_PUSH_CATEGORY,
   VENUE_ASK_PUSH_CATEGORY,
   VENUE_MESSAGE_PUSH_CATEGORY,
+  VENUE_MESSAGE_READONLY_PUSH_CATEGORY,
   type RegisterPushDeviceCommand,
   type YallaGateway,
 } from '@yalla/api';
@@ -131,7 +133,11 @@ export async function registerCategories(labels: {
   /*
    * Guest messages (2026-10-23, the Push board): the venue wrote in the
    * thread. Its "are you coming?" (`venue-ask`) is answered from the banner —
-   * "I'm coming", "Late 15 min" — and either kind takes a typed "Reply". These
+   * "I'm coming", "Late 15 min" — and either kind takes a typed "Reply". At a
+   * venue that takes no guest texts the server sends the same two without the
+   * Reply: `venue-ask-buttons` (the two answers) and `venue-message-readonly`
+   * (no actions — a tap opens the thread). All four are registered, so
+   * whichever the server picks has its buttons. These
    * run without opening the app, as the board shows ("Sent: I'm coming"); the
    * phone must be unlocked first, so the session can be read from the
    * keychain. A refusal or a failure opens the thread, the reply's words in
@@ -147,12 +153,14 @@ export async function registerCategories(labels: {
     },
     options: inPlace,
   };
-  await Notifications.setNotificationCategoryAsync(VENUE_ASK_PUSH_CATEGORY, [
+  const answers = [
     { identifier: PUSH_ACTIONS.venueComing, buttonTitle: labels.venueComing, options: inPlace },
     { identifier: PUSH_ACTIONS.venueLate15, buttonTitle: labels.venueLate15, options: inPlace },
-    reply,
-  ]);
+  ];
+  await Notifications.setNotificationCategoryAsync(VENUE_ASK_PUSH_CATEGORY, [...answers, reply]);
+  await Notifications.setNotificationCategoryAsync(VENUE_ASK_BUTTONS_PUSH_CATEGORY, answers);
   await Notifications.setNotificationCategoryAsync(VENUE_MESSAGE_PUSH_CATEGORY, [reply]);
+  await Notifications.setNotificationCategoryAsync(VENUE_MESSAGE_READONLY_PUSH_CATEGORY, []);
 }
 
 /**

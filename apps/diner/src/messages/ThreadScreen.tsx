@@ -19,9 +19,12 @@ import {
   AccessibilityInfo,
   KeyboardAvoidingView,
   Platform,
+  Pressable,
   ScrollView,
   StyleSheet,
   View,
+  type NativeScrollEvent,
+  type NativeSyntheticEvent,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { EmptyState } from '../components/EmptyState';
@@ -89,7 +92,7 @@ export function ThreadScreen({ kind }: { readonly kind: ConversationSubjectKind 
   useMarkReadWhenSeen({
     subject,
     unread: thread?.unreadCount ?? 0,
-    lastMessageId: thread?.messages.at(-1)?.id ?? null,
+    messages: thread?.messages ?? [],
     active: focused && Boolean(thread),
     markRead: markRead.mutate,
   });
@@ -189,6 +192,25 @@ function Thread({
   /** The last text tried, and its command id: sent again unchanged, it is the same command. */
   const attempt = useRef<{ readonly text: string; readonly id: string } | null>(null);
   const scroll = useRef<ScrollView>(null);
+  /**
+   * The reader is at the newest message (or has just sent): what arrives is
+   * scrolled to. Scrolled up to read back, they stay where they are and
+   * "New message ↓" says something came.
+   */
+  const atBottom = useRef(true);
+  const [newBelow, setNewBelow] = useState(false);
+
+  const onScroll = (event: NativeSyntheticEvent<NativeScrollEvent>) => {
+    const { contentOffset, contentSize, layoutMeasurement } = event.nativeEvent;
+    const near = isNearBottom(contentOffset.y, layoutMeasurement.height, contentSize.height);
+    atBottom.current = near;
+    if (near) setNewBelow(false);
+  };
+  const toNewest = (animated: boolean) => {
+    atBottom.current = true;
+    setNewBelow(false);
+    scroll.current?.scrollToEnd({ animated });
+  };
 
   const blocked = failure !== null && failureHidesComposer(failure);
   const canWrite = thread.open && thread.guestsCanWrite && !blocked;
@@ -204,7 +226,10 @@ function Thread({
     known.current = new Set(thread.messages.map((message) => message.id));
     // The thread as it opened is not news: it is on the screen to be read.
     if (!before) return;
-    for (const { message, previous } of newArrivals(thread.messages, before)) {
+    const arrived = newArrivals(thread.messages, before);
+    // Scrolled up to read back: they stay there, told something came below.
+    if (arrived.length > 0 && !atBottom.current) setNewBelow(true);
+    for (const { message, previous } of arrived) {
       const body = format.say(
         messageBody(message, {
           localTime: thread.subject.localTime,
@@ -230,6 +255,9 @@ function Thread({
     attempt.current = { text, id: clientCommandId };
     setFailure(null);
     setDraft('');
+    // Their own words are always brought into view.
+    atBottom.current = true;
+    setNewBelow(false);
     send.mutate(
       { subject, text, clientCommandId },
       {
@@ -347,25 +375,44 @@ function Thread({
         style={styles.flex}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
-        <ScrollView
-          ref={scroll}
-          style={styles.flex}
-          contentContainerStyle={styles.log}
-          keyboardShouldPersistTaps="handled"
-          role="log"
-          accessibilityLabel={t('messages.thread.log')}
-          onContentSizeChange={() => scroll.current?.scrollToEnd({ animated: false })}
-        >
-          {rows.length === 0 ? (
-            <Text style={styles.empty}>
-              {t(reservation ? 'messages.thread.empty' : 'messages.thread.emptyTakeaway', {
-                place,
-              })}
-            </Text>
-          ) : (
-            rows.map((row) => <View key={row.key}>{row.node}</View>)
-          )}
-        </ScrollView>
+        <View style={styles.flex}>
+          <ScrollView
+            ref={scroll}
+            style={styles.flex}
+            contentContainerStyle={styles.log}
+            keyboardShouldPersistTaps="handled"
+            role="log"
+            accessibilityLabel={t('messages.thread.log')}
+            onScroll={onScroll}
+            scrollEventThrottle={64}
+            onContentSizeChange={() => {
+              if (atBottom.current) scroll.current?.scrollToEnd({ animated: false });
+            }}
+          >
+            {rows.length === 0 ? (
+              <Text style={styles.empty}>
+                {t(reservation ? 'messages.thread.empty' : 'messages.thread.emptyTakeaway', {
+                  place,
+                })}
+              </Text>
+            ) : (
+              rows.map((row) => <View key={row.key}>{row.node}</View>)
+            )}
+          </ScrollView>
+
+          {newBelow ? (
+            <View style={styles.newBelowWrap} pointerEvents="box-none">
+              <Pressable
+                onPress={() => toNewest(true)}
+                accessibilityRole="button"
+                accessibilityLabel={t('messages.thread.newMessageLabel')}
+                style={({ pressed }) => [styles.newBelow, pressed && styles.newBelowPressed]}
+              >
+                <Text style={styles.newBelowText}>{t('messages.thread.newMessage')}</Text>
+              </Pressable>
+            </View>
+          ) : null}
+        </View>
 
         {showAnswers ? (
           <AnswerBar
@@ -432,6 +479,13 @@ function ThreadSkeleton() {
 }
 
 const INITIAL = 40;
+/** Within this of the end counts as at the newest message. */
+const NEAR_BOTTOM = 80;
+
+/** The log is scrolled to (about) its end. */
+export function isNearBottom(offsetY: number, viewHeight: number, contentHeight: number): boolean {
+  return contentHeight - (offsetY + viewHeight) <= NEAR_BOTTOM;
+}
 
 const styles = StyleSheet.create({
   flex: { flex: 1 },
@@ -519,4 +573,26 @@ const styles = StyleSheet.create({
     textDecorationLine: 'underline',
   },
   skeletonMine: { alignSelf: 'flex-end' },
+  newBelowWrap: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: space.sm,
+    alignItems: 'center',
+  },
+  newBelow: {
+    minHeight: layout.touchTarget,
+    minWidth: layout.touchTarget,
+    justifyContent: 'center',
+    paddingHorizontal: space.lg,
+    borderRadius: layout.touchTarget / 2,
+    backgroundColor: colors.primary,
+  },
+  newBelowPressed: { backgroundColor: colors.primaryPressed },
+  newBelowText: {
+    fontSize: 13.5,
+    lineHeight: 18,
+    fontWeight: fontWeight.bold,
+    color: colors.onPrimary,
+  },
 });

@@ -260,6 +260,25 @@ describe('the venue, the answers and the reads', () => {
     expect((await gateway.getUnreadMessages()).total).toBe(0);
   });
 
+  it('reads up to the newest message shown: never past now, never back', async () => {
+    const { gateway, advance } = await dinerWorld();
+    gateway.sendMessageAsVenue(COMING, 'Your table is ready', 'Արամ');
+    advance(1);
+    gateway.sendMessageAsVenue(COMING, 'We are by the window', 'Արամ');
+    advance(1);
+    const [first, second] = (await gateway.getConversation(COMING))!.messages;
+    // The screen showed the first only: the second stays unread.
+    await gateway.markConversationRead({ ...COMING, upToUtc: first!.createdAtUtc });
+    expect((await gateway.getConversation(COMING))?.unreadCount).toBe(1);
+    // An earlier mark moves nothing back.
+    await gateway.markConversationRead({ ...COMING, upToUtc: '2026-09-16T09:00:00.000Z' });
+    expect((await gateway.getConversation(COMING))?.unreadCount).toBe(1);
+    expect((await gateway.getConversation(COMING))?.messages[1]?.id).toBe(second!.id);
+    // A later one than now counts as now.
+    await gateway.markConversationRead({ ...COMING, upToUtc: '2030-01-01T00:00:00.000Z' });
+    expect((await gateway.getConversation(COMING))?.unreadCount).toBe(0);
+  });
+
   it('shows "seen" through the venue\'s read', async () => {
     const { gateway, advance } = await dinerWorld();
     await gateway.sendGuestMessage({ subject: COMING, text: 'Hi', clientCommandId: commandId() });
@@ -395,6 +414,8 @@ describe("the floor's inbox", () => {
       latestStatus: { answer: 'late', cancelled: false },
     });
     expect(ani?.latestStatus?.heldUntilLocal).toMatch(/^\d{2}:\d{2}$/u);
+    // Her answer asks nothing back: unread, but never waiting or ringing.
+    expect(ani?.oldestUnansweredGuestMessageUtc).toBeNull();
     expect(davit).toMatchObject({ awaitingGuestAnswer: true, unreadFromGuest: 0 });
     expect(mariam).toMatchObject({ oldestUnansweredGuestMessageUtc: null, unreadFromGuest: 0 });
   });

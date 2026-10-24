@@ -33,7 +33,7 @@ import { threadRoute, type ThreadRoute } from '../messages/copy';
  * | `bookings-blocked-no-shows` | `blockedUntilUtc` — three no-shows in three days: booking paused for a week |
  * | `bookings-unblocked`      | `liftedBecause` ("1" lifted, "2" a no-show undone) — the pause ended early |
  * | `reservation-on-your-way` | `reservationId`, `code`, `actions` — "Are you on your way?", 45 minutes before a booking with a pre-order; Yes / Can't come buttons |
- * | `venue-message`           | `conversationId`, `reservationId` or `takeawayOrderId`, `ask` — the venue wrote in the thread (2026-10-23); category `venue-ask` (I'm coming / Late 15 min / Reply) or `venue-message` (Reply) |
+ * | `venue-message`           | `conversationId`, `reservationId` or `takeawayOrderId`, `ask` — the venue wrote in the thread (2026-10-23); category `venue-ask` (I'm coming / Late 15 min / Reply), `venue-ask-buttons` (I'm coming / Late 15 min), `venue-message` (Reply) or `venue-message-readonly` (none; a tap opens the thread) |
  *
  * `expired` is `"true"` on the decision nobody made: a short-notice request
  * the floor did not answer in its fifteen minutes, declined by the server with
@@ -284,8 +284,10 @@ export const PUSH_ACTIONS = {
   onMyWay: 'on-my-way',
   cantCome: 'on-your-way-cant-come',
   /**
-   * Guest messages (2026-10-23): the `venue-ask` category's "I'm coming" and
-   * "Late 15 min", and the "Reply" with a text field both categories carry.
+   * Guest messages (2026-10-23): the `venue-ask` and `venue-ask-buttons`
+   * categories' "I'm coming" and "Late 15 min", and the "Reply" with a text
+   * field that `venue-ask` and `venue-message` carry. `venue-message-readonly`
+   * has none: its tap opens the thread.
    */
   venueComing: 'venue-ask-coming',
   venueLate15: 'venue-ask-late-15',
