@@ -14,6 +14,15 @@ test('A diner books tomorrow with a note, and Bookings lists it', async ({ page 
   const diner = await registerDiner(api);
   const note = `High chair please (${uniqueTag()})`;
 
+  // Which days' slots the screen has fetched, so the wait below is for tomorrow's answer
+  // only when it has not come already (late in the evening the screen opens on tomorrow).
+  const slotDays = new Set<string>();
+  page.on('response', (response) => {
+    if (response.url().includes('/availability/slots') && response.ok()) {
+      slotDays.add(new URL(response.url()).searchParams.get('date') ?? '');
+    }
+  });
+
   await logIn(page, diner);
   await openTab(page, 'Explore');
   await page
@@ -25,12 +34,18 @@ test('A diner books tomorrow with a note, and Bookings lists it', async ({ page 
 
   // Tomorrow's day of slots, so the times struck or left out are known before choosing one.
   // Late in the evening today has no bookable time left and the screen opens on tomorrow
-  // already; pressing the chosen day does nothing, so there is no new answer to wait for.
+  // already: its slots have come, and pressing the chosen day asks for nothing new.
   const tomorrow = page.getByRole('button', { name: tomorrowLabel() });
   await expect(tomorrow).toBeVisible();
-  if ((await tomorrow.getAttribute('aria-selected')) !== 'true') {
+  const tomorrowKey = yerevanDateKey(1);
+  if (slotDays.has(tomorrowKey)) {
+    await tomorrow.click();
+  } else {
     const daySlots = page.waitForResponse(
-      (response) => response.url().includes('/availability/slots') && response.ok(),
+      (response) =>
+        response.url().includes('/availability/slots') &&
+        response.ok() &&
+        new URL(response.url()).searchParams.get('date') === tomorrowKey,
     );
     await tomorrow.click();
     await daySlots;
@@ -107,6 +122,13 @@ async function chooseTime(page: Page, time: string): Promise<void> {
     await expect(wheel).not.toHaveAttribute('aria-valuetext', value, { timeout: 5_000 });
   }
   throw new Error(`The time wheel never reached ${time}.`);
+}
+
+/** The branch's calendar day `days` from now, as the slots request names it (yyyy-MM-dd). */
+function yerevanDateKey(days: number): string {
+  return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Yerevan' }).format(
+    new Date(Date.now() + days * 86_400_000),
+  );
 }
 
 /** Tomorrow's day chip, however the locale orders weekday, day and month. */
