@@ -58,6 +58,13 @@ export interface FloorRailProps {
   readonly onSettle: (tabId: string) => void;
   /** Under the table panel: kept mounted, so nothing in it is lost, but out of sight. */
   readonly hidden?: boolean | undefined;
+  /**
+   * The phone's Now screen (staff phone, the Now artboard): the same sections
+   * in the phone's order — people calling first, then the bookings, the
+   * messages and the takeaway — with `after` ("In the next hour") last.
+   */
+  readonly phone?: boolean | undefined;
+  readonly after?: ReactNode;
 }
 
 /**
@@ -87,6 +94,57 @@ export function FloorRail(props: FloorRailProps) {
   const dishes = (order: OrderQueueEntry) =>
     order.lines.reduce((sum, line) => sum + line.quantity, 0);
 
+  const calls = (
+    <RailSection
+      title={t('panel.calls.title')}
+      count={props.requests.length}
+      tone="waiting"
+      icon={ICONS.bell}
+    >
+      {props.requestsFailed ? (
+        <p className="ft-rail-empty is-failed">{t('panel.calls.unreachable')}</p>
+      ) : props.requestsLoading ? (
+        <p className="ft-rail-empty">{t('floor.loading')}</p>
+      ) : props.requests.length === 0 ? (
+        <p className="ft-rail-empty">{t('panel.calls.empty')}</p>
+      ) : (
+        <ul className="ft-items">
+          {props.requests.map((request) => {
+            const band = ageBand(request.waitingMinutes);
+            return (
+              <li key={request.id} className={`ft-item${band === 'late' ? ' is-urgent' : ''}`}>
+                <div className="ft-item-top">
+                  <b>{t('table.title', { label: request.tableLabel })}</b>
+                  <span>{t(`rail.calls.reason.${request.reason}`)}</span>
+                  <span className={`ft-item-age age-${band}`}>
+                    {t('rail.minutes', { count: request.waitingMinutes })}
+                  </span>
+                </div>
+                {/* The bill from the app's pay sheet says how much and the
+                          tip, so the waiter brings the right bill the first time. */}
+                {request.reason === 'bill' && request.bill ? (
+                  <p className="ft-item-bill">
+                    {billRequestText(request.bill, t, format.dram, 'short')}
+                  </p>
+                ) : null}
+                {request.note ? <p>{request.note}</p> : null}
+                <div className="ft-item-actions">
+                  <button
+                    type="button"
+                    className="ft-btn ft-btn-primary"
+                    onClick={() => props.onAcknowledge(request)}
+                  >
+                    {t('panel.calls.acknowledge')}
+                  </button>
+                </div>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </RailSection>
+  );
+
   return (
     <aside className="ft-rail" aria-label={t('rail.label')} hidden={props.hidden}>
       <div className="ft-rail-head">
@@ -95,13 +153,24 @@ export function FloorRail(props: FloorRailProps) {
       </div>
 
       <div className="ft-rail-body">
-        {props.messagesFirst ? props.messages : null}
+        {props.phone ? (
+          <>
+            {calls}
+            {props.approvals}
+            {props.messages}
+            {props.takeaway}
+          </>
+        ) : (
+          <>
+            {props.messagesFirst ? props.messages : null}
 
-        {props.approvals}
+            {props.approvals}
 
-        {props.takeaway}
+            {props.takeaway}
 
-        {props.messagesFirst ? null : props.messages}
+            {props.messagesFirst ? null : props.messages}
+          </>
+        )}
 
         {props.admissions}
 
@@ -109,54 +178,7 @@ export function FloorRail(props: FloorRailProps) {
 
         {props.noShows}
 
-        <RailSection
-          title={t('panel.calls.title')}
-          count={props.requests.length}
-          tone="waiting"
-          icon={ICONS.bell}
-        >
-          {props.requestsFailed ? (
-            <p className="ft-rail-empty is-failed">{t('panel.calls.unreachable')}</p>
-          ) : props.requestsLoading ? (
-            <p className="ft-rail-empty">{t('floor.loading')}</p>
-          ) : props.requests.length === 0 ? (
-            <p className="ft-rail-empty">{t('panel.calls.empty')}</p>
-          ) : (
-            <ul className="ft-items">
-              {props.requests.map((request) => {
-                const band = ageBand(request.waitingMinutes);
-                return (
-                  <li key={request.id} className={`ft-item${band === 'late' ? ' is-urgent' : ''}`}>
-                    <div className="ft-item-top">
-                      <b>{t('table.title', { label: request.tableLabel })}</b>
-                      <span>{t(`rail.calls.reason.${request.reason}`)}</span>
-                      <span className={`ft-item-age age-${band}`}>
-                        {t('rail.minutes', { count: request.waitingMinutes })}
-                      </span>
-                    </div>
-                    {/* The bill from the app's pay sheet says how much and the
-                        tip, so the waiter brings the right bill the first time. */}
-                    {request.reason === 'bill' && request.bill ? (
-                      <p className="ft-item-bill">
-                        {billRequestText(request.bill, t, format.dram, 'short')}
-                      </p>
-                    ) : null}
-                    {request.note ? <p>{request.note}</p> : null}
-                    <div className="ft-item-actions">
-                      <button
-                        type="button"
-                        className="ft-btn ft-btn-primary"
-                        onClick={() => props.onAcknowledge(request)}
-                      >
-                        {t('panel.calls.acknowledge')}
-                      </button>
-                    </div>
-                  </li>
-                );
-              })}
-            </ul>
-          )}
-        </RailSection>
+        {props.phone ? null : calls}
 
         {toSend.length > 0 ? (
           <RailSection
@@ -223,6 +245,8 @@ export function FloorRail(props: FloorRailProps) {
             </ul>
           </RailSection>
         ) : null}
+
+        {props.after}
       </div>
     </aside>
   );

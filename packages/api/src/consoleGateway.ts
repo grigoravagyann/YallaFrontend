@@ -62,6 +62,7 @@ import type {
   BranchShifts,
   CreateStaffInput,
   EnrolmentCode,
+  PhonePairingCode,
   ShiftInput,
   StaffDevice,
   StaffMember,
@@ -995,8 +996,19 @@ export interface ConsoleGateway {
 
   // --- Devices --------------------------------------------------------------
 
-  /** Every tablet enrolled to this branch, revoked ones included. */
-  listDevices(branchId: string): Promise<readonly StaffDevice[]>;
+  /**
+   * Every device enrolled to this branch, revoked ones included: `kind`
+   * narrows it to the tablets or the personal phones (`?kind=1|2`); absent,
+   * the server answers both.
+   */
+  listDevices(branchId: string, kind?: 'tablet' | 'phone'): Promise<readonly StaffDevice[]>;
+
+  /**
+   * A ten-minute, single-use code that pairs one person's own phone, returned
+   * **once**. A newer one for the same person supersedes it. Kitchen staff are
+   * refused with {@link KitchenPhoneNotAllowedError}.
+   */
+  createPhonePairing(input: { branchId: string; staffMemberId: string }): Promise<PhonePairingCode>;
 
   /**
    * Mint a one-time enrolment code, returned **once**.

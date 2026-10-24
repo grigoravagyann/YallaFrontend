@@ -73,7 +73,7 @@ export function WorthALook({
   const now = useNow(60_000);
   const counts = useVenueNavCounts(branchId);
   const readiness = useBranchReadiness(branchId);
-  const devices = useDevices(branchId, { pollMs: DEVICES_POLL_MS });
+  const devices = useDevices(branchId, { pollMs: DEVICES_POLL_MS, kind: 'tablet' });
   const today = branchToday(timeZoneId as TimeZone, now);
   const occupancy = useOccupancyReport({
     branchId,

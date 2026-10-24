@@ -536,8 +536,8 @@
         "tags": [
           "admin"
         ],
-        "summary": "Every tablet enrolled to this branch",
-        "description": "Revoked devices are included, so the list is an audit trail rather than a roster.",
+        "summary": "Every tablet and personal phone enrolled to this branch",
+        "description": "Revoked devices are included, so the list is an audit trail rather than a roster.\n\n`kind` narrows it: `1` tablets, `2` personal phones; absent, both. Each item says its `kind`; a phone also names its person in `boundStaffMember` (`id`, `fullName`, `role`), and its `name` is what the phone called itself when it paired - its platform and browser, \"iPhone · Safari\". `lastSeenAtUtc` moves with every PIN sign-in and session renewal on the device; `revokedAtUtc` is when it was revoked or unpaired.",
         "operationId": "listBranchDevices",
         "parameters": [
           {
@@ -547,6 +547,17 @@
             "schema": {
               "type": "string",
               "format": "uuid"
+            }
+          },
+          {
+            "name": "kind",
+            "in": "query",
+            "schema": {
+              "allOf": [
+                {
+                  "$ref": "#/components/schemas/Yalla.Domain.Enums.StaffDeviceKind"
+                }
+              ]
             }
           }
         ],
@@ -565,7 +576,7 @@
             }
           },
           "400": {
-            "description": "The request violated a domain rule or arrived malformed.",
+            "description": "`kind` is not 1 or 2.",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -617,13 +628,125 @@
         }
       }
     },
+    "/api/branches/{branchId}/staff/{staffMemberId}/phone-pairings": {
+      "post": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Show a QR that pairs one person's own phone to them",
+        "description": "Returns `{ code, expiresAtUtc, pairingUrl, staffMemberId, branchId }` **once**: only the code's hash is stored. `code` is ten characters shown as `XXXXX-XXXXX`; `pairingUrl` is what the QR carries - the staff app's `/staff/pair#code=XXXXX-XXXXX` on the console's own origin, the code in the fragment so it never reaches a server log. The phone redeems it with the person's own PIN (`POST /api/auth/staff/phone-pair`).\n\n**Ten minutes and one use.** Issuing another code for the same person supersedes their unused one, so *show a new code* takes a lost one back.\n\n**Who may.** Manager or above, from their stored row, by the staff-admin rules: the person must be someone the caller may manage, or the caller themselves - a general manager pairs branch managers, waiters and themselves, never an owner. A branch manager pairs at their own branch, and only their own branch's people. The person must sign in at this branch (at it, or venue-wide) - anybody else is 404 here - and be active.\n\n**Not kitchen staff**: `409 kitchen-phone-not-allowed`. The kitchen stays on its tablet.\n\nAudited as `staff.phone-pairing-issued` (who, for whom, which branch, the expiry - never the code). Rate limited like the other credential routes (`auth`).",
+        "operationId": "createStaffPhonePairing",
+        "parameters": [
+          {
+            "name": "branchId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "staffMemberId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Application.Auth.PhonePairingCodeResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request violated a domain rule or arrived malformed.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No usable token was presented, or the one presented was rejected.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a manager or above here, a rank the caller may not manage, or a branch manager reaching past their own branch.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such branch, or nobody by that id signs in at it.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "`kitchen-phone-not-allowed`, or the person is deactivated.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many codes issued by this caller. Wait, then retry.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected failure. Quote the traceId from the body.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/branches/{branchId}/devices/{deviceId}/revoke": {
       "post": {
         "tags": [
           "admin"
         ],
-        "summary": "Kill a lost or stolen tablet",
-        "description": "Takes effect on the tablet's next request, not when its token expires - every request carrying a device or session token checks this row. Any session open on the tablet is ended at the same time, because the session is the thing that can act.\n\nPermanent. A tablet that turns up again is enrolled afresh.",
+        "summary": "Kill a lost or stolen tablet, or unpair somebody's phone",
+        "description": "Takes effect on the tablet's next request, not when its token expires - every request carrying a device or session token checks this row. Any session open on the tablet is ended at the same time, because the session is the thing that can act.\n\nPermanent. A tablet that turns up again is enrolled afresh.\n\nThe same for a personal phone (`kind` 2): unpairing it ends its session now, and it is paired again only with a new code. A phone's unpairing is audited as `staff.phone-unpaired`.",
         "operationId": "revokeBranchDevice",
         "parameters": [
           {
@@ -8019,6 +8142,200 @@
         }
       }
     },
+    "/api/auth/staff/phone-pair/preview": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Who a phone pairing code is for - the phone's \"is this you?\"",
+        "description": "Read after scanning the QR (or typing the code) and before asking for the PIN, so the phone can show the person's name, role, venue and branch and let them say *no, wrong code*. Does not spend the code.\n\nRefused exactly as `phone-pair` refuses the code: `401 pairing-code-invalid` (unknown, or a tablet's enrolment code), `401 pairing-code-expired` (past its ten minutes, or replaced by a newer code for the same person), `409 conflicting-state` (already used, or its person can no longer sign in at that branch). Rate limited like the other credential routes.",
+        "operationId": "previewStaffPhonePairing",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "allOf": [
+                  {
+                    "$ref": "#/components/schemas/Yalla.Api.Endpoints.PhonePairPreviewRequest"
+                  }
+                ],
+                "description": "Body of `POST /api/auth/staff/phone-pair/preview`."
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Application.Auth.PhonePairingPreview"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request violated a domain rule or arrived malformed.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "`pairing-code-invalid` or `pairing-code-expired`.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller is authenticated but not allowed to perform this action.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The code was already used, or its person was deactivated or moved since.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests in the window, or a one-time credential is out of attempts.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected failure. Quote the traceId from the body.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/auth/staff/phone-pair": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Pair a personal phone with a code and the person's own PIN",
+        "description": "**A phone is a tablet that belongs to one person.** A manager issues a ten-minute, single-use code for somebody (`POST /api/branches/{branchId}/staff/{staffMemberId}/phone-pairings`), the phone scans it, and the person taps their own PIN. The answer is exactly what enrolling a tablet and then tapping a PIN would give: `device` is `enrolStaffDevice`'s body - keep `deviceToken` - and `session` is `signInStaffWithPin`'s, so the person is signed in.\n\nFrom then on the phone's PIN screen lists only that person (`GET /api/auth/staff/roster`), `GET /api/auth/staff/device` says `kind: 2` and names them in `boundStaffMember`, and `POST /api/auth/staff/pin` accepts only their id - anybody else's is refused as a wrong PIN.\n\n**The PIN** is checked with the lockout every PIN sign-in has: a wrong one is `401 pin-invalid` and counts toward the person's five; the fifth is `403 account-locked`. A wrong PIN leaves the code usable until it expires.\n\n**The same browser again.** A live phone of this person's at the branch with the same `clientDeviceId` is reused (renamed to `deviceName`, a new device token). A live phone of somebody else's with it, or this person's at another branch, is unpaired - the browser holds one device token, and now it is this one. A live **tablet** with it is refused with `409` - a manager revokes the tablet first.\n\nKitchen staff cannot have a phone: `409 kitchen-phone-not-allowed`.",
+        "operationId": "pairStaffPhone",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "allOf": [
+                  {
+                    "$ref": "#/components/schemas/Yalla.Api.Endpoints.PhonePairRequest"
+                  }
+                ],
+                "description": "Body of `POST /api/auth/staff/phone-pair`."
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Application.Auth.PhonePairingResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request violated a domain rule or arrived malformed.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "`pairing-code-invalid`, `pairing-code-expired`, or `pin-invalid` (the PIN was wrong).",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "`account-locked`: too many wrong PINs; a manager clears it.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The code was already used; its person can no longer sign in at that branch; the browser is one of the branch's tablets; or `kitchen-phone-not-allowed`.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests in the window, or a one-time credential is out of attempts.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected failure. Quote the traceId from the body.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/auth/staff/renew": {
       "post": {
         "tags": [
@@ -8605,7 +8922,7 @@
           "auth"
         ],
         "summary": "What this device is bound to. Reads the claim in the handler for the same reason the PIN\nexchange does: the device token is the credential being described, not one being authorised.",
-        "description": "For the PIN screen. **A tablet on a counter should say where it thinks it is** - without this a browser enrolled months ago shows a keypad with no indication of which branch it will act on, and a laptop bound to the wrong one is first noticed in an audit row.\n\nAuthenticated by the device token. A revoked device is refused here too: showing a venue name and a keypad to somebody holding a killed tablet is the wrong answer twice.",
+        "description": "For the PIN screen. **A tablet on a counter should say where it thinks it is** - without this a browser enrolled months ago shows a keypad with no indication of which branch it will act on, and a laptop bound to the wrong one is first noticed in an audit row.\n\nAuthenticated by the device token. A revoked device is refused here too: showing a venue name and a keypad to somebody holding a killed tablet is the wrong answer twice.\n\n`kind` is 1 for a tablet and 2 for a personal phone; a phone also carries `boundStaffMember` (`id`, `fullName`, `role`) - the one person whose PIN opens it.",
         "operationId": "getEnrolledStaffDevice",
         "responses": {
           "200": {
@@ -8677,7 +8994,7 @@
           "auth"
         ],
         "summary": "Who may sign in on this device. Reads the device claim exactly as\nM:Yalla.Api.Endpoints.AuthEndpoints.GetEnrolledDeviceAsync(Yalla.Application.Auth.IStaffAuthService,Microsoft.AspNetCore.Http.HttpContext,System.Threading.CancellationToken) does, so the two refuse the same callers the same way.",
-        "description": "For the PIN screen, so a first sign-in is a name to tap rather than a staff member id to type. Exactly the people `POST /api/auth/staff/pin` would accept here: active, of this device's venue, and either at this device's branch or at no particular branch. Sorted by name.\n\nEach person also says whether they are on shift, so the screen can list those people first - an order left to the client, as is re-reading it on a screen left open. The shift is the one at this device's branch: the one running now (`onShiftNow`; last night's still running past midnight included), else the next to start within 12 hours, across midnight too. Its `startsAt` / `endsAt` (branch wall clock), `endsNextDay` and `startsAtUtc` / `endsAtUtc` read as on `GET /api/branches/{branchId}/shifts`, and are absent when there is none to report: every shift is over or more than 12 hours off, at another branch, or a day off.\n\n`onShiftNow` is `startsAtUtc <= now < endsAtUtc` - decided on the instants, not the wall clock, so an hour a clock change repeats does not put an ended shift back on. Both instants are always present with a shift, so a screen can re-check it against its own clock and agree: a start in an hour the clocks skip is read on the clock from before the change (02:30 that night is 03:30 summer time), a time in a repeated hour as its first pass. Shifts never narrow the list: everybody the PIN exchange accepts is on it.\n\nNothing else per person - no phone, email or PIN state - because whoever holds the tablet can read it.\n\nAuthenticated by the device token, and refused exactly as `GET /api/auth/staff/device` refuses: no token, or a revoked device, is a 401.",
+        "description": "For the PIN screen, so a first sign-in is a name to tap rather than a staff member id to type. Exactly the people `POST /api/auth/staff/pin` would accept here: active, of this device's venue, and either at this device's branch or at no particular branch. Sorted by name.\n\nEach person also says whether they are on shift, so the screen can list those people first - an order left to the client, as is re-reading it on a screen left open. The shift is the one at this device's branch: the one running now (`onShiftNow`; last night's still running past midnight included), else the next to start within 12 hours, across midnight too. Its `startsAt` / `endsAt` (branch wall clock), `endsNextDay` and `startsAtUtc` / `endsAtUtc` read as on `GET /api/branches/{branchId}/shifts`, and are absent when there is none to report: every shift is over or more than 12 hours off, at another branch, or a day off.\n\n`onShiftNow` is `startsAtUtc <= now < endsAtUtc` - decided on the instants, not the wall clock, so an hour a clock change repeats does not put an ended shift back on. Both instants are always present with a shift, so a screen can re-check it against its own clock and agree: a start in an hour the clocks skip is read on the clock from before the change (02:30 that night is 03:30 summer time), a time in a repeated hour as its first pass. Shifts never narrow the list: everybody the PIN exchange accepts is on it.\n\nNothing else per person - no phone, email or PIN state - because whoever holds the tablet can read it.\n\nAuthenticated by the device token, and refused exactly as `GET /api/auth/staff/device` refuses: no token, or a revoked device, is a 401.\n\nOn a personal phone the list is its own person alone, with their shift - the PIN exchange takes nobody else's there.",
         "operationId": "getStaffRoster",
         "responses": {
           "200": {
@@ -8752,7 +9069,7 @@
           "auth"
         ],
         "summary": "The one endpoint that reads a claim in the handler, because the device is the credential\nbeing exchanged rather than something being authorised.",
-        "description": "The whole point of the staff model: **a waiter never types an email during a Friday rush**. The tablet signs in once and stays signed in; a person becomes present with four taps.\n\nSend the device token as the bearer. The session token that comes back carries the staff member, their role and the tablet's branch, and lasts thirty minutes; the renewal handle keeps it alive while the tablet is in use and stops working after thirty minutes of inactivity.\n\nPINs are per person, never shared. A shared PIN is faster and destroys the audit trail that answers 'who gave away my reserved table'.",
+        "description": "The whole point of the staff model: **a waiter never types an email during a Friday rush**. The tablet signs in once and stays signed in; a person becomes present with four taps.\n\nSend the device token as the bearer. The session token that comes back carries the staff member, their role and the tablet's branch, and lasts thirty minutes; the renewal handle keeps it alive while the tablet is in use and stops working after thirty minutes of inactivity.\n\nPINs are per person, never shared. A shared PIN is faster and destroys the audit trail that answers 'who gave away my reserved table'.\n\n**On a personal phone** (`kind` 2) only the phone's own person is accepted. Anybody else's `staffMemberId` is refused exactly as a wrong PIN is (`401 pin-invalid`), before their PIN is checked: nothing counts toward their lockout and nothing says whose PIN it was.",
         "operationId": "signInStaffWithPin",
         "requestBody": {
           "content": {
@@ -20268,6 +20585,170 @@
         }
       }
     },
+    "/api/staff/push-config": {
+      "get": {
+        "tags": [
+          "staff"
+        ],
+        "summary": "Whether staff pushes are sent, and the key to subscribe with",
+        "description": "`{ enabled, publicKey }`. `publicKey` is the VAPID public key, base64url - the `applicationServerKey` for `pushManager.subscribe`. **When it differs from the key the browser's current subscription was made with, unsubscribe and subscribe again**: a Development server generates a new pair every time it starts, and a key rotated in a deployment does the same.\n\n`enabled: false` (no `publicKey`) means this server has no VAPID keys and logs pushes instead of sending them - offer no switch. Readable with the device token alone, so the install screen can say so before anybody signs in.",
+        "operationId": "getStaffPushConfig",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Application.Notifications.StaffPushConfig"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request violated a domain rule or arrived malformed.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No staff device token, or the device was revoked.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a staff device or a PIN session on one.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests in the window, or a one-time credential is out of attempts.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected failure. Quote the traceId from the body.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/staff/today": {
+      "get": {
+        "tags": [
+          "staff"
+        ],
+        "summary": "The manager's Today: one branch's day so far, for the staff phone",
+        "description": "One read for the phone's Today board: `revenue` (`totalAmd`, `hallAmd` - the Overview's closed tabs - `takeawayAmd` and `takeawayOrders` collected, all since `sinceUtc`, the service day's first opening), `guests` (`total`, `withBooking`, `walkIn`: people seated since then), `bookings` (`total`, `came` = seated + completed, `expected` = confirmed not yet seated, `late`, `noShow`, `pendingApproval` - the Overview's counts for the same service day), `room` (`occupiedTables` of `tables`, `people`), `needsYou` (`pendingApprovals` the floor can answer now with `oldestApprovalRequestedAtUtc` and `soonestApprovalDeadlineUtc`; `unansweredMessages` with `oldestUnansweredMessageAtUtc` - the Messages tab's rule) and `shifts` (the service date's shifts at the branch and last night's still running: `fullName`, `role`, `startsAt`/`endsAt`, `endsNextDay`, the instants, `onShiftNow`, and `signedIn` - a live PIN session on one of the branch's devices).\n\n**Which branch.** `branchId` picks it; absent, the session's branch, else the caller's own. A branch manager reads their own branch only. An owner or general manager reads any branch of their venue - `branches` lists them for the switcher - from their own phone or the console. **On a shared tablet** a manager's PIN session reads that tablet's branch only, as every PIN session there is confined; `branches` is then that one. Read-only; the floor's actions stay on their own routes.",
+        "operationId": "getStaffToday",
+        "parameters": [
+          {
+            "name": "branchId",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Application.Staff.StaffToday"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request violated a domain rule or arrived malformed.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No usable token was presented, or the one presented was rejected.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a manager or above, a branch the caller does not reach, or another branch from a tablet.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such branch.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests in the window, or a one-time credential is out of attempts.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected failure. Quote the traceId from the body.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/branches/{branchId}/pre-orders/due": {
       "get": {
         "tags": [
@@ -22572,6 +23053,401 @@
           },
           "422": {
             "description": "The transition is not one the state machine allows - freeing an empty table, or marking an occupied one out of service. The body's `context` lists the transitions that are legal from the current status.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests in the window, or a one-time credential is out of attempts.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected failure. Quote the traceId from the body.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/staff/device/push-subscription": {
+      "put": {
+        "tags": [
+          "staff"
+        ],
+        "summary": "Store this device's Web Push subscription",
+        "description": "Send `PushSubscription.toJSON()` - `{ endpoint, keys: { p256dh, auth } }` - after subscribing, and again whenever the browser's subscription changes. One subscription per device: this replaces the device's earlier one, and a subscription another device row held (the phone was paired again) moves here. Phones and tablets alike; it acts on the device the PIN session is open on.\n\n`endpoint` must be an https URL on a known push service (Google's, Mozilla's, Apple's, Microsoft's - `WebPush:AllowedEndpointHosts`), `keys.p256dh` a P-256 public key and `keys.auth` a 16-byte secret, both base64url; otherwise `422 validation-failed` naming the field. A subscription the push service later answers 404 or 410 for is deleted by the server; subscribe again.",
+        "operationId": "saveStaffPushSubscription",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "allOf": [
+                  {
+                    "$ref": "#/components/schemas/Yalla.Api.Endpoints.SaveStaffPushSubscriptionRequest"
+                  }
+                ],
+                "description": "Body of `PUT /api/staff/device/push-subscription`: `PushSubscription.toJSON()`, as the browser gives it."
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "400": {
+            "description": "The request violated a domain rule or arrived malformed.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No session, or the device was revoked.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a PIN session on a staff device.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "`endpoint`, `keys.p256dh` or `keys.auth` is not usable - `context.field` names it.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests in the window, or a one-time credential is out of attempts.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected failure. Quote the traceId from the body.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "staff"
+        ],
+        "summary": "Forget this device's Web Push subscription",
+        "description": "After `pushSubscription.unsubscribe()`, or when the person turns notifications off. Answers 204 whether or not there was one.",
+        "operationId": "deleteStaffPushSubscription",
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "400": {
+            "description": "The request violated a domain rule or arrived malformed.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No session, or the device was revoked.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a PIN session on a staff device.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests in the window, or a one-time credential is out of attempts.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected failure. Quote the traceId from the body.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/staff/device/notification-preferences": {
+      "get": {
+        "tags": [
+          "staff"
+        ],
+        "summary": "This device's notification switches",
+        "description": "`{ approvals, guestMessages, tableCalls, takeaway, kitchenReady, onlyDuringShift, locale, subscribed, isDefault }`. Until somebody chooses (`isDefault: true`) everything is on except `kitchenReady`, and `onlyDuringShift` is on for a waiter's phone and off for a manager's and above. On a tablet `onlyDuringShift` is always false: it has no person and so no shift. `locale` is the language pushes are written in (absent: Armenian); `subscribed` whether a push subscription is on file.",
+        "operationId": "getStaffNotificationPreferences",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Application.Notifications.StaffNotificationSettings"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request violated a domain rule or arrived malformed.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No session, or the device was revoked.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a PIN session on a staff device.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests in the window, or a one-time credential is out of attempts.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected failure. Quote the traceId from the body.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "staff"
+        ],
+        "summary": "Set this device's notification switches",
+        "description": "All six switches every time - `{ approvals, guestMessages, tableCalls, takeaway, kitchenReady, onlyDuringShift }` - and optionally `locale` (`hy`, `ru`, `en`) when the person changes the app's language, so pushes are written in it. Answers the settings as `GET` does. A device's switches are the device's: on a phone, its person's.",
+        "operationId": "saveStaffNotificationPreferences",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "allOf": [
+                  {
+                    "$ref": "#/components/schemas/Yalla.Api.Endpoints.SaveStaffNotificationPreferencesRequest"
+                  }
+                ],
+                "description": "Body of `PUT /api/staff/device/notification-preferences`: every switch, every time."
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Application.Notifications.StaffNotificationSettings"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request violated a domain rule or arrived malformed.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No session, or the device was revoked.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a PIN session on a staff device.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "A switch is missing, or `locale` is not hy, ru or en.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests in the window, or a one-time credential is out of attempts.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected failure. Quote the traceId from the body.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/staff/device/unpair": {
+      "post": {
+        "tags": [
+          "staff"
+        ],
+        "summary": "Unpair this phone - the phone's own \"unpair\"",
+        "description": "Revokes the personal phone the session is open on and ends its session, as a manager's `revokeBranchDevice` would; pairing it again needs a new code from a manager. The client then forgets its device token. Answers 204 for a phone already unpaired.\n\nA **tablet** is refused with `409 conflicting-state`: a shared device is a manager's to revoke, not whoever happens to be signed in on it. Audited as `staff.phone-unpaired` with `byItsOwner: true`.",
+        "operationId": "unpairOwnStaffPhone",
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "400": {
+            "description": "The request violated a domain rule or arrived malformed.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No session, or the device was revoked.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a PIN session on a staff device.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The device is a tablet.",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -25820,6 +26696,49 @@
         "additionalProperties": false,
         "description": "One item on an order being placed."
       },
+      "Yalla.Api.Endpoints.PhonePairPreviewRequest": {
+        "required": [
+          "code"
+        ],
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string",
+            "description": "The pairing code from the QR's `#code=` or typed off the console. Case and dashes do not matter."
+          }
+        },
+        "additionalProperties": false,
+        "description": "Body of `POST /api/auth/staff/phone-pair/preview`."
+      },
+      "Yalla.Api.Endpoints.PhonePairRequest": {
+        "required": [
+          "clientDeviceId",
+          "code",
+          "deviceName",
+          "pin"
+        ],
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string",
+            "description": "The pairing code the manager showed, from the QR or typed."
+          },
+          "pin": {
+            "type": "string",
+            "description": "The person's own PIN - the one they tap on the tablet. Never logged, never stored in the clear."
+          },
+          "clientDeviceId": {
+            "type": "string",
+            "description": "The identifier this browser minted for itself and keeps, as a tablet's `deviceId`. Pairing again with the same\none reuses the phone rather than adding a row."
+          },
+          "deviceName": {
+            "type": "string",
+            "description": "What the console's Phones tab shows for it - the platform and browser, such as \"iPhone · Safari\"."
+          }
+        },
+        "additionalProperties": false,
+        "description": "Body of `POST /api/auth/staff/phone-pair`."
+      },
       "Yalla.Api.Endpoints.PlaceOrderRequest": {
         "required": [
           "clientCommandId",
@@ -26372,6 +27291,73 @@
         "additionalProperties": false,
         "description": "Body of `POST .../running-late`."
       },
+      "Yalla.Api.Endpoints.SaveStaffNotificationPreferencesRequest": {
+        "required": [
+          "approvals",
+          "guestMessages",
+          "kitchenReady",
+          "onlyDuringShift",
+          "tableCalls",
+          "takeaway"
+        ],
+        "type": "object",
+        "properties": {
+          "approvals": {
+            "type": "boolean",
+            "description": "A booking waits for the floor's yes or no."
+          },
+          "guestMessages": {
+            "type": "boolean",
+            "description": "A guest wrote, or answered \"are you coming?\"."
+          },
+          "tableCalls": {
+            "type": "boolean",
+            "description": "A table called a waiter or asked for the bill."
+          },
+          "takeaway": {
+            "type": "boolean",
+            "description": "A new takeaway order waits to be accepted."
+          },
+          "kitchenReady": {
+            "type": "boolean",
+            "description": "The kitchen marked an order ready for the person's table."
+          },
+          "onlyDuringShift": {
+            "type": "boolean",
+            "description": "A phone's pushes wait for its person's shift. Ignored on a tablet."
+          },
+          "locale": {
+            "type": "string",
+            "description": "Optional: the language pushes are written in - `hy`, `ru` or `en` - sent when the person changes the\napp's language. Absent leaves it as it was.",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false,
+        "description": "Body of `PUT /api/staff/device/notification-preferences`: every switch, every time."
+      },
+      "Yalla.Api.Endpoints.SaveStaffPushSubscriptionRequest": {
+        "required": [
+          "endpoint",
+          "keys"
+        ],
+        "type": "object",
+        "properties": {
+          "endpoint": {
+            "type": "string",
+            "description": "The push service URL. https, on Google's, Mozilla's, Apple's or Microsoft's push service."
+          },
+          "keys": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Yalla.Api.Endpoints.StaffPushSubscriptionKeys"
+              }
+            ],
+            "description": "The two keys the payload is encrypted to."
+          }
+        },
+        "additionalProperties": false,
+        "description": "Body of `PUT /api/staff/device/push-subscription`: `PushSubscription.toJSON()`, as the browser gives it."
+      },
       "Yalla.Api.Endpoints.SeatHeldPartyRequest": {
         "required": [
           "clientCommandId",
@@ -26652,6 +27638,25 @@
         },
         "additionalProperties": false,
         "description": "Body of `POST /api/auth/staff/pin`."
+      },
+      "Yalla.Api.Endpoints.StaffPushSubscriptionKeys": {
+        "required": [
+          "auth",
+          "p256dh"
+        ],
+        "type": "object",
+        "properties": {
+          "p256dh": {
+            "type": "string",
+            "description": "The browser's P-256 public key, base64url (87 characters)."
+          },
+          "auth": {
+            "type": "string",
+            "description": "The browser's 16-byte auth secret, base64url (22 characters)."
+          }
+        },
+        "additionalProperties": false,
+        "description": "A push subscription's keys."
       },
       "Yalla.Api.Endpoints.StartTelegramVerificationRequest": {
         "type": "object",
@@ -29009,6 +30014,35 @@
         "additionalProperties": false,
         "description": "`verification-code-invalid`, 401, with the count. `verification-code-expired` arrives on\n            the same status with no `context`."
       },
+      "Yalla.Application.Auth.BoundStaffMemberView": {
+        "required": [
+          "fullName",
+          "id",
+          "role"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Their staff member id - what `POST /api/auth/staff/pin` takes on this phone.",
+            "format": "uuid"
+          },
+          "fullName": {
+            "type": "string",
+            "description": "Their name."
+          },
+          "role": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Yalla.Domain.Enums.StaffRole"
+              }
+            ],
+            "description": "What a staff member is allowed to do, coarsely. Authorisation itself is a later task."
+          }
+        },
+        "additionalProperties": false,
+        "description": "The person a phone belongs to."
+      },
       "Yalla.Application.Auth.DeviceEnrolmentCodeResult": {
         "required": [
           "branchId",
@@ -29116,6 +30150,7 @@
           "deviceId",
           "deviceName",
           "enrolledAtUtc",
+          "kind",
           "venueName"
         ],
         "type": "object",
@@ -29156,10 +30191,142 @@
             "description": "When it was last used.",
             "format": "date-time",
             "nullable": true
+          },
+          "kind": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Yalla.Domain.Enums.StaffDeviceKind"
+              }
+            ],
+            "description": "What an enrolled `StaffDevice` is. Stored as the integer; never renumber."
+          },
+          "boundStaffMember": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Yalla.Application.Auth.BoundStaffMemberView"
+              }
+            ],
+            "description": "On a phone, the one person whose PIN opens it; absent on a tablet.",
+            "nullable": true
           }
         },
         "additionalProperties": false,
         "description": "Where an enrolled device thinks it is, shown on the PIN screen before anybody taps."
+      },
+      "Yalla.Application.Auth.PhonePairingCodeResult": {
+        "required": [
+          "branchId",
+          "code",
+          "expiresAtUtc",
+          "pairingUrl",
+          "staffMemberId"
+        ],
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string",
+            "description": "Ten characters, shown as `XXXXX-XXXXX`. Returned once; only its hash is stored. Case and the dash do not\nmatter when typed."
+          },
+          "expiresAtUtc": {
+            "type": "string",
+            "description": "Ten minutes from now. A newer code for the same person replaces this one.",
+            "format": "date-time"
+          },
+          "pairingUrl": {
+            "type": "string",
+            "description": "What the QR carries: the staff app's pairing page with the code in the fragment."
+          },
+          "staffMemberId": {
+            "type": "string",
+            "description": "Whose phone it pairs.",
+            "format": "uuid"
+          },
+          "branchId": {
+            "type": "string",
+            "description": "The branch the phone will be bound to.",
+            "format": "uuid"
+          }
+        },
+        "additionalProperties": false,
+        "description": "A code that pairs one person's phone to them, as the console shows it in a QR."
+      },
+      "Yalla.Application.Auth.PhonePairingPreview": {
+        "required": [
+          "branchId",
+          "branchName",
+          "expiresAtUtc",
+          "fullName",
+          "role",
+          "staffMemberId",
+          "venueName"
+        ],
+        "type": "object",
+        "properties": {
+          "staffMemberId": {
+            "type": "string",
+            "description": "The person.",
+            "format": "uuid"
+          },
+          "fullName": {
+            "type": "string",
+            "description": "Their name."
+          },
+          "role": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Yalla.Domain.Enums.StaffRole"
+              }
+            ],
+            "description": "What a staff member is allowed to do, coarsely. Authorisation itself is a later task."
+          },
+          "branchId": {
+            "type": "string",
+            "description": "The branch the phone will be bound to.",
+            "format": "uuid"
+          },
+          "branchName": {
+            "type": "string",
+            "description": "That branch."
+          },
+          "venueName": {
+            "type": "string",
+            "description": "Its venue."
+          },
+          "expiresAtUtc": {
+            "type": "string",
+            "description": "When the code stops working.",
+            "format": "date-time"
+          }
+        },
+        "additionalProperties": false,
+        "description": "Who a pairing code is for, so the phone can ask \"is this you?\" before the PIN."
+      },
+      "Yalla.Application.Auth.PhonePairingResult": {
+        "required": [
+          "device",
+          "session"
+        ],
+        "type": "object",
+        "properties": {
+          "device": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Yalla.Application.Auth.DeviceEnrolmentResult"
+              }
+            ],
+            "description": "Exactly what `POST /api/auth/staff/enrol` answers - keep the device token."
+          },
+          "session": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Yalla.Application.Auth.StaffSessionResult"
+              }
+            ],
+            "description": "Exactly what `POST /api/auth/staff/pin` answers - the person is signed in."
+          }
+        },
+        "additionalProperties": false,
+        "description": "A paired phone: its device token and a session for its person, as enrolment and a PIN would give."
       },
       "Yalla.Application.Auth.PhoneProofChannels": {
         "required": [
@@ -29226,6 +30393,7 @@
           "enrolledAtUtc",
           "id",
           "isRevoked",
+          "kind",
           "name"
         ],
         "type": "object",
@@ -29258,6 +30426,29 @@
           "isRevoked": {
             "type": "boolean",
             "description": "True once a manager killed it. Revocation is permanent; re-enrol instead."
+          },
+          "kind": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Yalla.Domain.Enums.StaffDeviceKind"
+              }
+            ],
+            "description": "What an enrolled `StaffDevice` is. Stored as the integer; never renumber."
+          },
+          "boundStaffMember": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Yalla.Application.Auth.BoundStaffMemberView"
+              }
+            ],
+            "description": "A phone's person; absent on a tablet.",
+            "nullable": true
+          },
+          "revokedAtUtc": {
+            "type": "string",
+            "description": "When it was revoked or unpaired; absent while live.",
+            "format": "date-time",
+            "nullable": true
           }
         },
         "additionalProperties": false,
@@ -33437,6 +34628,79 @@
         "additionalProperties": false,
         "description": "What the platform view shows about the outbox."
       },
+      "Yalla.Application.Notifications.StaffNotificationSettings": {
+        "required": [
+          "approvals",
+          "guestMessages",
+          "isDefault",
+          "kitchenReady",
+          "onlyDuringShift",
+          "subscribed",
+          "tableCalls",
+          "takeaway"
+        ],
+        "type": "object",
+        "properties": {
+          "approvals": {
+            "type": "boolean",
+            "description": "See Yalla.Application.Notifications.StaffNotificationPreferences."
+          },
+          "guestMessages": {
+            "type": "boolean",
+            "description": "See Yalla.Application.Notifications.StaffNotificationPreferences."
+          },
+          "tableCalls": {
+            "type": "boolean",
+            "description": "See Yalla.Application.Notifications.StaffNotificationPreferences."
+          },
+          "takeaway": {
+            "type": "boolean",
+            "description": "See Yalla.Application.Notifications.StaffNotificationPreferences."
+          },
+          "kitchenReady": {
+            "type": "boolean",
+            "description": "See Yalla.Application.Notifications.StaffNotificationPreferences."
+          },
+          "onlyDuringShift": {
+            "type": "boolean",
+            "description": "See Yalla.Application.Notifications.StaffNotificationPreferences."
+          },
+          "locale": {
+            "type": "string",
+            "description": "The language pushes are written in (`hy`, `ru`, `en`); absent means Armenian.",
+            "nullable": true
+          },
+          "subscribed": {
+            "type": "boolean",
+            "description": "This device has a push subscription on file."
+          },
+          "isDefault": {
+            "type": "boolean",
+            "description": "Nothing was chosen yet: these are the defaults for the device and its person's role."
+          }
+        },
+        "additionalProperties": false,
+        "description": "A device's notification settings as the staff app's switches show them: the six switches, flat."
+      },
+      "Yalla.Application.Notifications.StaffPushConfig": {
+        "required": [
+          "enabled"
+        ],
+        "type": "object",
+        "properties": {
+          "enabled": {
+            "type": "boolean",
+            "description": "False when no VAPID keys are configured: pushes are logged, not sent - offer no switch."
+          },
+          "publicKey": {
+            "type": "string",
+            "description": "The VAPID public key, base64url - `applicationServerKey` for `pushManager.subscribe`. When it differs from\nthe one the browser's subscription was made with, unsubscribe and subscribe again (a Development server makes a\nnew one every start). Absent when disabled.",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false,
+        "description": "Whether this server sends Web Push, and the key a browser subscribes with."
+      },
       "Yalla.Application.Ordering.AdjustmentView": {
         "required": [
           "adjustmentId",
@@ -34813,7 +36077,7 @@
           },
           "action": {
             "type": "string",
-            "description": "The stable slug - `venue.create`, `venue.update`, `venue.suspend`,\n`venue.reactivate`, `venue.delete`, `branch.create`, `branch.update`,\n`branch.tier-change`, `branch.relocate`, `staff.create`, `staff.sign-in-issued`,\n`venue.restore`, `review.hide`, `review.unhide`, `review.dismiss-reports`,\n`review.restore-reports`, `review.remove-reply` (the platform taking a venue's reply down - a\nvenue's own replies and removals are left out of the feed), `table.regenerate-qr`,\n`admin.rename`, `admin.password-change`, and a venue user's own `account.rename`,\n`account.password-change`, `account.sign-out-others`."
+            "description": "The stable slug - `venue.create`, `venue.update`, `venue.suspend`,\n`venue.reactivate`, `venue.delete`, `branch.create`, `branch.update`,\n`branch.tier-change`, `branch.relocate`, `staff.create`, `staff.sign-in-issued`,\n`staff.phone-pairing-issued`, `staff.phone-unpaired`,\n`venue.restore`, `review.hide`, `review.unhide`, `review.dismiss-reports`,\n`review.restore-reports`, `review.remove-reply` (the platform taking a venue's reply down - a\nvenue's own replies and removals are left out of the feed), `table.regenerate-qr`,\n`admin.rename`, `admin.password-change`, and a venue user's own `account.rename`,\n`account.password-change`, `account.sign-out-others`."
           },
           "actor": {
             "allOf": [
@@ -40298,6 +41562,378 @@
         "additionalProperties": false,
         "description": "A freshly issued sign-in link. ResetLink exists only here: the server keeps\nthe token's hash and no read ever returns it, so this is the one copy."
       },
+      "Yalla.Application.Staff.StaffToday": {
+        "required": [
+          "asOfUtc",
+          "bookings",
+          "branches",
+          "branchId",
+          "branchName",
+          "guests",
+          "localTime",
+          "needsYou",
+          "revenue",
+          "room",
+          "serviceDate",
+          "shifts",
+          "timeZoneId",
+          "venueName"
+        ],
+        "type": "object",
+        "properties": {
+          "branchId": {
+            "type": "string",
+            "description": "The branch.",
+            "format": "uuid"
+          },
+          "branchName": {
+            "type": "string",
+            "description": "Its name."
+          },
+          "venueName": {
+            "type": "string",
+            "description": "Its venue."
+          },
+          "timeZoneId": {
+            "type": "string",
+            "description": "The zone every local value is in."
+          },
+          "asOfUtc": {
+            "type": "string",
+            "description": "The instant it is true of.",
+            "format": "date-time"
+          },
+          "serviceDate": {
+            "type": "string",
+            "description": "The service day, as the Overview has it: today, or yesterday while last night's block runs.",
+            "format": "date"
+          },
+          "localTime": {
+            "type": "string",
+            "description": "The branch's clock now.",
+            "format": "time"
+          },
+          "branches": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Yalla.Application.Staff.TodayBranch"
+            },
+            "description": "The branches the caller may switch to here, by name; this one among them."
+          },
+          "revenue": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Yalla.Application.Staff.TodayRevenue"
+              }
+            ],
+            "description": "Takings so far."
+          },
+          "guests": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Yalla.Application.Staff.TodayGuests"
+              }
+            ],
+            "description": "People seated so far."
+          },
+          "bookings": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Yalla.Application.Staff.TodayBookings"
+              }
+            ],
+            "description": "The service day's bookings."
+          },
+          "room": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Yalla.Application.Staff.TodayRoom"
+              }
+            ],
+            "description": "The room now."
+          },
+          "needsYou": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Yalla.Application.Staff.TodayNeedsYou"
+              }
+            ],
+            "description": "What waits for somebody."
+          },
+          "shifts": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Yalla.Application.Staff.TodayShift"
+            },
+            "description": "Who works today: the service date's shifts at the branch, and last night's still running."
+          }
+        },
+        "additionalProperties": false,
+        "description": "The manager's \"Today\" on the staff phone: one branch's day so far in one read - takings, guests, bookings, the\nroom, what needs them, and who is on shift."
+      },
+      "Yalla.Application.Staff.TodayBookings": {
+        "required": [
+          "came",
+          "expected",
+          "late",
+          "noShow",
+          "pendingApproval",
+          "total"
+        ],
+        "type": "object",
+        "properties": {
+          "total": {
+            "type": "integer",
+            "description": "Every booking still on the books (not the cancelled or declined).",
+            "format": "int32"
+          },
+          "came": {
+            "type": "integer",
+            "description": "Seated now, or came and left.",
+            "format": "int32"
+          },
+          "expected": {
+            "type": "integer",
+            "description": "Confirmed and not yet seated, the late ones included.",
+            "format": "int32"
+          },
+          "late": {
+            "type": "integer",
+            "description": "Of Expected, those past their start.",
+            "format": "int32"
+          },
+          "noShow": {
+            "type": "integer",
+            "description": "Marked as not having come.",
+            "format": "int32"
+          },
+          "pendingApproval": {
+            "type": "integer",
+            "description": "Requests still waiting for an answer.",
+            "format": "int32"
+          }
+        },
+        "additionalProperties": false,
+        "description": "The service day's bookings, by what became of them - the Overview's counts."
+      },
+      "Yalla.Application.Staff.TodayBranch": {
+        "required": [
+          "branchId",
+          "name"
+        ],
+        "type": "object",
+        "properties": {
+          "branchId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false,
+        "description": "A branch the switcher offers."
+      },
+      "Yalla.Application.Staff.TodayGuests": {
+        "required": [
+          "total",
+          "walkIn",
+          "withBooking"
+        ],
+        "type": "object",
+        "properties": {
+          "total": {
+            "type": "integer",
+            "description": "Every party's size, added up.",
+            "format": "int32"
+          },
+          "withBooking": {
+            "type": "integer",
+            "description": "Seated against a booking.",
+            "format": "int32"
+          },
+          "walkIn": {
+            "type": "integer",
+            "description": "Seated with none.",
+            "format": "int32"
+          }
+        },
+        "additionalProperties": false,
+        "description": "People seated since the day's takings started."
+      },
+      "Yalla.Application.Staff.TodayNeedsYou": {
+        "required": [
+          "pendingApprovals",
+          "unansweredMessages"
+        ],
+        "type": "object",
+        "properties": {
+          "pendingApprovals": {
+            "type": "integer",
+            "description": "Bookings the floor can answer now - the awaiting list's rule, any day.",
+            "format": "int32"
+          },
+          "oldestApprovalRequestedAtUtc": {
+            "type": "string",
+            "description": "When the longest-waiting of them was asked for; absent with none.",
+            "format": "date-time",
+            "nullable": true
+          },
+          "soonestApprovalDeadlineUtc": {
+            "type": "string",
+            "description": "The nearest answer deadline among them; absent when none has one.",
+            "format": "date-time",
+            "nullable": true
+          },
+          "unansweredMessages": {
+            "type": "integer",
+            "description": "Open threads whose guest wrote and nobody at the venue answered since.",
+            "format": "int32"
+          },
+          "oldestUnansweredMessageAtUtc": {
+            "type": "string",
+            "description": "When the longest-waiting of those guests wrote; absent with none.",
+            "format": "date-time",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false,
+        "description": "What waits for somebody - the board's \"needs you\"."
+      },
+      "Yalla.Application.Staff.TodayRevenue": {
+        "required": [
+          "hallAmd",
+          "sinceUtc",
+          "takeawayAmd",
+          "takeawayOrders",
+          "totalAmd"
+        ],
+        "type": "object",
+        "properties": {
+          "totalAmd": {
+            "type": "integer",
+            "description": "Hall and takeaway together.",
+            "format": "int64"
+          },
+          "hallAmd": {
+            "type": "integer",
+            "description": "Tabs closed since the day's first opening - the Overview's revenue.",
+            "format": "int64"
+          },
+          "takeawayAmd": {
+            "type": "integer",
+            "description": "Takeaway orders collected since then.",
+            "format": "int64"
+          },
+          "takeawayOrders": {
+            "type": "integer",
+            "description": "How many were collected.",
+            "format": "int32"
+          },
+          "sinceUtc": {
+            "type": "string",
+            "description": "Where the day's takings start: the first opening of the service date, or its midnight.",
+            "format": "date-time"
+          }
+        },
+        "additionalProperties": false,
+        "description": "The service day's takings so far, in whole dram."
+      },
+      "Yalla.Application.Staff.TodayRoom": {
+        "required": [
+          "occupiedTables",
+          "people",
+          "tables"
+        ],
+        "type": "object",
+        "properties": {
+          "occupiedTables": {
+            "type": "integer",
+            "description": "Active tables somebody is sitting at.",
+            "format": "int32"
+          },
+          "tables": {
+            "type": "integer",
+            "description": "Active tables, out of service included.",
+            "format": "int32"
+          },
+          "people": {
+            "type": "integer",
+            "description": "People sitting down now.",
+            "format": "int32"
+          }
+        },
+        "additionalProperties": false,
+        "description": "The room now."
+      },
+      "Yalla.Application.Staff.TodayShift": {
+        "required": [
+          "endsAt",
+          "endsAtUtc",
+          "endsNextDay",
+          "fullName",
+          "onShiftNow",
+          "role",
+          "signedIn",
+          "staffMemberId",
+          "startsAt",
+          "startsAtUtc"
+        ],
+        "type": "object",
+        "properties": {
+          "staffMemberId": {
+            "type": "string",
+            "description": "Who.",
+            "format": "uuid"
+          },
+          "fullName": {
+            "type": "string",
+            "description": "Their name."
+          },
+          "role": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Yalla.Domain.Enums.StaffRole"
+              }
+            ],
+            "description": "What a staff member is allowed to do, coarsely. Authorisation itself is a later task."
+          },
+          "startsAt": {
+            "type": "string",
+            "description": "Branch wall clock.",
+            "format": "time"
+          },
+          "endsAt": {
+            "type": "string",
+            "description": "Branch wall clock, on the next date when EndsNextDay.",
+            "format": "time"
+          },
+          "endsNextDay": {
+            "type": "boolean",
+            "description": "Ends after midnight."
+          },
+          "startsAtUtc": {
+            "type": "string",
+            "description": "The start as an instant.",
+            "format": "date-time"
+          },
+          "endsAtUtc": {
+            "type": "string",
+            "description": "The end as an instant.",
+            "format": "date-time"
+          },
+          "onShiftNow": {
+            "type": "boolean",
+            "description": "Started and not over."
+          },
+          "signedIn": {
+            "type": "boolean",
+            "description": "Has a live PIN session on a device of this branch now - the board's \"signed in\"."
+          }
+        },
+        "additionalProperties": false,
+        "description": "One person's shift today at the branch."
+      },
       "Yalla.Application.Staff.UpdateStaffCommand": {
         "required": [
           "setBranch"
@@ -42332,6 +43968,19 @@
           "Mild",
           "Medium",
           "Hot"
+        ]
+      },
+      "Yalla.Domain.Enums.StaffDeviceKind": {
+        "enum": [
+          1,
+          2
+        ],
+        "type": "integer",
+        "description": "What an enrolled `StaffDevice` is. Stored as the integer; never renumber.\n\nValues: 1 Tablet, 2 Phone.",
+        "format": "int32",
+        "x-enum-varnames": [
+          "Tablet",
+          "Phone"
         ]
       },
       "Yalla.Domain.Enums.StaffRole": {

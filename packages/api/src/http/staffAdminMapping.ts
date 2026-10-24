@@ -2,6 +2,7 @@ import type { StaffRole } from '../contracts/console';
 import type {
   CreateStaffInput,
   EnrolmentCode,
+  PhonePairingCode,
   StaffDevice,
   StaffMember,
   StaffSignInLink,
@@ -13,6 +14,7 @@ type Schemas = components['schemas'];
 type WireStaff = Schemas['Yalla.Application.Staff.StaffMemberView'];
 type WireDevice = Schemas['Yalla.Application.Auth.StaffDeviceSummary'];
 type WireCode = Schemas['Yalla.Application.Auth.DeviceEnrolmentCodeResult'];
+type WirePhonePairing = Schemas['Yalla.Application.Auth.PhonePairingCodeResult'];
 type WireSignInLink = Schemas['Yalla.Application.Staff.StaffSignInLink'];
 
 /**
@@ -110,6 +112,27 @@ export function staffDevice(wire: WireDevice): StaffDevice {
     enrolledAtUtc: wire.enrolledAtUtc,
     lastSeenAtUtc: wire.lastSeenAtUtc ?? null,
     isRevoked: wire.isRevoked,
+    // `StaffDeviceKind`: 2 a personal phone; 1, or a server from before phones, a tablet.
+    kind: wire.kind === 2 ? 'phone' : 'tablet',
+    boundStaffMember: wire.boundStaffMember
+      ? {
+          id: wire.boundStaffMember.id,
+          fullName: wire.boundStaffMember.fullName,
+          role: staffRole(wire.boundStaffMember.role),
+        }
+      : null,
+    revokedAtUtc: wire.revokedAtUtc ?? null,
+  };
+}
+
+/** Field for field: the code is shown once, so a renamed member must fail here. */
+export function phonePairingCode(wire: WirePhonePairing): PhonePairingCode {
+  return {
+    code: wire.code,
+    expiresAtUtc: wire.expiresAtUtc,
+    pairingUrl: wire.pairingUrl,
+    staffMemberId: wire.staffMemberId,
+    branchId: wire.branchId,
   };
 }
 

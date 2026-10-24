@@ -121,6 +121,18 @@ import type { Photo } from '../contracts/menuAdmin';
 import { mockMenuFor } from './menu';
 import { mockBranchMenu, mockPhoto, publishedBranchMenu } from './menuDetail';
 import { computeBill, percentOf, type BillingLine } from './billing';
+import type {
+  SaveStaffNotificationSettings,
+  StaffNotificationSettings,
+  StaffNotificationSwitches,
+  StaffPushConfig,
+  StaffPushSubscriptionInput,
+  StaffToday,
+} from '../contracts/staffPhone';
+import { staffRoleToUserRole } from '../auth/endpoints';
+import { fixtureStaffFor } from './staffFixture';
+import { mockRosterShiftsAround } from './staffRosterMock';
+import { mockVenues } from './venues';
 
 /**
  * A whole service, in memory.
@@ -528,6 +540,21 @@ function versionToken(tableId: string, version: number): string {
   return btoa(`${tableId}:${version}`);
 }
 
+/**
+ * A well-formed VAPID public key (65 bytes, uncompressed P-256, base64url) for
+ * the mock's push config. Nothing is ever sent with it.
+ */
+const MOCK_VAPID_PUBLIC_KEY =
+  'BEl62iUYgUivxIkv69yViEuiBIa-Ib9-SkvMeAtA3LFgDzkrxZJjSgSnfckjBJuBkr3qBUYIHBQFLXYp5Nksh8U';
+
+/** The mock Today's day before the mock started: what the morning took. */
+const EARLIER_HALL_AMD = 236_000;
+const EARLIER_TAKEAWAY_AMD = 44_000;
+const EARLIER_TAKEAWAY_ORDERS = 6;
+const EARLIER_CAME = 12;
+const EARLIER_GUESTS_BOOKED = 38;
+const EARLIER_WALK_INS = 14;
+
 export function createStaffMockGateway(options: StaffMockOptions = {}): StaffGateway {
   const latency = options.latencyMs ?? 0;
   const now = options.now ?? (() => new Date());
@@ -548,6 +575,8 @@ export function createStaffMockGateway(options: StaffMockOptions = {}): StaffGat
    * only the id follows the caller.
    */
   let branchId = options.branchId ?? cafeFloorPlan.branchId;
+  /** A branch has asked for the floor (or was given): Today's "this floor" is that one. */
+  let floorAdopted = options.branchId !== undefined;
   // The fixture has no branch name — it is a tables fixture — and the floor
   // screen titles itself from one. Without it the header says "Loading…" for
   // the whole session, which is exactly the kind of small permanent lie this
@@ -2489,11 +2518,42 @@ export function createStaffMockGateway(options: StaffMockOptions = {}): StaffGat
 
   // --- The gateway ----------------------------------------------------------
 
+  /**
+   * This device's push switches, as the server keeps them per device. The
+   * defaults are a waiter's: everything but "kitchen ready", and only during
+   * the shift.
+   */
+  const phonePush: {
+    switches: StaffNotificationSwitches;
+    locale: string | null;
+    subscribed: boolean;
+    isDefault: boolean;
+  } = {
+    switches: {
+      approvals: true,
+      guestMessages: true,
+      tableCalls: true,
+      takeaway: true,
+      kitchenReady: false,
+      onlyDuringShift: true,
+    },
+    locale: null,
+    subscribed: false,
+    isDefault: true,
+  };
+
+  /** Latency without the send failures: the device's own reads are not floor commands. */
+  async function calm<T>(value: T): Promise<T> {
+    if (latency > 0) await new Promise((resolve) => setTimeout(resolve, latency));
+    return value;
+  }
+
   return {
     async getFloor(requested): Promise<StaffFloor | null> {
       requireSession('/api/branches/floor');
       if (!requested) return settle(null);
       branchId = requested;
+      floorAdopted = true;
       const at = now();
 
       const details: StaffTableDetail[] = [];
@@ -3643,6 +3703,219 @@ export function createStaffMockGateway(options: StaffMockOptions = {}): StaffGat
       tab.paidDram = totalsFor(tab).totalDram;
       pushEvent(tab, 'tabAbandoned', at);
       return settle({ tabId: tab.id, writtenOffDram: written, totals: totalsFor(tab) });
+    },
+
+    // --- The device itself: a personal phone, its pushes (2026-10-24) ---------
+
+    async unpairOwnPhone(): Promise<void> {
+      requireSession('/api/staff/device/unpair');
+      await calm(undefined);
+      phonePush.subscribed = false;
+    },
+
+    async getPushConfig(): Promise<StaffPushConfig> {
+      // The mock "sends" nothing, but says it would: the install screen's
+      // switches are walkable, and subscribing is the browser's own business.
+      return calm({ enabled: true, publicKey: MOCK_VAPID_PUBLIC_KEY });
+    },
+
+    async savePushSubscription(subscription: StaffPushSubscriptionInput): Promise<void> {
+      requireSession('/api/staff/device/push-subscription');
+      if (!/^https:\/\//u.test(subscription.endpoint)) {
+        throw new ValidationError({
+          status: 422,
+          url: '/api/staff/device/push-subscription',
+          problem: {
+            type: '',
+            title: 'Validation failed',
+            status: 422,
+            detail: 'endpoint must be an https URL on a known push service.',
+            code: 'validation-failed',
+            traceId: 'mock',
+            context: { field: 'endpoint' },
+          },
+        });
+      }
+      await calm(undefined);
+      phonePush.subscribed = true;
+    },
+
+    async deletePushSubscription(): Promise<void> {
+      requireSession('/api/staff/device/push-subscription');
+      await calm(undefined);
+      phonePush.subscribed = false;
+    },
+
+    async getNotificationSettings(): Promise<StaffNotificationSettings> {
+      requireSession('/api/staff/device/notification-preferences');
+      return calm({
+        ...phonePush.switches,
+        locale: phonePush.locale,
+        subscribed: phonePush.subscribed,
+        isDefault: phonePush.isDefault,
+      });
+    },
+
+    async saveNotificationSettings(
+      settings: SaveStaffNotificationSettings,
+    ): Promise<StaffNotificationSettings> {
+      requireSession('/api/staff/device/notification-preferences');
+      phonePush.switches = {
+        approvals: settings.approvals,
+        guestMessages: settings.guestMessages,
+        tableCalls: settings.tableCalls,
+        takeaway: settings.takeaway,
+        kitchenReady: settings.kitchenReady,
+        onlyDuringShift: settings.onlyDuringShift,
+      };
+      if (settings.locale) phonePush.locale = settings.locale;
+      phonePush.isDefault = false;
+      return calm({
+        ...phonePush.switches,
+        locale: phonePush.locale,
+        subscribed: phonePush.subscribed,
+        isDefault: false,
+      });
+    },
+
+    async getToday(requested?: string): Promise<StaffToday> {
+      requireSession('/api/staff/today');
+      // Today can be read before the floor is: the branch it names is the floor's.
+      if (requested && !floorAdopted) {
+        branchId = requested;
+        floorAdopted = true;
+      }
+      const at = now();
+      const venue = mockVenues.find((candidate) =>
+        candidate.branches.some((one) => one.id === branchId),
+      );
+      const siblings = venue?.branches ?? [];
+      const target =
+        requested && siblings.some((one) => one.id === requested) ? requested : branchId;
+      const branchName =
+        siblings.find((one) => one.id === target)?.name ?? plan.branchName ?? 'Northern Avenue';
+      const people = venue ? fixtureStaffFor(venue.id, venue.name, venue.branches) : [];
+      const shifts = mockRosterShiftsAround(people, target, at).map((shift) => {
+        const member = people.find((person) => person.id === shift.staffMemberId);
+        const start = Date.parse(shift.startsAtUtc);
+        const end = Date.parse(shift.endsAtUtc);
+        const onShiftNow = start <= at.getTime() && at.getTime() < end;
+        const clock = (instant: number) =>
+          new Intl.DateTimeFormat('en-GB', {
+            hour: '2-digit',
+            minute: '2-digit',
+            hourCycle: 'h23',
+            timeZone: plan.timeZoneId,
+          }).format(instant);
+        return {
+          staffMemberId: shift.staffMemberId,
+          fullName: member?.fullName ?? '',
+          role: staffRoleToUserRole(member?.role ?? 'waiter'),
+          startsAt: clock(start),
+          endsAt: clock(end),
+          endsNextDay: clock(end) <= clock(start),
+          startsAtUtc: shift.startsAtUtc,
+          endsAtUtc: shift.endsAtUtc,
+          onShiftNow,
+          // Whoever is on shift is signed in somewhere, as on a Friday.
+          signedIn: onShiftNow,
+        };
+      });
+      const sinceUtc = iso(new Date(at.getTime() - 6 * 60 * 60_000));
+      const base = {
+        branchId: target,
+        branchName,
+        venueName: venue?.name ?? 'Lumen Coffee',
+        timeZoneId: plan.timeZoneId,
+        asOfUtc: iso(at),
+        serviceDate: localDateAndTime(iso(at), plan.timeZoneId).localDate,
+        localTime: localDateAndTime(iso(at), plan.timeZoneId).localStartTime.slice(0, 5),
+        branches: (siblings.length > 0 ? siblings : [{ id: branchId, name: branchName }]).map(
+          (one) => ({ branchId: one.id, name: one.name }),
+        ),
+        shifts,
+      };
+
+      if (target !== branchId) {
+        // Another branch of the venue: the mock has one floor, so its numbers
+        // are a fixed day rather than a live room.
+        return calm({
+          ...base,
+          revenue: {
+            totalAmd: 187_500,
+            hallAmd: 187_500,
+            takeawayAmd: 0,
+            takeawayOrders: 0,
+            sinceUtc,
+          },
+          guests: { total: 41, withBooking: 30, walkIn: 11 },
+          bookings: { total: 15, came: 9, expected: 6, late: 1, noShow: 0, pendingApproval: 0 },
+          room: { occupiedTables: 5, tables: 10, people: 17 },
+          needsYou: {
+            pendingApprovals: 0,
+            oldestApprovalRequestedAtUtc: null,
+            soonestApprovalDeadlineUtc: null,
+            unansweredMessages: 0,
+            oldestUnansweredMessageAtUtc: null,
+          },
+        });
+      }
+
+      // This floor, live: the room, the waiting bookings and the inbox are
+      // the mock's own state; the day before the mock started is a fixture.
+      sweepAwaiting(at);
+      const states = [...tables.values()];
+      const occupied = states.filter((state) => state.physicalStatus === 'occupied');
+      const seatedPeople = occupied.reduce((sum, state) => sum + (state.partySize ?? 0), 0);
+      const hallAmd =
+        EARLIER_HALL_AMD + [...tabs.values()].reduce((sum, tab) => sum + tab.paidDram, 0);
+      const takeawayAmd = EARLIER_TAKEAWAY_AMD;
+      const pending = [...awaiting.values()].filter((one) => one.status === 'pendingApproval');
+      const booked = [...reservations.values()];
+      const came = booked.filter((one) => seatedBookings.has(one.id)).length + EARLIER_CAME;
+      const noShow = booked.filter((one) => one.releasedAs === 'noShow').length;
+      const expectedList = booked.filter((one) => !one.released && !seatedBookings.has(one.id));
+      const inbox = conversations.branchConversations(FLOOR_BRANCH);
+      const unanswered = inbox.items
+        .map((item) => item.oldestUnansweredGuestMessageUtc)
+        .filter((when): when is string => typeof when === 'string')
+        .sort();
+      const bookedNow = booked
+        .filter((one) => seatedBookings.has(one.id))
+        .reduce((sum, one) => sum + one.partySize, 0);
+      const withBooking = EARLIER_GUESTS_BOOKED + bookedNow;
+      const walkIn = EARLIER_WALK_INS + Math.max(0, seatedPeople - bookedNow);
+      return calm({
+        ...base,
+        revenue: {
+          totalAmd: hallAmd + takeawayAmd,
+          hallAmd,
+          takeawayAmd,
+          takeawayOrders: EARLIER_TAKEAWAY_ORDERS,
+          sinceUtc,
+        },
+        guests: { total: withBooking + walkIn, withBooking, walkIn },
+        bookings: {
+          total: came + noShow + expectedList.length + pending.length,
+          came,
+          expected: expectedList.length,
+          late: expectedList.filter((one) => Date.parse(one.startUtc) < at.getTime()).length,
+          noShow,
+          pendingApproval: pending.length,
+        },
+        room: { occupiedTables: occupied.length, tables: states.length, people: seatedPeople },
+        needsYou: {
+          pendingApprovals: pending.length,
+          oldestApprovalRequestedAtUtc: null,
+          soonestApprovalDeadlineUtc:
+            pending
+              .map((one) => one.approvalExpiresAtUtc)
+              .filter((when): when is string => typeof when === 'string')
+              .sort()[0] ?? null,
+          unansweredMessages: unanswered.length,
+          oldestUnansweredMessageAtUtc: unanswered[0] ?? null,
+        },
+      });
     },
   };
 }

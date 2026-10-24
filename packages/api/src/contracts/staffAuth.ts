@@ -46,6 +46,33 @@ export interface EnrolledDevice {
   readonly venueName: string;
   readonly enrolledAtUtc: string;
   readonly lastSeenAtUtc: string | null;
+  /**
+   * A shared floor tablet, or one person's own phone (`GET /api/auth/staff/device`
+   * `kind`). Absent reads as a tablet: every device before phones was one.
+   */
+  readonly kind?: StaffDeviceKind | undefined;
+  /** On a phone, the one person whose PIN opens it; null or absent on a tablet. */
+  readonly boundStaffMember?: BoundStaffMember | null | undefined;
+}
+
+/**
+ * What an enrolled device is: the counter's shared tablet, or a personal phone
+ * bound to one person (`StaffDeviceKind` 1 and 2 on the wire).
+ */
+export type StaffDeviceKind = 'tablet' | 'phone';
+
+/** The person a phone belongs to: the only name its PIN screen shows. */
+export interface BoundStaffMember {
+  readonly id: string;
+  readonly fullName: string;
+  readonly role: UserRole;
+}
+
+/** A personal phone, whatever the device's `kind` says. */
+export function isPhoneDevice(
+  device: Pick<EnrolledDevice, 'kind'> | null | undefined,
+): device is EnrolledDevice & { readonly kind: 'phone' } {
+  return device?.kind === 'phone';
 }
 
 /**
@@ -197,4 +224,78 @@ export interface StaffCredentialStorage {
   readRenewalToken(): Promise<string | null>;
   writeRenewalToken(token: string): Promise<void>;
   clearRenewalToken(): Promise<void>;
+}
+
+// --- Personal phones -----------------------------------------------------------
+
+/**
+ * Where a pairing QR points: the staff app's pairing page, the code in the
+ * fragment (`pairingUrl` is `<origin>/staff/pair#code=XXXXX-XXXXX`) so it never
+ * reaches a server log.
+ */
+export const PHONE_PAIRING_PATH = '/staff/pair';
+
+/** How long a pairing code lives: ten minutes, one use (`StaffEnrolmentCode.PhonePairingLifetime`). */
+export const PHONE_PAIRING_MINUTES = 10;
+
+/**
+ * Who a pairing code is for, read before the PIN (`POST
+ * /api/auth/staff/phone-pair/preview`) so the phone can ask "is this you?".
+ * Reading it spends nothing.
+ */
+export interface PhonePairingPreview {
+  readonly staffMemberId: string;
+  readonly fullName: string;
+  readonly role: UserRole;
+  readonly branchId: string;
+  readonly branchName: string;
+  readonly venueName: string;
+  readonly expiresAtUtc: string;
+}
+
+export interface PairPhoneCommand {
+  /** The manager's code, from the QR or typed; case and the dash do not matter. */
+  readonly code: string;
+  /** The person's own PIN, the one they tap on the tablet. */
+  readonly pin: string;
+  /** This browser's stable id, as a tablet's `deviceId`: pairing again reuses the phone. */
+  readonly clientDeviceId: string;
+  /** What the console's Phones tab calls it: "iPhone · Safari". */
+  readonly deviceName: string;
+}
+
+/** A paired phone: the device credential, and the person signed in on it. */
+export interface PhonePairing {
+  readonly device: DeviceEnrolment;
+  readonly session: StaffSignInResult;
+}
+
+/**
+ * The code in whatever a QR or a paste carried: a pairing URL (`#code=` in its
+ * fragment, or `?code=` should a chat app have moved it), or the code itself.
+ * Normalised as the server hashes it; `null` when nothing code-shaped is there.
+ */
+export function pairingCodeFrom(text: string): string | null {
+  const raw = text.trim();
+  if (!raw) return null;
+  let candidate = raw;
+  const fromUrl = /[#?&]code=([^&#\s]+)/u.exec(raw);
+  if (fromUrl?.[1]) {
+    try {
+      candidate = decodeURIComponent(fromUrl[1]);
+    } catch {
+      candidate = fromUrl[1];
+    }
+  } else if (/^[a-z][a-z0-9+.-]*:\/\//iu.test(raw)) {
+    // A URL with no code in it is some other QR code, not a mistyped code.
+    return null;
+  }
+  const code = normalizeEnrolmentCode(candidate);
+  return code.length === ENROLMENT_CODE_LENGTH ? code : null;
+}
+
+/** "K7Q2M9XW4P" as it is read out: "K7Q2M-9XW4P". */
+export function formatPairingCode(code: string): string {
+  const clean = normalizeEnrolmentCode(code);
+  return clean.length > 5 ? `${clean.slice(0, 5)}-${clean.slice(5)}` : clean;
 }

@@ -314,6 +314,8 @@
     },
     "answerWithin": "Answer within",
     "leftLabel": "{{time}} left to answer",
+    "answerBy": "answer by {{time}}",
+    "timeUpShort": "time is up",
     "timeUp": "Time is up. The guest is being told the venue could not confirm.",
     "before_one": "Before: {{time}} · {{count}} guest · {{name}}",
     "before_other": "Before: {{time}} · {{count}} guests · {{name}}",
@@ -1193,7 +1195,8 @@
       "empty": "No conversations yet. A guest writes only inside a booking or a takeaway order.",
       "emptyFilter": "Nothing here with this filter.",
       "choose": "Choose a conversation on the left.",
-      "unreachable": "The conversations could not be read."
+      "unreachable": "The conversations could not be read.",
+      "back": "All messages"
     },
     "thread": {
       "log": "Messages",
@@ -1253,6 +1256,201 @@
     "tile_one": "{{count}} new message",
     "tile_other": "{{count}} new messages",
     "reminder_one": "{{label}} · a guest has waited {{count}} minute for an answer",
-    "reminder_other": "{{label}} · a guest has waited {{count}} minutes for an answer"
+    "reminder_other": "{{label}} · a guest has waited {{count}} minutes for an answer",
+    "writeToGuest": "Write to the guest"
+  },
+  "phone": {
+    "back": "Back",
+    "myPage": "{{name}}, my page",
+    "tabs": {
+      "label": "Main",
+      "today": "Today",
+      "now": "Now",
+      "floor": "Floor",
+      "messages": "Messages",
+      "takeaway": "Takeaway",
+      "more": "More",
+      "waiting_one": "{{name}}, {{count}} new",
+      "waiting_other": "{{name}}, {{count}} new"
+    },
+    "takeaway": {
+      "newOrder": "{{code}} · new order",
+      "answerIn": "answer within {{time}}"
+    },
+    "nextHour": {
+      "title": "In the next hour",
+      "empty": "No bookings in the next hour.",
+      "asked": "Not answered",
+      "overdue": "Not here yet"
+    },
+    "approve": {
+      "title": "Booking to approve",
+      "gone": "No longer waiting for an answer.",
+      "backToNow": "Back to Now"
+    },
+    "today": {
+      "title": "Today",
+      "revenue": "Revenue",
+      "guests": "Guests",
+      "bookings": "Bookings",
+      "bookingsSub": "came {{came}} · expected {{expected}} · no-show {{noShow}}",
+      "inRoom": "In the room now",
+      "inRoomValue": "{{occupied}} / {{tables}}",
+      "inRoomSub": "tables occupied",
+      "unreachable": "Today’s numbers could not be read.",
+      "needsYou": "Needs you",
+      "nothingWaiting": "Nothing is waiting for you.",
+      "approvals_one": "{{count}} booking to approve",
+      "approvals_other": "{{count}} bookings to approve",
+      "messages_one": "{{count}} unanswered message",
+      "messages_other": "{{count}} unanswered messages",
+      "shift": "On shift today",
+      "shiftNone": "No shift in the next 12 hours.",
+      "onShift": "on shift",
+      "from": "from {{time}}",
+      "fullReport": "Full report",
+      "branch": "Branch",
+      "revenueSplit": "hall {{hall}} · takeaway {{takeaway}}",
+      "guestsSplit": "{{booked}} with a booking · {{walkIn}} without",
+      "signedIn": "signed in",
+      "otherBranch": "Answered from that branch’s own floor."
+    },
+    "more": {
+      "profile": "My page",
+      "manage": "Manage",
+      "today": "Today’s summary",
+      "history": "Message history",
+      "console": "Open the console (menu, hours, staff)",
+      "mine": "Mine",
+      "myShift": "My shift",
+      "shiftUnknown": "could not be read",
+      "shiftNow": "now, until {{to}}",
+      "shiftNext": "{{from}}–{{to}}",
+      "shiftNone": "none planned",
+      "lock": "Lock now",
+      "unpair": "Unpair this phone",
+      "unpairTitle": "Unpair this phone?",
+      "unpairBody": "To pair it again you will need a new QR code from a manager.",
+      "unpairNo": "No",
+      "unpairYes": "Yes, unpair",
+      "notifications": "Notifications",
+      "unpairing": "Unpairing…",
+      "unpairFailed": "The phone could not be unpaired. Check the connection and try again."
+    },
+    "pair": {
+      "title": "Pair your phone with the venue",
+      "lead": "A manager opens a QR code with your name in the console. Scan it: the phone is paired to you alone, and from then on you open it with your own PIN.",
+      "steps": "How it works",
+      "step1": "Manager: Staff → Phones → your name → “Pair phone”",
+      "step2": "You: scan the code",
+      "step3": "Enter your PIN",
+      "scan": "Scan the QR code",
+      "typeCode": "Enter the code by hand",
+      "iosFirst": "On an iPhone, add SHURJ to the Home Screen first and pair it there: the Home Screen app keeps its own sign-in, apart from Safari, and only it gets notifications.",
+      "tablet": "Setting up a floor tablet instead?",
+      "tabletLink": "Enrol a tablet with its code",
+      "scanTitle": "Scan the code",
+      "scanAim": "Point at the code",
+      "scanHelp": "Show the code your manager opened in the console. It works for 10 minutes, and once.",
+      "back": "Back",
+      "cameraStarting": "Opening the camera…",
+      "cameraDenied": "The camera is not allowed. Allow it in the browser’s settings, or type the code.",
+      "cameraNone": "This browser cannot use the camera here. Type the code instead.",
+      "notPairing": "That QR code is not a SHURJ pairing code. Point at the one in the console.",
+      "codeTitle": "Enter the code",
+      "codeLabel": "Pairing code",
+      "codeHelp": "Ten letters and digits, as the console shows them: XXXXX‑XXXXX.",
+      "codeShort": "The code has ten characters.",
+      "codeContinue": "Continue",
+      "checking": "Checking the code…",
+      "isThisYou": "Is this you?",
+      "whoLine": "{{role}} · {{venue}} · {{branch}}",
+      "onlyYours": "This phone will be yours alone. Nobody else can sign in on it as you, and a manager can unpair it at any time.",
+      "yes": "Yes, it’s me",
+      "no": "No, wrong code",
+      "pinTitle": "Enter your PIN",
+      "pinSub": "The same one you use on the tablet",
+      "pairing": "Pairing…",
+      "doneTitle": "Phone paired",
+      "doneBody": "{{name}} · {{venue}} · {{branch}}. Next time your PIN is enough.",
+      "continue": "Continue",
+      "error": {
+        "invalid": "That code is not right. Check it and try again, or scan it.",
+        "expired": "That code has expired or a newer one replaced it. Ask your manager for a new one.",
+        "unusable": "That code cannot pair this phone: it was used already, or this browser is set up as a floor tablet. Ask your manager for a new code.",
+        "kitchen": "The kitchen uses the floor tablet, not a phone.",
+        "offline": "No connection. The code is checked by the server: try again once you are online.",
+        "failed": "Something went wrong. Try again."
+      },
+      "tryAgain": "Try again",
+      "startOver": "Start over",
+      "checkingDevice": "Checking this browser…",
+      "tabletGuard": {
+        "title": "This browser is the venue’s floor tablet",
+        "body": "It is enrolled as the floor tablet of {{venue}} · {{branch}}. A floor tablet cannot also be somebody’s own phone: pairing here would take its place in this browser and leave the tablet active on the server.",
+        "how": "To use this browser as a phone, a manager first removes the tablet in the console: Staff → Tablets.",
+        "cancel": "Back to the floor tablet"
+      }
+    },
+    "pin": {
+      "hello": "Hi, {{name}}",
+      "enter": "Enter your PIN",
+      "wrong": "Wrong PIN · try again",
+      "forgot": "Forgot your PIN? A manager can give you a new one in the console."
+    },
+    "install": {
+      "title": "Two things, and you’re ready",
+      "loading": "Checking…",
+      "settingsTitle": "Notifications",
+      "homeTitle": "Add to the Home Screen",
+      "done": "Done",
+      "platform": "Phone",
+      "ios1": "In Safari, tap the Share button at the bottom",
+      "ios2": "Choose “Add to Home Screen”",
+      "ios3": "Open SHURJ from the Home Screen, not from Safari",
+      "iosNote": "An iPhone sends notifications only to SHURJ opened from the Home Screen. If it asks you to pair again there, ask your manager for a new code.",
+      "androidInstall": "Install SHURJ",
+      "androidMenu": "Open the browser menu (⋮) and choose “Install app” or “Add to Home screen”.",
+      "pushTitle": "Turn on notifications",
+      "pushWhy": "So you know when a guest writes, a table calls or a new booking waits for approval, even with the phone in your pocket.",
+      "enable": "Turn on notifications",
+      "enabling": "Turning on…",
+      "serverOff": "This server does not send notifications yet. The switches appear here once it does.",
+      "needsInstall": "On an iPhone, notifications work only in SHURJ opened from the Home Screen. Add it there first (step 1).",
+      "insecure": "Notifications need the secure (https) address. Open SHURJ at its https address.",
+      "unsupported": "This browser cannot show notifications. Chrome on Android or Safari on an iPhone can.",
+      "denied": "Notifications are blocked for SHURJ. Allow them in the browser or phone settings, then come back here.",
+      "unavailable": "This page cannot receive notifications yet. Reload it, or open SHURJ from the Home Screen, and try again.",
+      "failed": "Notifications could not be turned on. Try again.",
+      "loadFailed": "The notification settings could not be read.",
+      "saveFailed": "That switch could not be saved. Try again.",
+      "on": "Notifications are on for this phone.",
+      "turnOff": "Turn off on this phone",
+      "kinds": {
+        "approvals": {
+          "label": "Booking to approve",
+          "help": "Short-notice bookings wait 15 minutes"
+        },
+        "guestMessages": {
+          "label": "A guest’s message",
+          "help": "And the “Coming / Running late” answers"
+        },
+        "tableCalls": {
+          "label": "A table is calling",
+          "help": "A waiter or the bill"
+        },
+        "takeaway": {
+          "label": "Takeaway order",
+          "help": "A new order waiting to be accepted"
+        },
+        "kitchenReady": {
+          "label": "Kitchen is ready",
+          "help": "Dishes for your tables"
+        }
+      },
+      "onlyShift": "Only during my shift",
+      "onlyShiftHelp": "No sound outside your shift. Off by default for managers.",
+      "start": "Start"
+    }
   }
 }

@@ -26,6 +26,13 @@ import type {
   StaffTakeawayOrder,
 } from './contracts/takeaway';
 import type { ReservationStatusCode } from './contracts/push';
+import type {
+  SaveStaffNotificationSettings,
+  StaffNotificationSettings,
+  StaffPushConfig,
+  StaffPushSubscriptionInput,
+  StaffToday,
+} from './contracts/staffPhone';
 import type { Menu } from './contracts/menu';
 import type { StaffFloor, TableActionCommand, TableActionResult } from './contracts/service';
 import type {
@@ -413,6 +420,39 @@ export interface StaffGateway {
 
   /** Manager only, typed confirmation client-side. */
   abandonTab(command: AbandonTabCommand): Promise<AbandonTabResult>;
+
+  // --- The device itself: a personal phone, its pushes (2026-10-24) -----------
+
+  /**
+   * `POST /api/staff/device/unpair`: the phone's own "unpair". Revokes the
+   * phone the session is open on and ends the session; the caller then
+   * forgets the device token. A tablet is refused with a conflict.
+   */
+  unpairOwnPhone(): Promise<void>;
+
+  /** `GET /api/staff/push-config`: whether pushes are sent, and the VAPID key. */
+  getPushConfig(): Promise<StaffPushConfig>;
+
+  /** `PUT /api/staff/device/push-subscription`: this device's subscription, replacing any earlier. */
+  savePushSubscription(subscription: StaffPushSubscriptionInput): Promise<void>;
+
+  /** `DELETE /api/staff/device/push-subscription`. Succeeds whether or not there was one. */
+  deletePushSubscription(): Promise<void>;
+
+  /** `GET /api/staff/device/notification-preferences`. */
+  getNotificationSettings(): Promise<StaffNotificationSettings>;
+
+  /** `PUT` the same: all six switches, and the app's language. Answers as `GET` does. */
+  saveNotificationSettings(
+    settings: SaveStaffNotificationSettings,
+  ): Promise<StaffNotificationSettings>;
+
+  /**
+   * `GET /api/staff/today`: a manager's Today board. `branchId` picks the
+   * branch (an owner or general manager on their own phone may read any of
+   * the venue's); absent, the session's.
+   */
+  getToday(branchId?: string | undefined): Promise<StaffToday>;
 }
 
 /** Why a booking was let go. The two are never collapsed into one button. */

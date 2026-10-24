@@ -82,4 +82,19 @@ describe('registering the service worker', () => {
     expect(scheduleServiceWorkerRegistration(unsupported.host)).toBe('skipped');
     expect(unsupported.register).not.toHaveBeenCalled();
   });
+
+  it('registers only on the staff app, and only in a secure context', () => {
+    // Web Push and service workers exist only on https (or localhost), and
+    // the worker is the staff app's: the console never installs it.
+    const console_ = host({ staffPage: false });
+    expect(scheduleServiceWorkerRegistration(console_.host)).toBe('skipped');
+    expect(console_.register).not.toHaveBeenCalled();
+
+    const lan = host({ secure: false });
+    expect(scheduleServiceWorkerRegistration(lan.host)).toBe('skipped');
+    expect(lan.register).not.toHaveBeenCalled();
+
+    const staff = host({ staffPage: true, secure: true });
+    expect(scheduleServiceWorkerRegistration(staff.host)).toBe('registered');
+  });
 });

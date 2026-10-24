@@ -3,6 +3,10 @@ import {
   DeviceRevokedError,
   EnrolmentCodeExpiredError,
   EnrolmentCodeSpentError,
+  KitchenPhoneNotAllowedError,
+  PairingCodeExpiredError,
+  PairingCodeInvalidError,
+  PairingCodeUnusableError,
   PinLockedError,
   PinRejectedError,
 } from '../contracts/errors';
@@ -10,6 +14,9 @@ import type {
   DeviceEnrolment,
   EnrolDeviceCommand,
   EnrolledDevice,
+  PairPhoneCommand,
+  PhonePairing,
+  PhonePairingPreview,
   PinSignInCommand,
   StaffRosterEntry,
   StaffSignInResult,
@@ -103,9 +110,85 @@ export function createStaffAuth(client: ApiClient) {
           venueName: data.venueName,
           enrolledAtUtc: data.enrolledAtUtc,
           lastSeenAtUtc: data.lastSeenAtUtc ?? null,
+          kind: data.kind === 2 ? 'phone' : 'tablet',
+          boundStaffMember: data.boundStaffMember
+            ? {
+                id: data.boundStaffMember.id,
+                fullName: data.boundStaffMember.fullName,
+                role: staffRoleToUserRole(data.boundStaffMember.role),
+              }
+            : null,
         };
       } catch (error) {
         throw asDeviceFailure(error);
+      }
+    },
+
+    /**
+     * Who a phone pairing code is for: the phone's "is this you?". Anonymous,
+     * and it spends nothing — the PIN does that, in {@link pairPhone}.
+     */
+    async previewPhonePairing(code: string): Promise<PhonePairingPreview> {
+      try {
+        const { data } = await client.post<Schemas['Yalla.Application.Auth.PhonePairingPreview']>(
+          `${STAFF}/phone-pair/preview`,
+          { code } satisfies Schemas['Yalla.Api.Endpoints.PhonePairPreviewRequest'],
+          { skipAuth: true },
+        );
+        return {
+          staffMemberId: data.staffMemberId,
+          fullName: data.fullName,
+          role: staffRoleToUserRole(data.role),
+          branchId: data.branchId,
+          branchName: data.branchName,
+          venueName: data.venueName,
+          expiresAtUtc: data.expiresAtUtc,
+        };
+      } catch (error) {
+        throw asPairingFailure(error);
+      }
+    },
+
+    /**
+     * Pair this browser as the code's person's phone, with their own PIN. The
+     * answer is a tablet's enrolment and a PIN sign-in at once. A wrong PIN is
+     * the PIN screen's refusal and leaves the code usable; the lockout is the
+     * PIN screen's lockout.
+     */
+    async pairPhone(command: PairPhoneCommand): Promise<PhonePairing> {
+      try {
+        const { data } = await client.post<Schemas['Yalla.Application.Auth.PhonePairingResult']>(
+          `${STAFF}/phone-pair`,
+          {
+            code: command.code,
+            pin: command.pin,
+            clientDeviceId: command.clientDeviceId,
+            deviceName: command.deviceName,
+          } satisfies Schemas['Yalla.Api.Endpoints.PhonePairRequest'],
+          { skipAuth: true },
+        );
+        return {
+          device: {
+            deviceId: data.device.deviceId,
+            deviceName: data.device.deviceName,
+            branchId: data.device.branchId,
+            deviceToken: data.device.deviceToken,
+            expiresAtUtc: data.device.expiresAtUtc,
+          },
+          session: toSignIn(data.session),
+        };
+      } catch (error) {
+        if (error instanceof ForbiddenError) {
+          throw new PinLockedError({
+            url: error.url,
+            lockedUntilUtc: lockedUntil(error),
+            requestId: error.requestId,
+          });
+        }
+        if (error instanceof ApiError && error.code === 'pin-invalid') {
+          throw new PinRejectedError({ url: error.url, requestId: error.requestId });
+        }
+        throw asPairingFailure(error);
       }
     },
 
@@ -232,6 +315,21 @@ function asDeviceFailure(error: unknown): unknown {
   if (error instanceof UnauthorizedError) {
     return new DeviceRevokedError({ url: error.url, requestId: error.requestId });
   }
+  return error;
+}
+
+/**
+ * A pairing code's refusals, by the code the server gives — the three ways a
+ * code fails need three different sentences on the phone.
+ */
+function asPairingFailure(error: unknown): unknown {
+  if (!(error instanceof ApiError)) return error;
+  const options = { url: error.url, requestId: error.requestId };
+  if (error.code === 'pairing-code-expired') return new PairingCodeExpiredError(options);
+  if (error.code === 'pairing-code-invalid') return new PairingCodeInvalidError(options);
+  if (error.code === 'kitchen-phone-not-allowed') return new KitchenPhoneNotAllowedError(options);
+  if (error.status === 409) return new PairingCodeUnusableError(options);
+  if (error.status === 401) return new PairingCodeInvalidError(options);
   return error;
 }
 

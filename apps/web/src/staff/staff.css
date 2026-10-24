@@ -83,15 +83,37 @@
 /* --------------------------------------------------------------------------
  * The top bar: brand, where, Floor / Kitchen, connection, conflicts, person
  * -------------------------------------------------------------------------- */
+/* Installed on an iPad the status bar is translucent
+   (`apple-mobile-web-app-status-bar-style: black-translucent`, with
+   `viewport-fit=cover`): the page starts under the clock and the battery. The
+   bar grows by the top inset and keeps its own height below it, so the status
+   bar's white text sits on the bar's dark ground; the sides keep clear of a
+   rounded corner or a camera. Every inset is 0 in a browser tab and on a
+   screen without them, and then the bar is exactly as it was. */
 .ft-top {
   flex: none;
   display: flex;
   align-items: center;
   gap: var(--space-md);
-  height: var(--console-size-floor-bar);
-  padding: 0 var(--space-lg);
+  height: calc(var(--console-size-floor-bar) + env(safe-area-inset-top, 0px));
+  padding: env(safe-area-inset-top, 0px) max(var(--space-lg), env(safe-area-inset-right, 0px)) 0
+    max(var(--space-lg), env(safe-area-inset-left, 0px));
   background: var(--console-sidebar);
   color: var(--console-floor-bar-text);
+}
+
+/* The tablet's frame, under the bar: clear of the home indicator at the
+   bottom. The phone shell (`.ph`) keeps its own insets in `phone.css`. */
+.floor:not(.ph) {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+/* The tablet's full-screen overlays - order entry, the tab, cash, the
+   conflicts - start at the very top too. Each opens with its own `.ft-top`
+   bar (`OverlayBar`), which takes the top and the sides as above; the
+   overlay keeps clear of the home indicator. */
+.floor:not(.ph) .staff-overlay {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
 }
 
 .ft-top :focus-visible {
@@ -1553,7 +1575,12 @@
 }
 
 .staff-gate.ft-gate {
-  padding: var(--space-xl);
+  /* The card stays clear of an installed iPad's status bar and home
+     indicator; without insets this is the plain --space-xl it always was. */
+  padding: max(var(--space-xl), env(safe-area-inset-top, 0px))
+    max(var(--space-xl), env(safe-area-inset-right, 0px))
+    max(var(--space-xl), env(safe-area-inset-bottom, 0px))
+    max(var(--space-xl), env(safe-area-inset-left, 0px));
   background: var(--console-scrim);
 }
 
@@ -5359,4 +5386,60 @@ a.ft-btn {
   border-radius: var(--console-radius-floor-button);
   font-size: var(--console-text-nav);
   color: var(--console-ink);
+}
+
+/* --------------------------------------------------------------------------
+ * The PIN gate and enrolment on a phone-width screen (below 600px).
+ *
+ * The tablet's card is two fixed columns, 420px of cherry beside the pad,
+ * and at 390px it ran off the screen. Here the two halves stack and the page
+ * scrolls: the names (or the enrolment steps) above, the pad below at a
+ * third of the width per key. A paired phone has its own screen
+ * (`PhonePinScreen`); this is the shared tablet's gate, opened on something
+ * narrow.
+ * -------------------------------------------------------------------------- */
+@media (max-width: 599.98px) {
+  .staff-gate.ft-gate {
+    align-items: stretch;
+    padding: 0;
+    overflow-y: auto;
+  }
+
+  .ft-pin {
+    grid-template-columns: minmax(0, 1fr);
+    width: 100%;
+    height: auto;
+    min-height: 100%;
+    overflow: visible;
+    border-radius: 0;
+    box-shadow: none;
+  }
+
+  .ft-pin-left {
+    gap: var(--space-md);
+    padding: calc(20px + env(safe-area-inset-top, 0px)) 16px 20px;
+  }
+
+  .ft-pin-scroll {
+    flex: none;
+    max-height: 40vh;
+  }
+
+  .ft-pin-right,
+  .ft-enrol-right {
+    gap: var(--space-md);
+    padding: 20px 16px calc(20px + env(safe-area-inset-bottom, 0px));
+    overflow: visible;
+  }
+
+  .ft-pin-keys {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-auto-rows: 64px;
+    width: 100%;
+    max-width: 340px;
+  }
+
+  .ft-pin-prompt h1 {
+    font-size: 22px;
+  }
 }
