@@ -479,7 +479,7 @@ describe('transferring a table on the phone', () => {
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
   });
 
-  it('says the list could not be read when the server refuses it', async () => {
+  it('says a refused list (403) is not this person’s table, not "try again"', async () => {
     signIn();
     const staffGateway = gateway();
     vi.spyOn(staffGateway, 'listTransferTargets').mockRejectedValue(
@@ -495,8 +495,8 @@ describe('transferring a table on the phone', () => {
     await user.click(occupied);
     const sheet = await screen.findByRole('dialog');
     await user.click(await within(sheet).findByRole('button', { name: 'Transfer table' }));
-    expect((await within(sheet).findByRole('alert')).textContent).toBe(
-      'Could not read who is working. Close and try again.',
+    expect((await within(sheet).findByRole('alert')).textContent).toMatch(
+      /^Only the table’s waiter or a manager can hand table \S+ over\.$/u,
     );
     expect(
       (within(sheet).getByRole('button', { name: 'Transfer' }) as HTMLButtonElement).disabled,

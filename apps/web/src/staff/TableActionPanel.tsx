@@ -138,6 +138,8 @@ export interface TableActionPanelProps {
   readonly transferTargets?: readonly TransferTarget[] | null | undefined;
   /** The list could not be read. */
   readonly transferTargetsFailed?: boolean | undefined;
+  /** …because the server said no (403): not this person's table, and they are not a manager. */
+  readonly transferNotYours?: boolean | undefined;
   /** The chooser opened: the caller reads who is on shift. */
   readonly onWantTransfer?: (() => void) | undefined;
   /**
@@ -367,6 +369,7 @@ export function TableActionPanel(props: TableActionPanelProps) {
           actorName={props.actorName ?? ''}
           targets={props.transferTargets ?? null}
           failed={props.transferTargetsFailed ?? false}
+          notYours={props.transferNotYours ?? false}
           online={online}
           busy={pending || (props.transferring ?? false)}
           timeZoneId={timeZoneId}
@@ -700,6 +703,7 @@ export function TableActionPanel(props: TableActionPanelProps) {
                         label={table.label}
                         targets={props.transferTargets ?? null}
                         failed={props.transferTargetsFailed ?? false}
+                        notYours={props.transferNotYours ?? false}
                         disabled={!online || pending || (props.transferring ?? false)}
                         online={online}
                         onTransfer={(target) => props.onTransfer?.(target)}
@@ -1024,6 +1028,7 @@ function TransferChoice({
   label,
   targets,
   failed,
+  notYours,
   disabled,
   online,
   onTransfer,
@@ -1032,6 +1037,7 @@ function TransferChoice({
   readonly label: string;
   readonly targets: readonly TransferTarget[] | null;
   readonly failed: boolean;
+  readonly notYours: boolean;
   readonly disabled: boolean;
   readonly online: boolean;
   readonly onTransfer: (target: TransferTarget) => void;
@@ -1046,7 +1052,7 @@ function TransferChoice({
       <p className="tp-hint">{t('table.transfer.body')}</p>
       {failed ? (
         <p className="tp-hint is-failed" role="alert">
-          {t('table.transfer.failed')}
+          {notYours ? t('table.transfer.notYours', { label }) : t('table.transfer.failed')}
         </p>
       ) : targets === null ? (
         <p className="tp-hint" role="status">

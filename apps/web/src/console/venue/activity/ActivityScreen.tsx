@@ -6,6 +6,7 @@ import {
   activitySearchText,
   activityViolations,
   addLocalDays,
+  isLocalDate,
   type ActivityCategoryFilter,
   type ActivityEntry,
   type ActivityFilters,
@@ -14,10 +15,20 @@ import {
   type StaffMember,
 } from '@yalla/api';
 import { useActivity, useConsoleGateway, useStaff } from '@yalla/api/react';
-import { branchDayKey, type TimeZone } from '@yalla/format';
+import { branchDayKey, type Locale, type TimeZone } from '@yalla/format';
 import { useLocale, useTranslation } from '@yalla/i18n';
 import type { TFunction } from 'i18next';
-import { useCallback, useEffect, useId, useRef, useState, type FormEvent, type Ref } from 'react';
+import {
+  memo,
+  useCallback,
+  useEffect,
+  useId,
+  useMemo,
+  useRef,
+  useState,
+  type FormEvent,
+  type Ref,
+} from 'react';
 import { Link, useLocation, useSearchParams } from 'react-router-dom';
 import { useCurrentUser } from '../../../auth/useCurrentUser';
 import { QueryFailureNotice } from '../../../components/QueryFailureNotice';
@@ -30,6 +41,7 @@ import { useVenueOutlet } from '../VenueLayout';
 import {
   actionLabel,
   changeLine,
+  csvFailureText,
   detailParts,
   deviceLabel,
   kindLabel,
@@ -47,6 +59,9 @@ const SEARCH_DEBOUNCE_MS = 350;
 const STACKED_QUERY = '(max-width: 1179px)';
 
 const KINDS: readonly ActivityCategoryFilter[] = ['all', ...ACTIVITY_CATEGORIES];
+
+/** A row's button, by the entry: the focus returns to it from the detail. */
+const rowButtonId = (entry: Pick<ActivityEntry, 'id'>) => `act-row-${entry.id}`;
 
 /**
  * The venue console's History (2026-10-24, the Main board): who did what at
@@ -194,11 +209,15 @@ function ActivityHistory({
   // --- The people of the branch, for "Who" -----------------------------------
 
   const staff = useStaff(user?.scope.venueId ?? undefined);
-  const people: readonly StaffMember[] = (staff.data ?? [])
-    .filter((member) => member.branchId === null || member.branchId === branchId)
-    .filter((member) => member.role !== 'kitchen' || member.isActive)
-    .slice()
-    .sort((a, b) => a.fullName.localeCompare(b.fullName, locale));
+  const people: readonly StaffMember[] = useMemo(
+    () =>
+      (staff.data ?? [])
+        .filter((member) => member.branchId === null || member.branchId === branchId)
+        .filter((member) => member.role !== 'kitchen' || member.isActive)
+        .slice()
+        .sort((a, b) => a.fullName.localeCompare(b.fullName, locale)),
+    [staff.data, branchId, locale],
+  );
   /** Anybody of the venue by id, a deactivated person too: who made a device's code. */
   const nameOf = useCallback(
     (staffMemberId: string) =>
@@ -267,8 +286,9 @@ function ActivityHistory({
       const file = await gateway.exportActivityCsv(branchId, filters);
       saveFile(file.fileName, file.bytes);
       toast.say(t('activity.csvReady'));
-    } catch {
-      toast.say(t('activity.csvFailed'), { tone: 'error' });
+    } catch (error) {
+      // A day over the server's file limit says so, and how to narrow it.
+      toast.say(csvFailureText(t, error, locale), { tone: 'error' });
     } finally {
       setExporting(false);
     }
@@ -276,10 +296,19 @@ function ActivityHistory({
 
   // --- The list ------------------------------------------------------------------
 
-  const items: readonly ActivityEntry[] = list.data?.pages.flatMap((page) => page.items) ?? [];
+  // Every page in order, an entry said once even if a refetch moved it across a page edge.
+  const pages = list.data?.pages;
+  const items: readonly ActivityEntry[] = useMemo(() => {
+    const seen = new Set<string>();
+    return (pages ?? []).flatMap((page) =>
+      page.items.filter((entry) => {
+        if (seen.has(entry.id)) return false;
+        seen.add(entry.id);
+        return true;
+      }),
+    );
+  }, [pages]);
   const selected = items.find((entry) => entry.id === openId) ?? items[0] ?? null;
-
-  const rowButtonId = (entry: ActivityEntry) => `act-row-${entry.id}`;
   const detailHeading = useRef<HTMLHeadingElement>(null);
   const focusRow = useRef<number | null>(null);
   useEffect(() => {
@@ -296,17 +325,21 @@ function ActivityHistory({
     detailHeading.current?.focus();
   });
 
-  function openEntry(entry: ActivityEntry) {
-    setParams(
-      (current) => {
-        const copy = new URLSearchParams(current);
-        copy.set('entry', entry.id);
-        return copy;
-      },
-      { replace: true },
-    );
-    if (window.matchMedia?.(STACKED_QUERY).matches) focusDetail.current = entry.id;
-  }
+  // Stable while the search is typed, so the rows (memoised below) are not redrawn per key.
+  const openEntry = useCallback(
+    (entry: ActivityEntry) => {
+      setParams(
+        (current) => {
+          const copy = new URLSearchParams(current);
+          copy.set('entry', entry.id);
+          return copy;
+        },
+        { replace: true },
+      );
+      if (window.matchMedia?.(STACKED_QUERY).matches) focusDetail.current = entry.id;
+    },
+    [setParams],
+  );
 
   const filtered =
     filters.category !== 'all' ||
@@ -316,10 +349,16 @@ function ActivityHistory({
 
   let body;
   if (violations.length > 0) {
+    // A link with a bad day or person in it: say so, and offer the way back to today.
     body = (
-      <p className="yc-alert yc-mh-pad" role="alert">
-        {t('activity.errors.refused')}
-      </p>
+      <div className="yc-mh-pad yc-act-refused">
+        <p className="yc-alert" role="alert">
+          {t('activity.errors.refused')}
+        </p>
+        <button type="button" className="yc-btn yc-btn-sec yc-btn-sm" onClick={clearFilters}>
+          {t('activity.empty.reset')}
+        </button>
+      </div>
     );
   } else if (list.isPending) {
     body = (
@@ -347,58 +386,15 @@ function ActivityHistory({
     );
   } else {
     body = (
-      <div className="yc-tscroll">
-        <table className="yc-tbl yc-act-tbl" aria-busy={list.isPlaceholderData || undefined}>
-          <caption className="yc-sr">{t('activity.table.caption')}</caption>
-          <thead>
-            <tr>
-              <th scope="col">{t('activity.table.time')}</th>
-              <th scope="col">{t('activity.table.who')}</th>
-              <th scope="col">{t('activity.table.what')}</th>
-              <th scope="col">{t('activity.table.device')}</th>
-            </tr>
-          </thead>
-          <tbody>
-            {items.map((entry) => {
-              const isOpen = selected?.id === entry.id;
-              const device = deviceLabel(t, entry);
-              return (
-                <tr
-                  key={entry.id}
-                  className={[isOpen ? 'is-on' : '', entry.isMoney ? 'is-money' : '']
-                    .filter(Boolean)
-                    .join(' ')}
-                >
-                  <td className="yc-num-time">{timeLabel(entry, timeZoneId, locale)}</td>
-                  <td className="yc-act-who">{whoLabel(t, entry)}</td>
-                  <th scope="row" className="yc-act-what">
-                    <button
-                      type="button"
-                      id={rowButtonId(entry)}
-                      className="yc-act-pick"
-                      aria-current={isOpen ? 'true' : undefined}
-                      onClick={() => openEntry(entry)}
-                    >
-                      <span className={`yc-act-tag ${kindTone(entry)}`}>
-                        {kindLabel(t, entry.category)}
-                      </span>{' '}
-                      {whatLabel(t, entry, locale, nameOf)}
-                    </button>
-                  </th>
-                  <td className="yc-act-dev">
-                    {device ?? (
-                      <>
-                        <span aria-hidden="true">{'—'}</span>
-                        <span className="yc-sr">{t('activity.device.none')}</span>
-                      </>
-                    )}
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
+      <ActivityTable
+        items={items}
+        selectedId={selected?.id ?? null}
+        busy={list.isPlaceholderData}
+        timeZoneId={timeZoneId}
+        locale={locale}
+        nameOf={nameOf}
+        onOpen={openEntry}
+      />
     );
   }
 
@@ -433,7 +429,8 @@ function ActivityHistory({
             id={dateId}
             type="date"
             className="yc-ctl"
-            value={filters.date}
+            // A day the address got wrong shows as empty (with its error), not as text the input refuses.
+            value={isLocalDate(filters.date) ? filters.date : ''}
             min={addLocalDays(today, -ACTIVITY_MONEY_KEPT_DAYS)}
             max={today}
             required
@@ -571,6 +568,85 @@ function ActivityHistory({
     </>
   );
 }
+
+/**
+ * The feed's table. Memoised: typing in the search (the draft, before its
+ * debounce) and the footer's status redraw the page, never a few hundred rows
+ * of formatted labels.
+ */
+const ActivityTable = memo(function ActivityTable({
+  items,
+  selectedId,
+  busy,
+  timeZoneId,
+  locale,
+  nameOf,
+  onOpen,
+}: {
+  readonly items: readonly ActivityEntry[];
+  readonly selectedId: string | null;
+  readonly busy: boolean;
+  readonly timeZoneId: string;
+  readonly locale: Locale;
+  readonly nameOf: (staffMemberId: string) => string | null;
+  readonly onOpen: (entry: ActivityEntry) => void;
+}) {
+  const { t } = useTranslation(['admin', 'common']);
+  return (
+    <div className="yc-tscroll">
+      <table className="yc-tbl yc-act-tbl" aria-busy={busy || undefined}>
+        <caption className="yc-sr">{t('activity.table.caption')}</caption>
+        <thead>
+          <tr>
+            <th scope="col">{t('activity.table.time')}</th>
+            <th scope="col">{t('activity.table.who')}</th>
+            <th scope="col">{t('activity.table.what')}</th>
+            <th scope="col">{t('activity.table.device')}</th>
+          </tr>
+        </thead>
+        <tbody>
+          {items.map((entry) => {
+            const isOpen = selectedId === entry.id;
+            const device = deviceLabel(t, entry);
+            return (
+              <tr
+                key={entry.id}
+                className={[isOpen ? 'is-on' : '', entry.isMoney ? 'is-money' : '']
+                  .filter(Boolean)
+                  .join(' ')}
+              >
+                <td className="yc-num-time">{timeLabel(entry, timeZoneId, locale)}</td>
+                <td className="yc-act-who">{whoLabel(t, entry)}</td>
+                <th scope="row" className="yc-act-what">
+                  <button
+                    type="button"
+                    id={rowButtonId(entry)}
+                    className="yc-act-pick"
+                    aria-current={isOpen ? 'true' : undefined}
+                    onClick={() => onOpen(entry)}
+                  >
+                    <span className={`yc-act-tag ${kindTone(entry)}`}>
+                      {kindLabel(t, entry.category)}
+                    </span>{' '}
+                    {whatLabel(t, entry, locale, nameOf)}
+                  </button>
+                </th>
+                <td className="yc-act-dev">
+                  {device ?? (
+                    <>
+                      <span aria-hidden="true">{'—'}</span>
+                      <span className="yc-sr">{t('activity.device.none')}</span>
+                    </>
+                  )}
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
+  );
+});
 
 function EntryDetail({
   entry,

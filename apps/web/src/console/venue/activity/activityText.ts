@@ -1,11 +1,19 @@
 import {
+  ApiError,
   addLocalDays,
   timelineSubjectOf,
   type ActivityCategory,
   type ActivityEntry,
   type ActivityParams,
 } from '@yalla/api';
-import { branchDayKey, formatDram, formatTime, type Locale, type TimeZone } from '@yalla/format';
+import {
+  branchDayKey,
+  formatDram,
+  formatTime,
+  intlTag,
+  type Locale,
+  type TimeZone,
+} from '@yalla/format';
 import type { TFunction } from 'i18next';
 import { shortName } from '../../../messages/messageText';
 import { localDateLabel } from '../messageHistory/historyText';
@@ -130,7 +138,7 @@ export function deviceLabel(t: TFunction, entry: ActivityEntry): string | null {
   return owner ? t('activity.device.phone', { name: owner }) : label;
 }
 
-/** "48 s", "1 min 35 s", "4 min". */
+/** "48 s", "1 min 35 s", "2 min 05 s", "4 min": the seconds two digits after minutes, as the boards. */
 export function durationLabel(t: TFunction, seconds: number | null): string | null {
   if (seconds === null) return null;
   const whole = Math.max(0, Math.round(seconds));
@@ -139,7 +147,23 @@ export function durationLabel(t: TFunction, seconds: number | null): string | nu
   const rest = whole % 60;
   return rest === 0
     ? t('activity.duration.minutes', { count: minutes })
-    : t('activity.duration.minutesSeconds', { minutes, seconds: rest });
+    : t('activity.duration.minutesSeconds', { minutes, seconds: String(rest).padStart(2, '0') });
+}
+
+/** `422 activity-export-too-large`: the window holds more rows than one file may. */
+export const ACTIVITY_EXPORT_TOO_LARGE_CODE = 'activity-export-too-large';
+
+/**
+ * What a failed CSV says: the too-large refusal with the server's own limit
+ * (`context.maxRows`) and how to narrow it; anything else, try again.
+ */
+export function csvFailureText(t: TFunction, error: unknown, locale: Locale): string {
+  if (error instanceof ApiError && error.code === ACTIVITY_EXPORT_TOO_LARGE_CODE) {
+    const said = error.problem?.context?.['maxRows'];
+    const max = typeof said === 'number' && Number.isFinite(said) ? said : 20_000;
+    return t('activity.csvTooLarge', { max: new Intl.NumberFormat(intlTag(locale)).format(max) });
+  }
+  return t('activity.csvFailed');
 }
 
 /** A call's preset (`ServiceRequestPreset`: 1 napkins, 2 water, 3 the bill, 4 other), as a timeline says it. */

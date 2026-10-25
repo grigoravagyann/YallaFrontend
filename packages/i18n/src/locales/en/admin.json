@@ -2700,6 +2700,7 @@
     "csvPreparing": "Preparing…",
     "csvReady": "The file is downloading.",
     "csvFailed": "The file could not be made. Try again.",
+    "csvTooLarge": "That day has more than {{max}} entries for one file. Narrow it by a person, a kind or a search.",
     "filters": {
       "label": "Filter the history",
       "date": "Day",

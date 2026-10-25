@@ -137,7 +137,7 @@ export function PhoneResults(props: PhoneResultsProps) {
             />
             <Tile
               label={t('phone.results.kpi.guests')}
-              value={String(figures.guests)}
+              value={new Intl.NumberFormat(intlTag(locale)).format(figures.guests)}
               sub={
                 figures.averageCheckAmd === null
                   ? '—'

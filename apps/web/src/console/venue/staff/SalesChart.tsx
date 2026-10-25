@@ -36,6 +36,16 @@ export function SalesChart({ daily, today, locale }: SalesChartProps) {
   const [active, setActive] = useState<number | null>(null);
   const [focusIndex, setFocusIndex] = useState(Math.max(0, daily.length - 1));
   const [asTable, setAsTable] = useState(false);
+  // Another period is another series: the stop goes back to its last day
+  // (today). Clamped too, so thirty days narrowed to seven can never leave it
+  // on day 25, where no column would be tabbable.
+  const [seenLength, setSeenLength] = useState(daily.length);
+  if (seenLength !== daily.length) {
+    setSeenLength(daily.length);
+    setFocusIndex(Math.max(0, daily.length - 1));
+    setActive(null);
+  }
+  const stop = Math.min(focusIndex, Math.max(0, daily.length - 1));
 
   const most = Math.max(0, ...daily.map((day) => day.salesAmd));
   const top = axisTop(most);
@@ -69,9 +79,9 @@ export function SalesChart({ daily, today, locale }: SalesChartProps) {
     const last = daily.length - 1;
     const next =
       event.key === 'ArrowRight'
-        ? Math.min(last, focusIndex + 1)
+        ? Math.min(last, stop + 1)
         : event.key === 'ArrowLeft'
-          ? Math.max(0, focusIndex - 1)
+          ? Math.max(0, stop - 1)
           : event.key === 'Home'
             ? 0
             : event.key === 'End'
@@ -113,7 +123,7 @@ export function SalesChart({ daily, today, locale }: SalesChartProps) {
                     type="button"
                     data-bar=""
                     className={isToday ? 'yc-sc-hit is-today' : 'yc-sc-hit'}
-                    tabIndex={index === focusIndex ? 0 : -1}
+                    tabIndex={index === stop ? 0 : -1}
                     aria-label={said(day)}
                     onPointerEnter={() => setActive(index)}
                     onFocus={() => {

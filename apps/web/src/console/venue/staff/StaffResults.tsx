@@ -14,7 +14,7 @@ import { Link, useSearchParams } from 'react-router-dom';
 import { QueryFailureNotice } from '../../../components/QueryFailureNotice';
 import { ChevronDownIcon, ChevronUpIcon, DownloadIcon } from '../../ui/icons';
 import { useToast } from '../../ui/toast';
-import { dram, durationLabel } from '../activity/activityText';
+import { csvFailureText, dram, durationLabel } from '../activity/activityText';
 import { localDateLabel } from '../messageHistory/historyText';
 import { saveFile } from '../reports/download';
 
@@ -211,8 +211,8 @@ export function StaffResults({
       const file = await gateway.exportStaffPerformanceCsv(branchId, range);
       saveFile(file.fileName, file.bytes);
       toast.say(t('staffResults.csvReady'));
-    } catch {
-      toast.say(t('activity.csvFailed'), { tone: 'error' });
+    } catch (error) {
+      toast.say(csvFailureText(t, error, locale), { tone: 'error' });
     } finally {
       setExporting(false);
     }

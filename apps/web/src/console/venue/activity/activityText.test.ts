@@ -1,9 +1,16 @@
-import type { ActivityEntry } from '@yalla/api';
+import { ApiError, ServerError, parseProblem, type ActivityEntry } from '@yalla/api';
 import { i18next } from '@yalla/i18n';
 import type { TFunction } from 'i18next';
 import { beforeAll, describe, expect, it } from 'vitest';
 import { initConsoleTestI18n } from '../reports/testHarness';
-import { actionLabel, detailParts, deviceLabel, phoneOwnerOf } from './activityText';
+import {
+  actionLabel,
+  csvFailureText,
+  detailParts,
+  deviceLabel,
+  durationLabel,
+  phoneOwnerOf,
+} from './activityText';
 
 /**
  * The History's device wording (2026-10-25): phones paired and unpaired, a
@@ -129,5 +136,36 @@ describe('phone and device entries', () => {
       detailParts(en, enrolled, 'en', (id) => (id === 's-nare' ? 'Nare Petrosyan' : null)),
     ).toEqual(['code by Nare P.']);
     expect(detailParts(en, enrolled, 'en', () => null)).toEqual([]);
+  });
+});
+
+describe('medians and CSV refusals (review 2026-10-25)', () => {
+  it('writes a median as minutes and two-digit seconds, as the boards do', () => {
+    expect(durationLabel(en, 125)).toBe('2 min 05 s');
+    expect(durationLabel(hy, 95)).toBe('1 ր 35 վ');
+    expect(durationLabel(ru, 61)).toBe('1 мин 01 с');
+    expect(durationLabel(en, 48)).toBe('48 s');
+    expect(durationLabel(en, 240)).toBe('4 min');
+    expect(durationLabel(en, null)).toBeNull();
+  });
+
+  it('says a too-large export with the server’s limit, and how to narrow it', () => {
+    const tooLarge = new ApiError('Export too large', {
+      status: 422,
+      url: '/api/branches/b/activity.csv',
+      problem: parseProblem({
+        status: 422,
+        code: 'activity-export-too-large',
+        context: { rows: 25_000, maxRows: 20_000 },
+      }),
+    });
+    expect(csvFailureText(en, tooLarge, 'en')).toBe(
+      'That day has more than 20,000 entries for one file. Narrow it by a person, a kind or a search.',
+    );
+    expect(csvFailureText(ru, tooLarge, 'ru')).toContain('20');
+    expect(csvFailureText(hy, tooLarge, 'hy')).toContain('20');
+    expect(csvFailureText(en, new ServerError({ status: 500, url: '/x' }), 'en')).toBe(
+      'The file could not be made. Try again.',
+    );
   });
 });

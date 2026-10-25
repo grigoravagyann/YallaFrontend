@@ -598,6 +598,26 @@ describe('transferring the table (2026-10-24)', () => {
     expect((button('Transfer') as HTMLButtonElement).disabled).toBe(true);
   });
 
+  it('says a refused list (403) is not this person’s table, not "try again"', () => {
+    show({
+      ...occupied,
+      transferTargets: null,
+      transferTargetsFailed: true,
+      transferNotYours: true,
+      onTransfer: vi.fn(),
+    });
+    fireEvent.click(button('Transfer table'));
+    expect(screen.getByRole('alert').textContent).toBe(
+      'Only the table’s waiter or a manager can hand table 6 over.',
+    );
+    cleanup();
+    show({ ...occupied, transferTargets: null, transferTargetsFailed: true, onTransfer: vi.fn() });
+    fireEvent.click(button('Transfer table'));
+    expect(screen.getByRole('alert').textContent).toBe(
+      'Could not read who is working. Close and try again.',
+    );
+  });
+
   it('says it is reading who works while the list loads, and needs the connection', () => {
     show({ ...occupied, transferTargets: null, onTransfer: vi.fn() });
     fireEvent.click(button('Transfer table'));

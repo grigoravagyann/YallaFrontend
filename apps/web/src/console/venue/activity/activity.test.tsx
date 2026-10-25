@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { createConsoleMockGateway, type ConsoleGateway } from '@yalla/api';
+import { ApiError, createConsoleMockGateway, parseProblem, type ConsoleGateway } from '@yalla/api';
 import { cleanup, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { useEffect } from 'react';
@@ -168,6 +168,19 @@ describe('History', () => {
     );
   });
 
+  it('says a link with a bad day cannot be read, and offers the way back to today', async () => {
+    const user = userEvent.setup();
+    renderAt('/venue/history?date=2026-13-45&kind=payment');
+    expect((await screen.findByRole('alert')).textContent).toContain(
+      'The history could not be filtered like that.',
+    );
+    // The bad day is not pushed into the input as text it refuses.
+    expect((screen.getByLabelText('Day') as HTMLInputElement).value).toBe('');
+    await user.click(screen.getByRole('button', { name: 'Clear the filters' }));
+    await feed();
+    expect(params().toString()).toBe('');
+  });
+
   it('says who paired and unpaired phones, from whose phone, in the reader’s words', async () => {
     renderAt('/venue/history?kind=device');
     const table = await feed();
@@ -194,6 +207,31 @@ describe('History', () => {
       ),
     );
     expect(await screen.findByText('The file is downloading.')).toBeTruthy();
+  });
+
+  it('says a day too large for one file with the server’s limit, not "try again"', async () => {
+    const user = userEvent.setup();
+    const console = gateway();
+    vi.spyOn(console, 'exportActivityCsv').mockRejectedValue(
+      new ApiError('Export too large', {
+        status: 422,
+        url: '/api/branches/b/activity.csv',
+        problem: parseProblem({
+          status: 422,
+          code: 'activity-export-too-large',
+          context: { rows: 20_412, maxRows: 20_000 },
+        }),
+      }),
+    );
+    renderAt('/venue/history', console);
+    await feed();
+    await user.click(screen.getByRole('button', { name: 'Download CSV' }));
+    expect(
+      await screen.findByText(
+        'That day has more than 20,000 entries for one file. Narrow it by a person, a kind or a search.',
+      ),
+    ).toBeTruthy();
+    expect(screen.queryByText('The file could not be made. Try again.')).toBeNull();
   });
 });
 
@@ -273,6 +311,44 @@ describe('a bill’s timeline', () => {
     const withTable = document.querySelector<HTMLElement>('.yc-tl-mark')!;
     expect(withTable.textContent).toBe('9');
     expect(screen.queryByRole('img', { name: 'No table yet' })).toBeNull();
+  });
+
+  it('says "still open" only for a bill that is, never one closed unpaid', async () => {
+    const tab = {
+      tabId: 'tab-x',
+      tableSessionId: 'ts-x',
+      tableLabel: '3',
+      partySize: 2,
+      openedAtUtc: '2026-10-24T14:00:00Z',
+      seatedAtUtc: '2026-10-24T14:00:00Z',
+      closedAtUtc: '2026-10-24T15:00:00Z',
+      status: 'closed' as const,
+      subtotalAmd: 9_000,
+      serviceChargeAmd: 0,
+      totalAmd: 9_000,
+      paidAmd: 0,
+      tipsAmd: 0,
+      servers: [],
+    };
+    const timeline = {
+      subject: { type: 'tab' as const, id: 'tab-x' },
+      tab,
+      booking: null,
+      takeaway: null,
+      lines: [],
+      entries: [],
+      people: [],
+    };
+    const console = gateway();
+    const read = vi.spyOn(console, 'getActivityTimeline').mockResolvedValue(timeline);
+    renderAt('/venue/history/tab/tab-x', console);
+    await screen.findByRole('heading', { level: 1, name: 'Table 3 · bill' }, { timeout: 8000 });
+    expect(screen.queryByText('still open')).toBeNull();
+    cleanup();
+
+    read.mockResolvedValue({ ...timeline, tab: { ...tab, status: 'open', closedAtUtc: null } });
+    renderAt('/venue/history/tab/tab-x', console);
+    expect(await screen.findByText('still open', undefined, { timeout: 8000 })).toBeTruthy();
   });
 
   it('says so when the subject is not there', async () => {
@@ -363,6 +439,26 @@ describe('one person’s page', () => {
       (await within(calls).findAllByRole('columnheader', undefined, { timeout: 8000 })).at(-1)!
         .textContent,
     ).toBe('Response');
+  });
+
+  it('keeps one bar of the chart tabbable when thirty days narrow to seven', async () => {
+    const user = userEvent.setup();
+    renderAt(`/venue/staff/${ARAM}?period=month`);
+    const chart = await screen.findByRole('group', { name: /^Sales by day/u }, { timeout: 8000 });
+    // Walk the roving stop back to day 26 of 30.
+    within(chart).getAllByRole('button').at(-1)!.focus();
+    await user.keyboard('{ArrowLeft}{ArrowLeft}{ArrowLeft}{ArrowLeft}');
+    await user.click(screen.getByRole('button', { name: '7 days' }));
+    await waitFor(() =>
+      expect(
+        within(screen.getByRole('group', { name: /^Sales by day/u })).getAllByRole('button'),
+      ).toHaveLength(7),
+    );
+    const bars = within(screen.getByRole('group', { name: /^Sales by day/u })).getAllByRole(
+      'button',
+    );
+    // Exactly one stop, on the last day (today).
+    expect(bars.filter((bar) => bar.tabIndex === 0)).toEqual([bars.at(-1)]);
   });
 
   it('says so for somebody who is not on the branch', async () => {

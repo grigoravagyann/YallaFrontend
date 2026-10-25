@@ -18,6 +18,8 @@ export interface PhoneTransferProps {
   /** Who could take it, on shift first; `null` while it is being read. */
   readonly targets: readonly TransferTarget[] | null;
   readonly failed: boolean;
+  /** The server said no: not this person's table, and they are not a manager. */
+  readonly notYours?: boolean | undefined;
   readonly online: boolean;
   /** A transfer (or another command on the table) is in flight. */
   readonly busy: boolean;
@@ -119,7 +121,9 @@ export function PhoneTransfer(props: PhoneTransferProps) {
 
       {props.failed ? (
         <p className="ph-transfer-note is-failed" role="alert">
-          {t('table.transfer.failed')}
+          {props.notYours
+            ? t('table.transfer.notYours', { label: props.label })
+            : t('table.transfer.failed')}
         </p>
       ) : list === null ? (
         <p className="ph-transfer-note" role="status">

@@ -738,10 +738,61 @@ describe('the "Now" rail', () => {
       expect(claim).toHaveBeenCalledWith({ branchId: BRANCH, requestId: 'sr-water' }),
     );
     // Somebody else was first: their name, and no second claim.
-    expect(await screen.findByText('Table 5 · Aram Petrosyan is already on it')).toBeTruthy();
+    expect(await screen.findByText('Table 5 · Aram is already on it')).toBeTruthy();
     const after = (await within(await rail()).findByText('asks for water')).closest('li')!;
     expect(await within(after).findByText('Aram is on it')).toBeTruthy();
     expect(within(after).queryByRole('button', { name: /I’m on it/u })).toBeNull();
+  });
+
+  it('settles every claim in flight: a failed one offers "I’m on it" again', async () => {
+    signIn();
+    const user = setupUser();
+    const napkins: ServiceRequest = {
+      ...water,
+      id: 'sr-napkins',
+      tabId: 'tab2',
+      tableLabel: '7',
+      reason: 'napkins',
+    };
+    const pending = new Map<
+      string,
+      { resolve: (r: ServiceRequest) => void; reject: (e: unknown) => void }
+    >();
+    const claim = vi.fn(
+      (command: { readonly branchId: string; readonly requestId: string }) =>
+        new Promise<ServiceRequest>((resolve, reject) => {
+          pending.set(command.requestId, { resolve, reject });
+        }),
+    );
+    const gateway = gatewayWith({
+      listServiceRequests: async () => [water, napkins],
+      claimServiceRequest: claim,
+    });
+    renderFloor(gateway);
+
+    const waterItem = (await within(await rail()).findByText('asks for water')).closest('li')!;
+    const napkinsItem = (await within(await rail()).findByText('asks for napkins')).closest('li')!;
+    // Two claims in flight at once from one tablet.
+    await user.click(within(waterItem).getByRole('button', { name: 'I’m on it · table 5' }));
+    await user.click(within(napkinsItem).getByRole('button', { name: 'I’m on it · table 7' }));
+    await waitFor(() => expect(pending.size).toBe(2));
+
+    // The first fails after the second was sent: it must still settle.
+    pending.get('sr-water')!.reject(new Error('offline blip'));
+    expect(await screen.findByText('Table 5 · could not take the call. Try again.')).toBeTruthy();
+    const waterAfter = (await within(await rail()).findByText('asks for water')).closest('li')!;
+    await waitFor(() =>
+      expect(
+        (
+          within(waterAfter).getByRole('button', {
+            name: 'I’m on it · table 5',
+          }) as HTMLButtonElement
+        ).disabled,
+      ).toBe(false),
+    );
+    pending
+      .get('sr-napkins')!
+      .resolve({ ...napkins, claimedByStaffMemberId: null, claimedByName: null });
   });
 
   it('does not claim the guest saw "On my way" while it waits for the connection', async () => {

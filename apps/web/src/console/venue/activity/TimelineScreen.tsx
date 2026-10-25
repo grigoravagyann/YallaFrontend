@@ -214,6 +214,16 @@ function Timeline({
     ? t(`activity.timeline.method.${takeaway.paymentMethod}`)
     : null;
   const adjustmentsAmd = tab ? Math.max(0, linesAmd - tab.subtotalAmd) : 0;
+  // "Still open" only for what is: a bill closed unpaid or abandoned, or a
+  // takeaway declined, cancelled or not collected, is over with nothing paid.
+  const stillOpen = tab
+    ? tab.status === 'open' ||
+      tab.status === 'closing' ||
+      (tab.status === 'unknown' && tab.closedAtUtc === null)
+    : takeaway
+      ? // `TakeawayStatus` 1 sent, 2 accepted, 3 ready.
+        takeaway.status >= 1 && takeaway.status <= 3
+      : false;
   // The tile: the table's label (the title and sub line say it in words), a
   // takeaway's T, or — a booking with no table yet — its kind as an icon
   // that says so, never a stray separator.
@@ -256,7 +266,7 @@ function Timeline({
                 .join(' · ')}
             </span>
           </div>
-        ) : tab || takeaway ? (
+        ) : stillOpen ? (
           <div className="yc-tl-total">
             <span className="yc-muted">{t('activity.timeline.open')}</span>
           </div>

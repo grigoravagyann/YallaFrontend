@@ -1,5 +1,6 @@
 import {
   ApiError,
+  ForbiddenError,
   LineAlreadyPaidError,
   isOffline,
   TableNotSeatedError,
@@ -10,6 +11,7 @@ import {
   readsPreOrderRail,
   staffMayWrite,
   tableDetail,
+  transferRefusalOf,
   type AdjustmentKind,
   type AffectedReservation,
   type EnrolledDevice,
@@ -53,13 +55,13 @@ import {
   useTransferTargets,
   useVoidLine,
 } from '@yalla/api/react';
-import { transferRefusalOf } from '@yalla/api';
 import { useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from '@yalla/i18n';
 import type { TFunction } from 'i18next';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { QueryFailureNotice } from '../components/QueryFailureNotice';
+import { firstName } from '../messages/messageText';
 import {
   AdmissionSection,
   wasHeldForLateParty,
@@ -1240,48 +1242,52 @@ export function FloorRoute({ identity, device = null, paused, onUnpair }: FloorR
   // A claim is online only: the first one wins on the server, so a claim
   // queued offline would be a guess. "On my way" on a call nobody has taken
   // claims it too, quietly — the response time is measured to the claim.
-  const claimMutation = useClaimServiceRequest();
+  //
+  // `mutateAsync`, not `mutate` with per-call callbacks: one mutation hook
+  // serves every call, and TanStack only runs a `mutate` call's own callbacks
+  // for the latest call — two claims in flight (or a quiet one under "On my
+  // way") would leave the first stuck in `claiming`, its button disabled for
+  // good, and its race notice unsaid.
+  const { mutateAsync: claimAsync } = useClaimServiceRequest();
   const [claiming, setClaiming] = useState<ReadonlySet<string>>(new Set());
   const claim = useCallback(
     (request: ServiceRequest, quiet = false) => {
       if (!queue.online || request.claimedByName) return;
       setClaiming((current) => new Set(current).add(request.id));
-      claimMutation.mutate(
-        { branchId, requestId: request.id },
-        {
-          onSuccess: (claimed) => {
-            if (quiet) return;
-            const mine =
-              !claimed.claimedByStaffMemberId ||
-              claimed.claimedByStaffMemberId === identity.staffMemberId;
+      claimAsync({ branchId, requestId: request.id })
+        .then((claimed) => {
+          if (quiet) return;
+          // The server answers a lost race with the winner's claim.
+          const mine = claimed.claimedByStaffMemberId
+            ? claimed.claimedByStaffMemberId === identity.staffMemberId
+            : !claimed.claimedByName || claimed.claimedByName === identity.fullName;
+          setNotice({
+            kind: mine ? 'info' : 'race',
+            text: mine
+              ? t('rail.calls.claimNotice', { label: request.tableLabel })
+              : t('rail.calls.claimTaken', {
+                  label: request.tableLabel,
+                  name: firstName(claimed.claimedByName ?? ''),
+                }),
+          });
+        })
+        .catch(() => {
+          if (!quiet) {
             setNotice({
-              kind: mine ? 'info' : 'race',
-              text: mine
-                ? t('rail.calls.claimNotice', { label: request.tableLabel })
-                : t('rail.calls.claimTaken', {
-                    label: request.tableLabel,
-                    name: claimed.claimedByName ?? '',
-                  }),
+              kind: 'warning',
+              text: t('rail.calls.claimFailed', { label: request.tableLabel }),
             });
-          },
-          onError: () => {
-            if (!quiet) {
-              setNotice({
-                kind: 'warning',
-                text: t('rail.calls.claimFailed', { label: request.tableLabel }),
-              });
-            }
-          },
-          onSettled: () =>
-            setClaiming((current) => {
-              const next = new Set(current);
-              next.delete(request.id);
-              return next;
-            }),
-        },
-      );
+          }
+        })
+        .finally(() =>
+          setClaiming((current) => {
+            const next = new Set(current);
+            next.delete(request.id);
+            return next;
+          }),
+        );
     },
-    [branchId, claimMutation, identity.staffMemberId, queue.online, t],
+    [branchId, claimAsync, identity.fullName, identity.staffMemberId, queue.online, t],
   );
 
   /**
@@ -1349,6 +1355,8 @@ export function FloorRoute({ identity, device = null, paused, onUnpair }: FloorR
     }));
   }, [t, transferTargetsQuery.data]);
   const transferTargetsFailed = transferTargetsQuery.isError;
+  /** A 403 is an answer: only the table's waiter or a manager hands it over. */
+  const transferNotYours = transferTargetsQuery.error instanceof ForbiddenError;
   const transfer = useCallback(
     (
       tabId: string,
@@ -1363,7 +1371,8 @@ export function FloorRoute({ identity, device = null, paused, onUnpair }: FloorR
             const name = result.server.name || target.name;
             // The phone's sheet says it itself, and stays up until "Done".
             if (onDone) {
-              onDone({ name, atUtc: new Date().toISOString() });
+              // The server's own time: the one the history line carries.
+              onDone({ name, atUtc: result.transferredAtUtc });
               return;
             }
             setNotice({
@@ -1380,15 +1389,18 @@ export function FloorRoute({ identity, device = null, paused, onUnpair }: FloorR
             setNotice({
               kind: 'warning',
               text:
-                refusal?.kind === 'notTransferable'
-                  ? t('table.transfer.closed', { label: tableLabel })
-                  : refusal?.reason === 'does-not-serve'
-                    ? t('table.transfer.notServing', { name })
-                    : refusal?.reason === 'other-branch'
-                      ? t('table.transfer.otherBranch', { name })
-                      : refusal?.reason === 'inactive' || refusal?.reason === 'not-found'
-                        ? t('table.transfer.gone', { name })
-                        : t('table.transfer.refused', { label: tableLabel }),
+                // Not this person's table (somebody else's waiter, not a manager).
+                error instanceof ForbiddenError
+                  ? t('table.transfer.notYours', { label: tableLabel })
+                  : refusal?.kind === 'notTransferable'
+                    ? t('table.transfer.closed', { label: tableLabel })
+                    : refusal?.reason === 'does-not-serve'
+                      ? t('table.transfer.notServing', { name })
+                      : refusal?.reason === 'other-branch'
+                        ? t('table.transfer.otherBranch', { name })
+                        : refusal?.reason === 'inactive' || refusal?.reason === 'not-found'
+                          ? t('table.transfer.gone', { name })
+                          : t('table.transfer.refused', { label: tableLabel }),
             });
           },
         },
@@ -1760,6 +1772,7 @@ export function FloorRoute({ identity, device = null, paused, onUnpair }: FloorR
         }}
         transferTargets={transferTargets}
         transferTargetsFailed={transferTargetsFailed}
+        transferNotYours={transferNotYours}
         onWantTransfer={() => {
           if (!selectedTabId) return;
           // Read afresh each time it opens: who holds how many tables moves.

@@ -8201,6 +8201,13 @@ body:has(.yc-savebar) .yc-toast-region {
   margin: var(--space-lg) 20px;
 }
 
+/* History, a link it cannot read: the refusal, then the way back to today. */
+.yc-act-refused {
+  display: grid;
+  justify-items: start;
+  gap: var(--space-sm);
+}
+
 .yc-mh-tbl th,
 .yc-mh-tbl td {
   padding-inline: var(--space-md);
@@ -8535,6 +8542,29 @@ body:has(.yc-savebar) .yc-toast-region {
 
 .yc-act-tbl[aria-busy='true'] tbody {
   opacity: 0.6;
+}
+
+/* A phone: the "what" is the column that matters, so it keeps the width and
+   "from where" waits in the detail below the list. */
+@media (max-width: 560px) {
+  .yc-act-tbl thead th:nth-child(4),
+  .yc-act-tbl td.yc-act-dev {
+    display: none;
+  }
+
+  .yc-act-tbl th,
+  .yc-act-tbl td,
+  .yc-act-tbl tbody th {
+    padding-inline: var(--space-sm);
+  }
+
+  .yc-act-tbl tbody th.yc-act-what {
+    min-width: 0;
+  }
+
+  .yc-act-tbl td.yc-act-who {
+    white-space: normal;
+  }
 }
 
 .yc-num-time {
@@ -8993,7 +9023,7 @@ body:has(.yc-savebar) .yc-toast-region {
 
 .yc-pp-kpis {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
   gap: 10px;
 }
 
