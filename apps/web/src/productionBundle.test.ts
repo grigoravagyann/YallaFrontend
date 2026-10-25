@@ -303,6 +303,9 @@ const FORBIDDEN_IN_PUBLIC = [
   /packages\/api\/src\/mocks\/staffMock/u,
   /packages\/api\/src\/http\/consoleHttpGateway/u,
   /packages\/api\/src\/http\/staffHttpGateway/u,
+  // Their per-feature method files, which the two gateways compose.
+  /packages\/api\/src\/http\/console\//u,
+  /packages\/api\/src\/http\/staff\//u,
   /packages\/api\/src\/resolveConsoleGateway/u,
   /packages\/api\/src\/resolveStaffGateway/u,
   /packages\/realtime\//u,
