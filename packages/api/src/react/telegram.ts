@@ -2,7 +2,8 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { TelegramChallenge, VerifiedPhone } from '../contracts/booking';
 import { ExpiredCodeError, TelegramUnavailableError } from '../contracts/errors';
-import { queryKeys, useGateway } from './index';
+import { useGateway } from './gateways';
+import { queryKeys } from './queryKeys';
 
 /**
  * Verifying a number through the Telegram bot, as one hook for both surfaces.

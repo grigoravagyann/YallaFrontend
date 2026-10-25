@@ -14,7 +14,8 @@ import {
 } from '../contracts/takeaway';
 import type { YallaGateway } from '../gateway';
 import { staleTime } from '../queryClient';
-import { queryKeys, useConsoleGateway, useGateway, useStaffGateway } from './index';
+import { useConsoleGateway, useGateway, useStaffGateway } from './gateways';
+import { queryKeys } from './queryKeys';
 
 /**
  * Takeaway (2026-10-22): the hooks every surface uses, and what each mutation

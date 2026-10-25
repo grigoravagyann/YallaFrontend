@@ -23,7 +23,8 @@ import type {
 import type { ServiceRequest } from '../contracts/ordering';
 import { staleTime } from '../queryClient';
 import type { StaffGateway } from '../staffGateway';
-import { queryKeys, useConsoleGateway, useStaffGateway } from './index';
+import { useConsoleGateway, useStaffGateway } from './gateways';
+import { queryKeys } from './queryKeys';
 
 /**
  * Activity history and staff results (2026-10-24): the console's reads, and
