@@ -53,7 +53,8 @@ before exploring; the README has the long-form reasons. Backend: `grigoravagyann
 - `packages/format` — money (`formatDram`), dates/zones, durations, names, phone, tables.
 - `packages/realtime` — SignalR connection, hubs, sequence stream.
 - `scripts/` — `dev-stack.mjs` (+ `dev-stack/lib.mjs`), `e2e-local.sh`,
-  `check-swagger-drift.mjs`. `verify.sh` runs CI's build gates locally (Git Bash).
+  `check-swagger-drift.mjs`, `check-architecture.mjs` (see Architecture checks). `verify.sh`
+  runs CI's build gates locally (Git Bash).
 - Design sources: `docs/design/{console,venue-console,floor-tablet,public-page}/HANDOFF.md`.
   `DESIGN.md` predates SHURJ; where it disagrees, `packages/tokens/src/console.ts` and
   `apps/diner/src/theme/colors.ts` win.
@@ -66,7 +67,8 @@ before exploring; the README has the long-form reasons. Backend: `grigoravagyann
   `staff/staffStyles.test.ts` fails on any hex/`rgb()`/`hsl()`/`oklch()` in listed staff
   files (add new staff files to its `REDESIGNED` list); `cssTokens.test.ts` fails on an
   undefined `var(--x)`. Diner code imports colour/shadow/type from `src/theme` — ESLint
-  refuses `color`, `elevation`, `fontSize`, `lineHeight` from `@yalla/tokens` there.
+  refuses `color`, `elevation`, `fontSize`, `lineHeight` from `@yalla/tokens` there, and a
+  typed hex/`rgb()`/`hsl()` colour outside `src/theme` and tests.
 - **Hermes Intl.** New `Intl` use in `@yalla/format` needs a matching `@formatjs/*` polyfill
   (and locale data) in `apps/diner/src/intlPolyfills.ts`. Only a real phone shows the crash;
   web and Node have full Intl.
@@ -93,6 +95,39 @@ before exploring; the README has the long-form reasons. Backend: `grigoravagyann
 - **Scope comes from the token**, never a URL param (only `/platform/venues/:venueId`).
   Routes are registered per role in `App.tsx`; no inline role checks in screens.
 - Never read `dotnet user-secrets` (the backend's local secrets).
+
+## Architecture checks
+
+`pnpm lint` (CI's build job) runs `scripts/check-architecture.mjs` after ESLint (alone:
+`pnpm arch:check`). It reads every import in `apps/*` and `packages/*` with the TypeScript
+parser (`import type`, `export … from`, `import()`, `require()`) and prints the rule, the
+import and the fix:
+
+- `apps-are-islands` — `apps/diner`, `apps/web`, `apps/e2e` never import each other. Share
+  through a package.
+- `packages-below-apps` — a package never imports an app.
+- `package-layers` — `format`, `tokens`, `realtime`, `i18n` import no `@yalla/*`; `api` imports
+  only `format`. A new package or direction goes in `PACKAGE_LAYERS`, with its reason.
+- `public-entry-points` — another workspace only through its package.json `exports`
+  (`@yalla/api`, `@yalla/api/react`, `@yalla/api/schema`, `@yalla/i18n/{resources,public,diner}`),
+  never `@yalla/api/src/…` or `../../packages/…`.
+- `no-own-barrel` — inside a package, only tests and entry points import an `index.ts` barrel.
+- `no-value-cycles` — no import cycle inside a package. A whole `import type` declaration is
+  erased and does not count; `import { type X }` stays an import under `verbatimModuleSyntax`
+  and does.
+- `diner-intl-first` — `apps/diner/app/_layout.tsx` imports `../src/intlPolyfills` first.
+
+Exceptions go in `ALLOW` in the script, each with a `reason`; an entry that matches nothing
+fails. `scripts/check-architecture.test.mjs` (`pnpm test:scripts`) proves each rule still
+fails on a fixture that breaks it; give a new rule a case there. Elsewhere:
+
+- Diner colours: ESLint refuses console colours from `@yalla/tokens` and typed
+  hex/`rgb()`/`hsl()` in `apps/diner/{app,src}` outside `src/theme` (tests and
+  `launch/mark.ts` exempt; reasons in `eslint.config.js`).
+- `generated/*` is imported, never edited: `check-generated-schema.mjs` re-renders `schema.ts`
+  from `swagger.json` and `check-problem-codes.mjs` re-renders `problemCodes.ts` (both in
+  `pnpm --filter @yalla/api test` and `api:check`); CI's contract job compares `swagger.json`
+  with the live backend.
 
 ## Recipe: consume a new backend endpoint (contract first)
 
@@ -121,7 +156,7 @@ Example to copy end to end: takeaway — `contracts/takeaway.ts`, `http/takeaway
 6. Hooks go in the feature file `react/<feature>.ts`, importing `./gateways` and
    `./queryKeys` (add keys to `queryKeys`; use `staleTime` from `../queryClient`), then export
    them from `react/index.ts`. **Never import a barrel (`./index`, `../index`) from a feature
-   or mapping file** — require cycles. Export new contract types from `src/index.ts`.
+   or mapping file** — require cycles (`no-own-barrel` / `no-value-cycles` fail lint). Export new contract types from `src/index.ts`.
 7. Tests: HTTP mapping against `http/fakeBackend.testkit.ts` (see `http/takeaway.test.ts`),
    mock behaviour in `mocks/*.test.ts`, and a `contract/*.contract.ts` case when both
    implementations can be held to it.
