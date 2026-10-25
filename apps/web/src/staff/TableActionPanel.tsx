@@ -1,8 +1,6 @@
 import {
-  ON_MY_WAY_WINDOW_HOURS,
   onYourWayFromUtc,
   type AffectedReservation,
-  type DerivedTableState,
   type DuePreOrder,
   type FloorTable,
   type GuestRecord,
@@ -13,22 +11,33 @@ import {
   type TableActionKind,
   type TableStatus,
 } from '@yalla/api';
-import type { DayAndTime } from '@yalla/format';
 import { useTranslation } from '@yalla/i18n';
-import type { TFunction } from 'i18next';
-import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
-import { GuestRecordLine } from '../console/venue/overview/GuestRecordLine';
-import { AdmissionDecision, type AdmissionOutcome, type AdmissionSubject } from './AdmissionPanel';
-import { billRequestText } from './billRequestText';
+import { useEffect, useId, useRef, useState } from 'react';
+import type { AdmissionOutcome, AdmissionSubject } from './AdmissionPanel';
 import { OnMyWayAsk } from './OnMyWayAsk';
 import { PhoneTransfer, type TransferDone } from './phone/PhoneTransfer';
-import { transferTargetDetail, type TransferTarget } from './transferTarget';
-
-export type { TransferTarget } from './transferTarget';
 import { PreOrderCard, type PreOrderOutcome } from './PreOrderPanel';
 import { seatedMinutes } from './seatedMinutes';
 import { tableCardText, tableTone } from './tableCard';
+import { AffectedBookings } from './tablePanel/AffectedBookings';
+import { FreeTableActions } from './tablePanel/FreeTableActions';
+import { HeldTableActions } from './tablePanel/HeldTableActions';
+import { BookingFlags, NextBookingValue } from './tablePanel/NextBooking';
+import { OccupiedTableActions } from './tablePanel/OccupiedTableActions';
+import { Fact, Facts } from './tablePanel/panelParts';
+import { ReleaseChoice } from './tablePanel/ReleaseChoice';
+import {
+  askWindowOpen,
+  clampParty,
+  lateMinutes,
+  nextBookingText,
+  physicalFrom,
+  preOrderPartyFor,
+} from './tablePanel/tablePanelRules';
+import type { TransferTarget } from './transferTarget';
 import { useBranchFormat } from './useBranchFormat';
+
+export type { TransferTarget } from './transferTarget';
 
 /**
  * What a waiter does to a table: the floor tablet's table panel (Table
@@ -46,11 +55,6 @@ import { useBranchFormat } from './useBranchFormat';
  * online-only actions (releasing a booking, taking cash, starting a tab),
  * which stay in place with a line saying why they are off.
  */
-
-/** The server's bound on a party (`[Range(1, 100)]` on every seat request). */
-const MAX_PARTY = 100;
-/** "Are you coming?" may be asked from two hours before a booking's start. */
-const ASK_WINDOW_MINUTES = ON_MY_WAY_WINDOW_HOURS * 60;
 
 export interface TableActionPanelProps {
   readonly table: FloorTable;
@@ -192,36 +196,21 @@ export function TableActionPanel(props: TableActionPanelProps) {
   }, [seating, confirmFree, askingRelease, transferOpen]);
 
   const bookingStart = detail?.nextReservationStartUtc ?? table.nextReservationStartUtc;
-  /**
-   * Minutes since the booking was due, once it is: null before its start.
-   *
-   * Only a booking whose time has come can be a no-show. A table is held for
-   * a walk-in on its way too, and the server attaches that hold to whatever is
-   * booked next — 22:00, or tomorrow — so "release the booking" is offered for
-   * a booking that is due, never for one that is not (review B1).
-   */
-  const lateBy =
-    bookingStart !== null && bookingStart !== undefined && format.minutesSince(bookingStart) > 0
-      ? format.minutesSince(bookingStart)
-      : null;
+  // Minutes since the booking was due, once it is (see `lateMinutes`).
+  const lateBy = lateMinutes(bookingStart, format.minutesSince);
   const bookingLate = lateBy !== null && status === 'free';
   const lateOpen = bookingLate && !bookingLetGo;
   const reservationId = detail?.nextReservationId ?? null;
-  /**
-   * "Ask: are you coming?" for the next booking (2026-10-22), when its
-   * pre-order card — which asks the same — is not on this panel: from two
-   * hours before its start until the start, and after it only while the
-   * guest's "running late" has not run out.
-   */
-  const askLate = detail?.nextReservationGuestRunningLateMinutes ?? null;
-  const askOpen =
-    reservationId !== null &&
-    Boolean(bookingStart) &&
-    props.preOrder?.reservationId !== reservationId &&
-    !props.nextBookingAwaiting &&
-    status !== 'outOfService' &&
-    format.minutesSince(bookingStart!) >= -ASK_WINDOW_MINUTES &&
-    format.minutesSince(bookingStart!) < (askLate ?? 0);
+  // "Ask: are you coming?" for the next booking (see `askWindowOpen`).
+  const askOpen = askWindowOpen({
+    reservationId,
+    bookingStart,
+    preOrderReservationId: props.preOrder?.reservationId,
+    awaiting: Boolean(props.nextBookingAwaiting),
+    status,
+    runningLateMinutes: detail?.nextReservationGuestRunningLateMinutes ?? null,
+    minutesSince: format.minutesSince,
+  });
   /**
    * The table's next booking, when its pre-order card is on the rail: the
    * party may walk in up to two hours early, their food already cooking, and
@@ -230,13 +219,7 @@ export function TableActionPanel(props: TableActionPanelProps) {
    * floor's own `reservedSoon` window is only when the tablet offers it
    * unprompted.
    */
-  const preOrderParty =
-    props.preOrder &&
-    reservationId !== null &&
-    props.preOrder.reservationId === reservationId &&
-    props.preOrder.status === 'confirmed'
-      ? props.preOrder
-      : null;
+  const preOrderParty = preOrderPartyFor(props.preOrder, reservationId);
   const offerSeatBooking =
     reservationId !== null &&
     Boolean(bookingStart) &&
@@ -261,48 +244,18 @@ export function TableActionPanel(props: TableActionPanelProps) {
   const seats = t('table.seats', { count: table.seats });
   const room = table.floorAreaName;
 
-  // A bare time reads as tonight; a booking days away said so is how a waiter
-  // seats nobody over it (QA 2026-10-16). The guest's promise to free the
-  // table goes under it, smaller, as on the card.
-  // Booked without a verified number: said beside it, wherever the booking is.
-  // The guest said they are on their way: the waiter need not call.
-  const bookingFlag = (
-    <>
-      {detail?.nextReservationGuestRunningLateMinutes != null ? (
-        <span className="badge badge-warn tp-flag">
-          {t('floor.card.runningLate', { count: detail.nextReservationGuestRunningLateMinutes })}
-        </span>
-      ) : detail?.nextReservationGuestConfirmedOnWayAtUtc ? (
-        <span className="badge badge-ok tp-flag">{t('preOrders.onTheWay')}</span>
-      ) : null}
-      {detail?.nextReservationPhoneUnverified ? (
-        <span className="badge badge-warn tp-flag">{t('admission.unverified')}</span>
-      ) : null}
-    </>
-  );
-  const nextBooking = bookingStart ? (
-    <>
-      {bookingWhen}
-      {bookingFlag}
-      <GuestRecordLine
-        record={props.nextBookingRecord}
-        surface="staff"
-        timeZoneId={timeZoneId}
-        now={new Date()}
-        className="tp-record"
-      />
-      {detail?.nextReservationPromisedFreeByUtc ? (
-        <small>
-          {t('table.mustFreeBy', { time: format.time(detail.nextReservationPromisedFreeByUtc) })}
-        </small>
-      ) : null}
-    </>
-  ) : (
-    '—'
+  const nextBooking = (
+    <NextBookingValue
+      bookingStart={bookingStart}
+      bookingWhen={bookingWhen}
+      detail={detail}
+      record={props.nextBookingRecord}
+      timeZoneId={timeZoneId}
+    />
   );
 
   const startSeating = (kind: 'walkIn' | 'heldParty', size: number) => {
-    setPartySize(Math.max(1, Math.min(MAX_PARTY, size)));
+    setPartySize(clampParty(size));
     setSeating(kind);
   };
   const release = (outcome: ReleaseOutcome) => {
@@ -464,373 +417,95 @@ export function TableActionPanel(props: TableActionPanelProps) {
               </div>
             ) : null}
 
-            {/* --- Free ---------------------------------------------------------- */}
             {status === 'free' ? (
-              <>
-                <Facts>
-                  <Fact label={t('table.fact.seats')}>{table.seats}</Fact>
-                  <Fact label={t('table.nextBooking')}>{nextBooking}</Fact>
-                  <Fact label={t('table.fact.room')}>{room ?? '—'}</Fact>
-                  {balance !== null && balance > 0 ? (
-                    <Fact label={t('table.balance')} warn>
-                      {format.dram(balance)}
-                    </Fact>
-                  ) : null}
-                </Facts>
-
-                {lateOpen ? (
-                  // A booking whose party has not turned up. Nothing here expires
-                  // on its own, and nothing here is a default.
-                  <section className="tp-late" aria-label={t('table.late.title')}>
-                    <Warn tone="blue">
-                      {t('table.late.body', { time: bookingWhen, late: lateText(t, lateBy ?? 0) })}
-                    </Warn>
-                    <div className="tp-acts">
-                      {reservationId ? (
-                        <button
-                          type="button"
-                          className="tp-btn tp-ok"
-                          onClick={() => onAct('seatReservation', bookedParty(detail))}
-                        >
-                          {t('table.action.seatBooking', { time: bookingWhen })}
-                        </button>
-                      ) : null}
-                      <button type="button" className="tp-btn tp-sec" onClick={() => onAct('hold')}>
-                        {t('table.action.hold')}
-                      </button>
-                      <hr className="tp-sep" />
-                      {releaseBooking}
-                    </div>
-                  </section>
-                ) : seating === 'walkIn' ? (
-                  <SeatConfirm
-                    partySize={partySize}
-                    seats={table.seats}
-                    onChange={setPartySize}
-                    warning={
-                      bookingStart
-                        ? t('table.warn.upcoming', { time: format.time(bookingStart) })
-                        : null
-                    }
-                    onConfirm={() => onAct('seatWalkIn', { partySize })}
-                    onCancel={() => setSeating(false)}
-                  />
-                ) : (
-                  <>
-                    {table.state === 'reservedSoon' && bookingStart ? (
-                      <Warn tone="amber">
-                        <b>{t('table.warn.bookedAt', { time: format.time(bookingStart) })}</b>{' '}
-                        {detail?.freeUntilUtc
-                          ? t('table.warn.freeBy', { time: format.time(detail.freeUntilUtc) })
-                          : null}
-                      </Warn>
-                    ) : null}
-                    <div className="tp-acts">
-                      <button
-                        type="button"
-                        className="tp-btn tp-pri"
-                        onClick={() => startSeating('walkIn', Math.min(2, table.seats))}
-                      >
-                        {t('table.action.seatWalkIn')}
-                      </button>
-                      {offerSeatBooking && bookingStart ? (
-                        <button
-                          type="button"
-                          className="tp-btn tp-sec"
-                          onClick={() => onAct('seatReservation', bookedParty(detail))}
-                        >
-                          {preOrderParty
-                            ? t('table.action.seatBookingGuest', {
-                                name: preOrderParty.guestName,
-                                time: format.time(bookingStart),
-                              })
-                            : t('table.action.seatBooking', { time: format.time(bookingStart) })}
-                        </button>
-                      ) : null}
-                      <button type="button" className="tp-btn tp-sec" onClick={() => onAct('hold')}>
-                        {t('table.action.holdLate')}
-                      </button>
-                      <button
-                        type="button"
-                        className="tp-btn tp-ghost"
-                        onClick={() => onAct('outOfService')}
-                      >
-                        {t('table.action.outOfService')}
-                      </button>
-                    </div>
-                  </>
-                )}
-              </>
+              <FreeTableActions
+                table={table}
+                detail={detail}
+                timeZoneId={timeZoneId}
+                room={room}
+                balance={balance}
+                nextBooking={nextBooking}
+                bookingStart={bookingStart}
+                bookingWhen={bookingWhen}
+                lateOpen={lateOpen}
+                lateBy={lateBy}
+                reservationId={reservationId}
+                releaseBooking={releaseBooking}
+                seatingWalkIn={seating === 'walkIn'}
+                partySize={partySize}
+                onPartySize={setPartySize}
+                onStartWalkIn={() => startSeating('walkIn', Math.min(2, table.seats))}
+                onCancelSeating={() => setSeating(false)}
+                offerSeatBooking={offerSeatBooking}
+                preOrderParty={preOrderParty}
+                onAct={onAct}
+              />
             ) : null}
 
-            {/* --- Occupied ------------------------------------------------------- */}
             {status === 'occupied' ? (
-              <>
-                <Facts>
-                  <Fact label={t('table.seatedFor')} warn={card.long}>
-                    {seatedFor !== null ? t('table.minutes', { count: seatedFor }) : '—'}
-                    {/* The party sitting here promised to be gone by a time: said with it. */}
-                    {detail?.sittingPromisedFreeByUtc ? (
-                      <small>
-                        {t('table.mustFreeBy', {
-                          time: format.time(detail.sittingPromisedFreeByUtc),
-                        })}
-                      </small>
-                    ) : null}
-                  </Fact>
-                  <Fact label={t('table.party')}>
-                    {detail?.partySize ?? '—'}
-                    {/* Seated on a proved guest's booking: their record (wire §0a). */}
-                    <GuestRecordLine
-                      record={detail?.sittingGuestRecord}
-                      surface="staff"
-                      timeZoneId={timeZoneId}
-                      now={new Date()}
-                      className="tp-record"
-                    />
-                  </Fact>
-                  <Fact label={t('table.fact.bill')}>
-                    {balance !== null ? format.dram(balance) : '—'}
-                  </Fact>
-                  {detail?.serverName ? (
-                    <Fact label={t('table.fact.server')} text>
-                      {detail.serverName}
-                    </Fact>
-                  ) : null}
-                  {bookingStart ? <Fact label={t('table.nextBooking')}>{nextBooking}</Fact> : null}
-                </Facts>
-
-                {card.long ? (
-                  <Warn tone="amber">
-                    <b>{t('table.warn.long')}</b>{' '}
-                    {bookingStart
-                      ? t('table.warn.longNext', { time: format.time(bookingStart) })
-                      : detail?.sittingPromisedFreeByUtc
-                        ? t('table.warn.longPromised', {
-                            time: format.time(detail.sittingPromisedFreeByUtc),
-                          })
-                        : null}
-                  </Warn>
-                ) : null}
-
-                {props.billRequest?.bill ? (
-                  <Warn tone="blue">
-                    <b>
-                      {t('table.billAsked', {
-                        count: Math.max(0, format.minutesSince(props.billRequest.requestedAtUtc)),
-                      })}
-                    </b>{' '}
-                    {billRequestText(props.billRequest.bill, t, format.dram, 'wants')}
-                  </Warn>
-                ) : null}
-
-                {/* A scan with no verified number: nobody on the tab can order until
-                a waiter who can see the table lets them. */}
-                {props.admission && props.branchId ? (
-                  <section className="tp-admission" aria-label={t('admission.panelTitle')}>
-                    <Warn tone="amber">
-                      <b>{t('admission.panelTitle')}</b> {t('admission.why')}
-                    </Warn>
-                    <AdmissionDecision
-                      branchId={props.branchId}
-                      subject={props.admission}
-                      online={online}
-                      variant="panel"
-                      onDecided={(outcome) => props.onAdmissionDecided?.(outcome)}
-                    />
-                  </section>
-                ) : null}
-
-                <div className="tp-acts">
-                  {/* Orders need a tab. A guest opens one by scanning; for a party
-                  that will not, the waiter starts one here. Online only — it
-                  is not a floor command the tablet queues — and not while this
-                  table's seating is itself still waiting to sync, because the
-                  server has nobody seated there to bill yet. */}
-                  {detail && detail.openTabId === null ? (
-                    <>
-                      <Warn tone="amber">
-                        <b>{t('table.noTab')}</b> {t('table.noTabWhy')}
-                      </Warn>
-                      <button
-                        type="button"
-                        className="tp-btn tp-pri"
-                        onClick={props.onStartTab}
-                        disabled={!online || pending || props.startingTab}
-                      >
-                        {props.startingTab
-                          ? t('table.action.startingTab')
-                          : t('table.action.startTab')}
-                      </button>
-                      {!online ? <p className="tp-hint">{t('table.startTabNeedsOnline')}</p> : null}
-                    </>
-                  ) : (
-                    <>
-                      <div className="tp-row">
-                        <button type="button" className="tp-btn tp-pri" onClick={props.onOrder}>
-                          {t('table.action.takeOrder')}
-                        </button>
-                        <button type="button" className="tp-btn tp-sec" onClick={props.onOpenTab}>
-                          {t('table.action.openTab')}
-                        </button>
-                      </div>
-                      {/* A payment recorded against a balance this tablet cannot
-                      verify is how a table pays twice, so cash waits for the
-                      connection, as it does on the tab. */}
-                      <button
-                        type="button"
-                        className="tp-btn tp-ok"
-                        disabled={!online || tabDone}
-                        onClick={props.onCash}
-                      >
-                        {/* The keypad opens on the newest bill request when there
-                        is one — a share, or with a tip — so the label names
-                        the balance only when that is what the keypad shows. */}
-                        {balance !== null && balance > 0 && !props.billRequest?.bill
-                          ? t('table.action.cash', { amount: format.dram(balance) })
-                          : t('tab.takeCash')}
-                      </button>
-                      {!online ? <p className="tp-hint">{t('table.cashNeedsOnline')}</p> : null}
-                    </>
-                  )}
-
-                  {/* Hand the table to another waiter (2026-10-24): the bill, its
-                  messages and its calls go to them from now on. Online only:
-                  it is not a command the tablet queues. */}
-                  {props.onTransfer && detail?.openTabId ? (
-                    transferOpen ? (
-                      <TransferChoice
-                        label={table.label}
-                        targets={props.transferTargets ?? null}
-                        failed={props.transferTargetsFailed ?? false}
-                        notYours={props.transferNotYours ?? false}
-                        disabled={!online || pending || (props.transferring ?? false)}
-                        online={online}
-                        onTransfer={(target) => props.onTransfer?.(target)}
-                        onCancel={() => setTransferOpen(false)}
-                      />
-                    ) : (
-                      <>
-                        <button
-                          type="button"
-                          className="tp-btn tp-sec"
-                          disabled={!online}
-                          onClick={() => {
-                            setTransferOpen(true);
-                            props.onWantTransfer?.();
-                          }}
-                        >
-                          {t('table.transfer.action')}
-                        </button>
-                        {!online ? (
-                          <p className="tp-hint">{t('table.transfer.needsOnline')}</p>
-                        ) : null}
-                      </>
-                    )
-                  ) : null}
-
-                  {/* Destructive, so it sits under a rule rather than beside the
-                  thumb that just tapped "take an order", and asks first. The
-                  diners have physically left, so nothing stops it: the money
-                  goes to "needs resolving", it is not lost. */}
-                  <hr className="tp-sep" />
-                  {confirmFree ? (
-                    <Confirm title={t('table.free.title', { label: table.label })}>
-                      <p className="tp-hint">
-                        {balance !== null && balance > 0
-                          ? t('table.free.owed', { amount: format.dram(balance) })
-                          : t('table.free.note')}
-                      </p>
-                      <div className="tp-row">
-                        <button
-                          type="button"
-                          className="tp-btn tp-sec"
-                          onClick={() => setConfirmFree(false)}
-                        >
-                          {t('common:action.cancel')}
-                        </button>
-                        <button
-                          type="button"
-                          className="tp-btn tp-danger-fill"
-                          onClick={() => onAct('freeTable')}
-                        >
-                          {t('table.action.freeConfirm')}
-                        </button>
-                      </div>
-                    </Confirm>
-                  ) : (
-                    <button
-                      type="button"
-                      className="tp-btn tp-danger"
-                      onClick={() => setConfirmFree(true)}
-                    >
-                      {t('table.action.free')}
-                    </button>
-                  )}
-                </div>
-              </>
-            ) : null}
-
-            {/* --- Held ----------------------------------------------------------- */}
-            {status === 'held' ? (
-              <>
-                {lateBy !== null && reservationId ? (
-                  <Warn tone="blue">
-                    <b>{t('table.held.title')}</b>{' '}
-                    {t('table.held.body', { time: bookingWhen, late: lateText(t, lateBy) })}
-                  </Warn>
-                ) : (
-                  <Warn tone="blue">{t('table.held.kept')}</Warn>
-                )}
-                <Facts>
-                  <Fact label={t('table.fact.booked')}>
-                    {bookingWhen ?? '—'}
-                    {bookingWhen ? bookingFlag : null}
-                  </Fact>
-                  <Fact label={t('table.party')}>{detail?.nextReservationPartySize ?? '—'}</Fact>
-                  <Fact label={t('table.fact.room')}>{room ?? '—'}</Fact>
-                </Facts>
-                {seating === 'heldParty' ? (
-                  <SeatConfirm
-                    partySize={partySize}
-                    seats={table.seats}
-                    onChange={setPartySize}
-                    warning={null}
-                    onConfirm={() => onAct('seatHeldParty', { partySize })}
-                    onCancel={() => setSeating(false)}
-                  />
-                ) : (
-                  <div className="tp-acts">
-                    <button
-                      type="button"
-                      className="tp-btn tp-ok"
-                      onClick={() =>
-                        startSeating(
-                          'heldParty',
-                          (lateBy !== null ? detail?.nextReservationPartySize : null) ??
-                            Math.min(2, table.seats),
-                        )
+              <OccupiedTableActions
+                table={table}
+                detail={detail}
+                timeZoneId={timeZoneId}
+                online={online}
+                pending={pending}
+                balance={balance}
+                tabDone={tabDone}
+                seatedFor={seatedFor}
+                long={card.long}
+                bookingStart={bookingStart}
+                nextBooking={nextBooking}
+                billRequest={props.billRequest}
+                admission={props.admission}
+                branchId={props.branchId}
+                onAdmissionDecided={props.onAdmissionDecided}
+                onStartTab={props.onStartTab}
+                startingTab={props.startingTab}
+                onOrder={props.onOrder}
+                onOpenTab={props.onOpenTab}
+                onCash={props.onCash}
+                transfer={
+                  props.onTransfer && detail?.openTabId
+                    ? {
+                        open: transferOpen,
+                        targets: props.transferTargets ?? null,
+                        failed: props.transferTargetsFailed ?? false,
+                        notYours: props.transferNotYours ?? false,
+                        transferring: props.transferring ?? false,
+                        onOpen: () => {
+                          setTransferOpen(true);
+                          props.onWantTransfer?.();
+                        },
+                        onCancel: () => setTransferOpen(false),
+                        onTransfer: (target) => props.onTransfer?.(target),
                       }
-                    >
-                      {t('table.action.seatHeld')}
-                    </button>
-                    <hr className="tp-sep" />
-                    {lateBy !== null && reservationId ? releaseBooking : null}
-                    {/* The hold alone, with no verdict on the booking: a queued
-                    table command, so it works offline as it always has. */}
-                    <button
-                      type="button"
-                      className="tp-btn tp-ghost"
-                      onClick={() => onAct('releaseHold')}
-                    >
-                      {t('table.action.releaseHold')}
-                    </button>
-                  </div>
-                )}
-              </>
+                    : null
+                }
+                confirmFree={confirmFree}
+                onConfirmFree={setConfirmFree}
+                onAct={onAct}
+              />
             ) : null}
 
-            {/* --- Out of service --------------------------------------------------- */}
+            {status === 'held' ? (
+              <HeldTableActions
+                table={table}
+                detail={detail}
+                room={room}
+                lateBy={lateBy}
+                reservationId={reservationId}
+                bookingWhen={bookingWhen}
+                bookingFlags={<BookingFlags detail={detail} />}
+                releaseBooking={releaseBooking}
+                seatingHeld={seating === 'heldParty'}
+                partySize={partySize}
+                onPartySize={setPartySize}
+                onStartHeld={(size) => startSeating('heldParty', size)}
+                onCancelSeating={() => setSeating(false)}
+                onAct={onAct}
+              />
+            ) : null}
+
             {status === 'outOfService' ? (
               <>
                 <Facts>
@@ -849,45 +524,14 @@ export function TableActionPanel(props: TableActionPanelProps) {
               </>
             ) : null}
 
-            {/* Bookings stranded by this table going out of service. Time, party
-            size, name, code and a number to call — everything needed to make
-            the call, because nobody is going to look them up on another
-            screen. */}
             {props.affectedReservations.length > 0 ? (
-              <section className="tp-affected" aria-label={t('table.affected.title')}>
-                <Warn tone="red">
-                  <b>{t('table.affected.count', { count: props.affectedReservations.length })}</b>{' '}
-                  {t('table.affected.body')}
-                </Warn>
-                <ul className="tp-affected-list">
-                  {props.affectedReservations.map((booking) => (
-                    <li key={booking.reservationId} className="tp-affected-row">
-                      <span>
-                        <b>
-                          {format.time(booking.startUtc)} · {booking.guestName} ·{' '}
-                          {t('table.guests', { count: booking.partySize })}
-                        </b>
-                        <small>
-                          <a href={`tel:${booking.guestPhone}`}>{booking.guestPhone}</a> ·{' '}
-                          {t('table.affected.code', { code: booking.code })}
-                        </small>
-                      </span>
-                      {/* The venue broke the table, so releasing one of these is
-                      never a no-show. There is one button here and it is the
-                      forgiving outcome. */}
-                      <button
-                        type="button"
-                        className="tp-btn tp-sec tp-small"
-                        disabled={!online || props.releasing}
-                        onClick={() => onRelease(booking.reservationId, 'guestCancelled')}
-                      >
-                        {t('table.affected.release')}
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-                {!online ? <p className="tp-hint">{t('table.release.needsOnline')}</p> : null}
-              </section>
+              <AffectedBookings
+                bookings={props.affectedReservations}
+                timeZoneId={timeZoneId}
+                online={online}
+                releasing={props.releasing}
+                onRelease={onRelease}
+              />
             ) : null}
 
             {pending ? <p className="tp-pending">{t('table.pendingHere')}</p> : null}
@@ -897,324 +541,4 @@ export function TableActionPanel(props: TableActionPanelProps) {
       )}
     </aside>
   );
-}
-
-/** The booked party size, when the server sends it; otherwise the server keeps the booking's. */
-function bookedParty(detail: StaffTableDetail | undefined): { partySize?: number } {
-  return detail?.nextReservationPartySize ? { partySize: detail.nextReservationPartySize } : {};
-}
-
-function Facts({ children }: { readonly children: ReactNode }) {
-  return <dl className="tp-facts">{children}</dl>;
-}
-
-function Fact({
-  label,
-  warn = false,
-  text = false,
-  children,
-}: {
-  readonly label: string;
-  readonly warn?: boolean;
-  /** Words, not a figure (a name): wrapped between words, and a row of its own on the phone. */
-  readonly text?: boolean;
-  readonly children: ReactNode;
-}) {
-  return (
-    <div className={text ? 'tp-fact is-text' : 'tp-fact'}>
-      <dt>{label}</dt>
-      <dd className={warn ? 'is-warn' : undefined}>{children}</dd>
-    </div>
-  );
-}
-
-/** A note that never blocks: amber for waiting, blue for the guest's side, red for a real problem. */
-function Warn({
-  tone,
-  children,
-}: {
-  readonly tone: 'amber' | 'blue' | 'red';
-  readonly children: ReactNode;
-}) {
-  return (
-    <p className="tp-warn" data-tone={tone}>
-      {children}
-    </p>
-  );
-}
-
-/** A question in the panel, named by its title, so a reader knows what the buttons answer. */
-function Confirm({ title, children }: { readonly title: string; readonly children: ReactNode }) {
-  const id = useId();
-  const ref = useInView();
-  return (
-    <div ref={ref} className="tp-confirm" role="group" aria-labelledby={id} tabIndex={-1}>
-      <h3 id={id}>{title}</h3>
-      {children}
-    </div>
-  );
-}
-
-/**
- * Why a booking is being let go: two answers of identical weight, neither
- * chosen, and "Release" off until one is.
- *
- * One of them puts a no-show on somebody's record and the other does not, and
- * that is the entire difference between them. Make either one the obvious
- * default — bigger, primary-coloured, preselected — and it gets tapped for both
- * cases within a week, at which point the no-show threshold starts punishing
- * the people who phoned to cancel. So: the same card twice, side by side in
- * weight, the sentence that separates them, and an explicit pick.
- */
-function ReleaseChoice({
-  disabled,
-  onRelease,
-  onCancel,
-}: {
-  readonly disabled: boolean;
-  readonly onRelease: (outcome: ReleaseOutcome) => void;
-  readonly onCancel: () => void;
-}) {
-  const { t } = useTranslation(['staff', 'common']);
-  const [outcome, setOutcome] = useState<ReleaseOutcome | null>(null);
-
-  const choice = (value: ReleaseOutcome, title: string, note: string) => (
-    <button
-      type="button"
-      className="tp-choice"
-      aria-pressed={outcome === value}
-      onClick={() => setOutcome(value)}
-    >
-      <b>{title}</b>
-      <small>{note}</small>
-    </button>
-  );
-
-  return (
-    <Confirm title={t('table.release.why')}>
-      <p className="tp-hint">{t('table.release.difference')}</p>
-      <div className="tp-choices">
-        {choice('noShow', t('table.release.noShowTitle'), t('table.release.noShowNote'))}
-        {choice(
-          'guestCancelled',
-          t('table.release.cancelledTitle'),
-          t('table.release.cancelledNote'),
-        )}
-      </div>
-      <div className="tp-row">
-        <button type="button" className="tp-btn tp-sec" onClick={onCancel}>
-          {t('common:action.cancel')}
-        </button>
-        <button
-          type="button"
-          className="tp-btn tp-danger-fill"
-          disabled={disabled || outcome === null}
-          onClick={() => {
-            if (outcome) onRelease(outcome);
-          }}
-        >
-          {t('table.release.confirm')}
-        </button>
-      </div>
-    </Confirm>
-  );
-}
-
-/**
- * Who takes the table: the branch's people who serve, those on shift first,
- * none chosen until one is tapped, and the confirm naming them.
- */
-function TransferChoice({
-  label,
-  targets,
-  failed,
-  notYours,
-  disabled,
-  online,
-  onTransfer,
-  onCancel,
-}: {
-  readonly label: string;
-  readonly targets: readonly TransferTarget[] | null;
-  readonly failed: boolean;
-  readonly notYours: boolean;
-  readonly disabled: boolean;
-  readonly online: boolean;
-  readonly onTransfer: (target: TransferTarget) => void;
-  readonly onCancel: () => void;
-}) {
-  const { t } = useTranslation(['staff', 'common']);
-  const [chosen, setChosen] = useState<string | null>(null);
-  const target = targets?.find((candidate) => candidate.staffMemberId === chosen) ?? null;
-  const legendId = useId();
-  return (
-    <Confirm title={t('table.transfer.title', { label })}>
-      <p className="tp-hint">{t('table.transfer.body')}</p>
-      {failed ? (
-        <p className="tp-hint is-failed" role="alert">
-          {notYours ? t('table.transfer.notYours', { label }) : t('table.transfer.failed')}
-        </p>
-      ) : targets === null ? (
-        <p className="tp-hint" role="status">
-          {t('table.transfer.loading')}
-        </p>
-      ) : targets.length === 0 ? (
-        <p className="tp-hint">{t('table.transfer.nobody')}</p>
-      ) : (
-        <div className="tp-choices" role="group" aria-labelledby={legendId}>
-          <span id={legendId} className="tp-legend">
-            {t('table.transfer.legend')}
-          </span>
-          {targets.map((candidate) => (
-            <button
-              key={candidate.staffMemberId}
-              type="button"
-              className="tp-choice tp-person"
-              aria-pressed={chosen === candidate.staffMemberId}
-              onClick={() => setChosen(candidate.staffMemberId)}
-            >
-              <b>{candidate.name}</b>
-              <small>{transferTargetDetail(candidate, t)}</small>
-            </button>
-          ))}
-        </div>
-      )}
-      {!online ? <p className="tp-hint">{t('table.transfer.needsOnline')}</p> : null}
-      <div className="tp-row">
-        <button type="button" className="tp-btn tp-sec" onClick={onCancel}>
-          {t('common:action.cancel')}
-        </button>
-        <button
-          type="button"
-          className="tp-btn tp-pri"
-          disabled={disabled || target === null}
-          onClick={() => {
-            if (target) onTransfer(target);
-          }}
-        >
-          {target
-            ? t('table.transfer.confirmTo', { name: target.name.split(/\s+/u)[0] ?? target.name })
-            : t('table.transfer.confirm')}
-        </button>
-      </div>
-    </Confirm>
-  );
-}
-
-interface SeatConfirmProps {
-  readonly partySize: number;
-  readonly seats: number;
-  readonly onChange: (next: number) => void;
-  readonly warning: string | null;
-  readonly onConfirm: () => void;
-  readonly onCancel: () => void;
-}
-
-/**
- * A party-size stepper and a confirm. Nothing else.
- *
- * No keyboard, no dropdown, no name field. Seating is the most frequent action
- * on this screen and every control that is not the number of people is a
- * control a waiter has to skip past while holding two plates.
- *
- * Capped where the server caps it (1 to 100), never at the table's seats. Five
- * people do sit at a four-top, and a client rule stricter than the server's
- * teaches the floor to lie about party sizes to get past it — so going past
- * the seats is said, in amber, and allowed.
- */
-function SeatConfirm({
-  partySize,
-  seats,
-  onChange,
-  warning,
-  onConfirm,
-  onCancel,
-}: SeatConfirmProps) {
-  const { t } = useTranslation(['staff', 'common']);
-  const ref = useInView();
-
-  return (
-    <div ref={ref} className="tp-confirm" tabIndex={-1}>
-      <h3>{t('table.partySize')}</h3>
-      <div className="tp-party">
-        <span className="tp-party-label">{t('table.party')}</span>
-        <div className="tp-stepper" role="group" aria-label={t('table.partySize')}>
-          <button
-            type="button"
-            onClick={() => onChange(Math.max(1, partySize - 1))}
-            disabled={partySize <= 1}
-            aria-label={t('table.fewer')}
-          >
-            −
-          </button>
-          <output aria-live="polite">{partySize}</output>
-          <button
-            type="button"
-            onClick={() => onChange(Math.min(MAX_PARTY, partySize + 1))}
-            disabled={partySize >= MAX_PARTY}
-            aria-label={t('table.more')}
-          >
-            +
-          </button>
-        </div>
-      </div>
-      {partySize > seats ? (
-        <p className="tp-cap">{t('table.overSeats', { count: seats })}</p>
-      ) : null}
-
-      {warning ? <Warn tone="amber">{warning}</Warn> : null}
-
-      <div className="tp-row">
-        <button type="button" className="tp-btn tp-sec" onClick={onCancel}>
-          {t('common:action.cancel')}
-        </button>
-        <button type="button" className="tp-btn tp-ok" onClick={onConfirm}>
-          {t('table.action.seatConfirm', { count: partySize })}
-        </button>
-      </div>
-    </div>
-  );
-}
-
-/**
- * A question scrolled into the panel's view when it opens. It replaces the
- * button that asked it, low in a tall panel, and its answer must not be the
- * thing a waiter has to scroll to find.
- */
-function useInView() {
-  const ref = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    ref.current?.focus({ preventScroll: true });
-    ref.current?.scrollIntoView?.({ block: 'nearest' });
-  }, []);
-  return ref;
-}
-
-/** The physical status a drawn state implies, when no detail row is available. */
-function physicalFrom(state: DerivedTableState): TableStatus {
-  switch (state) {
-    case 'occupied':
-      return 'occupied';
-    case 'held':
-      return 'held';
-    case 'outOfService':
-      return 'outOfService';
-    default:
-      // `reservedSoon` is an overlay on a physically free table. Treating it as
-      // anything else would hide "seat a walk-in" on exactly the tables a
-      // waiter most often has to seat against a booking.
-      return 'free';
-  }
-}
-
-/** "20 min late", "1 h 39 min late". */
-function lateText(t: TFunction, minutes: number): string {
-  if (minutes < 60) return t('table.lateFor', { count: minutes });
-  return t('table.lateForHours', { hours: Math.floor(minutes / 60), minutes: minutes % 60 });
-}
-
-function nextBookingText(t: TFunction, when: DayAndTime): string {
-  if (when.day === 'today') return when.time;
-  if (when.day === 'tomorrow') return t('table.nextBookingTomorrow', { time: when.time });
-  return t('table.nextBookingOn', { date: when.date, time: when.time });
 }
