@@ -13,7 +13,6 @@ import {
   type FieldViolation,
   type MessageHistoryFilters,
   type MessageHistoryItem,
-  type MessageHistoryKind,
 } from '@yalla/api';
 import { useMessageHistory } from '@yalla/api/react';
 import { branchDayKey, type Locale, type TimeZone } from '@yalla/format';
@@ -21,8 +20,24 @@ import { useLocale, useTranslation } from '@yalla/i18n';
 import type { TFunction } from 'i18next';
 import { Fragment, useEffect, useId, useRef, useState, type FormEvent } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { QueryFailureNotice } from '../../../components/QueryFailureNotice';
 import { firstName, shortName } from '../../../messages/messageText';
+import {
+  ChipGroup,
+  DataTable,
+  DateField,
+  EmptyLine,
+  EmptyState,
+  LoadingLine,
+  NoValue,
+  PagedFooter,
+  QueryFailure,
+  TableHead,
+  pickParam,
+  putParam,
+  usePagedRows,
+  useUrlFilters,
+  type UrlFilterCodec,
+} from '../../kit';
 import { PageHeader } from '../../ui/PageHeader';
 import { SearchIcon } from '../../ui/icons';
 import { useVenueOutlet } from '../VenueLayout';
@@ -80,7 +95,7 @@ export function MessageHistoryScreen() {
       {branchId ? (
         <MessageHistory key={branchId} branchId={branchId} timeZoneId={timeZoneId} />
       ) : (
-        <p className="yc-card yc-empty-line">{t('menu.noBranch')}</p>
+        <EmptyLine card>{t('menu.noBranch')}</EmptyLine>
       )}
     </div>
   );
@@ -101,6 +116,11 @@ function threadParam(subject: ConversationSubjectRef): string {
   return `${subject.kind}:${subject.id}`;
 }
 
+/** A row's button, by its conversation's subject: the focus returns to it from the thread. */
+const rowButtonId = (item: MessageHistoryItem) => `mh-row-${item.subject.kind}-${item.subject.id}`;
+
+const conversationIdOf = (item: MessageHistoryItem) => item.conversationId;
+
 /**
  * The server's `from` for a given `to` (six days before it, never before the
  * kept year); today−6 while `to` is not a day.
@@ -110,42 +130,31 @@ function defaultFromFor(to: string, today: string): string {
 }
 
 /**
- * The filters the address says, the server's defaults for whatever it leaves
+ * The filters in the address, the server's defaults for whatever it leaves
  * out: `to` today, `from` six days before `to` — so `?to=2026-05-01` reads
- * the week the server would.
+ * the week the server would. Each is written only when it is not the default.
  */
-function filtersFrom(params: URLSearchParams, today: string): MessageHistoryFilters {
-  const kind = params.get('kind');
-  const to = params.get('to') ?? today;
+function historyCodec(today: string): UrlFilterCodec<MessageHistoryFilters> {
   return {
-    from: params.get('from') ?? defaultFromFor(to, today),
-    to,
-    kind: MESSAGE_HISTORY_KINDS.includes(kind as MessageHistoryKind)
-      ? (kind as MessageHistoryKind)
-      : 'all',
-    q: (params.get('q') ?? '').slice(0, MESSAGE_HISTORY_QUERY_MAX),
-    unansweredOnly: params.get('unanswered') === '1',
+    read: (params) => {
+      const to = params.get('to') ?? today;
+      return {
+        from: params.get('from') ?? defaultFromFor(to, today),
+        to,
+        kind: pickParam(params.get('kind'), MESSAGE_HISTORY_KINDS, 'all'),
+        q: (params.get('q') ?? '').slice(0, MESSAGE_HISTORY_QUERY_MAX),
+        unansweredOnly: params.get('unanswered') === '1',
+      };
+    },
+    write: (params, next) => {
+      putParam(params, 'from', next.from === defaultFromFor(next.to, today) ? null : next.from);
+      putParam(params, 'to', next.to === today ? null : next.to);
+      putParam(params, 'kind', next.kind === 'all' ? null : next.kind);
+      const q = historySearchText(next.q);
+      putParam(params, 'q', q === '' ? null : q);
+      putParam(params, 'unanswered', next.unansweredOnly ? '1' : null);
+    },
   };
-}
-
-/** Each filter written only when it is not the default, so a plain visit stays a plain address. */
-function writeFilters(
-  current: URLSearchParams,
-  next: MessageHistoryFilters,
-  today: string,
-): URLSearchParams {
-  const copy = new URLSearchParams(current);
-  const put = (key: string, value: string | null) => {
-    if (value === null) copy.delete(key);
-    else copy.set(key, value);
-  };
-  put('from', next.from === defaultFromFor(next.to, today) ? null : next.from);
-  put('to', next.to === today ? null : next.to);
-  put('kind', next.kind === 'all' ? null : next.kind);
-  const q = historySearchText(next.q);
-  put('q', q === '' ? null : q);
-  put('unanswered', next.unansweredOnly ? '1' : null);
-  return copy;
 }
 
 /**
@@ -203,17 +212,12 @@ function MessageHistory({
 }) {
   const { t } = useTranslation(['admin', 'common']);
   const { locale } = useLocale();
-  const [params, setParams] = useSearchParams();
   const today = branchDayKey(new Date(), timeZoneId as TimeZone);
-  const filters = filtersFrom(params, today);
+  const { params, filters, update, setParam, clear } = useUrlFilters(historyCodec(today));
   const opened = parseThread(params.get('thread'));
 
-  const fromId = useId();
-  const toId = useId();
   const searchId = useId();
   const listTitleId = useId();
-  const fromErrorId = useId();
-  const toErrorId = useId();
   const searchErrorId = useId();
 
   // --- The filters -----------------------------------------------------------
@@ -227,15 +231,6 @@ function MessageHistory({
   const fromError = violationText(t, firstFor('from'), today, locale);
   const toError = violationText(t, firstFor('to'), today, locale);
   const searchError = violationText(t, firstFor('q'), today, locale);
-
-  function update(next: Partial<MessageHistoryFilters>, replace = false) {
-    setParams(
-      (current) => writeFilters(current, { ...filtersFrom(current, today), ...next }, today),
-      {
-        replace,
-      },
-    );
-  }
 
   // The search box: typed here, asked a moment after the last key. Back
   // brings an older search into the box again.
@@ -255,23 +250,30 @@ function MessageHistory({
   function onSearchChange(value: string) {
     setDraft(value);
     if (searchTimer.current) clearTimeout(searchTimer.current);
-    searchTimer.current = setTimeout(() => update({ q: value }, true), SEARCH_DEBOUNCE_MS);
+    searchTimer.current = setTimeout(
+      () => update({ q: value }, { replace: true }),
+      SEARCH_DEBOUNCE_MS,
+    );
   }
   function onSubmit(event: FormEvent) {
     event.preventDefault();
     if (searchTimer.current) clearTimeout(searchTimer.current);
-    update({ q: draft }, true);
+    update({ q: draft }, { replace: true });
   }
 
   function clearFilters() {
     if (searchTimer.current) clearTimeout(searchTimer.current);
     setDraft('');
-    setParams(new URLSearchParams());
+    clear();
   }
 
   // --- The list ----------------------------------------------------------------
 
-  const items: readonly MessageHistoryItem[] = list.data?.pages.flatMap((page) => page.items) ?? [];
+  /** After "More": the first new row takes the focus, so the keyboard carries on from there. */
+  const paged = usePagedRows(list, conversationIdOf, (item) =>
+    document.getElementById(rowButtonId(item))?.focus(),
+  );
+  const items = paged.rows;
   const selected =
     opened ?? (items[0] ? { kind: items[0].subject.kind, id: items[0].subject.id } : null);
   const selectedItem =
@@ -281,18 +283,7 @@ function MessageHistory({
       )) ??
     null;
 
-  const rowButtonId = (item: MessageHistoryItem) =>
-    `mh-row-${item.subject.kind}-${item.subject.id}`;
   const threadHeading = useRef<HTMLHeadingElement>(null);
-  /** After "More": the first new row takes the focus, so the keyboard carries on from there. */
-  const focusRow = useRef<number | null>(null);
-  useEffect(() => {
-    const index = focusRow.current;
-    if (index === null || items.length <= index) return;
-    focusRow.current = null;
-    const item = items[index];
-    if (item) document.getElementById(rowButtonId(item))?.focus();
-  });
   /** Opened on a phone: the thread's heading takes the focus once that thread is on screen. */
   const focusThread = useRef<string | null>(null);
   const shownThread = selected ? threadParam(selected) : null;
@@ -303,14 +294,7 @@ function MessageHistory({
   });
 
   function openThread(item: MessageHistoryItem) {
-    setParams(
-      (current) => {
-        const copy = new URLSearchParams(current);
-        copy.set('thread', threadParam(item.subject));
-        return copy;
-      },
-      { replace: true },
-    );
+    setParam('thread', threadParam(item.subject), { replace: true });
     // Stacked on a phone, the thread is below the list: the focus goes to it.
     if (window.matchMedia?.(STACKED_QUERY).matches) {
       focusThread.current = threadParam(item.subject);
@@ -333,92 +317,80 @@ function MessageHistory({
       </p>
     );
   } else if (list.isPending) {
-    body = (
-      <p className="yc-empty-line" role="status">
-        {t('loading')}
-      </p>
-    );
+    body = <LoadingLine />;
   } else if (list.isError && !list.data) {
-    body = (
-      <div className="yc-mh-pad">
-        <QueryFailureNotice error={list.error} onRetry={() => void list.refetch()} />
-      </div>
-    );
+    body = <QueryFailure query={list} frame="list" />;
   } else if (items.length === 0) {
     body = (
-      <div className="yc-empty">
-        <h3 className="yc-h2">{t('messageHistory.empty.title')}</h3>
-        <p>{filtered ? t('messageHistory.empty.filtered') : t('messageHistory.empty.hint')}</p>
-        {filtered ? (
-          <button type="button" className="yc-btn yc-btn-sec yc-btn-sm" onClick={clearFilters}>
-            {t('messageHistory.empty.reset')}
-          </button>
-        ) : null}
-      </div>
+      <EmptyState
+        title={t('messageHistory.empty.title')}
+        action={
+          filtered ? (
+            <button type="button" className="yc-btn yc-btn-sec yc-btn-sm" onClick={clearFilters}>
+              {t('messageHistory.empty.reset')}
+            </button>
+          ) : null
+        }
+      >
+        {filtered ? t('messageHistory.empty.filtered') : t('messageHistory.empty.hint')}
+      </EmptyState>
     );
   } else {
     body = (
-      <div className="yc-tscroll">
-        <table className="yc-tbl yc-mh-tbl" aria-busy={list.isPlaceholderData || undefined}>
-          <caption className="yc-sr">{t('messageHistory.table.caption')}</caption>
-          <thead>
-            <tr>
-              <th scope="col">{t('messageHistory.table.when')}</th>
-              <th scope="col">{t('messageHistory.table.guest')}</th>
-              <th scope="col">{t('messageHistory.table.subject')}</th>
-              <th scope="col" className="yc-num">
-                {t('messageHistory.table.messages')}
-              </th>
-              <th scope="col">{t('messageHistory.table.staff')}</th>
-            </tr>
-          </thead>
-          <tbody>
-            {items.map((item) => {
-              const isOpen =
-                selected?.kind === item.subject.kind && selected.id === item.subject.id;
-              const staff = item.staffNames.map(firstName).join(', ');
-              return (
-                <tr key={item.conversationId} className={isOpen ? 'is-on' : undefined}>
-                  <td>{whenLabel(t, item.lastLocal, today, locale)}</td>
-                  <th scope="row">
-                    <button
-                      type="button"
-                      id={rowButtonId(item)}
-                      className="yc-mh-guest"
-                      aria-current={isOpen ? 'true' : undefined}
-                      onClick={() => openThread(item)}
-                    >
-                      {shortName(item.subject.guestName)}
-                    </button>
-                  </th>
-                  <td className="yc-mh-wrap">
-                    {subjectParts(t, item, locale).map((part, index) => (
-                      <Fragment key={index}>
-                        {index > 0 ? ' · ' : null}
-                        <span className="yc-mh-part">{part}</span>
-                      </Fragment>
-                    ))}
-                  </td>
-                  <td className="yc-num">
-                    {item.messageCount}
-                    {item.unanswered ? (
-                      <span className="yc-mh-open">{t('messageHistory.table.unanswered')}</span>
-                    ) : null}
-                  </td>
-                  <td className="yc-mh-staff">
-                    {staff || (
-                      <>
-                        <span aria-hidden="true">{'—'}</span>
-                        <span className="yc-sr">{t('messageHistory.table.noStaff')}</span>
-                      </>
-                    )}
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
+      <DataTable
+        className="yc-mh-tbl"
+        caption={t('messageHistory.table.caption')}
+        busy={list.isPlaceholderData}
+      >
+        <TableHead
+          columns={[
+            { label: t('messageHistory.table.when') },
+            { label: t('messageHistory.table.guest') },
+            { label: t('messageHistory.table.subject') },
+            { label: t('messageHistory.table.messages'), numeric: true },
+            { label: t('messageHistory.table.staff') },
+          ]}
+        />
+        <tbody>
+          {items.map((item) => {
+            const isOpen = selected?.kind === item.subject.kind && selected.id === item.subject.id;
+            const staff = item.staffNames.map(firstName).join(', ');
+            return (
+              <tr key={item.conversationId} className={isOpen ? 'is-on' : undefined}>
+                <td>{whenLabel(t, item.lastLocal, today, locale)}</td>
+                <th scope="row">
+                  <button
+                    type="button"
+                    id={rowButtonId(item)}
+                    className="yc-mh-guest"
+                    aria-current={isOpen ? 'true' : undefined}
+                    onClick={() => openThread(item)}
+                  >
+                    {shortName(item.subject.guestName)}
+                  </button>
+                </th>
+                <td className="yc-mh-wrap">
+                  {subjectParts(t, item, locale).map((part, index) => (
+                    <Fragment key={index}>
+                      {index > 0 ? ' · ' : null}
+                      <span className="yc-mh-part">{part}</span>
+                    </Fragment>
+                  ))}
+                </td>
+                <td className="yc-num">
+                  {item.messageCount}
+                  {item.unanswered ? (
+                    <span className="yc-mh-open">{t('messageHistory.table.unanswered')}</span>
+                  ) : null}
+                </td>
+                <td className="yc-mh-staff">
+                  {staff || <NoValue label={t('messageHistory.table.noStaff')} />}
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </DataTable>
     );
   }
 
@@ -430,46 +402,24 @@ function MessageHistory({
         className="yc-mh-filters"
         onSubmit={onSubmit}
       >
-        <div className="yc-fld">
-          <label htmlFor={fromId}>{t('messageHistory.filters.from')}</label>
-          <input
-            id={fromId}
-            type="date"
-            className="yc-ctl"
-            value={filters.from}
-            min={oldestHistoryDate(today)}
-            max={today}
-            required
-            aria-invalid={fromError ? true : undefined}
-            aria-describedby={fromError ? fromErrorId : undefined}
-            onChange={(event) => update({ from: event.target.value })}
-          />
-          {fromError ? (
-            <span id={fromErrorId} className="yc-err">
-              {fromError}
-            </span>
-          ) : null}
-        </div>
-        <div className="yc-fld">
-          <label htmlFor={toId}>{t('messageHistory.filters.to')}</label>
-          <input
-            id={toId}
-            type="date"
-            className="yc-ctl"
-            value={filters.to}
-            min={isLocalDate(filters.from) ? filters.from : oldestHistoryDate(today)}
-            max={today}
-            required
-            aria-invalid={toError ? true : undefined}
-            aria-describedby={toError ? toErrorId : undefined}
-            onChange={(event) => update({ to: event.target.value })}
-          />
-          {toError ? (
-            <span id={toErrorId} className="yc-err">
-              {toError}
-            </span>
-          ) : null}
-        </div>
+        <DateField
+          label={t('messageHistory.filters.from')}
+          value={filters.from}
+          min={oldestHistoryDate(today)}
+          max={today}
+          required
+          error={fromError}
+          onChange={(from) => update({ from })}
+        />
+        <DateField
+          label={t('messageHistory.filters.to')}
+          value={filters.to}
+          min={isLocalDate(filters.from) ? filters.from : oldestHistoryDate(today)}
+          max={today}
+          required
+          error={toError}
+          onChange={(to) => update({ to })}
+        />
         <div className="yc-fld yc-fld-grow">
           <label htmlFor={searchId}>{t('messageHistory.filters.search')}</label>
           <div className="yc-search">
@@ -494,23 +444,16 @@ function MessageHistory({
             </span>
           ) : null}
         </div>
-        <div
-          className="yc-chips yc-mh-kinds"
-          role="group"
-          aria-label={t('messageHistory.filters.kind')}
-        >
-          {MESSAGE_HISTORY_KINDS.map((kind) => (
-            <button
-              key={kind}
-              type="button"
-              className={kind === filters.kind ? 'yc-chip is-on' : 'yc-chip'}
-              aria-pressed={kind === filters.kind}
-              onClick={() => update({ kind })}
-            >
-              {t(`messageHistory.filters.kinds.${kind}`)}
-            </button>
-          ))}
-        </div>
+        <ChipGroup
+          className="yc-mh-kinds"
+          label={t('messageHistory.filters.kind')}
+          value={filters.kind}
+          options={MESSAGE_HISTORY_KINDS.map((kind) => ({
+            value: kind,
+            label: t(`messageHistory.filters.kinds.${kind}`),
+          }))}
+          onChange={(kind) => update({ kind })}
+        />
         <label className="yc-check-line yc-mh-check">
           <input
             type="checkbox"
@@ -528,26 +471,17 @@ function MessageHistory({
           </h2>
           {body}
           {items.length > 0 && violations.length === 0 ? (
-            <div className="yc-mh-foot">
-              <span role="status" aria-atomic="true">
-                {list.isPlaceholderData
+            <PagedFooter
+              status={
+                list.isPlaceholderData
                   ? t('messageHistory.updating')
-                  : t('messageHistory.shown', { count: items.length })}
-              </span>
-              {list.hasNextPage ? (
-                <button
-                  type="button"
-                  className="yc-btn yc-btn-sec yc-btn-sm"
-                  disabled={list.isFetchingNextPage}
-                  onClick={() => {
-                    focusRow.current = items.length;
-                    void list.fetchNextPage();
-                  }}
-                >
-                  {list.isFetchingNextPage ? t('loading') : t('messageHistory.more')}
-                </button>
-              ) : null}
-            </div>
+                  : t('messageHistory.shown', { count: items.length })
+              }
+              moreLabel={t('messageHistory.more')}
+              hasMore={paged.hasMore}
+              loadingMore={paged.loadingMore}
+              onMore={paged.more}
+            />
           ) : null}
         </section>
 

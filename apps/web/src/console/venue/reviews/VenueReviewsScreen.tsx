@@ -15,7 +15,7 @@ import { formatDate } from '@yalla/format';
 import { useLocale, useTranslation } from '@yalla/i18n';
 import { useEffect, useRef, useState } from 'react';
 import { useCurrentUser } from '../../../auth/useCurrentUser';
-import { QueryFailureNotice } from '../../../components/QueryFailureNotice';
+import { ChipGroup, EmptyLine, EmptyState, LoadingLine, QueryFailure } from '../../kit';
 import { usePendingFocus } from '../../platform/venue/venueFields';
 import {
   HideForm,
@@ -66,7 +66,7 @@ export function VenueReviewsScreen() {
         // Another branch is another list: nothing open carries over.
         <VenueReviews key={branchId} branchId={branchId} timeZoneId={timeZoneId} />
       ) : (
-        <p className="yc-card yc-empty-line">{t('menu.noBranch')}</p>
+        <EmptyLine card>{t('menu.noBranch')}</EmptyLine>
       )}
     </div>
   );
@@ -252,29 +252,24 @@ function VenueReviews({
 
   let body;
   if (list.isPending) {
-    body = (
-      <p className="yc-card yc-empty-line" role="status">
-        {t('loading')}
-      </p>
-    );
+    body = <LoadingLine card />;
   } else if (list.isError && !list.data) {
-    body = (
-      <div className="yc-card yc-ov-pad">
-        <QueryFailureNotice error={list.error} onRetry={() => void list.refetch()} />
-      </div>
-    );
+    body = <QueryFailure query={list} frame="card" />;
   } else if (items.length === 0) {
     body = (
-      <div className="yc-card yc-empty">
-        <h2 className="yc-h2">
-          {filter === 'reported'
+      <EmptyState
+        card
+        level={2}
+        title={
+          filter === 'reported'
             ? t('branchReviews.empty.reportedTitle')
             : filter === 'hidden'
               ? t('branchReviews.empty.hiddenTitle')
-              : t('branchReviews.empty.allTitle')}
-        </h2>
-        <p>{t('reviews.empty')}</p>
-      </div>
+              : t('branchReviews.empty.allTitle')
+        }
+      >
+        {t('reviews.empty')}
+      </EmptyState>
     );
   } else {
     body = (
@@ -377,29 +372,22 @@ function VenueReviews({
   return (
     <div className="yc-rv-layout">
       <div className="yc-panel-body">
-        <div
-          className="yc-chips yc-rv-chips"
-          role="group"
-          aria-label={t('branchReviews.filter.label')}
-        >
-          {REVIEW_MODERATION_FILTERS.map((key) => (
-            <button
-              key={key}
-              type="button"
-              className={key === filter ? 'yc-chip is-on' : 'yc-chip'}
-              aria-pressed={key === filter}
-              onClick={() => {
-                setFilter(key);
-                setPage(1);
-                setEditing(null);
-                setFailure(null);
-              }}
-            >
-              {t(`branchReviews.filter.${key}`)}
-              {counts[key] !== undefined ? <span className="yc-chip-n">{counts[key]}</span> : null}
-            </button>
-          ))}
-        </div>
+        <ChipGroup
+          className="yc-rv-chips"
+          label={t('branchReviews.filter.label')}
+          value={filter}
+          options={REVIEW_MODERATION_FILTERS.map((key) => ({
+            value: key,
+            label: t(`branchReviews.filter.${key}`),
+            count: counts[key],
+          }))}
+          onChange={(key) => {
+            setFilter(key);
+            setPage(1);
+            setEditing(null);
+            setFailure(null);
+          }}
+        />
         {failure ? (
           <p className="yc-alert" role="alert">
             {failure}

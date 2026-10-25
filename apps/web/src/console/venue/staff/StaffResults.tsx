@@ -9,14 +9,23 @@ import { useConsoleGateway, useStaffPerformance } from '@yalla/api/react';
 import { branchDayKey, type Locale, type TimeZone } from '@yalla/format';
 import { useLocale, useTranslation } from '@yalla/i18n';
 import type { TFunction } from 'i18next';
-import { useState } from 'react';
-import { Link, useSearchParams } from 'react-router-dom';
-import { QueryFailureNotice } from '../../../components/QueryFailureNotice';
+import { Link } from 'react-router-dom';
+import {
+  ChipGroup,
+  DataTable,
+  EmptyState,
+  LoadingLine,
+  NoValue,
+  QueryFailure,
+  pickParam,
+  putParam,
+  useFileExport,
+  useUrlFilters,
+  type UrlFilterCodec,
+} from '../../kit';
 import { ChevronDownIcon, ChevronUpIcon, DownloadIcon } from '../../ui/icons';
-import { useToast } from '../../ui/toast';
-import { csvFailureText, dram, durationLabel } from '../activity/activityText';
+import { dram, durationLabel } from '../activity/activityText';
 import { localDateLabel } from '../messageHistory/historyText';
-import { saveFile } from '../reports/download';
 
 /** A column of the Results table: what it measures and how it is written. */
 interface Column {
@@ -87,10 +96,28 @@ export const RESULT_COLUMNS: readonly Column[] = [
 const SORT_KEYS = RESULT_COLUMNS.map((column) => column.key);
 
 export function periodFrom(value: string | null): PerformancePeriod {
-  return PERFORMANCE_PERIODS.includes(value as PerformancePeriod)
-    ? (value as PerformancePeriod)
-    : 'today';
+  return pickParam(value, PERFORMANCE_PERIODS, 'today');
 }
+
+interface ResultsView {
+  readonly period: PerformancePeriod;
+  readonly sort: ColumnKey;
+  readonly dir: 'asc' | 'desc';
+}
+
+/** The period and the sort in the address; the defaults (today, by sales, the most first) left out. */
+const resultsCodec: UrlFilterCodec<ResultsView> = {
+  read: (params) => ({
+    period: periodFrom(params.get('period')),
+    sort: pickParam(params.get('sort'), SORT_KEYS, 'salesAmd'),
+    dir: params.get('dir') === 'asc' ? 'asc' : 'desc',
+  }),
+  write: (params, next) => {
+    putParam(params, 'period', next.period === 'today' ? null : next.period);
+    putParam(params, 'sort', next.sort === 'salesAmd' && next.dir === 'desc' ? null : next.sort);
+    putParam(params, 'dir', next.dir === 'desc' ? null : 'asc');
+  },
+};
 
 /** "Today, 24 Oct", "18 Oct – 24 Oct". */
 export function periodCaption(
@@ -119,6 +146,28 @@ export function periodLabel(t: TFunction, period: PerformancePeriod): string {
       : t('staffResults.periods.month');
 }
 
+/** Today, seven days, thirty days: the Results tab's and the person page's period. */
+export function PeriodChips({
+  value,
+  onChange,
+}: {
+  readonly value: PerformancePeriod;
+  readonly onChange: (period: PerformancePeriod) => void;
+}) {
+  const { t } = useTranslation(['admin', 'common']);
+  return (
+    <ChipGroup
+      label={t('staffResults.periods.label')}
+      value={value}
+      options={PERFORMANCE_PERIODS.map((period) => ({
+        value: period,
+        label: periodLabel(t, period),
+      }))}
+      onChange={onChange}
+    />
+  );
+}
+
 /** One figure as a cell says it; a median with nothing measured is a dash with words for a screen reader. */
 export function FigureCell({
   value,
@@ -131,14 +180,7 @@ export function FigureCell({
   readonly locale: Locale;
   readonly t: TFunction;
 }) {
-  if (value === null) {
-    return (
-      <>
-        <span aria-hidden="true">{'—'}</span>
-        <span className="yc-sr">{t('staffResults.none')}</span>
-      </>
-    );
-  }
+  if (value === null) return <NoValue label={t('staffResults.none')} />;
   if (kind === 'money') return <>{dram(value, locale)}</>;
   if (kind === 'time') return <>{durationLabel(t, value)}</>;
   return <>{new Intl.NumberFormat(locale).format(value)}</>;
@@ -165,57 +207,26 @@ export function StaffResults({
 }) {
   const { t } = useTranslation(['admin', 'common']);
   const { locale } = useLocale();
-  const toast = useToast();
   const gateway = useConsoleGateway();
-  const [params, setParams] = useSearchParams();
   const today = branchDayKey(new Date(), timeZoneId as TimeZone);
-  const period = periodFrom(params.get('period'));
+  const { filters, update } = useUrlFilters(resultsCodec);
+  const { period, sort, dir } = filters;
   const range = performanceRange(period, today);
-  const sortParam = params.get('sort') as ColumnKey | null;
-  const sort: ColumnKey = sortParam && SORT_KEYS.includes(sortParam) ? sortParam : 'salesAmd';
   const sortColumn = RESULT_COLUMNS.find((column) => column.key === sort) ?? RESULT_COLUMNS[2]!;
-  const dir: 'asc' | 'desc' = params.get('dir') === 'asc' ? 'asc' : 'desc';
   const query = useStaffPerformance(branchId, range);
-
-  function put(next: Record<string, string | null>, replace = false) {
-    setParams(
-      (current) => {
-        const copy = new URLSearchParams(current);
-        for (const [key, value] of Object.entries(next)) {
-          if (value === null) copy.delete(key);
-          else copy.set(key, value);
-        }
-        return copy;
-      },
-      { replace },
-    );
-  }
 
   function sortBy(key: ColumnKey) {
     // A new column starts from the most; the same column turns around.
     const nextDir = key === sort ? (dir === 'desc' ? 'asc' : 'desc') : 'desc';
-    put(
-      {
-        sort: key === 'salesAmd' && nextDir === 'desc' ? null : key,
-        dir: nextDir === 'desc' ? null : 'asc',
-      },
-      true,
-    );
+    update({ sort: key, dir: nextDir }, { replace: true });
   }
 
-  const [exporting, setExporting] = useState(false);
-  async function exportCsv() {
-    if (exporting) return;
-    setExporting(true);
-    try {
-      const file = await gateway.exportStaffPerformanceCsv(branchId, range);
-      saveFile(file.fileName, file.bytes);
-      toast.say(t('staffResults.csvReady'));
-    } catch (error) {
-      toast.say(csvFailureText(t, error, locale), { tone: 'error' });
-    } finally {
-      setExporting(false);
-    }
+  const csv = useFileExport();
+  function exportCsv() {
+    void csv.run(
+      () => gateway.exportStaffPerformanceCsv(branchId, range),
+      t('staffResults.csvReady'),
+    );
   }
 
   const rows: readonly StaffPerformanceRow[] = [...(query.data?.rows ?? [])].sort((a, b) => {
@@ -231,133 +242,107 @@ export function StaffResults({
 
   let body;
   if (query.isPending) {
-    body = (
-      <p className="yc-empty-line" role="status">
-        {t('loading')}
-      </p>
-    );
+    body = <LoadingLine />;
   } else if (query.isError && !query.data) {
-    body = (
-      <div className="yc-mh-pad">
-        <QueryFailureNotice error={query.error} onRetry={() => void query.refetch()} />
-      </div>
-    );
+    body = <QueryFailure query={query} frame="list" />;
   } else if (rows.length === 0) {
     body = (
-      <div className="yc-empty">
-        <h3 className="yc-h2">{t('staffResults.empty.title')}</h3>
-        <p>{t('staffResults.empty.body')}</p>
-      </div>
+      <EmptyState title={t('staffResults.empty.title')}>{t('staffResults.empty.body')}</EmptyState>
     );
   } else {
     body = (
-      <div className="yc-tscroll">
-        <table className="yc-tbl yc-res-tbl" aria-busy={query.isPlaceholderData || undefined}>
-          <caption className="yc-res-cap">{periodCaption(t, range, today, locale)}</caption>
-          <thead>
-            <tr>
-              <th scope="col">{t('staffResults.col.name')}</th>
-              {RESULT_COLUMNS.map((column) => {
-                const on = column.key === sort;
-                return (
-                  <th
-                    key={column.key}
-                    scope="col"
-                    className="yc-num"
-                    aria-sort={on ? (dir === 'desc' ? 'descending' : 'ascending') : undefined}
+      <DataTable
+        className="yc-res-tbl"
+        caption={periodCaption(t, range, today, locale)}
+        captionClassName="yc-res-cap"
+        busy={query.isPlaceholderData}
+      >
+        <thead>
+          <tr>
+            <th scope="col">{t('staffResults.col.name')}</th>
+            {RESULT_COLUMNS.map((column) => {
+              const on = column.key === sort;
+              return (
+                <th
+                  key={column.key}
+                  scope="col"
+                  className="yc-num"
+                  aria-sort={on ? (dir === 'desc' ? 'descending' : 'ascending') : undefined}
+                >
+                  <button
+                    type="button"
+                    className={on ? 'yc-res-sort is-on' : 'yc-res-sort'}
+                    onClick={() => sortBy(column.key)}
                   >
-                    <button
-                      type="button"
-                      className={on ? 'yc-res-sort is-on' : 'yc-res-sort'}
-                      onClick={() => sortBy(column.key)}
-                    >
-                      {t(column.labelKey)}
-                      {on ? (
-                        dir === 'desc' ? (
-                          <ChevronDownIcon className="yc-res-arrow" />
-                        ) : (
-                          <ChevronUpIcon className="yc-res-arrow" />
-                        )
-                      ) : null}
-                    </button>
-                  </th>
-                );
-              })}
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((row) => (
-              <tr key={row.staffMemberId}>
-                <th scope="row" className="yc-res-name">
-                  <Link
-                    to={`/venue/staff/${encodeURIComponent(row.staffMemberId)}${
-                      period === 'today' ? '' : `?period=${period}`
-                    }`}
-                  >
-                    {row.name}
-                  </Link>
-                  <span className="yc-res-role">{t(`role.${row.role}`)}</span>
+                    {t(column.labelKey)}
+                    {on ? (
+                      dir === 'desc' ? (
+                        <ChevronDownIcon className="yc-res-arrow" />
+                      ) : (
+                        <ChevronUpIcon className="yc-res-arrow" />
+                      )
+                    ) : null}
+                  </button>
                 </th>
-                {RESULT_COLUMNS.map((column) => (
-                  <td key={column.key} className="yc-num">
-                    <FigureCell
-                      value={column.value(row)}
-                      kind={column.kind}
-                      locale={locale}
-                      t={t}
-                    />
-                  </td>
-                ))}
-              </tr>
-            ))}
-          </tbody>
-          {query.data ? (
-            <tfoot>
-              <tr className="yc-res-total">
-                <th scope="row">{t('staffResults.total')}</th>
-                {RESULT_COLUMNS.map((column) => (
-                  <td key={column.key} className="yc-num">
-                    <FigureCell
-                      value={column.value(query.data.totals)}
-                      kind={column.kind}
-                      locale={locale}
-                      t={t}
-                    />
-                  </td>
-                ))}
-              </tr>
-            </tfoot>
-          ) : null}
-        </table>
-      </div>
+              );
+            })}
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((row) => (
+            <tr key={row.staffMemberId}>
+              <th scope="row" className="yc-res-name">
+                <Link
+                  to={`/venue/staff/${encodeURIComponent(row.staffMemberId)}${
+                    period === 'today' ? '' : `?period=${period}`
+                  }`}
+                >
+                  {row.name}
+                </Link>
+                <span className="yc-res-role">{t(`role.${row.role}`)}</span>
+              </th>
+              {RESULT_COLUMNS.map((column) => (
+                <td key={column.key} className="yc-num">
+                  <FigureCell value={column.value(row)} kind={column.kind} locale={locale} t={t} />
+                </td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+        {query.data ? (
+          <tfoot>
+            <tr className="yc-res-total">
+              <th scope="row">{t('staffResults.total')}</th>
+              {RESULT_COLUMNS.map((column) => (
+                <td key={column.key} className="yc-num">
+                  <FigureCell
+                    value={column.value(query.data.totals)}
+                    kind={column.kind}
+                    locale={locale}
+                    t={t}
+                  />
+                </td>
+              ))}
+            </tr>
+          </tfoot>
+        ) : null}
+      </DataTable>
     );
   }
 
   return (
     <div className="yc-panel-body">
       <div className="yc-res-tools">
-        <div className="yc-chips" role="group" aria-label={t('staffResults.periods.label')}>
-          {PERFORMANCE_PERIODS.map((value) => (
-            <button
-              key={value}
-              type="button"
-              className={value === period ? 'yc-chip is-on' : 'yc-chip'}
-              aria-pressed={value === period}
-              onClick={() => put({ period: value === 'today' ? null : value })}
-            >
-              {periodLabel(t, value)}
-            </button>
-          ))}
-        </div>
+        <PeriodChips value={period} onChange={(next) => update({ period: next })} />
         <button
           type="button"
           className="yc-btn yc-btn-sec"
-          onClick={() => void exportCsv()}
-          disabled={exporting}
-          aria-busy={exporting || undefined}
+          onClick={exportCsv}
+          disabled={csv.busy}
+          aria-busy={csv.busy || undefined}
         >
           <DownloadIcon />
-          {exporting ? t('activity.csvPreparing') : t('activity.csv')}
+          {csv.busy ? t('activity.csvPreparing') : t('activity.csv')}
         </button>
       </div>
       <section className="yc-card yc-res-card" aria-label={t('staffResults.label')}>

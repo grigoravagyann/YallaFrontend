@@ -2,15 +2,9 @@ import { ApiError, ServerError, parseProblem, type ActivityEntry } from '@yalla/
 import { i18next } from '@yalla/i18n';
 import type { TFunction } from 'i18next';
 import { beforeAll, describe, expect, it } from 'vitest';
+import { csvFailureText } from '../../kit/fileExport';
 import { initConsoleTestI18n } from '../reports/testHarness';
-import {
-  actionLabel,
-  csvFailureText,
-  detailParts,
-  deviceLabel,
-  durationLabel,
-  phoneOwnerOf,
-} from './activityText';
+import { actionLabel, detailParts, deviceLabel, durationLabel, phoneOwnerOf } from './activityText';
 
 /**
  * The History's device wording (2026-10-25): phones paired and unpaired, a
