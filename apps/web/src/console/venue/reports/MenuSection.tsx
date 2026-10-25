@@ -3,6 +3,7 @@ import { useMenuReport } from '@yalla/api/react';
 import { formatDram, type Locale } from '@yalla/format';
 import { useTranslation } from '@yalla/i18n';
 import { Link } from 'react-router-dom';
+import { DataTable, TableHead } from '../../kit';
 import { menuItemHref } from '../menuAnchors';
 import { menuCsv } from './csv';
 import { CsvButton, ReportCard } from './ReportCard';
@@ -122,31 +123,26 @@ export function MenuSection({ query, locale, onCsv }: MenuSectionProps) {
               <p className="yc-help">{t('reports.menu.voids.none')}</p>
             ) : (
               <>
-                <div className="yc-tscroll">
-                  <table className="yc-tbl">
-                    <caption className="yc-sr">{t('reports.menu.voids.title')}</caption>
-                    <thead>
-                      <tr>
-                        <th scope="col">{t('reports.menu.voids.item')}</th>
-                        <th scope="col">{t('reports.menu.voids.reason')}</th>
-                        <th scope="col" className="yc-num">
-                          {t('reports.menu.voids.count')}
+                <DataTable caption={t('reports.menu.voids.title')}>
+                  <TableHead
+                    columns={[
+                      { label: t('reports.menu.voids.item') },
+                      { label: t('reports.menu.voids.reason') },
+                      { label: t('reports.menu.voids.count'), numeric: true },
+                    ]}
+                  />
+                  <tbody>
+                    {data.voids.map((line) => (
+                      <tr key={`${line.menuItemId}-${line.reason}`}>
+                        <th scope="row">
+                          <Link to={menuItemHref(line.menuItemId)}>{line.name}</Link>
                         </th>
+                        <td>{line.reason}</td>
+                        <td className="yc-num">{number.format(line.count)}</td>
                       </tr>
-                    </thead>
-                    <tbody>
-                      {data.voids.map((line) => (
-                        <tr key={`${line.menuItemId}-${line.reason}`}>
-                          <th scope="row">
-                            <Link to={menuItemHref(line.menuItemId)}>{line.name}</Link>
-                          </th>
-                          <td>{line.reason}</td>
-                          <td className="yc-num">{number.format(line.count)}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+                    ))}
+                  </tbody>
+                </DataTable>
                 <p className="yc-help">{t('reports.menu.voids.help')}</p>
               </>
             )}

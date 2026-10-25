@@ -11,8 +11,8 @@ import { useLocale, useTranslation } from '@yalla/i18n';
 import type { TFunction } from 'i18next';
 import { useId, useState } from 'react';
 import { Link, useLocation, useParams } from 'react-router-dom';
-import { QueryFailureNotice } from '../../../components/QueryFailureNotice';
 import { shortName } from '../../../messages/messageText';
+import { ChipGroup, DataTable, EmptyLine, LoadingLine, QueryFailure, TableHead } from '../../kit';
 import { CalendarIcon, ChevronLeftIcon, TabIcon } from '../../ui/icons';
 import { localDateLabel } from '../messageHistory/historyText';
 import { useVenueOutlet } from '../VenueLayout';
@@ -60,7 +60,7 @@ export function TimelineScreen() {
     return (
       <div className="yc-page">
         {back}
-        <p className="yc-card yc-empty-line">{t('activity.timeline.gone')}</p>
+        <EmptyLine card>{t('activity.timeline.gone')}</EmptyLine>
       </div>
     );
   }
@@ -69,15 +69,11 @@ export function TimelineScreen() {
     <div className="yc-page yc-tl-page">
       {back}
       {query.isPending ? (
-        <p className="yc-card yc-empty-line" role="status">
-          {t('loading')}
-        </p>
+        <LoadingLine card />
       ) : query.isError ? (
-        <div className="yc-card yc-ov-pad">
-          <QueryFailureNotice error={query.error} onRetry={() => void query.refetch()} />
-        </div>
+        <QueryFailure query={query} frame="card" />
       ) : query.data === null ? (
-        <p className="yc-card yc-empty-line">{t('activity.timeline.gone')}</p>
+        <EmptyLine card>{t('activity.timeline.gone')}</EmptyLine>
       ) : (
         <Timeline timeline={query.data} timeZoneId={timeZoneId} />
       )}
@@ -279,19 +275,15 @@ function Timeline({
             {t('activity.timeline.steps')}
           </h2>
           {people.length > 1 ? (
-            <div className="yc-chips" role="group" aria-label={t('activity.timeline.byPerson')}>
-              {[{ key: 'all', label: t('activity.timeline.everyone') }, ...people].map((person) => (
-                <button
-                  key={person.key}
-                  type="button"
-                  className={who === person.key ? 'yc-chip yc-chip-sm is-on' : 'yc-chip yc-chip-sm'}
-                  aria-pressed={who === person.key}
-                  onClick={() => setWho(person.key)}
-                >
-                  {person.label}
-                </button>
-              ))}
-            </div>
+            <ChipGroup
+              small
+              label={t('activity.timeline.byPerson')}
+              value={who}
+              options={[{ key: 'all', label: t('activity.timeline.everyone') }, ...people].map(
+                (person) => ({ value: person.key, label: person.label }),
+              )}
+              onChange={setWho}
+            />
           ) : null}
           {steps.length === 0 ? (
             <p className="yc-muted">{t('activity.timeline.noSteps')}</p>
@@ -339,77 +331,72 @@ function Timeline({
             {lines.length === 0 ? (
               <p className="yc-muted">{t('activity.timeline.noItems')}</p>
             ) : (
-              <div className="yc-tscroll">
-                <table className="yc-tbl">
-                  <caption className="yc-sr">{t('activity.timeline.itemsCaption')}</caption>
-                  <thead>
-                    <tr>
-                      <th scope="col">{t('activity.timeline.itemWhat')}</th>
-                      <th scope="col">{t('activity.timeline.itemWho')}</th>
-                      <th scope="col" className="yc-num">
-                        {t('activity.timeline.itemAmount')}
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {lines.map((line) => {
-                      // A voided line's total is zero: struck through, it shows what it was.
-                      const worth = line.voided
-                        ? line.unitPriceAmd * line.quantity
-                        : line.lineTotalAmd;
-                      return (
-                        <tr key={line.lineId} className={line.voided ? 'is-dim' : undefined}>
-                          <td className="yc-wrap">
-                            {line.voided ? (
-                              <>
-                                <s>
-                                  {t('activity.timeline.line', {
-                                    count: line.quantity,
-                                    name: line.name,
-                                  })}
-                                </s>
-                                <span className="yc-sr"> {t('activity.timeline.voided')}</span>
-                              </>
-                            ) : (
-                              t('activity.timeline.line', { count: line.quantity, name: line.name })
-                            )}
-                          </td>
-                          <td className="yc-wrap">
-                            {line.addedByGuest
-                              ? [t('activity.timeline.guestOrdered'), line.addedBy?.name]
-                                  .filter(Boolean)
-                                  .join(' · ')
-                              : line.addedBy
-                                ? shortName(line.addedBy.name)
-                                : '—'}
-                            {line.voidedBy ? (
-                              <>
-                                {' · '}
-                                <span className="yc-tl-void">
-                                  {t('activity.timeline.voidedBy', {
-                                    name: shortName(line.voidedBy.name),
-                                  })}
-                                </span>
-                              </>
-                            ) : null}
-                          </td>
-                          <td className="yc-num">
-                            {line.voided ? <s>{dram(worth, locale)}</s> : dram(worth, locale)}
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                  <tfoot>
-                    <tr className="yc-tl-sum">
-                      <th scope="row" colSpan={2}>
-                        {t('activity.timeline.total')}
-                      </th>
-                      <td className="yc-num">{dram(linesAmd, locale)}</td>
-                    </tr>
-                  </tfoot>
-                </table>
-              </div>
+              <DataTable caption={t('activity.timeline.itemsCaption')}>
+                <TableHead
+                  columns={[
+                    { label: t('activity.timeline.itemWhat') },
+                    { label: t('activity.timeline.itemWho') },
+                    { label: t('activity.timeline.itemAmount'), numeric: true },
+                  ]}
+                />
+                <tbody>
+                  {lines.map((line) => {
+                    // A voided line's total is zero: struck through, it shows what it was.
+                    const worth = line.voided
+                      ? line.unitPriceAmd * line.quantity
+                      : line.lineTotalAmd;
+                    return (
+                      <tr key={line.lineId} className={line.voided ? 'is-dim' : undefined}>
+                        <td className="yc-wrap">
+                          {line.voided ? (
+                            <>
+                              <s>
+                                {t('activity.timeline.line', {
+                                  count: line.quantity,
+                                  name: line.name,
+                                })}
+                              </s>
+                              <span className="yc-sr"> {t('activity.timeline.voided')}</span>
+                            </>
+                          ) : (
+                            t('activity.timeline.line', { count: line.quantity, name: line.name })
+                          )}
+                        </td>
+                        <td className="yc-wrap">
+                          {line.addedByGuest
+                            ? [t('activity.timeline.guestOrdered'), line.addedBy?.name]
+                                .filter(Boolean)
+                                .join(' · ')
+                            : line.addedBy
+                              ? shortName(line.addedBy.name)
+                              : '—'}
+                          {line.voidedBy ? (
+                            <>
+                              {' · '}
+                              <span className="yc-tl-void">
+                                {t('activity.timeline.voidedBy', {
+                                  name: shortName(line.voidedBy.name),
+                                })}
+                              </span>
+                            </>
+                          ) : null}
+                        </td>
+                        <td className="yc-num">
+                          {line.voided ? <s>{dram(worth, locale)}</s> : dram(worth, locale)}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+                <tfoot>
+                  <tr className="yc-tl-sum">
+                    <th scope="row" colSpan={2}>
+                      {t('activity.timeline.total')}
+                    </th>
+                    <td className="yc-num">{dram(linesAmd, locale)}</td>
+                  </tr>
+                </tfoot>
+              </DataTable>
             )}
             {tab && tab.paidAmd > 0 ? (
               <p className="yc-tl-paid">

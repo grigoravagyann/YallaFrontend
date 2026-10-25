@@ -1,8 +1,8 @@
 import {
-  PERFORMANCE_PERIODS,
   STAFF_RECENT_LISTS,
   performanceRange,
   type ActivityEntry,
+  type PerformancePeriod,
   type PerformanceRange,
   type StaffMemberPerformance,
   type StaffRecentList,
@@ -11,10 +11,22 @@ import { useStaffMemberPerformance, useStaffRecent } from '@yalla/api/react';
 import { branchDayKey, type Locale, type TimeZone } from '@yalla/format';
 import { useLocale, useTranslation } from '@yalla/i18n';
 import type { TFunction } from 'i18next';
-import { useEffect, useId, useRef, useState } from 'react';
-import { Link, useParams, useSearchParams } from 'react-router-dom';
+import { useId, useRef, useState } from 'react';
+import { Link, useParams } from 'react-router-dom';
 import { QueryFailureNotice } from '../../../components/QueryFailureNotice';
 import { shortName } from '../../../messages/messageText';
+import {
+  DataTable,
+  EmptyLine,
+  LoadingLine,
+  PagedFooter,
+  QueryFailure,
+  TableHead,
+  putParam,
+  usePagedRows,
+  useUrlFilters,
+  type UrlFilterCodec,
+} from '../../kit';
 import { initialsOf } from '../../ui/ConsoleShell';
 import { ChevronLeftIcon } from '../../ui/icons';
 import { Tabs, panelId, tabId } from '../../ui/Tabs';
@@ -29,7 +41,15 @@ import {
 } from '../activity/activityText';
 import { useVenueOutlet } from '../VenueLayout';
 import { SalesChart } from './SalesChart';
-import { periodCaption, periodFrom, periodLabel } from './StaffResults';
+import { PeriodChips, periodCaption, periodFrom } from './StaffResults';
+
+/** The period in the address, today left out. */
+const personCodec: UrlFilterCodec<{ readonly period: PerformancePeriod }> = {
+  read: (params) => ({ period: periodFrom(params.get('period')) }),
+  write: (params, next) => putParam(params, 'period', next.period === 'today' ? null : next.period),
+};
+
+const entryIdOf = (item: ActivityEntry) => item.id;
 
 /**
  * One person's results (2026-10-24, the Person board): their figures over
@@ -43,9 +63,9 @@ export function PersonScreen() {
   const { locale } = useLocale();
   const { branchId, branchName, timeZoneId } = useVenueOutlet();
   const { staffMemberId } = useParams();
-  const [params, setParams] = useSearchParams();
+  const { filters, update } = useUrlFilters(personCodec);
   const today = branchDayKey(new Date(), timeZoneId as TimeZone);
-  const period = periodFrom(params.get('period'));
+  const period = filters.period;
   const range = performanceRange(period, today);
   const query = useStaffMemberPerformance(branchId ?? undefined, staffMemberId, range);
   const person = query.data ?? null;
@@ -64,7 +84,7 @@ export function PersonScreen() {
     return (
       <div className="yc-page">
         {back}
-        <p className="yc-card yc-empty-line">{t('person.gone')}</p>
+        <EmptyLine card>{t('person.gone')}</EmptyLine>
       </div>
     );
   }
@@ -73,15 +93,11 @@ export function PersonScreen() {
     <div className="yc-page yc-pp-page">
       {back}
       {query.isPending ? (
-        <p className="yc-card yc-empty-line" role="status">
-          {t('loading')}
-        </p>
+        <LoadingLine card />
       ) : query.isError && !query.data ? (
-        <div className="yc-card yc-ov-pad">
-          <QueryFailureNotice error={query.error} onRetry={() => void query.refetch()} />
-        </div>
+        <QueryFailure query={query} frame="card" />
       ) : person === null ? (
-        <p className="yc-card yc-empty-line">{t('person.gone')}</p>
+        <EmptyLine card>{t('person.gone')}</EmptyLine>
       ) : (
         <>
           <div className="yc-pp-head">
@@ -94,21 +110,10 @@ export function PersonScreen() {
                 {[t(`role.${person.role}`), branchName].filter(Boolean).join(' · ')}
               </p>
             </div>
-            <div className="yc-chips" role="group" aria-label={t('staffResults.periods.label')}>
-              {PERFORMANCE_PERIODS.map((value) => (
-                <button
-                  key={value}
-                  type="button"
-                  className={value === period ? 'yc-chip is-on' : 'yc-chip'}
-                  aria-pressed={value === period}
-                  onClick={() =>
-                    setParams(value === 'today' ? {} : { period: value }, { replace: true })
-                  }
-                >
-                  {periodLabel(t, value)}
-                </button>
-              ))}
-            </div>
+            <PeriodChips
+              value={period}
+              onChange={(next) => update({ period: next }, { replace: true })}
+            />
           </div>
 
           <Kpis person={person} locale={locale} caption={periodCaption(t, range, today, locale)} />
@@ -356,100 +361,66 @@ function RecentList({
   const { t } = useTranslation(['admin', 'common']);
   // One list at a time, a page at a time by the server's cursor.
   const recent = useStaffRecent(branchId, person.staffMemberId, range, list);
-  const items = recent.data?.pages.flatMap((page) => page.items) ?? [];
-  const hasMore = recent.hasNextPage;
-  const focusRow = useRef<number | null>(null);
   const rowRefs = useRef<(HTMLTableRowElement | null)[]>([]);
-  useEffect(() => {
-    const index = focusRow.current;
-    if (index === null || items.length <= index) return;
-    focusRow.current = null;
-    rowRefs.current[index]?.focus();
-  });
+  const paged = usePagedRows(recent, entryIdOf, (_, index) => rowRefs.current[index]?.focus());
+  const items = paged.rows;
   const multiDay = range.from !== range.to;
   const [c1, c2, c3, c4] = columnsOf(list);
+  const amountLast = list === 'cash' || list === 'orders';
 
-  if (recent.isPending) {
-    return (
-      <p className="yc-empty-line" role="status">
-        {t('loading')}
-      </p>
-    );
-  }
+  if (recent.isPending) return <LoadingLine />;
   if (recent.isError && items.length === 0) {
     return <QueryFailureNotice error={recent.error} onRetry={() => void recent.refetch()} />;
   }
-  if (items.length === 0) {
-    return <p className="yc-empty-line">{t('person.lists.empty')}</p>;
-  }
+  if (items.length === 0) return <EmptyLine>{t('person.lists.empty')}</EmptyLine>;
   return (
     <>
-      <div className="yc-tscroll">
-        <table className="yc-tbl yc-pp-tbl">
-          <caption className="yc-sr">{t(LIST_LABEL[list])}</caption>
-          <thead>
-            <tr>
-              <th scope="col">{t(c1)}</th>
-              <th scope="col">{t(c2)}</th>
-              <th scope="col">{t(c3)}</th>
-              <th
-                scope="col"
-                className={list === 'cash' || list === 'orders' ? 'yc-num' : undefined}
+      <DataTable className="yc-pp-tbl" caption={t(LIST_LABEL[list])}>
+        <TableHead
+          columns={[
+            { label: t(c1) },
+            { label: t(c2) },
+            { label: t(c3) },
+            { label: t(c4), numeric: amountLast },
+          ]}
+        />
+        <tbody>
+          {items.map((item, index) => {
+            const [a, b, c] = cellsOf(t, list, item, locale);
+            const link = subjectLink(item);
+            const when = multiDay
+              ? whenLabel(t, item, timeZoneId, today, locale)
+              : timeLabel(item, timeZoneId, locale);
+            return (
+              <tr
+                key={item.id}
+                tabIndex={-1}
+                ref={(row) => {
+                  rowRefs.current[index] = row;
+                }}
               >
-                {t(c4)}
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            {items.map((item, index) => {
-              const [a, b, c] = cellsOf(t, list, item, locale);
-              const link = subjectLink(item);
-              const when = multiDay
-                ? whenLabel(t, item, timeZoneId, today, locale)
-                : timeLabel(item, timeZoneId, locale);
-              return (
-                <tr
-                  key={item.id}
-                  tabIndex={-1}
-                  ref={(row) => {
-                    rowRefs.current[index] = row;
-                  }}
-                >
-                  <th scope="row" className="yc-pp-when">
-                    {link ? <Link to={link.to}>{when}</Link> : when}
-                  </th>
-                  <td className="yc-wrap">{a}</td>
-                  <td className="yc-wrap">{b}</td>
-                  <td className={list === 'cash' || list === 'orders' ? 'yc-num' : undefined}>
-                    {c}
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
-      <div className="yc-mh-foot">
-        <span role="status" aria-atomic="true">
-          {t('person.lists.shown', { count: items.length })}
-        </span>
-        {hasMore ? (
-          <button
-            type="button"
-            className="yc-btn yc-btn-sec yc-btn-sm"
-            disabled={recent.isFetchingNextPage}
-            onClick={() => {
-              focusRow.current = items.length;
-              void recent.fetchNextPage();
-            }}
-          >
-            {recent.isFetchingNextPage ? t('loading') : t('person.lists.more')}
-          </button>
-        ) : null}
+                <th scope="row" className="yc-pp-when">
+                  {link ? <Link to={link.to}>{when}</Link> : when}
+                </th>
+                <td className="yc-wrap">{a}</td>
+                <td className="yc-wrap">{b}</td>
+                <td className={amountLast ? 'yc-num' : undefined}>{c}</td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </DataTable>
+      <PagedFooter
+        status={t('person.lists.shown', { count: items.length })}
+        moreLabel={t('person.lists.more')}
+        hasMore={paged.hasMore}
+        loadingMore={paged.loadingMore}
+        onMore={paged.more}
+      >
         {recent.isFetchNextPageError ? (
           <QueryFailureNotice error={recent.error} onRetry={() => void recent.fetchNextPage()} />
         ) : null}
-      </div>
+      </PagedFooter>
     </>
   );
 }
