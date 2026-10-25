@@ -154,13 +154,29 @@ const firstFree = /^Table \w+, free$/u;
 const timeWheel = () => screen.getByRole('slider', { name: 'Time' });
 /** "19:00" — the chosen time, without the notes a screen reader hears after it. */
 const chosenTime = () => (timeWheel().getAttribute('aria-valuetext') ?? '').split(',')[0]!;
-/** Step the wheel until `time` is chosen; fails when stepping never reaches it. */
+/**
+ * Step the wheel until `time` is chosen; fails when stepping never reaches it.
+ *
+ * From the time already chosen when there is one, towards `time`: every step
+ * re-renders the whole Book screen, and walking up from the first time of the
+ * day each call took 30-odd renders per call, three calls a test — fine alone,
+ * past the 20 s timeout with the whole suite running beside it. A walk that
+ * does not arrive (the late-night strip, where 00:30 comes after 23:30) falls
+ * back to the walk up from the first time.
+ */
 function stepTo(time: string) {
-  fireEvent.keyDown(timeWheel(), { key: 'Home' });
-  for (let i = 0; i < 200 && chosenTime() !== time; i += 1) {
-    const before = chosenTime();
-    fireEvent.keyDown(timeWheel(), { key: 'ArrowUp' });
-    if (chosenTime() === before) break;
+  const walk = (key: 'ArrowUp' | 'ArrowDown') => {
+    for (let i = 0; i < 200 && chosenTime() !== time; i += 1) {
+      const before = chosenTime();
+      fireEvent.keyDown(timeWheel(), { key });
+      if (chosenTime() === before) break;
+    }
+  };
+  const from = chosenTime();
+  if (/^\d{2}:\d{2}$/u.test(from) && from !== time) walk(from < time ? 'ArrowUp' : 'ArrowDown');
+  if (chosenTime() !== time) {
+    fireEvent.keyDown(timeWheel(), { key: 'Home' });
+    walk('ArrowUp');
   }
   expect(chosenTime()).toBe(time);
 }

@@ -1,132 +1,61 @@
 import {
-  ApiError,
-  ForbiddenError,
-  LineAlreadyPaidError,
-  isOffline,
-  TableNotSeatedError,
-  isPaymentExceedsRemaining,
-  ReservationNotStartedError,
-  newCommandId,
-  noShowUndoableUntil,
-  readsPreOrderRail,
   staffMayWrite,
   tableDetail,
-  transferRefusalOf,
-  type AdjustmentKind,
   type AffectedReservation,
+  type ConversationSubjectRef,
   type EnrolledDevice,
   type FloorTable,
-  type OrderQueueEntry,
-  type OrderStatus,
-  type PlaceOrderLine,
-  type ReleaseOutcome,
   type ServiceRequest,
-  type AwaitingApproval,
-  type ConversationSubjectRef,
-  type StaffFloor,
   type StaffSessionIdentity,
-  type TabLine,
-  type TableActionKind,
-  type TableActionResult,
-  type VoidReason,
 } from '@yalla/api';
 import {
   isOfflinePaused,
   queryKeys,
-  useAbandonTab,
-  useAwaitingApproval,
-  useBeginClosing,
-  useBranchConversations,
-  useClaimServiceRequest,
-  useCompLine,
-  useDuePreOrders,
-  useOpenTabForStaff,
-  useOrderQueue,
-  useRecordCashPayment,
-  useReleaseReservation,
-  useServiceRequests,
+  useNow,
   useStaffFloor,
   useStaffGateway,
   useStaffTab,
-  useNow,
-  useTakeawayOrders,
-  useTabsAwaitingAdmission,
-  useTransferTab,
-  useTransferTargets,
-  useVoidLine,
 } from '@yalla/api/react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from '@yalla/i18n';
-import type { TFunction } from 'i18next';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { QueryFailureNotice } from '../components/QueryFailureNotice';
-import { firstName } from '../messages/messageText';
-import {
-  AdmissionSection,
-  wasHeldForLateParty,
-  type AdmissionOutcome,
-  type AdmissionSubject,
-} from './AdmissionPanel';
-import { ApprovalPanel, useRequestArrivals } from './ApprovalPanel';
-import { branchToday, decidedNotice } from './approvalRequests';
+import { AdmissionSection, wasHeldForLateParty, type AdmissionSubject } from './AdmissionPanel';
 import { primeChime } from './chime';
-import { ConflictList } from './ConflictList';
-import { freshPaidRefusal } from './commands/reducer';
-import { useCommandQueue } from './commands/useCommandQueue';
-import type { CommandRefusal, NewCommand, OrderRefusal, QueuedCommand } from './commands/types';
-import { applyFloorChanges } from './live/sequence';
-import { createPollingLiveStream } from './live/stream';
-import { blockCancelledNews, type BlockCancelled } from './live/blockCancelled';
-import type { LiveStream } from '@yalla/realtime';
-import { FloorRail, ICONS, type UnresolvedTab } from './FloorRail';
-import type { CashOutcome } from './CashKeypad';
-import { OrderEntry, type OrderSent } from './OrderEntry';
-import {
-  PreOrderSection,
-  preOrderForTable,
-  preOrderNeedsAction,
-  type PreOrderOutcome,
-} from './PreOrderPanel';
+import { ICONS, type UnresolvedTab } from './FloorRail';
 import { ageOrders, projectOrders } from './kitchenBoard';
-import { useMinuteClock } from './useMinuteClock';
-import { useBehindHeldNotice, useCancelReadsWhileLocked, useHeldMarks } from './useHandover';
-import { kitchenWaiting, OrderQueuePanel } from './OrderQueuePanel';
-import { StaffHeader, type StaffView } from './StaffHeader';
-import { TableActionPanel, type TransferTarget } from './TableActionPanel';
-import { tableCardText } from './tableCard';
-import { TableList } from './TableList';
-import { TabPanel } from './TabPanel';
-import { useBranchFormat } from './useBranchFormat';
-import { useCachedMenu } from './useCachedMenu';
-import { staffSession } from './auth/staffSession';
-import { connectionChip } from './StaffHeader';
-import { upcomingBookings } from './phone/nextHour';
-import { PhoneApprove } from './phone/PhoneApprove';
-import { PhoneMore } from './phone/PhoneMore';
-import { PhoneResults } from './phone/PhoneResults';
-import { PhoneApprovalList, PhoneNextHour, PhoneTakeawayList } from './phone/PhoneNowSections';
-import { PhoneShell, type PhoneTab, type PhoneTabSpec } from './phone/PhoneShell';
-import { PhoneInstall } from './phone/PhoneInstall';
-import { PhoneToday } from './phone/PhoneToday';
-import { usePhoneLayout } from './phone/usePhoneLayout';
-import { useStaffRoster } from './phone/usePhoneData';
-import { usePushUpkeep } from './pwa/usePushUpkeep';
-import { staffLinkOf, type StaffLink } from './pwa/deepLinks';
-import { useConnectionState } from './useConnectionState';
 import { MessagesInbox } from './messages/MessagesInbox';
 import { MessagesRailSection } from './messages/MessagesRailSection';
-import { useMessageReminders } from './messages/useMessageReminders';
-import { TakeawayRailSection } from './takeaway/TakeawayAccept';
+import { useStaffRoster } from './phone/usePhoneData';
+import { PreOrderSection, preOrderForTable, preOrderNeedsAction } from './PreOrderPanel';
+import { usePushUpkeep } from './pwa/usePushUpkeep';
+import { TableActionPanel } from './TableActionPanel';
+import { tableCardText } from './tableCard';
+import { TableList } from './TableList';
 import { TakeawayCounter } from './takeaway/TakeawayCounter';
 import { useTakeawayReady } from './takeaway/useTakeawayReady';
-import {
-  NoShowSection,
-  UndoNoShowNotice,
-  type MarkedNoShow,
-  type UndoOutcome,
-  type UndoableNoShow,
-} from './UndoNoShowNotice';
+import { NoShowSection, type MarkedNoShow } from './UndoNoShowNotice';
+import { useBranchFormat } from './useBranchFormat';
+import { useConnectionState } from './useConnectionState';
+import { billRequestsForTab } from './floor/billRequests';
+import { FloorNotice } from './floor/FloorNotice';
+import { FloorOverlays } from './floor/FloorOverlays';
+import { FloorPhone, type FloorRailShared } from './floor/FloorPhone';
+import { FloorTablet } from './floor/FloorTablet';
+import { useConflictNotices, useNoticeTimeout, type Notice } from './floor/notices';
+import { useFloorCommands, type Selection } from './floor/useFloorCommands';
+import { useFloorLiveStream } from './floor/useFloorLiveStream';
+import { useFloorQueries } from './floor/useFloorQueries';
+import { useFloorScreens } from './floor/useFloorScreens';
+import { useOrderSend } from './floor/useOrderSend';
+import { useOutcomeNotices } from './floor/useOutcomeNotices';
+import { useServiceCalls } from './floor/useServiceCalls';
+import { useStaffDeepLink } from './floor/useStaffDeepLink';
+import { useTabActions, type CashRefusal } from './floor/useTabActions';
+import { UNRESOLVED_KEY, useTableActions, type FloorOverlay } from './floor/useTableActions';
+import { useTableTransfer } from './floor/useTableTransfer';
+
+export { FLOOR_REFRESH_MS } from './floor/useFloorLiveStream';
 
 /**
  * The floor screen: the whole product, on a counter.
@@ -148,6 +77,10 @@ import {
  *
  * The branch comes from the staff session, never from a route parameter. A
  * waiter has exactly one branch and no way to name another.
+ *
+ * One component draws the tablet and the phone, so a swap between them keeps
+ * every piece of state: it all lives here, in the hooks under `floor/`, and
+ * `floor/FloorTablet` and `floor/FloorPhone` only draw it.
  */
 export interface FloorRouteProps {
   readonly identity: StaffSessionIdentity;
@@ -170,67 +103,6 @@ export interface FloorRouteProps {
   readonly onUnpair?: (() => Promise<void>) | undefined;
 }
 
-/** Venue-wide people: My results names the branch for them. */
-const VENUE_WIDE_ROLES: ReadonlySet<string> = new Set(['generalManager', 'owner']);
-
-/** The people who see the phone's Today: a manager and everyone above. */
-const MANAGER_ROLES: ReadonlySet<string> = new Set(['manager', 'generalManager', 'owner']);
-
-/** The table key an unresolved tab is filed under. Never a real table id. */
-const UNRESOLVED_KEY = '__unresolved__';
-
-interface Selection {
-  readonly tableId: string;
-}
-
-interface Notice {
-  readonly kind: 'race' | 'warning' | 'info';
-  readonly text: string;
-  /** What a table action was sent to do — not yet what the server did. */
-  readonly acted?: boolean;
-  /** A no-show just marked: the notice offers to undo it (`UndoNoShowNotice`). */
-  readonly undo?: UndoableNoShow;
-  /**
-   * Bookings due soon that a guest's no-show block cancelled (change-stream
-   * signal 4): worded when shown, as the stream's handler has no translations
-   * of its own.
-   */
-  readonly blockCancelled?: readonly BlockCancelled[];
-}
-
-/**
- * How often the floor is read whole while the tablet is in front of somebody,
- * whatever the change stream says. The stream carries table transitions and
- * admission signals; a booking made, approved, moved, cancelled or undone
- * writes no row of its own, and a table's "reserved soon" is the server's to
- * draw from the clock. This read is what brings those in (review B1). Focus
- * and a connection coming back read it too, as every query does.
- */
-export const FLOOR_REFRESH_MS = 30_000;
-
-/** How long a notice stays: long enough to read at arm's length. */
-const NOTICE_MS = 6_000;
-/** A notice offering an undo stays longer: noticing the mistake takes a moment. */
-const UNDO_NOTICE_MS = 15_000;
-
-/**
- * An order's refusal as the order screen words it. A queued order is only
- * ever refused with its own reasons (`sync.ts`); anything else reads "other".
- */
-function orderRefusalOf(refusal: CommandRefusal | undefined): OrderRefusal {
-  return refusal &&
-    refusal.kind !== 'notFound' &&
-    refusal.kind !== 'forbidden' &&
-    refusal.kind !== 'lineAlreadyPaid'
-    ? refusal
-    : { kind: 'other' };
-}
-
-/** The minute an instant falls in, so a poll every few seconds re-renders once a minute. */
-function minuteOf(at: number): number {
-  return at - (at % 60_000);
-}
-
 export function FloorRoute({ identity, device = null, paused, onUnpair }: FloorRouteProps) {
   const { t } = useTranslation(['staff', 'admin', 'common']);
   const queryClient = useQueryClient();
@@ -245,43 +117,26 @@ export function FloorRoute({ identity, device = null, paused, onUnpair }: FloorR
   const timeZoneId = floor?.plan.timeZoneId ?? 'Asia/Yerevan';
   const format = useBranchFormat(timeZoneId);
 
-  /**
-   * The screen on show. The Messages tab has its own address, `/staff/messages`
-   * (2026-10-23), so a tablet reloaded there — or opened from a link — comes
-   * back to it; the others are the floor's own and keep `/staff`.
-   */
-  const location = useLocation();
-  const navigate = useNavigate();
-  const onMessagesPath = /\/messages\/?$/u.test(location.pathname);
-  const [view, setView] = useState<StaffView>(onMessagesPath ? 'messages' : 'floor');
-  const [lastMessagesPath, setLastMessagesPath] = useState(onMessagesPath);
-  /**
-   * The phone shell (staff phone spec): below 600px, or installed on a phone.
-   * The same state, queries and commands as the tablet below; only what is
-   * drawn differs.
-   */
-  const phone = usePhoneLayout();
-  const manager = MANAGER_ROLES.has(identity.role);
-  const homeTab: PhoneTab = manager ? 'today' : 'now';
-  const [phoneTab, setPhoneTab] = useState<PhoneTab>(onMessagesPath ? 'messages' : homeTab);
-  /** A screen opened from More: its notification switches, or My results. */
-  const [moreScreen, setMoreScreen] = useState<'notifications' | 'results' | null>(null);
-  /** The booking open on the phone's Approve screen, as it was last read. */
-  const [approving, setApproving] = useState<AwaitingApproval | null>(null);
-  if (onMessagesPath !== lastMessagesPath) {
-    // Back and forward in the browser move between the floor and the inbox.
-    setLastMessagesPath(onMessagesPath);
-    if (onMessagesPath) setView('messages');
-    else if (view === 'messages') setView('floor');
-    if (onMessagesPath) setPhoneTab('messages');
-    else if (phoneTab === 'messages') setPhoneTab(homeTab);
-  }
-  /** The conversation open in the Messages tab; null for the first in its list. */
-  const [messageSubject, setMessageSubject] = useState<ConversationSubjectRef | null>(null);
+  /** The screen on show, its address, and the phone's tabs and screens. */
+  const screens = useFloorScreens(identity.role);
+  const {
+    location,
+    navigate,
+    onMessagesPath,
+    view,
+    setView,
+    phone,
+    phoneTab,
+    setPhoneTab,
+    setMoreScreen,
+    setApproving,
+    messageSubject,
+    setMessageSubject,
+  } = screens;
   /** The room chip that is on; null for every room. */
   const [room, setRoom] = useState<string | null>(null);
   const [selection, setSelection] = useState<Selection | null>(null);
-  const [overlay, setOverlay] = useState<'none' | 'conflicts' | 'order' | 'tab'>('none');
+  const [overlay, setOverlay] = useState<FloorOverlay>('none');
   const [activeTableId, setActiveTableId] = useState<string | null>(null);
   /**
    * The tab an overlay was opened on, held while it is open.
@@ -292,16 +147,6 @@ export function FloorRoute({ identity, device = null, paused, onUnpair }: FloorR
    * filled: while the floor names a tab for the table, that one is used.
    */
   const [overlayTabId, setOverlayTabId] = useState<string | null>(null);
-  /**
-   * The order just sent from order entry, while its confirmation is up. What
-   * became of it is read off the queue, so the card follows it from "on its
-   * way" (or "kept on the tablet") to "the kitchen has it" or "refused".
-   */
-  const [orderSend, setOrderSend] = useState<{
-    readonly id: string;
-    readonly count: number;
-    readonly atUtc: string;
-  } | null>(null);
   /** The tab overlay was opened from the table panel's "Take cash": keypad first. */
   const [cashFirst, setCashFirst] = useState(false);
   const [notice, setNotice] = useState<Notice | null>(null);
@@ -321,11 +166,7 @@ export function FloorRoute({ identity, device = null, paused, onUnpair }: FloorR
     new Map(),
   );
   /** The last cash refusal, with the balance the server reported. */
-  const [cashRefusal, setCashRefusal] = useState<{
-    tabId: string;
-    remainingDram: number;
-    requestedDram: number;
-  } | null>(null);
+  const [cashRefusal, setCashRefusal] = useState<CashRefusal | null>(null);
   /**
    * Bill requests this device answered "On my way" to, by request id.
    *
@@ -341,344 +182,32 @@ export function FloorRoute({ identity, device = null, paused, onUnpair }: FloorR
   /** Bill requests cash has been recorded against on this device: handled. */
   const [settledBillIds, setSettledBillIds] = useState<ReadonlySet<string>>(new Set());
 
-  // --- Commands -------------------------------------------------------------
+  // --- Commands and live updates ----------------------------------------------
 
-  const onApplied = useCallback(
-    (result: TableActionResult) => {
-      // A freed table with money owed. The table is freed anyway — the diners
-      // have left — and the tab surfaces here so it is not simply lost.
-      if (result.outstandingDram !== null && result.outstandingDram > 0 && result.tabId) {
-        const tabId = result.tabId;
-        setUnresolved((current) =>
-          current.some((entry) => entry.tabId === tabId)
-            ? current
-            : [
-                ...current,
-                {
-                  tabId,
-                  tableId: result.tableId,
-                  tableLabel: result.tableLabel,
-                  amountDram: result.outstandingDram!,
-                },
-              ],
-        );
-      }
-
-      // Bookings this table still had. Kept against the table so the panel can
-      // show them the next time it is opened, and never cancelled here.
-      if (result.affectedReservations.length > 0) {
-        setAffected((current) => new Map(current).set(result.tableId, result.affectedReservations));
-      }
-
-      // Warnings accompany a success and never block it. Surfaced after the
-      // fact because the action has already happened and the waiter chose it.
-      const warning = result.warnings[0];
-      if (warning) {
-        setNotice({
-          kind: 'warning',
-          text:
-            warning.code === 'outstanding-balance' && result.outstandingDram !== null
-              ? t('notice.freedWithBalance', {
-                  label: result.tableLabel,
-                  amount: format.dram(result.outstandingDram),
-                })
-              : warning.code === 'upcoming-reservation'
-                ? t('notice.seatedOverBooking', { label: result.tableLabel })
-                : warning.message,
-        });
-      }
-
-      void queryClient.invalidateQueries({ queryKey: queryKeys.staffFloor(branchId) });
-    },
-    [branchId, format, queryClient, t],
-  );
-
-  const onLiveRace = useCallback(
-    (entry: Parameters<NonNullable<Parameters<typeof useCommandQueue>[0]['onLiveRace']>>[0]) => {
-      const label = entry.observed?.tableLabel || entry.command.subject.tableLabel || '';
-      // Brief and specific, and the floor redraws behind it. Not a crash
-      // screen, not a retry: this is a normal Friday.
-      setNotice({
-        kind: 'race',
-        text: entry.observed?.changedBy
-          ? t('notice.raceNamed', { label, name: entry.observed.changedBy })
-          : t('notice.race', { label }),
-      });
-      setSelection(null);
-      void queryClient.invalidateQueries({ queryKey: queryKeys.staffFloor(branchId) });
-    },
-    [branchId, queryClient, t],
-  );
-
-  /**
-   * A command landed. Refetch whatever list it belongs in.
-   *
-   * Keyed off the command rather than off a timer, so an order placed offline
-   * appears in the panel the moment it actually reaches the kitchen and not a
-   * poll interval later.
-   */
-  const onSettled = useCallback(
-    (command: QueuedCommand) => {
-      if (command.kind === 'placeOrder' || command.kind === 'setOrderStatus') {
-        void queryClient.invalidateQueries({ queryKey: queryKeys.orderQueue(branchId) });
-        if (command.subject.tabId) {
-          void queryClient.invalidateQueries({
-            queryKey: queryKeys.staffTab(command.subject.tabId),
-          });
-          void queryClient.invalidateQueries({
-            queryKey: queryKeys.tabLines(command.subject.tabId),
-          });
-        }
-      }
-      if (command.kind === 'acknowledgeServiceRequest') {
-        void queryClient.invalidateQueries({ queryKey: queryKeys.serviceRequests(branchId) });
-      }
-    },
-    [branchId, queryClient],
-  );
-
-  // Who is signed in: stamped on every command, and the person whose queued
-  // commands are sent (`commands/conflictPolicy.ts`).
-  const actor = useMemo(
-    () => ({ staffMemberId: identity.staffMemberId, name: identity.fullName }),
-    [identity.staffMemberId, identity.fullName],
-  );
-  const queue = useCommandQueue({
+  const { queue, heldMarks } = useFloorCommands({
+    identity,
     gateway,
+    queryClient,
     floor,
-    onApplied,
-    onLiveRace,
-    onSettled,
-    enabled: active,
-    actor,
+    paused,
+    format,
+    t,
+    setNotice,
+    setUnresolved,
+    setAffected,
+    setSelection,
   });
-  const heldMarks = useHeldMarks(queue);
-  useBehindHeldNotice(queue, identity.staffMemberId, (command, name) =>
-    setNotice({
-      kind: 'warning',
-      text: t('notice.behindHeld', { label: command.subject.tableLabel ?? '', name }),
-    }),
-  );
-  useCancelReadsWhileLocked(paused, branchId);
-
-  // --- Live updates ---------------------------------------------------------
-
-  /**
-   * Whether the change stream's last poll reached the server. The floor query
-   * is the other half of the answer: a resync is a request *it* makes, so its
-   * own outcome is read directly when the chip is computed below.
-   */
-  const [streamFailing, setStreamFailing] = useState(false);
-  /** The minute the change stream last answered: the chip's "Live · 18:42". */
-  const [answeredAt, setAnsweredAt] = useState<number | null>(null);
-  /**
-   * The exact instant of the last answer, kept without a render per poll, and
-   * copied out when the polls start failing: "the data is N min old" counted
-   * from the minute it was floored to said "1 min" four seconds in.
-   */
-  const lastAnswer = useRef<number | null>(null);
-  const [staleSince, setStaleSince] = useState<number | null>(null);
-  /** The change stream while it runs: told where every floor read left off. */
-  const streamRef = useRef<LiveStream | null>(null);
-
-  /*
-   * Every read of the floor — the stream's own resync, the 30-second safety
-   * read, one after a command or a decision — tells the stream where it is
-   * now (review S2). Without it the stream stayed at 0, never read a change
-   * and asked for the whole floor on every poll; and a read for any other
-   * reason left the floor ahead of the stream.
-   */
-  const floorSequence = floorQuery.data?.lastSequence;
-  const floorReadAt = floorQuery.dataUpdatedAt;
-  useEffect(() => {
-    if (floorSequence !== undefined) streamRef.current?.setSequence(floorSequence);
-  }, [floorSequence, floorReadAt]);
-
-  // The safety read, in the foreground only; a hidden tablet waits for focus.
-  useEffect(() => {
-    if (!branchId || !active) return;
-    const timer = setInterval(() => {
-      if (document.visibilityState !== 'visible') return;
-      void queryClient.invalidateQueries(
-        { queryKey: queryKeys.staffFloor(branchId) },
-        { cancelRefetch: false },
-      );
-    }, FLOOR_REFRESH_MS);
-    return () => clearInterval(timer);
-  }, [active, branchId, queryClient]);
-
-  useEffect(() => {
-    if (!branchId || !active) return;
-
-    const stream = createPollingLiveStream({
-      gateway,
-      branchId,
-      handlers: {
-        onChanges: (changes) => {
-          lastAnswer.current = Date.now();
-          setStreamFailing(false);
-          setStaleSince(null);
-          setAnsweredAt(minuteOf(lastAnswer.current));
-          // Fold in incrementally; a gap, an unknown table, or a change whose
-          // drawn state cannot be derived falls through to a full refetch
-          // rather than being patched around.
-          const current = queryClient.getQueryData<StaffFloor | null>(
-            queryKeys.staffFloor(branchId),
-          );
-          if (!current) return;
-          // A scan waiting to be let in, admitted or turned away: the rail's
-          // list is read again, and the tab it names — the table itself is
-          // folded in below, never a whole-floor read (review S9: a flood of
-          // phantom scans must not cost every tablet a floor read each).
-          const signalled = changes.filter((change) => change.signal);
-          if (signalled.length > 0) {
-            void queryClient.invalidateQueries({
-              queryKey: queryKeys.tabsAwaitingAdmission(branchId),
-            });
-            // Bookings a guest's no-show block cancelled: the requests are
-            // read again (the card goes with its booking), and the floor is
-            // told only of those due soon here (review S6) — never over a
-            // no-show's undo, which may be the very one that set the block off.
-            const byBlock = signalled.filter(
-              (change) => change.signal === 'bookingCancelledByBlock',
-            );
-            // A booking made, approved, declined, moved or cancelled anywhere
-            // (signal 5): the requests may have changed too. A signal this
-            // build does not know reads them (and the pre-orders) again too.
-            const unknownSignal = signalled.some((change) => change.signal === 'unknown');
-            if (unknownSignal || signalled.some((change) => change.signal === 'bookingChanged')) {
-              void queryClient.invalidateQueries({
-                queryKey: queryKeys.awaitingApproval(branchId),
-              });
-            }
-            // A pre-order changed anywhere (signal 6) — the branch's pre-order
-            // settings included — or a booking did (5), or a block cancelled
-            // one (4, its only row): the rail's cards are read again, never
-            // patched from the row.
-            if (unknownSignal || signalled.some((change) => readsPreOrderRail(change.signal))) {
-              void queryClient.invalidateQueries({
-                queryKey: queryKeys.duePreOrders(branchId),
-              });
-            }
-            if (byBlock.length > 0) {
-              const news = blockCancelledNews(
-                byBlock,
-                current,
-                queryClient.getQueryData<readonly AwaitingApproval[]>(
-                  queryKeys.awaitingApproval(branchId),
-                ) ?? [],
-                new Date(),
-              );
-              void queryClient.invalidateQueries({
-                queryKey: queryKeys.awaitingApproval(branchId),
-              });
-              if (news.length > 0) {
-                setNotice((shown) =>
-                  shown?.undo ? shown : { kind: 'info', text: '', blockCancelled: news },
-                );
-              }
-            }
-            for (const change of signalled) {
-              if (change.tabId) {
-                void queryClient.invalidateQueries({ queryKey: queryKeys.staffTab(change.tabId) });
-              }
-            }
-          }
-          const result = applyFloorChanges(current, changes);
-          if (result.kind === 'applied') {
-            queryClient.setQueryData(queryKeys.staffFloor(branchId), result.floor);
-            stream.setSequence(result.floor.lastSequence);
-          } else if (result.kind === 'gap') {
-            void queryClient.invalidateQueries({ queryKey: queryKeys.staffFloor(branchId) });
-          }
-        },
-        onResync: () => {
-          lastAnswer.current = Date.now();
-          setStreamFailing(false);
-          setStaleSince(null);
-          setAnsweredAt(minuteOf(lastAnswer.current));
-          // The floor read again; the stream goes on from the sequence that
-          // read answers at (see the effect below). Not cancelling a read
-          // already on its way: on a slow link the first load would never
-          // finish (review N6).
-          void queryClient.invalidateQueries(
-            { queryKey: queryKeys.staffFloor(branchId) },
-            { cancelRefetch: false },
-          );
-          void queryClient.invalidateQueries({
-            queryKey: queryKeys.tabsAwaitingAdmission(branchId),
-          });
-          void queryClient.invalidateQueries({ queryKey: queryKeys.duePreOrders(branchId) });
-        },
-        onError: () => {
-          // Reported through the header's chip, which is the one place a
-          // waiter looks; a toast per poll would be noise on a screen nobody
-          // can dismiss things on.
-          setStreamFailing(true);
-          setStaleSince((since) => since ?? lastAnswer.current);
-        },
-      },
-    });
-
-    streamRef.current = stream;
-    stream.start();
-
-    const onVisibility = () => {
-      stream.setForeground(document.visibilityState === 'visible');
-    };
-    const onOnline = () => stream.refresh();
-
-    document.addEventListener('visibilitychange', onVisibility);
-    window.addEventListener('online', onOnline);
-
-    return () => {
-      stream.stop();
-      streamRef.current = null;
-      document.removeEventListener('visibilitychange', onVisibility);
-      window.removeEventListener('online', onOnline);
-    };
-  }, [active, branchId, gateway, queryClient]);
-
-  // A notice is transient. It stays long enough to read at arm's length and
-  // then goes, because nothing on this screen should need dismissing.
-  const noticeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  useEffect(() => {
-    if (!notice) return;
-    if (noticeTimer.current) clearTimeout(noticeTimer.current);
-    noticeTimer.current = setTimeout(
-      () => setNotice(null),
-      notice.undo ? UNDO_NOTICE_MS : NOTICE_MS,
-    );
-    return () => {
-      if (noticeTimer.current) clearTimeout(noticeTimer.current);
-    };
-  }, [notice]);
-
-  // A refusal lands in the conflicts chip. A "seated" toast still up beside it
-  // would claim what the server just refused, so it goes.
-  const conflictCount = queue.state.conflicts.length;
-  const seenConflicts = useRef(conflictCount);
-  useEffect(() => {
-    if (conflictCount > seenConflicts.current) {
-      setNotice((current) => (current?.acted ? null : current));
-    }
-    seenConflicts.current = conflictCount;
-  }, [conflictCount]);
-
-  // An order voided whole on a bill already paid against is refused (the
-  // server, 2026-10-25): that would be a refund. Said here, in words, and not
-  // only in the chip (`freshPaidRefusal`).
-  const conflicts = queue.state.conflicts;
-  const toldPaid = useRef<ReadonlySet<string>>(new Set());
-  useEffect(() => {
-    const fresh = freshPaidRefusal(conflicts, toldPaid.current, Date.now());
-    toldPaid.current = new Set(conflicts.map((entry) => entry.command.id));
-    if (!fresh) return;
-    setNotice({
-      kind: 'warning',
-      text: t('notice.orderVoidPaid', { label: fresh.command.subject.tableLabel ?? '' }),
-    });
-  }, [conflicts, t]);
+  const { streamFailing, answeredAt, staleSince } = useFloorLiveStream({
+    branchId,
+    active,
+    gateway,
+    queryClient,
+    floorSequence: floorQuery.data?.lastSequence,
+    floorReadAt: floorQuery.dataUpdatedAt,
+    setNotice,
+  });
+  useNoticeTimeout(notice, setNotice);
+  useConflictNotices(queue.state.conflicts, setNotice, t);
 
   // --- Panels ---------------------------------------------------------------
 
@@ -717,61 +246,25 @@ export function FloorRoute({ identity, device = null, paused, onUnpair }: FloorR
   // The tab with its lines and adjustments: one read, one moment.
   const tabQuery = useStaffTab(active ? activeTabId : null);
 
-  /**
-   * The menu, from disk first and the network second.
-   *
-   * Not fetched when order entry opens. A query the browser cannot send is
-   * *paused*, not failed, so a waiter who opens order entry after the wifi
-   * drops would get a grid that never resolves — and on a tablet that was
-   * rebooted offline there would be nothing in memory to fall back to either.
-   */
-  const menu = useCachedMenu(branchId, active);
-  const minute = useMinuteClock();
-
-  const ordersQuery = useOrderQueue(branchId, active);
-  const requestsQuery = useServiceRequests(branchId, active);
-  /** Bookings waiting for somebody here to say yes or no. Polled, chimed. */
-  const awaitingQuery = useAwaitingApproval(branchId, active);
-  const awaiting = useRequestArrivals(awaitingQuery.data, timeZoneId);
-  /** Tables that scanned with no verified number, waiting to be let in. */
-  const admissionQuery = useTabsAwaitingAdmission(branchId, active);
-  const waitingTables = useMemo(() => admissionQuery.data ?? [], [admissionQuery.data]);
-  /**
-   * Bookings with a pre-order, from the branch's `minutesBefore` until they
-   * end or it is on their tab. Read again at the next card's time, on the
-   * change stream's pre-order and booking signals, and after every action.
-   */
-  const preOrdersQuery = useDuePreOrders(branchId, active);
-  const duePreOrders = useMemo(() => preOrdersQuery.data?.items ?? [], [preOrdersQuery.data]);
-  /**
-   * The takeaway counter (2026-10-22): the rail's "Takeaway · accept" cards,
-   * the Takeaway page and its tab's count. Polled every ten seconds, in the
-   * background too — an order nobody answers is declined in five minutes.
-   */
-  const takeawayQuery = useTakeawayOrders(branchId, active);
-  const takeawayCounter = takeawayQuery.data ?? null;
-  /**
-   * Whether the branch has takeaway today: an order active or finished. A
-   * venue that never took one is shown no tab, and no failure to read a
-   * counter it does not have.
-   */
-  const takeawayInUse =
-    takeawayCounter !== null &&
-    (takeawayCounter.active.length > 0 || takeawayCounter.finishedToday.length > 0);
-  /**
-   * Guest messages (2026-10-23): the Messages tab and its badge, the rail's
-   * section and the reminder. Polled every ten seconds, in the background too:
-   * a guest's message pushes nothing to the tablet.
-   */
-  const inboxQuery = useBranchConversations(branchId, active);
-  const inbox = inboxQuery.data ?? null;
-  const reminderClock = useNow(15_000);
-  const reminders = useMessageReminders(
-    inbox?.items,
-    inbox?.remindAfterMinutes ?? 3,
+  const {
+    menu,
+    minute,
+    ordersQuery,
+    requestsQuery,
+    awaitingQuery,
+    awaiting,
+    admissionQuery,
+    waitingTables,
+    preOrdersQuery,
+    duePreOrders,
+    takeawayQuery,
+    takeawayCounter,
+    takeawayInUse,
+    inboxQuery,
+    inbox,
     reminderClock,
-    active,
-  );
+    reminders,
+  } = useFloorQueries(branchId, active, timeZoneId);
   const canWriteMessages = staffMayWrite(identity.role, {
     waitersCanWrite: inbox?.waitersCanWrite ?? true,
   });
@@ -784,91 +277,28 @@ export function FloorRoute({ identity, device = null, paused, onUnpair }: FloorR
       setPhoneTab('messages');
       if (!onMessagesPath) navigate('/staff/messages');
     },
-    [navigate, onMessagesPath],
+    [navigate, onMessagesPath, setApproving, setMessageSubject, setPhoneTab, setView],
   );
 
-  // --- A tapped notification (`docs/notifications.md` §6a) -------------------
-  //
-  // `/staff/approve/{id}`, `/staff/messages/{conversationId}`, `/staff/now?call=`,
-  // `/staff/takeaway/{orderId}` and `/staff/floor?table=` (`pwa/deepLinks.ts`):
-  // read once, when what it points at has loaded and the screen is unlocked,
-  // then the address goes back to the screen's own so Back does not reopen it.
-  const [pendingLink, setPendingLink] = useState<StaffLink | null>(() =>
-    staffLinkOf(location.pathname, location.search),
-  );
-  const [lastLinkKey, setLastLinkKey] = useState(location.key);
-  if (location.key !== lastLinkKey) {
-    setLastLinkKey(location.key);
-    const link = staffLinkOf(location.pathname, location.search);
-    if (link) setPendingLink(link);
-  }
-  /**
-   * Where the address goes once a link is read: a fresh object each time, so
-   * the effect below navigates once per link.
-   */
-  const [linkHome, setLinkHome] = useState<{ readonly path: string } | null>(null);
-  // Resolved while rendering, as the Messages address is above: what the
-  // link points at has loaded, so the screen it opens is set in this render.
-  if (pendingLink && active) {
-    const settle = (path: string) => {
-      setPendingLink(null);
-      setLinkHome({ path });
-    };
-    switch (pendingLink.kind) {
-      case 'approve': {
-        const list = awaitingQuery.data;
-        if (!list && !awaitingQuery.isError) break;
-        const request = list?.find((one) => one.id === pendingLink.reservationId) ?? null;
-        setSelection(null);
-        setMoreScreen(null);
-        setView('floor');
-        setPhoneTab('now');
-        // On the phone, its own screen; on the tablet, the rail beside the
-        // floor lists it already.
-        setApproving(phone ? request : null);
-        if (!request) setNotice({ kind: 'info', text: t('phone.approve.gone') });
-        settle('/staff');
-        break;
-      }
-      case 'message': {
-        if (!inbox && !inboxQuery.isError) break;
-        const item = inbox?.items.find((one) => one.conversationId === pendingLink.conversationId);
-        setSelection(null);
-        setApproving(null);
-        setMoreScreen(null);
-        setMessageSubject(item ? { kind: item.subject.kind, id: item.subject.id } : null);
-        setView('messages');
-        setPhoneTab('messages');
-        settle('/staff/messages');
-        break;
-      }
-      case 'call':
-      case 'takeaway':
-        setSelection(null);
-        setApproving(null);
-        setMoreScreen(null);
-        setView(pendingLink.kind === 'takeaway' ? 'takeaway' : 'floor');
-        setPhoneTab(pendingLink.kind === 'takeaway' ? 'takeaway' : 'now');
-        settle('/staff');
-        break;
-      case 'table': {
-        if (!floor && !floorQuery.isError) break;
-        setApproving(null);
-        setMoreScreen(null);
-        setView('floor');
-        setPhoneTab('floor');
-        const tableId = pendingLink.tableId;
-        setSelection(
-          tableId && floor?.plan.tables.some((table) => table.id === tableId) ? { tableId } : null,
-        );
-        settle('/staff');
-        break;
-      }
-    }
-  }
-  useEffect(() => {
-    if (linkHome) navigate(linkHome.path, { replace: true });
-  }, [linkHome, navigate]);
+  useStaffDeepLink({
+    location,
+    navigate,
+    active,
+    phone,
+    t,
+    awaiting: awaitingQuery,
+    inbox,
+    inboxFailed: inboxQuery.isError,
+    floor,
+    floorFailed: floorQuery.isError,
+    setSelection,
+    setApproving,
+    setMoreScreen,
+    setView,
+    setPhoneTab,
+    setMessageSubject,
+    setNotice,
+  });
 
   // The browser's push subscription kept the server's, and the language the
   // pushes are written in kept the app's.
@@ -892,14 +322,6 @@ export function FloorRoute({ identity, device = null, paused, onUnpair }: FloorR
   const takeawayTime = useCallback((iso: string) => format.time(iso), [format]);
   // The Kitchen tab's "Ready" on a takeaway ticket: online only, never queued.
   const takeawayReady = useTakeawayReady(branchId, say, takeawayTime);
-
-  const voidLine = useVoidLine();
-  const compLine = useCompLine();
-  const abandonTab = useAbandonTab();
-  const recordCash = useRecordCashPayment();
-  const beginClosing = useBeginClosing();
-  const releaseReservation = useReleaseReservation(branchId);
-  const openTabForStaff = useOpenTabForStaff();
 
   const selectedTabId = selectedDetail?.openTabId ?? null;
   const selectedTabQuery = useStaffTab(active ? selectedTabId : null);
@@ -938,59 +360,11 @@ export function FloorRoute({ identity, device = null, paused, onUnpair }: FloorR
     [floorQuery.data, clockMs],
   );
 
-  const preOrderDone = useCallback(
-    (outcome: PreOrderOutcome) =>
-      setNotice({
-        kind: 'info',
-        text:
-          outcome.kind === 'notComing'
-            ? t('preOrders.notComingNotice', { label: outcome.tableLabel })
-            : outcome.wasReplay
-              ? t('preOrders.alreadySentNotice', { label: outcome.tableLabel })
-              : t('preOrders.sentNotice', { label: outcome.tableLabel }),
-      }),
-    [t],
-  );
-
-  const admissionDecided = useCallback(
-    (outcome: AdmissionOutcome) =>
-      setNotice({
-        kind: 'info',
-        text:
-          outcome.kind === 'admitted'
-            ? t('admission.admittedNotice', { label: outcome.tableLabel })
-            : outcome.heldAgain
-              ? t('admission.rejectedHeldNotice', { label: outcome.tableLabel })
-              : outcome.tableFreed
-                ? t('admission.rejectedFreedNotice', { label: outcome.tableLabel })
-                : t('admission.rejectedNotice', { label: outcome.tableLabel }),
-      }),
-    [t],
-  );
-
-  /** A booking answered from the rail or the phone's Approve screen: said in the notice. */
-  const approvalDecided = useCallback(
-    ({ approved, request }: { readonly approved: boolean; readonly request: AwaitingApproval }) =>
-      setNotice({
-        kind: 'info',
-        // Dated like the card when the booking is not for today.
-        text: decidedNotice(
-          request,
-          approved,
-          t,
-          format.time,
-          branchToday(timeZoneId, (iso) => format.dayAndTime(iso).date, new Date()),
-        ),
-      }),
-    [format, t, timeZoneId],
-  );
-  const approvalRefused = useCallback(
-    ({ request, text }: { readonly request: AwaitingApproval; readonly text: string }) =>
-      setNotice({
-        kind: 'warning',
-        text: `${t('table.title', { label: request.tableLabel })} · ${text}`,
-      }),
-    [t],
+  const { preOrderDone, admissionDecided, approvalDecided, approvalRefused } = useOutcomeNotices(
+    t,
+    format,
+    timeZoneId,
+    setNotice,
   );
 
   /** Whose shift it is: the phone's More ("My shift"). A phone's roster is its own person. */
@@ -998,487 +372,82 @@ export function FloorRoute({ identity, device = null, paused, onUnpair }: FloorR
 
   // --- Acting ---------------------------------------------------------------
 
-  /**
-   * An unresolved tab has no table any more — it was freed — but the money is
-   * still owed, so the panel has to be openable from the tab id alone. Filed
-   * under a key that cannot collide with a real table id.
-   */
-  const settleUnresolved = useCallback((tabId: string) => {
-    setUnresolvedTabId(tabId);
-    setOverlayTabId(tabId);
-    setActiveTableId(UNRESOLVED_KEY);
-    setCashFirst(false);
-    setOverlay('tab');
-  }, []);
-
-  const act = useCallback(
-    (kind: TableActionKind, input?: { partySize?: number }) => {
-      if (!branchId || !selection) return;
-      const detail = tableDetail(floor, selection.tableId);
-      const table = plan?.tables.find((candidate) => candidate.id === selection.tableId);
-
-      // One id per tap, reused on every retry. Generated here and nowhere else.
-      const clientCommandId = newCommandId();
-
-      // The precondition is the status the table will be in once everything
-      // already queued for it has been applied — not the status the server last
-      // reported, which a queued seat may already have superseded.
-      const expected = queue.projected(selection.tableId) ?? detail?.physicalStatus ?? 'free';
-
-      /**
-       * The version is only sent when the queue has nothing else pending for
-       * this table.
-       *
-       * A version captured from the floor describes the table *before* the
-       * commands ahead of this one land, and each of those changes it. Sending
-       * it would refuse a chain the waiter deliberately built — seat, then free
-       * — as though the table had been used by somebody else. The status
-       * projection above handles the chain; the version guards the case it
-       * cannot, which is the single unqueued tap.
-       */
-      const chained = queue.projected(selection.tableId) !== (detail?.physicalStatus ?? null);
-      const rowVersion = chained ? null : (detail?.rowVersion ?? null);
-
-      const command: NewCommand = {
-        id: clientCommandId,
-        scope: selection.tableId,
-        precondition: { expectedFromStatus: expected, rowVersion },
-        subject: {
-          tableId: selection.tableId,
-          tableLabel: table?.label ?? null,
-          tabId: selectedTabId,
-        },
-        body: {
-          kind,
-          command: {
-            kind,
-            branchId,
-            tableId: selection.tableId,
-            clientCommandId,
-            ...(input?.partySize !== undefined ? { partySize: input.partySize } : {}),
-            ...(kind === 'seatHeldParty' && detail?.nextReservationId
-              ? { reservationId: detail.nextReservationId }
-              : {}),
-            ...(kind === 'seatReservation' && detail?.nextReservationId
-              ? { reservationId: detail.nextReservationId }
-              : {}),
-          },
-        },
-      };
-
-      queue.enqueue(command);
-      queue.sync();
-      setSelection(null);
-
-      const label = table?.label ?? '';
-      const done = actedNotice(
-        t,
-        kind,
-        label,
-        input?.partySize ?? detail?.nextReservationPartySize,
-      );
-      if (done) {
-        setNotice({
-          kind: 'info',
-          // Offline it is on the tablet, not on the server: said, so nobody
-          // expects the kitchen or the other tablet to know yet.
-          text: queue.online ? done : t('notice.acted.queued', { text: done }),
-          acted: true,
-        });
-      }
-    },
-    [branchId, floor, plan, queue, selection, selectedTabId, t],
-  );
-
-  /** An undo answered: said in the notice, and off the rail once nothing is left to undo. */
-  const undoSettled = useCallback((reservationId: string, outcome: UndoOutcome) => {
-    setNotice({ kind: outcome.kind, text: outcome.text });
-    if (outcome.settled) {
-      setMarkedNoShows((current) =>
-        current.filter((entry) => entry.reservationId !== reservationId),
-      );
-    }
-  }, []);
-
-  const release = useCallback(
-    (reservationId: string, outcome: ReleaseOutcome) => {
-      // When the booking was due, read before the release takes it off the floor.
-      const startUtc =
-        floor?.details.find((detail) => detail.nextReservationId === reservationId)
-          ?.nextReservationStartUtc ?? null;
-      releaseReservation.mutate(
-        { reservationId, outcome, clientCommandId: newCommandId() },
-        {
-          onSuccess: (result) => {
-            // A no-show marked by mistake can be undone until 05:00 the next
-            // morning: offered while that holds on this clock, and the server
-            // has the last word. Not on a replay's other outcome.
-            const undoableUntil =
-              result.outcome === 'noShow' && startUtc !== null
-                ? noShowUndoableUntil(startUtc, timeZoneId)
-                : null;
-            const undoable =
-              result.outcome === 'noShow' &&
-              (undoableUntil === null || Date.now() < undoableUntil.getTime());
-            if (undoable && undoableUntil) {
-              const marked: MarkedNoShow = {
-                reservationId: result.reservationId,
-                tableLabel: result.tableLabel,
-                undoableUntilUtc: undoableUntil.toISOString(),
-              };
-              setMarkedNoShows((current) => [
-                ...current.filter((entry) => entry.reservationId !== marked.reservationId),
-                marked,
-              ]);
-            }
-            setNotice({
-              kind: 'info',
-              // The server says whether it counted, rather than the button
-              // being trusted to remember which one it was.
-              text: [
-                result.countsTowardNoShowThreshold
-                  ? t('notice.releasedNoShow', { label: result.tableLabel })
-                  : t('notice.releasedCancelled', { label: result.tableLabel }),
-                // This no-show was the guest's third in three days (wire §0a).
-                ...(result.guestBlockedUntilUtc
-                  ? [
-                      t('notice.guestBlocked', {
-                        date: format.dayAndTime(result.guestBlockedUntilUtc).date,
-                        time: format.time(result.guestBlockedUntilUtc),
-                      }),
-                    ]
-                  : []),
-              ].join(' '),
-              ...(undoable
-                ? { undo: { reservationId: result.reservationId, tableLabel: result.tableLabel } }
-                : {}),
-            });
-            setAffected((current) => {
-              const next = new Map(current);
-              for (const [tableId, bookings] of current) {
-                next.set(
-                  tableId,
-                  bookings.filter((booking) => booking.reservationId !== reservationId),
-                );
-              }
-              return next;
-            });
-          },
-          onError: (error) => {
-            // Refused, so nothing changed: the panel's "let go" was optimistic
-            // and goes with it, and the floor shows the table as it is.
-            setSelection(null);
-            if (error instanceof ReservationNotStartedError) {
-              // Only a booking whose time has come can be a no-show; the hold
-              // stays. Said with the time it is due (FT2 wire).
-              const label =
-                floor?.plan.tables.find(
-                  (table) => tableDetail(floor, table.id)?.nextReservationId === reservationId,
-                )?.label ?? '';
-              setNotice({
-                kind: 'warning',
-                text: t('notice.releaseNotDue', {
-                  label,
-                  time: error.startUtc ? format.time(error.startUtc) : '—',
-                }),
-              });
-              return;
-            }
-            setNotice({ kind: 'info', text: t('notice.releaseFailed') });
-          },
-        },
-      );
-    },
-    [floor, format, releaseReservation, t, timeZoneId],
-  );
-
-  /**
-   * A tab for the party that is not going to scan. The panel stays open: once
-   * the floor refetch lands it shows "Take an order" in place of this button.
-   */
-  const startTab = useCallback(
-    (tableId: string) => {
-      if (!branchId) return;
-      const tableLabel = floor?.plan.tables.find((table) => table.id === tableId)?.label ?? '';
-      openTabForStaff.mutate(
-        { branchId, tableId, clientCommandId: newCommandId() },
-        {
-          onSuccess: () =>
-            setNotice({ kind: 'info', text: t('notice.tabStarted', { label: tableLabel }) }),
-          onError: (error) =>
-            setNotice({
-              kind: 'info',
-              text:
-                error instanceof TableNotSeatedError
-                  ? t('notice.tabNotSeated', { label: tableLabel })
-                  : t('notice.startTabFailed'),
-            }),
-        },
-      );
-    },
-    [branchId, floor, openTabForStaff, t],
-  );
-
-  const advanceOrder = useCallback(
-    (order: OrderQueueEntry, next: OrderStatus) => {
-      const clientCommandId = newCommandId();
-      queue.enqueue({
-        id: clientCommandId,
-        // A held pre-order ticket has no tab yet: its own id keeps its moves in order.
-        scope: order.tabId ?? order.orderId,
-        precondition: null,
-        // `KitchenOrderView` carries no table id. The label is what the rail
-        // shows and what a conflict entry needs; a lookup by label could name
-        // the wrong table, so there is deliberately no id here.
-        subject: { tableId: null, tableLabel: order.tableLabel, tabId: order.tabId },
-        body: {
-          kind: 'setOrderStatus',
-          command: { orderId: order.orderId, status: next, clientCommandId },
-        },
-      });
-      queue.sync();
-      void queryClient.invalidateQueries({ queryKey: queryKeys.orderQueue(branchId) });
-      if (next === 'served') {
-        setNotice({
-          kind: 'info',
-          text: t('rail.ready.servedNotice', { label: order.tableLabel }),
-        });
-      }
-      if (next === 'ready') {
-        setNotice({
-          kind: 'info',
-          text: t(queue.online ? 'kitchen.readyNotice' : 'kitchen.readyQueued', {
-            label: order.tableLabel,
-          }),
-        });
-      }
-    },
-    [branchId, queryClient, queue, t],
-  );
-
-  // --- "I'm on it" (2026-10-24) ---------------------------------------------
-  //
-  // A claim is online only: the first one wins on the server, so a claim
-  // queued offline would be a guess. "On my way" on a call nobody has taken
-  // claims it too, quietly — the response time is measured to the claim.
-  //
-  // `mutateAsync`, not `mutate` with per-call callbacks: one mutation hook
-  // serves every call, and TanStack only runs a `mutate` call's own callbacks
-  // for the latest call — two claims in flight (or a quiet one under "On my
-  // way") would leave the first stuck in `claiming`, its button disabled for
-  // good, and its race notice unsaid.
-  const { mutateAsync: claimAsync } = useClaimServiceRequest();
-  const [claiming, setClaiming] = useState<ReadonlySet<string>>(new Set());
-  const claim = useCallback(
-    (request: ServiceRequest, quiet = false) => {
-      if (!queue.online || request.claimedByName) return;
-      setClaiming((current) => new Set(current).add(request.id));
-      claimAsync({ branchId, requestId: request.id })
-        .then((claimed) => {
-          if (quiet) return;
-          // The server answers a lost race with the winner's claim.
-          const mine = claimed.claimedByStaffMemberId
-            ? claimed.claimedByStaffMemberId === identity.staffMemberId
-            : !claimed.claimedByName || claimed.claimedByName === identity.fullName;
-          setNotice({
-            kind: mine ? 'info' : 'race',
-            text: mine
-              ? t('rail.calls.claimNotice', { label: request.tableLabel })
-              : t('rail.calls.claimTaken', {
-                  label: request.tableLabel,
-                  name: firstName(claimed.claimedByName ?? ''),
-                }),
-          });
-        })
-        .catch(() => {
-          if (!quiet) {
-            setNotice({
-              kind: 'warning',
-              text: t('rail.calls.claimFailed', { label: request.tableLabel }),
-            });
-          }
-        })
-        .finally(() =>
-          setClaiming((current) => {
-            const next = new Set(current);
-            next.delete(request.id);
-            return next;
-          }),
-        );
-    },
-    [branchId, claimAsync, identity.fullName, identity.staffMemberId, queue.online, t],
-  );
-
-  /**
-   * The staff acknowledgement, through the queue like every other command —
-   * the same call "On my way" makes.
-   */
-  const sendAcknowledge = useCallback(
-    (request: ServiceRequest) => {
-      const clientCommandId = newCommandId();
-      queue.enqueue({
-        id: clientCommandId,
-        scope: request.tabId,
-        precondition: null,
-        subject: { tableId: null, tableLabel: request.tableLabel, tabId: request.tabId },
-        body: {
-          kind: 'acknowledgeServiceRequest',
-          command: { requestId: request.id, clientCommandId },
-        },
-      });
-      queue.sync();
-      void queryClient.invalidateQueries({ queryKey: queryKeys.serviceRequests(branchId) });
-    },
-    [branchId, queryClient, queue],
-  );
-
-  const acknowledge = useCallback(
-    (request: ServiceRequest) => {
-      if (request.reason === 'bill' && request.bill) {
-        setAcknowledgedBills((current) => new Map(current).set(request.id, request));
-      }
-      claim(request, true);
-      sendAcknowledge(request);
-      setNotice({
-        kind: 'info',
-        // Offline it waits in the queue: the guest has seen nothing yet.
-        text: t(queue.online ? 'rail.calls.ackNotice' : 'rail.calls.ackQueued', {
-          label: request.tableLabel,
-        }),
-      });
-    },
-    [claim, queue.online, sendAcknowledge, t],
-  );
-
-  // --- Transfer a table (2026-10-24, list from the server 2026-10-25) --------
-  //
-  // Who could take it, read from the server when the chooser opens: exactly the
-  // people the transfer accepts (active, serving here, not the table's waiter
-  // now), on shift first, each with the tables they hold. One list for the
-  // tablet and the phone alike, whose own roster is only its person.
-  const transferTab = useTransferTab(branchId);
-  /** The tab whose chooser is open: nothing is read before somebody asks. */
-  const [transferWantedFor, setTransferWantedFor] = useState<string | null>(null);
-  const transferTargetsQuery = useTransferTargets(
+  const {
+    releaseReservation,
+    openTabForStaff,
+    settleUnresolved,
+    act,
+    undoSettled,
+    release,
+    startTab,
+    advanceOrder,
+  } = useTableActions({
+    branchId,
+    floor,
+    plan,
+    queue,
+    selection,
     selectedTabId,
-    selectedTabId !== null && transferWantedFor === selectedTabId,
-  );
-  const transferTargets = useMemo((): readonly TransferTarget[] | null => {
-    if (!transferTargetsQuery.data) return null;
-    return transferTargetsQuery.data.map((target) => ({
-      staffMemberId: target.staffMemberId,
-      name: target.name,
-      roleLabel: t(`pin.role.${target.role}`),
-      onShift: target.onShiftNow,
-      load: target.openTables,
-    }));
-  }, [t, transferTargetsQuery.data]);
-  const transferTargetsFailed = transferTargetsQuery.isError;
-  /** A 403 is an answer: only the table's waiter or a manager hands it over. */
-  const transferNotYours = transferTargetsQuery.error instanceof ForbiddenError;
-  const transfer = useCallback(
-    (
-      tabId: string,
-      tableLabel: string,
-      target: TransferTarget,
-      onDone?: (result: { readonly name: string; readonly atUtc: string }) => void,
-    ) => {
-      transferTab.mutate(
-        { tabId, toStaffMemberId: target.staffMemberId, clientCommandId: newCommandId() },
-        {
-          onSuccess: (result) => {
-            const name = result.server.name || target.name;
-            // The phone's sheet says it itself, and stays up until "Done".
-            if (onDone) {
-              // The server's own time: the one the history line carries.
-              onDone({ name, atUtc: result.transferredAtUtc });
-              return;
-            }
-            setNotice({
-              kind: 'info',
-              text: t('table.transfer.done', { label: tableLabel, name }),
-            });
-            setSelection(null);
-          },
-          onError: (error) => {
-            // The server says why (`transfer-target-ineligible` and its
-            // reason, or `tab-not-transferable`); anything else is a retry.
-            const refusal = transferRefusalOf(error);
-            const name = target.name.split(/\s+/u)[0] ?? target.name;
-            setNotice({
-              kind: 'warning',
-              text:
-                // Not this person's table (somebody else's waiter, not a manager).
-                error instanceof ForbiddenError
-                  ? t('table.transfer.notYours', { label: tableLabel })
-                  : refusal?.kind === 'notTransferable'
-                    ? t('table.transfer.closed', { label: tableLabel })
-                    : refusal?.reason === 'does-not-serve'
-                      ? t('table.transfer.notServing', { name })
-                      : refusal?.reason === 'other-branch'
-                        ? t('table.transfer.otherBranch', { name })
-                        : refusal?.reason === 'inactive' || refusal?.reason === 'not-found'
-                          ? t('table.transfer.gone', { name })
-                          : t('table.transfer.refused', { label: tableLabel }),
-            });
-          },
-        },
-      );
-    },
-    [t, transferTab],
-  );
-
-  const submitOrder = useCallback(
-    (lines: readonly PlaceOrderLine[]) => {
-      if (!activeTabId) {
-        // There is no way for a waiter to open a tab: `POST /api/tabs/open`
-        // takes the QR token printed on the table. Said plainly rather than
-        // queueing an order against a tab id that does not exist.
-        setNotice({ kind: 'info', text: t('order.noTab') });
-        return;
-      }
-
-      const clientCommandId = newCommandId();
-      const count = lines.reduce((sum, line) => sum + line.quantity, 0);
-      queue.enqueue({
-        id: clientCommandId,
-        scope: activeTabId,
-        precondition: null,
-        subject: {
-          tableId: activeTableId,
-          tableLabel: plan?.tables.find((table) => table.id === activeTableId)?.label ?? null,
-          tabId: activeTabId,
-          itemCount: count,
-        },
-        body: {
-          kind: 'placeOrder',
-          command: { tabId: activeTabId, clientCommandId, lines, shape: 2 },
-        },
-      });
-      queue.sync();
-      // Order entry stays up and says what became of it.
-      setOrderSend({ id: clientCommandId, count, atUtc: new Date().toISOString() });
-    },
-    [activeTabId, activeTableId, plan, queue, t],
-  );
-
-  const orderSent = useMemo((): OrderSent | null => {
-    if (!orderSend) return null;
-    const conflict = queue.state.conflicts.find((entry) => entry.command.id === orderSend.id);
-    const waiting = queue.state.queue.some((command) => command.id === orderSend.id);
-    return {
-      count: orderSend.count,
-      atUtc: orderSend.atUtc,
-      state: conflict ? 'refused' : waiting ? (queue.online ? 'sending' : 'saved') : 'sent',
-      refusal: conflict ? orderRefusalOf(conflict.refusal) : null,
-    };
-  }, [orderSend, queue.state, queue.online]);
+    timeZoneId,
+    format,
+    queryClient,
+    t,
+    setNotice,
+    setSelection,
+    setUnresolvedTabId,
+    setOverlayTabId,
+    setActiveTableId,
+    setCashFirst,
+    setOverlay,
+    setMarkedNoShows,
+    setAffected,
+  });
+  const { claiming, claim, sendAcknowledge, acknowledge } = useServiceCalls({
+    identity,
+    queue,
+    queryClient,
+    t,
+    setNotice,
+    setAcknowledgedBills,
+  });
+  const {
+    transferTab,
+    setTransferWantedFor,
+    transferTargets,
+    transferTargetsFailed,
+    transferNotYours,
+    transfer,
+  } = useTableTransfer({ branchId, selectedTabId, t, setNotice, setSelection });
+  const { orderSend, setOrderSend, submitOrder, orderSent } = useOrderSend({
+    activeTabId,
+    activeTableId,
+    plan,
+    queue,
+    t,
+    setNotice,
+  });
 
   const closeOverlay = useCallback(() => {
     setCashFirst(false);
     setOrderSend(null);
     setOverlay('none');
-  }, []);
+  }, [setOrderSend]);
+
+  const tabActions = useTabActions({
+    branchId,
+    activeTabId,
+    tab: tabQuery.data,
+    acknowledgedBills,
+    sendAcknowledge,
+    format,
+    queryClient,
+    t,
+    setNotice,
+    setCashRefusal,
+    setSettledBillIds,
+    setAcknowledgedBills,
+    setUnresolved,
+  });
 
   // --- Render ---------------------------------------------------------------
 
@@ -1498,6 +467,11 @@ export function FloorRoute({ identity, device = null, paused, onUnpair }: FloorR
     : branchId
       ? t('admin:loading')
       : t('floor.noBranch');
+  const updatedAt =
+    Math.max(
+      (streamFailing || floorQuery.isError ? staleSince : answeredAt) ?? 0,
+      floorQuery.dataUpdatedAt,
+    ) || null;
 
   const unresolvedList = useMemo(
     () => unresolved.filter((entry) => entry.amountDram > 0),
@@ -1512,41 +486,10 @@ export function FloorRoute({ identity, device = null, paused, onUnpair }: FloorR
 
   const activeTabLabel = plan?.tables.find((table) => table.id === activeTableId)?.label ?? '';
 
-  /**
-   * The tab's bill requests with an amount on them — still unanswered in the
-   * branch list, or answered from this device — and not yet paid against,
-   * newest first.
-   *
-   * One per person: a new request from somebody replaces their earlier one
-   * (the server drops the superseded one from its list; a copy this device
-   * kept after "On my way" is dropped here the same way).
-   */
+  /** The tab's bill requests with an amount on them, newest first (`billRequestsForTab`). */
   const billRequestsFor = useCallback(
-    (tabId: string | null): readonly ServiceRequest[] => {
-      if (!tabId) return [];
-      const byId = new Map<string, ServiceRequest>();
-      for (const request of [
-        ...(requestsQuery.data ?? []).filter(
-          (candidate) => candidate.tabId === tabId && candidate.reason === 'bill',
-        ),
-        ...[...acknowledgedBills.values()].filter((candidate) => candidate.tabId === tabId),
-      ]) {
-        if (request.bill !== null && !settledBillIds.has(request.id) && !byId.has(request.id)) {
-          byId.set(request.id, request);
-        }
-      }
-      const newestFirst = [...byId.values()].sort((a, b) =>
-        b.requestedAtUtc.localeCompare(a.requestedAtUtc),
-      );
-      const seen = new Set<string>();
-      return newestFirst.filter((request) => {
-        const who = request.requestedByParticipantId;
-        if (who === null) return true;
-        if (seen.has(who)) return false;
-        seen.add(who);
-        return true;
-      });
-    },
+    (tabId: string | null) =>
+      billRequestsForTab(tabId, requestsQuery.data, acknowledgedBills, settledBillIds),
     [acknowledgedBills, requestsQuery.data, settledBillIds],
   );
   const activeBillRequests = useMemo(
@@ -1578,43 +521,25 @@ export function FloorRoute({ identity, device = null, paused, onUnpair }: FloorR
   const ordersLoading = ordersQuery.isLoading && !isOfflinePaused(ordersQuery);
   const ordersFailed = ordersQuery.isError || (isOfflinePaused(ordersQuery) && !ordersQuery.data);
   const now = new Date();
+  /** What waits on Now (the phone) or the floor's rail (the tablet): its tab's count. */
+  const nowWaiting =
+    (awaitingQuery.data?.length ?? 0) +
+    waitingTables.length +
+    duePreOrders.filter(preOrderNeedsAction).length +
+    (requestsQuery.data?.length ?? 0);
+  const messagesWaiting = inbox?.unreadTotal ?? floor?.messages?.unreadTotal ?? 0;
 
-  const wideNotice = !phone && view !== 'floor';
   const noticeNode = (
-    <>
-      {/* Never over the PIN gate: a notice that lands as the tablet locks is
-          somebody else's news, and the next person should not read it. */}
-      {notice?.undo && !paused && branchId ? (
-        <UndoNoShowNotice
-          // A fresh one per no-show: a tap on the last one never carries over.
-          key={notice.undo.reservationId}
-          branchId={branchId}
-          noShow={notice.undo}
-          text={notice.text}
-          online={queue.online}
-          wide={wideNotice}
-          timeZoneId={timeZoneId}
-          onSettled={(outcome) => undoSettled(notice.undo!.reservationId, outcome)}
-        />
-      ) : notice && !paused ? (
-        <p
-          className={`floor-notice notice-${notice.kind}${wideNotice ? ' is-wide' : ''}`}
-          role="status"
-        >
-          {notice.blockCancelled?.length === 1
-            ? t('notice.bookingCancelledByBlock', {
-                label: notice.blockCancelled[0]!.tableLabel,
-                time: format.time(notice.blockCancelled[0]!.startUtc),
-              })
-            : notice.blockCancelled
-              ? t('notice.bookingsCancelledByBlock', {
-                  count: notice.blockCancelled.length,
-                  labels: notice.blockCancelled.map((entry) => entry.tableLabel).join(', '),
-                })
-              : notice.text}
-        </p>
-      ) : null}
-    </>
+    <FloorNotice
+      notice={notice}
+      paused={paused}
+      branchId={branchId}
+      online={queue.online}
+      wide={!phone && view !== 'floor'}
+      timeZoneId={timeZoneId}
+      time={format.time}
+      onUndoSettled={undoSettled}
+    />
   );
 
   const announcers = (
@@ -1713,6 +638,7 @@ export function FloorRoute({ identity, device = null, paused, onUnpair }: FloorR
     </>
   );
 
+  /** The tapped table's panel: beside the floor on the tablet, a bottom sheet on the phone. */
   const tablePanel = (variant: 'rail' | 'sheet') =>
     selection && selectedTable ? (
       <TableActionPanel
@@ -1815,751 +741,170 @@ export function FloorRoute({ identity, device = null, paused, onUnpair }: FloorR
       />
     ) : null;
 
-  const noShowsSection = branchId ? (
-    <NoShowSection
-      branchId={branchId}
-      marked={undoableNoShows}
-      online={queue.online}
-      timeZoneId={timeZoneId}
-      onSettled={(noShow, outcome) => undoSettled(noShow.reservationId, outcome)}
-    />
-  ) : null;
-  const preOrdersSection = branchId ? (
-    <PreOrderSection
-      branchId={branchId}
-      items={duePreOrders}
-      timeZoneId={timeZoneId}
-      loading={preOrdersQuery.isLoading && !isOfflinePaused(preOrdersQuery)}
-      failed={preOrdersQuery.isError || (isOfflinePaused(preOrdersQuery) && !preOrdersQuery.data)}
-      online={queue.online}
-      onDone={preOrderDone}
-    />
-  ) : null;
-  const admissionsSection = branchId ? (
-    <AdmissionSection
-      branchId={branchId}
-      waiting={waitingTables}
-      timeZoneId={timeZoneId}
-      loading={admissionQuery.isLoading && !isOfflinePaused(admissionQuery)}
-      failed={admissionQuery.isError || (isOfflinePaused(admissionQuery) && !admissionQuery.data)}
-      online={queue.online}
-      onDecided={admissionDecided}
-      heldForLateParty={heldForLateParty}
-    />
-  ) : null;
-  const messagesRailSection = branchId ? (
-    <MessagesRailSection
-      branchId={branchId}
-      items={inbox?.items ?? []}
-      remindAfterMinutes={inbox?.remindAfterMinutes ?? 3}
-      now={reminderClock}
-      canWrite={canWriteMessages}
-      staffName={identity.fullName}
-      timeZoneId={timeZoneId}
-      online={queue.online}
-      failed={inboxQuery.isError && !inboxQuery.data}
-      icon={ICONS.chat}
-      onReply={openConversation}
-      onOpenInbox={() => openConversation(null)}
-    />
-  ) : null;
+  /** The rail as both shells draw it, but for its frame, its approvals and its takeaway. */
+  const rail: FloorRailShared = {
+    summary,
+    requests: requestsQuery.data ?? [],
+    requestsFailed:
+      requestsQuery.isError || (isOfflinePaused(requestsQuery) && !requestsQuery.data),
+    requestsLoading: requestsQuery.isLoading && !isOfflinePaused(requestsQuery),
+    orders,
+    ordersLoading,
+    ordersFailed,
+    timeZoneId,
+    onAcknowledge: acknowledge,
+    onClaim: queue.online ? (request) => claim(request) : undefined,
+    claiming,
+    selfStaffMemberId: identity.staffMemberId,
+    onAdvance: advanceOrder,
+    noShows: branchId ? (
+      <NoShowSection
+        branchId={branchId}
+        marked={undoableNoShows}
+        online={queue.online}
+        timeZoneId={timeZoneId}
+        onSettled={(noShow, outcome) => undoSettled(noShow.reservationId, outcome)}
+      />
+    ) : null,
+    preOrders: branchId ? (
+      <PreOrderSection
+        branchId={branchId}
+        items={duePreOrders}
+        timeZoneId={timeZoneId}
+        loading={preOrdersQuery.isLoading && !isOfflinePaused(preOrdersQuery)}
+        failed={preOrdersQuery.isError || (isOfflinePaused(preOrdersQuery) && !preOrdersQuery.data)}
+        online={queue.online}
+        onDone={preOrderDone}
+      />
+    ) : null,
+    admissions: branchId ? (
+      <AdmissionSection
+        branchId={branchId}
+        waiting={waitingTables}
+        timeZoneId={timeZoneId}
+        loading={admissionQuery.isLoading && !isOfflinePaused(admissionQuery)}
+        failed={admissionQuery.isError || (isOfflinePaused(admissionQuery) && !admissionQuery.data)}
+        online={queue.online}
+        onDecided={admissionDecided}
+        heldForLateParty={heldForLateParty}
+      />
+    ) : null,
+    unresolved: unresolvedList,
+    onSettle: settleUnresolved,
+    messages: branchId ? (
+      <MessagesRailSection
+        branchId={branchId}
+        items={inbox?.items ?? []}
+        remindAfterMinutes={inbox?.remindAfterMinutes ?? 3}
+        now={reminderClock}
+        canWrite={canWriteMessages}
+        staffName={identity.fullName}
+        timeZoneId={timeZoneId}
+        online={queue.online}
+        failed={inboxQuery.isError && !inboxQuery.data}
+        icon={ICONS.chat}
+        onReply={openConversation}
+        onOpenInbox={() => openConversation(null)}
+      />
+    ) : null,
+  };
 
   const overlays = (
-    <>
-      {overlay === 'conflicts' ? (
-        <ConflictList
-          conflicts={queue.state.conflicts}
-          held={queue.held}
-          queue={queue.state.queue}
-          recent={queue.recent}
-          online={queue.online}
-          actorId={identity.staffMemberId}
-          role={identity.role}
-          timeZoneId={timeZoneId}
-          backTo="floor"
-          onDiscard={queue.discard}
-          onApplyAnyway={(id) => {
-            queue.applyAnyway(id);
-            queue.sync();
-          }}
-          onClaim={(id) => {
-            queue.claim(id);
-            queue.sync();
-          }}
-          onDrop={queue.drop}
-          onClose={() => setOverlay('none')}
-        />
-      ) : null}
-
-      {overlay === 'order' ? (
-        <OrderEntry
-          menu={menu.data}
-          menuFromCache={menu.fromCache}
-          tab={tabQuery.data ?? null}
-          tableLabel={activeTabLabel}
-          timeZoneId={timeZoneId}
-          online={queue.online}
-          loading={menu.loading}
-          menuUnavailable={menu.unavailable}
-          noTab={activeTabId === null}
-          staffName={identity.fullName}
-          partySize={activePartySize}
-          sent={orderSent}
-          onSubmit={submitOrder}
-          onSentDismiss={({ restored }) => {
-            // The draft is back on screen to be changed and sent again; the
-            // refused copy would only be a second thing to decide about.
-            if (restored && orderSend) queue.discard(orderSend.id);
-            setOrderSend(null);
-          }}
-          onClose={closeOverlay}
-        />
-      ) : null}
-
-      {overlay === 'tab' ? (
-        <TabPanel
-          tab={tabQuery.data ?? null}
-          tableLabel={activeTabLabel}
-          timeZoneId={timeZoneId}
-          role={identity.role}
-          staffName={identity.fullName}
-          partySize={activePartySize}
-          online={queue.online}
-          loading={tabQuery.isLoading && !isOfflinePaused(tabQuery)}
-          // A paused query is not an empty tab. Saying "no tab is open" for a
-          // tab this device simply cannot reach right now would send a waiter
-          // off to open a second one.
-          offlineUnknown={isOfflinePaused(tabQuery) && !tabQuery.data && activeTabId !== null}
-          billRequests={activeBillRequests}
-          cashRefusal={
-            cashRefusal && cashRefusal.tabId === activeTabId
-              ? {
-                  remainingDram: cashRefusal.remainingDram,
-                  requestedDram: cashRefusal.requestedDram,
-                }
-              : null
-          }
-          onVoid={(line: TabLine, reason: VoidReason, detail?: string) => {
-            if (!activeTabId) return;
-            voidLine.mutate(
-              {
-                tabId: activeTabId,
-                lineId: line.id,
-                reason,
-                clientCommandId: newCommandId(),
-                ...(detail ? { detail } : {}),
-              },
-              {
-                onSuccess: () =>
-                  setNotice({ kind: 'info', text: t('tab.notice.voided', { name: line.name }) }),
-                onError: (error) =>
-                  setNotice({
-                    kind: 'warning',
-                    text:
-                      error instanceof LineAlreadyPaidError
-                        ? t('tab.notice.lineAlreadyPaid')
-                        : t('tab.notice.failed'),
-                  }),
-              },
-            );
-          }}
-          onAdjust={(input: {
-            lineId: string | null;
-            kind: AdjustmentKind;
-            percent: number | null;
-            amountDram: number | null;
-            reason: string;
-          }) => {
-            if (!activeTabId) return;
-            const tabId = activeTabId;
-            const lineName = input.lineId
-              ? tabQuery.data?.lines.find((line) => line.id === input.lineId)?.name
-              : undefined;
-            compLine.mutate(
-              { tabId, ...input, clientCommandId: newCommandId() },
-              {
-                // The tab's own read lists it once the refetch lands.
-                onSuccess: (adjustment) => {
-                  setNotice({
-                    kind: 'info',
-                    text: lineName
-                      ? t('tab.notice.comped', { name: lineName })
-                      : t('tab.notice.discounted', {
-                          amount: format.dram(adjustment.reductionDram),
-                        }),
-                  });
-                },
-                onError: () => setNotice({ kind: 'warning', text: t('tab.notice.failed') }),
-              },
-            );
-          }}
-          onAskForBill={() => {
-            if (!activeTabId) return;
-            beginClosing.mutate({ tabId: activeTabId, clientCommandId: newCommandId() });
-          }}
-          onCash={async ({
-            amountDram,
-            tipDram,
-            clientCommandId,
-            billRequest: request,
-          }): Promise<CashOutcome> => {
-            if (!activeTabId) return { kind: 'failed' };
-            const tabId = activeTabId;
-            // A "my share" request is one person's money, so the cash is theirs
-            // and the server credits their share. The whole bill names nobody:
-            // whoever hands it over is paying for the table.
-            const payer = request?.bill?.scope === 'mine' ? request.requestedByParticipantId : null;
-            // Whether this device already answered it with "On my way".
-            const acknowledgedHere = request ? acknowledgedBills.has(request.id) : false;
-            setCashRefusal(null);
-            try {
-              const result = await recordCash.mutateAsync({
-                tabId,
-                amountDram,
-                tipDram,
-                // The keypad's: the same on a retry, so a lost answer replays.
-                clientCommandId,
-                ...(payer ? { participantId: payer } : {}),
-              });
-              if (request) {
-                // Only the request this cash answered is done with, whether
-                // or not anyone tapped "On my way" for it. The others at the
-                // table are still waiting.
-                setSettledBillIds((current) => new Set(current).add(request.id));
-                // With it go this device's copies of the same person's
-                // earlier requests on the tab: they were already replaced,
-                // and must not resurface as the newest once this one is gone.
-                const answered = (candidate: ServiceRequest) =>
-                  candidate.id === request.id ||
-                  (request.requestedByParticipantId !== null &&
-                    candidate.tabId === request.tabId &&
-                    candidate.requestedByParticipantId === request.requestedByParticipantId &&
-                    candidate.requestedAtUtc <= request.requestedAtUtc);
-                setAcknowledgedBills((current) => {
-                  const next = new Map(
-                    [...current].filter(([, candidate]) => !answered(candidate)),
-                  );
-                  return next.size === current.size ? current : next;
-                });
-                // And answered on the server when nobody has yet, so a
-                // reload or the other tablet does not show it again.
-                const stillOpen = (
-                  queryClient.getQueryData<readonly ServiceRequest[]>(
-                    queryKeys.serviceRequests(branchId),
-                  ) ?? []
-                ).some(
-                  (candidate) =>
-                    candidate.id === request.id && candidate.acknowledgedAtUtc === null,
-                );
-                if (stillOpen && !acknowledgedHere) sendAcknowledge(request);
-              }
-              setUnresolved((current) =>
-                result.tabClosed ? current.filter((entry) => entry.tabId !== tabId) : current,
-              );
-              // The keypad's own card says what was taken and the change.
-              return { kind: 'recorded', tabClosed: result.tabClosed };
-            } catch (error) {
-              // The refusal carries the real balance. Shown against the bill,
-              // and never retried: the hook has `retry: false` and nothing
-              // here sends it again.
-              if (isPaymentExceedsRemaining(error)) {
-                setCashRefusal({
-                  tabId,
-                  remainingDram: error.remainingDram,
-                  requestedDram: error.requestedDram,
-                });
-                return { kind: 'refused' };
-              }
-              // Only an answer from the server means nothing was taken. No
-              // answer — offline, a timeout, a server fault — may have landed:
-              // read the tab again so the waiter checks it before retrying.
-              if (isServerRefusal(error)) return { kind: 'failed' };
-              void queryClient.invalidateQueries({ queryKey: queryKeys.staffTab(tabId) });
-              return { kind: 'unknown' };
-            }
-          }}
-          onAbandon={(reason) => {
-            if (!activeTabId) return;
-            const tabId = activeTabId;
-            abandonTab.mutate(
-              { tabId, reason, clientCommandId: newCommandId() },
-              {
-                onSuccess: (result) =>
-                  setNotice({
-                    kind: 'info',
-                    text: t('tab.notice.markedUnpaid', {
-                      amount: format.dram(result.writtenOffDram),
-                    }),
-                  }),
-                onError: () => setNotice({ kind: 'warning', text: t('tab.notice.failed') }),
-              },
-            );
-            setUnresolved((current) => current.filter((entry) => entry.tabId !== tabId));
-          }}
-          openOnCash={cashFirst}
-          onOrder={() => setOverlay('order')}
-          onFreeTable={() => {
-            // Back to the table's own panel, where freeing it is one more tap
-            // behind its confirm. A tab settled from "Needs resolving" has no
-            // table left to free.
-            const tableId = activeTableId;
-            closeOverlay();
-            if (tableId && tableId !== UNRESOLVED_KEY) setSelection({ tableId });
-          }}
-          onClose={closeOverlay}
-        />
-      ) : null}
-    </>
+    <FloorOverlays
+      overlay={overlay}
+      onOverlay={setOverlay}
+      queue={queue}
+      identity={identity}
+      timeZoneId={timeZoneId}
+      menu={menu}
+      tabQuery={tabQuery}
+      tableLabel={activeTabLabel}
+      activeTabId={activeTabId}
+      partySize={activePartySize}
+      orderSent={orderSent}
+      orderSendId={orderSend?.id ?? null}
+      onSubmitOrder={submitOrder}
+      onOrderSentDismissed={() => setOrderSend(null)}
+      billRequests={activeBillRequests}
+      cashRefusal={cashRefusal}
+      tabActions={tabActions}
+      openOnCash={cashFirst}
+      onFreeTable={() => {
+        // Back to the table's own panel, where freeing it is one more tap
+        // behind its confirm. A tab settled from "Needs resolving" has no
+        // table left to free.
+        const tableId = activeTableId;
+        closeOverlay();
+        if (tableId && tableId !== UNRESOLVED_KEY) setSelection({ tableId });
+      }}
+      onClose={closeOverlay}
+    />
   );
+
+  const shared = {
+    screens,
+    identity,
+    branchId,
+    timeZoneId,
+    place,
+    state,
+    updatedAt,
+    queue,
+    onRefresh: () => void floorQuery.refetch(),
+    onOpenConflicts: () => setOverlay('conflicts'),
+    setSelection,
+    minute,
+    messagesWaiting,
+    takeawayCounter,
+    takeawayInUse,
+    takeawayFailed: takeawayQuery.isError,
+    takeawayToAnswer,
+    awaitingQuery,
+    freshRequests: awaiting.fresh,
+    rail,
+    onApprovalDecided: approvalDecided,
+    onApprovalRefused: approvalRefused,
+    notice: noticeNode,
+    announcers,
+    overlays,
+    floorTables,
+    takeawayCounterNode,
+  };
 
   if (phone) {
     // --- The phone (staff phone spec, "Phone layout for /staff") -------------
-    const selectTab = (next: PhoneTab) => {
-      setSelection(null);
-      setApproving(null);
-      setMoreScreen(null);
-      // The Messages tab again, from a conversation: back to the list.
-      if (next === 'messages' && phoneTab === 'messages') setMessageSubject(null);
-      setPhoneTab(next);
-      setView(next === 'messages' ? 'messages' : next === 'takeaway' ? 'takeaway' : 'floor');
-      if (next === 'messages' && !onMessagesPath) navigate('/staff/messages');
-      if (next !== 'messages' && onMessagesPath) navigate('/staff');
-      document.querySelector<HTMLElement>('.ph-main')?.scrollTo?.({ top: 0 });
-    };
-    const openTable = (tableId: string) => {
-      setApproving(null);
-      setPhoneTab('floor');
-      setView('floor');
-      if (onMessagesPath) navigate('/staff');
-      setSelection({ tableId });
-    };
-    const openApproval = (request: AwaitingApproval) => {
-      setSelection(null);
-      setApproving(request);
-    };
-
-    const nowWaiting =
-      (awaitingQuery.data?.length ?? 0) +
-      waitingTables.length +
-      duePreOrders.filter(preOrderNeedsAction).length +
-      (requestsQuery.data?.length ?? 0);
-    const takeawayCount = takeawayCounter
-      ? takeawayCounter.sentCount + takeawayCounter.readyCount
-      : 0;
-    // A manager's bar has Today first, and no room left for the counter: it
-    // is a row in More, and Now's takeaway rows open it all the same.
-    const takeawayTab = (takeawayInUse || phoneTab === 'takeaway') && !manager;
-    const tabs: PhoneTabSpec[] = [
-      ...(manager ? [{ key: 'today' as const }] : []),
-      { key: 'now', count: nowWaiting },
-      { key: 'floor' },
-      { key: 'messages', count: inbox?.unreadTotal ?? floor?.messages?.unreadTotal ?? 0 },
-      ...(takeawayTab ? [{ key: 'takeaway' as const, count: takeawayCount }] : []),
-      { key: 'more' },
-    ];
-
-    const updatedAt =
-      Math.max(
-        (streamFailing || floorQuery.isError ? staleSince : answeredAt) ?? 0,
-        floorQuery.dataUpdatedAt,
-      ) || null;
-    const chip = connectionChip({
-      state,
-      online: queue.online,
-      pending: queue.pending - queue.held.length,
-      updatedAt,
-      now: minute.getTime(),
-      t,
-      time: format.time,
-    });
-
-    const approvingNow = approving
-      ? (awaitingQuery.data?.find((request) => request.id === approving.id) ?? null)
-      : null;
-
-    const screenTitle = approving
-      ? t('phone.approve.title')
-      : moreScreen === 'notifications'
-        ? t('phone.install.settingsTitle')
-        : moreScreen === 'results'
-          ? t('phone.results.title')
-          : phoneTab === 'today'
-            ? t('phone.today.title')
-            : phoneTab === 'floor'
-              ? t('floor.title')
-              : phoneTab === 'messages'
-                ? t('messages.title')
-                : phoneTab === 'takeaway'
-                  ? t('takeaway.title')
-                  : phoneTab === 'more'
-                    ? t('phone.tabs.more')
-                    : t('rail.title');
-
     return (
-      <PhoneShell
-        title={screenTitle}
-        place={place}
-        who={identity.fullName}
-        chip={chip}
-        chipLabel={t('connection.chip.name', {
-          chip: chip.text,
-          action: t('connection.refresh'),
-        })}
-        onRefresh={() => void floorQuery.refetch()}
-        conflicts={queue.conflicts + queue.held.length}
-        onOpenConflicts={() => setOverlay('conflicts')}
-        tabs={tabs}
-        current={approving || moreScreen ? null : phoneTab}
-        onTab={selectTab}
-        back={
-          approving
-            ? { onBack: () => setApproving(null) }
-            : moreScreen
-              ? { onBack: () => setMoreScreen(null) }
-              : undefined
-        }
-        notice={noticeNode}
-        announcers={announcers}
+      <FloorPhone
+        {...shared}
+        active={active}
+        format={format}
+        floor={floor}
+        nowWaiting={nowWaiting}
+        roster={roster}
+        onUnpair={onUnpair}
         sheet={tablePanel('sheet')}
-        onCloseSheet={() => setSelection(null)}
-        overlays={overlays}
-      >
-        {approving && branchId ? (
-          <PhoneApprove
-            // A fresh card per booking: a reason typed for one never carries over.
-            key={approving.id}
-            branchId={branchId}
-            request={approvingNow ?? approving}
-            waiting={approvingNow !== null}
-            timeZoneId={timeZoneId}
-            online={queue.online}
-            onDecided={approvalDecided}
-            onRefused={approvalRefused}
-            onDone={() => setApproving(null)}
-          />
-        ) : null}
-
-        {/* Now and the floor stay mounted under the other screens, as the
-            tablet's floor does under its kitchen: a half-typed answer and the
-            countdowns are still there on the way back. */}
-        <div className="ph-screen ph-now" hidden={approving !== null || phoneTab !== 'now'}>
-          <FloorRail
-            phone
-            summary={summary}
-            requests={requestsQuery.data ?? []}
-            requestsFailed={
-              requestsQuery.isError || (isOfflinePaused(requestsQuery) && !requestsQuery.data)
-            }
-            requestsLoading={requestsQuery.isLoading && !isOfflinePaused(requestsQuery)}
-            orders={orders}
-            ordersLoading={ordersLoading}
-            ordersFailed={ordersFailed}
-            timeZoneId={timeZoneId}
-            onAcknowledge={acknowledge}
-            onClaim={queue.online ? (request) => claim(request) : undefined}
-            claiming={claiming}
-            selfStaffMemberId={identity.staffMemberId}
-            onAdvance={advanceOrder}
-            noShows={noShowsSection}
-            preOrders={preOrdersSection}
-            admissions={admissionsSection}
-            unresolved={unresolvedList}
-            onSettle={settleUnresolved}
-            messages={messagesRailSection}
-            takeaway={
-              <PhoneTakeawayList
-                orders={takeawayToAnswer}
-                failed={takeawayInUse && takeawayQuery.isError}
-                onOpen={() => selectTab('takeaway')}
-              />
-            }
-            approvals={
-              <PhoneApprovalList
-                requests={awaitingQuery.data ?? []}
-                timeZoneId={timeZoneId}
-                loading={awaitingQuery.isLoading && !isOfflinePaused(awaitingQuery)}
-                failed={
-                  awaitingQuery.isError || (isOfflinePaused(awaitingQuery) && !awaitingQuery.data)
-                }
-                fresh={awaiting.fresh}
-                onOpen={openApproval}
-              />
-            }
-            after={
-              <PhoneNextHour
-                rows={upcomingBookings(floor, minute)}
-                timeZoneId={timeZoneId}
-                onOpenTable={openTable}
-              />
-            }
-          />
-        </div>
-
-        <section
-          className="ph-screen ph-floor"
-          aria-label={t('floor.tables')}
-          hidden={approving !== null || phoneTab !== 'floor'}
-        >
-          {floorTables}
-        </section>
-
-        {!approving && phoneTab === 'messages' ? (
-          <div className="ph-screen ph-messages">{messagesInbox(true)}</div>
-        ) : null}
-
-        {!approving && phoneTab === 'takeaway' ? (
-          <div className="ph-screen ph-takeaway">{takeawayCounterNode}</div>
-        ) : null}
-
-        {!approving && phoneTab === 'today' && branchId ? (
-          <PhoneToday
-            branchId={branchId}
-            timeZoneId={timeZoneId}
-            active={active}
-            onOpenApprovals={() => {
-              const first = awaitingQuery.data?.[0];
-              if (first) openApproval(first);
-              else selectTab('now');
-            }}
-            onOpenMessages={() => selectTab('messages')}
-          />
-        ) : null}
-
-        {!approving && phoneTab === 'more' && moreScreen === 'notifications' ? (
-          <div className="ph-screen ph-notifications">
-            <PhoneInstall />
-          </div>
-        ) : null}
-
-        {!approving && phoneTab === 'more' && moreScreen === 'results' ? (
-          <PhoneResults
-            // An owner or a general manager has no home branch: they name this one.
-            branchId={VENUE_WIDE_ROLES.has(identity.role) && branchId ? branchId : undefined}
-            timeZoneId={timeZoneId}
-            active={active}
-          />
-        ) : null}
-
-        {!approving && phoneTab === 'more' && moreScreen === null ? (
-          <PhoneMore
-            identity={identity}
-            place={place}
-            roster={roster.data}
-            rosterFailed={roster.isError}
-            manager={manager}
-            onOpenToday={() => selectTab('today')}
-            onOpenTakeaway={!takeawayTab && takeawayInUse ? () => selectTab('takeaway') : undefined}
-            onLock={() => void staffSession?.signOut()}
-            onOpenNotifications={() => setMoreScreen('notifications')}
-            // The kitchen has no results of its own (the server refuses it).
-            onOpenResults={identity.role === 'kitchen' ? undefined : () => setMoreScreen('results')}
-            onUnpair={onUnpair}
-          />
-        ) : null}
-      </PhoneShell>
+        messagesInbox={messagesInbox(true)}
+      />
     );
   }
 
   return (
-    <div className="floor" data-surface="staff">
-      <StaffHeader
-        title={
-          view === 'kitchen'
-            ? t('kitchen.title')
-            : view === 'takeaway'
-              ? t('takeaway.title')
-              : view === 'messages'
-                ? t('messages.title')
-                : t('floor.title')
-        }
-        place={place}
-        timeZoneId={timeZoneId}
-        who={identity.fullName}
-        state={state}
-        updatedAt={
-          Math.max(
-            (streamFailing || floorQuery.isError ? staleSince : answeredAt) ?? 0,
-            floorQuery.dataUpdatedAt,
-          ) || null
-        }
-        // A command waiting for its person is not waiting to sync: it is on
-        // the conflicts chip, and counted there alone.
-        pending={queue.pending - queue.held.length}
-        // Held commands need a decision too: whose name they go under.
-        conflicts={queue.conflicts + queue.held.length}
-        online={queue.online}
-        onOpenConflicts={() => setOverlay('conflicts')}
-        onRefresh={() => void floorQuery.refetch()}
-        view={view}
-        kitchenWaiting={kitchenWaiting(orders)}
-        // The counter's tab once the branch has a takeaway order today (or it
-        // is on screen): a venue that never took one is not shown an empty tab.
-        takeawayWaiting={
-          takeawayCounter && (takeawayInUse || view === 'takeaway')
-            ? takeawayCounter.sentCount + takeawayCounter.readyCount
-            : undefined
-        }
-        messagesWaiting={inbox?.unreadTotal ?? floor?.messages?.unreadTotal ?? 0}
-        floorWaiting={
-          (awaitingQuery.data?.length ?? 0) +
-          waitingTables.length +
-          duePreOrders.filter(preOrderNeedsAction).length +
-          (requestsQuery.data?.length ?? 0)
-        }
-        onSelectView={(next) => {
-          setSelection(null);
-          setView(next);
-          if (next === 'messages' && !onMessagesPath) navigate('/staff/messages');
-          if (next !== 'messages' && onMessagesPath) navigate('/staff');
-        }}
-      />
-
-      {noticeNode}
-
-      {announcers}
-
-      {view === 'kitchen' ? (
-        // The kitchen board as the kitchen sees it, from the floor's own queue
-        // and orders. Quiet: the floor's chime is for bookings.
-        <div className="kitchen-body">
-          <OrderQueuePanel
-            orders={board.orders}
-            now={minute}
-            pendingOrderIds={board.pendingOrderIds}
-            heldOrders={heldMarks.orders}
-            onUnknownDish={menu.refetch}
-            menu={menu.data}
-            timeZoneId={timeZoneId}
-            role={identity.role}
-            onAdvance={advanceOrder}
-            loading={ordersLoading}
-            failed={ordersFailed}
-            onTakeawayReady={takeawayReady.markReady}
-            takeawayMarking={takeawayReady.marking}
-            online={queue.online}
-          />
-        </div>
-      ) : null}
-
-      {view === 'takeaway' && branchId ? (
-        <div className="kitchen-body">{takeawayCounterNode}</div>
-      ) : null}
-
-      {view === 'messages' && branchId ? (
-        <div className="kitchen-body">{messagesInbox(false)}</div>
-      ) : null}
-
-      {/* Hidden, not unmounted, while the kitchen shows: a half-typed decline,
-          an answer in flight and its notice all live in here, and a trip to
-          the kitchen must not cost any of them. */}
-      <div className="ft-body" hidden={view !== 'floor'} data-panel={panelOpen || undefined}>
-        <section className="ft-floor" aria-label={t('floor.tables')}>
-          {floorTables}
-        </section>
-
-        {/* The table's panel takes the rail's place, as on the Table artboard;
-            the rail stays mounted under it (hidden), so an answer in flight,
-            a half-typed decline and the countdowns are all still there when
-            the panel closes. */}
-        {tablePanel('rail')}
-
-        <FloorRail
-          hidden={panelOpen}
-          summary={summary}
-          requests={requestsQuery.data ?? []}
-          requestsFailed={
-            requestsQuery.isError || (isOfflinePaused(requestsQuery) && !requestsQuery.data)
-          }
-          requestsLoading={requestsQuery.isLoading && !isOfflinePaused(requestsQuery)}
-          orders={orders}
-          ordersLoading={ordersLoading}
-          ordersFailed={ordersFailed}
-          timeZoneId={timeZoneId}
-          onAcknowledge={acknowledge}
-          onClaim={queue.online ? (request) => claim(request) : undefined}
-          claiming={claiming}
-          selfStaffMemberId={identity.staffMemberId}
-          onAdvance={advanceOrder}
-          noShows={noShowsSection}
-          preOrders={preOrdersSection}
-          admissions={admissionsSection}
-          unresolved={unresolvedList}
-          onSettle={settleUnresolved}
-          messagesFirst={reminders.due.length > 0}
-          messages={messagesRailSection}
-          takeaway={
-            branchId ? (
-              <TakeawayRailSection
-                branchId={branchId}
-                orders={takeawayToAnswer}
-                timeZoneId={timeZoneId}
-                online={queue.online}
-                failed={takeawayInUse && takeawayQuery.isError}
-                icon={ICONS.bag}
-              />
-            ) : null
-          }
-          approvals={
-            branchId ? (
-              <ApprovalPanel
-                branchId={branchId}
-                requests={awaitingQuery.data ?? []}
-                timeZoneId={timeZoneId}
-                loading={awaitingQuery.isLoading && !isOfflinePaused(awaitingQuery)}
-                failed={
-                  awaitingQuery.isError || (isOfflinePaused(awaitingQuery) && !awaitingQuery.data)
-                }
-                online={queue.online}
-                fresh={awaiting.fresh}
-                onDecided={approvalDecided}
-                onRefused={approvalRefused}
-              />
-            ) : null
-          }
-        />
-      </div>
-
-      {overlays}
-    </div>
+    <FloorTablet
+      {...shared}
+      orders={orders}
+      board={board}
+      heldOrders={heldMarks.orders}
+      menu={menu.data}
+      onUnknownDish={menu.refetch}
+      onAdvance={advanceOrder}
+      ordersLoading={ordersLoading}
+      ordersFailed={ordersFailed}
+      takeawayReady={takeawayReady}
+      floorWaiting={nowWaiting}
+      panelOpen={panelOpen}
+      messagesFirst={reminders.due.length > 0}
+      tablePanel={tablePanel('rail')}
+      messagesInbox={messagesInbox(false)}
+    />
   );
-}
-
-/**
- * The server answered, and said no. Not a dropped connection, a timeout or a
- * 5xx, after any of which the write may still have happened.
- */
-function isServerRefusal(error: unknown): boolean {
-  return error instanceof ApiError && !isOffline(error) && error.status < 500;
-}
-
-/**
- * What a table action just did, for the notice: the Table artboard's toasts,
- * without their undo — every action is a command on its way to the server,
- * and not every one has an inverse the server would accept.
- */
-function actedNotice(
-  t: TFunction,
-  kind: TableActionKind,
-  label: string,
-  partySize: number | null | undefined,
-): string | null {
-  switch (kind) {
-    case 'seatWalkIn':
-    case 'seatHeldParty':
-      return partySize
-        ? t('notice.acted.seated', { label, count: partySize })
-        : t('notice.acted.seatedBooking', { label });
-    case 'seatReservation':
-      return t('notice.acted.seatedBooking', { label });
-    case 'hold':
-      return t('notice.acted.held', { label });
-    case 'releaseHold':
-      return t('notice.acted.holdReleased', { label });
-    case 'outOfService':
-      return t('notice.acted.outOfService', { label });
-    case 'returnToService':
-      return t('notice.acted.returned', { label });
-    case 'freeTable':
-      return t('notice.acted.freed', { label });
-  }
 }

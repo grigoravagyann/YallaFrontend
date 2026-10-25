@@ -30,7 +30,8 @@ import {
 import type { YallaGateway } from '../gateway';
 import { staleTime } from '../queryClient';
 import type { StaffGateway } from '../staffGateway';
-import { queryKeys, useConsoleGateway, useGateway, useStaffGateway } from './index';
+import { useConsoleGateway, useGateway, useStaffGateway } from './gateways';
+import { queryKeys } from './queryKeys';
 
 /**
  * Guest messages (2026-10-23): the hooks every surface uses, and what each

@@ -26,14 +26,9 @@ import type { YallaGateway } from '../gateway';
 import { afterGuestAnswered, afterVenueAsked } from './messages';
 import { ValidationError } from '../errors';
 import { staleTime } from '../queryClient';
-import {
-  queryKeys,
-  useConsoleGateway,
-  useGateway,
-  usePublicBranch,
-  usePublicGateway,
-  useStaffGateway,
-} from './index';
+import { useConsoleGateway, useGateway, usePublicGateway, useStaffGateway } from './gateways';
+import { usePublicBranch } from './publicBranch';
+import { queryKeys } from './queryKeys';
 
 /**
  * Pre-orders on a booking (2026-10-21): the hooks every surface uses, and
