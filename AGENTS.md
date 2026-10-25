@@ -148,11 +148,14 @@ Example to copy end to end: takeaway — `contracts/takeaway.ts`, `http/takeaway
 - Nav: add a link to `venueNavGroups` in `console/venue/VenueLayout.tsx` (key
   `nav.<feature>` in `admin`). Role-specific links follow the `floor` flag there
   (`FLOOR_ROLES`); roles come from `auth/useCurrentUser.ts`.
-- URL-state filters: copy `filtersFrom(params, today)` + `setParams(…, { replace: true })`
-  from `console/venue/messageHistory/MessageHistoryScreen.tsx` or
-  `console/venue/activity/ActivityScreen.tsx` (dates/kinds push history; search replaces).
-- CSV: server-built → gateway returns a file, then `saveFile(file.fileName, file.bytes)` from
-  `console/venue/reports/download.ts` (see `exportCsv` in `ActivityScreen.tsx`); client-built →
+- Use the shared kit `apps/web/src/console/kit/` (one import from its `index.ts`) before
+  writing your own: `useUrlFilters(codec)` + `pickParam`/`putParam` for URL-state filters
+  (dates/kinds push history; search replaces), `usePagedRows` + `PagedFooter` for cursor
+  lists, `DataTable` / `TableHead` / `NoValue`, `ChipGroup`, `DateField`, `LoadingLine` /
+  `EmptyLine` / `QueryFailure` / `EmptyState`. Examples: `ActivityScreen.tsx`,
+  `MessageHistoryScreen.tsx`, `StaffResults.tsx`.
+- CSV: server-built → gateway returns a file, then `useFileExport().run(…)` from the kit (saves
+  it and toasts ready / too large / failed; see `ActivityScreen.tsx`); client-built →
   `csvCell` / `csvBlob` / `csvFileName` in `console/venue/reports/csv.ts`.
 - Tests: `// @vitest-environment jsdom`, `createConsoleHarness` + `initConsoleTestI18n` from
   `console/venue/reports/testHarness.tsx`. Page titles: `console/venue/venuePageTitles.test.tsx`.
