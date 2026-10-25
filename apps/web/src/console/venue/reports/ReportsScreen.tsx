@@ -6,7 +6,8 @@ import {
   useRevenueReport,
 } from '@yalla/api/react';
 import { useLocale, useTranslation } from '@yalla/i18n';
-import { useEffect, useState } from 'react';
+import { useEffect, useId, useState } from 'react';
+import { DateField, EmptyLine, saveFile, useFileExport } from '../../kit';
 import { PageHeader } from '../../ui/PageHeader';
 import { DownloadIcon } from '../../ui/icons';
 import { useToast } from '../../ui/toast';
@@ -22,7 +23,7 @@ import {
   summaryCsv,
   type CsvSection,
 } from './csv';
-import { saveFile } from './download';
+
 import { MenuSection } from './MenuSection';
 import { OccupancySection } from './OccupancySection';
 import {
@@ -71,7 +72,9 @@ export function ReportsScreen() {
   // custom range stays as typed.
   const range: DateRange = (preset === 'custom' ? null : rangeFor(preset, today)) ?? custom;
   const [rollUpVenue, setRollUpVenue] = useState(false);
-  const [exporting, setExporting] = useState(false);
+  const everythingCsv = useFileExport();
+  const exporting = everythingCsv.busy;
+  const rangeErrorId = useId();
   const problem = problemWith(range);
   const allBranches = canRollUpVenue && rollUpVenue;
 
@@ -149,31 +152,32 @@ export function ReportsScreen() {
 
   /** One file: every section a titled block, as on screen. */
   function exportEverything() {
-    if (!everything || exporting || !query) return;
-    setExporting(true);
-    // A turn for the busy state to show before the file is written. Not
-    // requestAnimationFrame: a frame never comes while the tab is in the
-    // background (or in an embedded view that does not paint), and the button
-    // would stay on "Preparing…" with no file.
-    setTimeout(() => {
-      const text = allCsv([
-        ['summary', summaryCsv(everything.occupancy, everything.revenue)],
-        ['revenue', revenueCsv(everything.revenue)],
-        ['reservations', reservationsCsv(everything.reservations)],
-        ['occupancy', occupancyCsv(everything.occupancy)],
-        ['menu', menuCsv(everything.menu)],
-      ]);
-      saveFile(csvFileName('report', query), csvBlob(text));
-      setExporting(false);
-      toast.say(t('reports.export.readyAll', { scope: scopeLine }));
-    }, 0);
+    if (!everything || !query) return;
+    void everythingCsv.run(
+      async () => {
+        // A turn for the busy state to show before the file is written. Not
+        // requestAnimationFrame: a frame never comes while the tab is in the
+        // background (or in an embedded view that does not paint), and the
+        // button would stay on "Preparing…" with no file.
+        await new Promise((resolve) => setTimeout(resolve, 0));
+        const text = allCsv([
+          ['summary', summaryCsv(everything.occupancy, everything.revenue)],
+          ['revenue', revenueCsv(everything.revenue)],
+          ['reservations', reservationsCsv(everything.reservations)],
+          ['occupancy', occupancyCsv(everything.occupancy)],
+          ['menu', menuCsv(everything.menu)],
+        ]);
+        return { fileName: csvFileName('report', query), bytes: csvBlob(text) };
+      },
+      t('reports.export.readyAll', { scope: scopeLine }),
+    );
   }
 
   if (!branchId) {
     return (
       <div className="yc-page">
         <PageHeader title={t('nav.reports')} />
-        <p className="yc-card yc-empty-line">{t('menu.noBranch')}</p>
+        <EmptyLine card>{t('menu.noBranch')}</EmptyLine>
       </div>
     );
   }
@@ -235,40 +239,24 @@ export function ReportsScreen() {
 
       {preset === 'custom' ? (
         <div className="yc-rp-custom">
-          <div className="yc-fld">
-            <label htmlFor="r-from">{t('reports.range.from')}</label>
-            <input
-              id="r-from"
-              className="yc-ctl"
-              type="date"
-              max={today}
-              value={range.from}
-              aria-invalid={Boolean(rangeError)}
-              {...(rangeError ? { 'aria-describedby': 'r-err' } : {})}
-              onChange={(event) => {
-                const from = event.currentTarget.value;
-                setCustom((was) => ({ ...was, from }));
-              }}
-            />
-          </div>
-          <div className="yc-fld">
-            <label htmlFor="r-to">{t('reports.range.to')}</label>
-            <input
-              id="r-to"
-              className="yc-ctl"
-              type="date"
-              max={today}
-              value={range.to}
-              aria-invalid={Boolean(rangeError)}
-              {...(rangeError ? { 'aria-describedby': 'r-err' } : {})}
-              onChange={(event) => {
-                const to = event.currentTarget.value;
-                setCustom((was) => ({ ...was, to }));
-              }}
-            />
-          </div>
+          <DateField
+            label={t('reports.range.from')}
+            max={today}
+            value={range.from}
+            invalid={Boolean(rangeError)}
+            describedBy={rangeError ? rangeErrorId : undefined}
+            onChange={(from) => setCustom((was) => ({ ...was, from }))}
+          />
+          <DateField
+            label={t('reports.range.to')}
+            max={today}
+            value={range.to}
+            invalid={Boolean(rangeError)}
+            describedBy={rangeError ? rangeErrorId : undefined}
+            onChange={(to) => setCustom((was) => ({ ...was, to }))}
+          />
           {rangeError ? (
-            <span className="yc-err" id="r-err" role="alert">
+            <span className="yc-err" id={rangeErrorId} role="alert">
               {rangeError}
             </span>
           ) : null}
