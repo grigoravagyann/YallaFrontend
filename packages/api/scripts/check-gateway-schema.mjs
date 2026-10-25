@@ -25,8 +25,11 @@
  * ## What is checked
  *
  * **Every URL.** A `client.get|post|put|patch|delete` in `src/http` or
- * `src/auth` whose path is a string or a template literal is resolved —
- * including `${PLATFORM}`-style constants declared in the same file — and
+ * `src/auth`, or a folder under them (the gateways' feature files live in
+ * `http/diner`, `http/staff` and `http/console`), whose path is a string or
+ * a template literal is resolved — including `${PLATFORM}`-style constants
+ * declared in the same file or in a file it imports, such as a feature
+ * folder's `context.ts` — and
  * matched against the route templates in `generated/schema.ts`. A parameter matches a parameter or a literal segment; a
  * literal segment must be present in the route. No match is a failure.
  *
@@ -315,21 +318,46 @@ let bodiesChecked = 0;
 let awaitingRoutes = 0;
 
 const gatewayFiles = GATEWAY_DIRS.flatMap((dir) =>
-  readdirSync(dir)
+  // Recursive: a gateway split into feature files keeps its calls in a
+  // subfolder, and a scan that stopped at the top would pass by not looking.
+  readdirSync(dir, { recursive: true, encoding: 'utf8' })
     .filter((name) => name.endsWith('.ts') && !name.includes('.test.') && !name.includes('Mapping'))
     .sort()
     .map((name) => join(dir, name)),
 );
 
+/** `from './context'` and the like: the files a gateway file imports by relative path. */
+const RELATIVE_IMPORT_RE = /\bfrom\s+'(\.{1,2}\/[^']+)'/gu;
+
+function pathConstants(source) {
+  return [...source.matchAll(CONST_RE)]
+    .filter((match) => match[2].startsWith('/'))
+    .map((match) => [match[1], match[2]]);
+}
+
+/**
+ * The path constants a file can use: its own, and those declared in the files
+ * it imports — `BRANCHES` is declared once in `http/console/context.ts` and
+ * used by every console feature file. The file's own declaration wins.
+ */
+function constantsOf(file, source) {
+  const imported = [];
+  for (const match of source.matchAll(RELATIVE_IMPORT_RE)) {
+    const target = resolve(dirname(file), `${match[1]}.ts`);
+    try {
+      imported.push(...pathConstants(readFileSync(target, 'utf8')));
+    } catch {
+      // Not a .ts file beside it (a folder index, a .json): no constants from it.
+    }
+  }
+  return Object.fromEntries([...imported, ...pathConstants(source)]);
+}
+
 for (const file of gatewayFiles) {
   const source = readFileSync(file, 'utf8');
   const shown = relative(REPO_ROOT, file).replaceAll('\\', '/');
 
-  const constants = Object.fromEntries(
-    [...source.matchAll(CONST_RE)]
-      .filter((match) => match[2].startsWith('/'))
-      .map((match) => [match[1], match[2]]),
-  );
+  const constants = constantsOf(file, source);
 
   for (const call of source.matchAll(CALL_RE)) {
     const method = call[1];
