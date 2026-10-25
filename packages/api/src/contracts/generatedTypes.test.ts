@@ -81,10 +81,17 @@ describe('the swap to generated types', () => {
    * a screen at a table.
    */
   it('wires the ordering loop to real paths rather than raising not-wired', () => {
-    const gateway = readFileSync(
-      join(ROOT, 'packages', 'api', 'src', 'http', 'httpGateway.ts'),
-      'utf8',
-    );
+    // The gateway composes per-feature method files from `http/diner/`; all of
+    // them together are the diner gateway.
+    const http = join(ROOT, 'packages', 'api', 'src', 'http');
+    const gateway = [
+      join(http, 'httpGateway.ts'),
+      ...readdirSync(join(http, 'diner'))
+        .filter((name) => name.endsWith('.ts'))
+        .map((name) => join(http, 'diner', name)),
+    ]
+      .map((file) => readFileSync(file, 'utf8'))
+      .join('\n');
 
     for (const path of [
       '/menu`',
