@@ -33,6 +33,7 @@ import type {
 } from '../contracts/staffPhone';
 import type { ConversationSubjectKind } from '../contracts/messages';
 import type { MessageHistoryFilters } from '../contracts/messageHistory';
+import type { ActivityFilters } from '../contracts/activity';
 import type { EditorFloorPlan, ReplaceFloorPlanCommand } from '../contracts/floorPlan';
 import type { SetReviewVisibilityCommand, VenueReviewQuery } from '../contracts/reviews';
 import type {
@@ -210,6 +211,26 @@ export {
   useUnreadMessages,
 } from './messages';
 export type { ConversationQueryOptions } from './messages';
+export {
+  activityOptions,
+  activityTimelineOptions,
+  claimServiceRequestOptions,
+  myPerformanceOptions,
+  staffMemberPerformanceOptions,
+  staffPerformanceOptions,
+  staffRecentOptions,
+  transferTabOptions,
+  transferTargetsOptions,
+  useActivity,
+  useActivityTimeline,
+  useClaimServiceRequest,
+  useMyPerformance,
+  useStaffMemberPerformance,
+  useStaffPerformance,
+  useStaffRecent,
+  useTransferTab,
+  useTransferTargets,
+} from './activity';
 export type {
   TelegramVerification,
   TelegramVerificationStatus,
@@ -411,6 +432,11 @@ export const queryKeys = {
   awaitingApproval: (branchId: string) => ['staff', 'awaitingApproval', branchId] as const,
   /** A manager's Today board; `''` for the session's own branch. */
   staffToday: (branchId: string) => ['staff', 'today', branchId] as const,
+  /** My results: the signed-in person's own page, by range and recent list. */
+  myPerformance: (branchId: string, from: string, to: string, list: string, limit: number) =>
+    ['staff', 'myPerformance', branchId, from, to, list, limit] as const,
+  /** Who a table can be handed to, read when the transfer chooser opens. */
+  transferTargets: (tabId: string) => ['staff', 'transferTargets', tabId] as const,
   /** This device's push switches: the device's own, not a branch's. */
   staffNotificationSettings: ['staff', 'device', 'notificationSettings'] as const,
   staffPushConfig: ['staff', 'pushConfig'] as const,
@@ -468,6 +494,31 @@ export const queryKeys = {
    */
   historyConversation: (kind: ConversationSubjectKind, id: string) =>
     ['console', 'messageHistoryThread', kind, id] as const,
+  /** Every activity list of a branch: the prefix of {@link activity}. */
+  activityAll: (branchId: string) => ['console', 'activity', branchId] as const,
+  /** The console's History feed (2026-10-24), one key per set of filters; pages inside. */
+  activity: (branchId: string, filters: ActivityFilters) =>
+    [
+      'console',
+      'activity',
+      branchId,
+      filters.date,
+      filters.who.kind === 'staff' ? filters.who.staffMemberId : filters.who.kind,
+      filters.category,
+      filters.q.trim(),
+    ] as const,
+  /** One bill's, booking's or order's timeline. */
+  activityTimeline: (branchId: string, type: string, id: string) =>
+    ['console', 'activityTimeline', branchId, type, id] as const,
+  /** Staff → Results over one range. */
+  staffPerformance: (branchId: string, from: string, to: string) =>
+    ['console', 'staffPerformance', branchId, from, to] as const,
+  /** One person's page over one range. */
+  staffMemberPerformance: (branchId: string, staffMemberId: string, from: string, to: string) =>
+    ['console', 'staffMemberPerformance', branchId, staffMemberId, from, to] as const,
+  /** One of a person's lists, a page at a time. */
+  staffRecent: (branchId: string, staffMemberId: string, from: string, to: string, list: string) =>
+    ['console', 'staffRecent', branchId, staffMemberId, from, to, list] as const,
   /** Tables a scan seated with no proved number, waiting for a waiter to let them order. */
   tabsAwaitingAdmission: (branchId: string) =>
     ['staff', 'tabsAwaitingAdmission', branchId] as const,

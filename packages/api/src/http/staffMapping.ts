@@ -1,3 +1,4 @@
+import { serviceRequestClaimFromWire } from './activityMapping';
 import type { components } from '../generated/schema';
 import { admissionFromWire, floorChangeSignal } from './admissionMapping';
 import { guestRecordFromWire } from './guestRecordMapping';
@@ -307,8 +308,28 @@ export function staffFloorDetails(state: FloorState): readonly StaffTableDetail[
       // Guest messages (2026-10-23): the tile's badges — the next booking's
       // thread and the sitting party's — only when there are some.
       ...tableUnreadMessagesFromWire(table),
+      // Table ownership (2026-10-24): the waiter whose table it is, when one is.
+      ...tableServerFromWire(table),
     }),
   );
+}
+
+/**
+ * The table's waiter on the floor read (2026-10-24): `serverStaffMemberId` and
+ * `serverName` on `TableFloorState`. Only when there is one.
+ */
+function tableServerFromWire(
+  table: Pick<
+    Schemas['Yalla.Application.Floor.TableFloorState'],
+    'serverStaffMemberId' | 'serverName'
+  >,
+): {
+  serverStaffMemberId?: string | null;
+  serverName?: string | null;
+} {
+  const name = typeof table.serverName === 'string' ? table.serverName.trim() : '';
+  if (name === '') return {};
+  return { serverStaffMemberId: table.serverStaffMemberId ?? null, serverName: name };
 }
 
 // --- Transitions ------------------------------------------------------------
@@ -664,6 +685,8 @@ export function serviceRequest(view: RequestView): ServiceRequest {
     acknowledgedAtUtc: view.acknowledgedAtUtc ?? null,
     requestedByParticipantId: view.requestedByParticipantId ?? null,
     bill: billRequest(view),
+    // "I'm on it" (2026-10-24): who took the call, only once somebody has.
+    ...serviceRequestClaimFromWire(view),
   };
 }
 

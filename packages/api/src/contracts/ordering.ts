@@ -757,6 +757,14 @@ export interface ServiceRequest {
    * `null` on every other request, and on a bill request with no scope.
    */
   readonly bill: BillRequest | null;
+  /**
+   * Who said "I'm on it" (2026-10-24): the first claim wins, and every tablet
+   * shows the name so nobody else walks over. Absent or `null` while nobody
+   * has, and from a server before claims.
+   */
+  readonly claimedByStaffMemberId?: string | null | undefined;
+  readonly claimedByName?: string | null | undefined;
+  readonly claimedAtUtc?: string | null | undefined;
 }
 
 export interface CallWaiterCommand {

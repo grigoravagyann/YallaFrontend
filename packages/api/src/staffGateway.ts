@@ -34,6 +34,14 @@ import type {
   StaffToday,
 } from './contracts/staffPhone';
 import type { Menu } from './contracts/menu';
+import type {
+  ClaimServiceRequestCommand,
+  MyPerformanceQuery,
+  StaffMemberPerformance,
+  TabTransferResult,
+  TabTransferTarget,
+  TransferTabCommand,
+} from './contracts/activity';
 import type { StaffFloor, TableActionCommand, TableActionResult } from './contracts/service';
 import type {
   AbandonTabCommand,
@@ -390,6 +398,46 @@ export interface StaffGateway {
   listServiceRequests(branchId: string): Promise<readonly ServiceRequest[]>;
 
   acknowledgeServiceRequest(command: AcknowledgeServiceRequestCommand): Promise<ServiceRequest>;
+
+  /**
+   * "I'm on it" (2026-10-24): the caller takes the call, and every tablet
+   * shows their name — `POST /api/branches/{branchId}/calls/{callId}/claim`.
+   * The first claim wins: claiming a call somebody already took answers it
+   * as it stands, with their name. Online only.
+   */
+  claimServiceRequest(command: ClaimServiceRequestCommand): Promise<ServiceRequest>;
+
+  /**
+   * Give the table to another waiter from now on — `POST
+   * /api/tabs/{tabId}/transfer`. The table's waiter or a manager and above;
+   * the target serves at this branch. What was done before stays with the
+   * earlier person. Online only.
+   *
+   * @throws {ForbiddenError} not the table's waiter nor a manager.
+   * @throws {ValidationError} the target cannot take tables here.
+   */
+  transferTab(command: TransferTabCommand): Promise<TabTransferResult>;
+
+  /**
+   * Who the table can be handed to (2026-10-25) — `GET
+   * /api/tabs/{tabId}/transfer-targets`. Exactly the people `transferTab`
+   * accepts, the table's waiter now left out, on shift first then by name.
+   * The same people on a tablet and on a phone (whose own roster is only its
+   * person). The table's waiter or a manager and above.
+   *
+   * @throws {ForbiddenError} not the table's waiter nor a manager here, or no such tab.
+   */
+  listTransferTargets(tabId: string): Promise<readonly TabTransferTarget[]>;
+
+  /**
+   * My results (2026-10-25): the signed-in person's own figures, sales by day
+   * and one recent list — `GET /api/staff/me/performance`. A waiter or above,
+   * from their own session; an owner or general manager names the branch.
+   * Nobody else's numbers are reachable from here.
+   *
+   * @throws {ForbiddenError} the kitchen, or a branch that is not theirs.
+   */
+  getMyPerformance(query: MyPerformanceQuery): Promise<StaffMemberPerformance>;
 
   // --- Money --------------------------------------------------------------
 

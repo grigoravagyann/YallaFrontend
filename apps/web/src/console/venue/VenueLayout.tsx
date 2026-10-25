@@ -12,6 +12,7 @@ import { ConsoleShell, initialsOf, type ShellGroup } from '../ui/ConsoleShell';
 import { Dialog } from '../ui/Dialog';
 import {
   ClockIcon,
+  HistoryIcon,
   MapPinIcon,
   MenuIcon,
   MessagesIcon,
@@ -69,6 +70,8 @@ export function venueNavGroups(
         },
         // The counter screen, its own app with its own PIN session.
         ...(floor ? [{ to: '/staff', labelKey: 'nav.floor', icon: <TabIcon /> }] : []),
+        // Who did what, when and from which device (2026-10-24).
+        { to: '/venue/history', labelKey: 'nav.history', icon: <HistoryIcon /> },
       ],
     },
     {

@@ -1,3 +1,19 @@
+import type {
+  MyPerformanceQuery,
+  StaffMemberPerformance,
+  TabTransferResult,
+  TabTransferTarget,
+} from '../contracts/activity';
+import {
+  myPerformanceParams,
+  staffMemberPerformanceFromWire,
+  tabTransferFromWire,
+  transferTargetsFromWire,
+  type WirePersonPerformance,
+  type WireTableTransferResult,
+  type WireTransferTableRequest,
+  type WireTransferTargetsView,
+} from './activityMapping';
 import type { DuePreOrder, DuePreOrders } from '../contracts/preOrder';
 import type { AskOnMyWayResult } from '../contracts/onMyWay';
 import {
@@ -745,10 +761,17 @@ export function createStaffHttpGateway(client: ApiClient): StaffGateway {
     },
 
     async setOrderStatus(command: SetOrderStatusCommand): Promise<OrderQueueEntry> {
-      const { data } = await client.post<KitchenOrder>(`/api/orders/${command.orderId}/status`, {
-        status: orderStatusCode(command.status),
-      } satisfies Schemas['Yalla.Api.Endpoints.MoveOrderStatusRequest']);
-      return orderQueueEntry(data);
+      try {
+        const { data } = await client.post<KitchenOrder>(`/api/orders/${command.orderId}/status`, {
+          status: orderStatusCode(command.status),
+        } satisfies Schemas['Yalla.Api.Endpoints.MoveOrderStatusRequest']);
+        return orderQueueEntry(data);
+      } catch (error) {
+        // Voiding a whole order voids its lines (2026-10-25), so a tab paid
+        // against refuses it as it refuses one line: `line-already-paid`, a
+        // 409 that is not a race. Anything else is as it was.
+        return rethrow(error);
+      }
     },
 
     // --- Service requests ---------------------------------------------------
@@ -768,6 +791,43 @@ export function createStaffHttpGateway(client: ApiClient): StaffGateway {
         { clientCommandId: command.clientCommandId },
       );
       return serviceRequest(data);
+    },
+
+    async claimServiceRequest(command): Promise<ServiceRequest> {
+      const { data } = await client.post<Schemas['Yalla.Application.Ordering.ServiceRequestView']>(
+        `/api/branches/${command.branchId}/calls/${command.requestId}/claim`,
+      );
+      return serviceRequest(data);
+    },
+
+    async transferTab(command): Promise<TabTransferResult> {
+      const { data } = await client.post<WireTableTransferResult>(
+        `/api/tabs/${command.tabId}/transfer`,
+        {
+          toStaffMemberId: command.toStaffMemberId,
+          clientCommandId: command.clientCommandId,
+        } satisfies WireTransferTableRequest,
+      );
+      return tabTransferFromWire(data, command);
+    },
+
+    async listTransferTargets(tabId: string): Promise<readonly TabTransferTarget[]> {
+      const { data } = await client.get<WireTransferTargetsView>(
+        `/api/tabs/${tabId}/transfer-targets`,
+      );
+      return transferTargetsFromWire(data);
+    },
+
+    async getMyPerformance(query: MyPerformanceQuery): Promise<StaffMemberPerformance> {
+      const { data } = await client.get<WirePersonPerformance>('/api/staff/me/performance', {
+        query: myPerformanceParams(query),
+      });
+      return staffMemberPerformanceFromWire(data, {
+        from: query.from,
+        to: query.to,
+        staffMemberId: '',
+        list: query.list,
+      });
     },
 
     // --- Money --------------------------------------------------------------

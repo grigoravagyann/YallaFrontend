@@ -1,6 +1,7 @@
 import type { OrderQueueEntry, OrderStatus, ServiceRequest } from '@yalla/api';
 import { useTranslation } from '@yalla/i18n';
 import { useId, useState, type ReactNode } from 'react';
+import { firstName } from '../messages/messageText';
 import { billRequestText } from './billRequestText';
 import { ageBand } from './OrderQueuePanel';
 import { useBranchFormat } from './useBranchFormat';
@@ -58,6 +59,15 @@ export interface FloorRailProps {
   readonly onSettle: (tabId: string) => void;
   /** Under the table panel: kept mounted, so nothing in it is lost, but out of sight. */
   readonly hidden?: boolean | undefined;
+  /**
+   * "I'm on it" (2026-10-24): take the call, so every tablet and phone shows
+   * who is going. Online only; absent, the button is not offered.
+   */
+  readonly onClaim?: ((request: ServiceRequest) => void) | undefined;
+  /** Calls whose claim is in flight from here. */
+  readonly claiming?: ReadonlySet<string> | undefined;
+  /** Who is signed in here: their own claim reads "You're on it". */
+  readonly selfStaffMemberId?: string | undefined;
   /**
    * The phone's Now screen (staff phone, the Now artboard): the same sections
    * in the phone's order — people calling first, then the bookings, the
@@ -128,10 +138,44 @@ export function FloorRail(props: FloorRailProps) {
                   </p>
                 ) : null}
                 {request.note ? <p>{request.note}</p> : null}
+                {/* Who took it (2026-10-24): the name on every tablet and
+                    phone, so nobody else walks over. */}
+                {request.claimedByName ? (
+                  <p className="ft-item-claim">
+                    <span className="ft-claim-dot" aria-hidden="true" />
+                    {request.claimedByStaffMemberId &&
+                    request.claimedByStaffMemberId === props.selfStaffMemberId
+                      ? t('rail.calls.claimedByYou')
+                      : t('rail.calls.claimedBy', { name: firstName(request.claimedByName) })}
+                    {request.claimedAtUtc ? (
+                      <span className="ft-claim-at">
+                        {' · '}
+                        {format.time(request.claimedAtUtc)}
+                      </span>
+                    ) : null}
+                  </p>
+                ) : null}
                 <div className="ft-item-actions">
+                  {props.onClaim && !request.claimedByName ? (
+                    <button
+                      type="button"
+                      className="ft-btn ft-btn-primary"
+                      disabled={props.claiming?.has(request.id) ?? false}
+                      aria-label={t('rail.calls.claimFor', { label: request.tableLabel })}
+                      onClick={() => props.onClaim?.(request)}
+                    >
+                      {t('rail.calls.claim')}
+                    </button>
+                  ) : null}
                   <button
                     type="button"
-                    className="ft-btn ft-btn-primary"
+                    className={
+                      props.onClaim &&
+                      (!request.claimedByName ||
+                        request.claimedByStaffMemberId !== props.selfStaffMemberId)
+                        ? 'ft-btn ft-btn-secondary'
+                        : 'ft-btn ft-btn-primary'
+                    }
                     onClick={() => props.onAcknowledge(request)}
                   >
                     {t('panel.calls.acknowledge')}

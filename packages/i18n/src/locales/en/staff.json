@@ -86,7 +86,8 @@
       "seats": "Seats",
       "room": "Room",
       "bill": "Open bill",
-      "booked": "Booked for"
+      "booked": "Booked for",
+      "server": "Waiter"
     },
     "overSeats_one": "More than {{count}} seat",
     "overSeats_other": "More than {{count}} seats",
@@ -100,7 +101,36 @@
     },
     "lateFor_one": "{{count}} min late",
     "lateFor_other": "{{count}} min late",
-    "lateForHours": "{{hours}} h {{minutes}} min late"
+    "lateForHours": "{{hours}} h {{minutes}} min late",
+    "transfer": {
+      "action": "Transfer table",
+      "title": "Transfer table {{label}}",
+      "body": "The bill, the messages and the calls go to the new waiter from now on. What was done before stays under the earlier name.",
+      "legend": "To whom",
+      "onShift": "on shift now",
+      "offShift": "not on shift",
+      "loading": "Reading who is working…",
+      "failed": "Could not read who is working. Close and try again.",
+      "nobody": "Nobody else here can take tables.",
+      "confirm": "Transfer",
+      "confirmTo": "Transfer to {{name}}",
+      "needsOnline": "Transferring needs the connection.",
+      "done": "Table {{label}} is now {{name}}’s",
+      "refused": "Table {{label}} could not be transferred. Try again, or ask a manager.",
+      "notServing": "{{name}} does not serve tables.",
+      "notYours": "Only the table’s waiter or a manager can hand table {{label}} over.",
+      "otherBranch": "{{name}} works at another branch.",
+      "gone": "{{name}} is no longer on the staff here.",
+      "closed": "Table {{label}}’s bill is already closed: there is nothing to hand over.",
+      "load_one": "{{count}} table now",
+      "load_other": "{{count}} tables now",
+      "loadNone": "no tables now",
+      "legendPhone": "To whom · on shift first",
+      "current": "Waiter now: {{name}}",
+      "currentNone": "Nobody holds this table yet.",
+      "logged": "Recorded in the history at {{time}}: {{from}} → {{to}}.",
+      "close": "Done"
+    }
   },
   "queue": {
     "conflicts_one": "{{count}} needs a decision",
@@ -220,6 +250,7 @@
   },
   "notice": {
     "race": "Table {{label}} was taken by someone else just now.",
+    "orderVoidPaid": "Table {{label}} · the bill is already paid, so the order was not voided. A manager can put it on the house instead.",
     "raceNamed": "Table {{label}} was seated by {{name}} just now.",
     "freedWithBalance": "Table {{label}} freed. {{amount}} is still owed — it is in \"needs resolving\".",
     "seatedOverBooking": "Seated. Table {{label}} still has a booking coming.",
@@ -392,7 +423,8 @@
       "orderMoved": "Table {{label}} · the order had moved on",
       "call": "Table {{label}} · the call was already answered",
       "gone": "Table {{label}} · it is no longer there",
-      "forbidden": "Table {{label}} · not allowed under this sign-in"
+      "forbidden": "Table {{label}} · not allowed under this sign-in",
+      "orderNotVoided": "Table {{label}} · the order was not voided"
     },
     "notApplied": "Your “{{action}}” from {{time}} was not applied.",
     "action": {
@@ -439,6 +471,7 @@
         "call": "The call is no longer there."
       },
       "forbidden": "This sign-in may not do it. Somebody whose role allows it can.",
+      "lineAlreadyPaid": "The bill is already paid, so voiding the order would be a refund. A manager can put it on the house instead.",
       "orderMoved": "Somebody else had already moved this order on.",
       "call": "Somebody else had already answered this call.",
       "other": "The server did not accept it."
@@ -882,7 +915,14 @@
         "other": "calls the waiter"
       },
       "ackNotice": "Table {{label}} · the guest can see you are coming",
-      "ackQueued": "Table {{label}} · saved; the guest sees it when the connection returns"
+      "ackQueued": "Table {{label}} · saved; the guest sees it when the connection returns",
+      "claim": "I’m on it",
+      "claimFor": "I’m on it · table {{label}}",
+      "claimedBy": "{{name}} is on it",
+      "claimedByYou": "You’re on it",
+      "claimNotice": "Table {{label}} · you’re on it; everyone sees your name",
+      "claimTaken": "Table {{label}} · {{name}} is already on it",
+      "claimFailed": "Table {{label}} · could not take the call. Try again."
     },
     "ready": {
       "title": "Ready to serve",
@@ -1335,7 +1375,8 @@
       "unpairYes": "Yes, unpair",
       "notifications": "Notifications",
       "unpairing": "Unpairing…",
-      "unpairFailed": "The phone could not be unpaired. Check the connection and try again."
+      "unpairFailed": "The phone could not be unpaired. Check the connection and try again.",
+      "results": "My results"
     },
     "pair": {
       "title": "Pair your phone with the venue",
@@ -1451,6 +1492,52 @@
       "onlyShift": "Only during my shift",
       "onlyShiftHelp": "No sound outside your shift. Off by default for managers.",
       "start": "Start"
+    },
+    "results": {
+      "title": "My results",
+      "periods": "Period",
+      "period": {
+        "today": "Today",
+        "week": "7 days",
+        "month": "30 days"
+      },
+      "loading": "Loading your results…",
+      "kpi": {
+        "sales": "Sales",
+        "tips": "Tips",
+        "guests": "Guests",
+        "call": "To a call",
+        "reply": "To a message",
+        "cash": "Cash"
+      },
+      "sub": {
+        "tables_one": "{{count}} table",
+        "tables_other": "{{count}} tables",
+        "tipShare": "{{share}} of sales",
+        "average": "average {{amount}}",
+        "median": "median",
+        "none": "nothing to measure yet",
+        "bills_one": "{{count}} bill",
+        "bills_other": "{{count}} bills"
+      },
+      "chart": {
+        "caption": "Sales · last 7 days",
+        "label": "Sales by day",
+        "summary": "Most on {{day}}: {{amount}}",
+        "nothing": "No sales in these seven days.",
+        "bar": "{{day}}: {{amount}}",
+        "today": "Today",
+        "showTable": "Show the numbers",
+        "hideTable": "Hide the numbers",
+        "day": "Day",
+        "sales": "Sales"
+      },
+      "recent": {
+        "title": "Latest actions",
+        "empty": "Nothing recorded in this period yet.",
+        "table": "table {{label}}"
+      },
+      "privacy": "Only you and your manager see these numbers. Other waiters do not."
     }
   }
 }

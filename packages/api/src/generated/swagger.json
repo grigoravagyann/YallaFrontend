@@ -7436,6 +7436,815 @@
         }
       }
     },
+    "/api/branches/{branchId}/activity": {
+      "get": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "The History: who did what at the branch, newest first",
+        "description": "Every recorded action - bookings, tables, orders, money, takeaway, guest messages, settings, the team and devices - with who did it (staff, the guest, or the system), from which device (`deviceLabel`: the tablet's name, \"{first name}'s phone\" for a personal phone, `Console` for the console), and what it was about.\n\nQuery, all optional: `date` (one branch-local day, `yyyy-MM-dd`) **or** `from`/`to` (inclusive; both default to today) - not both; at most 366 days, not before today - 1095 (money is kept three years, everything else one) and not after today + 366. `staffMemberId`: only what this person did. `actorKind`: `staff`, `guest`, `system` (what the system did by itself) or `platform`. `category`: `booking`, `table`, `order`, `payment`, `takeaway`, `message`, `settings`, `staff` or `device`. `q` (at most 60): the table (exact), the guest (contains), a code (`T-482` or `482`, or a booking's), or a dish (contains). `limit` 1 to 100, default 50. `cursor`: the page before's `nextCursor`. A bad value is **422 `validation-failed`** naming each in `context.fields`.\n\nAnswers `{ items, nextCursor, from, to }`, newest first then by id, so equal instants neither repeat nor skip across pages. Each item: `id`, `occurredAtUtc`, `local` (`yyyy-MM-dd HH:mm` on the branch's clock), `actorKind` (`staff`, `guest`, `system`, `platform`), `staffMemberId`, `actorName`, `deviceId`, `deviceLabel`, `category`, `action` (a stable code - the list is in `docs/activity.md`), `subjectType` and `subjectId` (the detail link: `reservation`, `tab`, `takeaway`, `menu-item`, `staff`, `branch`, `device`, `service-request`, `table`, `table-session`), `subjectCode`, `tableSessionId`, `tableLabel`, `guestName`, `itemNames`, `amountAmd`, `isMoney`, `before`/`after` (what changed, shape per action), `reason` (as typed), `summary` (the parameters to render the line from - never prose) and `seconds` (a call's claim, a reply, a booking decision).\n\nEntries that name no branch (an owner's account) are on every branch's feed for the owner, the general manager and the platform, and on none for a branch manager.\n\nManager or above, scoped like the Reviews page: a branch manager reaches their own branch only, the owner and the general manager every branch of their venue, a platform admin any. Waiters and the kitchen: 403.",
+        "operationId": "listBranchActivity",
+        "parameters": [
+          {
+            "name": "branchId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "date",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "from",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "staffMemberId",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "category",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "q",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "actorKind",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Application.Activity.ActivityPage"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request violated a domain rule or arrived malformed.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No usable token was presented, or the one presented was rejected.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "`forbidden`: not a manager or above at this branch.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such branch.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "A bad query value; `context.fields` names each.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.ValidationFailedProblem"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests in the window, or a one-time credential is out of attempts.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected failure. Quote the traceId from the body.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/branches/{branchId}/activity.csv": {
+      "get": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "The History as CSV, with the same filters",
+        "description": "The feed's filters (`date` or `from`/`to`, `staffMemberId`, `actorKind`, `category`, `q`) - every entry in the window, newest first; `cursor` and `limit` are ignored. At most 20,000 rows: more is **422 `activity-export-too-large`** with `context.rows` and `context.maxRows` - narrow the dates or filter.\n\nThe reports' CSV rules: UTF-8 with a byte-order mark (Excel reads Armenian names), RFC 4180 quoting, plain digits, whole dram, branch-local times; and a leading `'` on a text cell that starts with `=`, `+`, `-`, `@`, a tab or a carriage return, because reasons and dish names are typed by staff. Columns: `local`, `actorKind`, `actorName`, `deviceLabel`, `category`, `action`, `subjectType`, `subjectId`, `subjectCode`, `tableLabel`, `guestName`, `items`, `amountAmd`, `isMoney`, `seconds`, `reason`, `before`, `after`, `summary` (the last three JSON).\n\nManager or above, scoped like the Reviews page: a branch manager reaches their own branch only, the owner and the general manager every branch of their venue, a platform admin any. Waiters and the kitchen: 403.",
+        "operationId": "exportBranchActivity",
+        "parameters": [
+          {
+            "name": "branchId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "date",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "from",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "staffMemberId",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "category",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "q",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "actorKind",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/csv": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request violated a domain rule or arrived malformed.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No usable token was presented, or the one presented was rejected.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "`forbidden`: not a manager or above at this branch.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such branch.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "A bad query value (`validation-failed`, `context.fields`), or `activity-export-too-large`.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.ValidationFailedProblem"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests in the window, or a one-time credential is out of attempts.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected failure. Quote the traceId from the body.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/branches/{branchId}/activity/subjects/{subjectType}/{subjectId}": {
+      "get": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "One bill's, booking's or takeaway order's whole story, oldest first",
+        "description": "The Check board. `subjectType` `tab`: every entry of the bill's sitting - the seat, orders, the kitchen, voids, discounts, calls claimed, the transfer, payments - with `tab` (the header: table, party, opened/closed, totals, tips, and `servers`, the table's waiters in turn with when each took it) and `lines`, each with who added it (`addedByStaffMemberId`/`addedByName`, or `addedByGuest` and the guest's name), whose sale it was (`serverStaffMemberId`) and who voided it and why. `reservation`: the booking's entries and `booking`. `takeawayOrder` (or `takeaway`): the order's entries, `takeaway` and its `lines`. Any other type (`menu-item`, `staff`, ...): its entries alone. `people` lists who appears, for the filter chips.\n\n404 when the subject is not this branch's, or nothing at the branch is recorded about it.\n\nManager or above, scoped like the Reviews page: a branch manager reaches their own branch only, the owner and the general manager every branch of their venue, a platform admin any. Waiters and the kitchen: 403.",
+        "operationId": "getActivityTimeline",
+        "parameters": [
+          {
+            "name": "branchId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "subjectType",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "subjectId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Application.Activity.ActivityTimeline"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request violated a domain rule or arrived malformed.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No usable token was presented, or the one presented was rejected.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "`forbidden`: not a manager or above at this branch.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such subject at this branch.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests in the window, or a one-time credential is out of attempts.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected failure. Quote the traceId from the body.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/branches/{branchId}/staff-performance": {
+      "get": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Staff → Results: everybody's numbers over the dates, and the branch's",
+        "description": "Query: `from`, `to` - branch-local dates, inclusive; `from` defaults to `to`, `to` to today; at most 366 days, not before today - 1095 nor after today + 366. Bad values: 422 `validation-failed`.\n\n**Whose a sale is.** A bill counts when it closes, as the revenue report counts it, and is split over the table's waiters in the proportion of the lines ordered while the table was theirs: a transfer moves what comes after it and leaves what came before. Tips are the waiter's whose table it was when paid; cash is whoever took it (the takeaway counter's included). A table and its guests count for each waiter with a share of the bill or holding it at the close.\n\nEach row: `staffMemberId`, `name`, `role`, `isActive`, `tables`, `guests`, `salesAmd`, `averageCheckAmd`, `tipsAmd`, `callsClaimed` and `callClaimMedianSeconds` (call to \"I'm on it\"), `messagesAnswered` and `messageReplyMedianSeconds` (guest text to the first venue reply), `approvals`, `declines`, `cashAmd`, `cashPayments`, `discounts`, `comps`, `adjustmentsAmd`, `voids`. Medians are of whole seconds - the mean of the middle two for an even count, rounded half up; absent with none. Rows: everybody with anything in the window, and every active waiter and manager of the branch with nothing.\n\n`totals` counts the branch once (a transferred table is one table; the medians are over every claim and reply). **Its money is the revenue report's for the same dates**: `salesAmd` = `hallAmd`, `tables` = `tabs`, `averageCheckAmd` = `averageTabAmd`, `cashAmd` = `cashAmd`, `takeawayAmd` = `takeawayAmd`, `adjustmentsAmd` = `adjustmentsTotalAmd`; `unattributedSalesAmd` is the part no waiter held.\n\nManager or above, scoped like the Reviews page: a branch manager reaches their own branch only, the owner and the general manager every branch of their venue, a platform admin any. Waiters and the kitchen: 403.",
+        "operationId": "getStaffPerformance",
+        "parameters": [
+          {
+            "name": "branchId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "from",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Application.Activity.StaffPerformanceReport"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request violated a domain rule or arrived malformed.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No usable token was presented, or the one presented was rejected.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "`forbidden`: not a manager or above at this branch.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such branch.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "A bad query value; `context.fields` names each.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.ValidationFailedProblem"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests in the window, or a one-time credential is out of attempts.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected failure. Quote the traceId from the body.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/branches/{branchId}/staff-performance.csv": {
+      "get": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Staff → Results as CSV",
+        "description": "The same `from`/`to` and the same numbers: one row per person, then a `totals` row. The reports' CSV rules (byte-order mark, RFC 4180, whole dram, plain digits; an empty cell for a median with nothing to take one of). Columns: `staffMemberId`, `name`, `role`, `tables`, `guests`, `salesAmd`, `averageCheckAmd`, `tipsAmd`, `callsClaimed`, `callClaimMedianSeconds`, `messagesAnswered`, `messageReplyMedianSeconds`, `approvals`, `declines`, `cashAmd`, `cashPayments`, `discounts`, `comps`, `adjustmentsAmd`, `voids`.\n\nManager or above, scoped like the Reviews page: a branch manager reaches their own branch only, the owner and the general manager every branch of their venue, a platform admin any. Waiters and the kitchen: 403.",
+        "operationId": "exportStaffPerformance",
+        "parameters": [
+          {
+            "name": "branchId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "from",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/csv": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request violated a domain rule or arrived malformed.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No usable token was presented, or the one presented was rejected.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "`forbidden`: not a manager or above at this branch.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such branch.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "A bad query value; `context.fields` names each.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.ValidationFailedProblem"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests in the window, or a one-time credential is out of attempts.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected failure. Quote the traceId from the body.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/branches/{branchId}/staff/{staffMemberId}/performance": {
+      "get": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "One person's page: their numbers, sales by day, and their recent work",
+        "description": "Query: `from`, `to` as Staff → Results; `list` - `orders` (default: orders sent, pre-orders sent, voids, discounts, comps, bills closed in cash), `messages` (replies and \"are you coming?\"), `bookings` (approved, declined, seated, no-show), `cash` (cash at tables and the takeaway counter) or `calls` (calls claimed); `limit` 1 to 100, default 50; `cursor` the page before's `recent.nextCursor`.\n\nAnswers `{ branchId, from, to, kpis, dailySales, recent }`: `kpis` is their row as on Staff → Results (zeros when they did nothing); `dailySales` one `{ date, salesAmd, tables }` per day from six days before `to` (or `from`, when earlier) to `to`; `recent` `{ list, items, nextCursor }` - History entries, newest first, with `seconds` where the action measures it.\n\n404 when the person does not work at this venue.\n\nManager or above, scoped like the Reviews page: a branch manager reaches their own branch only, the owner and the general manager every branch of their venue, a platform admin any. Waiters and the kitchen: 403.",
+        "operationId": "getStaffMemberPerformance",
+        "parameters": [
+          {
+            "name": "branchId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "staffMemberId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "from",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "list",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Application.Activity.PersonPerformance"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request violated a domain rule or arrived malformed.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No usable token was presented, or the one presented was rejected.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "`forbidden`: not a manager or above at this branch.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such branch, or nobody by that id at this venue.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "A bad query value; `context.fields` names each.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.ValidationFailedProblem"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests in the window, or a one-time credential is out of attempts.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected failure. Quote the traceId from the body.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/auth/diner/request-code": {
       "post": {
         "tags": [
@@ -21420,7 +22229,7 @@
           "staff"
         ],
         "summary": "Move an order along the rail",
-        "description": "`New -> InKitchen -> Ready -> Served`. Named transitions against an explicit table, the same shape as the table state machine: going backwards is refused, because a Ready order tapped back to InKitchen loses the fact that it was ever cooked.\n\n**The Kitchen role may make exactly one move: `InKitchen -> Ready`.** Serving is a floor action and belongs to whoever carried the plate.\n\nAnswers with the ticket as the queue shows it, `placedByName` included.",
+        "description": "`New -> InKitchen -> Ready -> Served`. Named transitions against an explicit table, the same shape as the table state machine: going backwards is refused, because a Ready order tapped back to InKitchen loses the fact that it was ever cooked.\n\n**The Kitchen role may make exactly one move: `InKitchen -> Ready`.** Serving is a floor action and belongs to whoever carried the plate.\n\n**`Voided` (from `New` or `InKitchen`) takes the order off the bill**: every line of it still on the bill is voided with it - when, by whom, and the reason \"The whole order was voided.\" - and stays on the tab marked, at zero, exactly as a line voided on its own. Refused once the tab has been paid against, as a line's void is: that is a refund.\n\nAnswers with the ticket as the queue shows it, `placedByName` included.",
         "operationId": "moveOrderStatus",
         "parameters": [
           {
@@ -21490,7 +22299,7 @@
             }
           },
           "409": {
-            "description": "The rail does not allow that transition.",
+            "description": "The rail does not allow that transition (`conflicting-state`), or `line-already-paid`: voiding an order on a tab that has been paid against would be a refund.",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -21528,7 +22337,7 @@
           "staff"
         ],
         "summary": "What tables are asking for",
-        "description": "Open requests, newest first, with the table label and how long they have been waiting. Newest first because on a busy floor the screen is glanced at, and the thing that just came in is the one nobody has walked to yet.\n\nA request for the bill from the diner's pay sheet carries `billScope`, `billAmountAmd`, `tipPercent` and `tipAmd`: the amount to bring, priced when the diner asked, and the tip to expect on top of it - what the cash keypad opens with. One the same diner has since replaced with a newer request for the bill is not listed: the newer one is what to bring.",
+        "description": "Open requests, newest first, with the table label and how long they have been waiting. Newest first because on a busy floor the screen is glanced at, and the thing that just came in is the one nobody has walked to yet.\n\nA request for the bill from the diner's pay sheet carries `billScope`, `billAmountAmd`, `tipPercent` and `tipAmd`: the amount to bring, priced when the diner asked, and the tip to expect on top of it - what the cash keypad opens with. One the same diner has since replaced with a newer request for the bill is not listed: the newer one is what to bring.\n\nA claimed request (`claimServiceRequest`, \"I'm on it\") stays listed until acknowledged, with `claimedAtUtc`, `claimedByStaffMemberId` and `claimedByName` - so every tablet shows who has it.",
         "operationId": "getOpenServiceRequests",
         "parameters": [
           {
@@ -21608,13 +22417,115 @@
         }
       }
     },
+    "/api/branches/{branchId}/calls/{callId}/claim": {
+      "post": {
+        "tags": [
+          "staff"
+        ],
+        "summary": "\"I'm on it\": claim a call or a bill request",
+        "description": "No body. Records `claimedByStaffMemberId` and `claimedAtUtc`; **the first claim wins** and a repeat - anybody's - answers with the request as it stands, nothing written. The guest is **not** told, and the request does **not** leave the open list: it stays, showing `claimedByName`, until somebody acknowledges it (`acknowledgeServiceRequest`). One already acknowledged or replaced is answered as it stands. The seconds from the call to the claim are the waiter's response time in Staff → Results, and the claim is logged as `table.call-claimed` (`docs/activity.md`). Acknowledging a request nobody claimed claims it in the same moment.\n\nA waiter or above at the branch; a call at another branch is not found.",
+        "operationId": "claimServiceRequest",
+        "parameters": [
+          {
+            "name": "branchId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "callId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Application.Ordering.ServiceRequestView"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request violated a domain rule or arrived malformed.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No usable token was presented, or the one presented was rejected.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not staff at this branch.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such call at this branch.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests in the window, or a one-time credential is out of attempts.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected failure. Quote the traceId from the body.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/service-requests/{id}/acknowledge": {
       "post": {
         "tags": [
           "staff"
         ],
         "summary": "A waiter has seen it",
-        "description": "Acknowledging one twice is a no-op rather than an error: two waiters tapping the same request is the normal case, and both seeing it is what the table wanted.",
+        "description": "Acknowledging one twice is a no-op rather than an error: two waiters tapping the same request is the normal case, and both seeing it is what the table wanted.\n\nThe first acknowledgement stands (`acknowledgedByStaffMemberId`, `acknowledgedByName`). One nobody claimed (`claimServiceRequest`) is claimed by the same tap: that is then the response time (`docs/activity.md`).",
         "operationId": "acknowledgeServiceRequest",
         "parameters": [
           {
@@ -21758,6 +22669,353 @@
           },
           "403": {
             "description": "Requires the Manager role.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests in the window, or a one-time credential is out of attempts.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected failure. Quote the traceId from the body.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/staff/me/performance": {
+      "get": {
+        "tags": [
+          "staff"
+        ],
+        "summary": "My results: the caller's own numbers",
+        "description": "The same answer as `getStaffMemberPerformance`, for the person signed in - a waiter from the tablet or their phone, a manager from the console. At their home branch; an owner or general manager, who has none, says which with `branchId` (one of their venue's - another venue's or another branch than their own is 403). Nobody else's numbers are reachable from here.\n\nA waiter or above, by the stored row: the kitchen and the platform are 403.",
+        "operationId": "getMyPerformance",
+        "parameters": [
+          {
+            "name": "from",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "list",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "branchId",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Application.Activity.PersonPerformance"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request violated a domain rule or arrived malformed.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No usable token was presented, or the one presented was rejected.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "`forbidden`: the kitchen, the platform, or a branch not theirs.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such branch.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "A bad query value, or `branchId` missing for somebody venue-wide.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.ValidationFailedProblem"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests in the window, or a one-time credential is out of attempts.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected failure. Quote the traceId from the body.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/tabs/{tabId}/transfer": {
+      "post": {
+        "tags": [
+          "staff"
+        ],
+        "summary": "Hand the table to another waiter, from now on",
+        "description": "Body `{ toStaffMemberId, clientCommandId? }`. Answers `{ tabId, serverStaffMemberId, serverName, previousServerStaffMemberId, previousServerName, transferredAtUtc, tableSessionId, tableLabel, wasReplay }`. The bill, its calls and messages are the new waiter's from this moment; what was done before stays with whoever did it - each order and payment keeps the waiter it was taken under, so the sales and tips before the hand-over stay the earlier waiter's.\n\nAllowed for the table's waiter, or a manager or above at the branch (stored roles) - anybody else 403. The target: active staff of this venue at this branch (or venue-wide), who serves - a waiter, manager, general manager or owner, never the kitchen; otherwise **422 `transfer-target-ineligible`** with `context.staffMemberId` and `context.reason` (`not-found`, `inactive`, `other-branch`, `does-not-serve`). A bill closed or written off, or a party gone: **409 `tab-not-transferable`** (`context.tabId`, `context.status`). Already theirs: 200 with `wasReplay` true, nothing written.\n\nLogged as `table.transferred`, and a `TableTransferred` (7) signal on the branch's change stream so every tablet re-reads the floor - whose `serverStaffMemberId`/`serverName` moved.",
+        "operationId": "transferTable",
+        "parameters": [
+          {
+            "name": "tabId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "allOf": [
+                  {
+                    "$ref": "#/components/schemas/Yalla.Api.Endpoints.TransferTableRequest"
+                  }
+                ],
+                "description": "Body of `POST /api/tabs/{tabId}/transfer`."
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Application.Activity.TableTransferResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request violated a domain rule or arrived malformed.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No usable token was presented, or the one presented was rejected.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "`forbidden`: not the table's waiter nor a manager here.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such tab.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "`tab-not-transferable`: the sitting is over.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "`transfer-target-ineligible` (`context.reason`), or `toStaffMemberId` missing (`validation-failed`).",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.ValidationFailedProblem"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests in the window, or a one-time credential is out of attempts.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected failure. Quote the traceId from the body.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/tabs/{tabId}/transfer-targets": {
+      "get": {
+        "tags": [
+          "staff"
+        ],
+        "summary": "Who the table can be handed to",
+        "description": "The transfer sheet's list - for a waiter's phone, whose own roster lists only its person. Answers `{ items: [{ staffMemberId, name, role, onShiftNow, openTables }] }`: the active staff at the tab's branch (or venue-wide) who serve - a waiter, manager, general manager or owner, never the kitchen - except the table's waiter now. On shift first, then by name. `onShiftNow`: a shift of theirs at this branch runs now. `openTables`: the live sittings at this branch whose waiter they are. Nothing else about anybody - no PIN, phone or email.\n\nAllowed for whoever may transfer the table: its waiter, or a manager or above at the branch (stored roles) - anybody else 403, the kitchen and another branch included. A tab that does not exist is the same 403: the branch scope finds no branch for it.",
+        "operationId": "listTransferTargets",
+        "parameters": [
+          {
+            "name": "tabId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Application.Activity.TransferTargetsView"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request violated a domain rule or arrived malformed.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No usable token was presented, or the one presented was rejected.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "`forbidden`: not the table's waiter nor a manager here, the kitchen, another branch, or no such tab.",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -27784,6 +29042,27 @@
         "additionalProperties": false,
         "description": "Body of `PUT /api/branches/{branchId}/takeaway-settings`. All five are required."
       },
+      "Yalla.Api.Endpoints.TransferTableRequest": {
+        "required": [
+          "toStaffMemberId"
+        ],
+        "type": "object",
+        "properties": {
+          "toStaffMemberId": {
+            "type": "string",
+            "description": "The waiter taking the table. Required.",
+            "format": "uuid"
+          },
+          "clientCommandId": {
+            "type": "string",
+            "description": "Optional, accepted for the tablet's offline queue. A transfer is idempotent by what it asks - a second one to the same\nwaiter answers as done - so the id is not needed to make a retry safe.",
+            "format": "uuid",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false,
+        "description": "Body of `POST /api/tabs/{tabId}/transfer`."
+      },
       "Yalla.Api.Endpoints.UndoNoShowRequest": {
         "required": [
           "clientCommandId"
@@ -30013,6 +31292,1096 @@
         },
         "additionalProperties": false,
         "description": "`verification-code-invalid`, 401, with the count. `verification-code-expired` arrives on\n            the same status with no `context`."
+      },
+      "Yalla.Application.Activity.ActivityItem": {
+        "required": [
+          "action",
+          "actorKind",
+          "category",
+          "id",
+          "isMoney",
+          "local",
+          "occurredAtUtc",
+          "subjectId",
+          "subjectType",
+          "summary"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "The entry.",
+            "format": "uuid"
+          },
+          "occurredAtUtc": {
+            "type": "string",
+            "description": "When.",
+            "format": "date-time"
+          },
+          "local": {
+            "type": "string",
+            "description": "The same instant on the branch's clock, `yyyy-MM-dd HH:mm`."
+          },
+          "actorKind": {
+            "type": "string",
+            "description": "`staff`, `guest`, `system` or `platform`."
+          },
+          "staffMemberId": {
+            "type": "string",
+            "description": "Who, when staff.",
+            "format": "uuid",
+            "nullable": true
+          },
+          "actorName": {
+            "type": "string",
+            "description": "Their name then - staff's, or the guest's; absent for the system.",
+            "nullable": true
+          },
+          "deviceId": {
+            "type": "string",
+            "description": "The tablet or phone it came from; absent from the console.",
+            "format": "uuid",
+            "nullable": true
+          },
+          "deviceLabel": {
+            "type": "string",
+            "description": "That device's label then - a tablet's name, \"Aram's phone\" for a personal phone - or `Console`; absent for the\nguest and the system.",
+            "nullable": true
+          },
+          "category": {
+            "type": "string",
+            "description": "The filter word."
+          },
+          "action": {
+            "type": "string",
+            "description": "The stable code - see `docs/activity.md`."
+          },
+          "subjectType": {
+            "type": "string",
+            "description": "What it was done to: `reservation`, `tab`, `takeaway`, `menu-item`..."
+          },
+          "subjectId": {
+            "type": "string",
+            "description": "Its id - the detail link.",
+            "format": "uuid"
+          },
+          "subjectCode": {
+            "type": "string",
+            "description": "Its short code: `T-482`, a booking's code.",
+            "nullable": true
+          },
+          "tableSessionId": {
+            "type": "string",
+            "description": "The sitting it belongs to - the bill's timeline.",
+            "format": "uuid",
+            "nullable": true
+          },
+          "tableLabel": {
+            "type": "string",
+            "description": "The table, as it was called then.",
+            "nullable": true
+          },
+          "guestName": {
+            "type": "string",
+            "description": "The guest.",
+            "nullable": true
+          },
+          "itemNames": {
+            "type": "string",
+            "description": "The dishes it names, comma-joined.",
+            "nullable": true
+          },
+          "amountAmd": {
+            "type": "integer",
+            "description": "The amount it is about.",
+            "format": "int64",
+            "nullable": true
+          },
+          "isMoney": {
+            "type": "boolean",
+            "description": "About money (kept three years)."
+          },
+          "before": {
+            "description": "What it was, for a change - shape per action.",
+            "nullable": true
+          },
+          "after": {
+            "description": "What it became.",
+            "nullable": true
+          },
+          "reason": {
+            "type": "string",
+            "description": "Why, as somebody typed it.",
+            "nullable": true
+          },
+          "summary": {
+            "description": "The parameters to render the line from - shape per action, see `docs/activity.md`."
+          },
+          "seconds": {
+            "type": "integer",
+            "description": "How long it took, when the action measures it: a call's claim from the call, a reply from the guest's text, a\nbooking's decision from its request.",
+            "format": "int32",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false,
+        "description": "One entry of the History, as the console renders it."
+      },
+      "Yalla.Application.Activity.ActivityPage": {
+        "required": [
+          "from",
+          "items",
+          "to"
+        ],
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Yalla.Application.Activity.ActivityItem"
+            },
+            "description": "This page."
+          },
+          "nextCursor": {
+            "type": "string",
+            "description": "Pass back as `cursor`; absent on the last page.",
+            "nullable": true
+          },
+          "from": {
+            "type": "string",
+            "description": "The first date read, the default filled in.",
+            "format": "date"
+          },
+          "to": {
+            "type": "string",
+            "description": "The last, inclusive.",
+            "format": "date"
+          }
+        },
+        "additionalProperties": false,
+        "description": "A page of the History, newest first."
+      },
+      "Yalla.Application.Activity.ActivityPerson": {
+        "required": [
+          "name",
+          "staffMemberId"
+        ],
+        "type": "object",
+        "properties": {
+          "staffMemberId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false,
+        "description": "Somebody on a timeline, for its filter chips."
+      },
+      "Yalla.Application.Activity.ActivityTimeline": {
+        "required": [
+          "entries",
+          "lines",
+          "people",
+          "subjectId",
+          "subjectType"
+        ],
+        "type": "object",
+        "properties": {
+          "subjectType": {
+            "type": "string"
+          },
+          "subjectId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "tab": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Yalla.Application.Activity.TabTimelineHeader"
+              }
+            ],
+            "description": "A bill's header on its timeline.",
+            "nullable": true
+          },
+          "booking": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Yalla.Application.Activity.BookingTimelineHeader"
+              }
+            ],
+            "description": "A booking's header on its timeline.",
+            "nullable": true
+          },
+          "takeaway": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Yalla.Application.Activity.TakeawayTimelineHeader"
+              }
+            ],
+            "description": "A takeaway order's header on its timeline.",
+            "nullable": true
+          },
+          "lines": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Yalla.Application.Activity.TimelineLine"
+            }
+          },
+          "entries": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Yalla.Application.Activity.ActivityItem"
+            }
+          },
+          "people": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Yalla.Application.Activity.ActivityPerson"
+            }
+          }
+        },
+        "additionalProperties": false,
+        "description": "Everything that happened to one bill, booking or takeaway order, oldest first - the Check board - with the bill's\nlines and who added and voided each. Exactly one header is present for those three subjects; any other subject has\nits entries and no header."
+      },
+      "Yalla.Application.Activity.BookingTimelineHeader": {
+        "required": [
+          "code",
+          "guestName",
+          "localDate",
+          "localTime",
+          "partySize",
+          "reservationId",
+          "status",
+          "tableLabel"
+        ],
+        "type": "object",
+        "properties": {
+          "reservationId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "code": {
+            "type": "string"
+          },
+          "guestName": {
+            "type": "string"
+          },
+          "partySize": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "localDate": {
+            "type": "string"
+          },
+          "localTime": {
+            "type": "string"
+          },
+          "status": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "tableLabel": {
+            "type": "string"
+          },
+          "tabId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false,
+        "description": "A booking's header on its timeline."
+      },
+      "Yalla.Application.Activity.DailySales": {
+        "required": [
+          "date",
+          "salesAmd",
+          "tables"
+        ],
+        "type": "object",
+        "properties": {
+          "date": {
+            "type": "string",
+            "format": "date"
+          },
+          "salesAmd": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "tables": {
+            "type": "integer",
+            "format": "int32"
+          }
+        },
+        "additionalProperties": false,
+        "description": "A day's sales on a person's chart."
+      },
+      "Yalla.Application.Activity.PersonPerformance": {
+        "required": [
+          "branchId",
+          "dailySales",
+          "from",
+          "kpis",
+          "recent",
+          "to"
+        ],
+        "type": "object",
+        "properties": {
+          "branchId": {
+            "type": "string",
+            "description": "The branch read.",
+            "format": "uuid"
+          },
+          "from": {
+            "type": "string",
+            "description": "The first date.",
+            "format": "date"
+          },
+          "to": {
+            "type": "string",
+            "description": "The last, inclusive.",
+            "format": "date"
+          },
+          "kpis": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Yalla.Application.Activity.StaffPerformanceRow"
+              }
+            ],
+            "description": "Their row, as on Staff → Results."
+          },
+          "dailySales": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Yalla.Application.Activity.DailySales"
+            },
+            "description": "One entry per local date from six days before `to` (or `from`, when earlier) to `to`, zero days included."
+          },
+          "recent": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Yalla.Application.Activity.RecentPage"
+              }
+            ],
+            "description": "The list asked for."
+          }
+        },
+        "additionalProperties": false,
+        "description": "One person's page: their numbers, a day-by-day chart, and their recent work."
+      },
+      "Yalla.Application.Activity.RecentPage": {
+        "required": [
+          "items",
+          "list"
+        ],
+        "type": "object",
+        "properties": {
+          "list": {
+            "type": "string",
+            "description": "`orders`, `messages`, `bookings`, `cash` or `calls`."
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Yalla.Application.Activity.ActivityItem"
+            },
+            "description": "This page - History entries, with `seconds` where the action measures it."
+          },
+          "nextCursor": {
+            "type": "string",
+            "description": "Pass back as `cursor`; absent on the last page.",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false,
+        "description": "A page of one of a person's recent lists, newest first."
+      },
+      "Yalla.Application.Activity.StaffPerformanceReport": {
+        "required": [
+          "branchId",
+          "from",
+          "staff",
+          "to",
+          "totals"
+        ],
+        "type": "object",
+        "properties": {
+          "branchId": {
+            "type": "string",
+            "description": "The branch.",
+            "format": "uuid"
+          },
+          "from": {
+            "type": "string",
+            "description": "The first date.",
+            "format": "date"
+          },
+          "to": {
+            "type": "string",
+            "description": "The last, inclusive.",
+            "format": "date"
+          },
+          "staff": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Yalla.Application.Activity.StaffPerformanceRow"
+            },
+            "description": "One row per person with anything in the window, and every active waiter and manager of the branch."
+          },
+          "totals": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Yalla.Application.Activity.StaffPerformanceTotals"
+              }
+            ],
+            "description": "The branch's, counted once."
+          }
+        },
+        "additionalProperties": false,
+        "description": "Staff → Results: everybody's numbers over the window, and the branch's."
+      },
+      "Yalla.Application.Activity.StaffPerformanceRow": {
+        "required": [
+          "adjustmentsAmd",
+          "approvals",
+          "averageCheckAmd",
+          "callsClaimed",
+          "cashAmd",
+          "cashPayments",
+          "comps",
+          "declines",
+          "discounts",
+          "guests",
+          "isActive",
+          "messagesAnswered",
+          "name",
+          "role",
+          "salesAmd",
+          "staffMemberId",
+          "tables",
+          "tipsAmd",
+          "voids"
+        ],
+        "type": "object",
+        "properties": {
+          "staffMemberId": {
+            "type": "string",
+            "description": "The person.",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string",
+            "description": "Their name now."
+          },
+          "role": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Yalla.Domain.Enums.StaffRole"
+              }
+            ],
+            "description": "What a staff member is allowed to do, coarsely. Authorisation itself is a later task."
+          },
+          "isActive": {
+            "type": "boolean",
+            "description": "Still works here."
+          },
+          "tables": {
+            "type": "integer",
+            "description": "Closed bills in the window with a share of their sale theirs, or that were theirs at the close.",
+            "format": "int32"
+          },
+          "guests": {
+            "type": "integer",
+            "description": "Those bills' party sizes.",
+            "format": "int64"
+          },
+          "salesAmd": {
+            "type": "integer",
+            "description": "Their share of those bills' totals, service charge included - whole dram, in the proportion of the lines ordered while the table was theirs.",
+            "format": "int64"
+          },
+          "averageCheckAmd": {
+            "type": "integer",
+            "description": "Sales over tables, rounded; 0 with no tables.",
+            "format": "int64"
+          },
+          "tipsAmd": {
+            "type": "integer",
+            "description": "Tips on payments taken while the table was theirs.",
+            "format": "int64"
+          },
+          "callsClaimed": {
+            "type": "integer",
+            "description": "Calls and bill requests they claimed (\"I'm on it\").",
+            "format": "int32"
+          },
+          "callClaimMedianSeconds": {
+            "type": "integer",
+            "description": "The median seconds from the call to their claim; absent with none.",
+            "format": "int32",
+            "nullable": true
+          },
+          "messagesAnswered": {
+            "type": "integer",
+            "description": "Guest texts they answered first.",
+            "format": "int32"
+          },
+          "messageReplyMedianSeconds": {
+            "type": "integer",
+            "description": "The median seconds from the guest's text to their reply; absent with none.",
+            "format": "int32",
+            "nullable": true
+          },
+          "approvals": {
+            "type": "integer",
+            "description": "Bookings they approved.",
+            "format": "int32"
+          },
+          "declines": {
+            "type": "integer",
+            "description": "Bookings they declined.",
+            "format": "int32"
+          },
+          "cashAmd": {
+            "type": "integer",
+            "description": "Cash they took: on bills that closed in the window, and at the takeaway counter.",
+            "format": "int64"
+          },
+          "cashPayments": {
+            "type": "integer",
+            "description": "How many cash payments that was.",
+            "format": "int32"
+          },
+          "discounts": {
+            "type": "integer",
+            "description": "Discounts they gave, still standing.",
+            "format": "int32"
+          },
+          "comps": {
+            "type": "integer",
+            "description": "Comps they gave, still standing.",
+            "format": "int32"
+          },
+          "adjustmentsAmd": {
+            "type": "integer",
+            "description": "What those took off, as the bills charged it.",
+            "format": "int64"
+          },
+          "voids": {
+            "type": "integer",
+            "description": "Lines they voided.",
+            "format": "int32"
+          }
+        },
+        "additionalProperties": false,
+        "description": "One person's numbers over a window. Sales, guests, tables and tips are the table's waiter's: a sale is theirs from\nthe order placed while the table was theirs, so a transfer moves what comes after and leaves what came before. See\n`docs/activity.md`."
+      },
+      "Yalla.Application.Activity.StaffPerformanceTotals": {
+        "required": [
+          "adjustmentsAmd",
+          "approvals",
+          "averageCheckAmd",
+          "callsClaimed",
+          "cashAmd",
+          "cashPayments",
+          "comps",
+          "declines",
+          "discounts",
+          "guests",
+          "messagesAnswered",
+          "salesAmd",
+          "tables",
+          "takeawayAmd",
+          "tipsAmd",
+          "unattributedSalesAmd",
+          "voids"
+        ],
+        "type": "object",
+        "properties": {
+          "tables": {
+            "type": "integer",
+            "description": "Closed bills - the revenue report's `tabs`.",
+            "format": "int32"
+          },
+          "guests": {
+            "type": "integer",
+            "description": "Their party sizes.",
+            "format": "int64"
+          },
+          "salesAmd": {
+            "type": "integer",
+            "description": "Their totals - the revenue report's `hallAmd`.",
+            "format": "int64"
+          },
+          "unattributedSalesAmd": {
+            "type": "integer",
+            "description": "The part of that no waiter held: a table nobody on staff served.",
+            "format": "int64"
+          },
+          "averageCheckAmd": {
+            "type": "integer",
+            "description": "The revenue report's `averageTabAmd`.",
+            "format": "int64"
+          },
+          "takeawayAmd": {
+            "type": "integer",
+            "description": "Takeaway collected - the revenue report's `takeawayAmd`; nobody's sale.",
+            "format": "int64"
+          },
+          "tipsAmd": {
+            "type": "integer",
+            "description": "All tips on those bills.",
+            "format": "int64"
+          },
+          "callsClaimed": {
+            "type": "integer",
+            "description": "Calls claimed.",
+            "format": "int32"
+          },
+          "callClaimMedianSeconds": {
+            "type": "integer",
+            "description": "The median over every claim.",
+            "format": "int32",
+            "nullable": true
+          },
+          "messagesAnswered": {
+            "type": "integer",
+            "description": "Guest texts answered.",
+            "format": "int32"
+          },
+          "messageReplyMedianSeconds": {
+            "type": "integer",
+            "description": "The median over every reply.",
+            "format": "int32",
+            "nullable": true
+          },
+          "approvals": {
+            "type": "integer",
+            "description": "Bookings approved by staff.",
+            "format": "int32"
+          },
+          "declines": {
+            "type": "integer",
+            "description": "Bookings declined by staff.",
+            "format": "int32"
+          },
+          "cashAmd": {
+            "type": "integer",
+            "description": "All cash - the revenue report's `cashAmd`.",
+            "format": "int64"
+          },
+          "cashPayments": {
+            "type": "integer",
+            "description": "Cash payments.",
+            "format": "int32"
+          },
+          "discounts": {
+            "type": "integer",
+            "description": "Discounts standing.",
+            "format": "int32"
+          },
+          "comps": {
+            "type": "integer",
+            "description": "Comps standing.",
+            "format": "int32"
+          },
+          "adjustmentsAmd": {
+            "type": "integer",
+            "description": "The revenue report's `adjustmentsTotalAmd`.",
+            "format": "int64"
+          },
+          "voids": {
+            "type": "integer",
+            "description": "Lines voided.",
+            "format": "int32"
+          }
+        },
+        "additionalProperties": false,
+        "description": "The branch's totals over the window - counted once, not summed from the rows: a transferred table is one table, and a\nmedian of everyone is not the sum of medians. The money matches the revenue report for the same dates."
+      },
+      "Yalla.Application.Activity.TabTimelineHeader": {
+        "required": [
+          "openedAtUtc",
+          "paidAmd",
+          "partySize",
+          "seatedAtUtc",
+          "servers",
+          "serviceChargeAmd",
+          "status",
+          "subtotalAmd",
+          "tabId",
+          "tableLabel",
+          "tableSessionId",
+          "tipsAmd",
+          "totalAmd"
+        ],
+        "type": "object",
+        "properties": {
+          "tabId": {
+            "type": "string",
+            "description": "The tab.",
+            "format": "uuid"
+          },
+          "tableSessionId": {
+            "type": "string",
+            "description": "Its sitting.",
+            "format": "uuid"
+          },
+          "tableLabel": {
+            "type": "string",
+            "description": "The table."
+          },
+          "partySize": {
+            "type": "integer",
+            "description": "How many sat.",
+            "format": "int32"
+          },
+          "openedAtUtc": {
+            "type": "string",
+            "description": "When the tab opened.",
+            "format": "date-time"
+          },
+          "seatedAtUtc": {
+            "type": "string",
+            "description": "When the party sat - before the tab, often.",
+            "format": "date-time"
+          },
+          "closedAtUtc": {
+            "type": "string",
+            "description": "When it closed; absent while open.",
+            "format": "date-time",
+            "nullable": true
+          },
+          "status": {
+            "type": "integer",
+            "description": "1 Open, 2 Closing, 3 Closed, 4 Abandoned.",
+            "format": "int32"
+          },
+          "subtotalAmd": {
+            "type": "integer",
+            "description": "The lines, less adjustments.",
+            "format": "int64"
+          },
+          "serviceChargeAmd": {
+            "type": "integer",
+            "description": "The service charge.",
+            "format": "int64"
+          },
+          "totalAmd": {
+            "type": "integer",
+            "description": "What the bill came to - the reports' figure for it.",
+            "format": "int64"
+          },
+          "paidAmd": {
+            "type": "integer",
+            "description": "Paid so far.",
+            "format": "int64"
+          },
+          "tipsAmd": {
+            "type": "integer",
+            "description": "Tips on its payments, outside the bill.",
+            "format": "int64"
+          },
+          "servers": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Yalla.Application.Activity.TimelineServer"
+            },
+            "description": "The table's waiters in turn: who took it from when - the first from the seat, each transfer after."
+          }
+        },
+        "additionalProperties": false,
+        "description": "A bill's header on its timeline."
+      },
+      "Yalla.Application.Activity.TableTransferResult": {
+        "required": [
+          "serverName",
+          "serverStaffMemberId",
+          "tabId",
+          "tableLabel",
+          "tableSessionId",
+          "transferredAtUtc",
+          "wasReplay"
+        ],
+        "type": "object",
+        "properties": {
+          "tabId": {
+            "type": "string",
+            "description": "The tab.",
+            "format": "uuid"
+          },
+          "serverStaffMemberId": {
+            "type": "string",
+            "description": "Whose it is now.",
+            "format": "uuid"
+          },
+          "serverName": {
+            "type": "string",
+            "description": "Their name."
+          },
+          "previousServerStaffMemberId": {
+            "type": "string",
+            "description": "Whose it was; absent when nobody served it.",
+            "format": "uuid",
+            "nullable": true
+          },
+          "previousServerName": {
+            "type": "string",
+            "description": "Their name.",
+            "nullable": true
+          },
+          "transferredAtUtc": {
+            "type": "string",
+            "description": "From when - what came before stays with the earlier waiter.",
+            "format": "date-time"
+          },
+          "tableSessionId": {
+            "type": "string",
+            "description": "The sitting, which carries the waiter.",
+            "format": "uuid"
+          },
+          "tableLabel": {
+            "type": "string",
+            "description": "The table."
+          },
+          "wasReplay": {
+            "type": "boolean",
+            "description": "Already theirs: answered as done, nothing written."
+          }
+        },
+        "additionalProperties": false,
+        "description": "A table handed over."
+      },
+      "Yalla.Application.Activity.TakeawayTimelineHeader": {
+        "required": [
+          "code",
+          "createdAtUtc",
+          "guestName",
+          "orderId",
+          "status",
+          "totalAmd"
+        ],
+        "type": "object",
+        "properties": {
+          "orderId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "code": {
+            "type": "string"
+          },
+          "guestName": {
+            "type": "string"
+          },
+          "status": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "totalAmd": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "paidAmd": {
+            "type": "integer",
+            "format": "int64",
+            "nullable": true
+          },
+          "paymentMethod": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "createdAtUtc": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "collectedAtUtc": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false,
+        "description": "A takeaway order's header on its timeline."
+      },
+      "Yalla.Application.Activity.TimelineLine": {
+        "required": [
+          "addedAtUtc",
+          "addedByGuest",
+          "lineId",
+          "lineTotalAmd",
+          "name",
+          "orderId",
+          "quantity",
+          "unitPriceAmd"
+        ],
+        "type": "object",
+        "properties": {
+          "lineId": {
+            "type": "string",
+            "description": "The line.",
+            "format": "uuid"
+          },
+          "orderId": {
+            "type": "string",
+            "description": "Its order.",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string",
+            "description": "The dish, as ordered."
+          },
+          "quantity": {
+            "type": "integer",
+            "description": "How many.",
+            "format": "int32"
+          },
+          "unitPriceAmd": {
+            "type": "integer",
+            "description": "At the price then.",
+            "format": "int64"
+          },
+          "lineTotalAmd": {
+            "type": "integer",
+            "description": "Quantity times price - zero once voided.",
+            "format": "int64"
+          },
+          "addedAtUtc": {
+            "type": "string",
+            "description": "When the order went in.",
+            "format": "date-time"
+          },
+          "addedByStaffMemberId": {
+            "type": "string",
+            "description": "The waiter who keyed it; absent for a guest's phone.",
+            "format": "uuid",
+            "nullable": true
+          },
+          "addedByName": {
+            "type": "string",
+            "description": "That waiter's name, or the guest's display name.",
+            "nullable": true
+          },
+          "addedByGuest": {
+            "type": "boolean",
+            "description": "A guest ordered it from their phone."
+          },
+          "serverStaffMemberId": {
+            "type": "string",
+            "description": "The table's waiter when it was ordered - whose sale it is.",
+            "format": "uuid",
+            "nullable": true
+          },
+          "voidedAtUtc": {
+            "type": "string",
+            "description": "When it was voided.",
+            "format": "date-time",
+            "nullable": true
+          },
+          "voidedByStaffMemberId": {
+            "type": "string",
+            "description": "Who voided it.",
+            "format": "uuid",
+            "nullable": true
+          },
+          "voidedByName": {
+            "type": "string",
+            "description": "Their name.",
+            "nullable": true
+          },
+          "voidReason": {
+            "type": "string",
+            "description": "Why.",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false,
+        "description": "A line on a bill with who did what to it."
+      },
+      "Yalla.Application.Activity.TimelineServer": {
+        "required": [
+          "fromUtc",
+          "name",
+          "staffMemberId"
+        ],
+        "type": "object",
+        "properties": {
+          "staffMemberId": {
+            "type": "string",
+            "description": "The waiter.",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string",
+            "description": "Their name as stored now."
+          },
+          "fromUtc": {
+            "type": "string",
+            "description": "When they took it.",
+            "format": "date-time"
+          }
+        },
+        "additionalProperties": false,
+        "description": "A waiter's turn at a table."
+      },
+      "Yalla.Application.Activity.TransferTarget": {
+        "required": [
+          "name",
+          "onShiftNow",
+          "openTables",
+          "role",
+          "staffMemberId"
+        ],
+        "type": "object",
+        "properties": {
+          "staffMemberId": {
+            "type": "string",
+            "description": "Who - the `toStaffMemberId` of the transfer.",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string",
+            "description": "Their name."
+          },
+          "role": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Yalla.Domain.Enums.StaffRole"
+              }
+            ],
+            "description": "What a staff member is allowed to do, coarsely. Authorisation itself is a later task."
+          },
+          "onShiftNow": {
+            "type": "boolean",
+            "description": "A shift of theirs at this branch runs now."
+          },
+          "openTables": {
+            "type": "integer",
+            "description": "The tables they serve at this branch now - live sittings whose waiter they are.",
+            "format": "int32"
+          }
+        },
+        "additionalProperties": false,
+        "description": "One person who may take the table. Nothing more personal than a name and a role."
+      },
+      "Yalla.Application.Activity.TransferTargetsView": {
+        "required": [
+          "items"
+        ],
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Yalla.Application.Activity.TransferTarget"
+            },
+            "description": "On shift first, then by name."
+          }
+        },
+        "additionalProperties": false,
+        "description": "Who the table can be handed to - the transfer sheet's list, for a phone that lists nobody else."
       },
       "Yalla.Application.Auth.BoundStaffMemberView": {
         "required": [
@@ -32963,6 +35332,17 @@
             "format": "int32",
             "nullable": true
           },
+          "serverStaffMemberId": {
+            "type": "string",
+            "description": "The waiter whose table this is - who seated it or opened its tab, or the first to order on it, until a transfer\n(`POST /api/tabs/{tabId}/transfer`). Absent with nobody seated, or nobody on staff serving yet.",
+            "format": "uuid",
+            "nullable": true
+          },
+          "serverName": {
+            "type": "string",
+            "description": "That waiter's name as stored now.",
+            "nullable": true
+          },
           "occupancySource": {
             "allOf": [
               {
@@ -35330,6 +37710,34 @@
             "type": "integer",
             "description": "That tip in whole dram, on top of BillAmountAmd and outside the bill, like a\ncash payment's `tipAmd`. Absent with TipPercent.",
             "format": "int64",
+            "nullable": true
+          },
+          "acknowledgedByStaffMemberId": {
+            "type": "string",
+            "description": "Who acknowledged it. Absent while nobody has.",
+            "format": "uuid",
+            "nullable": true
+          },
+          "acknowledgedByName": {
+            "type": "string",
+            "description": "That waiter's name as stored now. Absent with the id.",
+            "nullable": true
+          },
+          "claimedAtUtc": {
+            "type": "string",
+            "description": "When a waiter said \"I'm on it\" (`claimServiceRequest`); absent while nobody has.",
+            "format": "date-time",
+            "nullable": true
+          },
+          "claimedByStaffMemberId": {
+            "type": "string",
+            "description": "Who - the first to claim it.",
+            "format": "uuid",
+            "nullable": true
+          },
+          "claimedByName": {
+            "type": "string",
+            "description": "Their name as stored now, for \"Aram is on it\".",
             "nullable": true
           }
         },
@@ -44164,10 +46572,11 @@
           3,
           4,
           5,
-          6
+          6,
+          7
         ],
         "type": "integer",
-        "description": "What a branch change-stream entry signals beyond the table's status, when it is about the tab on the\ntable rather than the table itself. Persisted as its number on `TableStateChanges.Signal`.\n\nValues: 1 TabAwaitingAdmission, 2 TabAdmitted, 3 TabAdmissionRejected, 4 BookingCancelledByBlock, 5 BookingChanged, 6 PreOrderChanged.",
+        "description": "What a branch change-stream entry signals beyond the table's status, when it is about the tab on the\ntable rather than the table itself. Persisted as its number on `TableStateChanges.Signal`.\n\nValues: 1 TabAwaitingAdmission, 2 TabAdmitted, 3 TabAdmissionRejected, 4 BookingCancelledByBlock, 5 BookingChanged, 6 PreOrderChanged, 7 TableTransferred.",
         "format": "int32",
         "x-enum-varnames": [
           "TabAwaitingAdmission",
@@ -44175,7 +46584,8 @@
           "TabAdmissionRejected",
           "BookingCancelledByBlock",
           "BookingChanged",
-          "PreOrderChanged"
+          "PreOrderChanged",
+          "TableTransferred"
         ]
       },
       "Yalla.Domain.Enums.TableSessionSource": {

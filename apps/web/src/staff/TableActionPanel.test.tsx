@@ -7,7 +7,7 @@ import type {
   StaffTableDetail,
 } from '@yalla/api';
 import { I18nextProvider, i18next } from '@yalla/i18n';
-import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { initConsoleTestI18n } from '../console/venue/reports/testHarness';
 import { TableActionPanel, type TableActionPanelProps } from './TableActionPanel';
@@ -533,5 +533,163 @@ describe("the next booking's guest record", () => {
     expect(party.querySelector('.guest-record')?.textContent).toMatch(
       /: 3 bookings · 3 came · 0 no-shows$/u,
     );
+  });
+});
+
+describe('transferring the table (2026-10-24)', () => {
+  const occupied = {
+    table: { state: 'occupied' as const, occupiedSinceUtc: minutesFromNow(-30) },
+    detail: {
+      physicalStatus: 'occupied' as const,
+      partySize: 4,
+      openTabId: 'tab-1',
+      serverStaffMemberId: 's-lilit',
+      serverName: 'Lilit Avetisyan',
+    },
+  };
+  const targets = [
+    {
+      staffMemberId: 's-aram',
+      name: 'Aram Petrosyan',
+      roleLabel: 'Waiter',
+      onShift: true,
+      load: 1,
+    },
+    {
+      staffMemberId: 's-nare',
+      name: 'Nare Petrosyan',
+      roleLabel: 'Manager',
+      onShift: false,
+      load: 0,
+    },
+  ];
+
+  it('names the waiter, and hands the table to the person picked', () => {
+    const onTransfer = vi.fn();
+    const onWantTransfer = vi.fn();
+    show({
+      ...occupied,
+      tab: tabOwing(5000),
+      transferTargets: targets,
+      onTransfer,
+      onWantTransfer,
+    });
+    expect(screen.getByText('Waiter').nextElementSibling?.textContent).toBe('Lilit Avetisyan');
+
+    fireEvent.click(button('Transfer table'));
+    expect(onWantTransfer).toHaveBeenCalledTimes(1);
+    const chooser = screen.getByRole('group', { name: 'Transfer table 6' });
+    // Nobody is chosen for the waiter: the confirm waits for a pick.
+    expect(
+      (within(chooser).getByRole('button', { name: 'Transfer' }) as HTMLButtonElement).disabled,
+    ).toBe(true);
+    const aram = within(chooser).getByRole('button', { name: /^Aram Petrosyan/u });
+    expect(aram.textContent).toContain('Waiter · on shift now · 1 table now');
+    fireEvent.click(aram);
+    expect(aram.getAttribute('aria-pressed')).toBe('true');
+    fireEvent.click(within(chooser).getByRole('button', { name: 'Transfer to Aram' }));
+    expect(onTransfer).toHaveBeenCalledWith(targets[0]);
+  });
+
+  it('says so when nobody else can take the table', () => {
+    show({ ...occupied, transferTargets: [], onTransfer: vi.fn() });
+    fireEvent.click(button('Transfer table'));
+    expect(screen.getByText('Nobody else here can take tables.')).toBeTruthy();
+    expect((button('Transfer') as HTMLButtonElement).disabled).toBe(true);
+  });
+
+  it('says a refused list (403) is not this person’s table, not "try again"', () => {
+    show({
+      ...occupied,
+      transferTargets: null,
+      transferTargetsFailed: true,
+      transferNotYours: true,
+      onTransfer: vi.fn(),
+    });
+    fireEvent.click(button('Transfer table'));
+    expect(screen.getByRole('alert').textContent).toBe(
+      'Only the table’s waiter or a manager can hand table 6 over.',
+    );
+    cleanup();
+    show({ ...occupied, transferTargets: null, transferTargetsFailed: true, onTransfer: vi.fn() });
+    fireEvent.click(button('Transfer table'));
+    expect(screen.getByRole('alert').textContent).toBe(
+      'Could not read who is working. Close and try again.',
+    );
+  });
+
+  it('says it is reading who works while the list loads, and needs the connection', () => {
+    show({ ...occupied, transferTargets: null, onTransfer: vi.fn() });
+    fireEvent.click(button('Transfer table'));
+    expect(screen.getByText('Reading who is working…')).toBeTruthy();
+    cleanup();
+    show({ ...occupied, online: false, transferTargets: targets, onTransfer: vi.fn() });
+    expect((button('Transfer table') as HTMLButtonElement).disabled).toBe(true);
+    expect(screen.getByText('Transferring needs the connection.')).toBeTruthy();
+  });
+
+  it('on the phone, is the whole sheet: who has it, the load, a confirm, then the success in place', () => {
+    const onTransfer = vi.fn();
+    const handlers = show({
+      ...occupied,
+      tab: tabOwing(5000),
+      variant: 'sheet',
+      actorName: 'Lilit Avetisyan',
+      transferTargets: [
+        { ...targets[0]!, load: 3 },
+        { ...targets[1]!, load: 0 },
+      ],
+      onTransfer,
+    });
+    fireEvent.click(button('Transfer table'));
+    const sheet = screen.getByRole('dialog');
+    const chooser = within(sheet).getByRole('group', { name: 'Transfer table 6' });
+    // The table's ordinary actions are gone: this is a screen of its own.
+    expect(within(sheet).queryByRole('button', { name: 'Transfer table' })).toBeNull();
+    expect(within(chooser).getByText('Waiter now: Lilit Avetisyan')).toBeTruthy();
+    expect(within(chooser).getByText('Waiter · on shift now · 3 tables now')).toBeTruthy();
+    expect(within(chooser).getByText('Manager · not on shift · no tables now')).toBeTruthy();
+
+    const confirm = within(chooser).getByRole('button', { name: 'Transfer' }) as HTMLButtonElement;
+    expect(confirm.disabled).toBe(true);
+    fireEvent.click(within(chooser).getByRole('radio', { name: /^Aram Petrosyan/u }));
+    fireEvent.click(within(chooser).getByRole('button', { name: 'Transfer to Aram' }));
+    expect(onTransfer).toHaveBeenCalledWith(
+      expect.objectContaining({ staffMemberId: 's-aram' }),
+      expect.any(Function),
+    );
+
+    // The server took it: the sheet says so, with the history line, until "Done".
+    const onDone = onTransfer.mock.calls[0]![1] as (done: { name: string; atUtc: string }) => void;
+    act(() => onDone({ name: 'Aram Petrosyan', atUtc: '2026-10-24T13:40:00Z' }));
+    const status = within(sheet).getByRole('status');
+    expect(status.textContent).toContain('Table 6 is now Aram’s');
+    expect(status.textContent).toContain('17:40: Lilit → Aram');
+    fireEvent.click(within(sheet).getByRole('button', { name: 'Done' }));
+    expect(handlers.onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it('on the phone, Escape goes back from the chooser to the table, not off the sheet', () => {
+    const handlers = show({
+      ...occupied,
+      tab: tabOwing(5000),
+      variant: 'sheet',
+      transferTargets: targets,
+      onTransfer: vi.fn(),
+    });
+    fireEvent.click(button('Transfer table'));
+    fireEvent.keyDown(screen.getByRole('dialog'), { key: 'Escape' });
+    expect(handlers.onClose).not.toHaveBeenCalled();
+    expect(button('Transfer table')).toBeTruthy();
+  });
+
+  it('is not offered on a table with no bill', () => {
+    show({
+      ...occupied,
+      detail: { ...occupied.detail, openTabId: null },
+      transferTargets: targets,
+      onTransfer: vi.fn(),
+    });
+    expect(screen.queryByRole('button', { name: 'Transfer table' })).toBeNull();
   });
 });

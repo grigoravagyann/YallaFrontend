@@ -21,6 +21,8 @@ export interface PhoneMoreProps {
   readonly onLock: () => void;
   /** "Notifications": the install screen's switches, as a screen of its own. */
   readonly onOpenNotifications: () => void;
+  /** "My results": their own numbers (absent for the kitchen, which has none). */
+  readonly onOpenResults?: (() => void) | undefined;
   /**
    * "Unpair this phone", after its confirm: revokes this phone on the server,
    * forgets it here and goes back to pairing. Only on a paired phone — a
@@ -122,6 +124,12 @@ export function PhoneMore(props: PhoneMoreProps) {
           <span>{t('phone.more.myShift')}</span>
           <span className="ph-list-value">{shiftText}</span>
         </div>
+        {props.onOpenResults ? (
+          <button type="button" className="ph-list-row" onClick={props.onOpenResults}>
+            {t('phone.more.results')}
+            <PhoneIcon name="chevron" />
+          </button>
+        ) : null}
         <button type="button" className="ph-list-row" onClick={props.onOpenNotifications}>
           {t('phone.more.notifications')}
           <PhoneIcon name="chevron" />

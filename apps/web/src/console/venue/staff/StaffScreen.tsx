@@ -16,6 +16,7 @@ import {
 } from '@yalla/api/react';
 import { useLocale, useTranslation } from '@yalla/i18n';
 import { useCallback, useMemo, useState, type ReactNode } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useCurrentUser } from '../../../auth/useCurrentUser';
 import { QueryFailureNotice } from '../../../components/QueryFailureNotice';
 import { initialsOf } from '../../ui/ConsoleShell';
@@ -54,6 +55,7 @@ import {
 import { asStaffRefusal, type StaffRefusal } from './staffRefusal';
 import { shiftLineOf, type ShiftLine } from './staffShifts';
 import { useStaffLabels } from './staffLabels';
+import { StaffResults } from './StaffResults';
 
 /** The groups' order, most senior first (Staff artboard). */
 const ROLE_ORDER: readonly StaffRole[] = [
@@ -124,7 +126,9 @@ type Open =
  * people who work at the branch in the sidebar — its own and the venue-wide
  * owners and general managers — as the artboard does.
  */
-type StaffSection = 'people' | 'tablets' | 'phones';
+type StaffSection = 'people' | 'results' | 'tablets' | 'phones';
+
+const SECTIONS: readonly StaffSection[] = ['people', 'results', 'tablets', 'phones'];
 
 /** The ids of the section tabs and their panel. */
 const SECTION_PREFIX = 'staff-section';
@@ -147,14 +151,33 @@ export function StaffScreen() {
   const setPin = useSetStaffPin(venueId);
   const clearLockout = useClearPinLockout(venueId);
 
+  // People, Results (2026-10-24), the branch's tablets, or everybody's own
+  // phones (Devices artboard): in the address, so a Results link opens Results.
+  const [params, setParams] = useSearchParams();
+  const section: StaffSection =
+    SECTIONS.find((one) => one !== 'people' && one === params.get('tab')) ?? 'people';
+  const setSection = (next: StaffSection) =>
+    setParams(
+      (current) => {
+        const copy = new URLSearchParams(current);
+        if (next === 'people') copy.delete('tab');
+        else copy.set('tab', next);
+        // The period and the sort are the Results table's own.
+        if (next !== 'results') {
+          copy.delete('period');
+          copy.delete('sort');
+          copy.delete('dir');
+        }
+        return copy;
+      },
+      { replace: true },
+    );
   const [search, setSearch] = useState('');
   const [roleFilter, setRoleFilter] = useState<RoleFilter>('all');
   const [showInactive, setShowInactive] = useState(false);
   const [menuFor, setMenuFor] = useState<string | null>(null);
   const [open, setOpen] = useState<Open | null>(null);
   const [refusal, setRefusal] = useState<StaffRefusal | null>(null);
-  /** People, the branch's tablets, or everybody's own phones (Devices artboard). */
-  const [section, setSection] = useState<StaffSection>('people');
 
   const branches = venue.data?.branches ?? [];
   const here = branchName ?? branches.find((branch) => branch.id === branchId)?.name ?? '';
@@ -426,6 +449,7 @@ export function StaffScreen() {
         onSelect={setSection}
         tabs={[
           { id: 'people', label: t('staff.tabs.people') },
+          { id: 'results', label: t('staffResults.tabs.results') },
           { id: 'tablets', label: t('staff.tabs.tablets') },
           { id: 'phones', label: t('staff.tabs.phones') },
         ]}
@@ -616,6 +640,12 @@ export function StaffScreen() {
               )}
             </div>
           </>
+        ) : section === 'results' ? (
+          branchId ? (
+            <StaffResults branchId={branchId} timeZoneId={timeZoneId} />
+          ) : (
+            <p className="yc-card yc-empty-line">{t('menu.noBranch')}</p>
+          )
         ) : section === 'tablets' ? (
           // Keyed by branch: a code or an open revoke confirmation belongs to
           // the branch it was made for, not the one switched to.

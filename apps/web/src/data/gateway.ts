@@ -49,6 +49,8 @@ export function consoleGatewayFor(role: UserRole): ConsoleGateway {
       mockPreOrders: import.meta.env.MODE !== 'test',
       // Mock only: Northern Avenue takes takeaway, the matnakash eggs hall-only.
       mockTakeaway: import.meta.env.MODE !== 'test',
+      // Mock only: the activity boards' waiters at Northern Avenue (2026-10-24).
+      mockActivity: import.meta.env.MODE !== 'test',
       persist: mockPersistence(`console.${role}`),
     });
     mockConsoles.set(role, mock);

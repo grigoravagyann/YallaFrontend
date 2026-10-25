@@ -119,9 +119,13 @@ export function applyFloorChanges(
     //
     // A signal this build does not know: read, never guessed at — and never
     // folded as an admission, which would clear a scan's waiting flag.
+    //
+    // The table was handed to another waiter (signal 7, 2026-10-24): the row
+    // does not say to whom, the floor read does (`serverName`).
     if (
       change.signal === 'bookingCancelledByBlock' ||
       change.signal === 'bookingChanged' ||
+      change.signal === 'tableTransferred' ||
       change.signal === 'unknown'
     ) {
       return { kind: 'gap', expected: floor.lastSequence + 1, received: change.sequence };

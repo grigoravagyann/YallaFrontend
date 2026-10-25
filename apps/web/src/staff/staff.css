@@ -1244,6 +1244,10 @@
   overflow-wrap: anywhere;
 }
 
+.tp-fact.is-text dd {
+  overflow-wrap: break-word;
+}
+
 .tp-fact dd.is-warn {
   color: var(--console-red);
 }
@@ -5386,6 +5390,39 @@ a.ft-btn {
   border-radius: var(--console-radius-floor-button);
   font-size: var(--console-text-nav);
   color: var(--console-ink);
+}
+
+/* "I'm on it" (2026-10-24): who took a call, on every tablet. */
+.ft-item p.ft-item-claim {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  color: var(--console-green);
+  font-weight: var(--font-weight-semibold);
+}
+
+.ft-claim-dot {
+  width: 8px;
+  height: 8px;
+  flex: none;
+  border-radius: 50%;
+  background: var(--console-green);
+}
+
+.ft-claim-at {
+  color: var(--console-muted);
+  font-weight: var(--font-weight-regular);
+  font-feature-settings: var(--font-feature-tabular);
+}
+
+/* Transfer a table (2026-10-24): who takes it, on shift first. */
+.tp-legend {
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-bold);
+}
+
+.tp-hint.is-failed {
+  color: var(--console-red);
 }
 
 /* --------------------------------------------------------------------------

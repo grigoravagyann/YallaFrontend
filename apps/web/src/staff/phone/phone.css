@@ -791,8 +791,187 @@ button.ph-row:active {
   padding: var(--space-md) var(--ph-safe-right) var(--space-xl) var(--ph-safe-left);
 }
 
+/* The table's waiter: a name, so a row of its own rather than a third of one. */
+[data-layout='phone'] .tp.is-sheet .tp-fact.is-text {
+  grid-column: 1 / -1;
+}
+
 [data-layout='phone'] .tp.is-sheet .tp-btn {
   min-height: 52px;
+}
+
+/* Transfer a table (history-stats Transfer artboard): the whole sheet. */
+.ph-transfer {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 10px var(--ph-safe-right, 16px) 24px var(--ph-safe-left, 16px);
+}
+
+.ph-transfer-title {
+  margin: 0;
+  font-size: 19px;
+  font-weight: var(--font-weight-bold);
+}
+
+/* Focused only to start the reader there (tabindex -1): not a control, no ring. */
+.ph-transfer-title:focus {
+  outline: none;
+}
+
+.ph-transfer-body,
+.ph-transfer-now,
+.ph-transfer-note {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--console-muted);
+}
+
+.ph-transfer-now {
+  color: var(--console-ink);
+  font-weight: var(--font-weight-semibold);
+}
+
+.ph-transfer-note.is-failed {
+  color: var(--console-red);
+}
+
+.ph-transfer-people {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.ph-transfer-legend {
+  margin-bottom: 6px;
+  padding: 0;
+  font-weight: var(--font-weight-bold);
+}
+
+.ph-transfer-person {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 60px;
+  padding: 8px 12px;
+  border: 1px solid var(--console-line);
+  border-radius: 16px;
+  background: var(--console-surface);
+  color: var(--console-ink);
+  cursor: pointer;
+}
+
+.ph-transfer-person.is-on {
+  border: 2px solid var(--console-brand);
+  padding: 7px 11px;
+}
+
+/* The radio itself: there for the keyboard and a screen reader, under the card. */
+.ph-transfer-person input {
+  position: absolute;
+  inset: 0;
+  margin: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.ph-transfer-person:has(input:focus-visible) {
+  outline: 3px solid var(--console-focus);
+  outline-offset: 2px;
+}
+
+.ph-transfer-mark {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: var(--console-brand);
+  color: var(--console-brand-foreground);
+  font-size: 14px;
+  font-weight: var(--font-weight-bold);
+}
+
+.ph-transfer-who {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+  text-align: start;
+}
+
+.ph-transfer-who b {
+  font-size: 15px;
+  overflow-wrap: anywhere;
+}
+
+.ph-transfer-who span {
+  font-size: 13px;
+  color: var(--console-muted);
+}
+
+.ph-transfer-actions {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 2fr);
+  gap: 10px;
+}
+
+.ph-transfer-btn {
+  min-height: 52px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 26px;
+  box-shadow: inset 0 0 0 1px var(--console-button-edge);
+  background: var(--console-surface);
+  color: var(--console-ink);
+  font: inherit;
+  font-size: 15px;
+  font-weight: var(--font-weight-semibold);
+  cursor: pointer;
+}
+
+.ph-transfer-btn.is-primary {
+  box-shadow: none;
+  background: var(--console-brand);
+  color: var(--console-brand-foreground);
+  font-weight: var(--font-weight-bold);
+}
+
+.ph-transfer-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.ph-transfer-btn:focus-visible {
+  outline: 3px solid var(--console-focus);
+  outline-offset: 2px;
+}
+
+.ph-transfer-done {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 14px;
+  border-radius: 16px;
+  background: var(--console-green-bg);
+  color: var(--console-green);
+}
+
+.ph-transfer-done b {
+  font-size: 16px;
+}
+
+.ph-transfer-done span {
+  font-size: 14px;
 }
 
 @media (prefers-reduced-motion: no-preference) {
@@ -1332,4 +1511,210 @@ button.ph-list-row:active {
 [data-layout='phone'] .ft-draft-lines {
   min-height: 0;
   overflow-y: auto;
+}
+
+/* --------------------------------------------------------------------------
+ * My results (history-stats MyStats artboard)
+ * -------------------------------------------------------------------------- */
+.ph-periods {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 4px;
+  padding: 4px;
+  border-radius: 24px;
+  box-shadow: inset 0 0 0 1px var(--console-button-edge);
+}
+
+.ph-period {
+  min-height: var(--touch-minimum);
+  border: 0;
+  border-radius: 20px;
+  background: transparent;
+  color: var(--console-ink);
+  font: inherit;
+  font-size: 14px;
+  font-weight: var(--font-weight-semibold);
+  cursor: pointer;
+}
+
+.ph-period.is-on {
+  background: var(--console-brand);
+  color: var(--console-brand-foreground);
+}
+
+.ph-period:focus-visible,
+.ph-chart-hit:focus-visible,
+.ph-chart-toggle:focus-visible {
+  outline: 3px solid var(--console-focus);
+  outline-offset: 2px;
+}
+
+.ph-results-note {
+  margin: 0;
+  font-size: var(--console-text-caption);
+  line-height: 1.5;
+  color: var(--console-muted);
+}
+
+.ph-results .ph-rows {
+  margin: 0;
+}
+
+.ph-results-recent .ph-row {
+  flex-wrap: nowrap;
+  align-items: flex-start;
+}
+
+.ph-results-recent .ph-row > span:first-child {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.ph-results-recent .ph-row-state {
+  flex: none;
+  font-feature-settings: var(--font-feature-tabular);
+}
+
+.ph-chart {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  margin: 0;
+  padding: 14px;
+  border-radius: 16px;
+  box-shadow: inset 0 0 0 1px var(--console-button-edge);
+}
+
+.ph-chart-caption {
+  font-size: 14px;
+  font-weight: var(--font-weight-bold);
+}
+
+.ph-chart-bars {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 6px;
+  height: 140px;
+  border-bottom: 1px solid var(--console-line);
+}
+
+.ph-chart-col {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  height: 100%;
+}
+
+/* The whole column is the target, not the painted bar: a quiet day's bar is a
+   few pixels tall. */
+.ph-chart-hit {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  min-height: 0;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+}
+
+.ph-chart-bar {
+  display: block;
+  width: 70%;
+  max-width: 28px;
+  border-radius: 4px 4px 0 0;
+  background: var(--console-report-bar);
+}
+
+.ph-chart-hit.is-today .ph-chart-bar {
+  background: var(--console-brand);
+}
+
+.ph-chart-hit[aria-pressed='true']:not(.is-today) .ph-chart-bar {
+  background: var(--console-chart-bar);
+}
+
+.ph-chart-v {
+  margin-bottom: 4px;
+  font-size: 11px;
+  font-weight: var(--font-weight-semibold);
+  color: var(--console-ink);
+  font-feature-settings: var(--font-feature-tabular);
+}
+
+.ph-chart-day {
+  flex: none;
+  padding-top: 4px;
+  font-size: 11px;
+  text-align: center;
+  color: var(--console-muted);
+}
+
+.ph-chart-day.is-today {
+  font-weight: var(--font-weight-bold);
+  color: var(--console-ink);
+}
+
+.ph-chart-readout {
+  min-height: 1.4em;
+  margin: 0;
+  font-size: 13px;
+  color: var(--console-ink);
+}
+
+.ph-chart-toggle {
+  align-self: flex-start;
+  min-height: var(--touch-minimum);
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--console-brand);
+  font: inherit;
+  font-size: 14px;
+  font-weight: var(--font-weight-semibold);
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.ph-chart-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+
+.ph-chart-table th,
+.ph-chart-table td {
+  padding: 8px 4px;
+  border-bottom: 1px solid var(--console-line-soft);
+  text-align: start;
+  font-weight: var(--font-weight-regular);
+}
+
+.ph-chart-table td {
+  text-align: end;
+  font-feature-settings: var(--font-feature-tabular);
+}
+
+.ph-chart-table thead th {
+  font-weight: var(--font-weight-bold);
+  color: var(--console-muted);
+}
+
+/* The board's quieter frame: a hairline, and figures a step smaller than Today's. */
+.ph-results .ph-tile {
+  padding: 12px;
+  border-radius: 14px;
+  box-shadow: inset 0 0 0 1px var(--console-line);
+}
+
+.ph-results .ph-tile-value {
+  font-size: 19px;
+}
+
+.ph-results .ph-chart {
+  border-radius: 14px;
+  box-shadow: inset 0 0 0 1px var(--console-line);
 }

@@ -1,5 +1,6 @@
 import {
   ApiError,
+  ForbiddenError,
   LineAlreadyPaidError,
   isOffline,
   TableNotSeatedError,
@@ -10,6 +11,7 @@ import {
   readsPreOrderRail,
   staffMayWrite,
   tableDetail,
+  transferRefusalOf,
   type AdjustmentKind,
   type AffectedReservation,
   type EnrolledDevice,
@@ -35,6 +37,7 @@ import {
   useAwaitingApproval,
   useBeginClosing,
   useBranchConversations,
+  useClaimServiceRequest,
   useCompLine,
   useDuePreOrders,
   useOpenTabForStaff,
@@ -48,6 +51,8 @@ import {
   useNow,
   useTakeawayOrders,
   useTabsAwaitingAdmission,
+  useTransferTab,
+  useTransferTargets,
   useVoidLine,
 } from '@yalla/api/react';
 import { useQueryClient } from '@tanstack/react-query';
@@ -56,6 +61,7 @@ import type { TFunction } from 'i18next';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { QueryFailureNotice } from '../components/QueryFailureNotice';
+import { firstName } from '../messages/messageText';
 import {
   AdmissionSection,
   wasHeldForLateParty,
@@ -66,6 +72,7 @@ import { ApprovalPanel, useRequestArrivals } from './ApprovalPanel';
 import { branchToday, decidedNotice } from './approvalRequests';
 import { primeChime } from './chime';
 import { ConflictList } from './ConflictList';
+import { freshPaidRefusal } from './commands/reducer';
 import { useCommandQueue } from './commands/useCommandQueue';
 import type { CommandRefusal, NewCommand, OrderRefusal, QueuedCommand } from './commands/types';
 import { applyFloorChanges } from './live/sequence';
@@ -86,7 +93,7 @@ import { useMinuteClock } from './useMinuteClock';
 import { useBehindHeldNotice, useCancelReadsWhileLocked, useHeldMarks } from './useHandover';
 import { kitchenWaiting, OrderQueuePanel } from './OrderQueuePanel';
 import { StaffHeader, type StaffView } from './StaffHeader';
-import { TableActionPanel } from './TableActionPanel';
+import { TableActionPanel, type TransferTarget } from './TableActionPanel';
 import { tableCardText } from './tableCard';
 import { TableList } from './TableList';
 import { TabPanel } from './TabPanel';
@@ -97,6 +104,7 @@ import { connectionChip } from './StaffHeader';
 import { upcomingBookings } from './phone/nextHour';
 import { PhoneApprove } from './phone/PhoneApprove';
 import { PhoneMore } from './phone/PhoneMore';
+import { PhoneResults } from './phone/PhoneResults';
 import { PhoneApprovalList, PhoneNextHour, PhoneTakeawayList } from './phone/PhoneNowSections';
 import { PhoneShell, type PhoneTab, type PhoneTabSpec } from './phone/PhoneShell';
 import { PhoneInstall } from './phone/PhoneInstall';
@@ -162,6 +170,9 @@ export interface FloorRouteProps {
   readonly onUnpair?: (() => Promise<void>) | undefined;
 }
 
+/** Venue-wide people: My results names the branch for them. */
+const VENUE_WIDE_ROLES: ReadonlySet<string> = new Set(['generalManager', 'owner']);
+
 /** The people who see the phone's Today: a manager and everyone above. */
 const MANAGER_ROLES: ReadonlySet<string> = new Set(['manager', 'generalManager', 'owner']);
 
@@ -207,7 +218,10 @@ const UNDO_NOTICE_MS = 15_000;
  * ever refused with its own reasons (`sync.ts`); anything else reads "other".
  */
 function orderRefusalOf(refusal: CommandRefusal | undefined): OrderRefusal {
-  return refusal && refusal.kind !== 'notFound' && refusal.kind !== 'forbidden'
+  return refusal &&
+    refusal.kind !== 'notFound' &&
+    refusal.kind !== 'forbidden' &&
+    refusal.kind !== 'lineAlreadyPaid'
     ? refusal
     : { kind: 'other' };
 }
@@ -250,8 +264,8 @@ export function FloorRoute({ identity, device = null, paused, onUnpair }: FloorR
   const manager = MANAGER_ROLES.has(identity.role);
   const homeTab: PhoneTab = manager ? 'today' : 'now';
   const [phoneTab, setPhoneTab] = useState<PhoneTab>(onMessagesPath ? 'messages' : homeTab);
-  /** A screen opened from More: its notification switches. */
-  const [moreScreen, setMoreScreen] = useState<'notifications' | null>(null);
+  /** A screen opened from More: its notification switches, or My results. */
+  const [moreScreen, setMoreScreen] = useState<'notifications' | 'results' | null>(null);
   /** The booking open on the phone's Approve screen, as it was last read. */
   const [approving, setApproving] = useState<AwaitingApproval | null>(null);
   if (onMessagesPath !== lastMessagesPath) {
@@ -650,6 +664,21 @@ export function FloorRoute({ identity, device = null, paused, onUnpair }: FloorR
     }
     seenConflicts.current = conflictCount;
   }, [conflictCount]);
+
+  // An order voided whole on a bill already paid against is refused (the
+  // server, 2026-10-25): that would be a refund. Said here, in words, and not
+  // only in the chip (`freshPaidRefusal`).
+  const conflicts = queue.state.conflicts;
+  const toldPaid = useRef<ReadonlySet<string>>(new Set());
+  useEffect(() => {
+    const fresh = freshPaidRefusal(conflicts, toldPaid.current, Date.now());
+    toldPaid.current = new Set(conflicts.map((entry) => entry.command.id));
+    if (!fresh) return;
+    setNotice({
+      kind: 'warning',
+      text: t('notice.orderVoidPaid', { label: fresh.command.subject.tableLabel ?? '' }),
+    });
+  }, [conflicts, t]);
 
   // --- Panels ---------------------------------------------------------------
 
@@ -1227,6 +1256,59 @@ export function FloorRoute({ identity, device = null, paused, onUnpair }: FloorR
     [branchId, queryClient, queue, t],
   );
 
+  // --- "I'm on it" (2026-10-24) ---------------------------------------------
+  //
+  // A claim is online only: the first one wins on the server, so a claim
+  // queued offline would be a guess. "On my way" on a call nobody has taken
+  // claims it too, quietly — the response time is measured to the claim.
+  //
+  // `mutateAsync`, not `mutate` with per-call callbacks: one mutation hook
+  // serves every call, and TanStack only runs a `mutate` call's own callbacks
+  // for the latest call — two claims in flight (or a quiet one under "On my
+  // way") would leave the first stuck in `claiming`, its button disabled for
+  // good, and its race notice unsaid.
+  const { mutateAsync: claimAsync } = useClaimServiceRequest();
+  const [claiming, setClaiming] = useState<ReadonlySet<string>>(new Set());
+  const claim = useCallback(
+    (request: ServiceRequest, quiet = false) => {
+      if (!queue.online || request.claimedByName) return;
+      setClaiming((current) => new Set(current).add(request.id));
+      claimAsync({ branchId, requestId: request.id })
+        .then((claimed) => {
+          if (quiet) return;
+          // The server answers a lost race with the winner's claim.
+          const mine = claimed.claimedByStaffMemberId
+            ? claimed.claimedByStaffMemberId === identity.staffMemberId
+            : !claimed.claimedByName || claimed.claimedByName === identity.fullName;
+          setNotice({
+            kind: mine ? 'info' : 'race',
+            text: mine
+              ? t('rail.calls.claimNotice', { label: request.tableLabel })
+              : t('rail.calls.claimTaken', {
+                  label: request.tableLabel,
+                  name: firstName(claimed.claimedByName ?? ''),
+                }),
+          });
+        })
+        .catch(() => {
+          if (!quiet) {
+            setNotice({
+              kind: 'warning',
+              text: t('rail.calls.claimFailed', { label: request.tableLabel }),
+            });
+          }
+        })
+        .finally(() =>
+          setClaiming((current) => {
+            const next = new Set(current);
+            next.delete(request.id);
+            return next;
+          }),
+        );
+    },
+    [branchId, claimAsync, identity.fullName, identity.staffMemberId, queue.online, t],
+  );
+
   /**
    * The staff acknowledgement, through the queue like every other command —
    * the same call "On my way" makes.
@@ -1255,6 +1337,7 @@ export function FloorRoute({ identity, device = null, paused, onUnpair }: FloorR
       if (request.reason === 'bill' && request.bill) {
         setAcknowledgedBills((current) => new Map(current).set(request.id, request));
       }
+      claim(request, true);
       sendAcknowledge(request);
       setNotice({
         kind: 'info',
@@ -1264,7 +1347,85 @@ export function FloorRoute({ identity, device = null, paused, onUnpair }: FloorR
         }),
       });
     },
-    [queue.online, sendAcknowledge, t],
+    [claim, queue.online, sendAcknowledge, t],
+  );
+
+  // --- Transfer a table (2026-10-24, list from the server 2026-10-25) --------
+  //
+  // Who could take it, read from the server when the chooser opens: exactly the
+  // people the transfer accepts (active, serving here, not the table's waiter
+  // now), on shift first, each with the tables they hold. One list for the
+  // tablet and the phone alike, whose own roster is only its person.
+  const transferTab = useTransferTab(branchId);
+  /** The tab whose chooser is open: nothing is read before somebody asks. */
+  const [transferWantedFor, setTransferWantedFor] = useState<string | null>(null);
+  const transferTargetsQuery = useTransferTargets(
+    selectedTabId,
+    selectedTabId !== null && transferWantedFor === selectedTabId,
+  );
+  const transferTargets = useMemo((): readonly TransferTarget[] | null => {
+    if (!transferTargetsQuery.data) return null;
+    return transferTargetsQuery.data.map((target) => ({
+      staffMemberId: target.staffMemberId,
+      name: target.name,
+      roleLabel: t(`pin.role.${target.role}`),
+      onShift: target.onShiftNow,
+      load: target.openTables,
+    }));
+  }, [t, transferTargetsQuery.data]);
+  const transferTargetsFailed = transferTargetsQuery.isError;
+  /** A 403 is an answer: only the table's waiter or a manager hands it over. */
+  const transferNotYours = transferTargetsQuery.error instanceof ForbiddenError;
+  const transfer = useCallback(
+    (
+      tabId: string,
+      tableLabel: string,
+      target: TransferTarget,
+      onDone?: (result: { readonly name: string; readonly atUtc: string }) => void,
+    ) => {
+      transferTab.mutate(
+        { tabId, toStaffMemberId: target.staffMemberId, clientCommandId: newCommandId() },
+        {
+          onSuccess: (result) => {
+            const name = result.server.name || target.name;
+            // The phone's sheet says it itself, and stays up until "Done".
+            if (onDone) {
+              // The server's own time: the one the history line carries.
+              onDone({ name, atUtc: result.transferredAtUtc });
+              return;
+            }
+            setNotice({
+              kind: 'info',
+              text: t('table.transfer.done', { label: tableLabel, name }),
+            });
+            setSelection(null);
+          },
+          onError: (error) => {
+            // The server says why (`transfer-target-ineligible` and its
+            // reason, or `tab-not-transferable`); anything else is a retry.
+            const refusal = transferRefusalOf(error);
+            const name = target.name.split(/\s+/u)[0] ?? target.name;
+            setNotice({
+              kind: 'warning',
+              text:
+                // Not this person's table (somebody else's waiter, not a manager).
+                error instanceof ForbiddenError
+                  ? t('table.transfer.notYours', { label: tableLabel })
+                  : refusal?.kind === 'notTransferable'
+                    ? t('table.transfer.closed', { label: tableLabel })
+                    : refusal?.reason === 'does-not-serve'
+                      ? t('table.transfer.notServing', { name })
+                      : refusal?.reason === 'other-branch'
+                        ? t('table.transfer.otherBranch', { name })
+                        : refusal?.reason === 'inactive' || refusal?.reason === 'not-found'
+                          ? t('table.transfer.gone', { name })
+                          : t('table.transfer.refused', { label: tableLabel }),
+            });
+          },
+        },
+      );
+    },
+    [t, transferTab],
   );
 
   const submitOrder = useCallback(
@@ -1628,6 +1789,22 @@ export function FloorRoute({ identity, device = null, paused, onUnpair }: FloorR
           if (variant === 'sheet') setTimeout(back, 0);
           else back();
         }}
+        transferTargets={transferTargets}
+        transferTargetsFailed={transferTargetsFailed}
+        transferNotYours={transferNotYours}
+        onWantTransfer={() => {
+          if (!selectedTabId) return;
+          // Read afresh each time it opens: who holds how many tables moves.
+          void queryClient.invalidateQueries({
+            queryKey: queryKeys.transferTargets(selectedTabId),
+          });
+          setTransferWantedFor(selectedTabId);
+        }}
+        onTransfer={(target, onDone) => {
+          if (selectedTabId) transfer(selectedTabId, selectedTable.label, target, onDone);
+        }}
+        transferring={transferTab.isPending}
+        actorName={identity.fullName}
         variant={variant}
         onMessageGuest={
           variant === 'sheet'
@@ -2004,17 +2181,19 @@ export function FloorRoute({ identity, device = null, paused, onUnpair }: FloorR
       ? t('phone.approve.title')
       : moreScreen === 'notifications'
         ? t('phone.install.settingsTitle')
-        : phoneTab === 'today'
-          ? t('phone.today.title')
-          : phoneTab === 'floor'
-            ? t('floor.title')
-            : phoneTab === 'messages'
-              ? t('messages.title')
-              : phoneTab === 'takeaway'
-                ? t('takeaway.title')
-                : phoneTab === 'more'
-                  ? t('phone.tabs.more')
-                  : t('rail.title');
+        : moreScreen === 'results'
+          ? t('phone.results.title')
+          : phoneTab === 'today'
+            ? t('phone.today.title')
+            : phoneTab === 'floor'
+              ? t('floor.title')
+              : phoneTab === 'messages'
+                ? t('messages.title')
+                : phoneTab === 'takeaway'
+                  ? t('takeaway.title')
+                  : phoneTab === 'more'
+                    ? t('phone.tabs.more')
+                    : t('rail.title');
 
     return (
       <PhoneShell
@@ -2077,6 +2256,9 @@ export function FloorRoute({ identity, device = null, paused, onUnpair }: FloorR
             ordersFailed={ordersFailed}
             timeZoneId={timeZoneId}
             onAcknowledge={acknowledge}
+            onClaim={queue.online ? (request) => claim(request) : undefined}
+            claiming={claiming}
+            selfStaffMemberId={identity.staffMemberId}
             onAdvance={advanceOrder}
             noShows={noShowsSection}
             preOrders={preOrdersSection}
@@ -2149,6 +2331,15 @@ export function FloorRoute({ identity, device = null, paused, onUnpair }: FloorR
           </div>
         ) : null}
 
+        {!approving && phoneTab === 'more' && moreScreen === 'results' ? (
+          <PhoneResults
+            // An owner or a general manager has no home branch: they name this one.
+            branchId={VENUE_WIDE_ROLES.has(identity.role) && branchId ? branchId : undefined}
+            timeZoneId={timeZoneId}
+            active={active}
+          />
+        ) : null}
+
         {!approving && phoneTab === 'more' && moreScreen === null ? (
           <PhoneMore
             identity={identity}
@@ -2160,6 +2351,8 @@ export function FloorRoute({ identity, device = null, paused, onUnpair }: FloorR
             onOpenTakeaway={!takeawayTab && takeawayInUse ? () => selectTab('takeaway') : undefined}
             onLock={() => void staffSession?.signOut()}
             onOpenNotifications={() => setMoreScreen('notifications')}
+            // The kitchen has no results of its own (the server refuses it).
+            onOpenResults={identity.role === 'kitchen' ? undefined : () => setMoreScreen('results')}
             onUnpair={onUnpair}
           />
         ) : null}
@@ -2283,6 +2476,9 @@ export function FloorRoute({ identity, device = null, paused, onUnpair }: FloorR
           ordersFailed={ordersFailed}
           timeZoneId={timeZoneId}
           onAcknowledge={acknowledge}
+          onClaim={queue.online ? (request) => claim(request) : undefined}
+          claiming={claiming}
+          selfStaffMemberId={identity.staffMemberId}
           onAdvance={advanceOrder}
           noShows={noShowsSection}
           preOrders={preOrdersSection}

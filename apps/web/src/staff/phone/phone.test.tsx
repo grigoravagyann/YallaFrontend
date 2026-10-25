@@ -3,6 +3,7 @@ import 'fake-indexeddb/auto';
 import {
   createQueryClient,
   createStaffMockGateway,
+  ForbiddenError,
   type EnrolledDevice,
   type StaffFloor,
   type StaffGateway,
@@ -292,6 +293,23 @@ describe('Now', () => {
     await waitFor(() => expect(acknowledge).toHaveBeenCalledTimes(1));
   });
 
+  it('takes a call with "I’m on it" on the phone too, and names who has it', async () => {
+    signIn();
+    const staffGateway = gateway();
+    const claim = vi.spyOn(staffGateway, 'claimServiceRequest');
+    renderAt(staffGateway);
+    const rail = await screen.findByRole('complementary', { name: 'Needs attention' });
+    const calls = within(rail).getAllByRole('region')[0]!;
+    const take = await within(calls).findAllByRole('button', { name: /^I’m on it · table/u });
+    await setupUser().click(take[0]!);
+    await waitFor(() => expect(claim).toHaveBeenCalledTimes(1));
+    expect(claim.mock.calls[0]![0]).toEqual(expect.objectContaining({ branchId: BRANCH }));
+    // Who has it, on the call itself, and no second "I’m on it".
+    await waitFor(() =>
+      expect(calls.querySelector('.ft-item-claim')?.textContent).toMatch(/on it/u),
+    );
+  });
+
   it('lists a booking to approve as a row that opens the Approve screen, and approves there', async () => {
     signIn();
     const staffGateway = gateway();
@@ -389,6 +407,100 @@ describe('the floor', () => {
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
     expect(document.querySelector('.ph-frame')!.hasAttribute('inert')).toBe(false);
     await waitFor(() => expect(document.activeElement).toBe(tile));
+  });
+});
+
+describe('transferring a table on the phone', () => {
+  it('opens the chooser in the sheet, people on shift first with their tables, and says it worked', async () => {
+    signIn();
+    // A paired phone's roster is its own person: the chooser asks the server
+    // who can take this table, and shows them in the server's order.
+    const staffGateway = gateway();
+    const targets = vi.spyOn(staffGateway, 'listTransferTargets').mockResolvedValue([
+      {
+        staffMemberId: 's2',
+        name: 'Gor Melkonyan',
+        role: 'waiter',
+        onShiftNow: true,
+        openTables: 2,
+      },
+      {
+        staffMemberId: 's4',
+        name: 'Ani Sargsyan',
+        role: 'manager',
+        onShiftNow: false,
+        openTables: 0,
+      },
+    ]);
+    const transfer = vi.spyOn(staffGateway, 'transferTab').mockImplementation(async (command) => ({
+      tabId: command.tabId,
+      server: { staffMemberId: 's2', name: 'Gor Melkonyan' },
+      previousServer: { staffMemberId: 's1', name: 'Aram Petrosyan' },
+      transferredAtUtc: new Date().toISOString(),
+      tableSessionId: null,
+      tableLabel: null,
+      wasReplay: false,
+    }));
+    renderAt(staffGateway);
+    const user = setupUser();
+    await user.click(tab(await tabs(), /^Floor/u));
+    const tiles = await screen.findByRole('list', { name: 'Tables' });
+    const occupied = (await within(tiles).findAllByRole('button')).find((one) =>
+      /Occupied/u.test(one.getAttribute('aria-label') ?? ''),
+    )!;
+    await user.click(occupied);
+
+    const sheet = await screen.findByRole('dialog');
+    // The table's waiter is in the sheet.
+    expect(within(sheet).getByText('Waiter')).toBeTruthy();
+    await user.click(await within(sheet).findByRole('button', { name: 'Transfer table' }));
+    const people = await within(sheet).findByRole('group', { name: /^To whom/u });
+    const radios = within(people).getAllByRole('radio');
+    // The server's list, for this table's tab, in its order; the roster is not asked.
+    expect(targets).toHaveBeenCalledTimes(1);
+    expect(staff.roster).not.toHaveBeenCalled();
+    expect(radios.map((radio) => radio.closest('label')?.querySelector('b')?.textContent)).toEqual([
+      'Gor Melkonyan',
+      'Ani Sargsyan',
+    ]);
+    expect(within(people).getByText('Waiter · on shift now · 2 tables now')).toBeTruthy();
+    expect(within(people).getByText('Manager · not on shift · no tables now')).toBeTruthy();
+    await user.click(radios[0]!);
+    await user.click(within(sheet).getByRole('button', { name: 'Transfer to Gor' }));
+
+    await waitFor(() => expect(transfer).toHaveBeenCalledTimes(1));
+    expect(transfer.mock.calls[0]![0]).toEqual(
+      expect.objectContaining({ tabId: targets.mock.calls[0]![0], toStaffMemberId: 's2' }),
+    );
+    const status = await within(sheet).findByRole('status');
+    expect(status.textContent).toMatch(/is now Gor’s/u);
+    expect(status.textContent).toMatch(/Aram → Gor/u);
+    await user.click(within(sheet).getByRole('button', { name: 'Done' }));
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+  });
+
+  it('says a refused list (403) is not this person’s table, not "try again"', async () => {
+    signIn();
+    const staffGateway = gateway();
+    vi.spyOn(staffGateway, 'listTransferTargets').mockRejectedValue(
+      new ForbiddenError({ url: '/api/tabs/t/transfer-targets' }),
+    );
+    renderAt(staffGateway);
+    const user = setupUser();
+    await user.click(tab(await tabs(), /^Floor/u));
+    const tiles = await screen.findByRole('list', { name: 'Tables' });
+    const occupied = (await within(tiles).findAllByRole('button')).find((one) =>
+      /Occupied/u.test(one.getAttribute('aria-label') ?? ''),
+    )!;
+    await user.click(occupied);
+    const sheet = await screen.findByRole('dialog');
+    await user.click(await within(sheet).findByRole('button', { name: 'Transfer table' }));
+    expect((await within(sheet).findByRole('alert')).textContent).toMatch(
+      /^Only the table’s waiter or a manager can hand table \S+ over\.$/u,
+    );
+    expect(
+      (within(sheet).getByRole('button', { name: 'Transfer' }) as HTMLButtonElement).disabled,
+    ).toBe(true);
   });
 });
 
@@ -652,6 +764,81 @@ describe('More', () => {
     expect(screen.getByRole('heading', { name: 'Turn on notifications' })).toBeTruthy();
     await user.click(screen.getByRole('button', { name: 'Back' }));
     expect(await screen.findByRole('button', { name: 'Lock now' })).toBeTruthy();
+  });
+
+  it('opens My results: the periods, six tiles, the week’s chart and who sees them', async () => {
+    signIn('waiter');
+    const staffGateway = gateway();
+    const mine = vi.spyOn(staffGateway, 'getMyPerformance').mockImplementation(async (query) => ({
+      from: query.from,
+      to: query.to,
+      staffMemberId: 's1',
+      name: 'Aram Petrosyan',
+      role: 'waiter',
+      isActive: true,
+      figures: {
+        tables: 9,
+        guests: 26,
+        salesAmd: 214_600,
+        averageCheckAmd: 23_844,
+        tipsAmd: 18_000,
+        callMedianSeconds: 48,
+        callsClaimed: 7,
+        replyMedianSeconds: 95,
+        messagesAnswered: 4,
+        approvals: 2,
+        declines: 0,
+        cashAmd: 132_000,
+        cashPayments: 6,
+        discounts: 0,
+        comps: 0,
+        adjustmentsAmd: 0,
+        voids: 0,
+      },
+      daily: Array.from({ length: 7 }, (_, index) => ({
+        date: `2026-10-${String(19 + index).padStart(2, '0')}`,
+        salesAmd: (index + 1) * 10_000,
+        tables: index,
+      })),
+      recent: { list: query.list ?? 'orders', items: [], nextCursor: null },
+    }));
+    renderAt(staffGateway);
+    const user = setupUser();
+    await user.click(tab(await tabs(), /^More/u));
+    await user.click(await screen.findByRole('button', { name: 'My results' }));
+
+    expect(await screen.findByRole('heading', { level: 1, name: 'My results' })).toBeTruthy();
+    expect(await screen.findByText('9 tables')).toBeTruthy();
+    expect(screen.getByText('48 s')).toBeTruthy();
+    expect(screen.getByText('6 bills')).toBeTruthy();
+    expect(screen.getByRole('group', { name: /^Sales by day/u })).toBeTruthy();
+    expect(
+      screen.getByText('Only you and your manager see these numbers. Other waiters do not.'),
+    ).toBeTruthy();
+    // A waiter reads their own: no branch named, and today first.
+    const first = mine.mock.calls[0]![0];
+    expect(first.branchId).toBeUndefined();
+    expect(first.from).toBe(first.to);
+
+    await user.click(screen.getByRole('button', { name: '7 days' }));
+    expect(screen.getByRole('button', { name: '7 days' }).getAttribute('aria-pressed')).toBe(
+      'true',
+    );
+    await waitFor(() =>
+      expect(mine.mock.calls.some(([query]) => query.from !== query.to)).toBe(true),
+    );
+  });
+
+  it('names the branch for an owner’s My results', async () => {
+    signIn('owner');
+    const staffGateway = gateway();
+    const mine = vi.spyOn(staffGateway, 'getMyPerformance');
+    renderAt(staffGateway);
+    const user = setupUser();
+    await user.click(tab(await tabs(), /^More/u));
+    await user.click(await screen.findByRole('button', { name: 'My results' }));
+    await waitFor(() => expect(mine).toHaveBeenCalled());
+    expect(mine.mock.calls[0]![0].branchId).toBe(BRANCH);
   });
 
   it('gives a manager Today, the message history and the console', async () => {

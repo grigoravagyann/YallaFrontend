@@ -215,6 +215,20 @@ describe('a booking event at a table (signal 5)', () => {
   });
 });
 
+describe('a table handed to another waiter (signal 7)', () => {
+  it('reads the floor again: the row does not say whose the table is now', () => {
+    const result = applyFloorChanges(floor, [
+      {
+        ...change(41, 't2', 'occupied'),
+        fromStatus: 'occupied',
+        tabId: 'tab-2',
+        signal: 'tableTransferred',
+      },
+    ]);
+    expect(result.kind).toBe('gap');
+  });
+});
+
 describe('a pre-order row (signal 6)', () => {
   it('leaves a free table with its booking coming as it is, without reading the floor (review S1)', () => {
     // A pre-order's table is normally free with that booking next until the

@@ -53,6 +53,11 @@ export interface ResolveConsoleGatewayOptions {
    * hall-only (2026-10-22). See `ConsoleMockOptions.seedTakeaway`.
    */
   readonly mockTakeaway?: boolean | undefined;
+  /**
+   * Mock only: the activity boards' three waiters at Northern Avenue
+   * (2026-10-24). See `ConsoleMockOptions.seedActivity`.
+   */
+  readonly mockActivity?: boolean | undefined;
   /** Mock only: keep the world across a reload. See {@link MockPersistence}. */
   readonly persist?: MockPersistence | undefined;
 }
@@ -70,6 +75,7 @@ export function resolveConsoleGateway(options: ResolveConsoleGatewayOptions): Co
       ...(options.mockRole ? { role: options.mockRole } : {}),
       ...(options.mockPreOrders ? { seedPreOrders: true } : {}),
       ...(options.mockTakeaway ? { seedTakeaway: true } : {}),
+      ...(options.mockActivity ? { seedActivity: true } : {}),
     };
     if (options.persist) {
       return persistMockGateway<ConsoleGateway>({

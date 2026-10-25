@@ -3,6 +3,7 @@ import { cafeFloorPlan } from './roomFloors';
 import type { Menu } from '../contracts/menu';
 import {
   ConcurrencyConflictError,
+  ForbiddenError,
   InvalidTransitionError,
   NotFoundError,
   UnauthorizedError,
@@ -121,6 +122,17 @@ import type { Photo } from '../contracts/menuAdmin';
 import { mockMenuFor } from './menu';
 import { mockBranchMenu, mockPhoto, publishedBranchMenu } from './menuDetail';
 import { computeBill, percentOf, type BillingLine } from './billing';
+import {
+  SERVING_ROLES,
+  TAB_NOT_TRANSFERABLE_CODE,
+  TRANSFER_TARGET_INELIGIBLE_CODE,
+  type ClaimServiceRequestCommand,
+  type MyPerformanceQuery,
+  type StaffMemberPerformance,
+  type TabTransferResult,
+  type TabTransferTarget,
+  type TransferTabCommand,
+} from '../contracts/activity';
 import type {
   SaveStaffNotificationSettings,
   StaffNotificationSettings,
@@ -132,6 +144,7 @@ import type {
 import { staffRoleToUserRole } from '../auth/endpoints';
 import { fixtureStaffFor } from './staffFixture';
 import { mockRosterShiftsAround } from './staffRosterMock';
+import { createMockActivity } from './activity';
 import { mockVenues } from './venues';
 
 /**
@@ -491,6 +504,9 @@ interface MockAwaiting {
  */
 const SERVICE_CHARGE_PERCENT = 10;
 
+/** The reason the server writes on each line a whole-order void takes off the bill. */
+const WHOLE_ORDER_VOID_REASON = 'The whole order was voided.';
+
 /** Which physical status each action is legal from, and what it produces. */
 const TRANSITIONS: Readonly<
   Record<TableActionKind, { readonly from: readonly TableStatus[]; readonly to: TableStatus }>
@@ -590,6 +606,48 @@ export function createStaffMockGateway(options: StaffMockOptions = {}): StaffGat
   const tabs = new Map<string, MockTab>();
   const orders = new Map<string, MockOrder>();
   const serviceRequests = new Map<string, ServiceRequest>();
+  /**
+   * Each tab's waiter (2026-10-24): whoever the mock says is signed in when a
+   * table is seated, until a transfer. By tab id.
+   */
+  const tabServers = new Map<string, { readonly id: string; readonly name: string }>();
+  /** Transfers by `clientCommandId`: a retry answers with the first one. */
+  const transfers = new Map<string, TabTransferResult>();
+
+  /** The branch's people, as the mock tablet's roster has them (`staffFixture.ts`). */
+  function branchPeople() {
+    for (const venue of mockVenues) {
+      if (venue.branches.some((branch) => branch.id === branchId)) {
+        return fixtureStaffFor(venue.id, venue.name, venue.branches).filter(
+          (member) => member.isActive && (member.branchId === null || member.branchId === branchId),
+        );
+      }
+    }
+    return [];
+  }
+
+  /** The signed-in waiter the mock stands in for: the fixture's, by the name it acts under. */
+  function me(): { readonly id: string; readonly name: string } {
+    const name = options.staffName ?? 'Ani Hakobyan';
+    const found = branchPeople().find((member) => member.fullName.startsWith(name));
+    return { id: found?.id ?? `${branchId}-waiter-1`, name: found?.fullName ?? name };
+  }
+
+  /**
+   * A month of the branch's work (2026-10-25), for My results: the console
+   * mock's own generator over the same fixture people, so the waiter's page
+   * on the phone and their row on Staff → Results tell one story.
+   */
+  const activity = createMockActivity({
+    now,
+    timeZoneOf: () => plan.timeZoneId,
+    staffAt: () => branchPeople(),
+  });
+
+  function serverOf(tabId: string | null): { readonly id: string; readonly name: string } | null {
+    if (!tabId || !tabs.has(tabId)) return null;
+    return tabServers.get(tabId) ?? me();
+  }
   const reservations = new Map<string, MockReservation>();
   /** clientCommandId -> the original response. The idempotency log. */
   const applied = new Map<string, TableActionResult>();
@@ -2600,6 +2658,13 @@ export function createStaffMockGateway(options: StaffMockOptions = {}): StaffGat
           sittingGuestRecord: null,
           // Guest messages (2026-10-23): the tile's badges, only when there are some.
           ...unreadOnTable(state),
+          // Table ownership (2026-10-24): the tab's waiter.
+          ...(serverOf(state.tabId)
+            ? {
+                serverStaffMemberId: serverOf(state.tabId)!.id,
+                serverName: serverOf(state.tabId)!.name,
+              }
+            : {}),
         });
         return {
           ...table,
@@ -3518,8 +3583,32 @@ export function createStaffMockGateway(options: StaffMockOptions = {}): StaffGat
       requireSession(`/api/orders/${command.orderId}/status`);
       const order = orders.get(command.orderId);
       if (!order) throw new NotFoundError({ url: `/api/orders/${command.orderId}` });
-      order.status = command.status;
       const tab = order.tabId ? tabs.get(order.tabId) : undefined;
+      // As the server (2026-10-25): voiding a whole order voids every line of
+      // it still on the bill, and is refused, as one line's void is, once the
+      // tab has been paid against and the void would take money off it.
+      if (command.status === 'voided' && tab) {
+        const live = tab.lines.filter(
+          (line) => line.orderId === order.id && line.status !== 'voided' && line.lineTotalDram > 0,
+        );
+        if (live.length > 0 && tab.paidDram > 0) {
+          throw new LineAlreadyPaidError({
+            url: `/api/orders/${command.orderId}/status`,
+            lineId: live[0]!.id,
+          });
+        }
+        tab.lines.forEach((line, index) => {
+          if (line.orderId !== order.id || line.status === 'voided') return;
+          tab.lines[index] = {
+            ...line,
+            status: 'voided',
+            lineTotalDram: 0,
+            voidReason: WHOLE_ORDER_VOID_REASON,
+          };
+        });
+        if (live.length > 0) pushEvent(tab, 'lineVoided', now());
+      }
+      order.status = command.status;
       if (tab) pushEvent(tab, 'orderStatusChanged', now());
       // A pre-order's ticket: its card reads the kitchen's progress (signal 6).
       if (order.preOrderReservationId) kitchenMoved(order.preOrderReservationId, command.status);
@@ -3553,6 +3642,189 @@ export function createStaffMockGateway(options: StaffMockOptions = {}): StaffGat
       const acknowledged = { ...request, acknowledgedAtUtc: iso(now()) };
       serviceRequests.set(request.id, acknowledged);
       return settle(acknowledged);
+    },
+
+    async claimServiceRequest(command: ClaimServiceRequestCommand): Promise<ServiceRequest> {
+      const url = `/api/branches/${command.branchId}/calls/${command.requestId}/claim`;
+      requireSession(url);
+      const request = serviceRequests.get(command.requestId);
+      if (!request) throw new NotFoundError({ url });
+      // The first claim wins; a second answers the call as it stands.
+      if (request.claimedByName) return settle(request);
+      const who = me();
+      const claimed: ServiceRequest = {
+        ...request,
+        claimedByStaffMemberId: who.id,
+        claimedByName: who.name,
+        claimedAtUtc: iso(now()),
+      };
+      serviceRequests.set(request.id, claimed);
+      return settle(claimed);
+    },
+
+    async transferTab(command: TransferTabCommand): Promise<TabTransferResult> {
+      const url = `/api/tabs/${command.tabId}/transfer`;
+      requireSession(url);
+      requireClientCommandId(url, command.clientCommandId);
+      const replay = transfers.get(command.clientCommandId);
+      if (replay) return settle(replay);
+      const tab = tabs.get(command.tabId);
+      if (!tab) throw new NotFoundError({ url });
+      if (tab.status === 'closed' || tab.status === 'abandoned') {
+        // As the server: 409 `tab-not-transferable`, the sitting is over.
+        throw new ConcurrencyConflictError({
+          url,
+          problem: {
+            type: 'about:blank',
+            title: 'Conflict',
+            status: 409,
+            detail:
+              'This table’s bill is closed and its party has gone; there is nothing to hand over.',
+            code: TAB_NOT_TRANSFERABLE_CODE,
+            traceId: 'mock',
+            context: { tabId: tab.id, status: tab.status === 'closed' ? 3 : 4 },
+          },
+        });
+      }
+      const member = branchPeople().find((candidate) => candidate.id === command.toStaffMemberId);
+      const reason = !member
+        ? 'not-found'
+        : !member.isActive
+          ? 'inactive'
+          : !SERVING_ROLES.includes(member.role)
+            ? 'does-not-serve'
+            : null;
+      if (!member || reason) {
+        // As the server: 422 `transfer-target-ineligible`, saying why.
+        throw new InvalidTransitionError({
+          url,
+          problem: {
+            type: 'about:blank',
+            title: 'Unprocessable',
+            status: 422,
+            detail: 'That person cannot take tables at this branch.',
+            code: TRANSFER_TARGET_INELIGIBLE_CODE,
+            traceId: 'mock',
+            context: { staffMemberId: command.toStaffMemberId, reason },
+          },
+        });
+      }
+      const target = member;
+      const previous = serverOf(tab.id);
+      if (previous?.id === target.id) {
+        // Already theirs: answered as done, nothing written.
+        return settle({
+          tabId: tab.id,
+          server: { staffMemberId: target.id, name: target.fullName },
+          previousServer: { staffMemberId: previous.id, name: previous.name },
+          transferredAtUtc: iso(now()),
+          tableSessionId: null,
+          tableLabel: tab.tableLabel,
+          wasReplay: true,
+        });
+      }
+      tabServers.set(tab.id, { id: target.id, name: target.fullName });
+      const result: TabTransferResult = {
+        tabId: tab.id,
+        server: { staffMemberId: target.id, name: target.fullName },
+        previousServer: previous ? { staffMemberId: previous.id, name: previous.name } : null,
+        transferredAtUtc: iso(now()),
+        tableSessionId: null,
+        tableLabel: tab.tableLabel,
+        wasReplay: false,
+      };
+      transfers.set(command.clientCommandId, result);
+      return settle(result);
+    },
+
+    async listTransferTargets(tabId: string): Promise<readonly TabTransferTarget[]> {
+      const url = `/api/tabs/${tabId}/transfer-targets`;
+      requireSession(url);
+      const tab = tabs.get(tabId);
+      // As the server: a tab that does not exist is a 403, its branch scope finds nothing.
+      if (!tab) throw new ForbiddenError({ url });
+      const at = now();
+      const current = serverOf(tab.id)?.id ?? null;
+      const people = branchPeople().filter(
+        (member) => SERVING_ROLES.includes(member.role) && member.id !== current,
+      );
+      const onShift = new Set(
+        mockRosterShiftsAround(people, branchId, at)
+          .filter(
+            (shift) =>
+              Date.parse(shift.startsAtUtc) <= at.getTime() &&
+              at.getTime() < Date.parse(shift.endsAtUtc),
+          )
+          .map((shift) => shift.staffMemberId),
+      );
+      /** Live sittings each person is the waiter of: the "3 tables now". */
+      const loads = new Map<string, number>();
+      for (const state of tables.values()) {
+        const live = state.tabId ? tabs.get(state.tabId) : undefined;
+        if (!live || live.status === 'closed' || live.status === 'abandoned') continue;
+        const holder = serverOf(live.id);
+        if (holder) loads.set(holder.id, (loads.get(holder.id) ?? 0) + 1);
+      }
+      return settle(
+        people
+          .map((member) => ({
+            staffMemberId: member.id,
+            name: member.fullName,
+            role: member.role,
+            onShiftNow: onShift.has(member.id),
+            openTables: loads.get(member.id) ?? 0,
+          }))
+          .sort(
+            (a, b) => Number(b.onShiftNow) - Number(a.onShiftNow) || a.name.localeCompare(b.name),
+          ),
+      );
+    },
+
+    async getMyPerformance(query: MyPerformanceQuery): Promise<StaffMemberPerformance> {
+      const url = '/api/staff/me/performance';
+      requireSession(url);
+      const self = me();
+      const range = { from: query.from, to: query.to };
+      const page = activity.member(url, branchId, self.id, range);
+      const list = query.list ?? 'orders';
+      const recent =
+        page && list !== 'orders'
+          ? activity.recent(url, branchId, self.id, range, list, null)
+          : (page?.recent ?? { list, items: [], nextCursor: null });
+      const limit = query.limit ?? 50;
+      const empty = {
+        tables: 0,
+        guests: 0,
+        salesAmd: 0,
+        averageCheckAmd: null,
+        tipsAmd: 0,
+        callMedianSeconds: null,
+        callsClaimed: 0,
+        replyMedianSeconds: null,
+        messagesAnswered: 0,
+        approvals: 0,
+        declines: 0,
+        cashAmd: 0,
+        cashPayments: 0,
+        discounts: 0,
+        comps: 0,
+        adjustmentsAmd: 0,
+        voids: 0,
+      };
+      return settle({
+        ...range,
+        staffMemberId: self.id,
+        name: page?.name ?? self.name,
+        role: page?.role ?? 'waiter',
+        isActive: true,
+        figures: page?.figures ?? empty,
+        daily: page?.daily ?? [],
+        recent: {
+          list,
+          items: recent.items.slice(0, limit),
+          nextCursor: recent.items.length > limit ? 'more' : recent.nextCursor,
+        },
+      });
     },
 
     async voidLine(command: VoidLineCommand): Promise<readonly TabLine[]> {
