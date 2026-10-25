@@ -4,7 +4,7 @@
  * Part of `contracts/errors`; import from there (or `@yalla/api`), not from here.
  */
 import { ApiError } from '../../errors';
-import { ProblemCodes } from '../../generated/problemCodes';
+import { PROBLEM_CODE_STATUS, ProblemCodes } from '../../generated/problemCodes';
 import type { ReservationStatusCode } from '../push';
 import type { RefusalOptions } from './shared';
 
@@ -39,7 +39,7 @@ export class PreOrderLockedError extends ApiError {
     },
   ) {
     super('Pre-orders close 2 hours before the booking.', {
-      status: 409,
+      status: PROBLEM_CODE_STATUS[ProblemCodes.PreOrderLocked],
       url: options.url,
       requestId: options.requestId,
     });
@@ -69,7 +69,7 @@ export class PreOrderAlreadySentError extends ApiError {
     },
   ) {
     super('The pre-order was already sent to the kitchen.', {
-      status: 409,
+      status: PROBLEM_CODE_STATUS[ProblemCodes.PreOrderAlreadySent],
       url: options.url,
       requestId: options.requestId,
     });
@@ -92,7 +92,7 @@ export class PreOrdersNotAcceptedError extends ApiError {
 
   constructor(options: RefusalOptions & { branchId?: string | null | undefined }) {
     super('This venue does not take pre-orders.', {
-      status: 409,
+      status: PROBLEM_CODE_STATUS[ProblemCodes.PreOrdersNotAccepted],
       url: options.url,
       requestId: options.requestId,
     });
@@ -128,7 +128,7 @@ export class PreOrderItemsUnavailableError extends ApiError {
 
   constructor(options: RefusalOptions & { items: readonly UnavailablePreOrderItem[] }) {
     super('Some dishes can no longer be pre-ordered.', {
-      status: 422,
+      status: PROBLEM_CODE_STATUS[ProblemCodes.PreOrderItemsUnavailable],
       url: options.url,
       requestId: options.requestId,
     });
@@ -164,7 +164,7 @@ export class OnMyWayNotOpenError extends ApiError {
     },
   ) {
     super('This booking is not expecting anybody now.', {
-      status: 409,
+      status: PROBLEM_CODE_STATUS[ProblemCodes.OnMyWayNotOpen],
       url: options.url,
       requestId: options.requestId,
     });
@@ -200,7 +200,7 @@ export class PreOrderNotSendableError extends ApiError {
     },
   ) {
     super('This pre-order cannot be sent now.', {
-      status: 409,
+      status: PROBLEM_CODE_STATUS[ProblemCodes.PreOrderNotSendable],
       url: options.url,
       requestId: options.requestId,
     });
@@ -223,7 +223,7 @@ export function isPreOrderNotSendable(error: unknown): error is PreOrderNotSenda
 export class TableBusyError extends ApiError {
   constructor(options: RefusalOptions) {
     super('The table is busy with another change. Try again.', {
-      status: 503,
+      status: PROBLEM_CODE_STATUS[ProblemCodes.TableLockTimeout],
       url: options.url,
       requestId: options.requestId,
     });

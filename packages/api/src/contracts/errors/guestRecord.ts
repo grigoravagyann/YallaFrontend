@@ -4,7 +4,7 @@
  * Part of `contracts/errors`; import from there (or `@yalla/api`), not from here.
  */
 import { ApiError } from '../../errors';
-import { ProblemCodes } from '../../generated/problemCodes';
+import { PROBLEM_CODE_STATUS, ProblemCodes } from '../../generated/problemCodes';
 import type { TabAdmissionStatus } from '../admission';
 import type { RefusalOptions } from './shared';
 
@@ -24,6 +24,13 @@ export const TAB_ADMISSION_DECIDED_CODE = ProblemCodes.TabAdmissionDecided;
 /**
  * One of the caller's own bookings, named by a refusal — only ever to the
  * account that holds it. "The next is Café Aram on 22 October at 19:30."
+ *
+ * Stricter than the catalogue on purpose: in `PhoneHasActiveBookingProblemContext`
+ * every member but `maxActiveBookings` is optional, because the server names no
+ * booking when the ones in the way are another account's. `heldBookingFrom`
+ * builds one only when the id, code, start, day and time all came (`null`
+ * otherwise), cuts `localStartTime` to minutes and reads a missing venue or
+ * branch name as `''`.
  */
 export interface HeldBooking {
   readonly reservationId: string;
@@ -60,7 +67,7 @@ export class PhoneHasActiveBookingError extends ApiError {
     },
   ) {
     super(`This phone number already holds ${options.maxActiveBookings} active bookings.`, {
-      status: 409,
+      status: PROBLEM_CODE_STATUS[ProblemCodes.PhoneHasActiveBooking],
       url: options.url,
       requestId: options.requestId,
     });
@@ -87,7 +94,7 @@ export class BookingBlockedNoShowsError extends ApiError {
 
   constructor(options: RefusalOptions & { blockedUntilUtc?: string | null | undefined }) {
     super('Booking is blocked for a while because of three missed bookings in three days.', {
-      status: 403,
+      status: PROBLEM_CODE_STATUS[ProblemCodes.BookingBlockedNoShows],
       url: options.url,
       requestId: options.requestId,
     });
@@ -116,7 +123,7 @@ export class ReservationCancelledByBlockError extends ApiError {
     },
   ) {
     super('This booking was cancelled automatically: its guest is blocked for no-shows.', {
-      status: 409,
+      status: PROBLEM_CODE_STATUS[ProblemCodes.ReservationCancelledByBlock],
       url: options.url,
       requestId: options.requestId,
     });
@@ -141,7 +148,7 @@ export class NoShowUndoWindowClosedError extends ApiError {
 
   constructor(options: RefusalOptions & { undoableUntilUtc?: string | null | undefined }) {
     super('This no-show can no longer be undone.', {
-      status: 409,
+      status: PROBLEM_CODE_STATUS[ProblemCodes.NoShowUndoWindowClosed],
       url: options.url,
       requestId: options.requestId,
     });
@@ -165,7 +172,7 @@ export class TabAwaitingAdmissionError extends ApiError {
 
   constructor(options: RefusalOptions & { tabId: string }) {
     super('A waiter has not let this table order yet.', {
-      status: 409,
+      status: PROBLEM_CODE_STATUS[ProblemCodes.TabAwaitingAdmission],
       url: options.url,
       requestId: options.requestId,
     });
@@ -190,7 +197,7 @@ export class TabAdmissionDecidedError extends ApiError {
 
   constructor(options: RefusalOptions & { tabId: string; admission: TabAdmissionStatus }) {
     super('Somebody already decided about this table.', {
-      status: 409,
+      status: PROBLEM_CODE_STATUS[ProblemCodes.TabAdmissionDecided],
       url: options.url,
       requestId: options.requestId,
     });
@@ -219,7 +226,7 @@ export class ScanTurnedAwayError extends ApiError {
 
   constructor(options: RefusalOptions & { retryAfterUtc?: string | null | undefined }) {
     super('A waiter turned this table away a moment ago. Ask a waiter.', {
-      status: 409,
+      status: PROBLEM_CODE_STATUS[ProblemCodes.ScanTurnedAway],
       url: options.url,
       requestId: options.requestId,
     });

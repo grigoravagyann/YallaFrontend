@@ -4,7 +4,7 @@
  * Part of `contracts/errors`; import from there (or `@yalla/api`), not from here.
  */
 import { ApiError, TooManyRequestsError } from '../../errors';
-import { ProblemCodes } from '../../generated/problemCodes';
+import { PROBLEM_CODE_STATUS, ProblemCodes } from '../../generated/problemCodes';
 import type { RefusalOptions } from './shared';
 
 /** `conversation-closed`: the thread closed (two hours after the booking or order finished). */
@@ -22,7 +22,10 @@ export const MESSAGES_TOO_FAST_CODE = ProblemCodes.MessagesTooFast;
  * closed note; the thread can still be read. Read it again.
  */
 export class ConversationClosedError extends ApiError {
-  /** `reservation` or `takeaway`, when the server says. */
+  /**
+   * `reservation` or `takeaway`, when the server says. Narrower than the
+   * catalogue's `subjectKind: string` on purpose (`subjectKind` in the mapping).
+   */
   readonly subjectKind: 'reservation' | 'takeaway' | null;
   readonly subjectId: string | null;
   /** When it closed, when the server says. */
@@ -36,7 +39,7 @@ export class ConversationClosedError extends ApiError {
     },
   ) {
     super('This conversation is closed.', {
-      status: 409,
+      status: PROBLEM_CODE_STATUS[ProblemCodes.ConversationClosed],
       url: options.url,
       requestId: options.requestId,
     });
@@ -59,7 +62,7 @@ export function isConversationClosed(error: unknown): error is ConversationClose
 export class GuestsCannotWriteError extends ApiError {
   constructor(options: RefusalOptions) {
     super('This venue does not take messages from guests.', {
-      status: 403,
+      status: PROBLEM_CODE_STATUS[ProblemCodes.GuestsCannotWrite],
       url: options.url,
       requestId: options.requestId,
     });
@@ -78,7 +81,7 @@ export function isGuestsCannotWrite(error: unknown): error is GuestsCannotWriteE
 export class WaitersCannotWriteError extends ApiError {
   constructor(options: RefusalOptions) {
     super('Only managers can write to guests here.', {
-      status: 403,
+      status: PROBLEM_CODE_STATUS[ProblemCodes.WaitersCannotWrite],
       url: options.url,
       requestId: options.requestId,
     });

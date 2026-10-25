@@ -4,6 +4,7 @@
  * Part of `contracts/errors`; import from there (or `@yalla/api`), not from here.
  */
 import { ApiError } from '../../errors';
+import { PROBLEM_CODE_STATUS, ProblemCodes } from '../../generated/problemCodes';
 
 /** The six digits did not match. Attempts remaining is shown to the user. */
 export class WrongCodeError extends ApiError {
@@ -16,6 +17,9 @@ export class WrongCodeError extends ApiError {
   readonly attemptsRemaining: number | null;
 
   constructor(options: { url: string; attemptsRemaining: number | null }) {
+    // Not the catalogue's status: `verification-code-invalid` is a 401 on the
+    // wire, but this is the client's own "wrong input" (400), and it must not
+    // read as a session that ended.
     super('That code is not right.', { status: 400, url: options.url });
     this.name = 'WrongCodeError';
     this.attemptsRemaining = options.attemptsRemaining;
@@ -25,6 +29,8 @@ export class WrongCodeError extends ApiError {
 /** The challenge aged out. The user needs a fresh code, not another attempt. */
 export class ExpiredCodeError extends ApiError {
   constructor(options: { url: string }) {
+    // Not one code's status: an SMS code's `verification-code-expired` is a 401,
+    // Telegram's `telegram-verification-expired` a 410. Both are this one answer.
     super('That code has expired.', { status: 410, url: options.url });
     this.name = 'ExpiredCodeError';
   }
@@ -60,7 +66,7 @@ export class TelegramUnavailableError extends ApiError {
 export class SmsUnavailableError extends ApiError {
   constructor(options: { url: string; requestId?: string | undefined }) {
     super('Codes by SMS are not available.', {
-      status: 503,
+      status: PROBLEM_CODE_STATUS[ProblemCodes.SmsUnavailable],
       url: options.url,
       requestId: options.requestId,
     });

@@ -4,6 +4,7 @@
  * Part of `contracts/errors`; import from there (or `@yalla/api`), not from here.
  */
 import { ApiError } from '../../errors';
+import { PROBLEM_CODE_STATUS, ProblemCodes } from '../../generated/problemCodes';
 import type { ReservationStatusCode } from '../push';
 import type { BookingRefusal } from './shared';
 
@@ -72,7 +73,7 @@ export class TabClosedError extends ApiError {
 export class BookingNotFoundError extends ApiError {
   constructor(options: { url: string; requestId?: string | undefined }) {
     super('We could not find that booking.', {
-      status: 404,
+      status: PROBLEM_CODE_STATUS[ProblemCodes.BookingNotFound],
       url: options.url,
       requestId: options.requestId,
     });
@@ -95,7 +96,7 @@ export class BookingTooEarlyError extends ApiError {
 
   constructor(options: BookingRefusal & { earliestUtc?: string | undefined }) {
     super('That table is not being held for your booking yet.', {
-      status: 409,
+      status: PROBLEM_CODE_STATUS[ProblemCodes.BookingTooEarly],
       url: options.url,
       requestId: options.requestId,
     });
@@ -120,7 +121,7 @@ export class BookingEndedError extends ApiError {
 
   constructor(options: BookingRefusal) {
     super('That booking is over.', {
-      status: 409,
+      status: PROBLEM_CODE_STATUS[ProblemCodes.BookingEnded],
       url: options.url,
       requestId: options.requestId,
     });
@@ -148,7 +149,7 @@ export class BookingNotActiveError extends ApiError {
 
   constructor(options: BookingRefusal & { status?: ReservationStatusCode | undefined }) {
     super('That booking is not open for a tab.', {
-      status: 409,
+      status: PROBLEM_CODE_STATUS[ProblemCodes.BookingNotActive],
       url: options.url,
       requestId: options.requestId,
     });
@@ -176,7 +177,7 @@ export class BookingTableOccupiedError extends ApiError {
 
   constructor(options: BookingRefusal & { tableLabel?: string | undefined }) {
     super('Another party is still seated at the booked table.', {
-      status: 409,
+      status: PROBLEM_CODE_STATUS[ProblemCodes.BookingTableOccupied],
       url: options.url,
       requestId: options.requestId,
     });
@@ -191,7 +192,10 @@ export class BookingTableOccupiedError extends ApiError {
 /** The action needs the host, and the caller is not it. */
 export class NotTabHostError extends ApiError {
   constructor(options: { url: string }) {
-    super('Only the host can do that.', { status: 403, url: options.url });
+    super('Only the host can do that.', {
+      status: PROBLEM_CODE_STATUS[ProblemCodes.Forbidden],
+      url: options.url,
+    });
     this.name = 'NotTabHostError';
   }
 }
@@ -205,7 +209,7 @@ export class NotTabHostError extends ApiError {
 export class TabsNotEnabledError extends ApiError {
   constructor(options: { url: string; requestId?: string | undefined }) {
     super('Ordering from the table is not switched on here.', {
-      status: 409,
+      status: PROBLEM_CODE_STATUS[ProblemCodes.FeatureNotEnabled],
       url: options.url,
       requestId: options.requestId,
     });
@@ -304,7 +308,7 @@ export class ServiceRequestRateLimitedError extends ApiError {
     requestId?: string | undefined;
   }) {
     super('This table has asked several times already.', {
-      status: 429,
+      status: PROBLEM_CODE_STATUS[ProblemCodes.ServiceRequestRateLimited],
       url: options.url,
       requestId: options.requestId,
     });

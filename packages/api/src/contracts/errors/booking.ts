@@ -5,8 +5,8 @@
  * Part of `contracts/errors`; import from there (or `@yalla/api`), not from here.
  */
 import { ApiError } from '../../errors';
-import { ProblemCodes } from '../../generated/problemCodes';
-import type { ProblemDetails } from '../../problem';
+import { PROBLEM_CODE_STATUS, ProblemCodes } from '../../generated/problemCodes';
+import { problemContext, type ProblemDetails } from '../../problem';
 import type { TableAvailability, TableUnavailableReason } from '../booking';
 import type { FloorPlanData } from '../tableFloor';
 import type { BookingRefusal, RefusalOptions } from './shared';
@@ -47,7 +47,12 @@ export class TableTakenError extends ApiError {
     requestId?: string | undefined;
   }) {
     super('That table was taken while you were confirming.', {
-      status: 409,
+      status:
+        PROBLEM_CODE_STATUS[
+          options.reason === 'occupied'
+            ? ProblemCodes.TableCurrentlyOccupied
+            : ProblemCodes.TableAlreadyBooked
+        ],
       url: options.url,
       requestId: options.requestId,
     });
@@ -97,7 +102,7 @@ export class BookingRejectedError extends ApiError {
 export class BookingBusyError extends ApiError {
   constructor(options: { url: string; requestId?: string | undefined }) {
     super('That table is busy with another booking. Try again.', {
-      status: 503,
+      status: PROBLEM_CODE_STATUS[ProblemCodes.ReservationLockTimeout],
       url: options.url,
       requestId: options.requestId,
     });
@@ -113,7 +118,7 @@ export class BookingBusyError extends ApiError {
 export class BookingCommandInUseError extends ApiError {
   constructor(options: { url: string; requestId?: string | undefined }) {
     super('That booking attempt was already used.', {
-      status: 409,
+      status: PROBLEM_CODE_STATUS[ProblemCodes.ClientCommandIdInUse],
       url: options.url,
       requestId: options.requestId,
     });
@@ -125,7 +130,7 @@ export class BookingCommandInUseError extends ApiError {
 export class BranchUnavailableError extends ApiError {
   constructor(options: { url: string; requestId?: string | undefined }) {
     super('This venue is not taking bookings right now.', {
-      status: 409,
+      status: PROBLEM_CODE_STATUS[ProblemCodes.BranchUnavailable],
       url: options.url,
       requestId: options.requestId,
     });
@@ -151,7 +156,7 @@ export class LeadTimeExceededError extends ApiError {
     requestId?: string | undefined;
   }) {
     super('That time is now too soon to book.', {
-      status: 422,
+      status: PROBLEM_CODE_STATUS[ProblemCodes.ReservationLeadTimeTooShort],
       url: options.url,
       requestId: options.requestId,
     });
@@ -186,7 +191,7 @@ export class FreeByRequiredError extends ApiError {
     requestId?: string | undefined;
   }) {
     super('A booking follows on that table: the time to free it by has to be agreed.', {
-      status: 422,
+      status: PROBLEM_CODE_STATUS[ProblemCodes.ReservationFreeByRequired],
       url: options.url,
       requestId: options.requestId,
     });
@@ -262,7 +267,7 @@ export class BookingOverlapsOwnError extends ApiError {
     problem?: ProblemDetails | undefined;
   }) {
     super('You already have a booking at this place at that time.', {
-      status: 409,
+      status: PROBLEM_CODE_STATUS[ProblemCodes.ReservationOverlapsOwn],
       url: options.url,
       requestId: options.requestId,
       problem: options.problem,
@@ -302,7 +307,7 @@ export class BookingNotChangeableError extends ApiError {
 
   constructor(options: BookingRefusal) {
     super('That booking can no longer be changed.', {
-      status: 409,
+      status: PROBLEM_CODE_STATUS[ProblemCodes.ReservationNotChangeable],
       url: options.url,
       requestId: options.requestId,
     });
@@ -326,7 +331,7 @@ export class ReservationNotStartedError extends ApiError {
 
   constructor(options: BookingRefusal) {
     super('That booking has not started yet.', {
-      status: 409,
+      status: PROBLEM_CODE_STATUS[ProblemCodes.ReservationNotStarted],
       url: options.url,
       requestId: options.requestId,
     });
@@ -340,13 +345,13 @@ export class ReservationNotStartedError extends ApiError {
 export function asNotStarted(error: unknown): unknown {
   if (!(error instanceof ApiError) || error.code !== ProblemCodes.ReservationNotStarted)
     return error;
-  const context = error.problem?.context as
-    { reservationId?: unknown; startUtc?: unknown } | undefined;
+  // Member names from the catalogue (`ReservationNotStartedProblemContext`); values still checked.
+  const context = problemContext(error.problem, ProblemCodes.ReservationNotStarted);
   return new ReservationNotStartedError({
     url: error.url,
     requestId: error.requestId,
-    reservationId: typeof context?.reservationId === 'string' ? context.reservationId : undefined,
-    startUtc: typeof context?.startUtc === 'string' ? context.startUtc : undefined,
+    reservationId: typeof context.reservationId === 'string' ? context.reservationId : undefined,
+    startUtc: typeof context.startUtc === 'string' ? context.startUtc : undefined,
   });
 }
 
@@ -369,7 +374,7 @@ export class HoldAlreadyExtendedError extends ApiError {
     requestId?: string | undefined;
   }) {
     super('This booking has already had its one extension.', {
-      status: 409,
+      status: PROBLEM_CODE_STATUS[ProblemCodes.HoldAlreadyExtended],
       url: options.url,
       requestId: options.requestId,
     });
@@ -393,7 +398,7 @@ export class HoldNotActiveError extends ApiError {
 
   constructor(options: { url: string; reservationId: string; requestId?: string | undefined }) {
     super('There is no held table to keep yet.', {
-      status: 409,
+      status: PROBLEM_CODE_STATUS[ProblemCodes.HoldNotActive],
       url: options.url,
       requestId: options.requestId,
     });
@@ -408,7 +413,7 @@ export class ExtensionsNotOfferedError extends ApiError {
 
   constructor(options: { url: string; reservationId: string; requestId?: string | undefined }) {
     super('This venue does not hold tables for late arrivals.', {
-      status: 409,
+      status: PROBLEM_CODE_STATUS[ProblemCodes.ExtensionsNotOffered],
       url: options.url,
       requestId: options.requestId,
     });
@@ -429,7 +434,7 @@ export class BookingsNotAcceptedError extends ApiError {
 
   constructor(options: RefusalOptions & { branchId?: string | null | undefined }) {
     super('This venue is not taking bookings in the app.', {
-      status: 409,
+      status: PROBLEM_CODE_STATUS[ProblemCodes.BookingsNotAccepted],
       url: options.url,
       requestId: options.requestId,
     });
@@ -451,7 +456,10 @@ export class BookingsNotAcceptedError extends ApiError {
  */
 export class BookingLinkAccountUnavailableError extends ApiError {
   constructor(options: RefusalOptions) {
-    super('This booking can no longer be changed online.', { status: 403, ...options });
+    super('This booking can no longer be changed online.', {
+      status: PROBLEM_CODE_STATUS[ProblemCodes.PhoneNotVerified],
+      ...options,
+    });
     this.name = 'BookingLinkAccountUnavailableError';
   }
 }

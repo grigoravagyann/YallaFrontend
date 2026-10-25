@@ -4,6 +4,7 @@
  * Part of `contracts/errors`; import from there (or `@yalla/api`), not from here.
  */
 import { ApiError } from '../../errors';
+import { PROBLEM_CODE_STATUS, ProblemCodes } from '../../generated/problemCodes';
 
 /**
  * Somebody already has that username — `username-taken`, 409.
@@ -15,7 +16,7 @@ import { ApiError } from '../../errors';
 export class UsernameTakenError extends ApiError {
   constructor(options: { url: string; requestId?: string | undefined }) {
     super('That username is already taken.', {
-      status: 409,
+      status: PROBLEM_CODE_STATUS[ProblemCodes.UsernameTaken],
       url: options.url,
       requestId: options.requestId,
     });
@@ -27,7 +28,7 @@ export class UsernameTakenError extends ApiError {
 export class EmailTakenError extends ApiError {
   constructor(options: { url: string; requestId?: string | undefined }) {
     super('That email already has an account.', {
-      status: 409,
+      status: PROBLEM_CODE_STATUS[ProblemCodes.EmailTaken],
       url: options.url,
       requestId: options.requestId,
     });
@@ -45,7 +46,7 @@ export class EmailTakenError extends ApiError {
 export class PhoneInUseError extends ApiError {
   constructor(options: { url: string; requestId?: string | undefined }) {
     super('That phone number already has an account.', {
-      status: 409,
+      status: PROBLEM_CODE_STATUS[ProblemCodes.PhoneInUse],
       url: options.url,
       requestId: options.requestId,
     });
@@ -68,7 +69,7 @@ export class PhoneInUseError extends ApiError {
 export class InvalidCredentialsError extends ApiError {
   constructor(options: { url: string; requestId?: string | undefined }) {
     super('That username or email and password do not match.', {
-      status: 401,
+      status: PROBLEM_CODE_STATUS[ProblemCodes.InvalidCredentials],
       url: options.url,
       requestId: options.requestId,
     });
@@ -90,7 +91,7 @@ export class InvalidCredentialsError extends ApiError {
 export class PhoneNotVerifiedError extends ApiError {
   constructor(options: { url: string; requestId?: string | undefined }) {
     super('Confirm your phone number before booking.', {
-      status: 403,
+      status: PROBLEM_CODE_STATUS[ProblemCodes.PhoneNotVerified],
       url: options.url,
       requestId: options.requestId,
     });

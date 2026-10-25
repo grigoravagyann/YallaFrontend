@@ -5,6 +5,7 @@
  * Part of `contracts/errors`; import from there (or `@yalla/api`), not from here.
  */
 import { ApiError } from '../../errors';
+import { PROBLEM_CODE_STATUS, ProblemCodes } from '../../generated/problemCodes';
 import type { ProblemDetails } from '../../problem';
 import type { RefusalOptions } from './shared';
 
@@ -34,7 +35,7 @@ export class VenueDeletionBlockedError extends ApiError {
     requestId?: string | undefined;
   }) {
     super(options.message ?? 'That venue is still in use, so it cannot be deleted.', {
-      status: 409,
+      status: PROBLEM_CODE_STATUS[ProblemCodes.VenueDeletionBlocked],
       url: options.url,
       requestId: options.requestId,
     });
@@ -63,7 +64,7 @@ export class BranchNotReadyError extends ApiError {
     requestId?: string | undefined;
   }) {
     super('That branch has unfinished dishes on its menu.', {
-      status: 409,
+      status: PROBLEM_CODE_STATUS[ProblemCodes.BranchNotReady],
       url: options.url,
       requestId: options.requestId,
     });
@@ -97,7 +98,7 @@ export class FloorPlanInvalidError extends ApiError {
     requestId?: string | undefined;
   }) {
     super(options.errors[0] ?? 'That floor plan cannot be saved.', {
-      status: 422,
+      status: PROBLEM_CODE_STATUS[ProblemCodes.FloorPlanInvalid],
       url: options.url,
       requestId: options.requestId,
     });
@@ -352,7 +353,7 @@ export class StaffPinTakenError extends ApiError {
     problem?: ProblemDetails | undefined;
   }) {
     super(options.detail, {
-      status: 409,
+      status: PROBLEM_CODE_STATUS[ProblemCodes.PinTaken],
       url: options.url,
       requestId: options.requestId,
       problem: options.problem,
@@ -376,7 +377,7 @@ export class SignInUnknownError extends ApiError {
     problem?: ProblemDetails | undefined;
   }) {
     super(options.problem?.detail || 'This sign-in cannot be told apart from the others.', {
-      status: 409,
+      status: PROBLEM_CODE_STATUS[ProblemCodes.SignInUnknown],
       url: options.url,
       requestId: options.requestId,
       problem: options.problem,
@@ -395,7 +396,10 @@ export class SignInUnknownError extends ApiError {
  */
 export class RelocationNotAllowedError extends ApiError {
   constructor(options: RefusalOptions) {
-    super('Only an owner can move a branch.', { status: 403, ...options });
+    super('Only an owner can move a branch.', {
+      status: PROBLEM_CODE_STATUS[ProblemCodes.RelocationNotAllowed],
+      ...options,
+    });
     this.name = 'RelocationNotAllowedError';
   }
 }
@@ -413,7 +417,7 @@ export class FloorPlanChangedError extends ApiError {
 
   constructor(options: RefusalOptions & { currentVersion: string | null }) {
     super('The floor plan was changed by somebody else.', {
-      status: 409,
+      status: PROBLEM_CODE_STATUS[ProblemCodes.FloorPlanChanged],
       url: options.url,
       requestId: options.requestId,
     });

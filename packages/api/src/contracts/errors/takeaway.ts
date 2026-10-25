@@ -4,7 +4,7 @@
  * Part of `contracts/errors`; import from there (or `@yalla/api`), not from here.
  */
 import { ApiError } from '../../errors';
-import { ProblemCodes } from '../../generated/problemCodes';
+import { PROBLEM_CODE_STATUS, ProblemCodes } from '../../generated/problemCodes';
 import type { TakeawayStatus } from '../takeaway';
 import type { RefusalOptions } from './shared';
 
@@ -29,7 +29,7 @@ export class TakeawayNotAcceptedError extends ApiError {
 
   constructor(options: RefusalOptions & { branchId?: string | null | undefined }) {
     super('This venue does not take takeaway orders.', {
-      status: 409,
+      status: PROBLEM_CODE_STATUS[ProblemCodes.TakeawayNotAccepted],
       url: options.url,
       requestId: options.requestId,
     });
@@ -60,7 +60,7 @@ export class TakeawayClosedError extends ApiError {
     },
   ) {
     super('Takeaway orders are closed now.', {
-      status: 409,
+      status: PROBLEM_CODE_STATUS[ProblemCodes.TakeawayClosed],
       url: options.url,
       requestId: options.requestId,
     });
@@ -90,7 +90,7 @@ export class TakeawayBusyError extends ApiError {
     },
   ) {
     super('The kitchen is busy. Choose a later time.', {
-      status: 409,
+      status: PROBLEM_CODE_STATUS[ProblemCodes.TakeawayBusy],
       url: options.url,
       requestId: options.requestId,
     });
@@ -123,7 +123,7 @@ export class TakeawaySlotUnavailableError extends ApiError {
     },
   ) {
     super('That pickup time is no longer available.', {
-      status: 409,
+      status: PROBLEM_CODE_STATUS[ProblemCodes.TakeawaySlotUnavailable],
       url: options.url,
       requestId: options.requestId,
     });
@@ -158,7 +158,7 @@ export class TakeawayItemsUnavailableError extends ApiError {
 
   constructor(options: RefusalOptions & { items: readonly UnavailableTakeawayItem[] }) {
     super('Some dishes cannot be ordered to take away.', {
-      status: 422,
+      status: PROBLEM_CODE_STATUS[ProblemCodes.TakeawayItemsUnavailable],
       url: options.url,
       requestId: options.requestId,
     });
@@ -187,7 +187,7 @@ export class TakeawayStatusConflictError extends ApiError {
     },
   ) {
     super('The order has moved on.', {
-      status: 409,
+      status: PROBLEM_CODE_STATUS[ProblemCodes.TakeawayStatusConflict],
       url: options.url,
       requestId: options.requestId,
     });
@@ -216,7 +216,7 @@ export class TakeawayNoShowTooEarlyError extends ApiError {
     },
   ) {
     super('It is too early to mark this order not collected.', {
-      status: 409,
+      status: PROBLEM_CODE_STATUS[ProblemCodes.TakeawayNoShowTooEarly],
       url: options.url,
       requestId: options.requestId,
     });

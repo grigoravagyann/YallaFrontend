@@ -4,6 +4,7 @@
  * Part of `contracts/errors`; import from there (or `@yalla/api`), not from here.
  */
 import { ApiError } from '../../errors';
+import { PROBLEM_CODE_STATUS, ProblemCodes } from '../../generated/problemCodes';
 import type { RefusalOptions } from './shared';
 
 /**
@@ -15,7 +16,10 @@ import type { RefusalOptions } from './shared';
  */
 export class ReviewNeedsVisitError extends ApiError {
   constructor(options: RefusalOptions) {
-    super('Reviews are for places you have visited.', { status: 403, ...options });
+    super('Reviews are for places you have visited.', {
+      status: PROBLEM_CODE_STATUS[ProblemCodes.ReviewNeedsVisit],
+      ...options,
+    });
     this.name = 'ReviewNeedsVisitError';
   }
 }

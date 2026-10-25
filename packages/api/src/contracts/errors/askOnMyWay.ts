@@ -4,7 +4,7 @@
  * Part of `contracts/errors`; import from there (or `@yalla/api`), not from here.
  */
 import { ApiError } from '../../errors';
-import { ProblemCodes } from '../../generated/problemCodes';
+import { PROBLEM_CODE_STATUS, ProblemCodes } from '../../generated/problemCodes';
 import type { ReservationStatusCode } from '../push';
 import type { RefusalOptions } from './shared';
 
@@ -32,7 +32,7 @@ export class AskOnMyWayTooEarlyError extends ApiError {
     },
   ) {
     super('It is too early to ask whether the guest is coming.', {
-      status: 409,
+      status: PROBLEM_CODE_STATUS[ProblemCodes.AskOnMyWayTooEarly],
       url: options.url,
       requestId: options.requestId,
     });
@@ -63,7 +63,7 @@ export class AskOnMyWayNotOpenError extends ApiError {
     },
   ) {
     super('This booking cannot be asked now.', {
-      status: 409,
+      status: PROBLEM_CODE_STATUS[ProblemCodes.AskOnMyWayNotOpen],
       url: options.url,
       requestId: options.requestId,
     });
@@ -96,7 +96,7 @@ export class GuestAlreadyAnsweredError extends ApiError {
     },
   ) {
     super('The guest has already answered.', {
-      status: 409,
+      status: PROBLEM_CODE_STATUS[ProblemCodes.GuestAlreadyAnswered],
       url: options.url,
       requestId: options.requestId,
     });
@@ -128,7 +128,7 @@ export class AskOnMyWayAskedRecentlyError extends ApiError {
     },
   ) {
     super('The guest was asked a moment ago.', {
-      status: 409,
+      status: PROBLEM_CODE_STATUS[ProblemCodes.AskOnMyWayAskedRecently],
       url: options.url,
       requestId: options.requestId,
     });

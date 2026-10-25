@@ -4,6 +4,7 @@
  * Part of `contracts/errors`; import from there (or `@yalla/api`), not from here.
  */
 import { ApiError } from '../../errors';
+import { PROBLEM_CODE_STATUS, ProblemCodes } from '../../generated/problemCodes';
 
 /**
  * More cash was offered than the tab still owes.
@@ -26,7 +27,7 @@ export class PaymentExceedsRemainingError extends ApiError {
     requestId?: string | undefined;
   }) {
     super('That is more than this tab still owes.', {
-      status: 409,
+      status: PROBLEM_CODE_STATUS[ProblemCodes.PaymentExceedsRemaining],
       url: options.url,
       requestId: options.requestId,
     });
@@ -47,7 +48,7 @@ export class MenuItemUnavailableError extends ApiError {
 
   constructor(options: { url: string; itemName: string; requestId?: string | undefined }) {
     super(`${options.itemName} has sold out.`, {
-      status: 409,
+      status: PROBLEM_CODE_STATUS[ProblemCodes.MenuItemUnavailable],
       url: options.url,
       requestId: options.requestId,
     });
@@ -65,7 +66,7 @@ export class TableNotSeatedError extends ApiError {
 
   constructor(options: { url: string; tableId: string; requestId?: string | undefined }) {
     super('Nobody is seated at this table. Seat the party first, then open the tab.', {
-      status: 409,
+      status: PROBLEM_CODE_STATUS[ProblemCodes.TableNotSeated],
       url: options.url,
       requestId: options.requestId,
     });
@@ -91,7 +92,7 @@ export class TabNotAcceptingOrdersError extends ApiError {
     requestId?: string | undefined;
   }) {
     super('This tab takes no more orders.', {
-      status: 409,
+      status: PROBLEM_CODE_STATUS[ProblemCodes.TabNotAcceptingOrders],
       url: options.url,
       requestId: options.requestId,
     });
@@ -107,7 +108,7 @@ export class LineAlreadyPaidError extends ApiError {
 
   constructor(options: { url: string; lineId: string; requestId?: string | undefined }) {
     super('This tab has been paid against, so removing a line would be a refund.', {
-      status: 409,
+      status: PROBLEM_CODE_STATUS[ProblemCodes.LineAlreadyPaid],
       url: options.url,
       requestId: options.requestId,
     });

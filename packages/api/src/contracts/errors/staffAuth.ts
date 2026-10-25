@@ -4,6 +4,7 @@
  * Part of `contracts/errors`; import from there (or `@yalla/api`), not from here.
  */
 import { ApiError } from '../../errors';
+import { PROBLEM_CODE_STATUS, ProblemCodes } from '../../generated/problemCodes';
 
 /**
  * The tablet is not enrolled, or its enrolment has been revoked.
@@ -16,7 +17,7 @@ import { ApiError } from '../../errors';
 export class DeviceRevokedError extends ApiError {
   constructor(options: { url: string; requestId?: string | undefined }) {
     super('This tablet is no longer enrolled.', {
-      status: 401,
+      status: PROBLEM_CODE_STATUS[ProblemCodes.DeviceRevoked],
       url: options.url,
       requestId: options.requestId,
     });
@@ -57,7 +58,7 @@ export class EnrolmentCodeSpentError extends ApiError {
 export class EnrolmentCodeExpiredError extends ApiError {
   constructor(options: { url: string; requestId?: string | undefined }) {
     super('That enrolment code has expired.', {
-      status: 401,
+      status: PROBLEM_CODE_STATUS[ProblemCodes.EnrolmentCodeExpired],
       url: options.url,
       requestId: options.requestId,
     });
@@ -72,7 +73,7 @@ export class EnrolmentCodeExpiredError extends ApiError {
 export class PairingCodeInvalidError extends ApiError {
   constructor(options: { url: string; requestId?: string | undefined }) {
     super('That pairing code is not valid.', {
-      status: 401,
+      status: PROBLEM_CODE_STATUS[ProblemCodes.PairingCodeInvalid],
       url: options.url,
       requestId: options.requestId,
     });
@@ -87,7 +88,7 @@ export class PairingCodeInvalidError extends ApiError {
 export class PairingCodeExpiredError extends ApiError {
   constructor(options: { url: string; requestId?: string | undefined }) {
     super('That pairing code has expired.', {
-      status: 401,
+      status: PROBLEM_CODE_STATUS[ProblemCodes.PairingCodeExpired],
       url: options.url,
       requestId: options.requestId,
     });
@@ -116,7 +117,7 @@ export class PairingCodeUnusableError extends ApiError {
 export class KitchenPhoneNotAllowedError extends ApiError {
   constructor(options: { url: string; requestId?: string | undefined }) {
     super('Kitchen staff cannot have a phone paired.', {
-      status: 409,
+      status: PROBLEM_CODE_STATUS[ProblemCodes.KitchenPhoneNotAllowed],
       url: options.url,
       requestId: options.requestId,
     });
@@ -138,7 +139,7 @@ export class KitchenPhoneNotAllowedError extends ApiError {
 export class PinRejectedError extends ApiError {
   constructor(options: { url: string; requestId?: string | undefined }) {
     super('That PIN was not recognised.', {
-      status: 401,
+      status: PROBLEM_CODE_STATUS[ProblemCodes.PinInvalid],
       url: options.url,
       requestId: options.requestId,
     });
