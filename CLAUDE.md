@@ -1,3 +1,5 @@
+**Read [AGENTS.md](AGENTS.md) first** for the repo map, golden rules and recipes.
+
 ## gstack (recommended)
 
 This project uses [gstack](https://github.com/garrytan/gstack) for AI-assisted workflows.
