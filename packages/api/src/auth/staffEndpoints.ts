@@ -24,6 +24,7 @@ import type {
 import { ApiError, ForbiddenError, UnauthorizedError } from '../errors';
 import type { components } from '../generated/schema';
 import { staffRoleToUserRole } from './endpoints';
+import { ProblemCodes } from '../generated/problemCodes';
 
 type Schemas = components['schemas'];
 
@@ -82,7 +83,7 @@ export function createStaffAuth(client: ApiClient) {
           throw new EnrolmentCodeSpentError({ url: error.url, requestId: error.requestId });
         }
         // Expired and mistyped are both 401; only the reason code tells them apart.
-        if (error instanceof ApiError && error.code === 'enrolment-code-expired') {
+        if (error instanceof ApiError && error.code === ProblemCodes.EnrolmentCodeExpired) {
           throw new EnrolmentCodeExpiredError({ url: error.url, requestId: error.requestId });
         }
         throw error;
@@ -185,7 +186,7 @@ export function createStaffAuth(client: ApiClient) {
             requestId: error.requestId,
           });
         }
-        if (error instanceof ApiError && error.code === 'pin-invalid') {
+        if (error instanceof ApiError && error.code === ProblemCodes.PinInvalid) {
           throw new PinRejectedError({ url: error.url, requestId: error.requestId });
         }
         throw asPairingFailure(error);
@@ -240,7 +241,7 @@ export function createStaffAuth(client: ApiClient) {
           // `device-revoked` and a wrong PIN are both 401 and mean opposite
           // things to the screen: one goes back to enrolment, the other stays
           // on the keypad.
-          if (error.code === 'device-revoked') {
+          if (error.code === ProblemCodes.DeviceRevoked) {
             throw new DeviceRevokedError({ url: error.url, requestId: error.requestId });
           }
           throw new PinRejectedError({ url: error.url, requestId: error.requestId });
@@ -267,7 +268,7 @@ export function createStaffAuth(client: ApiClient) {
         return toSignIn(data);
       } catch (error) {
         if (error instanceof UnauthorizedError) {
-          if (error.code === 'device-revoked') {
+          if (error.code === ProblemCodes.DeviceRevoked) {
             throw new DeviceRevokedError({ url: error.url, requestId: error.requestId });
           }
           return null;
@@ -325,9 +326,10 @@ function asDeviceFailure(error: unknown): unknown {
 function asPairingFailure(error: unknown): unknown {
   if (!(error instanceof ApiError)) return error;
   const options = { url: error.url, requestId: error.requestId };
-  if (error.code === 'pairing-code-expired') return new PairingCodeExpiredError(options);
-  if (error.code === 'pairing-code-invalid') return new PairingCodeInvalidError(options);
-  if (error.code === 'kitchen-phone-not-allowed') return new KitchenPhoneNotAllowedError(options);
+  if (error.code === ProblemCodes.PairingCodeExpired) return new PairingCodeExpiredError(options);
+  if (error.code === ProblemCodes.PairingCodeInvalid) return new PairingCodeInvalidError(options);
+  if (error.code === ProblemCodes.KitchenPhoneNotAllowed)
+    return new KitchenPhoneNotAllowedError(options);
   if (error.status === 409) return new PairingCodeUnusableError(options);
   if (error.status === 401) return new PairingCodeInvalidError(options);
   return error;

@@ -15,6 +15,7 @@ import {
   ValidationError,
 } from './errors';
 import { parseProblem } from './problem';
+import { ProblemCodes } from './generated/problemCodes';
 
 /** Returns the current bearer token, or null when signed out. May be async. */
 export type TokenGetter = () => string | null | Promise<string | null>;
@@ -75,7 +76,7 @@ const DEFAULT_TIMEOUT_MS = 15_000;
  * tokens, so the refresh succeeds and the diner carries on. Only after a
  * deletion or a displacement is the refresh refused as well.
  */
-const NO_REFRESH_CODES: ReadonlySet<string> = new Set(['invalid-credentials']);
+const NO_REFRESH_CODES: ReadonlySet<string> = new Set([ProblemCodes.InvalidCredentials]);
 
 function buildUrl(baseUrl: string, path: string, query: RequestOptions['query']): string {
   const base = baseUrl.endsWith('/') ? baseUrl : `${baseUrl}/`;
@@ -161,7 +162,7 @@ function toError(response: Response, url: string, body: unknown): ApiError {
      * Everything else at 422 really is a transition the current state forbids.
      */
     case 422:
-      return base.problem?.code === 'validation-failed'
+      return base.problem?.code === ProblemCodes.ValidationFailed
         ? new ValidationError({ ...base, status: 422 })
         : new InvalidTransitionError(base);
     case 400:

@@ -7,6 +7,7 @@ import type {
 } from './contracts/console';
 import { BranchNotReadyError } from './contracts/errors';
 import { ConcurrencyConflictError, NotFoundError } from './errors';
+import { ProblemCodes } from './generated/problemCodes';
 
 /**
  * The platform venues list's tier column, and the one button in it.
@@ -186,7 +187,7 @@ export function openTabsRefusal(
       title: 'Conflicting state',
       status: 409,
       detail: `This branch has ${openTabCount} open tab(s). Moving it to Free would hide those bills from the people who owe them. Wait until they are settled.`,
-      code: 'conflicting-state',
+      code: ProblemCodes.ConflictingState,
       traceId: 'console-check',
     },
   });

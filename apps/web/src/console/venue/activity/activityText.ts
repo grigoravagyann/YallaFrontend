@@ -5,6 +5,7 @@ import {
   type ActivityCategory,
   type ActivityEntry,
   type ActivityParams,
+  ProblemCodes,
 } from '@yalla/api';
 import {
   branchDayKey,
@@ -151,7 +152,7 @@ export function durationLabel(t: TFunction, seconds: number | null): string | nu
 }
 
 /** `422 activity-export-too-large`: the window holds more rows than one file may. */
-export const ACTIVITY_EXPORT_TOO_LARGE_CODE = 'activity-export-too-large';
+export const ACTIVITY_EXPORT_TOO_LARGE_CODE = ProblemCodes.ActivityExportTooLarge;
 
 /**
  * What a failed CSV says: the too-large refusal with the server's own limit

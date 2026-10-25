@@ -13,8 +13,8 @@
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
-    "test": "node scripts/check-gateway-schema.mjs && vitest run",
-    "api:check": "node scripts/check-gateway-schema.mjs",
+    "test": "node scripts/check-gateway-schema.mjs && node scripts/check-problem-codes.mjs && vitest run",
+    "api:check": "node scripts/check-gateway-schema.mjs && node scripts/check-problem-codes.mjs",
     "api:generate": "node scripts/generate.mjs"
   },
   "dependencies": {

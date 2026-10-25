@@ -4,6 +4,7 @@ import { TabAdmissionDecidedError } from '../../contracts/errors';
 import { ConcurrencyConflictError } from '../../errors';
 import type { StaffGateway } from '../../staffGateway';
 import { type StaffMockContext, iso } from './context';
+import { ProblemCodes } from '../../generated/problemCodes';
 
 /** Tables waiting to be let in. */
 export function admissionMethods(
@@ -86,7 +87,7 @@ export function admissionMethods(
               title: 'Conflicting state',
               status: 409,
               detail: 'Orders were taken on this tab; admit it instead.',
-              code: 'conflicting-state',
+              code: ProblemCodes.ConflictingState,
               traceId: 'mock',
             },
           });

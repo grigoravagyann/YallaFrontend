@@ -34,7 +34,8 @@ before exploring; the README has the long-form reasons. Backend: `grigoravagyann
     `resolveConsoleGateway` / `resolvePublicGateway`.
   - `http/` — HTTP implementations (`httpGateway.ts`, `staffHttpGateway.ts`,
     `consoleHttpGateway.ts`, `publicHttpGateway.ts`) and wire mappers `http/*Mapping.ts`.
-  - `generated/schema.ts` + `generated/swagger.json` — generated from the backend, committed.
+  - `generated/schema.ts` + `generated/swagger.json` + `generated/problemCodes.ts` (every
+    problem code, its status and typed context) — generated from the backend, committed.
   - `react/` — TanStack Query hooks, one file per feature (`takeaway.ts`, `staffFloor.ts`,
     `messages.ts`, …), plus `gateways.ts` (`GatewayProvider`, `useGateway`,
     `useStaffGateway`, `useConsoleGateway`, …) and `queryKeys.ts` (`queryKeys`). `index.ts`
@@ -102,7 +103,7 @@ Example to copy end to end: takeaway — `contracts/takeaway.ts`, `http/takeaway
 1. Serve the backend branch's swagger (`pnpm dev:stack --only api`, or the backend run
    directly), then
    `pnpm api:generate --url http://localhost:5199/swagger/v1/swagger.json`. Commit
-   `generated/schema.ts` and `generated/swagger.json` together.
+   `generated/schema.ts`, `generated/swagger.json` and `generated/problemCodes.ts` together.
 2. Types the apps see go in `contracts/<feature>.ts`. Wire mapping goes in
    `http/<feature>Mapping.ts` using `import type { components } from '../generated/schema'`.
 3. Add the method to the right interface: diner → `YallaGateway`, floor → `StaffGateway`,
@@ -127,16 +128,33 @@ Example to copy end to end: takeaway — `contracts/takeaway.ts`, `http/takeaway
 
 ## Recipe: map a problem code to a typed error and copy
 
-1. In `contracts/errors.ts`: `export const FOO_CODE = 'foo-bar'`, a `FooError extends ApiError`
-   carrying the problem's context, and `isFoo(error)` (copy `TAKEAWAY_BUSY_CODE` /
-   `TakeawayBusyError` / `isTakeawayBusy`). Export from `src/index.ts`.
-2. Map it in the feature's refusal function in `http/<feature>Mapping.ts`
-   (`takeawayRefusal`, `messageRefusal` + `rethrowMessageRefusal`), called from the gateway's
-   `catch`. Throw the same class from the mock.
+The backend declares every code once (`ErrorCodes.cs`: status, meaning, `context` members) and
+publishes it as `x-problem-codes`; `pnpm api:generate` writes `generated/problemCodes.ts` from it
+(`ProblemCodes.X`, `PROBLEM_CODE_STATUS`, `ProblemContexts`, one `XProblemContext` per code). Never
+type a slug by hand.
+
+0. A new backend code: regenerate (`pnpm api:generate --url <swagger>`) and commit
+   `generated/schema.ts`, `generated/swagger.json` and `generated/problemCodes.ts` together.
+   `pnpm --filter @yalla/api api:check` then lists it under "no typed error or branch handles
+   yet" until step 1.
+1. In `contracts/errors.ts`: `export const FOO_CODE = ProblemCodes.FooBar`, a
+   `FooError extends ApiError` carrying the problem's context in the client's vocabulary, and
+   `isFoo(error)` (copy `TAKEAWAY_BUSY_CODE` / `TakeawayBusyError` / `isTakeawayBusy`). Export
+   from `src/index.ts`.
+2. Map it in the feature's refusal function in `http/<feature>Mapping.ts` (`takeawayRefusal`,
+   `messageRefusal` + `rethrowMessageRefusal`), called from the gateway's `catch`: `case FOO_CODE:`
+   then `const context = problemContext(problem, FOO_CODE)` — member names are the catalogue's
+   (a typo is a compile error), values are `unknown` and still checked (model:
+   `takeawayRefusal`). Throw the same class from the mock, with `code: ProblemCodes.FooBar`.
 3. Turn errors into a sentence kind, not copy: a `<feature>Failure(error)` union like
    `messageFailure` in `contracts/messageFailure.ts`. Each app maps kinds to its own i18n keys
    (`messageFailureText` in `apps/web/src/staff/messages/messageText.ts`; diner
    `src/messages/ThreadScreen.tsx`).
+4. `scripts/check-problem-codes.mjs` (in the api `test` script and `api:check`) fails on a
+   hand-typed slug in a code position (`code === '…'`, `case '…':` on a code, `FOO_CODE = '…'`,
+   `code: '…'` in a problem document) that the backend does not declare, in source, tests and
+   mocks alike, and on a stale `problemCodes.ts`. A literal that is some other code (a locale, a
+   table warning) carries `// problem-codes: not-a-problem-code — <why>`.
 
 ## Recipe: add a console page
 

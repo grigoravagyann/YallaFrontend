@@ -91,12 +91,14 @@ export function useFloorCommands({
         setNotice({
           kind: 'warning',
           text:
+            // problem-codes: not-a-problem-code — a TableStateWarningCodes member
             warning.code === 'outstanding-balance' && result.outstandingDram !== null
               ? t('notice.freedWithBalance', {
                   label: result.tableLabel,
                   amount: format.dram(result.outstandingDram),
                 })
-              : warning.code === 'upcoming-reservation'
+              : // problem-codes: not-a-problem-code — a TableStateWarningCodes member
+                warning.code === 'upcoming-reservation'
                 ? t('notice.seatedOverBooking', { label: result.tableLabel })
                 : warning.message,
         });

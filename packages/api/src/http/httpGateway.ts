@@ -187,6 +187,7 @@ import {
   type RequestView,
 } from './staffMapping';
 import { photo } from './venueSettingsMapping';
+import { ProblemCodes } from '../generated/problemCodes';
 
 type Schemas = components['schemas'];
 
@@ -399,7 +400,7 @@ export function createHttpGateway(client: ApiClient, options: HttpGatewayOptions
 
   /** A host action refused because the caller is not the host. */
   function hostError(error: unknown, tabId: string): unknown {
-    if (error instanceof ForbiddenError && error.problem?.code === 'forbidden') {
+    if (error instanceof ForbiddenError && error.problem?.code === ProblemCodes.Forbidden) {
       return new NotTabHostError({ url: error.url });
     }
     return ended(error, tabId);
@@ -454,20 +455,20 @@ export function createHttpGateway(client: ApiClient, options: HttpGatewayOptions
       };
 
       switch (error.problem?.code) {
-        case 'phone-not-verified':
+        case ProblemCodes.PhoneNotVerified:
           throw new PhoneNotVerifiedError({ url: error.url, requestId: error.requestId });
-        case 'booking-not-found':
+        case ProblemCodes.BookingNotFound:
           throw new BookingNotFoundError({ url: error.url, requestId: error.requestId });
-        case 'booking-too-early':
+        case ProblemCodes.BookingTooEarly:
           throw new BookingTooEarlyError({ ...facts, earliestUtc: text(context['earliestUtc']) });
-        case 'booking-ended':
+        case ProblemCodes.BookingEnded:
           throw new BookingEndedError(facts);
-        case 'booking-table-occupied':
+        case ProblemCodes.BookingTableOccupied:
           throw new BookingTableOccupiedError({
             ...facts,
             tableLabel: text(context['tableLabel']),
           });
-        case 'booking-not-active':
+        case ProblemCodes.BookingNotActive:
           throw new BookingNotActiveError({
             ...facts,
             // The wire sends the number; the copy needs to know *which*
@@ -499,10 +500,10 @@ export function createHttpGateway(client: ApiClient, options: HttpGatewayOptions
     if (turnedAway) throw turnedAway;
     if (error instanceof ApiError) {
       const code = error.problem?.code;
-      if (code === 'feature-not-enabled') {
+      if (code === ProblemCodes.FeatureNotEnabled) {
         throw new TabsNotEnabledError({ url: error.url, requestId: error.requestId });
       }
-      if (code === 'branch-unavailable') {
+      if (code === ProblemCodes.BranchUnavailable) {
         throw new BranchUnavailableError({ url: error.url, requestId: error.requestId });
       }
       if (error.status === 409) {
@@ -677,13 +678,13 @@ export function createHttpGateway(client: ApiClient, options: HttpGatewayOptions
     if (admission) throw admission;
 
     switch (error.problem.code) {
-      case 'menu-item-unavailable':
+      case ProblemCodes.MenuItemUnavailable:
         throw new MenuItemUnavailableError({
           url: error.url,
           itemName: String(context['itemName'] ?? ''),
           requestId: error.requestId,
         });
-      case 'tab-not-accepting-orders':
+      case ProblemCodes.TabNotAcceptingOrders:
         throw new TabNotAcceptingOrdersError({
           url: error.url,
           tabId: String(context['tabId'] ?? ''),
@@ -756,13 +757,13 @@ export function createHttpGateway(client: ApiClient, options: HttpGatewayOptions
     if (error instanceof ApiError) {
       const base = { url: error.url, requestId: error.requestId };
       switch (error.problem?.code) {
-        case 'username-taken':
+        case ProblemCodes.UsernameTaken:
           throw new UsernameTakenError(base);
-        case 'email-taken':
+        case ProblemCodes.EmailTaken:
           throw new EmailTakenError(base);
-        case 'phone-in-use':
+        case ProblemCodes.PhoneInUse:
           throw new PhoneInUseError(base);
-        case 'invalid-credentials':
+        case ProblemCodes.InvalidCredentials:
           throw new InvalidCredentialsError(base);
         default:
           break;
@@ -1025,10 +1026,16 @@ export function createHttpGateway(client: ApiClient, options: HttpGatewayOptions
         );
         return myReviewFromWire(data);
       } catch (error) {
-        if (error instanceof ForbiddenError && error.problem?.code === 'phone-not-verified') {
+        if (
+          error instanceof ForbiddenError &&
+          error.problem?.code === ProblemCodes.PhoneNotVerified
+        ) {
           throw new PhoneNotVerifiedError({ url: error.url, requestId: error.requestId });
         }
-        if (error instanceof ForbiddenError && error.problem?.code === 'review-needs-visit') {
+        if (
+          error instanceof ForbiddenError &&
+          error.problem?.code === ProblemCodes.ReviewNeedsVisit
+        ) {
           throw new ReviewNeedsVisitError({ url: error.url, requestId: error.requestId });
         }
         throw error;
@@ -1283,7 +1290,11 @@ export function createHttpGateway(client: ApiClient, options: HttpGatewayOptions
         if (error instanceof TooManyRequestsError) throw rateLimited(error);
         // No SMS provider on this backend. Only this code: any other 503 is an
         // outage, and telling the diner to use Telegram for it would be a guess.
-        if (error instanceof ApiError && error.status === 503 && error.code === 'sms-unavailable') {
+        if (
+          error instanceof ApiError &&
+          error.status === 503 &&
+          error.code === ProblemCodes.SmsUnavailable
+        ) {
           throw new SmsUnavailableError({ url: error.url, requestId: error.requestId });
         }
         throw error;
@@ -1502,7 +1513,10 @@ export function createHttpGateway(client: ApiClient, options: HttpGatewayOptions
         if (error instanceof TooManyRequestsError) {
           throw new TooManyAttemptsError({ url: error.url });
         }
-        if (error instanceof ForbiddenError && error.problem?.code === 'phone-not-verified') {
+        if (
+          error instanceof ForbiddenError &&
+          error.problem?.code === ProblemCodes.PhoneNotVerified
+        ) {
           throw new PhoneNotVerifiedError({ url: error.url, requestId: error.requestId });
         }
         rethrowAccount(error);
@@ -1697,7 +1711,10 @@ export function createHttpGateway(client: ApiClient, options: HttpGatewayOptions
       } catch (error) {
         // Not a failure to report: the table has asked several times in a short
         // window, and a waiter already knows.
-        if (error instanceof ApiError && error.problem?.code === 'service-request-rate-limited') {
+        if (
+          error instanceof ApiError &&
+          error.problem?.code === ProblemCodes.ServiceRequestRateLimited
+        ) {
           const window = error.problem.context?.['windowMinutes'];
           throw new ServiceRequestRateLimitedError({
             url: error.url,
@@ -1929,14 +1946,14 @@ export function createHttpGateway(client: ApiClient, options: HttpGatewayOptions
         if (error instanceof ApiError && error.status === 409) {
           const base = { url: error.url, reservationId, requestId: error.requestId };
           switch (error.problem?.code) {
-            case 'hold-already-extended':
+            case ProblemCodes.HoldAlreadyExtended:
               throw new HoldAlreadyExtendedError({
                 ...base,
                 serverDetail: error.problem.detail ?? null,
               });
-            case 'hold-not-active':
+            case ProblemCodes.HoldNotActive:
               throw new HoldNotActiveError(base);
-            case 'extensions-not-offered':
+            case ProblemCodes.ExtensionsNotOffered:
               throw new ExtensionsNotOfferedError(base);
           }
         }

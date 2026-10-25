@@ -138,6 +138,7 @@ import {
   tabLinesFromOrders,
   tableActionResult,
 } from './staffMapping';
+import { ProblemCodes } from '../generated/problemCodes';
 
 type Schemas = components['schemas'];
 type KitchenOrder = Schemas['Yalla.Application.Ordering.KitchenOrderView'];
@@ -231,7 +232,7 @@ export function createStaffHttpGateway(client: ApiClient): StaffGateway {
     const context = error.problem.context ?? {};
 
     switch (error.problem.code) {
-      case 'payment-exceeds-remaining':
+      case ProblemCodes.PaymentExceedsRemaining:
         throw new PaymentExceedsRemainingError({
           url: error.url,
           tabId: String(context['tabId'] ?? ''),
@@ -239,26 +240,26 @@ export function createStaffHttpGateway(client: ApiClient): StaffGateway {
           requestedDram: Number(context['requestedAmd'] ?? 0),
           requestId: error.requestId,
         });
-      case 'menu-item-unavailable':
+      case ProblemCodes.MenuItemUnavailable:
         throw new MenuItemUnavailableError({
           url: error.url,
           itemName: String(context['itemName'] ?? ''),
           requestId: error.requestId,
         });
-      case 'tab-not-accepting-orders':
+      case ProblemCodes.TabNotAcceptingOrders:
         throw new TabNotAcceptingOrdersError({
           url: error.url,
           tabId: String(context['tabId'] ?? ''),
           tabStatus: TAB_NOT_ACCEPTING[Number(context['status'])] ?? null,
           requestId: error.requestId,
         });
-      case 'table-not-seated':
+      case ProblemCodes.TableNotSeated:
         throw new TableNotSeatedError({
           url: error.url,
           tableId: String(context['tableId'] ?? ''),
           requestId: error.requestId,
         });
-      case 'line-already-paid':
+      case ProblemCodes.LineAlreadyPaid:
         throw new LineAlreadyPaidError({
           url: error.url,
           lineId: String(context['lineId'] ?? context['tabOrderLineId'] ?? ''),
@@ -984,7 +985,7 @@ function guestRefusal(error: unknown): OrderGuestUnavailableError | null {
   const participantId = context['participantId'];
   if (typeof participantId !== 'string' || participantId === '') return null;
   const field = typeof context['field'] === 'string' ? context['field'] : null;
-  if (error.status === 404 && error.code === 'not-found') {
+  if (error.status === 404 && error.code === ProblemCodes.NotFound) {
     return new OrderGuestUnavailableError({
       url: error.url,
       status: 404,
@@ -994,7 +995,7 @@ function guestRefusal(error: unknown): OrderGuestUnavailableError | null {
       requestId: error.requestId,
     });
   }
-  if (error.status === 409 && error.code === 'conflicting-state') {
+  if (error.status === 409 && error.code === ProblemCodes.ConflictingState) {
     return new OrderGuestUnavailableError({
       url: error.url,
       status: 409,

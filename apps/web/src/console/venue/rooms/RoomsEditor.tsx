@@ -9,6 +9,7 @@ import {
   isFloorPlanInvalid,
   type EditorTablePin,
   type ReplaceFloorPlanCommand,
+  ProblemCodes,
 } from '@yalla/api';
 import {
   isOfflinePaused,
@@ -1097,7 +1098,7 @@ export function RoomsEditor({ branchId, branchName = null, layout = 'console' }:
         >
           {remove.isError ? (
             remove.error instanceof ConcurrencyConflictError &&
-            remove.error.code === 'conflicting-state' ? (
+            remove.error.code === ProblemCodes.ConflictingState ? (
               <p className="yc-alert" role="alert">
                 {t('rooms.delete.seated', { label: dialog.table.label })}
               </p>

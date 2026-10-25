@@ -3,16 +3,17 @@ import {
   describeFailure,
   isApprovalExpired,
   isReservationCancelledByBlock,
+  ProblemCodes,
 } from '@yalla/api';
 
 /** The server's code for a decision on a booking that is no longer pending. */
-const ANSWERED_ELSEWHERE_CODE = 'conflicting-state';
+const ANSWERED_ELSEWHERE_CODE = ProblemCodes.ConflictingState;
 
 /**
  * The server's code for a decision on a booking that waits on the guest before
  * it to answer in the app (booking times): theirs to answer, not the floor's.
  */
-const AWAITING_EARLIER_GUEST_CODE = 'reservation-awaiting-earlier-guest';
+const AWAITING_EARLIER_GUEST_CODE = ProblemCodes.ReservationAwaitingEarlierGuest;
 
 /**
  * The decision was refused because the guest before answers it in the app: the

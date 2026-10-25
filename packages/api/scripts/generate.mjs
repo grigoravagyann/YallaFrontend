@@ -1,11 +1,17 @@
 #!/usr/bin/env node
 /**
- * Generate `src/generated/schema.ts` from the backend's OpenAPI document.
+ * Generate `src/generated/schema.ts` and `src/generated/problemCodes.ts` from the
+ * backend's OpenAPI document.
  *
  * Types are generated rather than hand-written so that a backend contract change
  * shows up as a compile error in all three apps instead of as a runtime surprise
  * in one of them. The output is committed, so the workspace typechecks with no
  * backend running and CI needs no network.
+ *
+ * `problemCodes.ts` comes from the document's `x-problem-codes` extension — every
+ * problem code, declared once in the backend's `ErrorCodes.cs` with its status
+ * and its `context` — which `openapi-typescript` does not read. See
+ * `problemCodes.mjs`.
  *
  * Usage:
  *   pnpm api:generate
@@ -16,6 +22,7 @@ import { writeFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import openapiTS, { astToString } from 'openapi-typescript';
+import { renderProblemCodes } from './problemCodes.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const OUTPUT = resolve(HERE, '..', 'src', 'generated', 'schema.ts');
@@ -31,6 +38,9 @@ const OUTPUT = resolve(HERE, '..', 'src', 'generated', 'schema.ts');
  * files that cannot disagree, rather than a second fetch that could.
  */
 const RAW_OUTPUT = resolve(HERE, '..', 'src', 'generated', 'swagger.json');
+
+/** The problem codes, from the same fetch as the two files above. */
+const CODES_OUTPUT = resolve(HERE, '..', 'src', 'generated', 'problemCodes.ts');
 
 const DEFAULT_URL = 'http://localhost:5086/swagger/v1/swagger.json';
 
@@ -99,6 +109,9 @@ try {
     'utf8',
   );
   console.log(`api:generate — wrote ${RAW_OUTPUT}`);
+
+  writeFileSync(CODES_OUTPUT, renderProblemCodes(document, url), 'utf8');
+  console.log(`api:generate — wrote ${CODES_OUTPUT}`);
 } catch (error) {
   console.error(`api:generate — failed to read ${url}`);
   console.error(`  ${error instanceof Error ? error.message : String(error)}`);

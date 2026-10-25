@@ -7,6 +7,7 @@ import {
 } from '../../contracts/platformHome';
 import type { ConsoleGateway } from '../../consoleGateway';
 import { type ConsoleMockContext, URL_TAG } from './context';
+import { ProblemCodes } from '../../generated/problemCodes';
 
 /** The platform admin's Home and Settings: the overview, the outbox, booking blocks, activity, the admin's own profile and password. */
 export function platformHomeMethods(
@@ -84,7 +85,7 @@ export function platformHomeMethods(
             title: 'Conflict',
             status: 409,
             detail: 'The block has already ended.',
-            code: 'conflicting-state',
+            code: ProblemCodes.ConflictingState,
             traceId: 'mock',
           },
         });

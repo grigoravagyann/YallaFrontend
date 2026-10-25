@@ -50,6 +50,7 @@ import type { ReservationStatusCode } from '../contracts/push';
 import { ApiError } from '../errors';
 import type { components } from '../generated/schema';
 import { guestRecordFromWire } from './guestRecordMapping';
+import { ProblemCodes } from '../generated/problemCodes';
 
 /**
  * The pre-order wire (PO-WIRE.md, 2026-10-21), read once for every surface:
@@ -467,11 +468,11 @@ export function preOrderRefusal(error: unknown): ApiError | null {
         askedAtUtc: text(context['askedAtUtc']),
         nextAllowedAtUtc: text(context['nextAllowedAtUtc']),
       });
-    case 'reservation-not-changeable':
+    case ProblemCodes.ReservationNotChangeable:
       return new BookingNotChangeableError({ ...base, reservationId: reservationId ?? undefined });
-    case 'client-command-id-in-use':
+    case ProblemCodes.ClientCommandIdInUse:
       return new BookingCommandInUseError(base);
-    case 'tab-not-accepting-orders':
+    case ProblemCodes.TabNotAcceptingOrders:
       return new TabNotAcceptingOrdersError({
         ...base,
         tabId: text(context['tabId']) ?? '',

@@ -1,6 +1,7 @@
 import { ApiError, type FieldViolation } from '../errors';
 import type { StaffRole } from './console';
 import { addLocalDays, isLocalDate, localDaysBetween } from './messageHistory';
+import { ProblemCodes } from '../generated/problemCodes';
 
 /**
  * Activity history and staff results (2026-10-24, the "SHURJ Պատմություն և
@@ -734,9 +735,9 @@ export interface TabTransferTarget {
 }
 
 /** `422 transfer-target-ineligible`: the person named cannot take the table. */
-export const TRANSFER_TARGET_INELIGIBLE_CODE = 'transfer-target-ineligible';
+export const TRANSFER_TARGET_INELIGIBLE_CODE = ProblemCodes.TransferTargetIneligible;
 /** `409 tab-not-transferable`: the bill is closed or the party has gone. */
-export const TAB_NOT_TRANSFERABLE_CODE = 'tab-not-transferable';
+export const TAB_NOT_TRANSFERABLE_CODE = ProblemCodes.TabNotTransferable;
 
 /** `context.reason` of a `transfer-target-ineligible`. */
 export type TransferIneligibleReason =

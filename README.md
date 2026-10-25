@@ -180,10 +180,11 @@ runtime surprise in one:
 pnpm api:generate --url http://localhost:5086/swagger/v1/swagger.json
 ```
 
-The output lands in `packages/api/src/generated/` (`swagger.json` and
-`schema.ts`) and **is committed**, so the workspace typechecks with no backend
-running. Regenerate it against the backend branch this branch pairs with, and
-commit both files together.
+The output lands in `packages/api/src/generated/` (`swagger.json`, `schema.ts`
+and `problemCodes.ts` — every problem code, its status and its typed `context`,
+from the document's `x-problem-codes` extension) and **is committed**, so the
+workspace typechecks with no backend running. Regenerate it against the backend
+branch this branch pairs with, and commit the three files together.
 
 ## Adding a translation key
 

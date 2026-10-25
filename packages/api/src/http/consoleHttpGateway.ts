@@ -206,6 +206,7 @@ import {
   type WirePolicyDefaults,
 } from './venueSettingsMapping';
 import { venueTypeCode } from './venueTypeMapping';
+import { ProblemCodes } from '../generated/problemCodes';
 
 type Schemas = components['schemas'];
 type WireDetail = Schemas['Yalla.Application.Platform.VenueDetail'];
@@ -348,7 +349,7 @@ type WireSignInLink = components['schemas']['Yalla.Application.Staff.StaffSignIn
  */
 function staffRefusal(error: unknown): never {
   // PINs are unique per tablet roster: the sentence goes under the PIN field.
-  if (error instanceof ApiError && error.status === 409 && error.code === 'pin-taken') {
+  if (error instanceof ApiError && error.status === 409 && error.code === ProblemCodes.PinTaken) {
     throw new StaffPinTakenError({
       url: error.url,
       detail: error.problem?.detail ?? error.message,
@@ -654,7 +655,7 @@ export function createConsoleHttpGateway(
         // 409 venue-deletion-blocked names what is still in use: open tables
         // and upcoming bookings. Without this the screen could only say
         // "something went wrong".
-        if (error instanceof ApiError && error.code === 'venue-deletion-blocked') {
+        if (error instanceof ApiError && error.code === ProblemCodes.VenueDeletionBlocked) {
           const context = error.problem?.context as
             { openTabs?: unknown; futureReservations?: unknown } | null | undefined;
           const strings = (value: unknown): string[] =>
@@ -805,7 +806,10 @@ export function createConsoleHttpGateway(
       } catch (error) {
         // A token from before tokens named their sign-in: nothing was ended,
         // and only signing in again fixes it.
-        if (error instanceof ConcurrencyConflictError && error.code === 'sign-in-unknown') {
+        if (
+          error instanceof ConcurrencyConflictError &&
+          error.code === ProblemCodes.SignInUnknown
+        ) {
           throw new SignInUnknownError({
             url: error.url,
             requestId: error.requestId,
@@ -859,7 +863,7 @@ export function createConsoleHttpGateway(
           removedTables: data.removedTables ?? [],
         };
       } catch (error) {
-        if (error instanceof ApiError && error.code === 'floor-plan-changed') {
+        if (error instanceof ApiError && error.code === ProblemCodes.FloorPlanChanged) {
           const current = error.problem?.context?.['currentVersion'];
           throw new FloorPlanChangedError({
             url: error.url,
@@ -870,7 +874,7 @@ export function createConsoleHttpGateway(
         // Only the plan's own refusal is a plan error. A `validation-failed`
         // 422 - a photo in two rooms, half a pin, a missing `expectedVersion`
         // - is already the client's `ValidationError`, naming the field.
-        if (error instanceof ApiError && error.code === 'floor-plan-invalid') {
+        if (error instanceof ApiError && error.code === ProblemCodes.FloorPlanInvalid) {
           const context = error.problem?.context ?? {};
           throw new FloorPlanInvalidError({
             url: error.url,
@@ -940,7 +944,7 @@ export function createConsoleHttpGateway(
         // Going Paid with an unfinished menu is the one refusal with a number
         // in it, so it gets a type. Going Free with open tabs is a plain 409
         // whose sentence already names the tables; it is left as it arrives.
-        if (error instanceof ApiError && error.code === 'branch-not-ready') {
+        if (error instanceof ApiError && error.code === ProblemCodes.BranchNotReady) {
           const context = error.problem?.context as
             { branchId?: unknown; incompleteMenuItemCount?: unknown } | null | undefined;
           throw new BranchNotReadyError({
@@ -1252,7 +1256,7 @@ export function createConsoleHttpGateway(
         } satisfies WireListingCommand);
         return branchListing(data, client.baseUrl);
       } catch (error) {
-        if (error instanceof ApiError && error.code === 'relocation-not-allowed') {
+        if (error instanceof ApiError && error.code === ProblemCodes.RelocationNotAllowed) {
           throw new RelocationNotAllowedError({ url: error.url, requestId: error.requestId });
         }
         throw error;
@@ -1662,7 +1666,7 @@ export function createConsoleHttpGateway(
         return phonePairingCode(data);
       } catch (error) {
         // The kitchen stays on its tablet: said, not a generic conflict.
-        if (error instanceof ApiError && error.code === 'kitchen-phone-not-allowed') {
+        if (error instanceof ApiError && error.code === ProblemCodes.KitchenPhoneNotAllowed) {
           throw new KitchenPhoneNotAllowedError({ url: error.url, requestId: error.requestId });
         }
         throw error;

@@ -1,4 +1,5 @@
 import type { ProblemDetails } from './problem';
+import { ProblemCodes } from './generated/problemCodes';
 
 interface ErrorOptions {
   readonly status: number;
@@ -91,7 +92,7 @@ export class UnauthorizedError extends AuthError {
 }
 
 /** The code a revoked diner session is answered with (K1). */
-export const SESSION_REVOKED_CODE = 'session-revoked';
+export const SESSION_REVOKED_CODE = ProblemCodes.SessionRevoked;
 
 /**
  * 401 `session-revoked`: the diner's session was ended on the server.

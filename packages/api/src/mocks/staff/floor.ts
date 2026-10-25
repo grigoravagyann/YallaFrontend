@@ -29,6 +29,7 @@ import {
   TRANSITIONS,
   versionToken,
 } from './context';
+import { ProblemCodes } from '../../generated/problemCodes';
 
 /** The floor: its read, table actions, the change stream, releasing a booking and undoing a no-show. */
 export function floorMethods(
@@ -171,7 +172,7 @@ export function floorMethods(
             title: 'Invalid request',
             status: 400,
             detail: 'A queued command must carry the status it expected the table to be in.',
-            code: 'invalid-request',
+            code: ProblemCodes.InvalidRequest,
             traceId: 'mock',
             context: { field: 'expectedFromStatus' },
           },
@@ -481,7 +482,7 @@ export function floorMethods(
             title: 'Conflict',
             status: 409,
             detail: `${reservation.code} is not a no-show.`,
-            code: 'conflicting-state',
+            code: ProblemCodes.ConflictingState,
             traceId: 'mock',
           },
         });

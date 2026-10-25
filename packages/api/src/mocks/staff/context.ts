@@ -81,6 +81,7 @@ import type { StaffNotificationSwitches } from '../../contracts/staffPhone';
 import { fixtureStaffFor } from '../staffFixture';
 import { createMockActivity } from '../activity';
 import { mockVenues } from '../venues';
+import { ProblemCodes } from '../../generated/problemCodes';
 
 /**
  * A whole service, in memory.
@@ -1409,7 +1410,7 @@ export function createStaffMockContext(options: StaffMockOptions = {}) {
           title: 'Invalid request',
           status: 400,
           detail: 'clientCommandId is required.',
-          code: 'invalid-request',
+          code: ProblemCodes.InvalidRequest,
           traceId: 'mock',
           context: { field: 'clientCommandId' },
         },
@@ -1424,7 +1425,7 @@ export function createStaffMockContext(options: StaffMockOptions = {}) {
           title: 'Conflict',
           status: 409,
           detail: 'This command id was already used for another command.',
-          code: 'client-command-id-in-use',
+          code: ProblemCodes.ClientCommandIdInUse,
           traceId: 'mock',
         },
       });

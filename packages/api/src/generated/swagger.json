@@ -46789,5 +46789,3548 @@
     {
       "bearer": []
     }
-  ]
+  ],
+  "x-problem-codes": {
+    "account-inactive": {
+      "name": "AccountInactive",
+      "status": 401,
+      "title": "Account inactive",
+      "description": "The account or staff member behind the credential is no longer active."
+    },
+    "account-locked": {
+      "name": "AccountLocked",
+      "status": 403,
+      "title": "Account locked",
+      "description": "The account is locked, not the credential wrong.",
+      "context": {
+        "type": "object",
+        "properties": {
+          "lockedUntilUtc": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          }
+        },
+        "required": [
+          "lockedUntilUtc"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "activity-export-too-large": {
+      "name": "ActivityExportTooLarge",
+      "status": 422,
+      "title": "Export too large",
+      "description": "A History export would carry more rows than a file may.",
+      "context": {
+        "type": "object",
+        "properties": {
+          "rows": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "maxRows": {
+            "type": "integer",
+            "format": "int32"
+          }
+        },
+        "required": [
+          "rows",
+          "maxRows"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "ask-on-my-way-asked-recently": {
+      "name": "AskOnMyWayAskedRecently",
+      "status": 409,
+      "title": "Asked a moment ago",
+      "description": "\"Ask: are you coming?\" within fifteen minutes of the last ask.",
+      "context": {
+        "type": "object",
+        "properties": {
+          "reservationId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "askedAtUtc": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "nextAllowedAtUtc": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "reservationId",
+          "askedAtUtc",
+          "nextAllowedAtUtc"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "ask-on-my-way-not-open": {
+      "name": "AskOnMyWayNotOpen",
+      "status": 409,
+      "title": "Booking not expecting anybody",
+      "description": "\"Ask: are you coming?\" for a booking that is not confirmed, or has started.",
+      "context": {
+        "type": "object",
+        "properties": {
+          "reservationId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "status": {
+            "type": "integer",
+            "format": "int32",
+            "enum": [
+              1,
+              2,
+              4,
+              5,
+              6,
+              7,
+              8
+            ],
+            "x-enum-varnames": [
+              "PendingApproval",
+              "Confirmed",
+              "Seated",
+              "Completed",
+              "CancelledByDiner",
+              "CancelledByVenue",
+              "NoShow"
+            ],
+            "x-enum-name": "ReservationStatus"
+          },
+          "startUtc": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "reservationId",
+          "status",
+          "startUtc"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "ask-on-my-way-too-early": {
+      "name": "AskOnMyWayTooEarly",
+      "status": 409,
+      "title": "Too early to ask",
+      "description": "\"Ask: are you coming?\" more than two hours before the start.",
+      "context": {
+        "type": "object",
+        "properties": {
+          "reservationId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "opensAtUtc": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "reservationId",
+          "opensAtUtc"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "booking-blocked-no-shows": {
+      "name": "BookingBlockedNoShows",
+      "status": 403,
+      "title": "Booking paused after missed bookings",
+      "description": "The guest missed three bookings in three days and cannot book until the block ends.",
+      "context": {
+        "type": "object",
+        "properties": {
+          "blockedUntilUtc": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "blockedUntilUtc"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "booking-ended": {
+      "name": "BookingEnded",
+      "status": 409,
+      "title": "Booking has ended",
+      "description": "The booking is over: past its end, or its sitting has finished.",
+      "context": {
+        "type": "object",
+        "properties": {
+          "reservationId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "status": {
+            "type": "integer",
+            "format": "int32",
+            "enum": [
+              1,
+              2,
+              4,
+              5,
+              6,
+              7,
+              8
+            ],
+            "x-enum-varnames": [
+              "PendingApproval",
+              "Confirmed",
+              "Seated",
+              "Completed",
+              "CancelledByDiner",
+              "CancelledByVenue",
+              "NoShow"
+            ],
+            "x-enum-name": "ReservationStatus"
+          },
+          "startUtc": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "endUtc": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "earliestUtc": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "tableLabel": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "required": [
+          "reservationId",
+          "status",
+          "startUtc",
+          "endUtc",
+          "earliestUtc",
+          "tableLabel"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "booking-not-active": {
+      "name": "BookingNotActive",
+      "status": 409,
+      "title": "Booking not active",
+      "description": "The booking is not expecting its party: awaiting approval, cancelled, or a no-show.",
+      "context": {
+        "type": "object",
+        "properties": {
+          "reservationId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "status": {
+            "type": "integer",
+            "format": "int32",
+            "enum": [
+              1,
+              2,
+              4,
+              5,
+              6,
+              7,
+              8
+            ],
+            "x-enum-varnames": [
+              "PendingApproval",
+              "Confirmed",
+              "Seated",
+              "Completed",
+              "CancelledByDiner",
+              "CancelledByVenue",
+              "NoShow"
+            ],
+            "x-enum-name": "ReservationStatus"
+          },
+          "startUtc": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "endUtc": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "earliestUtc": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "tableLabel": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "required": [
+          "reservationId",
+          "status",
+          "startUtc",
+          "endUtc",
+          "earliestUtc",
+          "tableLabel"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "booking-not-found": {
+      "name": "BookingNotFound",
+      "status": 404,
+      "title": "Booking not found",
+      "description": "None of the caller's bookings carries that code."
+    },
+    "booking-table-occupied": {
+      "name": "BookingTableOccupied",
+      "status": 409,
+      "title": "Booked table still occupied",
+      "description": "The booked table still has another party's sitting open; staff must free it.",
+      "context": {
+        "type": "object",
+        "properties": {
+          "reservationId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "status": {
+            "type": "integer",
+            "format": "int32",
+            "enum": [
+              1,
+              2,
+              4,
+              5,
+              6,
+              7,
+              8
+            ],
+            "x-enum-varnames": [
+              "PendingApproval",
+              "Confirmed",
+              "Seated",
+              "Completed",
+              "CancelledByDiner",
+              "CancelledByVenue",
+              "NoShow"
+            ],
+            "x-enum-name": "ReservationStatus"
+          },
+          "startUtc": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "endUtc": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "earliestUtc": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "tableLabel": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "required": [
+          "reservationId",
+          "status",
+          "startUtc",
+          "endUtc",
+          "earliestUtc",
+          "tableLabel"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "booking-too-early": {
+      "name": "BookingTooEarly",
+      "status": 409,
+      "title": "Too early for this booking",
+      "description": "The booking's table is not being held for the party yet; context says from when.",
+      "context": {
+        "type": "object",
+        "properties": {
+          "reservationId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "status": {
+            "type": "integer",
+            "format": "int32",
+            "enum": [
+              1,
+              2,
+              4,
+              5,
+              6,
+              7,
+              8
+            ],
+            "x-enum-varnames": [
+              "PendingApproval",
+              "Confirmed",
+              "Seated",
+              "Completed",
+              "CancelledByDiner",
+              "CancelledByVenue",
+              "NoShow"
+            ],
+            "x-enum-name": "ReservationStatus"
+          },
+          "startUtc": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "endUtc": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "earliestUtc": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "tableLabel": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "required": [
+          "reservationId",
+          "status",
+          "startUtc",
+          "endUtc",
+          "earliestUtc",
+          "tableLabel"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "bookings-not-accepted": {
+      "name": "BookingsNotAccepted",
+      "status": 409,
+      "title": "Bookings not accepted",
+      "description": "A booking from the diner app at a branch that is not taking app bookings.",
+      "context": {
+        "type": "object",
+        "properties": {
+          "branchId": {
+            "type": "string",
+            "format": "uuid"
+          }
+        },
+        "required": [
+          "branchId"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "branch-not-ready": {
+      "name": "BranchNotReady",
+      "status": 409,
+      "title": "Branch is not ready for diners",
+      "description": "The branch's menu has unfinished dishes, so it cannot be switched to Paid.",
+      "context": {
+        "type": "object",
+        "properties": {
+          "branchId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "incompleteMenuItemCount": {
+            "type": "integer",
+            "format": "int32"
+          }
+        },
+        "required": [
+          "branchId",
+          "incompleteMenuItemCount"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "branch-unavailable": {
+      "name": "BranchUnavailable",
+      "status": 409,
+      "title": "Branch not open for business",
+      "description": "The branch is not open for business: venue suspended or deleted, or branch switched off.",
+      "context": {
+        "type": "object",
+        "properties": {
+          "branchId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "reason": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "branchId",
+          "reason"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "client-command-id-in-use": {
+      "name": "ClientCommandIdInUse",
+      "status": 409,
+      "title": "Command id already used",
+      "description": "The clientCommandId already belongs to another caller's command; start again with a fresh one."
+    },
+    "concurrent-update": {
+      "name": "ConcurrentUpdate",
+      "status": 409,
+      "title": "Concurrent update",
+      "description": "Someone else changed the row first: re-read and retry.",
+      "context": {
+        "type": "object",
+        "properties": {
+          "currentVersion": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "currentVersion"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "conflicting-state": {
+      "name": "ConflictingState",
+      "status": 409,
+      "title": "Conflicting state",
+      "description": "The operation is not legal in the current state; a staff order's unorderable guest is named in context.",
+      "context": {
+        "type": "object",
+        "properties": {
+          "field": {
+            "type": "string"
+          },
+          "participantId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "participantStatus": {
+            "type": "integer",
+            "format": "int32",
+            "enum": [
+              1,
+              2,
+              3
+            ],
+            "x-enum-varnames": [
+              "PendingApproval",
+              "Approved",
+              "Removed"
+            ],
+            "x-enum-name": "ParticipantStatus"
+          }
+        },
+        "required": [
+          "field",
+          "participantId",
+          "participantStatus"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "conversation-closed": {
+      "name": "ConversationClosed",
+      "status": 409,
+      "title": "Conversation closed",
+      "description": "Writing to a guest-message thread that has closed.",
+      "context": {
+        "type": "object",
+        "properties": {
+          "subjectKind": {
+            "type": "string"
+          },
+          "subjectId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "closedAtUtc": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "subjectKind",
+          "subjectId",
+          "closedAtUtc"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "credentials-invalid": {
+      "name": "CredentialsInvalid",
+      "status": 401,
+      "title": "Credentials invalid",
+      "description": "An admin-panel email and password did not match an account."
+    },
+    "device-revoked": {
+      "name": "DeviceRevoked",
+      "status": 401,
+      "title": "Device revoked",
+      "description": "The tablet or device is no longer enrolled; ask a manager to enrol it again."
+    },
+    "email-taken": {
+      "name": "EmailTaken",
+      "status": 409,
+      "title": "Email address taken",
+      "description": "The email address on a diner sign-up or profile edit is somebody else's.",
+      "context": {
+        "type": "object",
+        "properties": {
+          "field": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "field"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "enrolment-code-expired": {
+      "name": "EnrolmentCodeExpired",
+      "status": 401,
+      "title": "Enrolment code expired",
+      "description": "The tablet enrolment code has expired; ask a manager for a new one."
+    },
+    "enrolment-code-invalid": {
+      "name": "EnrolmentCodeInvalid",
+      "status": 401,
+      "title": "Enrolment code invalid",
+      "description": "The tablet enrolment code is not valid."
+    },
+    "extensions-not-offered": {
+      "name": "ExtensionsNotOffered",
+      "status": 409,
+      "title": "Hold extensions not offered",
+      "description": "The branch offers no hold extensions.",
+      "context": {
+        "type": "object",
+        "properties": {
+          "reservationId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "startUtc": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "reservationId",
+          "startUtc"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "feature-not-enabled": {
+      "name": "FeatureNotEnabled",
+      "status": 409,
+      "title": "Feature not enabled for this branch",
+      "description": "The branch's tier does not include this feature.",
+      "context": {
+        "type": "object",
+        "properties": {
+          "feature": {
+            "type": "string"
+          },
+          "branchId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "currentTier": {
+            "type": "integer",
+            "format": "int32",
+            "enum": [
+              1,
+              2
+            ],
+            "x-enum-varnames": [
+              "Free",
+              "Paid"
+            ],
+            "x-enum-name": "SubscriptionTier"
+          }
+        },
+        "required": [
+          "feature",
+          "branchId",
+          "currentTier"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "floor-plan-changed": {
+      "name": "FloorPlanChanged",
+      "status": 409,
+      "title": "Floor plan changed",
+      "description": "The floor plan was saved by somebody else since the editor loaded it.",
+      "context": {
+        "type": "object",
+        "properties": {
+          "currentVersion": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "currentVersion"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "floor-plan-invalid": {
+      "name": "FloorPlanInvalid",
+      "status": 422,
+      "title": "Floor plan invalid",
+      "description": "The floor plan cannot be applied; every reason is listed.",
+      "context": {
+        "type": "object",
+        "properties": {
+          "errors": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "duplicateLabels": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "errors",
+          "duplicateLabels"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "forbidden": {
+      "name": "Forbidden",
+      "status": 403,
+      "title": "Forbidden",
+      "description": "The caller is not allowed to do this.",
+      "context": {
+        "type": "object",
+        "properties": {
+          "operation": {
+            "type": "string"
+          },
+          "requiredRole": {
+            "type": "integer",
+            "format": "int32",
+            "enum": [
+              0,
+              1,
+              2,
+              3,
+              4,
+              5,
+              6
+            ],
+            "x-enum-varnames": [
+              "Unknown",
+              "Owner",
+              "Manager",
+              "Waiter",
+              "Kitchen",
+              "PlatformAdmin",
+              "GeneralManager"
+            ],
+            "x-enum-name": "StaffRole"
+          },
+          "requirement": {
+            "type": "string"
+          },
+          "subject": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "guest-already-answered": {
+      "name": "GuestAlreadyAnswered",
+      "status": 409,
+      "title": "The guest has answered",
+      "description": "\"Ask: are you coming?\" when the guest already said on my way or running late.",
+      "context": {
+        "type": "object",
+        "properties": {
+          "reservationId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "answeredAtUtc": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "runningLateMinutes": {
+            "type": "integer",
+            "format": "int32"
+          }
+        },
+        "required": [
+          "reservationId",
+          "answeredAtUtc"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "guests-cannot-write": {
+      "name": "GuestsCannotWrite",
+      "status": 403,
+      "title": "This venue takes no written messages",
+      "description": "A guest's typed message where the venue switched guest messages off.",
+      "context": {
+        "type": "object",
+        "properties": {
+          "branchId": {
+            "type": "string",
+            "format": "uuid"
+          }
+        },
+        "required": [
+          "branchId"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "hold-already-extended": {
+      "name": "HoldAlreadyExtended",
+      "status": 409,
+      "title": "Hold already extended",
+      "description": "The booking's one hold extension is already used.",
+      "context": {
+        "type": "object",
+        "properties": {
+          "reservationId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "startUtc": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "reservationId",
+          "startUtc"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "hold-not-active": {
+      "name": "HoldNotActive",
+      "status": 409,
+      "title": "No table being held yet",
+      "description": "\"Keep my table\" with no table being held yet.",
+      "context": {
+        "type": "object",
+        "properties": {
+          "reservationId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "startUtc": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "reservationId",
+          "startUtc"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "internal-error": {
+      "name": "InternalError",
+      "status": 500,
+      "title": "Internal error",
+      "description": "Anything unhandled; quote the traceId when reporting it."
+    },
+    "invalid-credentials": {
+      "name": "InvalidCredentials",
+      "status": 401,
+      "title": "Invalid credentials",
+      "description": "A diner's identifier and password, or current password, did not match a usable account."
+    },
+    "invalid-request": {
+      "name": "InvalidRequest",
+      "status": 400,
+      "title": "Invalid request",
+      "description": "The request violated a domain rule or arrived malformed; context names the field when one is to blame.",
+      "context": {
+        "type": "object",
+        "properties": {
+          "field": {
+            "type": "string"
+          },
+          "value": {}
+        },
+        "required": [
+          "field"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "invalid-table-transition": {
+      "name": "InvalidTableTransition",
+      "status": 422,
+      "title": "Invalid table transition",
+      "description": "The table cannot make that transition from its current status.",
+      "context": {
+        "type": "object",
+        "properties": {
+          "tableId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "tableLabel": {
+            "type": "string"
+          },
+          "fromStatus": {
+            "type": "integer",
+            "format": "int32",
+            "enum": [
+              1,
+              2,
+              4,
+              5
+            ],
+            "x-enum-varnames": [
+              "Free",
+              "Held",
+              "Occupied",
+              "OutOfService"
+            ],
+            "x-enum-name": "TableStatus"
+          },
+          "attemptedToStatus": {
+            "type": "integer",
+            "format": "int32",
+            "enum": [
+              1,
+              2,
+              4,
+              5
+            ],
+            "x-enum-varnames": [
+              "Free",
+              "Held",
+              "Occupied",
+              "OutOfService"
+            ],
+            "x-enum-name": "TableStatus"
+          },
+          "allowedFromHere": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "format": "int32",
+              "enum": [
+                1,
+                2,
+                4,
+                5
+              ],
+              "x-enum-varnames": [
+                "Free",
+                "Held",
+                "Occupied",
+                "OutOfService"
+              ],
+              "x-enum-name": "TableStatus"
+            }
+          }
+        },
+        "required": [
+          "tableId",
+          "tableLabel",
+          "fromStatus",
+          "attemptedToStatus",
+          "allowedFromHere"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "join-token-invalid": {
+      "name": "JoinTokenInvalid",
+      "status": 401,
+      "title": "Join token invalid",
+      "description": "The tab invitation is no longer valid; ask the host for a new one."
+    },
+    "kitchen-phone-not-allowed": {
+      "name": "KitchenPhoneNotAllowed",
+      "status": 409,
+      "title": "No phone for kitchen staff",
+      "description": "A phone cannot be paired to kitchen staff: the kitchen works on its tablet.",
+      "context": {
+        "type": "object",
+        "properties": {
+          "staffMemberId": {
+            "type": "string",
+            "format": "uuid"
+          }
+        },
+        "required": [
+          "staffMemberId"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "line-already-paid": {
+      "name": "LineAlreadyPaid",
+      "status": 409,
+      "title": "Line already paid for",
+      "description": "Removing this line would reverse money already taken; that is a refund.",
+      "context": {
+        "type": "object",
+        "properties": {
+          "tabId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "lineId": {
+            "type": "string",
+            "format": "uuid"
+          }
+        },
+        "required": [
+          "tabId",
+          "lineId"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "menu-item-unavailable": {
+      "name": "MenuItemUnavailable",
+      "status": 409,
+      "title": "Item unavailable",
+      "description": "A dish on the order has sold out; context names it.",
+      "context": {
+        "type": "object",
+        "properties": {
+          "menuItemId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "itemName": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "menuItemId",
+          "itemName"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "messages-too-fast": {
+      "name": "MessagesTooFast",
+      "status": 429,
+      "title": "Messages too fast",
+      "description": "A guest writing more than five messages a minute, or sixty in one thread.",
+      "context": {
+        "type": "object",
+        "properties": {
+          "conversationId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "perMinute": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "perConversation": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "retryAfterUtc": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "conversationId",
+          "perMinute",
+          "perConversation"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "no-show-undo-window-closed": {
+      "name": "NoShowUndoWindowClosed",
+      "status": 409,
+      "title": "Too late to withdraw this no-show",
+      "description": "A no-show can no longer be withdrawn: its service day ended.",
+      "context": {
+        "type": "object",
+        "properties": {
+          "undoableUntilUtc": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "undoableUntilUtc"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "not-found": {
+      "name": "NotFound",
+      "status": 404,
+      "title": "Not found",
+      "description": "The thing addressed does not exist; a staff order's missing guest is named in context.",
+      "context": {
+        "type": "object",
+        "properties": {
+          "field": {
+            "type": "string"
+          },
+          "participantId": {
+            "type": "string",
+            "format": "uuid"
+          }
+        },
+        "required": [
+          "field",
+          "participantId"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "on-my-way-not-open": {
+      "name": "OnMyWayNotOpen",
+      "status": 409,
+      "title": "Booking not expecting you",
+      "description": "\"On my way\" for a booking that is not expecting anybody now.",
+      "context": {
+        "type": "object",
+        "properties": {
+          "reservationId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "status": {
+            "type": "integer",
+            "format": "int32",
+            "enum": [
+              1,
+              2,
+              4,
+              5,
+              6,
+              7,
+              8
+            ],
+            "x-enum-varnames": [
+              "PendingApproval",
+              "Confirmed",
+              "Seated",
+              "Completed",
+              "CancelledByDiner",
+              "CancelledByVenue",
+              "NoShow"
+            ],
+            "x-enum-name": "ReservationStatus"
+          },
+          "opensAtUtc": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "reservationId",
+          "status",
+          "opensAtUtc"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "pairing-code-expired": {
+      "name": "PairingCodeExpired",
+      "status": 401,
+      "title": "Pairing code expired",
+      "description": "The phone pairing code is past its ten minutes, or a newer one replaced it."
+    },
+    "pairing-code-invalid": {
+      "name": "PairingCodeInvalid",
+      "status": 401,
+      "title": "Pairing code not valid",
+      "description": "The phone pairing code is unknown: mistyped, or a tablet's enrolment code."
+    },
+    "payment-exceeds-remaining": {
+      "name": "PaymentExceedsRemaining",
+      "status": 409,
+      "title": "Payment exceeds the balance",
+      "description": "More was offered than the tab still owes; context carries the balance.",
+      "context": {
+        "type": "object",
+        "properties": {
+          "tabId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "requestedAmd": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "remainingAmd": {
+            "type": "integer",
+            "format": "int64"
+          }
+        },
+        "required": [
+          "tabId",
+          "requestedAmd",
+          "remainingAmd"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "phone-has-active-booking": {
+      "name": "PhoneHasActiveBooking",
+      "status": 409,
+      "title": "This number holds as many bookings as it can",
+      "description": "The booker's proved number already holds as many active bookings as one number may.",
+      "context": {
+        "type": "object",
+        "properties": {
+          "maxActiveBookings": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "reservationId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "code": {
+            "type": "string"
+          },
+          "startUtc": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "localDate": {
+            "type": "string",
+            "format": "date"
+          },
+          "localStartTime": {
+            "type": "string",
+            "format": "time"
+          },
+          "venueName": {
+            "type": "string"
+          },
+          "branchName": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "maxActiveBookings"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "phone-in-use": {
+      "name": "PhoneInUse",
+      "status": 409,
+      "title": "Phone number already has an account",
+      "description": "The phone number on a diner sign-up already has an account; log in with a code instead.",
+      "context": {
+        "type": "object",
+        "properties": {
+          "field": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "field"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "phone-not-verified": {
+      "name": "PhoneNotVerified",
+      "status": 403,
+      "title": "Phone number not verified",
+      "description": "The diner's phone number has never been proved, and the request would land on it."
+    },
+    "pin-invalid": {
+      "name": "PinInvalid",
+      "status": 401,
+      "title": "Pin invalid",
+      "description": "The staff PIN was not recognised."
+    },
+    "pin-taken": {
+      "name": "PinTaken",
+      "status": 409,
+      "title": "PIN already in use on this tablet",
+      "description": "The PIN is already used by somebody else who signs in on the same tablet.",
+      "context": {
+        "type": "object",
+        "properties": {
+          "field": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "field"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "pre-order-already-sent": {
+      "name": "PreOrderAlreadySent",
+      "status": 409,
+      "title": "Pre-order already sent to the kitchen",
+      "description": "The kitchen already has the pre-order, so it no longer changes.",
+      "context": {
+        "type": "object",
+        "properties": {
+          "reservationId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "sentAtUtc": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "reservationId",
+          "sentAtUtc"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "pre-order-items-unavailable": {
+      "name": "PreOrderItemsUnavailable",
+      "status": 422,
+      "title": "Dishes cannot be pre-ordered",
+      "description": "Dishes that cannot be pre-ordered, every one named with why.",
+      "context": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "menuItemId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "reason": {
+                  "type": "integer",
+                  "format": "int32",
+                  "enum": [
+                    1,
+                    2,
+                    3
+                  ],
+                  "x-enum-varnames": [
+                    "NotOnMenu",
+                    "SoldOut",
+                    "NotForPreOrder"
+                  ],
+                  "x-enum-name": "PreOrderItemRefusal"
+                }
+              },
+              "required": [
+                "menuItemId",
+                "reason"
+              ]
+            }
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "pre-order-locked": {
+      "name": "PreOrderLocked",
+      "status": 409,
+      "title": "Pre-order closed",
+      "description": "The pre-order can no longer be changed by the guest: two hours before the start or later.",
+      "context": {
+        "type": "object",
+        "properties": {
+          "reservationId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "lockedAtUtc": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "reservationId",
+          "lockedAtUtc"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "pre-order-not-sendable": {
+      "name": "PreOrderNotSendable",
+      "status": 409,
+      "title": "Pre-order cannot be sent now",
+      "description": "Not the time or the state to send a pre-order to the kitchen, or mark the party not coming.",
+      "context": {
+        "type": "object",
+        "properties": {
+          "reservationId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "status": {
+            "type": "integer",
+            "format": "int32",
+            "enum": [
+              1,
+              2,
+              4,
+              5,
+              6,
+              7,
+              8
+            ],
+            "x-enum-varnames": [
+              "PendingApproval",
+              "Confirmed",
+              "Seated",
+              "Completed",
+              "CancelledByDiner",
+              "CancelledByVenue",
+              "NoShow"
+            ],
+            "x-enum-name": "ReservationStatus"
+          },
+          "sendableFromUtc": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "endUtc": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "reservationId",
+          "status",
+          "sendableFromUtc",
+          "endUtc"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "pre-orders-not-accepted": {
+      "name": "PreOrdersNotAccepted",
+      "status": 409,
+      "title": "Pre-orders not accepted",
+      "description": "The branch does not take pre-orders.",
+      "context": {
+        "type": "object",
+        "properties": {
+          "branchId": {
+            "type": "string",
+            "format": "uuid"
+          }
+        },
+        "required": [
+          "branchId"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "precondition-failed": {
+      "name": "PreconditionFailed",
+      "status": 409,
+      "title": "Precondition failed",
+      "description": "A queued command describes a table that has since moved; resolve it from the conflict list.",
+      "context": {
+        "type": "object",
+        "properties": {
+          "tableId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "tableLabel": {
+            "type": "string"
+          },
+          "expectedFromStatus": {
+            "type": "integer",
+            "format": "int32",
+            "enum": [
+              1,
+              2,
+              4,
+              5
+            ],
+            "x-enum-varnames": [
+              "Free",
+              "Held",
+              "Occupied",
+              "OutOfService"
+            ],
+            "x-enum-name": "TableStatus"
+          },
+          "currentStatus": {
+            "type": "integer",
+            "format": "int32",
+            "enum": [
+              1,
+              2,
+              4,
+              5
+            ],
+            "x-enum-varnames": [
+              "Free",
+              "Held",
+              "Occupied",
+              "OutOfService"
+            ],
+            "x-enum-name": "TableStatus"
+          },
+          "failure": {
+            "type": "integer",
+            "format": "int32",
+            "enum": [
+              1,
+              2
+            ],
+            "x-enum-varnames": [
+              "StatusChanged",
+              "TableChangedAndChangedBack"
+            ],
+            "x-enum-name": "PreconditionFailure"
+          },
+          "clientCommandId": {
+            "type": "string",
+            "format": "uuid"
+          }
+        },
+        "required": [
+          "tableId",
+          "tableLabel",
+          "expectedFromStatus",
+          "currentStatus",
+          "failure",
+          "clientCommandId"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "rate-limited": {
+      "name": "RateLimited",
+      "status": 429,
+      "title": "Rate limited",
+      "description": "Too many requests in the window; wait for Retry-After."
+    },
+    "refresh-token-invalid": {
+      "name": "RefreshTokenInvalid",
+      "status": 401,
+      "title": "Refresh token invalid",
+      "description": "The refresh token is unknown, expired or revoked; sign in again."
+    },
+    "refresh-token-reused": {
+      "name": "RefreshTokenReused",
+      "status": 401,
+      "title": "Refresh token reused",
+      "description": "A refresh token already rotated was presented again; its whole chain is revoked."
+    },
+    "relocation-not-allowed": {
+      "name": "RelocationNotAllowed",
+      "status": 403,
+      "title": "Relocation not allowed",
+      "description": "Moving a branch (address or map pin) is for an owner or platform admin; nothing was saved.",
+      "context": {
+        "type": "object",
+        "properties": {
+          "branchId": {
+            "type": "string",
+            "format": "uuid"
+          }
+        },
+        "required": [
+          "branchId"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "report-range-too-long": {
+      "name": "ReportRangeTooLong",
+      "status": 400,
+      "title": "Report range too long",
+      "description": "The report range is longer than any report will run.",
+      "context": {
+        "type": "object",
+        "properties": {
+          "field": {
+            "type": "string"
+          },
+          "requestedDays": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "maxDays": {
+            "type": "integer",
+            "format": "int32"
+          }
+        },
+        "required": [
+          "field",
+          "requestedDays",
+          "maxDays"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "reservation-approval-expired": {
+      "name": "ReservationApprovalExpired",
+      "status": 409,
+      "title": "Too late to answer this booking",
+      "description": "Approving or declining a booking whose chance to be answered has gone.",
+      "context": {
+        "type": "object",
+        "properties": {
+          "reservationId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "status": {
+            "type": "integer",
+            "format": "int32",
+            "enum": [
+              1,
+              2,
+              4,
+              5,
+              6,
+              7,
+              8
+            ],
+            "x-enum-varnames": [
+              "PendingApproval",
+              "Confirmed",
+              "Seated",
+              "Completed",
+              "CancelledByDiner",
+              "CancelledByVenue",
+              "NoShow"
+            ],
+            "x-enum-name": "ReservationStatus"
+          },
+          "startUtc": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "approvalExpiresAtUtc": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          }
+        },
+        "required": [
+          "reservationId",
+          "status",
+          "startUtc",
+          "approvalExpiresAtUtc"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "reservation-awaiting-earlier-guest": {
+      "name": "ReservationAwaitingEarlierGuest",
+      "status": 409,
+      "title": "Waiting for the guest before to answer",
+      "description": "Staff deciding a booking that waits on the guest before it on the table to answer.",
+      "context": {
+        "type": "object",
+        "properties": {
+          "reservationId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "requestId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "expiresAtUtc": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "reservationId",
+          "requestId",
+          "expiresAtUtc"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "reservation-cancelled-by-block": {
+      "name": "ReservationCancelledByBlock",
+      "status": 409,
+      "title": "Cancelled: the guest is blocked for no-shows",
+      "description": "Approving or rejecting a booking its guest's no-show block cancelled.",
+      "context": {
+        "type": "object",
+        "properties": {
+          "reservationId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "cancelledAtUtc": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          }
+        },
+        "required": [
+          "reservationId",
+          "cancelledAtUtc"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "reservation-free-by-required": {
+      "name": "ReservationFreeByRequired",
+      "status": 422,
+      "title": "Free the table by the time required",
+      "description": "The next booking cuts the sitting short and the booking did not accept the time to free the table by.",
+      "context": {
+        "type": "object",
+        "properties": {
+          "field": {
+            "type": "string"
+          },
+          "requiredFreeByUtc": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "requiredFreeByLocal": {
+            "type": "string"
+          },
+          "nextBookingStartUtc": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "tableId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "tableLabel": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "field",
+          "requiredFreeByUtc",
+          "requiredFreeByLocal",
+          "nextBookingStartUtc",
+          "tableId",
+          "tableLabel"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "reservation-lead-time-too-short": {
+      "name": "ReservationLeadTimeTooShort",
+      "status": 422,
+      "title": "Reservation lead time too short",
+      "description": "The slot starts sooner than the branch's minimum lead time.",
+      "context": {
+        "type": "object",
+        "properties": {
+          "reason": {
+            "type": "integer",
+            "format": "int32",
+            "enum": [
+              1,
+              2,
+              3,
+              4,
+              5,
+              6,
+              7,
+              8,
+              9,
+              10,
+              11,
+              12,
+              13
+            ],
+            "x-enum-varnames": [
+              "LeadTimeTooShort",
+              "OutsideBookingWindow",
+              "OutsideOpeningHours",
+              "PartyExceedsCapacity",
+              "SeatOverhangExceeded",
+              "TableNotBookable",
+              "TableOutOfService",
+              "TableAlreadyBooked",
+              "LocalTimeDoesNotExist",
+              "TableCurrentlyOccupied",
+              "TableJustBooked",
+              "NextBookingTooSoon",
+              "EarlierGuestBeingAsked"
+            ],
+            "x-enum-name": "ReservationRejectionReason"
+          },
+          "requestedStartUtc": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "earliestStartUtc": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "minLeadMinutes": {
+            "type": "integer",
+            "format": "int32"
+          }
+        },
+        "required": [
+          "reason",
+          "requestedStartUtc",
+          "earliestStartUtc",
+          "minLeadMinutes"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "reservation-local-time-does-not-exist": {
+      "name": "ReservationLocalTimeDoesNotExist",
+      "status": 422,
+      "title": "Reservation local time does not exist",
+      "description": "The wall-clock time picked does not exist in the branch's zone (a clock change skips it).",
+      "context": {
+        "type": "object",
+        "properties": {
+          "reason": {
+            "type": "integer",
+            "format": "int32",
+            "enum": [
+              1,
+              2,
+              3,
+              4,
+              5,
+              6,
+              7,
+              8,
+              9,
+              10,
+              11,
+              12,
+              13
+            ],
+            "x-enum-varnames": [
+              "LeadTimeTooShort",
+              "OutsideBookingWindow",
+              "OutsideOpeningHours",
+              "PartyExceedsCapacity",
+              "SeatOverhangExceeded",
+              "TableNotBookable",
+              "TableOutOfService",
+              "TableAlreadyBooked",
+              "LocalTimeDoesNotExist",
+              "TableCurrentlyOccupied",
+              "TableJustBooked",
+              "NextBookingTooSoon",
+              "EarlierGuestBeingAsked"
+            ],
+            "x-enum-name": "ReservationRejectionReason"
+          },
+          "localDate": {
+            "type": "string",
+            "format": "date"
+          },
+          "localTime": {
+            "type": "string"
+          },
+          "timeZoneId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "reason",
+          "localDate",
+          "localTime",
+          "timeZoneId"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "reservation-lock-timeout": {
+      "name": "ReservationLockTimeout",
+      "status": 503,
+      "title": "Reservation lock timeout",
+      "description": "The booking could not get the table's lock in time; retry with the same clientCommandId.",
+      "context": {
+        "type": "object",
+        "properties": {
+          "tableId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "tableLabel": {
+            "type": "string"
+          },
+          "timeoutMilliseconds": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "retryable": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "tableId",
+          "tableLabel",
+          "timeoutMilliseconds",
+          "retryable"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "reservation-not-changeable": {
+      "name": "ReservationNotChangeable",
+      "status": 409,
+      "title": "Booking can no longer be changed",
+      "description": "A change to a booking that is no longer pending or confirmed, or has started.",
+      "context": {
+        "type": "object",
+        "properties": {
+          "reservationId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "status": {
+            "type": "integer",
+            "format": "int32",
+            "enum": [
+              1,
+              2,
+              4,
+              5,
+              6,
+              7,
+              8
+            ],
+            "x-enum-varnames": [
+              "PendingApproval",
+              "Confirmed",
+              "Seated",
+              "Completed",
+              "CancelledByDiner",
+              "CancelledByVenue",
+              "NoShow"
+            ],
+            "x-enum-name": "ReservationStatus"
+          },
+          "startUtc": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "reservationId",
+          "status",
+          "startUtc"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "reservation-not-started": {
+      "name": "ReservationNotStarted",
+      "status": 409,
+      "title": "Booking has not started yet",
+      "description": "A no-show recorded against a booking whose start has not come yet.",
+      "context": {
+        "type": "object",
+        "properties": {
+          "reservationId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "startUtc": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "reservationId",
+          "startUtc"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "reservation-outside-booking-window": {
+      "name": "ReservationOutsideBookingWindow",
+      "status": 422,
+      "title": "Reservation outside booking window",
+      "description": "The date is further ahead than the branch takes bookings.",
+      "context": {
+        "type": "object",
+        "properties": {
+          "reason": {
+            "type": "integer",
+            "format": "int32",
+            "enum": [
+              1,
+              2,
+              3,
+              4,
+              5,
+              6,
+              7,
+              8,
+              9,
+              10,
+              11,
+              12,
+              13
+            ],
+            "x-enum-varnames": [
+              "LeadTimeTooShort",
+              "OutsideBookingWindow",
+              "OutsideOpeningHours",
+              "PartyExceedsCapacity",
+              "SeatOverhangExceeded",
+              "TableNotBookable",
+              "TableOutOfService",
+              "TableAlreadyBooked",
+              "LocalTimeDoesNotExist",
+              "TableCurrentlyOccupied",
+              "TableJustBooked",
+              "NextBookingTooSoon",
+              "EarlierGuestBeingAsked"
+            ],
+            "x-enum-name": "ReservationRejectionReason"
+          },
+          "requestedDate": {
+            "type": "string",
+            "format": "date"
+          },
+          "lastBookableDate": {
+            "type": "string",
+            "format": "date"
+          },
+          "bookingWindowDays": {
+            "type": "integer",
+            "format": "int32"
+          }
+        },
+        "required": [
+          "reason",
+          "requestedDate",
+          "lastBookableDate",
+          "bookingWindowDays"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "reservation-outside-opening-hours": {
+      "name": "ReservationOutsideOpeningHours",
+      "status": 422,
+      "title": "Reservation outside opening hours",
+      "description": "The sitting does not fit inside one opening block of the branch's day.",
+      "context": {
+        "type": "object",
+        "properties": {
+          "reason": {
+            "type": "integer",
+            "format": "int32",
+            "enum": [
+              1,
+              2,
+              3,
+              4,
+              5,
+              6,
+              7,
+              8,
+              9,
+              10,
+              11,
+              12,
+              13
+            ],
+            "x-enum-varnames": [
+              "LeadTimeTooShort",
+              "OutsideBookingWindow",
+              "OutsideOpeningHours",
+              "PartyExceedsCapacity",
+              "SeatOverhangExceeded",
+              "TableNotBookable",
+              "TableOutOfService",
+              "TableAlreadyBooked",
+              "LocalTimeDoesNotExist",
+              "TableCurrentlyOccupied",
+              "TableJustBooked",
+              "NextBookingTooSoon",
+              "EarlierGuestBeingAsked"
+            ],
+            "x-enum-name": "ReservationRejectionReason"
+          },
+          "localDate": {
+            "type": "string",
+            "format": "date"
+          },
+          "localStartTime": {
+            "type": "string"
+          },
+          "localEndTime": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "reason",
+          "localDate",
+          "localStartTime",
+          "localEndTime"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "reservation-overlaps-own": {
+      "name": "ReservationOverlapsOwn",
+      "status": 409,
+      "title": "You already have a booking then",
+      "description": "The sitting overlaps another of the diner's own live bookings; context names it (not on a manage link).",
+      "context": {
+        "type": "object",
+        "properties": {
+          "reservationId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "code": {
+            "type": "string"
+          },
+          "localDate": {
+            "type": "string",
+            "format": "date"
+          },
+          "localStartTime": {
+            "type": "string",
+            "format": "time"
+          },
+          "tableLabel": {
+            "type": "string"
+          },
+          "venueName": {
+            "type": "string",
+            "nullable": true
+          },
+          "branchName": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "required": [
+          "reservationId",
+          "code",
+          "localDate",
+          "localStartTime",
+          "tableLabel",
+          "venueName",
+          "branchName"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "reservation-party-exceeds-capacity": {
+      "name": "ReservationPartyExceedsCapacity",
+      "status": 422,
+      "title": "Reservation party exceeds capacity",
+      "description": "More guests than the table has seats.",
+      "context": {
+        "type": "object",
+        "properties": {
+          "reason": {
+            "type": "integer",
+            "format": "int32",
+            "enum": [
+              1,
+              2,
+              3,
+              4,
+              5,
+              6,
+              7,
+              8,
+              9,
+              10,
+              11,
+              12,
+              13
+            ],
+            "x-enum-varnames": [
+              "LeadTimeTooShort",
+              "OutsideBookingWindow",
+              "OutsideOpeningHours",
+              "PartyExceedsCapacity",
+              "SeatOverhangExceeded",
+              "TableNotBookable",
+              "TableOutOfService",
+              "TableAlreadyBooked",
+              "LocalTimeDoesNotExist",
+              "TableCurrentlyOccupied",
+              "TableJustBooked",
+              "NextBookingTooSoon",
+              "EarlierGuestBeingAsked"
+            ],
+            "x-enum-name": "ReservationRejectionReason"
+          },
+          "tableId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "tableLabel": {
+            "type": "string"
+          },
+          "partySize": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "seats": {
+            "type": "integer",
+            "format": "int32"
+          }
+        },
+        "required": [
+          "reason",
+          "tableId",
+          "tableLabel",
+          "partySize",
+          "seats"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "reservation-seat-overhang-exceeded": {
+      "name": "ReservationSeatOverhangExceeded",
+      "status": 422,
+      "title": "Reservation seat overhang exceeded",
+      "description": "The party would leave more seats empty than the branch allows.",
+      "context": {
+        "type": "object",
+        "properties": {
+          "reason": {
+            "type": "integer",
+            "format": "int32",
+            "enum": [
+              1,
+              2,
+              3,
+              4,
+              5,
+              6,
+              7,
+              8,
+              9,
+              10,
+              11,
+              12,
+              13
+            ],
+            "x-enum-varnames": [
+              "LeadTimeTooShort",
+              "OutsideBookingWindow",
+              "OutsideOpeningHours",
+              "PartyExceedsCapacity",
+              "SeatOverhangExceeded",
+              "TableNotBookable",
+              "TableOutOfService",
+              "TableAlreadyBooked",
+              "LocalTimeDoesNotExist",
+              "TableCurrentlyOccupied",
+              "TableJustBooked",
+              "NextBookingTooSoon",
+              "EarlierGuestBeingAsked"
+            ],
+            "x-enum-name": "ReservationRejectionReason"
+          },
+          "tableId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "tableLabel": {
+            "type": "string"
+          },
+          "partySize": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "seats": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "seatsLeftEmpty": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "maxSeatOverhang": {
+            "type": "integer",
+            "format": "int32"
+          }
+        },
+        "required": [
+          "reason",
+          "tableId",
+          "tableLabel",
+          "partySize",
+          "seats",
+          "seatsLeftEmpty",
+          "maxSeatOverhang"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "reservation-table-not-bookable": {
+      "name": "ReservationTableNotBookable",
+      "status": 422,
+      "title": "Reservation table not bookable",
+      "description": "The table never takes bookings: a bar stool, a counter seat.",
+      "context": {
+        "type": "object",
+        "properties": {
+          "reason": {
+            "type": "integer",
+            "format": "int32",
+            "enum": [
+              1,
+              2,
+              3,
+              4,
+              5,
+              6,
+              7,
+              8,
+              9,
+              10,
+              11,
+              12,
+              13
+            ],
+            "x-enum-varnames": [
+              "LeadTimeTooShort",
+              "OutsideBookingWindow",
+              "OutsideOpeningHours",
+              "PartyExceedsCapacity",
+              "SeatOverhangExceeded",
+              "TableNotBookable",
+              "TableOutOfService",
+              "TableAlreadyBooked",
+              "LocalTimeDoesNotExist",
+              "TableCurrentlyOccupied",
+              "TableJustBooked",
+              "NextBookingTooSoon",
+              "EarlierGuestBeingAsked"
+            ],
+            "x-enum-name": "ReservationRejectionReason"
+          },
+          "tableId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "tableLabel": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "reason",
+          "tableId",
+          "tableLabel"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "reservation-table-out-of-service": {
+      "name": "ReservationTableOutOfService",
+      "status": 422,
+      "title": "Reservation table out of service",
+      "description": "The table is withdrawn from service.",
+      "context": {
+        "type": "object",
+        "properties": {
+          "reason": {
+            "type": "integer",
+            "format": "int32",
+            "enum": [
+              1,
+              2,
+              3,
+              4,
+              5,
+              6,
+              7,
+              8,
+              9,
+              10,
+              11,
+              12,
+              13
+            ],
+            "x-enum-varnames": [
+              "LeadTimeTooShort",
+              "OutsideBookingWindow",
+              "OutsideOpeningHours",
+              "PartyExceedsCapacity",
+              "SeatOverhangExceeded",
+              "TableNotBookable",
+              "TableOutOfService",
+              "TableAlreadyBooked",
+              "LocalTimeDoesNotExist",
+              "TableCurrentlyOccupied",
+              "TableJustBooked",
+              "NextBookingTooSoon",
+              "EarlierGuestBeingAsked"
+            ],
+            "x-enum-name": "ReservationRejectionReason"
+          },
+          "tableId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "tableLabel": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "reason",
+          "tableId",
+          "tableLabel"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "reset-token-invalid": {
+      "name": "ResetTokenInvalid",
+      "status": 401,
+      "title": "Reset token invalid",
+      "description": "The password reset link is unknown, spent or expired; ask for a new one."
+    },
+    "review-needs-visit": {
+      "name": "ReviewNeedsVisit",
+      "status": 403,
+      "title": "Review needs a visit",
+      "description": "A first review of a branch from a diner with no visit there in the window.",
+      "context": {
+        "type": "object",
+        "properties": {
+          "branchId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "windowDays": {
+            "type": "integer",
+            "format": "int32"
+          }
+        },
+        "required": [
+          "branchId",
+          "windowDays"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "scan-turned-away": {
+      "name": "ScanTurnedAway",
+      "status": 409,
+      "title": "Ask a waiter",
+      "description": "A scan refused for a while after a waiter turned this phone or table away.",
+      "context": {
+        "type": "object",
+        "properties": {
+          "retryAfterUtc": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "retryAfterUtc"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "service-request-rate-limited": {
+      "name": "ServiceRequestRateLimited",
+      "status": 429,
+      "title": "Too many requests from this table",
+      "description": "This table has asked for staff too many times too quickly.",
+      "context": {
+        "type": "object",
+        "properties": {
+          "tabId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "limit": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "windowMinutes": {
+            "type": "integer",
+            "format": "int32"
+          }
+        },
+        "required": [
+          "tabId",
+          "limit",
+          "windowMinutes"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "session-expired": {
+      "name": "SessionExpired",
+      "status": 401,
+      "title": "Session expired",
+      "description": "The staff PIN session timed out; tap the PIN again."
+    },
+    "session-invalid": {
+      "name": "SessionInvalid",
+      "status": 401,
+      "title": "Session invalid",
+      "description": "The staff PIN session is no longer valid; tap the PIN again."
+    },
+    "session-revoked": {
+      "name": "SessionRevoked",
+      "status": 401,
+      "title": "Session revoked",
+      "description": "The token's session has ended; refresh once, then sign out."
+    },
+    "sign-in-unknown": {
+      "name": "SignInUnknown",
+      "status": 409,
+      "title": "Sign-in not identified",
+      "description": "The token names no sign-in, so \"sign out everywhere else\" cannot tell which to keep."
+    },
+    "sms-unavailable": {
+      "name": "SmsUnavailable",
+      "status": 503,
+      "title": "Codes by SMS unavailable",
+      "description": "No SMS provider is configured, so no code can be sent; prove the number with Telegram."
+    },
+    "tab-admission-decided": {
+      "name": "TabAdmissionDecided",
+      "status": 409,
+      "title": "Already decided",
+      "description": "Admitting a tab already turned away, or turning away one already admitted.",
+      "context": {
+        "type": "object",
+        "properties": {
+          "tabId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "admission": {
+            "type": "integer",
+            "format": "int32",
+            "enum": [
+              1,
+              2,
+              3
+            ],
+            "x-enum-varnames": [
+              "AwaitingAdmission",
+              "Admitted",
+              "Rejected"
+            ],
+            "x-enum-name": "TabAdmission"
+          }
+        },
+        "required": [
+          "tabId",
+          "admission"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "tab-awaiting-admission": {
+      "name": "TabAwaitingAdmission",
+      "status": 409,
+      "title": "Waiting for a waiter",
+      "description": "The tab waits for a waiter to let it order.",
+      "context": {
+        "type": "object",
+        "properties": {
+          "tabId": {
+            "type": "string",
+            "format": "uuid"
+          }
+        },
+        "required": [
+          "tabId"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "tab-not-accepting-orders": {
+      "name": "TabNotAcceptingOrders",
+      "status": 409,
+      "title": "Tab not accepting orders",
+      "description": "The tab takes no more orders: the bill has been asked for, or it is closed.",
+      "context": {
+        "type": "object",
+        "properties": {
+          "tabId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "status": {
+            "type": "integer",
+            "format": "int32",
+            "enum": [
+              1,
+              2,
+              3,
+              4
+            ],
+            "x-enum-varnames": [
+              "Open",
+              "Closing",
+              "Closed",
+              "Abandoned"
+            ],
+            "x-enum-name": "TabStatus"
+          }
+        },
+        "required": [
+          "tabId",
+          "status"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "tab-not-transferable": {
+      "name": "TabNotTransferable",
+      "status": 409,
+      "title": "Nothing to hand over",
+      "description": "A table whose bill is closed or written off, or whose party has gone, has nobody to hand over.",
+      "context": {
+        "type": "object",
+        "properties": {
+          "tabId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "status": {
+            "type": "integer",
+            "format": "int32",
+            "enum": [
+              1,
+              2,
+              3,
+              4
+            ],
+            "x-enum-varnames": [
+              "Open",
+              "Closing",
+              "Closed",
+              "Abandoned"
+            ],
+            "x-enum-name": "TabStatus"
+          }
+        },
+        "required": [
+          "tabId",
+          "status"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "table-already-booked": {
+      "name": "TableAlreadyBooked",
+      "status": 409,
+      "title": "Table already booked",
+      "description": "The table was booked by somebody else between seeing it free and confirming.",
+      "context": {
+        "type": "object",
+        "properties": {
+          "reason": {
+            "type": "integer",
+            "format": "int32",
+            "enum": [
+              1,
+              2,
+              3,
+              4,
+              5,
+              6,
+              7,
+              8,
+              9,
+              10,
+              11,
+              12,
+              13
+            ],
+            "x-enum-varnames": [
+              "LeadTimeTooShort",
+              "OutsideBookingWindow",
+              "OutsideOpeningHours",
+              "PartyExceedsCapacity",
+              "SeatOverhangExceeded",
+              "TableNotBookable",
+              "TableOutOfService",
+              "TableAlreadyBooked",
+              "LocalTimeDoesNotExist",
+              "TableCurrentlyOccupied",
+              "TableJustBooked",
+              "NextBookingTooSoon",
+              "EarlierGuestBeingAsked"
+            ],
+            "x-enum-name": "ReservationRejectionReason"
+          },
+          "tableId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "tableLabel": {
+            "type": "string"
+          },
+          "requestedStartUtc": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "requestedEndUtc": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "conflictingStartUtc": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "conflictingEndUtc": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "conflictingReservationId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "availability": {
+            "$ref": "#/components/schemas/Yalla.Application.Reservations.BranchAvailability"
+          }
+        },
+        "required": [
+          "reason",
+          "tableId",
+          "tableLabel",
+          "requestedStartUtc",
+          "requestedEndUtc",
+          "conflictingStartUtc",
+          "conflictingEndUtc",
+          "conflictingReservationId"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "table-currently-occupied": {
+      "name": "TableCurrentlyOccupied",
+      "status": 409,
+      "title": "Table currently occupied",
+      "description": "A party seated at the table now runs into the requested slot; it may free up early.",
+      "context": {
+        "type": "object",
+        "properties": {
+          "reason": {
+            "type": "integer",
+            "format": "int32",
+            "enum": [
+              1,
+              2,
+              3,
+              4,
+              5,
+              6,
+              7,
+              8,
+              9,
+              10,
+              11,
+              12,
+              13
+            ],
+            "x-enum-varnames": [
+              "LeadTimeTooShort",
+              "OutsideBookingWindow",
+              "OutsideOpeningHours",
+              "PartyExceedsCapacity",
+              "SeatOverhangExceeded",
+              "TableNotBookable",
+              "TableOutOfService",
+              "TableAlreadyBooked",
+              "LocalTimeDoesNotExist",
+              "TableCurrentlyOccupied",
+              "TableJustBooked",
+              "NextBookingTooSoon",
+              "EarlierGuestBeingAsked"
+            ],
+            "x-enum-name": "ReservationRejectionReason"
+          },
+          "tableId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "tableLabel": {
+            "type": "string"
+          },
+          "requestedStartUtc": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "requestedEndUtc": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "seatedAtUtc": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "projectedFreeAtUtc": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "tableSessionId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "availability": {
+            "$ref": "#/components/schemas/Yalla.Application.Reservations.BranchAvailability",
+            "nullable": true
+          }
+        },
+        "required": [
+          "reason",
+          "tableId",
+          "tableLabel",
+          "requestedStartUtc",
+          "requestedEndUtc",
+          "seatedAtUtc",
+          "projectedFreeAtUtc",
+          "tableSessionId",
+          "availability"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "table-has-future-bookings": {
+      "name": "TableHasFutureBookings",
+      "status": 409,
+      "title": "Table has upcoming bookings",
+      "description": "A table with a booking still to come cannot be deleted, nor left out of a floor-plan save.",
+      "context": {
+        "type": "object",
+        "properties": {
+          "tables": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "bookings": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "tables",
+          "bookings"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "table-lock-timeout": {
+      "name": "TableLockTimeout",
+      "status": 503,
+      "title": "Table busy",
+      "description": "A table write waited too long for another writer; retry, nothing was decided.",
+      "context": {
+        "type": "object",
+        "properties": {
+          "tableId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "tableLabel": {
+            "type": "string"
+          },
+          "timeoutMilliseconds": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "retryable": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "tableId",
+          "tableLabel",
+          "timeoutMilliseconds",
+          "retryable"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "table-not-seated": {
+      "name": "TableNotSeated",
+      "status": 409,
+      "title": "Nobody seated at this table",
+      "description": "Staff tried to open a tab on a table with nobody seated at it.",
+      "context": {
+        "type": "object",
+        "properties": {
+          "tableId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "tableLabel": {
+            "type": "string"
+          },
+          "status": {
+            "type": "integer",
+            "format": "int32",
+            "enum": [
+              1,
+              2,
+              4,
+              5
+            ],
+            "x-enum-varnames": [
+              "Free",
+              "Held",
+              "Occupied",
+              "OutOfService"
+            ],
+            "x-enum-name": "TableStatus"
+          }
+        },
+        "required": [
+          "tableId",
+          "tableLabel",
+          "status"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "table-request-not-pending": {
+      "name": "TableRequestNotPending",
+      "status": 409,
+      "title": "This request no longer needs an answer",
+      "description": "An answer to a request for the table that no longer waits.",
+      "context": {
+        "type": "object",
+        "properties": {
+          "reservationId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "requestId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "status": {
+            "type": "integer",
+            "format": "int32",
+            "enum": [
+              1,
+              2,
+              3,
+              4,
+              5
+            ],
+            "x-enum-varnames": [
+              "Pending",
+              "Accepted",
+              "Declined",
+              "Expired",
+              "Withdrawn"
+            ],
+            "x-enum-name": "TableShareRequestStatus"
+          },
+          "expiresAtUtc": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "reservationId",
+          "requestId",
+          "status",
+          "expiresAtUtc"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "table-sitting-changed": {
+      "name": "TableSittingChanged",
+      "status": 409,
+      "title": "Table sitting changed",
+      "description": "A free that named a booking found another sitting, or none, open at the table.",
+      "context": {
+        "type": "object",
+        "properties": {
+          "tableId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "tableLabel": {
+            "type": "string"
+          },
+          "reservationId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "tableStatus": {
+            "type": "integer",
+            "format": "int32",
+            "enum": [
+              1,
+              2,
+              4,
+              5
+            ],
+            "x-enum-varnames": [
+              "Free",
+              "Held",
+              "Occupied",
+              "OutOfService"
+            ],
+            "x-enum-name": "TableStatus"
+          },
+          "currentSessionId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          }
+        },
+        "required": [
+          "tableId",
+          "tableLabel",
+          "reservationId",
+          "tableStatus",
+          "currentSessionId"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "table-state-conflict": {
+      "name": "TableStateConflict",
+      "status": 409,
+      "title": "Table state conflict",
+      "description": "Somebody else changed this table first; redraw it from the current state.",
+      "context": {
+        "type": "object",
+        "properties": {
+          "tableId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "tableLabel": {
+            "type": "string"
+          },
+          "attemptedFromStatus": {
+            "type": "integer",
+            "format": "int32",
+            "enum": [
+              1,
+              2,
+              4,
+              5
+            ],
+            "x-enum-varnames": [
+              "Free",
+              "Held",
+              "Occupied",
+              "OutOfService"
+            ],
+            "x-enum-name": "TableStatus"
+          },
+          "currentStatus": {
+            "type": "integer",
+            "format": "int32",
+            "enum": [
+              1,
+              2,
+              4,
+              5
+            ],
+            "x-enum-varnames": [
+              "Free",
+              "Held",
+              "Occupied",
+              "OutOfService"
+            ],
+            "x-enum-name": "TableStatus"
+          },
+          "currentSessionId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          }
+        },
+        "required": [
+          "tableId",
+          "tableLabel",
+          "attemptedFromStatus",
+          "currentStatus",
+          "currentSessionId"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "takeaway-busy": {
+      "name": "TakeawayBusy",
+      "status": 409,
+      "title": "Kitchen busy",
+      "description": "ASAP while the kitchen has as many takeaway orders in progress as the venue allows.",
+      "context": {
+        "type": "object",
+        "properties": {
+          "branchId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "maxInProgress": {
+            "type": "integer",
+            "format": "int32"
+          }
+        },
+        "required": [
+          "branchId",
+          "maxInProgress"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "takeaway-closed": {
+      "name": "TakeawayClosed",
+      "status": 409,
+      "title": "Takeaway closed now",
+      "description": "Closed for takeaway now: shut, or past the last order.",
+      "context": {
+        "type": "object",
+        "properties": {
+          "branchId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "opensAtUtc": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "opensAt": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "required": [
+          "branchId"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "takeaway-items-unavailable": {
+      "name": "TakeawayItemsUnavailable",
+      "status": 422,
+      "title": "Dishes not for takeaway",
+      "description": "Dishes that cannot be ordered to take away, every one named with why.",
+      "context": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "menuItemId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "reason": {
+                  "type": "integer",
+                  "format": "int32",
+                  "enum": [
+                    1,
+                    2,
+                    3
+                  ],
+                  "x-enum-varnames": [
+                    "NotOnMenu",
+                    "SoldOut",
+                    "NotForTakeaway"
+                  ],
+                  "x-enum-name": "TakeawayItemRefusal"
+                }
+              },
+              "required": [
+                "menuItemId",
+                "reason"
+              ]
+            }
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "takeaway-no-show-too-early": {
+      "name": "TakeawayNoShowTooEarly",
+      "status": 409,
+      "title": "Too early for a no-show",
+      "description": "\"No-show\" for a takeaway order before thirty minutes past ready.",
+      "context": {
+        "type": "object",
+        "properties": {
+          "orderId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "noShowFromUtc": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "orderId",
+          "noShowFromUtc"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "takeaway-not-accepted": {
+      "name": "TakeawayNotAccepted",
+      "status": 409,
+      "title": "Takeaway not offered",
+      "description": "The branch does not take takeaway orders.",
+      "context": {
+        "type": "object",
+        "properties": {
+          "branchId": {
+            "type": "string",
+            "format": "uuid"
+          }
+        },
+        "required": [
+          "branchId"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "takeaway-slot-unavailable": {
+      "name": "TakeawaySlotUnavailable",
+      "status": 409,
+      "title": "Pickup time unavailable",
+      "description": "The pickup time asked for is not one on offer; context lists the slots on offer now.",
+      "context": {
+        "type": "object",
+        "properties": {
+          "branchId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "at": {
+            "type": "string"
+          },
+          "slots": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "branchId",
+          "at",
+          "slots"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "takeaway-status-conflict": {
+      "name": "TakeawayStatusConflict",
+      "status": 409,
+      "title": "Order has moved on",
+      "description": "The takeaway order is not in the state for that move; context says where it is now.",
+      "context": {
+        "type": "object",
+        "properties": {
+          "orderId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "status": {
+            "type": "integer",
+            "format": "int32",
+            "enum": [
+              1,
+              2,
+              3,
+              4,
+              5,
+              6,
+              7
+            ],
+            "x-enum-varnames": [
+              "Sent",
+              "Accepted",
+              "Ready",
+              "Collected",
+              "Declined",
+              "Cancelled",
+              "NoShow"
+            ],
+            "x-enum-name": "TakeawayStatus"
+          }
+        },
+        "required": [
+          "orderId",
+          "status"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "telegram-verification-expired": {
+      "name": "TelegramVerificationExpired",
+      "status": 410,
+      "title": "Telegram verification no longer available",
+      "description": "A Telegram verification challenge that can no longer be claimed; start again."
+    },
+    "too-many-attempts": {
+      "name": "TooManyAttempts",
+      "status": 429,
+      "title": "Too many attempts",
+      "description": "A one-time credential is out of attempts, or a per-identity limit is spent; ask for a new code.",
+      "context": {
+        "type": "object",
+        "properties": {
+          "retryAfterSeconds": {
+            "type": "integer",
+            "format": "int32"
+          }
+        },
+        "required": [
+          "retryAfterSeconds"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "transfer-target-ineligible": {
+      "name": "TransferTargetIneligible",
+      "status": 422,
+      "title": "Cannot take this table",
+      "description": "The waiter named cannot take the table.",
+      "context": {
+        "type": "object",
+        "properties": {
+          "staffMemberId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "reason": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "staffMemberId",
+          "reason"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "unauthenticated": {
+      "name": "Unauthenticated",
+      "status": 401,
+      "title": "Not authenticated",
+      "description": "No usable credential was presented (declared for clients; a bare 401 carries no body)."
+    },
+    "unsupported-image": {
+      "name": "UnsupportedImage",
+      "status": 409,
+      "title": "Unsupported image",
+      "description": "An upload is not a JPEG, PNG or WebP, or is too large to store.",
+      "context": {
+        "type": "object",
+        "properties": {
+          "detectedFormat": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "detectedFormat"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "username-taken": {
+      "name": "UsernameTaken",
+      "status": 409,
+      "title": "Username taken",
+      "description": "The username on a diner sign-up or profile edit is somebody else's.",
+      "context": {
+        "type": "object",
+        "properties": {
+          "field": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "field"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "validation-failed": {
+      "name": "ValidationFailed",
+      "status": 422,
+      "title": "Validation failed",
+      "description": "Field-level validation failed; every offending field is named.",
+      "context": {
+        "type": "object",
+        "properties": {
+          "field": {
+            "type": "string"
+          },
+          "fields": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Yalla.Api.Errors.FieldViolationShape"
+            }
+          }
+        },
+        "required": [
+          "field",
+          "fields"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "venue-deletion-blocked": {
+      "name": "VenueDeletionBlocked",
+      "status": 409,
+      "title": "Venue cannot be deleted",
+      "description": "The venue has open tabs or future bookings and cannot be deleted.",
+      "context": {
+        "type": "object",
+        "properties": {
+          "openTabs": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "futureReservations": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "openTabs",
+          "futureReservations"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "verification-code-expired": {
+      "name": "VerificationCodeExpired",
+      "status": 401,
+      "title": "Verification code expired",
+      "description": "The one-time code has expired; ask for a new one."
+    },
+    "verification-code-invalid": {
+      "name": "VerificationCodeInvalid",
+      "status": 401,
+      "title": "Verification code invalid",
+      "description": "A one-time code that was not accepted; context says how many tries are left.",
+      "context": {
+        "type": "object",
+        "properties": {
+          "attemptsRemaining": {
+            "type": "integer",
+            "format": "int32"
+          }
+        },
+        "required": [
+          "attemptsRemaining"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "waiters-cannot-write": {
+      "name": "WaitersCannotWrite",
+      "status": 403,
+      "title": "Only managers write to guests here",
+      "description": "A waiter writing to a guest where the venue keeps messages to managers.",
+      "context": {
+        "type": "object",
+        "properties": {
+          "branchId": {
+            "type": "string",
+            "format": "uuid"
+          }
+        },
+        "required": [
+          "branchId"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "web-bookings-not-accepted": {
+      "name": "WebBookingsNotAccepted",
+      "status": 409,
+      "title": "Web bookings not accepted",
+      "description": "The branch does not take bookings from its public page.",
+      "context": {
+        "type": "object",
+        "properties": {
+          "branchId": {
+            "type": "string",
+            "format": "uuid"
+          }
+        },
+        "required": [
+          "branchId"
+        ],
+        "additionalProperties": false
+      }
+    }
+  }
 }

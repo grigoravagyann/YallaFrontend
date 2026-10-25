@@ -40,7 +40,9 @@ import {
   type TakeawayStatus,
 } from '../contracts/takeaway';
 import { ApiError } from '../errors';
+import { problemContext } from '../problem';
 import type { components } from '../generated/schema';
+import { ProblemCodes } from '../generated/problemCodes';
 
 /**
  * The takeaway wire (`docs/takeaway.md`, 2026-10-22), read once for every
@@ -344,65 +346,80 @@ function slotList(value: unknown): readonly string[] {
  * Every takeaway refusal as its typed error — the guest's and the counter's —
  * or `null` for anything else, which keeps the client's own mapping
  * (`validation-failed` → `ValidationError`, a 404 → `NotFoundError`).
+ *
+ * Each context is read as its code's (`problemContext`), so the member names
+ * are the ones the backend declares in its catalogue: one it renames or drops
+ * is a compile error here. The values are still checked as they are read.
  */
 export function takeawayRefusal(error: unknown): ApiError | null {
   if (!(error instanceof ApiError) || !error.problem) return null;
-  const context = error.problem.context ?? {};
+  const { problem } = error;
   const base = { url: error.url, requestId: error.requestId };
-  const branchId = text(context['branchId']);
-  const orderId = text(context['orderId']);
 
-  switch (error.problem.code) {
-    case TAKEAWAY_NOT_ACCEPTED_CODE:
-      return new TakeawayNotAcceptedError({ ...base, branchId });
-    case TAKEAWAY_CLOSED_CODE:
+  switch (problem.code) {
+    case TAKEAWAY_NOT_ACCEPTED_CODE: {
+      const context = problemContext(problem, TAKEAWAY_NOT_ACCEPTED_CODE);
+      return new TakeawayNotAcceptedError({ ...base, branchId: text(context.branchId) });
+    }
+    case TAKEAWAY_CLOSED_CODE: {
+      const context = problemContext(problem, TAKEAWAY_CLOSED_CODE);
       return new TakeawayClosedError({
         ...base,
-        branchId,
-        opensAtUtc: text(context['opensAtUtc']),
-        opensAt: wallClockOrNull(context['opensAt']),
+        branchId: text(context.branchId),
+        opensAtUtc: text(context.opensAtUtc),
+        opensAt: wallClockOrNull(context.opensAt),
       });
-    case TAKEAWAY_BUSY_CODE:
+    }
+    case TAKEAWAY_BUSY_CODE: {
+      const context = problemContext(problem, TAKEAWAY_BUSY_CODE);
       return new TakeawayBusyError({
         ...base,
-        branchId,
-        maxInProgress: finite(context['maxInProgress']),
+        branchId: text(context.branchId),
+        maxInProgress: finite(context.maxInProgress),
       });
-    case TAKEAWAY_SLOT_UNAVAILABLE_CODE:
+    }
+    case TAKEAWAY_SLOT_UNAVAILABLE_CODE: {
+      const context = problemContext(problem, TAKEAWAY_SLOT_UNAVAILABLE_CODE);
       return new TakeawaySlotUnavailableError({
         ...base,
-        branchId,
-        at: wallClockOrNull(context['at']),
-        slots: slotList(context['slots']),
+        branchId: text(context.branchId),
+        at: wallClockOrNull(context.at),
+        slots: slotList(context.slots),
       });
-    case TAKEAWAY_ITEMS_UNAVAILABLE_CODE:
-      return new TakeawayItemsUnavailableError({
-        ...base,
-        items: unavailableItems(context['items']),
-      });
-    case TAKEAWAY_STATUS_CONFLICT_CODE:
+    }
+    case TAKEAWAY_ITEMS_UNAVAILABLE_CODE: {
+      const context = problemContext(problem, TAKEAWAY_ITEMS_UNAVAILABLE_CODE);
+      return new TakeawayItemsUnavailableError({ ...base, items: unavailableItems(context.items) });
+    }
+    case TAKEAWAY_STATUS_CONFLICT_CODE: {
+      const context = problemContext(problem, TAKEAWAY_STATUS_CONFLICT_CODE);
       return new TakeawayStatusConflictError({
         ...base,
-        orderId,
+        orderId: text(context.orderId),
         orderStatus:
-          typeof context['status'] === 'number' ? takeawayStatus(context['status']) : undefined,
+          typeof context.status === 'number' ? takeawayStatus(context.status) : undefined,
       });
-    case TAKEAWAY_NO_SHOW_TOO_EARLY_CODE:
+    }
+    case TAKEAWAY_NO_SHOW_TOO_EARLY_CODE: {
+      const context = problemContext(problem, TAKEAWAY_NO_SHOW_TOO_EARLY_CODE);
       return new TakeawayNoShowTooEarlyError({
         ...base,
-        orderId,
-        noShowFromUtc: text(context['noShowFromUtc']),
+        orderId: text(context.orderId),
+        noShowFromUtc: text(context.noShowFromUtc),
       });
-    case 'phone-not-verified':
+    }
+    case ProblemCodes.PhoneNotVerified:
       return new PhoneNotVerifiedError(base);
     // Blocked for no-shows (a takeaway order not collected counts too): the
     // booking's own refusal, so both checkouts say the same (2026-10-23).
-    case BOOKING_BLOCKED_NO_SHOWS_CODE:
+    case BOOKING_BLOCKED_NO_SHOWS_CODE: {
+      const context = problemContext(problem, BOOKING_BLOCKED_NO_SHOWS_CODE);
       return new BookingBlockedNoShowsError({
         ...base,
-        blockedUntilUtc: text(context['blockedUntilUtc']),
+        blockedUntilUtc: text(context.blockedUntilUtc),
       });
-    case 'client-command-id-in-use':
+    }
+    case ProblemCodes.ClientCommandIdInUse:
       return new BookingCommandInUseError(base);
     default:
       return null;

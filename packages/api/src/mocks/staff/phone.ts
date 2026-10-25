@@ -24,6 +24,7 @@ import {
   iso,
   MOCK_VAPID_PUBLIC_KEY,
 } from './context';
+import { ProblemCodes } from '../../generated/problemCodes';
 
 /** The device itself: unpairing, push, notification settings, Today and My results. */
 export function phoneMethods(
@@ -130,7 +131,7 @@ export function phoneMethods(
             title: 'Validation failed',
             status: 422,
             detail: 'endpoint must be an https URL on a known push service.',
-            code: 'validation-failed',
+            code: ProblemCodes.ValidationFailed,
             traceId: 'mock',
             context: { field: 'endpoint' },
           },

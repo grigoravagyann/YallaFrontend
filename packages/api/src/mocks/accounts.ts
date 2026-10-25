@@ -16,6 +16,7 @@ import type { Photo } from '../contracts/menuAdmin';
 import { ValidationError } from '../errors';
 import { mockPhoto } from './menuDetail';
 import { validationFailed } from './problems';
+import { ProblemCodes } from '../generated/problemCodes';
 
 /** `DinerProfileService.PhoneProofWindow`: how long a phone proof stands in for the password. */
 export const PHONE_PROOF_WINDOW_MS = 10 * 60_000;
@@ -91,11 +92,11 @@ function invalid(url: string, field: string, detail: string): ValidationError {
     status: 400,
     url,
     problem: {
-      code: 'validation',
+      code: ProblemCodes.InvalidRequest,
       status: 400,
-      title: 'Validation failed',
+      title: 'Invalid request',
       detail,
-      type: 'https://yalla.am/problems/validation',
+      type: 'https://docs.yalla.app/errors/invalid-request',
       traceId: 'mock',
       instance: url,
       context: { field },

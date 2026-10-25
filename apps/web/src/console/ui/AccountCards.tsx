@@ -409,6 +409,7 @@ export function LanguageCard() {
               onChange={() => void choose(code)}
             />
             <span lang={code}>{t(`common:language.${code}`)}</span>
+            {/* problem-codes: not-a-problem-code — a locale */}
             {code === 'hy' ? (
               <span className="yc-radio-hint">{t('settings.language.default')}</span>
             ) : null}
