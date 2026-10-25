@@ -37,6 +37,7 @@ import {
 } from '../contracts/errors';
 import { ApiError, NotFoundError } from '../errors';
 import type { PublicGateway } from '../publicGateway';
+import { ProblemCodes } from '../generated/problemCodes';
 
 /**
  * The public page, over HTTP.
@@ -213,11 +214,11 @@ export function createPublicHttpGateway(client: ApiClient): PublicGateway {
           const base = { url: error.url, requestId: error.requestId };
           // Not this visitor's number: the booking's account can no longer
           // take a change. There is no session here to send to a code flow.
-          if (error.status === 403 && error.code === 'phone-not-verified') {
+          if (error.status === 403 && error.code === ProblemCodes.PhoneNotVerified) {
             throw new BookingLinkAccountUnavailableError(base);
           }
           // The web channel switched off, said like any branch not taking bookings.
-          if (error.code === 'web-bookings-not-accepted') {
+          if (error.code === ProblemCodes.WebBookingsNotAccepted) {
             throw new BookingsNotAcceptedError(base);
           }
         }

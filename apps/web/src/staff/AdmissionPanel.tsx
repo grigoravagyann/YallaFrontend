@@ -4,6 +4,7 @@ import {
   isTabAdmissionDecided,
   newCommandId,
   type TabAwaitingAdmission,
+  ProblemCodes,
 } from '@yalla/api';
 import { useAdmitTab, useRejectTab } from '@yalla/api/react';
 import { useTranslation } from '@yalla/i18n';
@@ -248,10 +249,10 @@ export function AdmissionDecision({
     setFailure(
       isTabAdmissionDecided(error)
         ? t('admission.decidedElsewhere')
-        : error instanceof ApiError && error.code === 'conflicting-state'
+        : error instanceof ApiError && error.code === ProblemCodes.ConflictingState
           ? // Orders were keyed on it: somebody is there. Admit is the way on.
             t('admission.hasOrders')
-          : error instanceof ApiError && error.code === 'table-state-conflict'
+          : error instanceof ApiError && error.code === ProblemCodes.TableStateConflict
             ? // Another waiter moved the table under this reject (review N4).
               t('admission.tableChanged')
             : isOffline(error)

@@ -3,6 +3,7 @@ import { ApiError } from '../errors';
 import type { CancellationCause, GuestRecord } from './guestRecord';
 import type { BookingPreOrderFields } from './preOrder';
 import type { ReservationStatusCode } from './push';
+import { ProblemCodes } from '../generated/problemCodes';
 
 /**
  * Bookings that are waiting for a person, and the two decisions.
@@ -261,7 +262,7 @@ export function approvalCountdown(
  * it (or is about to), and the screen says so rather than "somebody else
  * decided".
  */
-export const APPROVAL_EXPIRED_CODE = 'reservation-approval-expired';
+export const APPROVAL_EXPIRED_CODE = ProblemCodes.ReservationApprovalExpired;
 
 export function isApprovalExpired(error: unknown): boolean {
   return error instanceof ApiError && error.code === APPROVAL_EXPIRED_CODE;

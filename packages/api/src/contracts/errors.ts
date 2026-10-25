@@ -1,3 +1,17 @@
+/**
+ * The typed errors a screen branches on, one per refusal it says something
+ * specific about.
+ *
+ * The codes are not typed here. Every `…_CODE` constant is a generated
+ * `ProblemCodes` member (`generated/problemCodes.ts`, from the backend's
+ * `x-problem-codes`), so a slug is written once — on the backend's
+ * `ErrorCodes.cs` — and a code the backend drops or renames fails to compile.
+ * The mapping files read each refusal's context through `problemContext`, whose
+ * member names come from the same catalogue. What stays hand-written is what
+ * the frontend decides: which refusals get a class, what each carries in the
+ * client's vocabulary, and its status where the client deliberately differs.
+ * `check-problem-codes.mjs` lists the backend codes no class or branch handles.
+ */
 import type { FloorPlanData } from './tableFloor';
 import type { TabAdmissionStatus } from './admission';
 import { ApiError, TooManyRequestsError } from '../errors';
@@ -5,6 +19,7 @@ import type { ProblemDetails } from '../problem';
 import type { TableAvailability, TableUnavailableReason } from './booking';
 import type { ReservationStatusCode } from './push';
 import type { TakeawayStatus } from './takeaway';
+import { ProblemCodes } from '../generated/problemCodes';
 
 /**
  * Someone else took the table in the seconds you were confirming.
@@ -214,7 +229,7 @@ export class TableRequestClosedError extends ApiError {
 }
 
 /** The server's code for a sitting that overlaps one of the diner's own. */
-export const BOOKING_OVERLAPS_OWN_CODE = 'reservation-overlaps-own';
+export const BOOKING_OVERLAPS_OWN_CODE = ProblemCodes.ReservationOverlapsOwn;
 
 /**
  * The diner already has a booking whose sitting overlaps the one asked for —
@@ -606,7 +621,8 @@ export class ReservationNotStartedError extends ApiError {
 
 /** The 409 for a no-show before the start, as its own error; anything else unchanged. */
 export function asNotStarted(error: unknown): unknown {
-  if (!(error instanceof ApiError) || error.code !== 'reservation-not-started') return error;
+  if (!(error instanceof ApiError) || error.code !== ProblemCodes.ReservationNotStarted)
+    return error;
   const context = error.problem?.context as
     { reservationId?: unknown; startUtc?: unknown } | undefined;
   return new ReservationNotStartedError({
@@ -1830,17 +1846,17 @@ export function isAccountTaken(
 // ---------------------------------------------------------------------------
 
 /** `phone-has-active-booking`: a proved number holds at most three active bookings. */
-export const PHONE_HAS_ACTIVE_BOOKING_CODE = 'phone-has-active-booking';
+export const PHONE_HAS_ACTIVE_BOOKING_CODE = ProblemCodes.PhoneHasActiveBooking;
 /** `booking-blocked-no-shows`: three no-shows in three days block booking for a week. */
-export const BOOKING_BLOCKED_NO_SHOWS_CODE = 'booking-blocked-no-shows';
+export const BOOKING_BLOCKED_NO_SHOWS_CODE = ProblemCodes.BookingBlockedNoShows;
 /** `reservation-cancelled-by-block`: the booking was cancelled by its guest's no-show block. */
-export const RESERVATION_CANCELLED_BY_BLOCK_CODE = 'reservation-cancelled-by-block';
+export const RESERVATION_CANCELLED_BY_BLOCK_CODE = ProblemCodes.ReservationCancelledByBlock;
 /** `no-show-undo-window-closed`: a no-show may be undone until 05:00 the next morning. */
-export const NO_SHOW_UNDO_WINDOW_CLOSED_CODE = 'no-show-undo-window-closed';
+export const NO_SHOW_UNDO_WINDOW_CLOSED_CODE = ProblemCodes.NoShowUndoWindowClosed;
 /** `tab-awaiting-admission`: nothing is ordered on a tab a waiter has not let in. */
-export const TAB_AWAITING_ADMISSION_CODE = 'tab-awaiting-admission';
+export const TAB_AWAITING_ADMISSION_CODE = ProblemCodes.TabAwaitingAdmission;
 /** `tab-admission-decided`: admitting a rejected tab, or rejecting an admitted one. */
-export const TAB_ADMISSION_DECIDED_CODE = 'tab-admission-decided';
+export const TAB_ADMISSION_DECIDED_CODE = ProblemCodes.TabAdmissionDecided;
 
 /**
  * One of the caller's own bookings, named by a refusal — only ever to the
@@ -2026,7 +2042,7 @@ export function isTabAdmissionDecided(error: unknown): error is TabAdmissionDeci
 }
 
 /** `scan-turned-away`: a scan right after a waiter turned this phone or table away. */
-export const SCAN_TURNED_AWAY_CODE = 'scan-turned-away';
+export const SCAN_TURNED_AWAY_CODE = ProblemCodes.ScanTurnedAway;
 
 /**
  * A waiter has just turned a scan from this phone (for 30 minutes) or at this
@@ -2058,19 +2074,19 @@ export function isScanTurnedAway(error: unknown): error is ScanTurnedAwayError {
 // ---------------------------------------------------------------------------
 
 /** `pre-order-locked`: pre-orders close two hours before the booking. */
-export const PRE_ORDER_LOCKED_CODE = 'pre-order-locked';
+export const PRE_ORDER_LOCKED_CODE = ProblemCodes.PreOrderLocked;
 /** `pre-order-already-sent`: a waiter sent it to the kitchen; it no longer changes. */
-export const PRE_ORDER_ALREADY_SENT_CODE = 'pre-order-already-sent';
+export const PRE_ORDER_ALREADY_SENT_CODE = ProblemCodes.PreOrderAlreadySent;
 /** `pre-orders-not-accepted`: the branch does not take pre-orders (saving only). */
-export const PRE_ORDERS_NOT_ACCEPTED_CODE = 'pre-orders-not-accepted';
+export const PRE_ORDERS_NOT_ACCEPTED_CODE = ProblemCodes.PreOrdersNotAccepted;
 /** `pre-order-items-unavailable`: dishes that cannot be pre-ordered, every one named. */
-export const PRE_ORDER_ITEMS_UNAVAILABLE_CODE = 'pre-order-items-unavailable';
+export const PRE_ORDER_ITEMS_UNAVAILABLE_CODE = ProblemCodes.PreOrderItemsUnavailable;
 /** `on-my-way-not-open`: the booking is not expecting anybody. */
-export const ON_MY_WAY_NOT_OPEN_CODE = 'on-my-way-not-open';
+export const ON_MY_WAY_NOT_OPEN_CODE = ProblemCodes.OnMyWayNotOpen;
 /** `pre-order-not-sendable`: the waiter's Send or Not coming outside the booking's window. */
-export const PRE_ORDER_NOT_SENDABLE_CODE = 'pre-order-not-sendable';
+export const PRE_ORDER_NOT_SENDABLE_CODE = ProblemCodes.PreOrderNotSendable;
 /** `table-lock-timeout`: the table was busy with another change; retryable (503). */
-export const TABLE_LOCK_TIMEOUT_CODE = 'table-lock-timeout';
+export const TABLE_LOCK_TIMEOUT_CODE = ProblemCodes.TableLockTimeout;
 
 /**
  * Too late to change the pre-order — `pre-order-locked`, 409. Pre-orders close
@@ -2289,13 +2305,13 @@ export function isTableBusy(error: unknown): error is TableBusyError {
 // ---------------------------------------------------------------------------
 
 /** `ask-on-my-way-too-early`: more than two hours before the start. */
-export const ASK_ON_MY_WAY_TOO_EARLY_CODE = 'ask-on-my-way-too-early';
+export const ASK_ON_MY_WAY_TOO_EARLY_CODE = ProblemCodes.AskOnMyWayTooEarly;
 /** `ask-on-my-way-not-open`: the booking is not confirmed, or it started. */
-export const ASK_ON_MY_WAY_NOT_OPEN_CODE = 'ask-on-my-way-not-open';
+export const ASK_ON_MY_WAY_NOT_OPEN_CODE = ProblemCodes.AskOnMyWayNotOpen;
 /** `guest-already-answered`: the guest said on my way or running late. */
-export const GUEST_ALREADY_ANSWERED_CODE = 'guest-already-answered';
+export const GUEST_ALREADY_ANSWERED_CODE = ProblemCodes.GuestAlreadyAnswered;
 /** `ask-on-my-way-asked-recently`: asked within the last fifteen minutes. */
-export const ASK_ON_MY_WAY_ASKED_RECENTLY_CODE = 'ask-on-my-way-asked-recently';
+export const ASK_ON_MY_WAY_ASKED_RECENTLY_CODE = ProblemCodes.AskOnMyWayAskedRecently;
 
 /**
  * The venue's "Ask: are you coming?" more than two hours before the start —
@@ -2428,19 +2444,19 @@ export function isAskOnMyWayAskedRecently(error: unknown): error is AskOnMyWayAs
 // ---------------------------------------------------------------------------
 
 /** `takeaway-not-accepted`: the branch does not take takeaway. */
-export const TAKEAWAY_NOT_ACCEPTED_CODE = 'takeaway-not-accepted';
+export const TAKEAWAY_NOT_ACCEPTED_CODE = ProblemCodes.TakeawayNotAccepted;
 /** `takeaway-closed`: shut now, or past the last order. */
-export const TAKEAWAY_CLOSED_CODE = 'takeaway-closed';
+export const TAKEAWAY_CLOSED_CODE = ProblemCodes.TakeawayClosed;
 /** `takeaway-busy`: ASAP while the kitchen has as many orders as the venue allows. */
-export const TAKEAWAY_BUSY_CODE = 'takeaway-busy';
+export const TAKEAWAY_BUSY_CODE = ProblemCodes.TakeawayBusy;
 /** `takeaway-slot-unavailable`: the pickup time asked for is not on offer. */
-export const TAKEAWAY_SLOT_UNAVAILABLE_CODE = 'takeaway-slot-unavailable';
+export const TAKEAWAY_SLOT_UNAVAILABLE_CODE = ProblemCodes.TakeawaySlotUnavailable;
 /** `takeaway-items-unavailable`: dishes that cannot be ordered to take away, every one named. */
-export const TAKEAWAY_ITEMS_UNAVAILABLE_CODE = 'takeaway-items-unavailable';
+export const TAKEAWAY_ITEMS_UNAVAILABLE_CODE = ProblemCodes.TakeawayItemsUnavailable;
 /** `takeaway-status-conflict`: a move the order is not in the state for. */
-export const TAKEAWAY_STATUS_CONFLICT_CODE = 'takeaway-status-conflict';
+export const TAKEAWAY_STATUS_CONFLICT_CODE = ProblemCodes.TakeawayStatusConflict;
 /** `takeaway-no-show-too-early`: "no-show" less than thirty minutes after ready. */
-export const TAKEAWAY_NO_SHOW_TOO_EARLY_CODE = 'takeaway-no-show-too-early';
+export const TAKEAWAY_NO_SHOW_TOO_EARLY_CODE = ProblemCodes.TakeawayNoShowTooEarly;
 
 /** The branch does not take takeaway (any more) — `takeaway-not-accepted`, 409. */
 export class TakeawayNotAcceptedError extends ApiError {
@@ -2654,13 +2670,13 @@ export function isTakeawayNoShowTooEarly(error: unknown): error is TakeawayNoSho
 // ---------------------------------------------------------------------------
 
 /** `conversation-closed`: the thread closed (two hours after the booking or order finished). */
-export const CONVERSATION_CLOSED_CODE = 'conversation-closed';
+export const CONVERSATION_CLOSED_CODE = ProblemCodes.ConversationClosed;
 /** `guests-cannot-write`: the venue switched guest messages off; the answer buttons still work. */
-export const GUESTS_CANNOT_WRITE_CODE = 'guests-cannot-write';
+export const GUESTS_CANNOT_WRITE_CODE = ProblemCodes.GuestsCannotWrite;
 /** `waiters-cannot-write`: the venue lets only managers write from the tablet. */
-export const WAITERS_CANNOT_WRITE_CODE = 'waiters-cannot-write';
+export const WAITERS_CANNOT_WRITE_CODE = ProblemCodes.WaitersCannotWrite;
 /** `messages-too-fast`: more than five guest messages a minute, or sixty in one thread. */
-export const MESSAGES_TOO_FAST_CODE = 'messages-too-fast';
+export const MESSAGES_TOO_FAST_CODE = ProblemCodes.MessagesTooFast;
 
 /**
  * Writing to a closed thread — `conversation-closed`, 409 (`context`:

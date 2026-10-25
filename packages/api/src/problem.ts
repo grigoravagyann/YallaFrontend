@@ -1,3 +1,4 @@
+import type { ProblemCode, ProblemContexts } from './generated/problemCodes';
 import type { components } from './generated/schema';
 
 /**
@@ -40,4 +41,26 @@ export function parseProblem(body: unknown): ProblemDetails | undefined {
         ? (candidate.errors as Record<string, string[]>)
         : null,
   };
+}
+
+/**
+ * A problem's `context` with the member names the backend declares for `code`
+ * (`ProblemContexts` in `generated/problemCodes.ts`), so a misspelt or retired
+ * member is a compile error rather than an `undefined`. Each value stays
+ * `unknown`: an older server, or a route that answers this code without a
+ * context, sends what it sends, and the mapping still checks what it reads.
+ */
+export type WireContext<C extends ProblemCode> = ProblemContexts[C] extends undefined
+  ? Readonly<Record<string, never>>
+  : { readonly [K in keyof NonNullable<ProblemContexts[C]>]?: unknown };
+
+/**
+ * The context of `problem` read as `code`'s: the members it carries, or none
+ * when the problem is another code or came without a context.
+ */
+export function problemContext<C extends ProblemCode>(
+  problem: ProblemDetails | undefined,
+  code: C,
+): WireContext<C> {
+  return (problem?.code === code && problem.context ? problem.context : {}) as WireContext<C>;
 }

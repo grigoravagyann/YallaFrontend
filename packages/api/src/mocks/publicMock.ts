@@ -23,6 +23,7 @@ import { mockVenues, type Branch, type Venue } from './venues';
 import { asksOnYourWay, type OnMyWayResult, type PreOrderResult } from '../contracts/preOrder';
 import { venueIsAsking, type RunningLateResult } from '../contracts/onMyWay';
 import type { MockGateway } from './mockGateway';
+import { ProblemCodes } from '../generated/problemCodes';
 
 /**
  * The public page's data, without a backend.
@@ -285,7 +286,7 @@ export function createPublicMockGateway(options: PublicMockOptions): PublicGatew
         title: 'Not found',
         status: 404,
         detail: 'This booking link is not valid.',
-        code: 'not-found',
+        code: ProblemCodes.NotFound,
         traceId: 'mock',
       },
     });
@@ -460,7 +461,7 @@ export function createPublicMockGateway(options: PublicMockOptions): PublicGatew
             title: 'Not found',
             status: 404,
             detail: 'This booking link is not valid.',
-            code: 'not-found',
+            code: ProblemCodes.NotFound,
             traceId: 'mock',
           },
         });

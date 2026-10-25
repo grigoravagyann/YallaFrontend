@@ -18,6 +18,7 @@ import {
   URL_MAX,
   URL_TAG,
 } from './context';
+import { ProblemCodes } from '../../generated/problemCodes';
 
 /** The branch's public page and its diner-app listing. */
 export function publicPageMethods(
@@ -79,7 +80,7 @@ export function publicPageMethods(
             title: 'Validation failed',
             status: 422,
             detail: 'phoneE164 must be an E.164 number such as +37411223344.',
-            code: 'validation-failed',
+            code: ProblemCodes.ValidationFailed,
             traceId: 'mock',
             context: { field: 'phoneE164' },
           },

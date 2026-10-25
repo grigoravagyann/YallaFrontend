@@ -24,8 +24,11 @@ export {
 } from './errors';
 export type { FailureKind, FieldViolation } from './errors';
 
-export { parseProblem } from './problem';
-export type { ProblemDetails } from './problem';
+export { parseProblem, problemContext } from './problem';
+export type { ProblemDetails, WireContext } from './problem';
+
+export { PROBLEM_CODE_STATUS, ProblemCodes, isProblemCode } from './generated/problemCodes';
+export type { ProblemCode, ProblemContexts } from './generated/problemCodes';
 
 export { newCommandId, isCommandId } from './ids';
 

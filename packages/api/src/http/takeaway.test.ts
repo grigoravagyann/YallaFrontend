@@ -796,6 +796,7 @@ describe('a refusal that is not a takeaway one', () => {
             title: 't',
             status: 409,
             detail: 'd',
+            // problem-codes: not-a-problem-code — any other code falls through
             code: 'something-else',
             traceId: 'trace',
           },

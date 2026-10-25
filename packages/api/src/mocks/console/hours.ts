@@ -13,6 +13,7 @@ import { ConcurrencyConflictError } from '../../errors';
 import { branchDayKey, type TimeZone } from '@yalla/format';
 import type { ConsoleGateway } from '../../consoleGateway';
 import { type ConsoleMockContext, DAY_NAMES, overlapsWithin, URL_TAG } from './context';
+import { ProblemCodes } from '../../generated/problemCodes';
 
 /** Opening hours and special days. */
 export function hoursMethods(
@@ -112,7 +113,7 @@ export function hoursMethods(
             title: 'Conflict',
             status: 409,
             detail: 'The special days were changed since they were loaded.',
-            code: 'concurrent-update',
+            code: ProblemCodes.ConcurrentUpdate,
             traceId: 'mock',
             context: { currentVersion: current },
           },

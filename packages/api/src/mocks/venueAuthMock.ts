@@ -1,6 +1,7 @@
 import type { VenueUserAuth } from '../auth/endpoints';
 import { UnauthorizedError, ValidationError } from '../errors';
 import { mockRegistry, mockTokenHash, type MockRegistry } from './mockRegistry';
+import { ProblemCodes } from '../generated/problemCodes';
 
 /**
  * `/api/auth/venue/*` without a server — only as much of it as a link in the
@@ -57,7 +58,7 @@ export function createMockVenueUserAuth(options: VenueAuthMockOptions = {}): Ven
             title: 'Invalid request',
             status: 400,
             detail: `Password must be at least ${PASSWORD_MIN_LENGTH} characters. (Parameter 'newPassword')`,
-            code: 'invalid-request',
+            code: ProblemCodes.InvalidRequest,
             traceId: 'mock',
             context: { field: 'newPassword' },
           },
@@ -73,7 +74,7 @@ export function createMockVenueUserAuth(options: VenueAuthMockOptions = {}): Ven
             title: 'Unauthorized',
             status: 401,
             detail: 'That reset link is not valid or has expired. Ask for a new one.',
-            code: 'reset-token-invalid',
+            code: ProblemCodes.ResetTokenInvalid,
             traceId: 'mock',
           },
         });

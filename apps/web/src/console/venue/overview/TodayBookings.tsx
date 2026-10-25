@@ -12,6 +12,7 @@ import {
   type OverviewBooking,
   type OverviewRowState,
   type ReservationStatusCode,
+  ProblemCodes,
 } from '@yalla/api';
 import { useBookingAction, useNow } from '@yalla/api/react';
 import { formatDayAndTime, formatDram, formatTime, type TimeZone } from '@yalla/format';
@@ -258,7 +259,7 @@ export function TodayBookings({
     if (
       command.kind === 'seat' &&
       error instanceof ApiError &&
-      error.code === 'invalid-table-transition'
+      error.code === ProblemCodes.InvalidTableTransition
     ) {
       return (
         seatBlocker(booking) ??

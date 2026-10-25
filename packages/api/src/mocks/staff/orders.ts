@@ -19,6 +19,7 @@ import {
   type MockOrder,
   WHOLE_ORDER_VOID_REASON,
 } from './context';
+import { ProblemCodes } from '../../generated/problemCodes';
 
 /** The menu, placing orders and the kitchen queue. */
 export function ordersMethods(
@@ -108,7 +109,7 @@ export function ordersMethods(
               title: 'Invalid request',
               status: 400,
               detail: 'A shared line belongs to the table and cannot name a guest.',
-              code: 'invalid-request',
+              code: ProblemCodes.InvalidRequest,
               traceId: 'mock',
               context: { field: `items[${index}].participantId` },
             },

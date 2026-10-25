@@ -1,4 +1,4 @@
-import { ApiError } from '@yalla/api';
+import { ApiError, ProblemCodes } from '@yalla/api';
 import { intlTag, type Locale } from '@yalla/format';
 import { useLocale, useTranslation } from '@yalla/i18n';
 import type { TFunction } from 'i18next';
@@ -26,7 +26,7 @@ export function saveFile(fileName: string, bytes: Blob): void {
 }
 
 /** `422 activity-export-too-large`: the window holds more rows than one file may. */
-export const ACTIVITY_EXPORT_TOO_LARGE_CODE = 'activity-export-too-large';
+export const ACTIVITY_EXPORT_TOO_LARGE_CODE = ProblemCodes.ActivityExportTooLarge;
 
 /**
  * What a failed CSV says: the too-large refusal with the server's own limit

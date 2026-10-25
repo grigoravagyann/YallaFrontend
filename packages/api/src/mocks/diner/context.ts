@@ -127,6 +127,7 @@ import {
   type SentMessage,
 } from '../../contracts/messages';
 import { createMockConversationBook, type MockConversationSubjectInfo } from '../messages';
+import { ProblemCodes } from '../../generated/problemCodes';
 
 /** Great-circle distance in kilometres. */
 export function haversineKm(
@@ -1290,7 +1291,7 @@ export function createDinerMockContext(options: MockGatewayOptions = {}) {
           title: 'Session revoked',
           status: 401,
           detail: 'This session has ended.',
-          code: 'session-revoked',
+          code: ProblemCodes.SessionRevoked,
           traceId: 'mock',
         },
       });
@@ -2086,7 +2087,7 @@ export function createDinerMockContext(options: MockGatewayOptions = {}) {
           title: 'Forbidden',
           status: 403,
           detail: 'Asking for the whole bill requires somebody who can see the table total.',
-          code: 'forbidden',
+          code: ProblemCodes.Forbidden,
           traceId: 'mock',
           context: {
             operation: 'Asking for the whole bill',

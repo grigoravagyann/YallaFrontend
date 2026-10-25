@@ -17,6 +17,7 @@ import { ApiError } from '../errors';
 import type { components } from '../generated/schema';
 import { numberRuleRefusal } from './guestRecordMapping';
 import { floorFromAvailability } from './mapping';
+import { ProblemCodes } from '../generated/problemCodes';
 
 /**
  * A refused booking or change, as the error the screen branches on — shared by
@@ -43,7 +44,7 @@ export function freeByRefusal(error: ApiError): FreeByRequiredError | null {
   const fields = Array.isArray(context['fields']) ? (context['fields'] as unknown[]) : [];
   const required = context['requiredFreeByUtc'];
   const blamed =
-    error.problem?.code === 'reservation-free-by-required' ||
+    error.problem?.code === ProblemCodes.ReservationFreeByRequired ||
     named(context['field']) ||
     fields.some((entry) => named((entry as { field?: unknown } | null)?.field)) ||
     Object.keys(error.problem?.errors ?? {}).some(named);
@@ -62,13 +63,13 @@ export function freeByRefusal(error: ApiError): FreeByRequiredError | null {
  * one is handled apart because it carries the earliest time that still works.
  */
 const REJECTION_REASON: Readonly<Record<string, TableUnavailableReason>> = {
-  'reservation-outside-booking-window': 'tooFarAhead',
-  'reservation-outside-opening-hours': 'closed',
-  'reservation-party-exceeds-capacity': 'tooSmall',
-  'reservation-seat-overhang-exceeded': 'tooLarge',
-  'reservation-table-not-bookable': 'notBookable',
-  'reservation-table-out-of-service': 'outOfService',
-  'reservation-local-time-does-not-exist': 'invalidTime',
+  [ProblemCodes.ReservationOutsideBookingWindow]: 'tooFarAhead',
+  [ProblemCodes.ReservationOutsideOpeningHours]: 'closed',
+  [ProblemCodes.ReservationPartyExceedsCapacity]: 'tooSmall',
+  [ProblemCodes.ReservationSeatOverhangExceeded]: 'tooLarge',
+  [ProblemCodes.ReservationTableNotBookable]: 'notBookable',
+  [ProblemCodes.ReservationTableOutOfService]: 'outOfService',
+  [ProblemCodes.ReservationLocalTimeDoesNotExist]: 'invalidTime',
 };
 
 /**
@@ -105,32 +106,32 @@ export function rethrowBookingRefusal(
   if (numberRule) throw numberRule;
 
   switch (code) {
-    case 'phone-not-verified':
+    case ProblemCodes.PhoneNotVerified:
       throw new PhoneNotVerifiedError(base);
-    case 'reservation-not-changeable':
+    case ProblemCodes.ReservationNotChangeable:
       throw new BookingNotChangeableError({
         ...base,
         reservationId:
           typeof context['reservationId'] === 'string' ? context['reservationId'] : undefined,
       });
-    case 'bookings-not-accepted':
+    case ProblemCodes.BookingsNotAccepted:
       throw new BookingsNotAcceptedError({
         ...base,
         branchId: typeof context['branchId'] === 'string' ? context['branchId'] : command.branchId,
       });
-    case 'table-currently-occupied':
-    case 'table-already-booked': {
+    case ProblemCodes.TableCurrentlyOccupied:
+    case ProblemCodes.TableAlreadyBooked: {
       const room = context['availability'] as
         Schemas['Yalla.Application.Reservations.BranchAvailability'] | undefined;
       throw new TableTakenError({
         ...base,
         tableId: String(context['tableId'] ?? command.tableId),
         tableLabel: String(context['tableLabel'] ?? ''),
-        reason: code === 'table-currently-occupied' ? 'occupied' : 'alreadyBooked',
+        reason: code === ProblemCodes.TableCurrentlyOccupied ? 'occupied' : 'alreadyBooked',
         floor: room && Array.isArray(room.tables) ? floorFromAvailability(room) : null,
       });
     }
-    case 'reservation-lead-time-too-short':
+    case ProblemCodes.ReservationLeadTimeTooShort:
       throw new LeadTimeExceededError({
         ...base,
         leadTimeMinutes: Number(context['minLeadMinutes'] ?? 0),
@@ -155,11 +156,11 @@ export function rethrowBookingRefusal(
         branchName: text(context['branchName']),
       });
     }
-    case 'reservation-lock-timeout':
+    case ProblemCodes.ReservationLockTimeout:
       throw new BookingBusyError(base);
-    case 'client-command-id-in-use':
+    case ProblemCodes.ClientCommandIdInUse:
       throw new BookingCommandInUseError(base);
-    case 'branch-unavailable':
+    case ProblemCodes.BranchUnavailable:
       throw new BranchUnavailableError(base);
     default:
       if (code && error.status === 422 && code.startsWith('reservation-')) {

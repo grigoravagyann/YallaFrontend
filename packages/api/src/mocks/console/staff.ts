@@ -10,6 +10,7 @@ import { ValidationError, NotFoundError } from '../../errors';
 import { mockTokenHash } from '../mockRegistry';
 import type { ConsoleGateway } from '../../consoleGateway';
 import { type ConsoleMockContext, URL_TAG } from './context';
+import { ProblemCodes } from '../../generated/problemCodes';
 
 /** The venue's staff: people, PINs and sign-in issuance. */
 export function staffMethods(
@@ -120,7 +121,7 @@ export function staffMethods(
             title: 'Invalid request',
             status: 400,
             detail: 'An admin-panel sign-in needs both an email address and a password.',
-            code: 'invalid-request',
+            code: ProblemCodes.InvalidRequest,
             traceId: 'mock',
           },
         });
@@ -245,7 +246,7 @@ export function staffMethods(
             title: 'Invalid PIN',
             status: 400,
             detail: 'A PIN is 4 to 8 digits.',
-            code: 'validation-failed',
+            code: ProblemCodes.ValidationFailed,
             traceId: 'mock',
             errors: { pin: ['A PIN is 4 to 8 digits.'] },
           },

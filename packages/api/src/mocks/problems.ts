@@ -1,4 +1,5 @@
 import { ValidationError } from '../errors';
+import { ProblemCodes } from '../generated/problemCodes';
 
 /** One violation, spelled the way `ApiExceptionMapper` writes `context.fields[]`. */
 export interface MockViolation {
@@ -26,7 +27,7 @@ export function validationFailed(url: string, fields: readonly MockViolation[]):
       title: 'Validation failed',
       status: 422,
       detail: fields.map((violation) => violation.message).join(' '),
-      code: 'validation-failed',
+      code: ProblemCodes.ValidationFailed,
       traceId: 'mock',
       context: { field: fields[0]?.field ?? null, fields },
     },
@@ -43,7 +44,7 @@ export function invalidRequest(url: string, field: string, detail: string): Vali
       title: 'Invalid request',
       status: 400,
       detail,
-      code: 'invalid-request',
+      code: ProblemCodes.InvalidRequest,
       traceId: 'mock',
       context: { field },
     },

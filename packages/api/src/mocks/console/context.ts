@@ -118,6 +118,7 @@ import {
 } from '../../contracts/preOrder';
 import { demoCoverThumbnail, demoVenues } from '../consoleDemoVenues';
 import { noShowUndoableUntil, type BookingBlock } from '../../contracts/guestRecord';
+import { ProblemCodes } from '../../generated/problemCodes';
 
 /** `PinTakenException.Sentence`, word for word. */
 const PIN_TAKEN = 'Somebody who signs in on this tablet already uses that PIN. Choose another.';
@@ -854,7 +855,7 @@ export function createConsoleMockContext(options: ConsoleMockOptions = {}) {
         title: 'Conflicting state',
         status: 409,
         detail,
-        code: 'conflicting-state',
+        code: ProblemCodes.ConflictingState,
         traceId: 'mock',
       },
     });
@@ -877,7 +878,7 @@ export function createConsoleMockContext(options: ConsoleMockOptions = {}) {
         title: 'Validation failed',
         status: 422,
         detail,
-        code: 'validation-failed',
+        code: ProblemCodes.ValidationFailed,
         traceId: 'mock',
         context: { field: 'email', fields: [{ field: 'email', message: detail }] },
       },
@@ -1050,7 +1051,7 @@ export function createConsoleMockContext(options: ConsoleMockOptions = {}) {
         title: 'Conflict',
         status: 409,
         detail: PIN_TAKEN,
-        code: 'pin-taken',
+        code: ProblemCodes.PinTaken,
         traceId: 'mock',
         context: { field: 'pin' },
       },
@@ -1618,7 +1619,7 @@ export function createConsoleMockContext(options: ConsoleMockOptions = {}) {
           title: 'Forbidden',
           status: 403,
           detail: `${operation} requires the Manager role; the caller is a ${SERVER_ROLE[role]}.`,
-          code: 'forbidden',
+          code: ProblemCodes.Forbidden,
           traceId: 'mock',
         },
       });
@@ -2694,7 +2695,7 @@ export function createConsoleMockContext(options: ConsoleMockOptions = {}) {
         title: 'Forbidden',
         status: 403,
         detail: `Reporting across a venue's branches requires the GeneralManager role; the caller is a ${SERVER_ROLE[role]}.`,
-        code: 'forbidden',
+        code: ProblemCodes.Forbidden,
         traceId: 'mock',
       },
     });

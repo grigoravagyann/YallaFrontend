@@ -9,6 +9,7 @@ import { NotFoundError, ConcurrencyConflictError } from '../../errors';
 import { OutOfScopeError, BranchNotReadyError } from '../../contracts/errors';
 import type { ConsoleGateway } from '../../consoleGateway';
 import { type ConsoleMockContext, URL_TAG } from './context';
+import { ProblemCodes } from '../../generated/problemCodes';
 
 /** The floor plan editor: the stored plan, its areas and tables, QR codes, readiness and the branch tier. */
 export function floorPlanMethods(
@@ -148,7 +149,7 @@ export function floorPlanMethods(
             title: 'Conflicting state',
             status: 409,
             detail,
-            code: 'conflicting-state',
+            code: ProblemCodes.ConflictingState,
             traceId: 'mock',
           },
         });

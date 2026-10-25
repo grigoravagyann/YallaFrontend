@@ -16,6 +16,7 @@ import {
   type StaffGateway,
   type TableActionCommand,
   type TableActionResult,
+  ProblemCodes,
 } from '@yalla/api';
 import { localConflict, preconditionHolds } from './reducer';
 import { isTableAction, type CommandRefusal, type OrderRefusal, type QueuedCommand } from './types';
@@ -155,7 +156,7 @@ export async function sendCommand(
         // precondition because the client said the command was queued — so it
         // can never be the gesture a waiter is still standing in front of, and
         // must not be swallowed as a live race. `table-state-conflict` can be.
-        reason: conflict.code === 'precondition-failed' ? 'precondition' : 'conflict',
+        reason: conflict.code === ProblemCodes.PreconditionFailed ? 'precondition' : 'conflict',
         atMs: nowMs(),
       };
     }
