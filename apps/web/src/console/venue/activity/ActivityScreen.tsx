@@ -31,17 +31,31 @@ import {
 } from 'react';
 import { Link, useLocation, useSearchParams } from 'react-router-dom';
 import { useCurrentUser } from '../../../auth/useCurrentUser';
-import { QueryFailureNotice } from '../../../components/QueryFailureNotice';
 import { shortName } from '../../../messages/messageText';
+import {
+  ChipGroup,
+  DataTable,
+  DateField,
+  EmptyLine,
+  EmptyState,
+  LoadingLine,
+  NoValue,
+  PagedFooter,
+  QueryFailure,
+  TableHead,
+  pickParam,
+  putParam,
+  useFileExport,
+  usePagedRows,
+  useUrlFilters,
+  type UrlFilterCodec,
+} from '../../kit';
 import { PageHeader } from '../../ui/PageHeader';
 import { DownloadIcon, SearchIcon } from '../../ui/icons';
-import { useToast } from '../../ui/toast';
-import { saveFile } from '../reports/download';
 import { useVenueOutlet } from '../VenueLayout';
 import {
   actionLabel,
   changeLine,
-  csvFailureText,
   detailParts,
   deviceLabel,
   kindLabel,
@@ -110,7 +124,7 @@ export function ActivityScreen() {
       ) : (
         <>
           <PageHeader title={t('activity.title')} />
-          <p className="yc-card yc-empty-line">{t('menu.noBranch')}</p>
+          <EmptyLine card>{t('menu.noBranch')}</EmptyLine>
         </>
       )}
     </div>
@@ -127,38 +141,28 @@ function whoParam(who: ActivityWho): string | null {
   return who.kind === 'everyone' ? null : who.kind === 'system' ? 'system' : who.staffMemberId;
 }
 
-function filtersFrom(params: URLSearchParams, today: string): ActivityFilters {
-  const kind = params.get('kind');
+/** The filters in the address, each written only when it is not the default. */
+function activityCodec(today: string): UrlFilterCodec<ActivityFilters> {
   return {
-    date: params.get('date') ?? today,
-    who: parseWho(params.get('who')),
-    category: KINDS.includes(kind as ActivityCategoryFilter)
-      ? (kind as ActivityCategoryFilter)
-      : 'all',
-    q: (params.get('q') ?? '').slice(0, ACTIVITY_QUERY_MAX),
+    read: (params) => ({
+      date: params.get('date') ?? today,
+      who: parseWho(params.get('who')),
+      category: pickParam(params.get('kind'), KINDS, 'all'),
+      q: (params.get('q') ?? '').slice(0, ACTIVITY_QUERY_MAX),
+    }),
+    write: (params, next) => {
+      putParam(params, 'date', next.date === today ? null : next.date);
+      putParam(params, 'who', whoParam(next.who));
+      putParam(params, 'kind', next.category === 'all' ? null : next.category);
+      const q = activitySearchText(next.q);
+      putParam(params, 'q', q === '' ? null : q);
+      // Another list: the entry open on the last one may not be on this one.
+      params.delete('entry');
+    },
   };
 }
 
-/** Each filter written only when it is not the default, so a plain visit stays a plain address. */
-function writeFilters(
-  current: URLSearchParams,
-  next: ActivityFilters,
-  today: string,
-): URLSearchParams {
-  const copy = new URLSearchParams(current);
-  const put = (key: string, value: string | null) => {
-    if (value === null) copy.delete(key);
-    else copy.set(key, value);
-  };
-  put('date', next.date === today ? null : next.date);
-  put('who', whoParam(next.who));
-  put('kind', next.category === 'all' ? null : next.category);
-  const q = activitySearchText(next.q);
-  put('q', q === '' ? null : q);
-  // Another list: the entry open on the last one may not be on this one.
-  copy.delete('entry');
-  return copy;
-}
+const entryIdOf = (entry: ActivityEntry) => entry.id;
 
 function violationText(t: TFunction, violation: FieldViolation | undefined): string | null {
   if (!violation) return null;
@@ -189,20 +193,16 @@ function ActivityHistory({
 }) {
   const { t } = useTranslation(['admin', 'common']);
   const { locale } = useLocale();
-  const toast = useToast();
   const gateway = useConsoleGateway();
   const location = useLocation();
   const { user } = useCurrentUser();
-  const [params, setParams] = useSearchParams();
   const today = branchDayKey(new Date(), timeZoneId as TimeZone);
-  const filters = filtersFrom(params, today);
+  const { params, filters, update, setParam, clear } = useUrlFilters(activityCodec(today));
   const openId = params.get('entry');
 
-  const dateId = useId();
   const whoId = useId();
   const searchId = useId();
   const listTitleId = useId();
-  const dateErrorId = useId();
   const searchErrorId = useId();
   const detailHeadingId = useId();
 
@@ -240,13 +240,6 @@ function ActivityHistory({
   const dateError = violationText(t, firstFor('date'));
   const searchError = violationText(t, firstFor('q'));
 
-  function update(next: Partial<ActivityFilters>, replace = false) {
-    setParams(
-      (current) => writeFilters(current, { ...filtersFrom(current, today), ...next }, today),
-      { replace },
-    );
-  }
-
   const [draft, setDraft] = useState(filters.q);
   const [seenQ, setSeenQ] = useState(filters.q);
   if (filters.q !== seenQ) {
@@ -263,61 +256,39 @@ function ActivityHistory({
   function onSearchChange(value: string) {
     setDraft(value);
     if (searchTimer.current) clearTimeout(searchTimer.current);
-    searchTimer.current = setTimeout(() => update({ q: value }, true), SEARCH_DEBOUNCE_MS);
+    searchTimer.current = setTimeout(
+      () => update({ q: value }, { replace: true }),
+      SEARCH_DEBOUNCE_MS,
+    );
   }
   function onSubmit(event: FormEvent) {
     event.preventDefault();
     if (searchTimer.current) clearTimeout(searchTimer.current);
-    update({ q: draft }, true);
+    update({ q: draft }, { replace: true });
   }
   function clearFilters() {
     if (searchTimer.current) clearTimeout(searchTimer.current);
     setDraft('');
-    setParams(new URLSearchParams());
+    clear();
   }
 
   // --- CSV ---------------------------------------------------------------------
 
-  const [exporting, setExporting] = useState(false);
-  async function exportCsv() {
-    if (exporting || violations.length > 0) return;
-    setExporting(true);
-    try {
-      const file = await gateway.exportActivityCsv(branchId, filters);
-      saveFile(file.fileName, file.bytes);
-      toast.say(t('activity.csvReady'));
-    } catch (error) {
-      // A day over the server's file limit says so, and how to narrow it.
-      toast.say(csvFailureText(t, error, locale), { tone: 'error' });
-    } finally {
-      setExporting(false);
-    }
+  const csv = useFileExport();
+  function exportCsv() {
+    if (violations.length > 0) return;
+    // A day over the server's file limit says so, and how to narrow it.
+    void csv.run(() => gateway.exportActivityCsv(branchId, filters), t('activity.csvReady'));
   }
 
   // --- The list ------------------------------------------------------------------
 
-  // Every page in order, an entry said once even if a refetch moved it across a page edge.
-  const pages = list.data?.pages;
-  const items: readonly ActivityEntry[] = useMemo(() => {
-    const seen = new Set<string>();
-    return (pages ?? []).flatMap((page) =>
-      page.items.filter((entry) => {
-        if (seen.has(entry.id)) return false;
-        seen.add(entry.id);
-        return true;
-      }),
-    );
-  }, [pages]);
+  const paged = usePagedRows(list, entryIdOf, (entry) =>
+    document.getElementById(rowButtonId(entry))?.focus(),
+  );
+  const items = paged.rows;
   const selected = items.find((entry) => entry.id === openId) ?? items[0] ?? null;
   const detailHeading = useRef<HTMLHeadingElement>(null);
-  const focusRow = useRef<number | null>(null);
-  useEffect(() => {
-    const index = focusRow.current;
-    if (index === null || items.length <= index) return;
-    focusRow.current = null;
-    const entry = items[index];
-    if (entry) document.getElementById(rowButtonId(entry))?.focus();
-  });
   const focusDetail = useRef<string | null>(null);
   useEffect(() => {
     if (focusDetail.current === null || focusDetail.current !== selected?.id) return;
@@ -328,17 +299,10 @@ function ActivityHistory({
   // Stable while the search is typed, so the rows (memoised below) are not redrawn per key.
   const openEntry = useCallback(
     (entry: ActivityEntry) => {
-      setParams(
-        (current) => {
-          const copy = new URLSearchParams(current);
-          copy.set('entry', entry.id);
-          return copy;
-        },
-        { replace: true },
-      );
+      setParam('entry', entry.id, { replace: true });
       if (window.matchMedia?.(STACKED_QUERY).matches) focusDetail.current = entry.id;
     },
-    [setParams],
+    [setParam],
   );
 
   const filtered =
@@ -361,28 +325,23 @@ function ActivityHistory({
       </div>
     );
   } else if (list.isPending) {
-    body = (
-      <p className="yc-empty-line" role="status">
-        {t('loading')}
-      </p>
-    );
+    body = <LoadingLine />;
   } else if (list.isError && !list.data) {
-    body = (
-      <div className="yc-mh-pad">
-        <QueryFailureNotice error={list.error} onRetry={() => void list.refetch()} />
-      </div>
-    );
+    body = <QueryFailure query={list} frame="list" />;
   } else if (items.length === 0) {
     body = (
-      <div className="yc-empty">
-        <h3 className="yc-h2">{t('activity.empty.title')}</h3>
-        <p>{filtered ? t('activity.empty.filtered') : t('activity.empty.hint')}</p>
-        {filtered ? (
-          <button type="button" className="yc-btn yc-btn-sec yc-btn-sm" onClick={clearFilters}>
-            {t('activity.empty.reset')}
-          </button>
-        ) : null}
-      </div>
+      <EmptyState
+        title={t('activity.empty.title')}
+        action={
+          filtered ? (
+            <button type="button" className="yc-btn yc-btn-sec yc-btn-sm" onClick={clearFilters}>
+              {t('activity.empty.reset')}
+            </button>
+          ) : null
+        }
+      >
+        {filtered ? t('activity.empty.filtered') : t('activity.empty.hint')}
+      </EmptyState>
     );
   } else {
     body = (
@@ -407,12 +366,12 @@ function ActivityHistory({
           <button
             type="button"
             className="yc-btn yc-btn-sec"
-            onClick={() => void exportCsv()}
-            disabled={exporting || violations.length > 0}
-            aria-busy={exporting || undefined}
+            onClick={exportCsv}
+            disabled={csv.busy || violations.length > 0}
+            aria-busy={csv.busy || undefined}
           >
             <DownloadIcon />
-            {exporting ? t('activity.csvPreparing') : t('activity.csv')}
+            {csv.busy ? t('activity.csvPreparing') : t('activity.csv')}
           </button>
         }
       />
@@ -423,27 +382,16 @@ function ActivityHistory({
         className="yc-mh-filters"
         onSubmit={onSubmit}
       >
-        <div className="yc-fld">
-          <label htmlFor={dateId}>{t('activity.filters.date')}</label>
-          <input
-            id={dateId}
-            type="date"
-            className="yc-ctl"
-            // A day the address got wrong shows as empty (with its error), not as text the input refuses.
-            value={isLocalDate(filters.date) ? filters.date : ''}
-            min={addLocalDays(today, -ACTIVITY_MONEY_KEPT_DAYS)}
-            max={today}
-            required
-            aria-invalid={dateError ? true : undefined}
-            aria-describedby={dateError ? dateErrorId : undefined}
-            onChange={(event) => update({ date: event.target.value })}
-          />
-          {dateError ? (
-            <span id={dateErrorId} className="yc-err">
-              {dateError}
-            </span>
-          ) : null}
-        </div>
+        <DateField
+          label={t('activity.filters.date')}
+          // A day the address got wrong shows as empty (with its error), not as text the input refuses.
+          value={isLocalDate(filters.date) ? filters.date : ''}
+          min={addLocalDays(today, -ACTIVITY_MONEY_KEPT_DAYS)}
+          max={today}
+          required
+          error={dateError}
+          onChange={(date) => update({ date })}
+        />
         <div className="yc-fld">
           <label htmlFor={whoId}>{t('activity.filters.who')}</label>
           <select
@@ -496,19 +444,13 @@ function ActivityHistory({
           ) : null}
         </div>
       </form>
-      <div className="yc-chips yc-act-kinds" role="group" aria-label={t('activity.filters.kind')}>
-        {KINDS.map((kind) => (
-          <button
-            key={kind}
-            type="button"
-            className={kind === filters.category ? 'yc-chip is-on' : 'yc-chip'}
-            aria-pressed={kind === filters.category}
-            onClick={() => update({ category: kind })}
-          >
-            {kindLabel(t, kind)}
-          </button>
-        ))}
-      </div>
+      <ChipGroup
+        className="yc-act-kinds"
+        label={t('activity.filters.kind')}
+        value={filters.category}
+        options={KINDS.map((kind) => ({ value: kind, label: kindLabel(t, kind) }))}
+        onChange={(category) => update({ category })}
+      />
 
       <div className="yc-mh-layout">
         <section className="yc-card yc-mh-list" aria-labelledby={listTitleId}>
@@ -517,28 +459,19 @@ function ActivityHistory({
           </h2>
           {body}
           {items.length > 0 && violations.length === 0 ? (
-            <div className="yc-mh-foot">
-              <span role="status" aria-atomic="true">
-                {list.isPlaceholderData
+            <PagedFooter
+              status={
+                list.isPlaceholderData
                   ? t('activity.updating')
                   : isToday
                     ? t('activity.shownToday', { count: items.length })
-                    : t('activity.shown', { count: items.length })}
-              </span>
-              {list.hasNextPage ? (
-                <button
-                  type="button"
-                  className="yc-btn yc-btn-sec yc-btn-sm"
-                  disabled={list.isFetchingNextPage}
-                  onClick={() => {
-                    focusRow.current = items.length;
-                    void list.fetchNextPage();
-                  }}
-                >
-                  {list.isFetchingNextPage ? t('loading') : t('activity.more')}
-                </button>
-              ) : null}
-            </div>
+                    : t('activity.shown', { count: items.length })
+              }
+              moreLabel={t('activity.more')}
+              hasMore={paged.hasMore}
+              loadingMore={paged.loadingMore}
+              onMore={paged.more}
+            />
           ) : null}
         </section>
 
@@ -593,58 +526,50 @@ const ActivityTable = memo(function ActivityTable({
 }) {
   const { t } = useTranslation(['admin', 'common']);
   return (
-    <div className="yc-tscroll">
-      <table className="yc-tbl yc-act-tbl" aria-busy={busy || undefined}>
-        <caption className="yc-sr">{t('activity.table.caption')}</caption>
-        <thead>
-          <tr>
-            <th scope="col">{t('activity.table.time')}</th>
-            <th scope="col">{t('activity.table.who')}</th>
-            <th scope="col">{t('activity.table.what')}</th>
-            <th scope="col">{t('activity.table.device')}</th>
-          </tr>
-        </thead>
-        <tbody>
-          {items.map((entry) => {
-            const isOpen = selectedId === entry.id;
-            const device = deviceLabel(t, entry);
-            return (
-              <tr
-                key={entry.id}
-                className={[isOpen ? 'is-on' : '', entry.isMoney ? 'is-money' : '']
-                  .filter(Boolean)
-                  .join(' ')}
-              >
-                <td className="yc-num-time">{timeLabel(entry, timeZoneId, locale)}</td>
-                <td className="yc-act-who">{whoLabel(t, entry)}</td>
-                <th scope="row" className="yc-act-what">
-                  <button
-                    type="button"
-                    id={rowButtonId(entry)}
-                    className="yc-act-pick"
-                    aria-current={isOpen ? 'true' : undefined}
-                    onClick={() => onOpen(entry)}
-                  >
-                    <span className={`yc-act-tag ${kindTone(entry)}`}>
-                      {kindLabel(t, entry.category)}
-                    </span>{' '}
-                    {whatLabel(t, entry, locale, nameOf)}
-                  </button>
-                </th>
-                <td className="yc-act-dev">
-                  {device ?? (
-                    <>
-                      <span aria-hidden="true">{'—'}</span>
-                      <span className="yc-sr">{t('activity.device.none')}</span>
-                    </>
-                  )}
-                </td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
-    </div>
+    <DataTable className="yc-act-tbl" caption={t('activity.table.caption')} busy={busy}>
+      <TableHead
+        columns={[
+          { label: t('activity.table.time') },
+          { label: t('activity.table.who') },
+          { label: t('activity.table.what') },
+          { label: t('activity.table.device') },
+        ]}
+      />
+      <tbody>
+        {items.map((entry) => {
+          const isOpen = selectedId === entry.id;
+          const device = deviceLabel(t, entry);
+          return (
+            <tr
+              key={entry.id}
+              className={[isOpen ? 'is-on' : '', entry.isMoney ? 'is-money' : '']
+                .filter(Boolean)
+                .join(' ')}
+            >
+              <td className="yc-num-time">{timeLabel(entry, timeZoneId, locale)}</td>
+              <td className="yc-act-who">{whoLabel(t, entry)}</td>
+              <th scope="row" className="yc-act-what">
+                <button
+                  type="button"
+                  id={rowButtonId(entry)}
+                  className="yc-act-pick"
+                  aria-current={isOpen ? 'true' : undefined}
+                  onClick={() => onOpen(entry)}
+                >
+                  <span className={`yc-act-tag ${kindTone(entry)}`}>
+                    {kindLabel(t, entry.category)}
+                  </span>{' '}
+                  {whatLabel(t, entry, locale, nameOf)}
+                </button>
+              </th>
+              <td className="yc-act-dev">
+                {device ?? <NoValue label={t('activity.device.none')} />}
+              </td>
+            </tr>
+          );
+        })}
+      </tbody>
+    </DataTable>
   );
 });
 
