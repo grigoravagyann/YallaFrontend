@@ -121,6 +121,40 @@ export default tseslint.config(
     },
   },
 
+  // The same rule for colours typed by hand: a diner screen's colour is a name
+  // from src/theme's `colors`, so a palette change is one file. AGENTS.md,
+  // "Architecture checks".
+  {
+    files: ['apps/diner/app/**/*.{ts,tsx}', 'apps/diner/src/**/*.{ts,tsx}'],
+    ignores: [
+      // Where the palette is defined.
+      'apps/diner/src/theme/**',
+      // Tests pin computed colours and contrast ratios against literal values.
+      'apps/diner/**/*.test.{ts,tsx}',
+      // The launch animation's white and burgundy are sampled from the logo
+      // raster and must equal the native splash in app.json, which cannot read
+      // the theme (src/data/appConfig.test.ts holds them together).
+      'apps/diner/src/components/launch/mark.ts',
+    ],
+    rules: {
+      'no-restricted-syntax': [
+        'error',
+        {
+          selector:
+            'Literal[value=/^#(?:[0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/], TemplateElement[value.raw=/#[0-9a-fA-F]{6}\\b/]',
+          message:
+            'A hex colour in diner code: use a name from src/theme\'s `colors` (add one there if it is new). AGENTS.md, "Architecture checks".',
+        },
+        {
+          selector:
+            'Literal[value=/^(?:rgb|hsl)a?\\(/], TemplateElement[value.raw=/^(?:rgb|hsl)a?\\(/]',
+          message:
+            'A typed rgb()/hsl() colour in diner code: use a name from src/theme\'s `colors` (add one there if it is new). AGENTS.md, "Architecture checks".',
+        },
+      ],
+    },
+  },
+
   // Metro and Expo read their config with `require`, so these files are CommonJS whether
   // or not the rest of the workspace is ESM.
   {
