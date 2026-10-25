@@ -72,6 +72,7 @@ import { ApprovalPanel, useRequestArrivals } from './ApprovalPanel';
 import { branchToday, decidedNotice } from './approvalRequests';
 import { primeChime } from './chime';
 import { ConflictList } from './ConflictList';
+import { freshPaidRefusal } from './commands/reducer';
 import { useCommandQueue } from './commands/useCommandQueue';
 import type { CommandRefusal, NewCommand, OrderRefusal, QueuedCommand } from './commands/types';
 import { applyFloorChanges } from './live/sequence';
@@ -217,7 +218,10 @@ const UNDO_NOTICE_MS = 15_000;
  * ever refused with its own reasons (`sync.ts`); anything else reads "other".
  */
 function orderRefusalOf(refusal: CommandRefusal | undefined): OrderRefusal {
-  return refusal && refusal.kind !== 'notFound' && refusal.kind !== 'forbidden'
+  return refusal &&
+    refusal.kind !== 'notFound' &&
+    refusal.kind !== 'forbidden' &&
+    refusal.kind !== 'lineAlreadyPaid'
     ? refusal
     : { kind: 'other' };
 }
@@ -660,6 +664,21 @@ export function FloorRoute({ identity, device = null, paused, onUnpair }: FloorR
     }
     seenConflicts.current = conflictCount;
   }, [conflictCount]);
+
+  // An order voided whole on a bill already paid against is refused (the
+  // server, 2026-10-25): that would be a refund. Said here, in words, and not
+  // only in the chip (`freshPaidRefusal`).
+  const conflicts = queue.state.conflicts;
+  const toldPaid = useRef<ReadonlySet<string>>(new Set());
+  useEffect(() => {
+    const fresh = freshPaidRefusal(conflicts, toldPaid.current, Date.now());
+    toldPaid.current = new Set(conflicts.map((entry) => entry.command.id));
+    if (!fresh) return;
+    setNotice({
+      kind: 'warning',
+      text: t('notice.orderVoidPaid', { label: fresh.command.subject.tableLabel ?? '' }),
+    });
+  }, [conflicts, t]);
 
   // --- Panels ---------------------------------------------------------------
 

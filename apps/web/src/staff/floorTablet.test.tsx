@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import 'fake-indexeddb/auto';
 import {
+  LineAlreadyPaidError,
   NoShowUndoWindowClosedError,
   ReservationNotStartedError,
   createQueryClient,
@@ -12,7 +13,7 @@ import {
   type StaffGateway,
   type StaffSessionSnapshot,
 } from '@yalla/api';
-import { GatewayProvider } from '@yalla/api/react';
+import { GatewayProvider, queryKeys } from '@yalla/api/react';
 import { I18nextProvider, i18next } from '@yalla/i18n';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { act, cleanup, render, screen, waitFor, within } from '@testing-library/react';
@@ -849,6 +850,66 @@ describe('the "Now" rail', () => {
         expect.objectContaining({ orderId: 'o-new', status: 'inKitchen' }),
       ),
     );
+  });
+
+  // 2026-10-25: a whole-order void on a bill already paid against is refused
+  // with `line-already-paid`. Every order move goes through the same queue, so
+  // the rail's tap stands in for it here: the refusal reads as the bill, in
+  // words, never as a race or a bare "not accepted".
+  it('says a paid bill refused the order move, and that a manager comps instead', async () => {
+    signIn();
+    const user = setupUser();
+    const gateway = gatewayWith({ listOrderQueue: async () => [order('new')] });
+    vi.spyOn(gateway, 'setOrderStatus').mockRejectedValue(
+      new LineAlreadyPaidError({ url: '/api/orders/o-new/status', lineId: 'l-new-1' }),
+    );
+    renderFloor(gateway);
+
+    const toSend = await within(await rail()).findByRole('region', {
+      name: 'Not sent to the kitchen',
+    });
+    await user.click(within(toSend).getByRole('button', { name: 'Send to the kitchen' }));
+
+    expect(
+      await screen.findByText(
+        'Table 4 · the bill is already paid, so the order was not voided. A manager can put it on the house instead.',
+      ),
+    ).toBeTruthy();
+    expect(screen.queryByText('Table 4 was taken by someone else just now.')).toBeNull();
+  });
+
+  it("re-reads the table's bill once an order move lands: a void changes the totals", async () => {
+    signIn();
+    const user = setupUser();
+    const gateway = gatewayWith({
+      listOrderQueue: async () => [order('new', { tabId: 'tab-9' })],
+      setOrderStatus: async () => order('voided', { tabId: 'tab-9' }),
+    });
+    const queryClient = createQueryClient({ retry: false, mutationNetworkMode: 'always' });
+    const invalidate = vi.spyOn(queryClient, 'invalidateQueries');
+    render(
+      <I18nextProvider i18n={i18next}>
+        <QueryClientProvider client={queryClient}>
+          <GatewayProvider staffGateway={gateway}>
+            <MemoryRouter>
+              <StaffRoute />
+            </MemoryRouter>
+          </GatewayProvider>
+        </QueryClientProvider>
+      </I18nextProvider>,
+    );
+
+    const toSend = await within(await rail()).findByRole('region', {
+      name: 'Not sent to the kitchen',
+    });
+    await user.click(within(toSend).getByRole('button', { name: 'Send to the kitchen' }));
+
+    // The bill and its lines are two reads, and both change: the totals and
+    // what is left to pay with the one, the struck-through lines with the other.
+    await waitFor(() =>
+      expect(invalidate).toHaveBeenCalledWith({ queryKey: queryKeys.staffTab('tab-9') }),
+    );
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: queryKeys.tabLines('tab-9') });
   });
 
   it('lists a table freed with money owed under "Needs resolving", with the way to take it', async () => {

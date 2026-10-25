@@ -244,6 +244,23 @@ describe('a card per refusal', () => {
     expect(screen.queryAllByRole('button', { name: /anyway/u })).toEqual([]);
   });
 
+  it('an order void a paid bill refused: the bill, in words, and no "anyway"', () => {
+    const voided = command('v1', {
+      kind: 'setOrderStatus',
+      command: { orderId: 'o1', status: 'voided', clientCommandId: 'v1' },
+    });
+    renderList({
+      conflicts: [entry(voided, 'refused', { refusal: { kind: 'lineAlreadyPaid' } })],
+    });
+    const paid = card(/^Table 7 · the order was not voided$/u);
+    expect(
+      within(paid).getByText(
+        'The bill is already paid, so voiding the order would be a refund. A manager can put it on the house instead.',
+      ),
+    ).toBeTruthy();
+    expect(screen.queryAllByRole('button', { name: /anyway/u })).toEqual([]);
+  });
+
   it("names the person when it was somebody else's action", () => {
     renderList({
       conflicts: [

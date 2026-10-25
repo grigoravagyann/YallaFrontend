@@ -5,6 +5,7 @@ import {
   ApiError,
   ForbiddenError,
   InvalidTransitionError,
+  LineAlreadyPaidError,
   NotFoundError,
   MenuItemUnavailableError,
   OrderGuestUnavailableError,
@@ -127,6 +128,19 @@ export async function sendCommand(
         reason: 'refused',
         atMs: nowMs(),
         refusal: orderRefusal(error),
+      };
+    }
+
+    // A whole order voided on a tab already paid against: a 409, but the bill,
+    // never a race, so it must not be redrawn away as one. It says why.
+    if (error instanceof LineAlreadyPaidError) {
+      return {
+        type: 'conflicted',
+        id: command.id,
+        observed: null,
+        reason: 'refused',
+        atMs: nowMs(),
+        refusal: { kind: 'lineAlreadyPaid' },
       };
     }
 

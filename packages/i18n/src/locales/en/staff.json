@@ -250,6 +250,7 @@
   },
   "notice": {
     "race": "Table {{label}} was taken by someone else just now.",
+    "orderVoidPaid": "Table {{label}} · the bill is already paid, so the order was not voided. A manager can put it on the house instead.",
     "raceNamed": "Table {{label}} was seated by {{name}} just now.",
     "freedWithBalance": "Table {{label}} freed. {{amount}} is still owed — it is in \"needs resolving\".",
     "seatedOverBooking": "Seated. Table {{label}} still has a booking coming.",
@@ -422,7 +423,8 @@
       "orderMoved": "Table {{label}} · the order had moved on",
       "call": "Table {{label}} · the call was already answered",
       "gone": "Table {{label}} · it is no longer there",
-      "forbidden": "Table {{label}} · not allowed under this sign-in"
+      "forbidden": "Table {{label}} · not allowed under this sign-in",
+      "orderNotVoided": "Table {{label}} · the order was not voided"
     },
     "notApplied": "Your “{{action}}” from {{time}} was not applied.",
     "action": {
@@ -469,6 +471,7 @@
         "call": "The call is no longer there."
       },
       "forbidden": "This sign-in may not do it. Somebody whose role allows it can.",
+      "lineAlreadyPaid": "The bill is already paid, so voiding the order would be a refund. A manager can put it on the house instead.",
       "orderMoved": "Somebody else had already moved this order on.",
       "call": "Somebody else had already answered this call.",
       "other": "The server did not accept it."

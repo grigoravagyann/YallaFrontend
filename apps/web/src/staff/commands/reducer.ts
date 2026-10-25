@@ -483,3 +483,29 @@ export function isLiveRace(entry: ConflictEntry): boolean {
     entry.detectedAtMs - entry.command.takenAtMs <= LIVE_RACE_WINDOW_MS
   );
 }
+
+/** How long a refusal stays worth saying out loud: the person who tapped is still there. */
+export const FRESH_REFUSAL_MS = 15_000;
+
+/**
+ * The order void a paid bill has just refused (`line-already-paid`,
+ * 2026-10-25), if one has come back since the conflicts were last looked at.
+ *
+ * Said in words on the screen and not only in the chip, because the waiter who
+ * tapped it is still looking. Not one restored from storage after a reload, or
+ * one already told: those are the conflict list's to show.
+ */
+export function freshPaidRefusal(
+  conflicts: readonly ConflictEntry[],
+  told: ReadonlySet<string>,
+  nowMs: number,
+): ConflictEntry | null {
+  return (
+    conflicts.find(
+      (entry) =>
+        entry.refusal?.kind === 'lineAlreadyPaid' &&
+        !told.has(entry.command.id) &&
+        nowMs - entry.detectedAtMs <= FRESH_REFUSAL_MS,
+    ) ?? null
+  );
+}

@@ -504,6 +504,9 @@ interface MockAwaiting {
  */
 const SERVICE_CHARGE_PERCENT = 10;
 
+/** The reason the server writes on each line a whole-order void takes off the bill. */
+const WHOLE_ORDER_VOID_REASON = 'The whole order was voided.';
+
 /** Which physical status each action is legal from, and what it produces. */
 const TRANSITIONS: Readonly<
   Record<TableActionKind, { readonly from: readonly TableStatus[]; readonly to: TableStatus }>
@@ -3580,8 +3583,32 @@ export function createStaffMockGateway(options: StaffMockOptions = {}): StaffGat
       requireSession(`/api/orders/${command.orderId}/status`);
       const order = orders.get(command.orderId);
       if (!order) throw new NotFoundError({ url: `/api/orders/${command.orderId}` });
-      order.status = command.status;
       const tab = order.tabId ? tabs.get(order.tabId) : undefined;
+      // As the server (2026-10-25): voiding a whole order voids every line of
+      // it still on the bill, and is refused, as one line's void is, once the
+      // tab has been paid against and the void would take money off it.
+      if (command.status === 'voided' && tab) {
+        const live = tab.lines.filter(
+          (line) => line.orderId === order.id && line.status !== 'voided' && line.lineTotalDram > 0,
+        );
+        if (live.length > 0 && tab.paidDram > 0) {
+          throw new LineAlreadyPaidError({
+            url: `/api/orders/${command.orderId}/status`,
+            lineId: live[0]!.id,
+          });
+        }
+        tab.lines.forEach((line, index) => {
+          if (line.orderId !== order.id || line.status === 'voided') return;
+          tab.lines[index] = {
+            ...line,
+            status: 'voided',
+            lineTotalDram: 0,
+            voidReason: WHOLE_ORDER_VOID_REASON,
+          };
+        });
+        if (live.length > 0) pushEvent(tab, 'lineVoided', now());
+      }
+      order.status = command.status;
       if (tab) pushEvent(tab, 'orderStatusChanged', now());
       // A pre-order's ticket: its card reads the kitchen's progress (signal 6).
       if (order.preOrderReservationId) kitchenMoved(order.preOrderReservationId, command.status);

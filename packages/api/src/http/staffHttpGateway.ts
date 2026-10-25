@@ -761,10 +761,17 @@ export function createStaffHttpGateway(client: ApiClient): StaffGateway {
     },
 
     async setOrderStatus(command: SetOrderStatusCommand): Promise<OrderQueueEntry> {
-      const { data } = await client.post<KitchenOrder>(`/api/orders/${command.orderId}/status`, {
-        status: orderStatusCode(command.status),
-      } satisfies Schemas['Yalla.Api.Endpoints.MoveOrderStatusRequest']);
-      return orderQueueEntry(data);
+      try {
+        const { data } = await client.post<KitchenOrder>(`/api/orders/${command.orderId}/status`, {
+          status: orderStatusCode(command.status),
+        } satisfies Schemas['Yalla.Api.Endpoints.MoveOrderStatusRequest']);
+        return orderQueueEntry(data);
+      } catch (error) {
+        // Voiding a whole order voids its lines (2026-10-25), so a tab paid
+        // against refuses it as it refuses one line: `line-already-paid`, a
+        // 409 that is not a race. Anything else is as it was.
+        return rethrow(error);
+      }
     },
 
     // --- Service requests ---------------------------------------------------

@@ -2710,6 +2710,8 @@ export interface paths {
          *
          *     **The Kitchen role may make exactly one move: `InKitchen -> Ready`.** Serving is a floor action and belongs to whoever carried the plate.
          *
+         *     **`Voided` (from `New` or `InKitchen`) takes the order off the bill**: every line of it still on the bill is voided with it - when, by whom, and the reason "The whole order was voided." - and stays on the tab marked, at zero, exactly as a line voided on its own. Refused once the tab has been paid against, as a line's void is: that is a refund.
+         *
          *     Answers with the ticket as the queue shows it, `placedByName` included.
          */
         post: operations["moveOrderStatus"];
@@ -26856,7 +26858,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
                 };
             };
-            /** @description The rail does not allow that transition. */
+            /** @description The rail does not allow that transition (`conflicting-state`), or `line-already-paid`: voiding an order on a tab that has been paid against would be a refund. */
             409: {
                 headers: {
                     [name: string]: unknown;
