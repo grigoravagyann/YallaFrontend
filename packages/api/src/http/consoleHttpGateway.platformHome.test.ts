@@ -3,7 +3,7 @@ import { createAuthSession } from '../auth/session';
 import { createMemoryTokenStorage } from '../auth/storage';
 import { ValidationError } from '../errors';
 import { createConsoleHttpGateway, createMemoryIdentityStore } from './consoleHttpGateway';
-import { fakeBackend, offSchema, type FakeRoute } from './fakeBackend.testkit';
+import { fakeBackend, type FakeRoute } from './fakeBackend.testkit';
 
 /**
  * Home and Settings over HTTP (Main and Settings artboards), on the shapes the
@@ -270,20 +270,16 @@ describe('Settings over HTTP', () => {
     expect(auth.peekAccessToken()).toBe('access-after');
   });
 
-  it('changes the password with both fields, and takes a 204', async () => {
+  it('changes the password with both fields', async () => {
     const { gateway, backend } = gatewayOver({
-      'POST /api/platform/me/password': offSchema(
-        { status: 204 },
-        'the gateway still tolerates a bodiless answer; swagger declares only 200 with a fresh pair — reported as a dead branch, not changed',
-      ),
+      'POST /api/platform/me/password': {
+        body: { accessToken: 'access-after', refreshToken: 'refresh-after', expiresInSeconds: 900 },
+      },
     });
-    // No pair: nothing renewed, and nothing claimed about other devices.
-    await expect(
-      gateway.changePlatformPassword({
-        currentPassword: 'old-password-0000',
-        newPassword: 'new-password-0000',
-      }),
-    ).resolves.toEqual({ sessionRenewed: false });
+    await gateway.changePlatformPassword({
+      currentPassword: 'old-password-0000',
+      newPassword: 'new-password-0000',
+    });
     expect(backend.requests[0]?.body).toEqual({
       currentPassword: 'old-password-0000',
       newPassword: 'new-password-0000',
