@@ -1,4 +1,5 @@
 import type { FieldViolation } from '../errors';
+import type { FloorChangeSignal } from './admission';
 import type { MenuItemDetail } from './ordering';
 
 /**
@@ -410,6 +411,17 @@ export function isTakeawayNotificationKind(
 
 function shift(instant: string, minutes: number): string {
   return new Date(Date.parse(instant) + minutes * 60_000).toISOString();
+}
+
+/**
+ * Whether a change-stream entry's signal asks for the takeaway counter (and
+ * the kitchen's queue, where an accepted order is a ticket) to be read again:
+ * `takeawayChanged` (8, 2026-10-26) — any takeaway order at the branch placed,
+ * accepted, declined, cancelled, ready, collected or not collected. Never
+ * folded into the floor: the row names no table and no order.
+ */
+export function readsTakeawayCounter(signal: FloorChangeSignal | null | undefined): boolean {
+  return signal === 'takeawayChanged';
 }
 
 /** Still moving: sent, accepted or ready. The Orders tab lists these first; the status screen polls. */

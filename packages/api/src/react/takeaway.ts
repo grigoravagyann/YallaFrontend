@@ -1,5 +1,4 @@
 import { useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query';
-import { APPROVAL_POLL_MS } from '../contracts/approvals';
 import {
   isTakeawayActive,
   type AcceptTakeawayOrderCommand,
@@ -42,10 +41,13 @@ export const TAKEAWAY_ORDER_ACTIVE_POLL_MS = 20_000;
 /** The checkout's slots move by the quarter hour and with the kitchen's load. */
 export const TAKEAWAY_AVAILABILITY_POLL_MS = 60_000;
 /**
- * The counter: as often as the awaiting bookings, and for the same reason —
- * an order nobody accepts is declined by itself five minutes after it lands.
+ * The counter's fallback read (2026-10-26). Every move of a takeaway order
+ * writes `takeawayChanged` on the branch's change stream, which the floor
+ * follows every few seconds and which reads the counter again at once
+ * ({@link afterTakeawaySignal}); this slow poll is only for a stream that is
+ * not answering. It was ten seconds while takeaway wrote nothing there.
  */
-export const TAKEAWAY_COUNTER_POLL_MS = APPROVAL_POLL_MS;
+export const TAKEAWAY_COUNTER_POLL_MS = 60_000;
 
 /**
  * When to read the guest's order again: often while sent, less while it is
@@ -92,6 +94,17 @@ export function afterTakeawayAction(
         : counter,
     );
   }
+  void queryClient.invalidateQueries({ queryKey: queryKeys.takeawayOrders(branchId) });
+  void queryClient.invalidateQueries({ queryKey: queryKeys.orderQueue(branchId) });
+}
+
+/**
+ * The change stream said a takeaway order at the branch moved (`takeawayChanged`,
+ * 2026-10-26): the counter is read again, and the kitchen's queue, where an
+ * accepted order is a ticket. Nothing is patched from the row: it names no
+ * order.
+ */
+export function afterTakeawaySignal(queryClient: QueryClient, branchId: string): void {
   void queryClient.invalidateQueries({ queryKey: queryKeys.takeawayOrders(branchId) });
   void queryClient.invalidateQueries({ queryKey: queryKeys.orderQueue(branchId) });
 }
@@ -205,9 +218,10 @@ export function useCancelTakeawayOrder() {
 
 /**
  * The counter — the rail's "Takeaway · accept" cards, the Takeaway page's
- * three columns and the tab's badge (`sentCount + readyCount`). Polled every
- * ten seconds, **in the background too**: takeaway writes nothing to the
- * change stream, and an order nobody accepts runs out in five minutes.
+ * three columns and the tab's badge (`sentCount + readyCount`). Read again on
+ * the change stream's `takeawayChanged` (the floor's `useFloorLiveStream`);
+ * polled every minute, in the background too, as the fallback for a stream
+ * that is not answering — an order nobody accepts runs out in five minutes.
  */
 export function useTakeawayOrders(branchId: string | undefined, enabled = true) {
   const gateway = useStaffGateway();

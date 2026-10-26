@@ -80,6 +80,12 @@ export function applyFloorChanges(
     // flood S9 removed (review S1). The admission fold would also clear a
     // scan's waiting flag.
     if (change.signal === 'preOrderChanged') continue;
+    // A takeaway order moved (signal 8, 2026-10-26): a row about the counter,
+    // with no table, read again by the stream's handler. Nothing here to fold,
+    // and a whole-floor read per order placed or collected would be the flood
+    // again. A row with no table under a signal this build does not know is
+    // passed over too: there is no table to draw differently.
+    if (change.signal === 'takeawayChanged' || change.tableId === null) continue;
     const detail = details.get(change.tableId);
     // A table the client has never seen means the plan itself changed under us
     // — a table was added in the editor. Geometry does not arrive on this

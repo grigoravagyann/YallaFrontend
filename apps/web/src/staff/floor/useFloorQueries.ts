@@ -49,8 +49,9 @@ export function useFloorQueries(branchId: string, active: boolean, timeZoneId: s
   const duePreOrders = useMemo(() => preOrdersQuery.data?.items ?? [], [preOrdersQuery.data]);
   /**
    * The takeaway counter (2026-10-22): the rail's "Takeaway · accept" cards,
-   * the Takeaway page and its tab's count. Polled every ten seconds, in the
-   * background too — an order nobody answers is declined in five minutes.
+   * the Takeaway page and its tab's count. Read again on the change stream's
+   * takeaway signal (`useFloorLiveStream`, 2026-10-26), and polled every
+   * minute, in the background too, for a stream that is not answering.
    */
   const takeawayQuery = useTakeawayOrders(branchId, active);
   const takeawayCounter = takeawayQuery.data ?? null;

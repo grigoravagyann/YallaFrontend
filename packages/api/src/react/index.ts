@@ -56,6 +56,7 @@ export {
   afterTakeawayAction,
   afterTakeawayOrderChanged,
   afterTakeawaySettingsSaved,
+  afterTakeawaySignal,
   cancelTakeawayOrderOptions,
   placeTakeawayOrderOptions,
   takeawayActionOptions,

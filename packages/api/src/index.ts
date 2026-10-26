@@ -1117,6 +1117,7 @@ export {
   isTakeawayInProgress,
   isTakeawayNotificationKind,
   isTakeawayable,
+  readsTakeawayCounter,
   stepTakeawayReadyAtUtc,
   takeawayItemCount,
   takeawayNoShowFromUtc,
