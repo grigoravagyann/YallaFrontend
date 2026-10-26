@@ -81,16 +81,33 @@ function ReasonPicker<R extends string>(props: {
   );
 }
 
+/** A line menu's steps: the menu, voiding the line, voiding its whole order. */
+export type LineDialogStep = 'menu' | 'void' | 'voidOrder';
+
+/**
+ * The whole order a line is on, as the line menu offers to void it: what comes
+ * off the bill, said before the tap. Null where it is not offered — a role the
+ * server refuses, or an order the rail no longer lets go (ready, served).
+ */
+export interface OrderVoidOffer {
+  /** "2× Latte, 1× Cake": the order's dishes still on the bill. */
+  readonly dishes: string;
+  /** What they come to, formatted. */
+  readonly amount: string;
+}
+
 export function LineDialog(props: {
   readonly line: TabLine;
-  readonly step: 'menu' | 'void';
+  readonly step: LineDialogStep;
   readonly canComp: boolean;
   /** The tab has been paid against: the server refuses a void (a refund). */
   readonly paidAgainst: boolean;
   readonly heading: string;
-  readonly onStep: (step: 'menu' | 'void') => void;
+  readonly orderVoid: OrderVoidOffer | null;
+  readonly onStep: (step: LineDialogStep) => void;
   readonly onComp: () => void;
   readonly onVoid: (reason: VoidReason, detail?: string) => void;
+  readonly onVoidOrder: () => void;
   readonly onClose: () => void;
 }) {
   const { t } = useTranslation(['staff', 'common']);
@@ -100,17 +117,43 @@ export function LineDialog(props: {
   const [tried, setTried] = useState(false);
   // "Other" is a reason only with the words: the diner reads them.
   const complete = reason !== null && (reason !== 'other' || detail.trim().length > 0);
+  const paidNote = props.paidAgainst ? `${noteId}-paid` : undefined;
+  // An order that moved on while its confirm was up is no longer offered: back
+  // to the menu, never on to the line's reasons.
+  const step = props.step === 'voidOrder' && !props.orderVoid ? 'menu' : props.step;
+
+  if (step === 'voidOrder' && props.orderVoid) {
+    // As marking a tab unpaid: an alert with the amount in the warning,
+    // because "are you sure" without a number is a question nobody reads. No
+    // reason to pick: the server stamps its own on every line.
+    return (
+      <TabDialog heading={t('tab.voidOrderTitle')} alert onClose={props.onClose}>
+        <p className="ft-note ft-note-failure">
+          {t('tab.voidOrderWarn', { amount: props.orderVoid.amount })}
+        </p>
+        <p className="ft-dialog-note">{props.orderVoid.dishes}</p>
+        <div className="ft-dialog-row">
+          <button type="button" className="ft-btn ft-btn-secondary" onClick={props.onClose}>
+            {t('common:action.cancel')}
+          </button>
+          <button type="button" className="ft-btn ft-btn-danger-solid" onClick={props.onVoidOrder}>
+            {t('tab.voidOrderConfirm')}
+          </button>
+        </div>
+      </TabDialog>
+    );
+  }
 
   return (
     <TabDialog heading={props.heading} onClose={props.onClose}>
-      {props.step === 'menu' ? (
+      {step === 'menu' ? (
         <>
           <div className="ft-dialog-row">
             <button
               type="button"
               className="ft-btn ft-btn-secondary"
               disabled={props.paidAgainst}
-              aria-describedby={props.paidAgainst ? `${noteId}-paid` : undefined}
+              aria-describedby={paidNote}
               onClick={() => props.onStep('void')}
             >
               {t('tab.voidLine')}
@@ -121,11 +164,24 @@ export function LineDialog(props: {
               </button>
             ) : null}
           </div>
+          {props.orderVoid ? (
+            <div className="ft-dialog-row">
+              <button
+                type="button"
+                className="ft-btn ft-btn-secondary"
+                disabled={props.paidAgainst}
+                aria-describedby={paidNote}
+                onClick={() => props.onStep('voidOrder')}
+              >
+                {t('tab.voidOrder')}
+              </button>
+            </div>
+          ) : null}
           {/* Said before the tap rather than after a refusal: a void on a tab
               somebody has paid against is a refund, which the server refuses. */}
           {props.paidAgainst ? (
-            <p className="ft-dialog-note" id={`${noteId}-paid`}>
-              {t('tab.voidAfterPayment')}
+            <p className="ft-dialog-note" id={paidNote}>
+              {props.orderVoid ? t('tab.voidAfterPaymentOrder') : t('tab.voidAfterPayment')}
             </p>
           ) : null}
           <button type="button" className="ft-btn ft-btn-ghost" onClick={props.onClose}>

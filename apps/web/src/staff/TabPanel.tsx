@@ -11,13 +11,16 @@ import { useTranslation } from '@yalla/i18n';
 import { useId, useState } from 'react';
 import { CashKeypad, type CashOutcome } from './CashKeypad';
 import { OverlayBar } from './OverlayBar';
-import { AbandonDialog, CompDialog, LineDialog } from './tab/TabDialogs';
+import { AbandonDialog, CompDialog, LineDialog, type LineDialogStep } from './tab/TabDialogs';
 import { TabLines } from './tab/TabLines';
 import { TabMoney } from './tab/TabMoney';
 import {
+  canVoidOrders,
   cashAmountFor,
   chosenBillRequest,
   isTabManager,
+  orderLinesOf,
+  orderVoidable,
   tabSums,
   wholeMinutesSince,
 } from './tab/tabRules';
@@ -44,11 +47,14 @@ export { isTabManager } from './tab/tabRules';
  *
  * ## Who may do what (HANDOFF §3, decided by the user)
  *
- * A waiter and above takes cash (with the tip), voids a line with a reason and
- * answers the bill request. A manager and above alone comps a line, takes a
- * percentage or an amount off the whole tab, and marks it unpaid — the server's
- * `ManagerOrAbove`. A waiter does not see those three at all; one muted line
- * where they would be says who does.
+ * A waiter and above takes cash (with the tip), voids a line with a reason,
+ * voids a whole order still new or in the kitchen (the server stamps its own
+ * reason on the lines, so none is asked) and answers the bill request. A
+ * manager and above alone comps a line, takes a percentage or an amount off
+ * the whole tab, and marks it unpaid — the server's `ManagerOrAbove`. A
+ * waiter does not see those three at all; one muted line where they would be
+ * says who does. The kitchen, which the server refuses a whole-order void, is
+ * not offered one.
  *
  * ## One snapshot
  *
@@ -84,6 +90,8 @@ export interface TabPanelProps {
    */
   readonly billRequests?: readonly ServiceRequest[];
   readonly onVoid: (line: TabLine, reason: VoidReason, detail?: string) => void;
+  /** Void the whole order this line is on, with every line of it still on the bill. */
+  readonly onVoidOrder: (line: TabLine) => void;
   readonly onAdjust: (input: {
     lineId: string | null;
     kind: AdjustmentKind;
@@ -121,7 +129,7 @@ export interface TabPanelProps {
 }
 
 type Dialog =
-  | { readonly kind: 'line'; readonly line: TabLine; readonly step: 'menu' | 'void' }
+  | { readonly kind: 'line'; readonly line: TabLine; readonly step: LineDialogStep }
   | { readonly kind: 'comp'; readonly line: TabLine | null }
   | { readonly kind: 'abandon' };
 
@@ -153,6 +161,7 @@ export function TabPanel(props: TabPanelProps) {
   const [billChoice, setBillChoice] = useState<string | null>(null);
 
   const isManager = isTabManager(role);
+  const canVoidOrder = canVoidOrders(role);
   const totals = tab?.totals;
   const billRequests = (props.billRequests ?? []).filter((request) => request.bill !== null);
   // A pick that has since been handled elsewhere falls back to the newest.
@@ -188,6 +197,18 @@ export function TabPanel(props: TabPanelProps) {
   const minutesOpen = tab ? wholeMinutesSince(now, tab.openedAtUtc) : 0;
 
   const lineActions = !online || closed;
+
+  /** The whole order a line is on, when it may be voided: what comes off, said before the tap. */
+  const orderVoidFor = (opened: TabLine) => {
+    // As the tab reads now: an order that went on to ready meanwhile is no longer offered.
+    const line = lines.find((entry) => entry.id === opened.id) ?? opened;
+    if (!canVoidOrder || line.status !== 'active' || !orderVoidable(line)) return null;
+    const orderLines = orderLinesOf(lines, line.orderId);
+    return {
+      dishes: orderLines.map((entry) => `${entry.quantity}× ${entry.name}`).join(', '),
+      amount: format.dram(orderLines.reduce((sum, entry) => sum + entry.lineTotalDram, 0)),
+    };
+  };
 
   return (
     <div
@@ -271,7 +292,7 @@ export function TabPanel(props: TabPanelProps) {
         </div>
       )}
 
-      {/* --- A line's menu, and voiding it --------------------------------- */}
+      {/* --- A line's menu, and voiding it or its whole order --------------- */}
       {dialog?.kind === 'line' ? (
         <LineDialog
           key={dialog.line.id}
@@ -280,10 +301,15 @@ export function TabPanel(props: TabPanelProps) {
           canComp={isManager}
           paidAgainst={paidAgainst}
           heading={`${dialog.line.quantity}× ${dialog.line.name} · ${format.dram(dialog.line.lineTotalDram)}`}
+          orderVoid={orderVoidFor(dialog.line)}
           onStep={(step) => setDialog({ ...dialog, step })}
           onComp={() => setDialog({ kind: 'comp', line: dialog.line })}
           onVoid={(reason, detail) => {
             props.onVoid(dialog.line, reason, detail);
+            setDialog(null);
+          }}
+          onVoidOrder={() => {
+            props.onVoidOrder(dialog.line);
             setDialog(null);
           }}
           onClose={() => setDialog(null)}

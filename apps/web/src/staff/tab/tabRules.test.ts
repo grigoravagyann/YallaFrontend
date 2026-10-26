@@ -2,10 +2,13 @@ import type { ServiceRequest, StaffTab, TabAdjustment, TabLine, TabTotals } from
 import { describe, expect, it } from 'vitest';
 import {
   NO_REQUEST,
+  canVoidOrders,
   cashAmountFor,
   chosenBillRequest,
   initialsOf,
   lineStage,
+  orderLinesOf,
+  orderVoidable,
   tabSums,
   wholeMinutesSince,
 } from './tabRules';
@@ -134,5 +137,34 @@ describe('wholeMinutesSince', () => {
 
   it('never goes below zero for an instant still ahead', () => {
     expect(wholeMinutesSince(now, '2026-10-26T19:45:00Z')).toBe(0);
+  });
+});
+
+describe('voiding a whole order', () => {
+  it('is every floor role but the kitchen, as the server allows it', () => {
+    expect(
+      ['waiter', 'manager', 'generalManager', 'owner', 'platformAdmin'].map((role) =>
+        canVoidOrders(role as Parameters<typeof canVoidOrders>[0]),
+      ),
+    ).toEqual([true, true, true, true, true]);
+    expect(canVoidOrders('kitchen')).toBe(false);
+  });
+
+  it('is only from new or in the kitchen, as the rail allows it', () => {
+    expect(orderVoidable(line('a', { orderStatus: 'new' }))).toBe(true);
+    expect(orderVoidable(line('a', { orderStatus: 'inKitchen' }))).toBe(true);
+    expect(orderVoidable(line('a', { orderStatus: 'ready' }))).toBe(false);
+    expect(orderVoidable(line('a', { orderStatus: 'served' }))).toBe(false);
+    expect(orderVoidable(line('a', { orderStatus: 'voided' }))).toBe(false);
+  });
+
+  it("takes off the order's lines still on the bill, and nobody else's", () => {
+    const lines = [
+      line('a', { orderId: 'o1' }),
+      line('b', { orderId: 'o1', status: 'voided' }),
+      line('c', { orderId: 'o2' }),
+      line('d', { orderId: 'o1' }),
+    ];
+    expect(orderLinesOf(lines, 'o1').map((entry) => entry.id)).toEqual(['a', 'd']);
   });
 });

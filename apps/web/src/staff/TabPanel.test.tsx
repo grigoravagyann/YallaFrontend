@@ -185,6 +185,7 @@ function show(role: UserRole, overrides: Partial<TabPanelProps> = {}) {
     cashRefusal: null,
     billRequests: [],
     onVoid: vi.fn(),
+    onVoidOrder: vi.fn(),
     onAdjust: vi.fn(),
     onCash: vi.fn(async () => ({ kind: 'recorded' as const, tabClosed: false })),
     onAskForBill: vi.fn(),
@@ -595,6 +596,126 @@ describe('a bill request from the app', () => {
     fireEvent.click(within(panel).getByRole('radio', { name: 'None of these' }));
     expect(
       within(panel).getByRole('button', { name: named(`Take cash · ${dram(33_000)}`) }),
+    ).toBeTruthy();
+  });
+});
+
+describe('voiding a whole order', () => {
+  // A second order, still in the kitchen: the latte, a tea, and a dish of it
+  // voided on its own earlier, which takes nothing more off.
+  const SECOND: StaffTab = {
+    ...TAB,
+    lines: [
+      ...LINES.filter((entry) => entry.id !== 'latte'),
+      line({
+        id: 'latte',
+        orderId: 'o2',
+        name: 'Latte',
+        quantity: 2,
+        unitPriceDram: 1_400,
+        lineTotalDram: 2_800,
+        orderStatus: 'inKitchen',
+      }),
+      line({
+        id: 'tea',
+        orderId: 'o2',
+        name: 'Tea',
+        unitPriceDram: 1_200,
+        lineTotalDram: 1_200,
+        orderStatus: 'inKitchen',
+      }),
+      line({
+        id: 'juice',
+        orderId: 'o2',
+        name: 'Juice',
+        unitPriceDram: 1_600,
+        lineTotalDram: 0,
+        status: 'voided',
+        voidReason: 'Spilled',
+        orderStatus: 'inKitchen',
+      }),
+    ],
+  };
+
+  it.each(['waiter', 'manager', 'generalManager', 'owner'] as const)(
+    'is offered to a %s for an order still in the kitchen',
+    (role) => {
+      const { lineMenu } = show(role, { tab: SECOND });
+      const menu = lineMenu('Latte');
+      expect(within(menu).getByRole('button', { name: 'Void the whole order' })).toHaveProperty(
+        'disabled',
+        false,
+      );
+    },
+  );
+
+  it('is offered for a new order too', () => {
+    const { lineMenu } = show('waiter', {
+      tab: { ...TAB, lines: [line({ id: 'soup', name: 'Soup', orderStatus: 'new' })] },
+    });
+    expect(
+      within(lineMenu('Soup')).getByRole('button', { name: 'Void the whole order' }),
+    ).toBeTruthy();
+  });
+
+  it('is never offered to the kitchen, which the server refuses', () => {
+    const { lineMenu } = show('kitchen', { tab: SECOND });
+    const menu = lineMenu('Latte');
+    expect(within(menu).queryByRole('button', { name: 'Void the whole order' })).toBeNull();
+  });
+
+  it.each([
+    ['ready', 'Cake'],
+    ['served', 'Steak'],
+  ] as const)('is not offered once the order is %s: the rail no longer lets it go', (_, name) => {
+    const { lineMenu } = show('manager');
+    const menu = lineMenu(name);
+    expect(within(menu).getByRole('button', { name: 'Void the line' })).toBeTruthy();
+    expect(within(menu).queryByRole('button', { name: 'Void the whole order' })).toBeNull();
+  });
+
+  it('asks first, saying what comes off: only the dishes still on the bill', () => {
+    const { props, lineMenu } = show('waiter', { tab: SECOND });
+    const menu = lineMenu('Latte');
+    fireEvent.click(within(menu).getByRole('button', { name: 'Void the whole order' }));
+
+    const confirm = screen.getByRole('alertdialog', { name: 'Void the whole order?' });
+    expect(text(confirm)).toContain(`${dram(4_000)} comes off the bill`);
+    expect(within(confirm).getByText('2× Latte, 1× Tea')).toBeTruthy();
+    // No reason to pick: the server stamps its own on every line.
+    expect(within(confirm).queryByRole('button', { name: 'Wrong item' })).toBeNull();
+
+    fireEvent.click(within(confirm).getByRole('button', { name: 'Cancel' }));
+    expect(screen.queryByRole('alertdialog')).toBeNull();
+    expect(props.onVoidOrder).not.toHaveBeenCalled();
+  });
+
+  it('voids the order the line is on once confirmed, and closes', () => {
+    const { props, lineMenu } = show('waiter', { tab: SECOND });
+    fireEvent.click(within(lineMenu('Tea')).getByRole('button', { name: 'Void the whole order' }));
+    const confirm = screen.getByRole('alertdialog', { name: 'Void the whole order?' });
+    fireEvent.click(within(confirm).getByRole('button', { name: 'Void the order' }));
+
+    expect(props.onVoidOrder).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 'tea', orderId: 'o2' }),
+    );
+    expect(props.onVoid).not.toHaveBeenCalled();
+    expect(screen.queryByRole('alertdialog')).toBeNull();
+  });
+
+  it('is not offered after the tab was paid against, and says why', () => {
+    const { lineMenu } = show('waiter', {
+      tab: { ...SECOND, totals: { ...SECOND.totals, paidDram: 5_000, remainingDram: 28_000 } },
+    });
+    const menu = lineMenu('Latte');
+    expect(within(menu).getByRole('button', { name: 'Void the whole order' })).toHaveProperty(
+      'disabled',
+      true,
+    );
+    expect(
+      within(menu).getByText(
+        'This tab has been paid against, so neither a line nor the order can be voided now.',
+      ),
     ).toBeTruthy();
   });
 });
