@@ -55,9 +55,11 @@ before exploring; the README has the long-form reasons. Backend: `grigoravagyann
 - `scripts/` — `dev-stack.mjs` (+ `dev-stack/lib.mjs`), `e2e-local.sh`,
   `check-swagger-drift.mjs`, `check-architecture.mjs` (see Architecture checks). `verify.sh`
   runs CI's build gates locally (Git Bash).
-- Design sources: `docs/design/{console,venue-console,floor-tablet,public-page}/HANDOFF.md`.
-  `DESIGN.md` predates SHURJ; where it disagrees, `packages/tokens/src/console.ts` and
-  `apps/diner/src/theme/colors.ts` win.
+- Design sources: `DESIGN.md` (the SHURJ system: palettes, roles, contrast, type, touch
+  targets) and `docs/design/{console,venue-console,floor-tablet,public-page}/HANDOFF.md`.
+  The handoffs predate SHURJ's colours; where any doc disagrees, `packages/tokens/src/console.ts`
+  and `apps/diner/src/theme/colors.ts` win. `packages/tokens/src/designDoc.test.ts` fails on a
+  hex in `DESIGN.md` that no token file assigns.
 
 ## Golden rules
 
