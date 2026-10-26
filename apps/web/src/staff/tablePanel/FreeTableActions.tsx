@@ -78,7 +78,7 @@ export function FreeTableActions({
         // A booking whose party has not turned up. Nothing here expires
         // on its own, and nothing here is a default.
         <section className="tp-late" aria-label={t('table.late.title')}>
-          <Warn tone="blue">
+          <Warn tone="held">
             {t('table.late.body', { time: bookingWhen, late: lateText(t, lateBy ?? 0) })}
           </Warn>
           <div className="tp-acts">

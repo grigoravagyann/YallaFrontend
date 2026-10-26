@@ -5,7 +5,7 @@ import { useId } from 'react';
 
 /** Each state's pill: waiting is amber, the kitchen's green, the rest grey. */
 const PILL: Readonly<Record<PreOrderState, string>> = {
-  editable: 'yc-pill yc-pill-blue',
+  editable: 'yc-pill yc-pill-waiting',
   locked: 'yc-pill yc-pill-amber',
   sent: 'yc-pill yc-pill-green',
   notComing: 'yc-pill yc-pill-grey',

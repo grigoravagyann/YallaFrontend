@@ -118,7 +118,7 @@ describe('the manage page, as the Manage artboard draws it', () => {
     expect(screen.getByText(/^Free cancellation until /u)).toBeTruthy();
   });
 
-  it('a request still waiting: blue, never green — badge, dashed code and the countdown', async () => {
+  it('a request still waiting: burgundy, never green — badge, dashed code and the countdown', async () => {
     const harness = createHarness();
     const { token } = await tokenOf(harness);
     render(harness.wrap(<PublicApp />, `/booking/${token}`));

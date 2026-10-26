@@ -299,7 +299,7 @@ export function BookingDone({ booking, branch, onClose, onChooseAnotherTime }: B
         {/*
           Large and legible: staff ask for this at the door and it gets read
           aloud over the phone, so it is the one thing here that has to survive
-          a noisy room. Pending must never look confirmed: dashed blue.
+          a noisy room. Pending must never look confirmed: dashed burgundy.
         */}
         {kind === 'declined' ? null : (
           <div className={kind === 'pending' ? 'pub-sheet-code is-pending' : 'pub-sheet-code'}>

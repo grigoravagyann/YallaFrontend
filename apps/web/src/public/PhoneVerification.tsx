@@ -504,7 +504,7 @@ export function PhoneVerification({
         ) : null}
 
         {telegram ? (
-          <SheetNote tone="blue">
+          <SheetNote tone="waiting">
             {/* "Fastest" only beside a slower door. */}
             {sms ? tp('sheet.phone.telegramNote') : tp('sheet.phone.telegramOnly')}
           </SheetNote>

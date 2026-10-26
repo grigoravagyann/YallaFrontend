@@ -4341,7 +4341,7 @@ body:has(.yc-savebar) .yc-toast-region {
   text-align: center;
 }
 
-.yc-pill-blue {
+.yc-pill-waiting {
   background: var(--console-waiting-bg);
   color: var(--console-waiting);
 }
