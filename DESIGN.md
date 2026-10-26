@@ -1,662 +1,445 @@
-# Yalla — design system
+# SHURJ — design system
 
-Table reservation and in-app ordering for restaurants and cafés in Yerevan.
-Four surfaces, one token package: `@yalla/tokens`. Everything in this document
-is expressed there as plain TypeScript, with no framework imports, because
-React Native and the web both consume it.
+Table reservation, ordering and the bill for restaurants and cafés in Yerevan,
+under the SHURJ brand (the code and packages are still named Yalla). Five
+surfaces read two sets of tokens:
+
+| Surface                                                                 | Colours, sizes, radii, type                                  |
+| ----------------------------------------------------------------------- | ------------------------------------------------------------ |
+| Platform console, venue console, floor tablet, staff phone, public page | `packages/tokens/src/console.ts` → `--console-*` CSS         |
+| Diner app (Expo, React Native)                                          | `apps/diner/src/theme/*` (`colors`, `radius`, `typography`…) |
+
+Both share the rest of `@yalla/tokens`: the 4px `space` scale, `touchTarget`,
+the font families and weights, motion, and the contrast helpers. This file
+describes those tokens. When it and a token file disagree, the token file is
+right and this file is out of date. Every hex below is a value one of those
+files assigns, and `packages/tokens/src/designDoc.test.ts` fails if one is not.
 
 ---
 
 ## The thesis
 
-**Chroma means one of two things: what state a table is in, or the single
-element you are meant to act on. Nothing else in the product is coloured.**
+**Chroma means one of two things: what state something is in, or the single
+element you are meant to act on. Nothing else is coloured.**
 
-Five hues carry table state — free, reserved soon, held, occupied, out of
-service. The accent carries action: a beige fill on the primary button, the
-active navigation item and a selected option, and nowhere else. Everything in
-between — body text, headings, metrics, chart fills, borders — is neutral.
+The page is white, text is charcoal, lines are warm hairlines. The Black Cherry
+fills the one thing to press and marks where you are. Green, amber, red,
+burgundy and grey say what state a booking, a table, a ticket or a venue is
+in. Headings, metrics, a chart's resting bars and cards are neutral.
 
-The thing a person should remember after using Yalla once is _the room, live_ —
-that you can see which tables are free right now. So the room keeps most of the
-colour budget, and the one hue spent outside it is spent on the one place a
-person is being asked to do something.
+There is **no blue in SHURJ**. Waiting and held are burgundy, confirmed is
+green. Only two blues exist, and each is a convention people already know:
+the map's "you are here" dot (`colors.location` `#4C8DFF`) and the "Confirm
+with Telegram" button (`consoleColor.publicTelegram` `#2A6FB0`).
 
-### Why the accent is beige, and why it is a fill and never a line
+## The brand
 
-The reference this system follows leads with a confident mint-green accent. We
-cannot use it, and the reason is the most important constraint in the product.
+| Role             | Token                                                  | Value     |
+| ---------------- | ------------------------------------------------------ | --------- |
+| Black Cherry     | `consoleColor.brand`, `colors.brand` / `primary`       | `#4B0C18` |
+| Ivory on cherry  | `consoleColor.brandForeground`, `colors.onPrimary`     | `#FFF7EA` |
+| Logo burgundy    | `colors.logoInk`, `consoleColor.control` / `brandBusy` | `#6B1121` |
+| Cherry, pressed  | `consoleColor.brandHover`, `colors.brandPressed`       | `#3A0912` |
+| Cherry tint      | `consoleColor.brandTint`, `colors.primarySoft`         | `#F2E4E6` |
+| Ground           | `consoleColor.canvas` / `surface`, `colors.background` | `#FFFFFF` |
+| Text             | `consoleColor.ink`, `colors.text`                      | `#2D2927` |
+| Done / confirmed | `consoleColor.green`                                   | `#0F6A4B` |
 
-`free` on a floor plan is green. A green primary button beside green free tables
-teaches people that green means nothing in particular, and the floor plan is the
-one screen where a colour has to mean exactly one thing.
+**The cherry is a fill or a line.** As a fill it carries ivory (14.47:1). As
+text or a glyph on white it is 15.39:1, so a link, a price or the active tab's
+label can be cherry too.
 
-The system this replaces knew that. It used a _deep_ green for the brand and a
-_bright_ green for free tables, kept apart by lightness, plus a
-`primaryOnFloorPlan` token that swapped the button to ink whenever a floor plan
-was on screen. It worked. It also meant the accent was never confident on the
-screens that mattered most, and every new screen had to remember the swap.
+**The logo burgundy is an edge.** On the web, every input's and secondary
+button's edge is `#6B1121`: 12.16:1 on white, far past the 3:1 a control
+boundary owes. A hovered edge darkens to the cherry. In the diner app the same
+burgundy draws the wordmark, the Explore header's glyphs, and the edges of the
+search, the category chips and the "Awaiting venue" pill.
 
-The first version of this system deleted the exception by making **ink** the
-accent: no hue at all, so nothing to confuse. That was correct about the floor
-plan and wrong about the console. A progress bar filled with `#131A22` reads as
-a redaction rather than a measure, an ink nav item does not announce itself, and
-the strongest value in the palette ended up spent on data nobody is being asked
-to act on. A violet accent (`#6A38C7`) followed; it has since been replaced by
-the brand beige.
+**Ivory, not white, sits on dark grounds**: the sidebar, the bars, the toast,
+a photo. Pure white is kept for the page and for the label on red or on the
+Telegram blue.
 
-The accent is `#C3B59F`, and one number decides how it may be used: it is
-**2.01:1 on white** and 1.86:1 on `paper`. So it splits into two tokens:
+### The wordmark
 
-- **`primary` `#C3B59F` is only ever a fill** — primary buttons, the active nav
-  item, selected options, progress. The label on it is always ink `#131A22`
-  (8.70:1). **White is never set on it** (2.01:1).
-- **`primaryInk` `#6B5C45` is the same hue darkened** for everything that is a
-  line: text, icons, links, outlines, focused-field edges, rules. 6.48:1 on
-  white, 5.99 on paper, 5.49 on `accentTint` — past 4.5 for text, so past 3
-  for UI boundaries too.
+The name is always the logo's own lettering as an image, never typed in a font.
 
-At 0.14 chroma the beige is a warm neutral rather than a hue, below the 0.15
-line the tests call grey. That is what keeps it off the floor plan's colour
-channel: every chromatic table state is above 0.4. Its hue (37) is 3 degrees
-from `reservedSoon` amber, so hue separates nothing — saturation and shape do,
-and both are asserted in `contrast.test.ts`.
-
-`primaryOnFloorPlan` survives as a token because screens import it. It is the
-same beige fill; what a control beside a plan adds is a `primaryInk` edge,
-because the fill alone is 1.03:1 from the composited out-of-service grey and the
-edge is 3.13:1.
+- **Web**: `apps/web/src/components/Wordmark.tsx` renders
+  `src/assets/shurj-wordmark.png` in ivory, with `t('appName')` as its `alt`.
+  It always sits on a dark ground: the console sidebar (`sidebar`
+  `#3A0912`), the floor tablet's and the staff phone's bar, the public page's
+  bar, and the sign-in photo.
+- **Diner**: `ExploreHeader` draws `assets/images/explore-wordmark.png` in the
+  logo burgundy on the white Explore header. It is 28px high and centred
+  between two round buttons of equal width.
 
 ---
 
-## The platform-admin console: an approved exception
+## Console palette
 
-On 2026-10-18 the user approved a darker look for the **platform-admin area**
-of the web console, and for the **sign-in and password pages** every console
-user passes through: a cream canvas, a dark-brown sidebar and a brown primary
-button. It replaces the beige fill there and nowhere else; the staff floor,
-the diner app and the public page keep everything below. The spec is
-`docs/design/console` (`HANDOFF.md`, the artboards, `source/_shell.css`).
+`console.ts` covers the platform console, the venue console, the floor tablet,
+the staff phone and the public page. `css.ts` writes each entry as a custom
+property (`consoleColor.brand` → `--console-brand`), and the stylesheets read
+only those. `consoleStyles.test.ts`, `staffStyles.test.ts` and
+`publicStyles.test.ts` fail on a colour typed into them.
 
-**On 2026-10-19 the venue console (owner, general manager, branch manager)
-joined it** (`docs/design/venue-console`). Both consoles are one shell,
-`apps/web/src/console/ui/ConsoleShell.tsx`: the venue console's sidebar is
-the same component with four headed groups, live counts on three links, the
-venue and branch panel under the brand, and the person at the foot opening My
-account. Its extra tokens: `sidebarGroup` (a group heading), `sidebarPanel`,
-`sidebarField` / `sidebarFieldText` (the branch switcher), `navBadge` /
-`navBadgeForeground` (a count), and `sidebarGrouped` (248px) /
-`navItemGrouped` (40px) for the wider, tighter grouped sidebar. Its screens
-keep their own markup until their redesign phases and wear these tokens
-through `.yc-legacy`, as they already did inside the platform's branch pages.
-Overview (phase 2, the Main artboard) adds `blue` on `blueBg` (a confirmed
-booking still to come: a state, not a warning), `loadBar` and `capacityLine`
-(the load chart's hours to come and its dashed "room full" line) and the
-20px `bookingTime` (a waiting booking's start). Reports (phase 5) adds
-`reportBar` (a bar of shares; a peak is `brand`, past the policy `amber`),
-`reportPreviousLine` (the previous period, dashed) and `reportArea` (the fill
-under this period's line, the brand at 7%). The bar and the line are darker
-than the artboards' #B89B7E and #B8A28A (2.62:1 and 2.45:1 on white), on
-purpose and for the reason the branch switcher's edge is lighter than theirs:
-a chart's marks are its message, so they are held to WCAG 1.4.11's 3:1 on a
-card (`#A08262` 3.58:1, `#9A8570` 3.52:1).
+| Token                                | Value                             | Role                                             |
+| ------------------------------------ | --------------------------------- | ------------------------------------------------ |
+| `canvas` / `surface`                 | `#FFFFFF`                         | The page; cards, dialogs, inputs                 |
+| `surfaceMuted` / `hover`             | `#FBF8F8` / `#F8F0F1`             | Table heads and inset boxes; a hovered row       |
+| `ink` / `muted`                      | `#2D2927` / `#605954`             | Text and secondary text                          |
+| `brand` / `brandHover` / `brandBusy` | `#4B0C18` / `#3A0912` / `#6B1121` | The primary button, links, the focus outline     |
+| `line` / `lineSoft`                  | `#EAE4E1` / `#F4F0EE`             | A card's edge; the divider inside a card         |
+| `control` / `buttonEdge`             | `#6B1121`                         | Input and secondary-button edges                 |
+| `switchOff`                          | `#8A817C`                         | A switch's track when off                        |
+| `sidebar` / `sidebarActive`          | `#3A0912` / `#5A1220`             | The sidebar and every dark bar; the current item |
+| `sidebarText` / `sidebarTextStrong`  | `#E3C7CC` / `#FFF7EA`             | Nav links; the current item, the name            |
+| `sidebarMuted`                       | `#D9B8BE`                         | The role line, group headings                    |
+| `sidebarField` / `sidebarFieldEdge`  | `#4B0C18` / `#B98F97`             | The branch switcher                              |
+| `navBadge` / `navBadgeForeground`    | `#E2B77A` / `#3A0912`             | A count on a nav link                            |
+| `green` on `greenBg`                 | `#0F6A4B` on `#E4F2EA`            | Done, active, saved, confirmed                   |
+| `amber` on `amberBg`                 | `#8A4B08` on `#FDF1DE`            | Not ready yet, needs attention. **Never red**    |
+| `red` on `redBg`, `redForeground`    | `#A8261B` on `#FCEAE7`, `#FFFFFF` | Real failures and destructive buttons only       |
+| `grey` on `greyBg`                   | `#57534E` on `#EEE8E1`            | Suspended, off, cancelled                        |
+| `blue` on `blueBg`                   | `#6B1121` on `#F2E4E6`            | Waiting. Burgundy, despite its name              |
+| `stepDone`, `star`                   | `#8A2335`                         | A finished step; a review's lit star             |
+| `chartBar`, `reportBar`              | `#6B1121`, `#A0717B`              | Chart bars; a peak is `brand`                    |
+| `toast` / `toastForeground`          | `#2D2927` / `#FFF7EA`             | Toasts and the rooms page's save bar             |
+| `photoGround` / `photoText`          | `#1A0508` / `#FFF7EA`             | Behind the sign-in photo; the text over it       |
+| `publicTelegram` / `…Foreground`     | `#2A6FB0` / `#FFFFFF`             | "Confirm with Telegram": one of the two blues    |
 
-The values are tokens like every other value in the product:
-`packages/tokens/src/console.ts`, emitted as `--console-*` custom properties
-(`consoleColor.brand` → `--console-brand`, `consoleSize.sidebar` →
-`--console-size-sidebar`). The console's stylesheet,
-`apps/web/src/console/ui/console.css`, reads only those, and
-`consoleStyles.test.ts` fails on a colour typed into it or into the redesign's
-components.
+The token named `blue` predates the rebrand. Its value is the logo burgundy,
+and the public page's pending badge and dashed pending code box read it.
+Treat it as "waiting".
 
-**The thesis still holds inside it: chroma means state or the one action.**
+The floor tablet adds its table cards on top (`floor*`): a tint per state, an
+edge in the state hue and an ink for the words. Held is the one state drawn in
+the brand: a white card with a dashed cherry edge.
 
-| Token                           | Value                             | Role                                                  |
-| ------------------------------- | --------------------------------- | ----------------------------------------------------- |
-| `canvas`                        | `#F7F1E8`                         | The page. Cream, so a white card lifts off it         |
-| `surface`                       | `#FFFFFF`                         | Cards, dialogs, inputs                                |
-| `sidebar` / `sidebarActive`     | `#2B1608` / `#4A2817`             | The 232px sidebar and its current item                |
-| `brand` / `brandForeground`     | `#3A1D0C` / `#FFF3E4`             | The primary button, links, the focus outline. 14.10:1 |
-| `ink` / `muted`                 | `#2A1A10` / `#6B5A4F`             | Text, 14.92:1 and 5.84:1 on the canvas                |
-| `line` / `lineSoft` / `control` | `#E8DDD0` / `#F1E9DF` / `#988169` | Card edges, dividers inside cards, input edges (3:1)  |
-| `buttonEdge`                    | `#D8C8B6`                         | A secondary button's edge: decoration, label says it  |
-| `amber` on `amberBg`            | `#8A4B08` on `#FDF1DE`            | Not ready yet. **Never red**                          |
-| `red` on `redBg`                | `#A8261B` on `#FCEAE7`            | Real failures and destructive buttons only            |
-| `green` on `greenBg`            | `#0F6A4B` on `#E4F2EA`            | Done, active, saved                                   |
-| `grey` on `greyBg`              | `#57534E` on `#EEE8E1`            | Suspended, off                                        |
-| `blue` on `blueBg`              | `#1D4E89` on `#E6EEF8`            | A confirmed booking still to come (venue Overview)    |
+| State          | Card      | Edge               | Words             |
+| -------------- | --------- | ------------------ | ----------------- |
+| Free           | `#E6F5EC` | `#35B37E`          | `#1E7350`         |
+| Booked soon    | `#FBF0DA` | `#C98A0E`, striped | `#8A5E08`         |
+| Held           | `#FFFFFF` | `#4B0C18`, dashed  | `#4B0C18`         |
+| Occupied       | `#F7E1E0` | `#B93B3B`          | `red` `#A8261B`   |
+| Out of service | `#ECEEF0` | `#8B95A1`, hatched | `muted` `#605954` |
 
-The rules the artboards were reviewed against, and that the screens keep:
+The tablet's bar shows the connection: `floorLive` `#5BC78F` when connected,
+`floorOffline` `#E2B77A` when offline (amber, never red), and `floorFailure`
+`#F08A80` when polls keep failing or a conflict needs deciding.
 
-- **Red is only for real failures**: a dead letter in the outbox, a server
-  error, a destructive button. A venue that is not ready is amber. Offline is
-  amber too: a dead connection is a state, not a fault.
-- **Type**: titles in the serif (`--font-family-display`: Noto Serif Armenian
-  merged with Noto Serif) at 28px for a page and 17px for a section; body in
-  the sans at 14px. Nothing in the console is under 12px. This is the one
-  place the serif is back in use — see _The serif is retired from the scale_
-  for the rest of the product.
-- **Sizes**: 40px buttons (32px small, 44px on the sign-in pages), 24px pills,
-  12px card corners, a 232px sidebar, 32/40px around the page.
-- **Cards here are outlined** (`line`), not lifted by a shadow: the cream
-  canvas is warm enough that a hairline reads as calm. Only dialogs and toasts
-  cast a shadow (`consoleShadow`).
-- Every text pair clears AA, and the focus outline 3:1, on every ground it
-  sits on; `packages/tokens/src/console.test.ts` holds each one.
+## Diner palette
 
-**Input edges are darker than the artboards (decided 2026-10-18).** The
-artboards drew every input with `#D8C8B6`, which is 1.63:1 on white. On an
-empty field the edge is the only thing that says "type here", and WCAG 1.4.11
-asks 3:1 of it, so `control` is now `#988169` (3.70:1 on white, 3.29:1 on the
-canvas, the same warm hue) and `controlHover` `#85705B`. A secondary button
-keeps the approved soft edge as `buttonEdge`: its label already says what it
-is. `console.test.ts` holds the input edge to 3:1 on every ground it sits on.
+`apps/diner/src/theme/colors.ts`. Light only: every screen, card, row, input
+and sheet is white, held by the `border` hairline. There are no grey fills.
+Screens import `colors` from `src/theme`, never the shared colour tokens;
+ESLint refuses them.
 
-**The branch switcher's edge is lighter than the artboard (decided
-2026-10-19)**, for the same reason: the venue artboards drew it `#4E2D1B`,
-1.40:1 on the sidebar, so `sidebarFieldEdge` is `#86664F` (3.30:1 on the
-sidebar, 3.06:1 on its own fill).
+| Token                                    | Value                             | Role                                                 |
+| ---------------------------------------- | --------------------------------- | ---------------------------------------------------- |
+| `background` / `surface` / `sheet`       | `#FFFFFF`                         | Every ground                                         |
+| `border` / `borderStrong`                | `#E7E0D7` / `#D9CFC3`             | Hairlines                                            |
+| `controlBorder`                          | `#CFC6C1`                         | The Explore avatar, Map pill, bell and search edge   |
+| `text` / `textMuted`                     | `#2D2927` / `#6E675F`             | Text and secondary text                              |
+| `textSubtle`                             | `#8A827A`                         | Placeholders and decoration only, never a sentence   |
+| `navLabel`                               | `#5E5750`                         | An idle tab's label                                  |
+| `brand` / `primary` / `accent`           | `#4B0C18`                         | The fill to press; cherry text; the active-tab glyph |
+| `onPrimary`                              | `#FFF7EA`                         | The label on a brand fill                            |
+| `primarySoft` / `secondary`              | `#F2E4E6`                         | The Preparing pill, pressed rows, initials avatars   |
+| `logoInk`                                | `#6B1121`                         | The wordmark and the Explore header's lines          |
+| `success` / `successSoft` / `successInk` | `#2FA352` / `#E3F2E7` / `#1F6B3A` | Open, free, confirmed, ready                         |
+| `warning` / `warningSoft` / `warningInk` | `#F09A2E` / `#FBEBD9` / `#8A4E12` | Reserved, in progress                                |
+| `error` / `errorSoft` / `errorInk`       | `#E5484D` / `#FDE7E6` / `#B42318` | Occupied, failed, the notification count             |
+| `info` / `infoSoft` / `infoInk`          | `#8A2335` / `#F2E4E6` / `#6B1121` | Waiting, pending, new. Burgundy, not blue            |
+| `neutralBadge` / `neutralSoft`           | `#6F6860` / `#EFEAE4`             | Closed, completed                                    |
+| `ratingStar` / `photoStar`               | `#B5772B` / `#F0B866`             | The star on white; the star on a photo's scrim       |
+| `onImage`                                | `#FFF8EF`                         | Text on a photo, over its dark scrim                 |
+| `location`                               | `#4C8DFF`                         | The map's "you" dot: one of the two blues            |
 
----
+**Fill, ink, strong.** Each state hue comes three ways:
 
-## Palette
+- **The bright fill** (`success`, `warning`, `error`, `info`) is a table
+  marker, a dot or a border. It is never text.
+- **Its `*Ink`** is the text colour, dark enough for 4.5:1 on white and on its
+  own `*Soft` tint.
+- **Its `*Strong`** (`#2F7A4B`, `#8A4A26`, `#B3282D`, `#4B0C18`, and
+  `neutralStrong` `#625C56`) is a solid badge's fill under its pale
+  `on*Strong` label.
 
-Every value below is in `packages/tokens/src/color.ts`. Nothing outside that
-file references a hex literal.
-
-### Ground and ink
-
-| Token              | Value     | Notes                                   |
-| ------------------ | --------- | --------------------------------------- |
-| `surface`          | `#FFFFFF` | Cards, sheets, the floor plan canvas    |
-| `paper`            | `#F4F6FA` | The page. Near-white, faint cool cast   |
-| `foreground`       | `#131A22` | Text. 17.52:1 on white. Not the accent  |
-| `mutedForeground`  | `#55606E` | Secondary. 6.39 on white, 5.91 on paper |
-| `subtleForeground` | `#646F7C` | Tertiary. 5.11 on white, 4.73 on paper  |
-
-`paper` is never pure white, because a white card has to read as lifted off the
-page and it cannot do that against white. The cast is blue rather than green: a
-cool ground sets off the warm accent and keeps the five state hues looking like
-the only other colour on screen.
-
-`subtleForeground` clears AA on `surface` and `paper` and **fails on both
-tints** (4.31:1 on `greenTint`, 4.34:1 on `accentTint`). That is deliberate and
-tested: tertiary text is never set on a tinted fill. Darkening it until it
-passed everywhere would collapse it into `mutedForeground` and leave the product
-with two text weights pretending to be three.
-
-### Lines
-
-| Token               | Value     | Owes                                                          |
-| ------------------- | --------- | ------------------------------------------------------------- |
-| `border`            | `#E2E8F0` | Nothing — a divider is decoration                             |
-| `borderSoft`        | `#EEF2F7` | The exception edge, see _Cards_                               |
-| `borderStrong`      | `#C4CCD8` | Outer edge of nested structure                                |
-| `borderInteractive` | `#79838F` | 3:1. A control boundary owes it: 3.85 on white, 3.56 on paper |
-
-### The accent
-
-| Token               | Value                                                               |
-| ------------------- | ------------------------------------------------------------------- |
-| `primary`           | `#C3B59F` — beige, a fill only. Ink on it 8.70:1; white 2.01, never |
-| `primaryPressed`    | `#AD9C80` — hover and pressed fill. Ink on it 6.54:1                |
-| `primaryForeground` | `#131A22` — ink, the label on both fills                            |
-| `primaryInk`        | `#6B5C45` — text, icons, borders, focus. 6.48 white, 5.99 paper     |
-| `accentTint`        | `#EFECE6` — hover and selected ground. Ink 14.86, `primaryInk` 5.49 |
-| `greenTint`         | `#E7ECF3` — kept under its old name, neutral, not the accent        |
-
-The two tints are not interchangeable: `greenTint` is the neutral fill behind a
-selected row or an icon tile, `accentTint` is the light ground for something in
-the accent's role that is not the primary action itself — a hovered nav item, a
-selected chip in an accent context. The active nav item is a **solid** beige
-with an ink label; the tint is the quieter step below it. The two tints are
-1.01:1 apart, so the tint is never the only signal that something is selected —
-a selected option also carries a border, weight or a visible control.
-`subtleForeground` is banned from both.
-
-`greenTint` is neither green nor beige. The name survives because nineteen
-screens import it and this was a change to one package. Renaming it is a
-follow-up.
-
-### Data
-
-Charts are neutral. The accent marks the one bar that is current, and nothing
-else in a chart is allowed to carry it.
-
-| Token            | Value                                                             |
-| ---------------- | ----------------------------------------------------------------- |
-| `dataFill`       | `#7D8896` — every bar, line and progress fill that is not current |
-| `dataFillActive` | `#C3B59F` — the accent fill. The current bar or progress, only    |
-| `dataTrack`      | `#E7ECF3` — the empty remainder of a bar. Nothing is read off it  |
-
-`dataFill` exists because the alternative was ink, and an ink progress fill
-reads as a redaction rather than a measure. A chart recedes, so the value is
-pushed as light as the rules allow and then stopped by one of them.
-
-**The track is the pin.** A bar owes 3:1 as a meaningful graphic, and it owes it
-against every ground it sits on — including `dataTrack`, the strip drawn behind
-a progress fill, which is the tightest of the three. `dataFill` reads 3.60:1 on
-white and 3.33 on paper but **3.03:1 on the track**, and one step lighter
-(`#7E8997`) measures 2.99 and fails. This is the lightest a bar can be and still
-be a bar; `contrast.test.ts` checks all three grounds, so the floor cannot be
-crossed by accident.
-
-Chroma 0.10, so it is not a table state either. It lands close to
-`borderInteractive` in value (3.60 against 3.85 on white) and that is fine —
-one is a 1px control boundary, the other a filled bar, and no text sits on
-either.
+`badges.ts` maps every badge variant to one of these.
 
 ---
 
-## The protected six
+## Semantic colour roles
 
-These are semantic, not decorative. They render identically on the diner phone,
-the staff tablet and the public page, and a legend on three surfaces is driven
-from these same tokens so it cannot drift from what the room draws.
+One meaning, one hue, on every surface.
 
-| State          | Hue             | Non-colour signal                             | Label |
-| -------------- | --------------- | --------------------------------------------- | ----- |
-| `free`         | `#35B37E` green | Flat fill, 1px hairline in the neutral border | ink   |
-| `reservedSoon` | `#C98A0E` amber | **Diagonal stripes**, 45°                     | ink   |
-| `held`         | `#3B6FD4` blue  | **Dotted border**, 1.5px, `[1,3]`             | white |
-| `occupied`     | `#B93B3B` red   | **2px border in its own darker hue**          | white |
-| `outOfService` | `#8B95A1` grey  | **Crosshatch** + 70% fill opacity             | ink   |
-| `yourPick`     | ink             | **Outside ring** in the canvas colour         | white |
+| Meaning                                       | Web (`consoleColor`)                                 | Diner (`colors`)                                                       |
+| --------------------------------------------- | ---------------------------------------------------- | ---------------------------------------------------------------------- |
+| The one action; the current place             | `brand` fill, `brandForeground`                      | `brand` fill, `onPrimary`; `accent` glyph                              |
+| Done, saved, active, confirmed, free          | `green` on `greenBg`; free tables `floorFree*`       | `success*`                                                             |
+| Not ready, needs attention, reserved, offline | `amber` on `amberBg`; `floorBooked*`, `floorOffline` | `warning*`                                                             |
+| Waiting on someone, held, pending, new        | `blue` (burgundy) on `blueBg`; `floorHeld*`          | `info*`; Preparing is `primarySoft`; Awaiting venue is edged `logoInk` |
+| Real failure, destructive, occupied           | `red` on `redBg`; `floorOccupied*`, `floorFailure`   | `error*`                                                               |
+| Off, suspended, closed, past                  | `grey` on `greyBg`                                   | `neutral*`                                                             |
 
-Two of these hues also exist as **text**, the way `primaryInk` does for the
-beige. The fills are fills: `free` green reads 2.46:1 on paper and the amber
-2.72, and the diner app was setting "4 tables free now" and "Paid 4 000 ֏" in
-them anyway. So each has an ink:
+### Never red for not-ready
 
-| Token        | Value                                                                    |
-| ------------ | ------------------------------------------------------------------------ |
-| `successInk` | `#1E7350` — `free` darkened until it is text. 5.36 white, 5.80 paper     |
-| `warningInk` | `#8A5E08` — `reservedSoon` darkened the same way. 5.27 white, 5.70 paper |
+Red means something failed or is about to be destroyed. Using it for "not yet"
+teaches people to ignore it before the day it matters.
 
-Both clear 4.5 on white, paper and both tints and keep the hue, so a green
-sentence still means a free table. A table on the plan and a badge fill keep the
-bright ones; a sentence about free tables or money already paid is set in the
-ink.
+- **Red is only for real failures**:
+  - a dead letter in the outbox, a server error, a wrong PIN or code;
+  - a table taken by someone else, a sync conflict, an allergen;
+  - a deadline about to be missed (a late kitchen ticket, an approval's last
+    minutes);
+  - a destructive button.
 
-### Why each hue survives beside the accent
+  On a floor, occupied is red too: it is the state hue the room has always
+  used.
 
-`contrast.test.ts` measures the accent against **all six** states.
+- **Not ready is amber**: a venue missing its dishes or hours, a sold-out
+  dish, a time that is only on request.
+- **Offline is amber.** A dead connection is a state, not a fault, and the
+  tablet keeps the actions to send later. Only polls that keep failing, or a
+  conflict someone has to decide, turn the bar's chip red.
+- **Waiting is burgundy**, never blue and never red: a booking awaiting the
+  venue, a held table, a code the venue has not answered yet.
+- **Who cancelled matters.** In the diner app, a booking the diner cancelled
+  is grey; one the venue cancelled, or a no-show, is red.
 
-**The four chromatic states are separated by saturation, not hue.** Every one
-carries a real hue (chroma > 0.4); the beige is 0.14, a warm neutral, and the
-test holds a gap of more than 0.25 to each. Hue angle would be the wrong
-measure: the beige sits at 37, 3 degrees from `reservedSoon` amber at 40.
+`console.test.ts` asserts that amber and the brand are not red, and that no
+floor state except occupied is drawn in red.
 
-**The two hueless states are separated by value.** `outOfService` (0.09) and
-`yourPick` (0.06) are greys too. `yourPick` is ink, 8.70:1 from the beige.
-`outOfService`, checked at the opacity it is drawn at (`#8B95A1` at 70%
-resolves to `#AEB5BD`), is **1.03:1** from the beige fill — so every accent
-control beside a plan carries a `primaryInk` edge, 3.13:1 from it. The test pins
-both numbers.
+### Colour is never the only signal
 
-**What is not separated is lightness against the chromatic states**, and the
-tests say so out loud: `free` green is 1.32:1 from the beige. Saturation carries
-it, and shape carries the rest: a button is a pill (`radius.pill`), a table is
-rectilinear (`radius.table` ≤ 2).
+A terrace in July washes out hue on any screen, and about one man in twelve
+has a red/green deficiency. Every state also says itself in words, and on the
+floor in its edge: booked cards are striped, held cards dashed, out-of-service
+cards hatched. Diner table markers carry their number in `onFill` `#1E0E07`,
+and a legend names each state.
 
-`yourPick` is **ink, deliberately not the accent.** It used to be the accent,
-back when the accent was ink. Keeping it ink is the stronger arrangement: the
-table a diner has chosen and the button that confirms the choice now differ in
-hue rather than in shape and position alone, so the two can sit on the same
-sheet without either explaining itself.
+---
 
-### Why every state also works in greyscale
+## Contrast
 
-A terrace in Yerevan in July is bright enough to wash out hue on any phone at any
-brightness, and roughly one man in twelve has a red/green deficiency. So hue is
-never the only signal: strip it and a pattern, a dash, a border weight, an
-opacity or a ring still names six different things. A test asserts the six
-treatments are pairwise distinct.
+WCAG 2.1 AA: **4.5:1 for text; 3:1 for a glyph that carries meaning or a
+control's boundary.** Every ratio below was computed with the package's own
+`contrastRatio`. A translucent token is checked composited over the
+brightest ground it can sit on. The tests hold each pair, so a hex cannot
+change underneath these numbers without a test failing.
 
-`free` and `occupied` are why that test exists. Both are a flat unpatterned fill,
-and until `occupied` took a heavier edge in its own hue, the two states a floor
-screen shows most often were separable by colour alone.
+### Web
+
+| Pair                                                                  | Ratio                 |
+| --------------------------------------------------------------------- | --------------------- |
+| `ink` `#2D2927` on white                                              | 14.40                 |
+| `muted` `#605954` on white / on `surfaceMuted`                        | 6.88 / 6.51           |
+| `brand` `#4B0C18` as a link on white                                  | 15.39                 |
+| Ivory `#FFF7EA` on `brand` / `brandHover` / `brandBusy`               | 14.47 / 16.08 / 11.43 |
+| `control` `#6B1121`, an input's edge, on white                        | 12.16                 |
+| `sidebarText` / ivory on `sidebar` `#3A0912`                          | 10.84 / 16.08         |
+| Ivory on `sidebarActive` `#5A1220`                                    | 12.80                 |
+| `sidebarMuted` / `sidebarFocus` `#F5D3D9` on the sidebar              | 9.41 / 12.38          |
+| `sidebarFieldEdge` on the sidebar / on its own field                  | 6.06 / 5.45           |
+| `navBadgeForeground` on `navBadge`                                    | 9.19                  |
+| `green` on `greenBg` / on white                                       | 5.71 / 6.60           |
+| `amber` on `amberBg` / on white                                       | 6.09 / 6.79           |
+| `red` on `redBg` / on white                                           | 6.11 / 7.10           |
+| White on `red` / on `redHover` `#8C1F16`                              | 7.10 / 9.04           |
+| `grey` on `greyBg` / on white                                         | 6.27 / 7.63           |
+| `blue` `#6B1121` on `blueBg` `#F2E4E6`                                | 9.85                  |
+| Ivory / `toastIcon` `#9FD9BD` / `toastAction` `#F5D3D9` on `toast`    | 13.54 / 9.01 / 10.43  |
+| `floorBarText` `#F3E8E9` on the bar                                   | 14.28                 |
+| `floorLive` / `floorOffline` / `floorFailure` on the bar              | 8.15 / 9.19 / 7.05    |
+| Each floor state's words on its own card (table above)                | 5.04 to 15.39         |
+| White on `publicTelegram` / on `publicTelegramHover` `#235D94`        | 5.25 / 6.85           |
+| `publicStar` `#8A5E08` on white                                       | 5.70                  |
+| Graphics on white: `switchOff`, `reportPreviousLine` (both `#8A817C`) | 3.81                  |
+| Graphics on white: `reportBar` / `publicOpenDot` `#2E9E5B`            | 4.08 / 3.41           |
+| Graphic: `publicStateIcon` `#8A807B` on `lineSoft`                    | 3.40                  |
+
+### Diner
+
+| Pair                                                     | Ratio                         |
+| -------------------------------------------------------- | ----------------------------- |
+| `text` / `textMuted` on white                            | 14.40 / 5.57                  |
+| `navLabel` on the 72% white bar, over white              | 7.11                          |
+| `primary` on white / on `primarySoft`                    | 15.39 / 12.47                 |
+| `onPrimary` on `brand` / on `brandPressed`               | 14.47 / 16.08                 |
+| `logoInk` on white / `infoInk` on `infoSoft`             | 12.16 / 9.85                  |
+| `successInk` on white / on `successSoft`                 | 6.52 / 5.62                   |
+| `warningInk` on white / on `warningSoft`                 | 6.61 / 5.66                   |
+| `errorInk` on white / on `errorSoft`                     | 6.57 / 5.56                   |
+| `neutralBadge` on white / on `neutralSoft`               | 5.49 / 4.59                   |
+| Strong badges: success, warning, error, info, neutral    | 5.10, 6.09, 6.45, 14.47, 5.97 |
+| `onFill` `#1E0E07` on `success` / `warning` / `error`    | 5.78 / 8.36 / 4.79            |
+| `onImage` on the deepest photo scrim, over a white photo | 10.82                         |
+| Glyph: `ratingStar` on white                             | 3.72                          |
+
+What deliberately does **not** pass, and so is never text:
+
+- **`textSubtle` is 3.78:1** on white. It is for placeholders, a chevron, an
+  empty photo's glyph. Darkened until it passed, it would be `textMuted`, and
+  the app would have two text weights pretending to be three.
+- **The bright state fills are not text.** `success` `#2FA352` is 3.24:1 on
+  white: a marker or a dot, never a sentence. "4 tables free" is set in
+  `successInk`.
+- **Hairlines owe nothing.** `border` (1.31:1) and `line` divide; they do not
+  identify a control. The diner's `controlBorder` is 1.68:1, so the Explore
+  controls it rings are recognised by their glyphs, drawn in `logoInk` at
+  12.16:1.
+
+`colors.ts` exports `textColors` (allowed as text) and `glyphColors` (allowed
+as a glyph that carries meaning). Adding a colour to either is a claim the
+contrast test checks.
 
 ---
 
 ## Typography
 
-**One family. Hierarchy from size, weight and colour.**
+**Two faces, three scripts.** The product ships in Armenian, Russian and
+English, and Armenian set in a fallback face is the fastest way to look
+foreign in the city it launches in.
 
-| Face          | Composition                                    | Weights                            |
-| ------------- | ---------------------------------------------- | ---------------------------------- |
-| `Yalla Sans`  | Noto Sans **merged with** Noto Sans Armenian   | 400, 500, 700                      |
-| `Yalla Serif` | Noto Serif **merged with** Noto Serif Armenian | 600, 700 — built, not in the scale |
+| Face          | Composition                                    | Weights       |
+| ------------- | ---------------------------------------------- | ------------- |
+| `Yalla Sans`  | Noto Sans **merged with** Noto Sans Armenian   | 400, 500, 700 |
+| `Yalla Serif` | Noto Serif **merged with** Noto Serif Armenian | 600, 700      |
 
-### Script coverage, and why this is not a compromise
+The faces are merged, not stacked. React Native does not fall through a font
+stack per character, Google's Latin Noto faces have no Armenian and no `֏`,
+and the Armenian ones have no Cyrillic. `packages/tokens/scripts/build-fonts.py`
+performs the merge and verifies that the dram sign survived the subset.
 
-The product ships in Armenian, Russian and English from day one, and Armenian is
-the priority on the staff and owner surfaces. Armenian set in a fallback face is
-the fastest way for this product to look foreign and badly translated in the city
-it launches in.
+The sans has no 600; asking for one synthesises it. React Native selects a
+face by name (`nativeFontFace`, `nativeDisplayFontFace`), and the diner's
+`Text` picks the face from the style's weight, so styles never set
+`fontFamily`.
 
-The faces are **merged, not stacked**, and that is the load-bearing decision.
-React Native does not fall through a font stack per character: a Latin-first face
-with an Armenian fallback silently renders boxes or a substitute in the diner
-app. Google's Latin Noto faces carry no Armenian and no `֏`; the Armenian faces
-carry no Cyrillic. Merging is the only way one family covers all three scripts.
+**The serif is for titles only**: page and section titles in the consoles,
+the venue's name and section titles on the public page, and the big screen
+titles and the place name in the diner app (`<Text display>`). Everything else
+is the sans. The shared step scale has no serif step (`displaySteps` is
+empty); the serif is reached by name.
 
-`scripts/build-fonts.py` performs the merge, and its verify step is what confirms
-the dram sign survived the subset. That verification is the reason this claim is
-a fact rather than an intention.
+| Where        | Sizes (px)                                                                                        |
+| ------------ | ------------------------------------------------------------------------------------------------- |
+| Consoles     | title 28 and section 17 (serif); body 14, label 13, caption 12, nav 15, KPI 26, booking time 20   |
+| Public page  | venue name 30, 40 from 960px, section 22, page state 26 (serif); body 16, meta 15, label 14       |
+| Diner        | title 32/38 and heading 22/28 (serif); h3 18/24, body 16/24 or 14/20, caption 12/16, metric 40/44 |
+| Floor tablet | the staff scale: base 18, steps 14, 16, 18, 22, 30, 40, metric 44                                 |
 
-Web fallback stack, for the seconds before the self-hosted face loads — chosen to
-be metrically close so the reflow is not a jolt:
+Nothing on the web is under 12px. Public-page inputs are 16px so iOS does not
+zoom on focus. The generated CSS sets the console scale on `:root`, the staff
+scale under `[data-surface='staff']`, and the diner scale under
+`[data-surface='diner']` (the public page).
 
-```
-'Yalla Sans', 'Noto Sans Armenian', 'Noto Sans', system-ui, -apple-system, 'Segoe UI', sans-serif
-```
-
-Any "nicer" Latin-first display face — Satoshi, General Sans, Fraunces — would be
-a downgrade here, not an upgrade. They have no Armenian.
-
-### The serif is retired from the scale
-
-`displaySteps` is now empty. The serif is still built and still exported, so
-bringing it back is a one-line change rather than a font rebuild. It is out of
-the scale because a serif heading above a metric card is the clearest tell that
-two design directions are fighting, and this system takes its hierarchy from size
-and weight inside one family.
-
-### Scale
-
-Three scales, because the three surfaces are read at different distances. Sizes
-in px; line heights rounded to whole pixels, because half-pixel leading blurs on
-Android.
-
-| Step         | console | diner  | staff  |
-| ------------ | ------- | ------ | ------ |
-| `xs`         | 11      | 12     | 14     |
-| `sm`         | 13      | 14     | 16     |
-| `md`         | 15      | 16     | 18     |
-| `lg`         | 18      | 20     | 22     |
-| `xl`         | 22      | 26     | 30     |
-| `xxl`        | 28      | 34     | 40     |
-| **`metric`** | **52**  | **40** | **44** |
-
-### Numbers are the hero
-
-`metric` sits outside the step scale on purpose. It is not the next heading size
-up; it is a different kind of thing, and giving it a step would invite its use as
-one. A metric is a figure with a small label above it and a change indicator
-beside it: covers taken, revenue, free tables, average tab.
-
-It is always set in `tabularNumbers` (`'tnum' 1`). Dram is whole-integer and
-commonly four to six digits, so a column of totals has to align on the digit — a
-bill where the digits do not line up looks wrong to everyone who reads one.
-
-The three metric sizes are deliberately **not** proportional to their surfaces'
-body sizes:
-
-- **console 52** is the largest. A dashboard leads with three numbers and has the
-  room for them.
-- **staff 44** is smaller than its body scale would imply, because on that
-  surface the floor plan is the hero and a 52px counter beside it would compete.
-- **diner 40** exists for a bill total. The diner surface never leads with a
-  figure.
-
-Tests assert that each surface's metric exceeds every step in its own body scale,
-that it leads tighter than body text, and that staff never outgrows console.
-
-**A money metric above five digits steps down to `xxl`.** This came out of the
-mockup rather than out of theory: `1 284 500 ֏` at the console metric of 52px
-does not fit a third-width card and wraps to two lines, and a hero number that
-wraps is not a hero number. Dram has no subunit, so six-digit weekly revenue is
-the normal case rather than the outlier — a system that only works for `240` has
-not been checked against the product's actual numbers. Group digits with a thin
-space, keep the `֏` on the same line, and never let the figure wrap.
+**Numbers are tabular.** Prices, times, table numbers and totals sit in
+columns, so they use `tabularNumbers` (`'tnum' 1`). Dram has no subunit and
+runs to six digits. Money is always `formatDram` ("1 400 ֏" in hy and ru,
+"1,400 ֏" in en), with the sign on the same line and a figure that never wraps.
 
 ---
 
 ## Spacing
 
-A 4px base. `0, 4, 8, 12, 16, 24, 32, 48, 64`, named `none` through `huge`.
+A 4px base, `space`: `none 0`, `xs 4`, `sm 8`, `md 12`, `lg 16`, `xl 24`,
+`xxl 32`, `xxxl 48`, `huge 64`. Staff screens take one step up for anything
+tappable (`stepUp`), computed from the scale so the two cannot drift.
 
-The rhythm never varies, which is what lets a dense screen stay readable. Cards
-take `xl` (24) of internal padding on console and diner, and `xxl` (32) on staff
-where a finger needs the margin.
+- **Consoles**: the main column pads 32 top and 40 at the sides on a desktop,
+  24 and 16 on a phone. The sidebar is 232px, or 248px for the venue console's
+  grouped sidebar.
+- **Diner** (`layout`): 16 page padding and tab-bar inset, 14 between stacked
+  cards, and 320px as the widest a centred paragraph runs.
+- **Public page**: mobile first at 390px, two columns from 960px, a 1180px
+  page with a 400px booking column, and 600px for single-column pages.
 
 ## Radius
 
-| Token        | Value | Use                                                            |
-| ------------ | ----- | -------------------------------------------------------------- |
-| `table`      | 2     | The floor plan stays rectilinear — a room is not made of pills |
-| `soft`       | 10    | Icon tiles, banners, code cells                                |
-| `card`       | 14    | Cards, every surface                                           |
-| `sheet`      | 20    | Bottom sheets, top corners only                                |
-| `cardAccent` | 28    | Retired — retained for one dev screen                          |
-| `pill`       | 999   | Buttons, inputs, chips, avatars                                |
+Radius is hierarchy: soft on what a person holds or presses, near-square on a
+table drawn as furniture.
 
-`card` came down from 24. A 24px corner on a 200px metric card is a lozenge; at
-14 a grid of cards reads as a grid. `cardAccent` was the swelling asymmetric
-corner of the organic direction this replaces, and nothing in the new system asks
-a card to be asymmetric.
+| Surface     | Values (px)                                                                 |
+| ----------- | --------------------------------------------------------------------------- |
+| Consoles    | card 12, control 10, small 8, dialog 14, sign-in card 16, tile 20, pill 999 |
+| Floor       | table card 14, button 12, tab 9                                             |
+| Public page | card 20, status card 16, control 12                                         |
+| Diner       | card 16, hero 20, sheet 24, tile 14, chip 12, search 22, small 8, pill 999  |
+| Shared      | `table` 2, `soft` 10, `card` 14, `sheet` 20, `pill` 999                     |
 
 ## Elevation
 
-Four recipes, ink-tinted at low alpha, never pure black. A pure-black shadow
-under a white card reads as a component library.
+**A card is held by its hairline, not lifted by a shadow.** On a white page an
+outline reads as calm; a shadow reads as a component kit.
 
-| Token   | Use                                                                 |
-| ------- | ------------------------------------------------------------------- |
-| `soft`  | Resting cards, primary buttons, icon containers                     |
-| `float` | Things that genuinely float: the web nav pill, popovers             |
-| `lift`  | A hovered card or a pressed button                                  |
-| `sheet` | `float` mirrored upward — a bottom sheet rises from the bottom edge |
+- **Consoles**: cards are outlined in `line`. Only things that float cast a
+  shadow (`consoleShadow`): a dialog, a toast, a row's menu, the phone around
+  the app-card preview, and a hovered card that opens something. The shadows
+  are the ink at low alpha, never black.
+- **Diner** (`shadows.ts`): `card` barely settles a card, `float` lifts the
+  tab bar and bottom cards, `sheet` rises from the bottom edge, `lift` holds a
+  map pin, and `brand` gives a cherry fill a soft cherry glow. They are all
+  the text colour `#2D2927` at low alpha, except `brand`, which is `brandGlow`
+  `#4B0C18`.
 
-The alphas are lower than the system they replace (0.08–0.12, down from
-0.14–0.20), because the ground moved closer to white and a shadow tuned for a
-tinted page is too heavy on this one.
+## Touch targets
 
----
+| Surface             | Rule                                                                                                                     |
+| ------------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| Diner               | 44 minimum (`layout.touchTarget`); controls 48, the one big press 56, action tiles 72                                    |
+| Floor tablet, phone | the staff sizes (`--touch-*`): primary actions 56 to 64 tall, every target at least 44×44 with 8 between; PIN keys 96×76 |
+| Public page         | buttons and controls 48, a page state's action 52, language buttons at least 48, table pins 44                           |
+| Consoles (pointer)  | buttons 40, small 32, 44 on the sign-in pages; nav links 44, or 40 in the grouped sidebar                                |
 
-## Cards
-
-**A card is white, on near-white, separated by elevation — not by a border.**
-
-This is the primary structural unit on every surface. A soft shadow on near-white
-is what lets a dense dashboard stay calm; a grid of outlined boxes reads as a
-form.
-
-`borderSoft` exists for the one exception: a card that must sit on `surface`
-rather than `paper` has no contrast for a shadow to work against and needs an
-edge after all. It is the softest line in the system so the exception never reads
-as the rule.
-
-### This is not fully delivered yet
-
-`.card` in `apps/web/src/index.css` currently sets _both_ a `soft` shadow and a
-`1px solid` border, and that file carries 71 `border:` declarations against 15
-`box-shadow`s. That is why the product reads as border-led today.
-
-Those lines live in screen CSS, and this task changed one package. **The screen
-migration is the next task**, and it is small: drop the border from `.card`, then
-work down the 71 and keep only the ones that are genuinely dividers or control
-boundaries. Until then the tokens describe the intended card and the screens do
-not yet draw it.
-
----
-
-## Per-surface degradation
-
-The reference is a desktop dashboard. Here is what each decision does on a phone
-and on a tablet held at arm's length.
-
-### Console — desktop browser, owners and managers, sitting down
-
-The reference direction lands here directly. Sidebar with quiet section
-headings, a solid beige active item with an ink label and secondary actions
-pinned to the bottom. Three metric cards across the top at `metric` 52, set in
-ink — a number is read, not pressed. Card padding `xl` (24).
-
-The console carries the beige fill on the active nav item, the primary button
-and selected options. Links, outlined buttons and focused fields use
-`primaryInk`. Everything else on the screen is ink, neutral or a table state.
-
-The platform admin's area is the exception described in _The platform-admin
-console_ above: the dark-brown sidebar with three destinations (Home, Venues,
-Settings), the brown primary button, the cream canvas. Below 800px its sidebar
-becomes a bar across the top — the brand and who is signed in on one line, the
-three destinations on the next — rather than a drawer: three links fit, and a
-phone keeps them one tap away. The sign-in pages put the room photo above the
-card below 960px.
-
-Sparklines, report charts and progress bars draw in `dataFill`, with
-`dataFillActive` on the one current bar, so a card reads as filled-versus-empty
-instead of as a block of redacted text.
-
-### Staff floor screen — 10-inch tablet, landscape, standing, during service
-
-- **Type floors at `md` 18.** Nothing on this surface is smaller than 14
-  (`xs`), and body never drops below 18. It is read from about two metres.
-- **Every control steps up to 56px** (`touchTarget.staff`), well beyond the 44
-  platform minimum. No control relies on hover; this surface has none.
-- **Card padding widens to `xxl` (32)**, because a finger needs the margin that a
-  cursor does not.
-- **The metric shrinks to 44**, against the console's 52. The floor plan is the
-  hero here and a bigger counter would compete with it.
-- **Portrait must not break.** Cards stack in one column; the floor plan keeps
-  its aspect and scales down rather than cropping.
-- **Destructive actions never sit adjacent to frequent ones.** A "void" beside a
-  "seat" is a mis-tap during a Friday rush. Separate them with at least `xl` (24)
-  or put them behind a confirm.
-- **Direct sunlight is the design condition**, which is why every state carries a
-  non-colour signal and why the label on the beige accent is ink (8.70:1), not
-  white (2.01:1): it has to clear AA at full brightness on a terrace.
-
-### Diner app — phone, portrait, ~380pt, often poor mobile data
-
-- **Cards stack to a single column** below roughly 480pt. They keep `card` 14 and
-  `xl` padding; the page gutter tightens to `lg` (16).
-- **Elevation stays but lightens in effect**, because a phone screen is closer to
-  the eye. No token change: the same `soft` reads lighter at that distance.
-- **Touch targets floor at 44** (`touchTarget.minimum`).
-- **The floor plan switches to area mode** on a narrow viewport rather than
-  shrinking the whole room — a thirty-table restaurant on a 380pt phone is
-  unreadable whole.
-- Poor data is a loading-state problem, not a token problem, but it is why the
-  system has no web fonts on the critical path beyond the two faces and why the
-  fallback stack is metrically close.
-
-### Public branch page — phone, from a shared link, a stranger's first impression
-
-Same phone rules as the diner app. One difference that matters: this page is
-often the first thing anyone sees of the product, and it is the surface where the
-thesis has to land in three seconds.
-
-**On 2026-10-20 the user approved its redesign onto the console palette**
-(`docs/design/public-page`): cream canvas, white cards, the brown primary
-button, serif titles — but its own dark-brown top bar (wordmark and language
-switch, sticky) instead of a sidebar, and mobile first at 390px with two
-columns from 960px (the booking column sticky on the right). It reads the
-`--console-*` tokens like the consoles, plus a few of its own in `console.ts`:
-`publicSkeleton`, `publicStateIcon`, `publicPhotoGround`, the open and closed
-dots, `public*` sizes (60px bar, 1180px page, 400px booking column, 48px
-buttons and controls, 52px on a page state's action) and `public*` type (body
-16, the venue's name 30/40, a section 22, a state 26, inputs never under 16).
-`public.css` reads these directly and never the product palette
-(`--color-*`), and `publicStyles.test.ts` fails on a colour typed into it or a
-product-palette variable read. Red is
-only for real failures; waiting is blue, needs-attention amber.
-
-Phase 2 added the header and details: `publicPhotoScrim` (the "All 7" tile and
-the gallery dialog's backdrop) and `publicPhotoCount` (the cover's "2 / 7"),
-both checked for cream text over a white photo, and `publicStar` for the
-rating's stars. A sold-out dish is an amber pill, not the artboard's red.
-Money is `formatDram` everywhere: "1 400 ֏" in hy and ru whatever number data
-the browser ships, "1,400 ֏" in en.
-
-Phase 3 added the booking card and the room, with no new tokens. The card is
-chips: 64px day chips (the brown fill when chosen), a 48px round stepper, a
-segmented day/evening switch and a four-column grid of 48px time chips — a full
-time struck on the soft line colour, an on-request one with an amber
-"on request" under it. A table pin is a 44px target holding a 34px dot with a
-14px number; the chosen one is the brown with a ring. The list view's rows use
-the green and amber backgrounds for free and booked, grey for the rest. A table
-lost to somebody else is the page's one red notice.
-Review fixes: the time grid drops to three columns at 380px and under, so
-"on request" fits a chip at 360; pins pinned closer than a 44px target are
-drawn apart (`pinLayout.ts`); the booking column stops being sticky when its
-content is taller than the window, and folds to a summary with "Change" while
-the booking panel is open in it. The new CSS sizes read the console tokens
-where one exists (`text-label`, `text-caption`, `text-booking-time`,
-`radius-control`, `radius-public-status`, the public control size).
-
-Phase 4 added the Book sheet and one token set, `publicTelegram` (Telegram's
-blue, a shade deeper, with `publicTelegramForeground` white on it at body
-contrast, and a deeper hover; checked in `console.test.ts`): the "Confirm
-with Telegram" button and the waiting ring. The sheet is the cream ground with
-white cards (the summary, the promise, the free tables), a progress line of
-three 4px bars, notes with an icon — green for the held window, amber for
-needs-attention, red only for the table just taken, blue for Telegram and
-waiting — and errors under the field they are about. The confirmation's code
-sits in a brown frame, dashed blue while the venue decides.
-
-Phase 5 added the manage link and the branch chooser, with no new tokens. The
-manage page's status is a pill badge: green for confirmed, blue for waiting
-(the code box dashed blue with it, never green), red for declined, the soft
-line grey for cancelled and past; a cancelled or declined booking's summary is
-struck through in the muted ink. Cancelling asks inline, in a card with the red
-line border, the "yes" button red and "no" plain; the page's own cancel button
-is red words in a quiet box. Changing the booking opens the branch page's own
-booking card and room in the page's column. The chooser's cards are a 96px
-photo, the name, "address · district", the open dot with the free count, and a
-chevron; a branch that is not available is a dashed card on the soft ground
-with a grey tag, not a link.
-
----
+The shared `touchTarget` is `minimum 44`, `small 40`, `regular 48`,
+`large 56`, `staff 56`. The tablet is used standing, in a hurry, often
+one-handed, so it has no hover and every control has a pressed state. Buttons
+there take `min-height`, never a fixed `height`, which collapses inside a flex
+column. Destructive actions never sit next to frequent ones: a "void" beside a
+"seat" is a mis-tap during a Friday rush.
 
 ## Motion
 
-Minimal and functional: only transitions that aid comprehension. Every duration
-resolves to zero under `prefers-reduced-motion`, and a test asserts it.
+Gentle, eased, and always an answer to a person's action. Nothing overshoots,
+and nothing functional rotates.
 
-## What this system deliberately drops
-
-- **The serif from the type scale** — one family now.
-- **The paper grain and the background blobs** (`ambient.ts`). They are the
-  organic direction's texture. The exports remain because a dev screen imports
-  them; the screens should stop applying them, which is part of the same
-  follow-up as the card border.
-- **The asymmetric card corner** (`cardAccent`).
-- **The green-tinted shadow.**
-- **The brand/free green distinction and the floor-plan swap**, replaced by a
-  rule that needs no exception.
-- **Ink as the accent**, the first draft of that rule. It kept the rule
-  perfectly and cost the console its data viz.
-- **The violet accent** (`#6A38C7`), the second. Replaced by the brand beige,
-  which keeps the rule by being a low-chroma fill with an ink label and fills no
-  table.
+- **Durations** (`duration`): `control 220` (press, hover, colour),
+  `stateChange 200` (a table changing state), `floorPlanDraw 400`.
+- **One curve**: `easing.standard`, `cubic-bezier(0.2, 0, 0, 1)`.
+- **Scale**: pressed shrinks to 0.97. On the web, behind
+  `@media (hover: hover)`, hover may lift to 1.03.
+- **Reduced motion is no motion.** Under `prefers-reduced-motion` every
+  duration resolves to zero (`reducedDuration`), and the generated CSS zeroes
+  every animation and transition. The diner's motion components
+  (`src/components/motion/*` and the launch animation) read the system setting
+  and jump to their end state.
 
 ---
 
+## Before SHURJ
+
+Before the SHURJ rebrand on 2026-10-22 the product went through an ink accent,
+a violet one, a beige fill and a dark-brown console; none of those colours is
+drawn on a SHURJ screen. The artboards under `docs/design/*` were made in the
+brown era and recoloured afterwards, so where a `HANDOFF.md` names a colour,
+`console.ts` wins.
+
+What remains of the old system is `packages/tokens/src/color.ts`, the shared
+`--color-*` palette: a cool `paper` `#F4F6FA`, the ink `#131A22` and the beige
+`primary` `#C3B59F`. Its state fills, through `tableState.ts` (`#35B37E`,
+`#C98A0E`, `#B93B3B`, `#8B95A1`), are still the room editor's and the public
+page's table pins and the floor cards' edges. New screens use `console.ts` or
+the diner theme, not `--color-*`.
+
 ## Verification
 
-`packages/tokens/src/contrast.test.ts` — **68 tests, all passing**. It covers
-text contrast on every ground including both tints, the state labels against
-their composited fills, `successInk` and `warningInk` as text on every ground
-(and that the fills they darken do not pass), control boundaries at 3:1, the accent's contrast
-minimums (ink on the fill ≥ 4.5, `primaryInk` ≥ 4.5 on white and paper and ≥ 3
-as a border on every control ground, white never on the fill), its saturation
-separation from all six states, the chart-fill rules, the pairwise distinctness
-of the six state treatments, the metric hierarchy, and reduced motion.
+| Test                                                 | Holds                                                                                                                    |
+| ---------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| `packages/tokens/src/console.test.ts`                | Every web text pair at AA, focus and graphics at 3:1, red only for failures, the sizes, and every token reaching the CSS |
+| `packages/tokens/src/contrast.test.ts`               | The shared palette, the table states in greyscale, the metric hierarchy, reduced motion                                  |
+| `apps/diner/src/theme/contrast.test.ts`              | Every diner badge, text and glyph colour on every ground; no screen sets text in a bright fill                           |
+| `consoleStyles`, `staffStyles`, `publicStyles` tests | No colour typed into a stylesheet or a redesigned component                                                              |
+| `packages/tokens/src/designDoc.test.ts`              | Every hex in this file is a value a token file assigns                                                                   |
 
-The accent rules were checked red before being trusted: lightening
-`primaryInk` to `#978463` (3.62:1 on white, fine for a border, too light for
-text) fails the text and minimums tests.
-
-Run it with `pnpm --filter @yalla/tokens test`. It runs in CI with the rest.
-
-## Seeing it
-
-`~/.gstack/projects/grigoravagyann-YallaFrontend/designs/` holds
-`yalla-system.html` and a render of it. The page loads
-`tokens.generated.css` — the file this package emits, byte for byte — so every
-colour, radius, shadow, space and type size in it resolves through a token.
-Nothing there is a hand-picked hex, which is the point: it demonstrates that the
-tokens produce the look, which a rendered image cannot.
+Run them with `pnpm -r test`.
