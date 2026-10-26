@@ -268,6 +268,21 @@ export function adjustmentReductions(
   return reductions;
 }
 
+/**
+ * Every adjustment's reduction as a tab's read gives it, by id: the standing
+ * ones by {@link adjustmentReductions} in the order given, a reversed one 0 -
+ * recomputed on each read, as the server's `TabQuery` does, so a discount
+ * given before a comp reads what it takes off now.
+ */
+export function readReductions(
+  lines: readonly BillingLine[],
+  adjustments: readonly (BillingAdjustment & { readonly id: string; readonly isVoided: boolean })[],
+): ReadonlyMap<string, number> {
+  const standing = adjustments.filter((adjustment) => !adjustment.isVoided);
+  const reductions = adjustmentReductions(lines, standing);
+  return new Map(standing.map((adjustment, index) => [adjustment.id, reductions[index] ?? 0]));
+}
+
 export function computeBill(input: {
   readonly lines: readonly BillingLine[];
   readonly adjustments: readonly BillingAdjustment[];

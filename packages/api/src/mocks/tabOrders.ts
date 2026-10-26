@@ -20,6 +20,7 @@ import type { TabParticipant, TableTab } from '../contracts/tab';
 import {
   adjustmentReductions,
   computeBill,
+  readReductions,
   quoteBill,
   type BillQuoteFigures,
   type BillingLine,
@@ -644,6 +645,7 @@ export function createTabOrders(options: TabOrdersOptions) {
             ? ('pendingApproval' as const)
             : ('removed' as const);
       const mePending = me?.status === 'pending';
+      const reductions = readReductions(billingLines(record), record.adjustments);
 
       return {
         tabId: tab.id,
@@ -701,7 +703,8 @@ export function createTabOrders(options: TabOrdersOptions) {
           lineId: adjustment.lineId,
           percent: adjustment.percent,
           amountDram: adjustment.amountDram,
-          reductionDram: adjustment.reductionDram,
+          // As the server reads it: its own reduction as the tab now stands.
+          reductionDram: reductions.get(adjustment.id) ?? 0,
           reason: adjustment.reason,
           isVoided: adjustment.isVoided,
           atUtc: adjustment.atUtc,

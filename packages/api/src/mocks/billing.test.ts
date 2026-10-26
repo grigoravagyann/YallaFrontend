@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   adjustmentReductions,
   computeBill,
+  readReductions,
   percentOf,
   splitEvenly,
   type BillingLine,
@@ -63,6 +64,22 @@ describe('what each adjustment took off', () => {
       }).bill.subtotalDram;
     // The subtotal drops by 2,880: the discount now takes 320 less.
     expect(subtotal([discount]) - subtotal([discount, comp])).toBe(2880);
+  });
+
+  it('reads each one as the tab now stands, and a reversed one as nothing', () => {
+    const discount = { id: 'a-1', lineId: null, percent: 10, amountDram: null, isVoided: false };
+    const comp = {
+      id: 'a-2',
+      lineId: 'khachapuri',
+      percent: null,
+      amountDram: 5000,
+      isVoided: false,
+    };
+    const reversed = { id: 'a-3', lineId: null, percent: null, amountDram: 500, isVoided: true };
+    // The discount was given first, at 620; once the comp stands it takes 300.
+    expect([...readReductions(lines, [discount])]).toEqual([['a-1', 620]]);
+    const read = readReductions(lines, [discount, comp, reversed]);
+    expect([read.get('a-1'), read.get('a-2'), read.get('a-3') ?? 0]).toEqual([300, 3200, 0]);
   });
 
   it('takes tab-wide ones in turn, each off what is left', () => {
