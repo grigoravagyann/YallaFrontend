@@ -151,8 +151,8 @@ export function DevTokensRoute() {
         <h1>Design tokens</h1>
         <p className="muted">
           Everything below is read from <code>@yalla/tokens</code>. The web sheet is generated from
-          the same objects the diner app imports. Organic, in white and green: paper grounds, one
-          deep brand green, and six colours that carry meaning.
+          the same objects the diner app imports. SHURJ: a white page, charcoal text, the Black
+          Cherry for the one action, and the state hues that carry meaning.
         </p>
         <p className="signature">
           <span className="signature-number">14</span>
@@ -163,8 +163,8 @@ export function DevTokensRoute() {
       <div>
         <h2>Colour</h2>
         <p className="muted small">
-          Identity above the line, information below it. The three translucent values at the end are
-          things text never sits on: a scrim, the focus glow, the frosted nav.
+          Identity above the line, information below it. The scrim at the end is translucent and
+          never under text.
         </p>
         <div className="swatches" style={{ marginTop: space.md }}>
           {Object.entries(color).map(([name, value]) => (
@@ -231,7 +231,7 @@ export function DevTokensRoute() {
             Reserve table 7
           </button>
           <span className="muted small">
-            primaryOnFloorPlan — the same beige fill, with an ink edge beside a plan
+            primaryOnFloorPlan — the same cherry fill beside a plan
           </span>
         </div>
       </div>
@@ -362,7 +362,7 @@ export function DevTokensRoute() {
       </div>
 
       <div>
-        <h2>Elevation — green-tinted, never black</h2>
+        <h2>Elevation — charcoal-tinted, never black</h2>
         <div className="shadow-samples">
           {(Object.keys(elevation) as (keyof typeof elevation)[]).map((name) => (
             <div key={name} className="shadow-sample" style={{ boxShadow: elevation[name].web }}>

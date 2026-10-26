@@ -56,12 +56,22 @@ function consoleVars(): string[] {
   ];
 }
 
+/**
+ * The table states the web draws: the public page's room pins
+ * (`public.css`). Held pins wear the reserved-soon fill there, and `yourPick`
+ * is the diner app's alone, so neither gets a variable nobody reads.
+ */
+const WEB_TABLE_STATES: readonly TableStatus[] = [
+  'free',
+  'reservedSoon',
+  'occupied',
+  'outOfService',
+];
+
 function stateVars(): string[] {
   const out: string[] = [];
-  for (const [name, style] of Object.entries(tableStatusStyle) as [
-    TableStatus,
-    (typeof tableStatusStyle)[TableStatus],
-  ][]) {
+  for (const name of WEB_TABLE_STATES) {
+    const style = tableStatusStyle[name];
     const key = kebab(name);
     out.push(
       `--table-${key}-fill: ${style.fill};`,

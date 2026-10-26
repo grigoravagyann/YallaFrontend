@@ -31,6 +31,7 @@ There is **no blue in SHURJ**. Waiting and held are burgundy, confirmed is
 green. Only two blues exist, and each is a convention people already know:
 the map's "you are here" dot (`colors.location` `#4C8DFF`) and the "Confirm
 with Telegram" button (`consoleColor.publicTelegram` `#2A6FB0`).
+`packages/tokens/src/noBlue.test.ts` fails on any other blue in a token file.
 
 ## The brand
 
@@ -100,16 +101,15 @@ only those. `consoleStyles.test.ts`, `staffStyles.test.ts` and
 | `amber` on `amberBg`                 | `#8A4B08` on `#FDF1DE`            | Not ready yet, needs attention. **Never red**    |
 | `red` on `redBg`, `redForeground`    | `#A8261B` on `#FCEAE7`, `#FFFFFF` | Real failures and destructive buttons only       |
 | `grey` on `greyBg`                   | `#57534E` on `#EEE8E1`            | Suspended, off, cancelled                        |
-| `blue` on `blueBg`                   | `#6B1121` on `#F2E4E6`            | Waiting. Burgundy, despite its name              |
+| `waiting` on `waitingBg`             | `#6B1121` on `#F2E4E6`            | Waiting: the logo burgundy, never blue           |
 | `stepDone`, `star`                   | `#8A2335`                         | A finished step; a review's lit star             |
 | `chartBar`, `reportBar`              | `#6B1121`, `#A0717B`              | Chart bars; a peak is `brand`                    |
 | `toast` / `toastForeground`          | `#2D2927` / `#FFF7EA`             | Toasts and the rooms page's save bar             |
 | `photoGround` / `photoText`          | `#1A0508` / `#FFF7EA`             | Behind the sign-in photo; the text over it       |
 | `publicTelegram` / `…Foreground`     | `#2A6FB0` / `#FFFFFF`             | "Confirm with Telegram": one of the two blues    |
 
-The token named `blue` predates the rebrand. Its value is the logo burgundy,
-and the public page's pending badge and dashed pending code box read it.
-Treat it as "waiting".
+`waiting` was named `blue` before the rebrand. The public page's pending badge
+and dashed pending code box read it.
 
 The floor tablet adds its table cards on top (`floor*`): a tint per state, an
 edge in the state hue and an ink for the words. Held is the one state drawn in
@@ -178,7 +178,7 @@ One meaning, one hue, on every surface.
 | The one action; the current place             | `brand` fill, `brandForeground`                      | `brand` fill, `onPrimary`; `accent` glyph                              |
 | Done, saved, active, confirmed, free          | `green` on `greenBg`; free tables `floorFree*`       | `success*`                                                             |
 | Not ready, needs attention, reserved, offline | `amber` on `amberBg`; `floorBooked*`, `floorOffline` | `warning*`                                                             |
-| Waiting on someone, held, pending, new        | `blue` (burgundy) on `blueBg`; `floorHeld*`          | `info*`; Preparing is `primarySoft`; Awaiting venue is edged `logoInk` |
+| Waiting on someone, held, pending, new        | `waiting` on `waitingBg`; `floorHeld*`               | `info*`; Preparing is `primarySoft`; Awaiting venue is edged `logoInk` |
 | Real failure, destructive, occupied           | `red` on `redBg`; `floorOccupied*`, `floorFailure`   | `error*`                                                               |
 | Off, suspended, closed, past                  | `grey` on `greyBg`                                   | `neutral*`                                                             |
 
@@ -247,7 +247,7 @@ change underneath these numbers without a test failing.
 | `red` on `redBg` / on white                                           | 6.11 / 7.10           |
 | White on `red` / on `redHover` `#8C1F16`                              | 7.10 / 9.04           |
 | `grey` on `greyBg` / on white                                         | 6.27 / 7.63           |
-| `blue` `#6B1121` on `blueBg` `#F2E4E6`                                | 9.85                  |
+| `waiting` `#6B1121` on `waitingBg` `#F2E4E6`                          | 9.85                  |
 | Ivory / `toastIcon` `#9FD9BD` / `toastAction` `#F5D3D9` on `toast`    | 13.54 / 9.01 / 10.43  |
 | `floorBarText` `#F3E8E9` on the bar                                   | 14.28                 |
 | `floorLive` / `floorOffline` / `floorFailure` on the bar              | 8.15 / 9.19 / 7.05    |
@@ -425,12 +425,14 @@ drawn on a SHURJ screen. The artboards under `docs/design/*` were made in the
 brown era and recoloured afterwards, so where a `HANDOFF.md` names a colour,
 `console.ts` wins.
 
-What remains of the old system is `packages/tokens/src/color.ts`, the shared
-`--color-*` palette: a cool `paper` `#F4F6FA`, the ink `#131A22` and the beige
-`primary` `#C3B59F`. Its state fills, through `tableState.ts` (`#35B37E`,
-`#C98A0E`, `#B93B3B`, `#8B95A1`), are still the room editor's and the public
-page's table pins and the floor cards' edges. New screens use `console.ts` or
-the diner theme, not `--color-*`.
+`packages/tokens/src/color.ts`, the shared `--color-*` palette the older
+screens read, kept the old system's cool paper, blue-black ink, beige accent
+and blue "held" until 2026-10-26. Its neutrals and its action colour are now
+`console.ts` values (`paper` is `canvas`, `foreground` is `ink`, `primary` is
+`brand`, `info` and held are `waiting`), and the unused ones are gone. Its
+state fills, through `tableState.ts` (`#35B37E`, `#C98A0E`, `#B93B3B`,
+`#8B95A1`), are still the public page's table pins and the floor cards' edges.
+New screens use `console.ts` or the diner theme, not `--color-*`.
 
 ## Verification
 
@@ -441,5 +443,6 @@ the diner theme, not `--color-*`.
 | `apps/diner/src/theme/contrast.test.ts`              | Every diner badge, text and glyph colour on every ground; no screen sets text in a bright fill                           |
 | `consoleStyles`, `staffStyles`, `publicStyles` tests | No colour typed into a stylesheet or a redesigned component                                                              |
 | `packages/tokens/src/designDoc.test.ts`              | Every hex in this file is a value a token file assigns                                                                   |
+| `packages/tokens/src/noBlue.test.ts`                 | No blue in any token file except the two named above                                                                     |
 
 Run them with `pnpm -r test`.

@@ -3,9 +3,9 @@
  *
  * ## Why the console has a palette of its own
  *
- * The rest of the product follows the thesis in `color.ts`. The console, the
- * venue console, the floor tablet and the public page wear one palette of their
- * own. On 2026-10-18 the user approved a dark-brown look for it; on 2026-10-22
+ * The console, the venue console, the floor tablet and the public page wear
+ * this palette, and since SHURJ the shared `color.ts` palette is built from it
+ * too. On 2026-10-18 the user approved a dark-brown look for it; on 2026-10-22
  * the product became **SHURJ** and the same screens moved to its colours, the
  * diner app's (`apps/diner/src/theme/colors.ts`), from the four recoloured
  * canvases the user approved: a **white page, a deep cherry sidebar and bar,
@@ -16,8 +16,9 @@
  * The thesis still holds inside it. Chroma means state or the one action:
  * the cherry is the primary button and the current nav item, amber is "not
  * ready yet", red is only ever a real failure (a dead letter, a server error,
- * a destructive button), green is "done", and everything else is ink, a warm
- * grey or a hairline.
+ * a destructive button), green is "done", burgundy is "waiting", and
+ * everything else is ink, a warm grey or a hairline. `noBlue.test.ts` fails on
+ * a blue here except the Telegram button's.
  *
  * ## How the web app reads it
  *
@@ -39,9 +40,9 @@ export const consoleColor = {
   hover: '#F8F0F1',
 
   // --- Ink ------------------------------------------------------------------
-  /** Text. 14.92:1 on the canvas. */
+  /** Text: the charcoal. 14.40:1 on the canvas. */
   ink: '#2D2927',
-  /** Secondary text: captions, hints, table heads. 5.84:1 on the canvas. */
+  /** Secondary text: captions, hints, table heads. 6.88:1 on the canvas. */
   muted: '#605954',
 
   // --- The one action ---------------------------------------------------------
@@ -52,7 +53,7 @@ export const consoleColor = {
   brandBusy: '#6B1121',
   /** The unlit part of the spinner on a brand fill: cream at 35%, over a brand fill only. */
   spinTrack: 'rgba(255, 247, 234, 0.35)',
-  /** The label on every brand fill. 14.10:1 on `brand`. */
+  /** The label on every brand fill. 14.47:1 on `brand`. */
   brandForeground: '#FFF7EA',
   /** The brand's tint: a selected chip, a ghost button under the pointer, an icon tile. */
   brandTint: '#F2E4E6',
@@ -66,25 +67,24 @@ export const consoleColor = {
   /** The divider inside a card. */
   lineSoft: '#F4F0EE',
   /**
-   * An input's or a select's edge. 3.70:1 on white, 3.29:1 on the canvas.
+   * An input's or a select's edge: the logo burgundy, 12.16:1 on white.
    *
-   * Darker than the artboards' #D8C8B6 (1.63:1 on white), on purpose: on an
-   * empty field the edge is the only thing that says "type here", so it is
-   * held to WCAG 1.4.11's 3:1 (2026-10-18). Same warm hue, more weight.
+   * On an empty field the edge is the only thing that says "type here", so it
+   * is held to WCAG 1.4.11's 3:1 (2026-10-18); the artboards' #D8C8B6 was
+   * 1.63:1 on white.
    */
   control: '#6B1121',
   /** The same edge under the pointer: darker still, never fainter. */
   controlHover: '#4B0C18',
   /**
-   * A secondary button's edge: the artboards' soft line. A button's label
-   * already says what it is, so its edge is decoration and keeps the lighter
-   * approved weight; only inputs needed the 3:1 edge.
+   * A secondary button's edge: the same logo burgundy as an input's, since
+   * SHURJ draws every control's edge in it.
    */
   buttonEdge: '#6B1121',
   buttonEdgeHover: '#4B0C18',
   /**
    * A switch's track when off: a warm grey, never the burgundy of an edge, so
-   * off and on (the brand) differ in lightness as well as hue. 3.86:1 on white.
+   * off and on (the brand) differ in lightness as well as hue. 3.81:1 on white.
    */
   switchOff: '#8A817C',
   /**
@@ -97,11 +97,11 @@ export const consoleColor = {
   sidebar: '#3A0912',
   /** The current nav item's fill. */
   sidebarActive: '#5A1220',
-  /** Nav links at rest. 10.29:1 on the sidebar. */
+  /** Nav links at rest. 10.84:1 on the sidebar. */
   sidebarText: '#E3C7CC',
   /** The brand word, the current item and the signed-in name. */
   sidebarTextStrong: '#FFF7EA',
-  /** The role line under the name. 7.55:1. */
+  /** The role line under the name. 9.41:1. */
   sidebarMuted: '#D9B8BE',
   /** A nav link under the pointer: cream at 7%, over the sidebar only. */
   sidebarHover: 'rgba(255, 247, 234, 0.07)',
@@ -109,31 +109,31 @@ export const consoleColor = {
   sidebarRaised: 'rgba(255, 247, 234, 0.05)',
   /** The focus outline on the sidebar's dark ground. */
   sidebarFocus: '#F5D3D9',
-  /** Initials in a circle. The brand beige, with the sidebar's brown on it. */
+  /** Initials in a circle: the brand tint, with the sidebar's cherry on it (13.86:1). */
   avatar: '#F2E4E6',
   avatarForeground: '#3A0912',
   /**
    * The venue console's sidebar (docs/design/venue-console, the `.side` block):
-   * a group heading over its links ("Today", "The venue"…). 5.68:1.
+   * a group heading over its links ("Today", "The venue"…). 9.41:1.
    */
   sidebarGroup: '#D9B8BE',
   /** The venue and branch panel under the brand: cream at 6%, over the sidebar only. */
   sidebarPanel: 'rgba(255, 247, 234, 0.06)',
   /** The branch switcher's fill, and the one-branch line in its place. */
   sidebarField: '#4B0C18',
-  /** Its text. 13.01:1 on the field. */
+  /** Its text. 13.25:1 on the field. */
   sidebarFieldText: '#F5ECEC',
   /**
-   * The switcher's edge. 3.30:1 on the sidebar, 3.06:1 on its own fill.
+   * The switcher's edge. 6.06:1 on the sidebar, 5.45:1 on its own fill.
    *
    * Lighter than the artboards' #4E2D1B (1.40:1), on purpose and for the
-   * reason `control` is darker than theirs: on a control the edge is what says
-   * "this opens", so it is held to WCAG 1.4.11's 3:1. Same hue, more light.
+   * reason `control` is held to 3:1: on a control the edge is what says
+   * "this opens" (WCAG 1.4.11).
    */
   sidebarFieldEdge: '#B98F97',
   /** A count on a nav link: pending approvals, incomplete dishes, reported reviews. */
   navBadge: '#E2B77A',
-  /** Its number. 9.25:1 on the badge. */
+  /** Its number. 9.19:1 on the badge. */
   navBadgeForeground: '#3A0912',
 
   // --- State --------------------------------------------------------------------
@@ -156,8 +156,13 @@ export const consoleColor = {
   greyBg: '#EEE8E1',
   greyLine: '#DDD3C8',
   /** Booked and confirmed, still to come: a booking's state, not a warning (Main artboard). */
-  blue: '#6B1121',
-  blueBg: '#F2E4E6',
+  /**
+   * Waiting on someone: a booking awaiting the venue, a pending code. The logo
+   * burgundy, never blue (this token was named `blue` before SHURJ). 9.85:1 on
+   * its tint, 12.16:1 on white.
+   */
+  waiting: '#6B1121',
+  waitingBg: '#F2E4E6',
   /** The password meter's third step, between amber and green. */
   meterFair: '#6E8B3D',
   /** A finished step in a dialog's step list: a warm bar beside the step's name. */
@@ -221,7 +226,7 @@ export const consoleColor = {
   // --- Home and Settings (Main and Settings artboards) ------------------------
   /** A day's bar in Home's bookings chart; hovered, it takes the brand. */
   chartBar: '#6B1121',
-  /** Today's bar is the tan `stepDone`; hovered, this darker tan. */
+  /** Today's bar is the burgundy `stepDone`; hovered, this darker cherry. */
   chartBarTodayHover: '#5A1220',
   /** A line in the outbox alert's details: white at 70% over the red tint. */
   alertItem: 'rgba(255, 255, 255, 0.7)',
@@ -239,13 +244,13 @@ export const consoleColor = {
   // --- Reports (venue-console Reports artboard) ----------------------------------
   /**
    * A bar of shares (revenue by hour, lead time, turn time); a peak is
-   * `brand`, past the policy `amber`. 3.58:1 on white, 3.41:1 on
+   * `brand`, past the policy `amber`. 4.08:1 on white, 3.87:1 on
    * `surfaceMuted`: darker than the artboards' #B89B7E (2.62:1), on purpose —
    * a bar is the chart's whole message, so it is held to WCAG 1.4.11's 3:1.
    */
   reportBar: '#A0717B',
   /**
-   * The previous period's line behind this one, dashed. 3.52:1 on white; the
+   * The previous period's line behind this one, dashed. 3.81:1 on white; the
    * artboards' #B8A28A was 2.45:1, so it is darker for the same reason.
    */
   reportPreviousLine: '#8A817C',
@@ -256,9 +261,9 @@ export const consoleColor = {
   /*
    * The tablet wears this palette — its top bar is the `sidebar` brown — with
    * the values below on top: the table states' tints and inks, and the top
-   * bar's chips. The state edges are the product's state hues (`color.ts`).
+   * bar's chips. The state edges are the table states' hues (`color.ts`).
    */
-  /** The top bar's running text. 12.45:1 on the bar. */
+  /** The top bar's running text. 14.28:1 on the bar. */
   floorBarText: '#F3E8E9',
   /** The Floor / Kitchen tray: cream at 8%, over the bar only. */
   floorBarTabs: 'rgba(255, 247, 234, 0.08)',
@@ -266,15 +271,15 @@ export const consoleColor = {
   floorBarChipEdge: 'rgba(255, 247, 234, 0.3)',
   /** The signed-in person's pill: cream at 10%, over the bar only. */
   floorBarWho: 'rgba(255, 247, 234, 0.1)',
-  /** Connected: the chip's dot and edge. 8.20:1 on the bar. */
+  /** Connected: the chip's dot and edge. 8.15:1 on the bar. */
   floorLive: '#5BC78F',
-  /** Offline, actions kept on the tablet: amber, never red. 9.25:1. */
+  /** Offline, actions kept on the tablet: amber, never red. 9.19:1. */
   floorOffline: '#E2B77A',
-  /** Its words. 12.64:1. */
+  /** Its words. 12.57:1. */
   floorOfflineText: '#F3D9B8',
-  /** Polls failing, or a conflict to decide: the one red on the bar. 7.09:1. */
+  /** Polls failing, or a conflict to decide: the one red on the bar. 7.05:1. */
   floorFailure: '#F08A80',
-  /** Its words. 12.93:1. */
+  /** Its words. 12.86:1. */
   floorFailureText: '#FFD6D1',
   /** A free table's card. */
   floorFree: '#E6F5EC',
@@ -290,7 +295,7 @@ export const consoleColor = {
   /** Held for a late party; the edge is dashed. */
   floorHeld: '#FFFFFF',
   floorHeldEdge: '#4B0C18',
-  /** "Held · running late". 6.13:1. */
+  /** "Held · running late". 15.39:1. */
   floorHeldInk: '#4B0C18',
   /** Occupied; its words are `red`, 5.68:1 on this. */
   floorOccupied: '#F7E1E0',
@@ -312,7 +317,7 @@ export const consoleColor = {
    */
   /** A loading placeholder's block on the cream page (States artboard). */
   publicSkeleton: '#EFEAE7',
-  /** The icon in a page state's circle, on `lineSoft`. 3.56:1, a graphic. */
+  /** The icon in a page state's circle, on `lineSoft`. 3.40:1, a graphic. */
   publicStateIcon: '#8A807B',
   /** Behind a cover or room photo until it loads, and when there is none. */
   publicPhotoGround: '#2D2927',
@@ -327,7 +332,7 @@ export const consoleColor = {
   publicPhotoScrim: 'rgba(26, 5, 8, 0.62)',
   /** The cover's "2 / 7" chip: the same ink, a little denser for its small type. */
   publicPhotoCount: 'rgba(26, 5, 8, 0.72)',
-  /** A review's lit stars and the rating's star (Main artboard). 5.0:1 on white. */
+  /** A review's lit stars and the rating's star (Main artboard). 5.70:1 on white. */
   publicStar: '#8A5E08',
   /**
    * The Book sheet's first way to prove a phone: "Confirm with Telegram"

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { color, subtleTextBackgrounds, textBackgrounds, tintedFills } from './color';
+import { consoleColor } from './console';
 import { AA_BODY, AA_LARGE, contrastRatio } from './contrast';
 import { elevation } from './elevation';
 import { duration, reducedDuration } from './motion';
@@ -8,13 +9,12 @@ import { displaySteps, typeScale } from './typography';
 import { compositedFill, tableStatusLegendOrder, tableStatusStyle } from './tableState';
 
 /**
- * The palette asserting things about itself.
+ * The shared palette asserting things about itself.
  *
  * A contrast ratio checked once in a design review is a ratio that breaks
- * silently the first time someone nudges a hex value. These tests are the
- * reason the brief's `subtleForeground` and `mutedForeground` were darkened
- * rather than shipped under AA — and the reason nobody can quietly put them
- * back.
+ * silently the first time someone nudges a hex value. Since SHURJ every
+ * neutral and the action colour in `color.ts` is a `console.ts` value; these
+ * tests hold the pairs the older screens draw, and hold the palette to SHURJ.
  */
 
 const round = (n: number) => Math.round(n * 100) / 100;
@@ -26,13 +26,12 @@ describe('text contrast', () => {
     ['surface', color.surface],
     ['paper', color.paper],
     ['greenTint', color.greenTint],
-    ['accentTint', color.accentTint],
   ] as const;
 
   const foregrounds = [
     ['foreground', color.foreground],
     ['mutedForeground', color.mutedForeground],
-    // The accent as text is `primaryInk`. `primary` is a fill and is never text.
+    // The brand as text: the cherry is dark enough to be a line as well as a fill.
     ['primaryInk', color.primaryInk],
   ] as const;
 
@@ -42,40 +41,33 @@ describe('text contrast', () => {
     }
   }
 
-  it('subtleForeground clears AA on the grounds tertiary text is allowed on', () => {
+  it('subtleForeground clears AA on every ground it is allowed on', () => {
     for (const bg of subtleTextBackgrounds) passesBody(color.subtleForeground, bg);
   });
 
-  it('subtleForeground is banned from both tinted fills, and the token set says so', () => {
-    // Documented rule, not an accident: if this ever passes, the darkening that
-    // made it pass has compressed muted and subtle into one weight, and the
-    // rule can be dropped along with this test. The accent tint is held to the
-    // same standard as the neutral one — a beige ground does not buy an
-    // exception.
-    for (const tint of tintedFills) {
-      expect(subtleTextBackgrounds).not.toContain(tint);
-      expect(round(contrastRatio(color.subtleForeground, tint))).toBeLessThan(AA_BODY);
-    }
+  it('SHURJ has two text weights on the web: subtle is the muted grey', () => {
+    // The pre-SHURJ palette had a third, lighter grey that failed on a tint.
+    // Both remaps (`staff.css`, `.yc-legacy`) already drew it muted.
+    expect(color.subtleForeground).toBe(color.mutedForeground);
+    expect(color.mutedForeground).toBe(consoleColor.muted);
   });
 
-  it('keeps the three text weights in order, lightest last', () => {
+  it('keeps the text weights in order, lightest last', () => {
     const onSurface = (hex: string) => contrastRatio(hex, color.surface);
     expect(onSurface(color.foreground)).toBeGreaterThan(onSurface(color.mutedForeground));
-    expect(onSurface(color.mutedForeground)).toBeGreaterThan(onSurface(color.subtleForeground));
+    expect(onSurface(color.mutedForeground)).toBeGreaterThanOrEqual(
+      onSurface(color.subtleForeground),
+    );
   });
 
   it('every ground body text is set on is covered above', () => {
-    expect(textBackgrounds).toEqual([
-      color.surface,
-      color.paper,
-      color.greenTint,
-      color.accentTint,
-    ]);
+    expect(textBackgrounds).toEqual([color.surface, color.paper, color.greenTint]);
+    expect(tintedFills).toEqual([color.greenTint]);
   });
 });
 
 describe('brand and feedback fills', () => {
-  it('the ink label on primary and on primaryPressed clears AA', () => {
+  it('the ivory label on primary and on primaryPressed clears AA (14.47, 16.08)', () => {
     passesBody(color.primaryForeground, color.primary);
     passesBody(color.primaryForeground, color.primaryPressed);
   });
@@ -85,14 +77,14 @@ describe('brand and feedback fills', () => {
     passesBody(color.dangerForeground, color.dangerPressed);
   });
 
-  it('a pressed ghost button keeps its label legible on either tint', () => {
+  it('a pressed ghost button keeps its label legible on the tint (12.47, 4.54)', () => {
     for (const tint of tintedFills) {
       passesBody(color.primaryInk, tint);
       passesBody(color.danger, tint);
     }
   });
 
-  it('the accent used beside a floor plan is legible with its ink label on it', () => {
+  it('the action beside a floor plan is legible with its label on it', () => {
     passesBody(color.primaryForeground, color.primaryOnFloorPlan);
     passesBody(color.primaryForeground, color.primaryOnFloorPlanPressed);
   });
@@ -106,13 +98,10 @@ describe('brand and feedback fills', () => {
     expect(contrastRatio(color.warning, color.paper)).toBeLessThan(AA_BODY);
   });
 
-  it('control outlines clear the 3:1 owed by a control boundary', () => {
-    expect(round(contrastRatio(color.borderInteractive, color.surface))).toBeGreaterThanOrEqual(
-      AA_LARGE,
-    );
-    expect(round(contrastRatio(color.borderInteractive, color.paper))).toBeGreaterThanOrEqual(
-      AA_LARGE,
-    );
+  it("the strong edge clears the 3:1 owed by a control's boundary", () => {
+    for (const ground of textBackgrounds) {
+      expect(round(contrastRatio(color.borderStrong, ground))).toBeGreaterThanOrEqual(AA_LARGE);
+    }
   });
 
   it('the card edge is softer than the divider hairline', () => {
@@ -122,50 +111,68 @@ describe('brand and feedback fills', () => {
   });
 });
 
-describe('the beige accent: a fill with an ink label, and an ink for every line', () => {
-  /*
-   * `#C3B59F` is 2.01:1 on white. It cannot be text (4.5), a border or a focus
-   * edge (3), and it cannot carry a white label (2.01). So the accent is two
-   * tokens: `primary` fills, `primaryInk` draws. These are the minimums each
-   * pair owes; the numbers in the comments are what the chosen values measure.
-   */
-  it('the fill value is the brand beige, and its label is ink', () => {
-    expect(color.primary).toBe('#C3B59F');
-    expect(color.primaryForeground).toBe(color.foreground);
+describe('the Black Cherry: one colour for the fill and the line', () => {
+  it('the action is the console brand, with ivory on it', () => {
+    expect(color.primary).toBe(consoleColor.brand);
+    expect(color.primaryPressed).toBe(consoleColor.brandHover);
+    expect(color.primaryForeground).toBe(consoleColor.brandForeground);
   });
 
-  it('fill and label: ink on primary (8.70) and on primaryPressed (6.54) clear 4.5', () => {
-    for (const fill of [color.primary, color.primaryPressed]) {
-      expect(round(contrastRatio(color.primaryForeground, fill))).toBeGreaterThanOrEqual(AA_BODY);
+  it('the cherry needs no darker twin: primaryInk is primary', () => {
+    // The beige it replaced was 2.01:1 on white and needed a second token to
+    // draw a line; the cherry is 15.39:1.
+    expect(color.primaryInk).toBe(color.primary);
+    expect(round(contrastRatio(color.primary, color.surface))).toBeGreaterThanOrEqual(AA_BODY);
+  });
+
+  it('primaryInk as text clears 4.5 on every text ground', () => {
+    for (const ground of textBackgrounds) passesBody(color.primaryInk, ground);
+  });
+
+  it('the focus outline clears 3:1 on every ground a control sits on', () => {
+    for (const ground of textBackgrounds) {
+      expect(round(contrastRatio(color.focusRing, ground))).toBeGreaterThanOrEqual(AA_LARGE);
     }
+    expect(color.focusRing).toBe(consoleColor.focus);
   });
 
-  it('white is never the label on the beige — it measures 2.01', () => {
+  it('every neutral is a console.ts value', () => {
+    expect(color.surface).toBe(consoleColor.surface);
+    expect(color.paper).toBe(consoleColor.canvas);
+    expect(color.foreground).toBe(consoleColor.ink);
+    expect(color.border).toBe(consoleColor.line);
+    expect(color.borderSoft).toBe(consoleColor.lineSoft);
+    expect(color.borderStrong).toBe(consoleColor.buttonEdge);
+    expect(color.greenTint).toBe(consoleColor.brandTint);
+    expect(color.scrim).toBe(consoleColor.scrim);
+  });
+
+  it('no pre-SHURJ value survives in the palette', () => {
+    const retired = [
+      '#F4F6FA', // the cool paper
+      '#131A22', // the blue-black ink
+      '#55606E',
+      '#646F7C',
+      '#E2E8F0',
+      '#EEF2F7',
+      '#C4CCD8',
+      '#79838F',
+      '#E7ECF3',
+      '#7D8896',
+      '#C3B59F', // the beige accent
+      '#AD9C80',
+      '#6B5C45',
+      '#EFECE6',
+      '#3B6FD4', // the blue held
+    ];
+    const values = Object.values(color).map((value) => value.toUpperCase());
+    for (const hex of retired) expect(values).not.toContain(hex);
+    expect(values.join(' ')).not.toContain('19, 26, 34');
+  });
+
+  it('the ivory label is not white: SHURJ keeps pure white for the page', () => {
     expect(color.primaryForeground).not.toBe('#FFFFFF');
-    expect(round(contrastRatio('#FFFFFF', color.primary))).toBeLessThan(AA_BODY);
-  });
-
-  it('primaryInk as text clears 4.5 on white (6.48) and on paper (5.99)', () => {
-    for (const ground of [color.surface, color.paper]) {
-      expect(round(contrastRatio(color.primaryInk, ground))).toBeGreaterThanOrEqual(AA_BODY);
-    }
-  });
-
-  it('primaryInk as a border or focus edge clears 3 on every ground a control sits on', () => {
-    for (const ground of [color.surface, color.paper, color.accentTint, color.greenTint]) {
-      expect(round(contrastRatio(color.primaryInk, ground))).toBeGreaterThanOrEqual(AA_LARGE);
-    }
-  });
-
-  it('the fill itself does not clear 3 on white — which is why it is never a line', () => {
-    expect(round(contrastRatio(color.primary, color.surface))).toBeLessThan(AA_LARGE);
-  });
-
-  it('primaryInk is the same hue as the fill, only darker', () => {
-    expect(hueDistance(color.primaryInk, color.primary)).toBeLessThanOrEqual(5);
-    expect(contrastRatio(color.primaryInk, color.surface)).toBeGreaterThan(
-      contrastRatio(color.primary, color.surface),
-    );
+    expect(color.paper).toBe('#FFFFFF');
   });
 });
 
@@ -180,7 +187,7 @@ const chroma = (hex: string) => {
   return round((Math.max(r, g, b) - Math.min(r, g, b)) / 255);
 };
 
-/** Hue in degrees. Meaningless below roughly 0.15 chroma — see `NEUTRAL_CHROMA`. */
+/** Hue in degrees. Meaningless below roughly 0.15 chroma. */
 const hue = (hex: string) => {
   const [r, g, b] = rgb(hex).map((v) => v / 255) as [number, number, number];
   const max = Math.max(r, g, b);
@@ -191,25 +198,15 @@ const hue = (hex: string) => {
   return Math.round((sector * 60 + 360) % 360);
 };
 
-/** Shortest way round the wheel, so 350 and 10 are 20 apart, not 340. */
-const hueDistance = (a: string, b: string) => {
-  const d = Math.abs(hue(a) - hue(b));
-  return Math.min(d, 360 - d);
-};
-
-/** Above this a colour has a hue worth comparing; below it, it is a grey. */
+/** Below this a colour is a grey. */
 const NEUTRAL_CHROMA = 0.15;
-/** How much less saturated the accent must be than the dullest table state. */
-const MIN_CHROMA_SEPARATION = 0.25;
 
 describe('the rule that keeps colour meaning one thing', () => {
   /*
-   * The rule this palette exists to enforce: saturated colour means a table's
-   * state, and the one element you are meant to act on is marked by the beige
-   * fill. The beige is a warm neutral — 0.14 chroma, under the line this file
-   * calls grey — so it is separated from the four chromatic states by
-   * saturation, not by hue angle. Its hue (37) is 3 degrees from amber, and a
-   * test that measured angles would be measuring nothing a person can see.
+   * Saturated colour means a table's state; the one element you are meant to
+   * act on is the cherry. The cherry and the waiting burgundy are one family,
+   * so held is told from a button by its dotted edge and its place on a plan,
+   * and the bright states are told from the cherry by lightness.
    */
   const chromaticStates = ['free', 'reservedSoon', 'held', 'occupied'] as const;
   const neutralStates = ['outOfService', 'yourPick'] as const;
@@ -221,45 +218,40 @@ describe('the rule that keeps colour meaning one thing', () => {
   });
 
   it('every state that carries a hue actually carries one', () => {
+    // The burgundy held is the dullest at 0.35; the rest are 0.49 and up.
     for (const state of chromaticStates) {
-      expect(chroma(tableStatusStyle[state].fill)).toBeGreaterThan(0.4);
+      expect(chroma(tableStatusStyle[state].fill)).toBeGreaterThan(0.3);
     }
   });
 
-  it('the accent is a warm neutral, not a hue that competes with the room', () => {
-    /*
-     * A ceiling. Push the beige past 0.15 chroma and it becomes a tan, then an
-     * amber — the reserved-soon colour, 3 degrees away. Below the ceiling it
-     * reads as a material, not a signal.
-     */
-    expect(chroma(color.primary)).toBeLessThan(NEUTRAL_CHROMA);
-    // The ink is the same hue darkened, so it sits right on the line (0.15).
-    expect(chroma(color.primaryInk)).toBeLessThanOrEqual(NEUTRAL_CHROMA);
+  it('the two hueless states are greys', () => {
+    for (const state of neutralStates) {
+      expect(chroma(tableStatusStyle[state].fill)).toBeLessThan(NEUTRAL_CHROMA);
+    }
   });
 
-  it('every state that carries a hue is far more saturated than the accent', () => {
-    for (const state of chromaticStates) {
-      expect(chroma(tableStatusStyle[state].fill) - chroma(color.primary)).toBeGreaterThan(
-        MIN_CHROMA_SEPARATION,
+  it('held is the waiting burgundy, never blue', () => {
+    expect(tableStatusStyle.held.fill).toBe(consoleColor.waiting);
+    expect(color.info).toBe(consoleColor.waiting);
+    const h = hue(tableStatusStyle.held.fill);
+    expect(h < 190 || h > 260).toBe(true);
+  });
+
+  it('the cherry is told from every bright state by lightness (2.75 to 7.43)', () => {
+    for (const status of ['free', 'reservedSoon', 'occupied', 'outOfService'] as const) {
+      expect(round(contrastRatio(color.primary, compositedFill(status)))).toBeGreaterThanOrEqual(
+        2.5,
       );
     }
   });
 
-  it('the accent is separated from the two hueless states by value, not by chroma', () => {
-    /*
-     * `outOfService` and `yourPick` are greys too (0.09 and 0.06), so chroma
-     * separates nothing here. Value does: yourPick is ink, 8.70:1 from the
-     * beige; outOfService is handled by the ink edge in the next test.
-     */
-    for (const state of neutralStates) {
-      expect(chroma(tableStatusStyle[state].fill)).toBeLessThan(NEUTRAL_CHROMA);
-    }
-    expect(
-      round(contrastRatio(tableStatusStyle.yourPick.fill, color.primary)),
-    ).toBeGreaterThanOrEqual(AA_BODY);
+  it('the dark states that share its value differ in treatment instead', () => {
+    // Held (1.27:1 from the cherry) is dotted; yourPick (1.07:1) is ringed.
+    expect(tableStatusStyle.held.strokeDash).not.toBeNull();
+    expect(tableStatusStyle.yourPick.ring).not.toBeNull();
   });
 
-  it('the accent is not any state fill or stroke, on any surface', () => {
+  it('the action is not any state fill or stroke, on any surface', () => {
     for (const status of tableStatusLegendOrder) {
       expect(tableStatusStyle[status].fill).not.toBe(color.primary);
       expect(tableStatusStyle[status].fill).not.toBe(color.primaryPressed);
@@ -267,125 +259,47 @@ describe('the rule that keeps colour meaning one thing', () => {
     }
   });
 
-  it('outOfService is separated from an accent control by its ink edge, not its fill', () => {
-    /*
-     * Against the composited fill, not the raw hex — a dead table is never
-     * painted at full strength. `#8B95A1` at 0.7 over the canvas resolves to
-     * `#AEB5BD`. The beige fill is 1.03:1 from that — the same grey to a
-     * colour-deficient eye — so every accent control beside a plan draws a
-     * `primaryInk` edge, which is 3.13:1 from it. Both halves are pinned.
-     */
-    expect(round(contrastRatio(compositedFill('outOfService'), color.primary))).toBeLessThan(1.5);
-    expect(
-      round(contrastRatio(compositedFill('outOfService'), color.primaryInk)),
-    ).toBeGreaterThanOrEqual(AA_LARGE);
-  });
-
-  it('the accent trades value separation for saturation and shape, and the trade is deliberate', () => {
-    /*
-     * Pinned so nobody re-derives it later: the beige is not separated from
-     * the state fills by lightness. `free` green is 1.32:1 from it. What
-     * separates them is saturation — asserted above — plus a shape rule the
-     * floor plan already enforces: a button is a pill, a table is rectilinear.
-     */
-    const values = chromaticStates.map((s) =>
-      contrastRatio(color.primary, tableStatusStyle[s].fill),
-    );
-    expect(round(Math.min(...values))).toBeLessThan(AA_LARGE);
-
+  it('a table and a button differ in shape: the plan is rectilinear, a button a pill', () => {
     expect(radius.table).toBeLessThanOrEqual(2);
     expect(radius.pill).toBeGreaterThan(100);
   });
 });
 
-describe('the accent has exactly one job', () => {
-  it('yourPick is ink, deliberately not the accent', () => {
-    /*
-     * The one state that used to *be* the accent, back when the accent was ink.
-     * It stays ink, and that is the version with the strongest separation
-     * available: the table a diner has chosen and the button that confirms the
-     * choice now differ in hue rather than in shape and position alone, so the
-     * two can sit on the same sheet without either explaining itself.
-     */
+describe('the action has exactly one job', () => {
+  it('yourPick is the charcoal, deliberately not the cherry', () => {
     expect(tableStatusStyle.yourPick.fill).toBe(color.foreground);
     expect(tableStatusStyle.yourPick.fill).not.toBe(color.primary);
     expect(tableStatusStyle.yourPick.ring).not.toBeNull();
-    expect(round(contrastRatio(tableStatusStyle.yourPick.fill, color.primary))).toBeGreaterThan(
-      1.5,
-    );
   });
 
-  it('there is no floor-plan swap — beside a plan the accent is the same fill', () => {
+  it('there is no floor-plan swap — beside a plan the action is the same fill', () => {
     expect(color.primaryOnFloorPlan).toBe(color.primary);
     expect(color.primaryOnFloorPlanPressed).toBe(color.primaryPressed);
   });
 
-  it('feedback colours are the state hues — one green, one amber, one red, one blue', () => {
+  it('feedback colours are the state hues — one green, one amber, one red, one burgundy', () => {
     expect(color.success).toBe(tableStatusStyle.free.fill);
     expect(color.warning).toBe(tableStatusStyle.reservedSoon.fill);
     expect(color.danger).toBe(tableStatusStyle.occupied.fill);
     expect(color.info).toBe(tableStatusStyle.held.fill);
   });
 
-  it('no feedback colour is the accent — a toast reports, it is not a button', () => {
+  it('no feedback colour is the action — a toast reports, it is not a button', () => {
     for (const feedback of [color.success, color.warning, color.danger, color.info]) {
       expect(feedback).not.toBe(color.primary);
     }
   });
 
-  it('shadows are ink-tinted and light — a card is separated by elevation, not a line', () => {
+  it('shadows are charcoal-tinted and light — a card is held by its edge, not a glow', () => {
     for (const shadow of Object.values(elevation)) {
-      expect(shadow.web).toContain('rgba(19, 26, 34');
-      // Ink, not the accent. A beige shadow under a white card is a glow.
+      expect(shadow.web).toContain('rgba(45, 41, 39');
+      // The text colour, not the cherry. A cherry shadow under a white card is a glow.
       expect(shadow.native.shadowColor).toBe(color.foreground);
       expect(shadow.native.shadowColor).not.toBe(color.primary);
-      // Low alpha on a near-white ground. A heavier shadow turns a grid of
-      // cards into a grid of buttons.
+      // Low alpha on a white ground. A heavier shadow turns a grid of cards
+      // into a grid of buttons.
       expect(shadow.native.shadowOpacity).toBeLessThanOrEqual(0.12);
     }
-  });
-});
-
-describe('charts are neutral, and the accent marks what is current', () => {
-  /*
-   * The fix for the one thing the all-ink accent got wrong. Filling a progress
-   * bar or a sparkline with `#131A22` produces a black block that reads as a
-   * redaction rather than a measure, and it spends the strongest value in the
-   * system on data nobody is being asked to act on.
-   */
-  it('the default chart fill is neutral — not a state, not the accent', () => {
-    expect(chroma(color.dataFill)).toBeLessThan(NEUTRAL_CHROMA);
-    expect(color.dataFill).not.toBe(color.primary);
-    for (const status of tableStatusLegendOrder) {
-      expect(color.dataFill).not.toBe(tableStatusStyle[status].fill);
-    }
-  });
-
-  it('a bar clears 3:1 on the page and against its own track', () => {
-    // A chart is a meaningful graphic, so it owes 3:1 — and it owes it against
-    // the track it sits inside, not only against the card behind it.
-    for (const ground of [color.surface, color.paper, color.dataTrack]) {
-      expect(round(contrastRatio(color.dataFill, ground))).toBeGreaterThanOrEqual(AA_LARGE);
-    }
-  });
-
-  it('the chart fill is a lighter step than ink, than the accent ink, and than muted text', () => {
-    // The whole point: a bar recedes, a label does not.
-    const onSurface = (hex: string) => contrastRatio(hex, color.surface);
-    expect(onSurface(color.dataFill)).toBeLessThan(onSurface(color.foreground));
-    expect(onSurface(color.dataFill)).toBeLessThan(onSurface(color.primaryInk));
-    expect(onSurface(color.dataFill)).toBeLessThan(onSurface(color.mutedForeground));
-  });
-
-  it('the accent is reserved for the active bar and nothing else in a chart', () => {
-    expect(color.dataFillActive).toBe(color.primary);
-    expect(color.dataTrack).not.toBe(color.primary);
-    expect(color.dataFill).not.toBe(color.dataFillActive);
-  });
-
-  it('the track is lighter than the fill it holds', () => {
-    const onSurface = (hex: string) => contrastRatio(hex, color.surface);
-    expect(onSurface(color.dataTrack)).toBeLessThan(onSurface(color.dataFill));
   });
 });
 

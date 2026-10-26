@@ -1061,10 +1061,6 @@ fieldset.editor-body:disabled {
   background: var(--color-surface);
 }
 
-.notice-race {
-  border-left: 6px solid var(--color-info);
-}
-
 .notice-warning {
   border-left: 6px solid var(--color-warning);
 }
