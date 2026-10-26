@@ -17,6 +17,7 @@
  */
 
 import type { UserRole } from './console';
+import type { StaffDeviceBrowser, StaffDevicePlatform } from './staff';
 
 /** What a tablet gets back for a redeemed enrolment code. */
 export interface DeviceEnrolment {
@@ -260,8 +261,14 @@ export interface PairPhoneCommand {
   readonly pin: string;
   /** This browser's stable id, as a tablet's `deviceId`: pairing again reuses the phone. */
   readonly clientDeviceId: string;
-  /** What the console's Phones tab calls it: "iPhone · Safari". */
+  /**
+   * Its platform and browser in English, "iPhone · Safari": what an older
+   * console shows, and the name History keeps.
+   */
   readonly deviceName: string;
+  /** The same as parts, for the console to word in its reader's language. */
+  readonly platform?: StaffDevicePlatform | undefined;
+  readonly browser?: StaffDeviceBrowser | null | undefined;
 }
 
 /** A paired phone: the device credential, and the person signed in on it. */

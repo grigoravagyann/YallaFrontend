@@ -20,7 +20,7 @@ import { Wordmark } from '../../components/Wordmark';
 import { staffDeviceStore } from '../auth/deviceStore';
 import { staffSession } from '../auth/staffSession';
 import { PhoneInstall } from '../phone/PhoneInstall';
-import { thisDeviceName } from '../pwa/deviceName';
+import { thisDevice } from '../pwa/deviceName';
 import { isIos, isStandalone } from '../pwa/webPush';
 import { PhoneKeypad } from './PhoneKeypad';
 import { QrScanner } from './QrScanner';
@@ -201,10 +201,15 @@ export function PairPhoneScreen({
     setPinFailure(null);
     setPairing(true);
     try {
+      // The English name for History and an older console, and the same as
+      // parts, which the console words in its reader's language.
+      const self = thisDevice();
       const device = await staffSession.pairPhone({
         code,
         pin: digits,
-        deviceName: thisDeviceName(),
+        deviceName: self.name,
+        platform: self.platform,
+        browser: self.browser,
       });
       const identity = staffSession.getSnapshot().identity;
       if (identity) {

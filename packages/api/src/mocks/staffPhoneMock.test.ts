@@ -89,6 +89,8 @@ describe('pairing a phone (mock)', () => {
       code: 'K7Q2M9XW4P',
       pin: MOCK_STAFF_PIN,
       deviceName: 'iPhone · Safari',
+      platform: 'iphone',
+      browser: 'safari',
     });
     expect(phone.getSnapshot().state).toBe('signedIn');
     expect(phone.getSnapshot().identity?.staffMemberId).toBe(waiter.id);
@@ -98,6 +100,8 @@ describe('pairing a phone (mock)', () => {
       kind: 'phone',
       boundStaffMemberId: waiter.id,
       deviceName: 'iPhone · Safari',
+      platform: 'iphone',
+      browser: 'safari',
     });
 
     // Its roster is its person alone, and its PIN takes nobody else's.

@@ -126,6 +126,56 @@ describe('pairing a phone', () => {
     });
   });
 
+  it('sends what the phone runs on as its pinned numbers, beside the English name', async () => {
+    const reply = {
+      body: {
+        device: {
+          deviceId: 'dev-1',
+          deviceName: 'Android · Samsung Internet',
+          branchId: BRANCH,
+          deviceToken: 'device-token',
+          expiresAtUtc: '2027-10-24T00:00:00Z',
+        },
+        session: SESSION,
+      },
+    };
+    const { auth, backend } = authOver({ 'POST /api/auth/staff/phone-pair': reply });
+    await auth.pairPhone({
+      code: 'K7Q2M9XW4P',
+      pin: '1234',
+      clientDeviceId: 'client-1',
+      deviceName: 'Android · Samsung Internet',
+      platform: 'android',
+      browser: 'samsungInternet',
+    });
+    expect(backend.requests[0]!.body).toEqual({
+      code: 'K7Q2M9XW4P',
+      pin: '1234',
+      clientDeviceId: 'client-1',
+      deviceName: 'Android · Samsung Internet',
+      platform: 4,
+      browser: 6,
+    });
+
+    // A browser the phone did not recognise is left out.
+    const other = authOver({ 'POST /api/auth/staff/phone-pair': reply });
+    await other.auth.pairPhone({
+      code: 'K7Q2M9XW4P',
+      pin: '1234',
+      clientDeviceId: 'client-1',
+      deviceName: 'Phone',
+      platform: 'other',
+      browser: null,
+    });
+    expect(other.backend.requests[0]!.body).toEqual({
+      code: 'K7Q2M9XW4P',
+      pin: '1234',
+      clientDeviceId: 'client-1',
+      deviceName: 'Phone',
+      platform: 1,
+    });
+  });
+
   it('tells a wrong PIN and a lockout from a dead code', async () => {
     const wrong = authOver({ 'POST /api/auth/staff/phone-pair': problemReply(401, 'pin-invalid') });
     expect(

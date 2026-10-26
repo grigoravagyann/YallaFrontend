@@ -108,8 +108,9 @@ export function whoShort(t: TFunction, entry: ActivityEntry): string {
 }
 
 /**
- * The server's label for a personal phone, "Aram's phone" (always English):
- * the name part, or `null` for any other label (a tablet's own name).
+ * The label an entry written before the server kept the device's parts has
+ * for a personal phone, "Aram's phone" (always English): the name part, or
+ * `null` for any other label (a tablet's own name).
  */
 export function phoneOwnerOf(label: string): string | null {
   const said = /^(.+?)\s*['’]s\s+phone$/iu.exec(label.trim());
@@ -118,16 +119,26 @@ export function phoneOwnerOf(label: string): string | null {
 
 /**
  * From where: "Console" and "Aram's phone" in the reader's language, a
- * tablet's own name as it was given, or nothing.
+ * tablet's own name as it was given, or nothing. Worded from the parts the
+ * server keeps (`kind`, `ownerName`); only an entry written before it kept
+ * them is read from its English label.
  */
 export function deviceLabel(t: TFunction, entry: ActivityEntry): string | null {
+  const { kind, ownerName } = entry.device;
   const label = entry.device.label.trim();
-  if (entry.device.isConsole || (entry.device.id === null && /^console$/iu.test(label))) {
+  if (
+    kind === 'console' ||
+    entry.device.isConsole ||
+    (entry.device.id === null && /^console$/iu.test(label))
+  ) {
     return t('activity.device.console');
   }
+  const owner = ownerName?.trim().split(/\s+/u)[0];
+  if (kind === 'phone' && owner) return t('activity.device.phone', { name: owner });
+  if (kind === 'tablet' || kind === 'phone') return label || null;
   if (!label) return null;
-  const owner = phoneOwnerOf(label);
-  return owner ? t('activity.device.phone', { name: owner }) : label;
+  const said = phoneOwnerOf(label);
+  return said ? t('activity.device.phone', { name: said }) : label;
 }
 
 /** "48 s", "1 min 35 s", "2 min 05 s", "4 min": the seconds two digits after minutes, as the boards. */

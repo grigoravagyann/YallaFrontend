@@ -9,6 +9,7 @@ import {
   type ActivityActor,
   type ActivityBookingHeader,
   type ActivityCategory,
+  type ActivityDevice,
   type ActivityEntry,
   type ActivityFilters,
   type ActivityLine,
@@ -363,20 +364,34 @@ export function createMockActivity(options: MockActivityOptions) {
       kitchen: { id: `${branchId}-dev-kitchen`, label: 'Խոհանոցի պլանշետ' },
     };
 
-    function deviceFor(key: DeviceKey, who: Person | null) {
+    // As the server sends them: the English label, and the same as parts.
+    function deviceFor(key: DeviceKey, who: Person | null): ActivityDevice {
+      const none: ActivityDevice = {
+        id: null,
+        label: '',
+        isConsole: false,
+        kind: null,
+        ownerName: null,
+      };
       switch (key) {
         case 'hall':
-          return { ...devices.hall, isConsole: false };
+          return { ...devices.hall, isConsole: false, kind: 'tablet', ownerName: null };
         case 'kitchen':
-          return { ...devices.kitchen, isConsole: false };
+          return { ...devices.kitchen, isConsole: false, kind: 'tablet', ownerName: null };
         case 'phone':
           return who
-            ? { id: `${branchId}-dev-phone-${who.id}`, label: who.phone, isConsole: false }
-            : { id: null, label: '', isConsole: false };
+            ? {
+                id: `${branchId}-dev-phone-${who.id}`,
+                label: who.phone,
+                isConsole: false,
+                kind: 'phone',
+                ownerName: who.name,
+              }
+            : none;
         case 'console':
-          return { id: null, label: 'Console', isConsole: true };
+          return { id: null, label: 'Console', isConsole: true, kind: 'console', ownerName: null };
         default:
-          return { id: null, label: '', isConsole: false };
+          return none;
       }
     }
 

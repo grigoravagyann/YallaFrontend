@@ -4,6 +4,7 @@ import { useTranslation } from '@yalla/i18n';
 import QRCode from 'qrcode';
 import { useEffect, useState } from 'react';
 import { Dialog } from '../../ui/Dialog';
+import { phoneDeviceName } from './phoneDeviceName';
 
 export interface PairPhoneDialogProps {
   /** The person's full name, for the title. */
@@ -91,7 +92,7 @@ export function PairPhoneDialog(props: PairPhoneDialogProps) {
 
         {props.paired ? (
           <p className="yc-pair-ok" role="status">
-            {t('phones.pairedNow', { device: props.paired.name })}
+            {t('phones.pairedNow', { device: phoneDeviceName(t, props.paired) })}
           </p>
         ) : expired ? (
           <p className="yc-pair-left is-gone" role="status">

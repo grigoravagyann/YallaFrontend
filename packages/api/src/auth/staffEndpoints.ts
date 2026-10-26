@@ -24,6 +24,7 @@ import type {
 import { ApiError, ForbiddenError, UnauthorizedError } from '../errors';
 import type { components } from '../generated/schema';
 import { staffRoleToUserRole } from './endpoints';
+import { staffDeviceBrowserCode, staffDevicePlatformCode } from '../http/staffAdminMapping';
 import { ProblemCodes } from '../generated/problemCodes';
 
 type Schemas = components['schemas'];
@@ -165,6 +166,8 @@ export function createStaffAuth(client: ApiClient) {
             pin: command.pin,
             clientDeviceId: command.clientDeviceId,
             deviceName: command.deviceName,
+            ...(command.platform ? { platform: staffDevicePlatformCode(command.platform) } : {}),
+            ...(command.browser ? { browser: staffDeviceBrowserCode(command.browser) } : {}),
           } satisfies Schemas['Yalla.Api.Endpoints.PhonePairRequest'],
           { skipAuth: true },
         );

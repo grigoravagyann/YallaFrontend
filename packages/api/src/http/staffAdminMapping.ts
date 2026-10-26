@@ -4,6 +4,8 @@ import type {
   EnrolmentCode,
   PhonePairingCode,
   StaffDevice,
+  StaffDeviceBrowser,
+  StaffDevicePlatform,
   StaffMember,
   StaffSignInLink,
   UpdateStaffInput,
@@ -122,7 +124,53 @@ export function staffDevice(wire: WireDevice): StaffDevice {
         }
       : null,
     revokedAtUtc: wire.revokedAtUtc ?? null,
+    platform: staffDevicePlatform(wire.platform),
+    browser: staffDeviceBrowser(wire.browser),
   };
+}
+
+type WirePlatform = Schemas['Yalla.Domain.Enums.StaffDevicePlatform'];
+type WireBrowser = Schemas['Yalla.Domain.Enums.StaffDeviceBrowser'];
+
+/** `StaffDevicePlatform`: pinned integers, never renumbered. */
+const PLATFORM_CODES: Readonly<Record<StaffDevicePlatform, WirePlatform>> = {
+  other: 1,
+  iphone: 2,
+  ipad: 3,
+  android: 4,
+  windows: 5,
+  mac: 6,
+  linux: 7,
+};
+
+/** `StaffDeviceBrowser`: pinned integers, never renumbered. */
+const BROWSER_CODES: Readonly<Record<StaffDeviceBrowser, WireBrowser>> = {
+  safari: 1,
+  chrome: 2,
+  edge: 3,
+  firefox: 4,
+  opera: 5,
+  samsungInternet: 6,
+};
+
+/** A phone's platform from the wire; null for none, and for a number this client does not know. */
+export function staffDevicePlatform(code: number | null | undefined): StaffDevicePlatform | null {
+  const found = Object.entries(PLATFORM_CODES).find(([, value]) => value === code);
+  return found ? (found[0] as StaffDevicePlatform) : null;
+}
+
+/** A phone's browser from the wire; null for none, and for a number this client does not know. */
+export function staffDeviceBrowser(code: number | null | undefined): StaffDeviceBrowser | null {
+  const found = Object.entries(BROWSER_CODES).find(([, value]) => value === code);
+  return found ? (found[0] as StaffDeviceBrowser) : null;
+}
+
+export function staffDevicePlatformCode(platform: StaffDevicePlatform): WirePlatform {
+  return PLATFORM_CODES[platform];
+}
+
+export function staffDeviceBrowserCode(browser: StaffDeviceBrowser): WireBrowser {
+  return BROWSER_CODES[browser];
 }
 
 /** Field for field: the code is shown once, so a renamed member must fail here. */

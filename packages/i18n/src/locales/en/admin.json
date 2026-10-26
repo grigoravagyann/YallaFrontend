@@ -1553,6 +1553,10 @@
       "seen": "Last seen",
       "action": "Action"
     },
+    "device": {
+      "other": "Phone",
+      "named": "{{platform}} · {{browser}}"
+    },
     "notPaired": "Not paired",
     "never": "never",
     "empty": "Nobody at this branch can have a phone yet.",
