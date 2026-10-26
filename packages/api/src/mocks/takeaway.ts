@@ -82,6 +82,13 @@ export interface MockTakeawayBookOptions {
   readonly place: (branchId: string) => MockTakeawayPlace | null;
   /** Settings per branch. A branch not named takes the server's default: off. */
   readonly branches?: Readonly<Record<string, MockTakeawayBranch>> | undefined;
+  /**
+   * An order moved — placed, accepted, declined, cancelled, ready, collected or
+   * not collected, by a person or by the sweep; never on a replay. The floor's
+   * mock writes the change stream's `takeawayChanged` row from it, as the
+   * server's `TakeawayChangeStream` does (2026-10-26). `reason` is the row's.
+   */
+  readonly onChanged?: ((record: MockTakeawayRecord, reason: string) => void) | undefined;
 }
 
 interface StoredLine {
@@ -165,6 +172,8 @@ function toMock(violations: readonly FieldViolation[]): MockViolation[] {
 
 export function createMockTakeawayBook(options: MockTakeawayBookOptions) {
   const { now } = options;
+  const changed = (record: MockTakeawayRecord, reason: string) =>
+    options.onChanged?.(record, reason);
   const records = new Map<string, MockTakeawayRecord>();
   const settings = new Map<string, Settings>();
   /** clientCommandId -> the order it placed and who placed it. */
@@ -229,12 +238,14 @@ export function createMockTakeawayBook(options: MockTakeawayBookOptions) {
       if (settingsOf(record.branchId).autoAccept) {
         // A branch switched to auto-accept since: accepted instead.
         accepted(record, record.requestedPickupUtc, null, record.acceptDeadlineUtc);
+        changed(record, 'takeaway accepted');
         continue;
       }
       record.status = 'declined';
       record.declinedAtUtc = record.acceptDeadlineUtc;
       record.declinedBecause = 'noAnswer';
       record.acceptDeadlineUtc = null;
+      changed(record, 'takeaway declined');
     }
   }
 
@@ -619,6 +630,7 @@ export function createMockTakeawayBook(options: MockTakeawayBookOptions) {
       if (branch.autoAccept) accepted(record, record.requestedPickupUtc, null, sentAtUtc);
       records.set(id, record);
       commands.set(command.clientCommandId, { orderId: id, actor });
+      changed(record, 'takeaway placed');
       return guestView(record);
     },
 
@@ -639,6 +651,7 @@ export function createMockTakeawayBook(options: MockTakeawayBookOptions) {
       record.status = 'cancelled';
       record.cancelledAtUtc = now().toISOString();
       record.acceptDeadlineUtc = null;
+      changed(record, 'takeaway cancelled');
       return guestView(record);
     },
 
@@ -740,6 +753,7 @@ export function createMockTakeawayBook(options: MockTakeawayBookOptions) {
         ]);
       }
       accepted(record, iso(ready), byName, iso(t));
+      changed(record, 'takeaway accepted');
       return staffView(record);
     },
 
@@ -763,6 +777,7 @@ export function createMockTakeawayBook(options: MockTakeawayBookOptions) {
       record.declinedBecause = 'venue';
       record.declineReason = said;
       record.acceptDeadlineUtc = null;
+      changed(record, 'takeaway declined');
       return staffView(record);
     },
 
@@ -772,6 +787,7 @@ export function createMockTakeawayBook(options: MockTakeawayBookOptions) {
       if (record.status !== 'accepted') throw conflict(url, record);
       record.status = 'ready';
       record.readyMarkedAtUtc = now().toISOString();
+      changed(record, 'takeaway ready');
       return staffView(record);
     },
 
@@ -786,6 +802,7 @@ export function createMockTakeawayBook(options: MockTakeawayBookOptions) {
         (sum, line) => sum + line.unitPriceDram * line.quantity,
         0,
       );
+      changed(record, 'takeaway collected');
       return staffView(record);
     },
 
@@ -799,6 +816,7 @@ export function createMockTakeawayBook(options: MockTakeawayBookOptions) {
       }
       record.status = 'noShow';
       record.noShowAtUtc = now().toISOString();
+      changed(record, 'takeaway not collected');
       return staffView(record);
     },
 

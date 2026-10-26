@@ -100,7 +100,8 @@ export const queryKeys = {
   duePreOrders: (branchId: string) => ['staff', 'preOrders', branchId] as const,
   /**
    * The counter's takeaway orders, active and finished today (2026-10-22).
-   * Polled; takeaway writes nothing to the change stream.
+   * Invalidate on the change stream's `takeawayChanged` (2026-10-26); polled
+   * slowly as the fallback.
    */
   takeawayOrders: (branchId: string) => ['staff', 'takeaway', branchId] as const,
   /** Whether a branch takes takeaway now, and its pickup slots: the checkout. */

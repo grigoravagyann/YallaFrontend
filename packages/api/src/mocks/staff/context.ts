@@ -1713,6 +1713,7 @@ export function createStaffMockContext(options: StaffMockOptions = {}) {
     branches: {
       [FLOOR_BRANCH]: { enabled: true, autoAccept: options.takeawayAutoAccept ?? false },
     },
+    onChanged: (_record, reason) => takeawayChanged(now(), reason),
   });
 
   /** reservationId -> the tab its pre-order went onto. */
@@ -1847,6 +1848,30 @@ export function createStaffMockContext(options: StaffMockOptions = {}) {
       partySize: reservation.partySize,
       guestName: reservation.guestName,
     };
+  }
+
+  /**
+   * Signal 8 on the change stream (2026-10-26): a takeaway order here moved.
+   * The server's row is about the counter — no table, free to free, the
+   * system's, naming no order — and so is this one.
+   */
+  function takeawayChanged(at: Date, reason: string): void {
+    sequence += 1;
+    changes.push({
+      sequence,
+      tableId: null,
+      tableLabel: null,
+      fromStatus: 'free',
+      toStatus: 'free',
+      atUtc: iso(at),
+      tableSessionId: null,
+      reservationId: null,
+      actor: 'system',
+      actorId: null,
+      reason,
+      tabId: null,
+      signal: 'takeawayChanged',
+    });
   }
 
   /** Signal 6 on the change stream, at the booking's table: re-read the rail. */
