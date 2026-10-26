@@ -4,7 +4,7 @@ import type { components } from '../generated/schema';
 import { approvalTrigger, declineReason } from './approvalMapping';
 import { awaitingApprovalFromWire, type WireAwaitingApproval } from './awaitingApprovalMapping';
 import { booking } from './dinerMapping';
-import { fakeBackend, offSchema, problemReply, type FakeRoute } from './fakeBackend.testkit';
+import { fakeBackend, problemReply, type FakeRoute } from './fakeBackend.testkit';
 import { createHttpGateway } from './httpGateway';
 import { availabilityFromResponse, daySlotsFromWire, type WireDaySlots } from './mapping';
 import { managedBookingFromWire, type WirePublicBooking } from './publicMapping';
@@ -486,29 +486,6 @@ describe("the earlier guest's answer", () => {
       promisedFreeByUtc: '2026-10-20T15:40:00Z',
       incomingTableRequest: null,
     });
-  });
-
-  it('reads the booking back when the answer carries no body', async () => {
-    const { gateway, backend } = gatewayOver({
-      [route]: offSchema(
-        { status: 204 },
-        'the gateway still tolerates a bodiless answer; swagger declares only 200 with the booking — reported as a dead branch, not changed',
-      ),
-      'GET /api/reservations/mine': { status: 200, body: { upcoming: [VIEW], past: [] } },
-    });
-
-    const answered = await gateway.answerTableRequest({
-      bookingId: RESERVATION,
-      requestId: REQUEST,
-      accept: false,
-      commandId: 'cmd-answer',
-    });
-
-    expect(backend.requests.map((request) => `${request.method} ${request.path}`)).toEqual([
-      route,
-      'GET /api/reservations/mine',
-    ]);
-    expect(answered?.id).toBe(RESERVATION);
   });
 
   it('says a request that lapsed or was answered elsewhere can no longer be answered', async () => {

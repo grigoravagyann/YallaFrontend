@@ -1247,6 +1247,8 @@ export function createConsoleMockContext(options: ConsoleMockOptions = {}) {
         kind: 'phone',
         boundStaffMember: { id: waiter.id, fullName: waiter.fullName, role: waiter.role },
         revokedAtUtc: null,
+        platform: 'iphone',
+        browser: 'safari',
       });
     }
 
@@ -1279,6 +1281,8 @@ export function createConsoleMockContext(options: ConsoleMockOptions = {}) {
             ? { id: person.id, fullName: person.fullName, role: person.role }
             : null,
           revokedAtUtc: device.revokedAtUtc,
+          platform: device.platform ?? null,
+          browser: device.browser ?? null,
         };
       });
   }

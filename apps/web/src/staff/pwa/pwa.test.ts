@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { staffLinkOf } from './deepLinks';
-import { deviceNameFrom } from './deviceName';
+import { deviceNameFrom, devicePartsFrom } from './deviceName';
 import { base64UrlToBytes, isIos, madeWithKey, pushSupport, type PushEnvironment } from './webPush';
 
 /**
@@ -29,6 +29,17 @@ describe('what a phone calls itself on the console', () => {
     expect(deviceNameFrom(IPAD_AS_MAC, 5)).toBe('iPad · Safari');
     expect(deviceNameFrom(IPAD_AS_MAC, 0)).toBe('Mac · Safari');
     expect(deviceNameFrom('')).toBe('Phone');
+  });
+
+  it('says the same as parts, which the console words in its reader’s language', () => {
+    expect(devicePartsFrom(IPHONE_SAFARI)).toEqual({ platform: 'iphone', browser: 'safari' });
+    expect(devicePartsFrom(IPHONE_CHROME)).toEqual({ platform: 'iphone', browser: 'chrome' });
+    expect(devicePartsFrom(ANDROID_SAMSUNG)).toEqual({
+      platform: 'android',
+      browser: 'samsungInternet',
+    });
+    expect(devicePartsFrom(IPAD_AS_MAC, 5)).toEqual({ platform: 'ipad', browser: 'safari' });
+    expect(devicePartsFrom('')).toEqual({ platform: 'other', browser: null });
   });
 
   it('knows an iPhone and an iPad, whatever the iPad claims', () => {

@@ -7,6 +7,7 @@ import {
   type ActivityActorKind,
   type ActivityBookingHeader,
   type ActivityCategory,
+  type ActivityDeviceKind,
   type ActivityEntry,
   type ActivityFilters,
   type ActivityLine,
@@ -240,10 +241,16 @@ function localStamp(value: unknown): string {
   return match ? `${match[1]} ${match[2]}` : said;
 }
 
+/** `deviceKind`'s words; anything else - absent, or a word this client does not know - is none. */
+function activityDeviceKind(value: unknown): ActivityDeviceKind | null {
+  return value === 'console' || value === 'tablet' || value === 'phone' ? value : null;
+}
+
 export function activityEntryFromWire(wire: Partial<WireActivityItem>): ActivityEntry {
   const actorKind = activityActorKind(wire.actorKind);
   const deviceLabel = text(wire.deviceLabel) ?? '';
   const deviceId = text(wire.deviceId);
+  const deviceKind = activityDeviceKind(wire.deviceKind);
   const action = text(wire.action) ?? '';
   return {
     id: text(wire.id) ?? '',
@@ -257,8 +264,13 @@ export function activityEntryFromWire(wire: Partial<WireActivityItem>): Activity
     device: {
       id: deviceId,
       label: deviceLabel,
-      // A staff session with no enrolled device: the server says `Console`.
-      isConsole: actorKind === 'staff' && deviceId === null && /^console$/iu.test(deviceLabel),
+      // A staff session with no enrolled device: the server says `console`
+      // (and `Console` as the label, all an older server sends).
+      isConsole:
+        deviceKind === 'console' ||
+        (actorKind === 'staff' && deviceId === null && /^console$/iu.test(deviceLabel)),
+      kind: deviceKind,
+      ownerName: deviceKind === 'phone' ? text(wire.deviceOwnerName) : null,
     },
     category: activityCategory(wire.category, action),
     action,

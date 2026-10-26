@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import {
+  adjustmentReductions,
   computeBill,
+  readReductions,
   percentOf,
   splitEvenly,
   type BillingLine,
@@ -39,6 +41,56 @@ function line(id: string, overrides: Partial<BillingLine> = {}): BillingLine {
     ...overrides,
   };
 }
+
+describe('what each adjustment took off', () => {
+  // The server's TabLedger.ReductionOf case: a 3,200 dish and three 1,000 coffees.
+  const lines = [
+    line('khachapuri', { unitPriceDram: 3200 }),
+    line('coffee', { unitPriceDram: 1000, quantity: 3 }),
+  ];
+
+  it('gives a comp under a standing discount its own reduction, not the subtotal’s drop', () => {
+    const discount = { lineId: null, percent: 10, amountDram: null };
+    const comp = { lineId: 'khachapuri', percent: null, amountDram: 5000 };
+    expect(adjustmentReductions(lines, [discount, comp])).toEqual([300, 3200]);
+
+    const subtotal = (adjustments: (typeof discount | typeof comp)[]) =>
+      computeBill({
+        lines,
+        adjustments,
+        participants: [],
+        serviceChargePercent: 0,
+        paidDram: 0,
+      }).bill.subtotalDram;
+    // The subtotal drops by 2,880: the discount now takes 320 less.
+    expect(subtotal([discount]) - subtotal([discount, comp])).toBe(2880);
+  });
+
+  it('reads each one as the tab now stands, and a reversed one as nothing', () => {
+    const discount = { id: 'a-1', lineId: null, percent: 10, amountDram: null, isVoided: false };
+    const comp = {
+      id: 'a-2',
+      lineId: 'khachapuri',
+      percent: null,
+      amountDram: 5000,
+      isVoided: false,
+    };
+    const reversed = { id: 'a-3', lineId: null, percent: null, amountDram: 500, isVoided: true };
+    // The discount was given first, at 620; once the comp stands it takes 300.
+    expect([...readReductions(lines, [discount])]).toEqual([['a-1', 620]]);
+    const read = readReductions(lines, [discount, comp, reversed]);
+    expect([read.get('a-1'), read.get('a-2'), read.get('a-3') ?? 0]).toEqual([300, 3200, 0]);
+  });
+
+  it('takes tab-wide ones in turn, each off what is left', () => {
+    expect(
+      adjustmentReductions(lines, [
+        { lineId: null, percent: 10, amountDram: null },
+        { lineId: null, percent: null, amountDram: 200 },
+      ]),
+    ).toEqual([620, 200]);
+  });
+});
 
 describe('splitting whole dram', () => {
   it('sums back exactly, with the remainder on the first part', () => {

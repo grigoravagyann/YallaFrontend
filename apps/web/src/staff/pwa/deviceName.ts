@@ -1,44 +1,86 @@
+import type { StaffDeviceBrowser, StaffDevicePlatform } from '@yalla/api';
+
+/** What a phone runs on and in, as the console words it in its reader's language. */
+export interface DeviceParts {
+  readonly platform: StaffDevicePlatform;
+  readonly browser: StaffDeviceBrowser | null;
+}
+
 /**
- * What a paired phone calls itself on the console's Phones tab: its platform
- * and browser, "iPhone · Safari", "Android · Chrome". Nothing more — not the
- * model, not the version: a manager needs to tell two phones apart, not
+ * What a paired phone says it is: its platform and browser. Nothing more — not
+ * the model, not the version: a manager needs to tell two phones apart, not
  * fingerprint them.
  */
-export function deviceNameFrom(userAgent: string, touchPoints = 0): string {
-  const platform = /iPhone/u.test(userAgent)
-    ? 'iPhone'
+export function devicePartsFrom(userAgent: string, touchPoints = 0): DeviceParts {
+  const platform: StaffDevicePlatform = /iPhone/u.test(userAgent)
+    ? 'iphone'
     : /iPad/u.test(userAgent) || (/Macintosh/u.test(userAgent) && touchPoints > 1)
-      ? 'iPad'
+      ? 'ipad'
       : /Android/u.test(userAgent)
-        ? 'Android'
+        ? 'android'
         : /Windows/u.test(userAgent)
-          ? 'Windows'
+          ? 'windows'
           : /Macintosh|Mac OS X/u.test(userAgent)
-            ? 'Mac'
+            ? 'mac'
             : /Linux/u.test(userAgent)
-              ? 'Linux'
-              : 'Phone';
+              ? 'linux'
+              : 'other';
 
   // Order matters: every Chromium says "Safari", Edge and Opera say "Chrome",
   // and Chrome on iOS says "CriOS".
-  const browser = /EdgA?\/|EdgiOS\//u.test(userAgent)
-    ? 'Edge'
+  const browser: StaffDeviceBrowser | null = /EdgA?\/|EdgiOS\//u.test(userAgent)
+    ? 'edge'
     : /OPR\/|OPiOS\//u.test(userAgent)
-      ? 'Opera'
+      ? 'opera'
       : /SamsungBrowser\//u.test(userAgent)
-        ? 'Samsung Internet'
+        ? 'samsungInternet'
         : /Firefox\/|FxiOS\//u.test(userAgent)
-          ? 'Firefox'
+          ? 'firefox'
           : /Chrome\/|CriOS\//u.test(userAgent)
-            ? 'Chrome'
+            ? 'chrome'
             : /Safari\//u.test(userAgent)
-              ? 'Safari'
+              ? 'safari'
               : null;
 
-  return browser ? `${platform} · ${browser}` : platform;
+  return { platform, browser };
 }
 
-export function thisDeviceName(): string {
-  if (typeof navigator === 'undefined') return 'Phone';
-  return deviceNameFrom(navigator.userAgent, navigator.maxTouchPoints);
+const PLATFORM_NAMES: Readonly<Record<StaffDevicePlatform, string>> = {
+  iphone: 'iPhone',
+  ipad: 'iPad',
+  android: 'Android',
+  windows: 'Windows',
+  mac: 'Mac',
+  linux: 'Linux',
+  other: 'Phone',
+};
+
+const BROWSER_NAMES: Readonly<Record<StaffDeviceBrowser, string>> = {
+  safari: 'Safari',
+  chrome: 'Chrome',
+  edge: 'Edge',
+  firefox: 'Firefox',
+  opera: 'Opera',
+  samsungInternet: 'Samsung Internet',
+};
+
+/**
+ * The same in English, "iPhone · Safari", "Android · Chrome": the `deviceName`
+ * the pairing still sends - what History keeps, and what a console from before
+ * the parts shows. This console words the parts itself, in its reader's language.
+ */
+export function deviceNameFrom(userAgent: string, touchPoints = 0): string {
+  const { platform, browser } = devicePartsFrom(userAgent, touchPoints);
+  const name = PLATFORM_NAMES[platform];
+  return browser ? `${name} · ${BROWSER_NAMES[browser]}` : name;
+}
+
+/** This browser: its English name and its parts, as the pairing sends them. */
+export function thisDevice(): DeviceParts & { readonly name: string } {
+  const userAgent = typeof navigator === 'undefined' ? '' : navigator.userAgent;
+  const touchPoints = typeof navigator === 'undefined' ? 0 : navigator.maxTouchPoints;
+  return {
+    ...devicePartsFrom(userAgent, touchPoints),
+    name: deviceNameFrom(userAgent, touchPoints),
+  };
 }

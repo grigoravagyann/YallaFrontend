@@ -5,7 +5,7 @@ import {
   HoldNotActiveError,
   TableRequestClosedError,
 } from '../../contracts/errors';
-import { ApiError, NotFoundError } from '../../errors';
+import { ApiError } from '../../errors';
 import type { YallaGateway } from '../../gateway';
 import type { components } from '../../generated/schema';
 import { rethrowBookingRefusal } from '../bookingRefusal';
@@ -200,13 +200,13 @@ export function bookingsMethods(
 
     /**
      * `POST /api/reservations/{id}/table-requests/{requestId}/answer` — the
-     * earlier guest's yes or no. The server answers with the booking as it now
-     * stands; a bodiless answer is read back from `/mine` rather than guessed.
+     * earlier guest's yes or no. The server always answers 200 with the booking
+     * as it now stands (a replay too).
      */
     async answerTableRequest({ bookingId, requestId, accept, commandId }): Promise<Booking> {
-      let data: ReservationViewWire | undefined;
+      let data: ReservationViewWire;
       try {
-        ({ data } = await client.post<ReservationViewWire | undefined>(
+        ({ data } = await client.post<ReservationViewWire>(
           `/api/reservations/${bookingId}/table-requests/${requestId}/answer`,
           { accept, clientCommandId: commandId },
         ));
@@ -222,14 +222,7 @@ export function bookingsMethods(
         }
         throw error;
       }
-      if (data && typeof data === 'object' && typeof data.id === 'string') return toBooking(data);
-      const current = await findMine(bookingId);
-      if (!current) {
-        throw new NotFoundError({
-          url: `/api/reservations/${bookingId}/table-requests/${requestId}/answer`,
-        });
-      }
-      return current;
+      return toBooking(data);
     },
 
     async getReservationState(reservationId): Promise<ReservationState | null> {

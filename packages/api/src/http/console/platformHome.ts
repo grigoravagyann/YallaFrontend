@@ -7,7 +7,7 @@ import {
   overviewFromWire,
   profileFromWire,
 } from '../platformHomeMapping';
-import { type ConsoleHttpContext, PLATFORM, tokenPairFrom } from './context';
+import { type ConsoleHttpContext, PLATFORM } from './context';
 
 type Schemas = components['schemas'];
 
@@ -89,18 +89,20 @@ export function platformHomeMethods(
     async changePlatformPassword({ currentPassword, newPassword }) {
       // A wrong current password is a 422 naming `currentPassword`, not a
       // 401: the session stays, and the form shows it under the field.
-      const { data } = await client.post<unknown>(`${PLATFORM}/me/password`, {
-        currentPassword,
-        newPassword,
-      });
+      const { data } = await client.post<Schemas['Yalla.Application.Auth.RefreshResult']>(
+        `${PLATFORM}/me/password`,
+        { currentPassword, newPassword },
+      );
       // The server ends every other session (a session generation that every
-      // other access token is checked against) and answers with a fresh pair
-      // for this one, shaped like the sign-in answer. Adopted here, through the
-      // session the console already holds, so this tab stays signed in. A 204
-      // renews nothing, and nothing is claimed.
-      const pair = tokenPairFrom(data);
-      if (!pair) return { sessionRenewed: false };
-      await auth.signIn(pair);
+      // other access token is checked against) and always answers 200 with a
+      // fresh pair for this one, the refresh route's shape - never a bare 204.
+      // Adopted here, through the session the console already holds, so this
+      // tab stays signed in.
+      await auth.signIn({
+        accessToken: data.accessToken,
+        refreshToken: data.refreshToken,
+        expiresInSeconds: data.expiresInSeconds,
+      });
       return { sessionRenewed: true };
     },
   };

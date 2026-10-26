@@ -75,7 +75,7 @@ import { type GuestRecord } from '../../contracts/guestRecord';
 import type { Photo } from '../../contracts/menuAdmin';
 import { mockMenuFor } from '../menu';
 import { mockBranchMenu, mockPhoto, publishedBranchMenu } from '../menuDetail';
-import { computeBill, percentOf, type BillingLine } from '../billing';
+import { computeBill, percentOf, readReductions, type BillingLine } from '../billing';
 import { type TabTransferResult } from '../../contracts/activity';
 import type { StaffNotificationSwitches } from '../../contracts/staffPhone';
 import { fixtureStaffFor } from '../staffFixture';
@@ -1253,6 +1253,18 @@ export function createStaffMockContext(options: StaffMockOptions = {}) {
    * let every screen be demonstrated against arithmetic the server does not do,
    * and the disagreement would surface at a table.
    */
+  function billingLinesOf(tab: MockTab): BillingLine[] {
+    return tab.lines.map((line) => ({
+      lineId: line.id,
+      ownerParticipantId: line.ownerParticipantId,
+      unitPriceDram: line.unitPriceDram,
+      quantity: line.quantity,
+      isVoided: line.status === 'voided',
+      isSplitAcrossParticipants: line.isShared || line.isTableAttributed,
+      shareParticipantIds: [],
+    }));
+  }
+
   function billFor(tab: MockTab) {
     return computeBill({
       lines: tab.lines.map((line): BillingLine => ({
@@ -1309,6 +1321,7 @@ export function createStaffMockContext(options: StaffMockOptions = {}) {
    */
   function viewTab(tab: MockTab): StaffTab {
     const { bill } = billFor(tab);
+    const reductions = readReductions(billingLinesOf(tab), tab.adjustments);
 
     return {
       id: tab.id,
@@ -1345,7 +1358,11 @@ export function createStaffMockContext(options: StaffMockOptions = {}) {
         lineTotalDram: line.status === 'voided' ? 0 : line.unitPriceDram * line.quantity,
       })),
       linesKnown: true,
-      adjustments: [...tab.adjustments],
+      // Each one's own reduction as the tab now stands, as the server reads it.
+      adjustments: tab.adjustments.map((adjustment) => ({
+        ...adjustment,
+        reductionDram: reductions.get(adjustment.id) ?? 0,
+      })),
       adjustmentsKnown: true,
       admission: tab.admission,
     };

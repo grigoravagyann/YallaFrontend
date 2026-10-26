@@ -42,6 +42,8 @@ describe('devices and phone pairing over HTTP', () => {
             isRevoked: false,
             kind: 2,
             boundStaffMember: { id: 'p-1', fullName: 'Aram Petrosyan', role: 3 },
+            platform: 2,
+            browser: 1,
           },
         ],
       },
@@ -60,7 +62,42 @@ describe('devices and phone pairing over HTTP', () => {
         kind: 'phone',
         boundStaffMember: { id: 'p-1', fullName: 'Aram Petrosyan', role: 'waiter' },
         revokedAtUtc: null,
+        platform: 'iphone',
+        browser: 'safari',
       },
+    ]);
+  });
+
+  it("reads a phone's parts by their pinned numbers, and none it does not know", async () => {
+    const phone = (id: string, platform: number | null, browser: number | null) => ({
+      id,
+      name: 'Phone',
+      branchId: 'b-1',
+      enrolledAtUtc: '2026-10-24T10:00:00Z',
+      isRevoked: false,
+      kind: 2,
+      boundStaffMember: { id: 'p-1', fullName: 'Aram Petrosyan', role: 3 },
+      platform,
+      browser,
+    });
+    const { gateway } = gatewayOver({
+      [`GET ${DEVICES}`]: {
+        body: [
+          phone('d-1', 1, null),
+          phone('d-2', 4, 6),
+          phone('d-3', 7, 4),
+          phone('d-4', null, null),
+        ],
+      },
+    });
+
+    const phones = await gateway.listDevices('b-1', 'phone');
+    expect(phones.map((device) => [device.platform, device.browser])).toEqual([
+      ['other', null],
+      ['android', 'samsungInternet'],
+      ['linux', 'firefox'],
+      // Paired before the phone said them: the name is all there is.
+      [null, null],
     ]);
   });
 
@@ -85,6 +122,8 @@ describe('devices and phone pairing over HTTP', () => {
     expect(backend.requests[0]?.query.get('kind')).toBe('1');
     expect(tablet).toMatchObject({
       kind: 'tablet',
+      platform: null,
+      browser: null,
       boundStaffMember: null,
       revokedAtUtc: '2026-10-24T12:00:00Z',
       lastSeenAtUtc: null,

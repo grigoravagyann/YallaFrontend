@@ -17,7 +17,14 @@ import type {
 } from '../contracts/ordering';
 import type { SettlementMode } from '../contracts/service';
 import type { TabParticipant, TableTab } from '../contracts/tab';
-import { computeBill, quoteBill, type BillQuoteFigures, type BillingLine } from './billing';
+import {
+  adjustmentReductions,
+  computeBill,
+  readReductions,
+  quoteBill,
+  type BillQuoteFigures,
+  type BillingLine,
+} from './billing';
 
 /**
  * The ordering and billing half of a mock tab.
@@ -205,17 +212,21 @@ export function createTabOrders(options: TabOrdersOptions) {
     return person?.status === 'active' && person.permissions.canSeeTableTotal;
   }
 
+  function billingLines(record: TabContent): BillingLine[] {
+    return record.lines.map((line): BillingLine => ({
+      lineId: line.id,
+      ownerParticipantId: line.participantId,
+      unitPriceDram: line.unitPriceDram,
+      quantity: line.quantity,
+      isVoided: line.status === 'voided',
+      isSplitAcrossParticipants: line.isShared || line.isTableAttributed,
+      shareParticipantIds: record.shareIds.get(line.id) ?? [],
+    }));
+  }
+
   function bill(tab: TableTab, record: TabContent) {
     return computeBill({
-      lines: record.lines.map((line): BillingLine => ({
-        lineId: line.id,
-        ownerParticipantId: line.participantId,
-        unitPriceDram: line.unitPriceDram,
-        quantity: line.quantity,
-        isVoided: line.status === 'voided',
-        isSplitAcrossParticipants: line.isShared || line.isTableAttributed,
-        shareParticipantIds: record.shareIds.get(line.id) ?? [],
-      })),
+      lines: billingLines(record),
       adjustments: record.adjustments.map((adjustment) => ({
         lineId: adjustment.lineId,
         percent: adjustment.percent,
@@ -380,7 +391,6 @@ export function createTabOrders(options: TabOrdersOptions) {
       },
     ): void {
       const record = contentFor(tab.id, tab.branchId);
-      const before = bill(tab, record).bill.subtotalDram;
       record.adjustments.push({
         id: id('adj'),
         kind: input.kind,
@@ -393,15 +403,24 @@ export function createTabOrders(options: TabOrdersOptions) {
         byName: input.byName,
         atUtc: iso(now()),
       });
-      const after = bill(tab, record).bill.subtotalDram;
       const last = record.adjustments[record.adjustments.length - 1];
       if (last) {
         // What it actually took off, from the arithmetic rather than from the
         // percentage: a 100% comp on a line already discounted takes off less
-        // than the menu price, and the row has to say the real number.
+        // than the menu price, and the row has to say the real number. Its own
+        // reduction in the bill's order, as the server says it - not the
+        // subtotal's drop, which a standing tab-wide discount makes smaller.
+        const reductions = adjustmentReductions(
+          billingLines(record),
+          record.adjustments.map((adjustment) => ({
+            lineId: adjustment.lineId,
+            percent: adjustment.percent,
+            amountDram: adjustment.amountDram,
+          })),
+        );
         record.adjustments[record.adjustments.length - 1] = {
           ...last,
-          reductionDram: Math.max(0, before - after),
+          reductionDram: Math.max(0, reductions[reductions.length - 1] ?? 0),
         };
       }
       push(record, 'adjustmentAdded', 'staff', input.byName);
@@ -626,6 +645,7 @@ export function createTabOrders(options: TabOrdersOptions) {
             ? ('pendingApproval' as const)
             : ('removed' as const);
       const mePending = me?.status === 'pending';
+      const reductions = readReductions(billingLines(record), record.adjustments);
 
       return {
         tabId: tab.id,
@@ -683,7 +703,8 @@ export function createTabOrders(options: TabOrdersOptions) {
           lineId: adjustment.lineId,
           percent: adjustment.percent,
           amountDram: adjustment.amountDram,
-          reductionDram: adjustment.reductionDram,
+          // As the server reads it: its own reduction as the tab now stands.
+          reductionDram: reductions.get(adjustment.id) ?? 0,
           reason: adjustment.reason,
           isVoided: adjustment.isVoided,
           atUtc: adjustment.atUtc,

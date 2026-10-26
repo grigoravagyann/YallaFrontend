@@ -75,7 +75,12 @@ export interface UpdateStaffInput {
  */
 export interface StaffDevice {
   readonly id: string;
-  /** A tablet's name as the manager gave it; a phone's is what it reported: "iPhone · Safari". */
+  /**
+   * A tablet's name as the manager gave it; a phone's is what it reported, in
+   * English: "iPhone · Safari". For a phone, word {@link platform} and
+   * {@link browser} instead; the name is all there is only for a phone paired
+   * before it said them.
+   */
   readonly name: string;
   readonly branchId: string;
   readonly enrolledAtUtc: string;
@@ -87,7 +92,22 @@ export interface StaffDevice {
   readonly boundStaffMember?: StaffDevicePerson | null | undefined;
   /** When it was revoked or unpaired; null while live. */
   readonly revokedAtUtc?: string | null | undefined;
+  /** What a phone said it runs on when it paired; null on a tablet or a phone paired before. */
+  readonly platform?: StaffDevicePlatform | null | undefined;
+  /** What browser a phone said it is; null when it did not say or know. */
+  readonly browser?: StaffDeviceBrowser | null | undefined;
 }
+
+/**
+ * What a paired phone runs on, read by the phone from its own user agent
+ * (`StaffDevicePlatform` on the wire). `other`: one it did not recognise.
+ */
+export type StaffDevicePlatform =
+  'iphone' | 'ipad' | 'android' | 'windows' | 'mac' | 'linux' | 'other';
+
+/** What browser a paired phone is (`StaffDeviceBrowser` on the wire). */
+export type StaffDeviceBrowser =
+  'safari' | 'chrome' | 'edge' | 'firefox' | 'opera' | 'samsungInternet';
 
 /** The person a phone is paired to, as the device list names them. */
 export interface StaffDevicePerson {

@@ -1,5 +1,6 @@
 import { browserMockStorage } from './browserStorage';
 import { MOCK_JOURNAL_PREFIX, type MockJournalStorage } from './persistence';
+import type { StaffDeviceBrowser, StaffDevicePlatform } from '../contracts/staff';
 
 /**
  * What one mock hands to another across a page load.
@@ -72,6 +73,9 @@ export interface MockEnrolledDevice {
   readonly boundStaffMemberId?: string | null | undefined;
   /** Moved by every PIN sign-in and renewal, for the console's "last seen". */
   readonly lastSeenAtUtc?: string | null | undefined;
+  /** What a phone said it runs on when it paired; absent on a tablet. */
+  readonly platform?: StaffDevicePlatform | null | undefined;
+  readonly browser?: StaffDeviceBrowser | null | undefined;
 }
 
 /**

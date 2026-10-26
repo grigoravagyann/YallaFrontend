@@ -211,16 +211,28 @@ export interface ActivityActor {
   readonly name: string;
 }
 
+/** Where an entry came from, as parts: the console, a tablet, or a phone. */
+export type ActivityDeviceKind = 'console' | 'tablet' | 'phone';
+
 /** The device that acted, as it was named then. */
 export interface ActivityDevice {
   readonly id: string | null;
   /**
-   * "Hall tablet", "Aram's phone", "Console" — a snapshot. Empty when no
-   * device acted (SHURJ itself, a guest).
+   * "Hall tablet", "Aram's phone", "Console" — a snapshot, and English for a
+   * phone and the console: word those from {@link kind} and {@link ownerName}.
+   * Empty when no device acted (SHURJ itself, a guest).
    */
   readonly label: string;
   /** The console: a staff session with no enrolled device (`deviceLabel` `Console`). */
   readonly isConsole: boolean;
+  /**
+   * Where it came from, as the server keeps it. Null for a guest or the
+   * system, and for a tablet or phone on an entry written before the server
+   * kept it (read {@link label} then).
+   */
+  readonly kind?: ActivityDeviceKind | null | undefined;
+  /** A phone's person then, by full name; null for anything but a phone. */
+  readonly ownerName?: string | null | undefined;
 }
 
 export interface ActivitySubject {

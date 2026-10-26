@@ -14,6 +14,7 @@ import { QueryFailureNotice } from '../../../components/QueryFailureNotice';
 import { Dialog } from '../../ui/Dialog';
 import { useToast } from '../../ui/toast';
 import { PairPhoneDialog } from './PairPhoneDialog';
+import { phoneDeviceName } from './phoneDeviceName';
 
 export interface PhonesPanelProps {
   readonly branchId: string;
@@ -168,7 +169,7 @@ export function PhonesPanel({ branchId, timeZoneId, locale, people, actor }: Pho
                     </th>
                     <td>
                       {phone ? (
-                        phone.name
+                        phoneDeviceName(t, phone)
                       ) : (
                         <span className="yc-muted">{t('phones.notPaired')}</span>
                       )}
@@ -237,7 +238,9 @@ export function PhonesPanel({ branchId, timeZoneId, locale, people, actor }: Pho
         <Dialog
           alert
           title={t('phones.confirm.title', { name: confirming.member.fullName })}
-          description={t('phones.confirm.body', { device: confirming.device.name })}
+          description={t('phones.confirm.body', {
+            device: phoneDeviceName(t, confirming.device),
+          })}
           onClose={revoke.isPending ? () => undefined : () => setConfirming(null)}
           dismissible={!revoke.isPending}
           returnFocusTo={pairButton(confirming.member.id)}

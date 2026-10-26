@@ -290,6 +290,8 @@ export function createMockStaffAuth(options: StaffAuthMockOptions = {}): StaffAu
         kind: 'phone',
         boundStaffMemberId: member.id,
         lastSeenAtUtc: at,
+        platform: command.platform ?? null,
+        browser: command.browser ?? null,
       });
       return {
         device: {

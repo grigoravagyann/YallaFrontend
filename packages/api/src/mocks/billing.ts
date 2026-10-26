@@ -234,6 +234,55 @@ function apportionExactly(
   return result;
 }
 
+/**
+ * What each adjustment takes off, exactly as {@link computeBill} takes it: a
+ * line's own adjustments off that line in turn, then the tab-wide ones off
+ * what is left of the sum, each in turn - the server's `TabBilling.Reductions`,
+ * which the History, the reports and the answer to giving one all say. Not the
+ * subtotal's drop: under a standing 10 % discount, a comp of a 3,200 dish takes
+ * 3,200 while the subtotal drops by 2,880.
+ */
+export function adjustmentReductions(
+  lines: readonly BillingLine[],
+  adjustments: readonly BillingAdjustment[],
+): number[] {
+  const reductions = adjustments.map(() => 0);
+  let grossSubtotal = 0;
+  for (const line of lines) {
+    let net = line.isVoided ? 0 : line.unitPriceDram * line.quantity;
+    adjustments.forEach((adjustment, index) => {
+      if (adjustment.lineId !== line.lineId) return;
+      const off = reductionOn(adjustment, net);
+      reductions[index] = (reductions[index] ?? 0) + off;
+      net -= off;
+    });
+    grossSubtotal += net;
+  }
+  let reducible = grossSubtotal;
+  adjustments.forEach((adjustment, index) => {
+    if (adjustment.lineId !== null) return;
+    const off = reductionOn(adjustment, reducible);
+    reductions[index] = (reductions[index] ?? 0) + off;
+    reducible -= off;
+  });
+  return reductions;
+}
+
+/**
+ * Every adjustment's reduction as a tab's read gives it, by id: the standing
+ * ones by {@link adjustmentReductions} in the order given, a reversed one 0 -
+ * recomputed on each read, as the server's `TabQuery` does, so a discount
+ * given before a comp reads what it takes off now.
+ */
+export function readReductions(
+  lines: readonly BillingLine[],
+  adjustments: readonly (BillingAdjustment & { readonly id: string; readonly isVoided: boolean })[],
+): ReadonlyMap<string, number> {
+  const standing = adjustments.filter((adjustment) => !adjustment.isVoided);
+  const reductions = adjustmentReductions(lines, standing);
+  return new Map(standing.map((adjustment, index) => [adjustment.id, reductions[index] ?? 0]));
+}
+
 export function computeBill(input: {
   readonly lines: readonly BillingLine[];
   readonly adjustments: readonly BillingAdjustment[];

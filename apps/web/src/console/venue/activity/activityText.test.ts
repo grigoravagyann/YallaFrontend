@@ -49,7 +49,51 @@ function entry(overrides: Partial<ActivityEntry> = {}): ActivityEntry {
 }
 
 describe('device labels', () => {
-  it('says a personal phone in the reader’s language, from the name part', () => {
+  it('words a phone, a tablet and the console from the parts the server keeps', () => {
+    const phone = entry({
+      device: {
+        id: 'd-1',
+        label: "Aram's phone",
+        isConsole: false,
+        kind: 'phone',
+        ownerName: 'Արամ Պետրոսյան',
+      },
+    });
+    expect(deviceLabel(en, phone)).toBe('Արամ’s phone');
+    expect(deviceLabel(ru, phone)).toBe('Телефон: Արամ');
+    expect(deviceLabel(hy, phone)).toBe('Հեռախոս՝ Արամ');
+
+    // The label is never read apart when the parts are there: a tablet named like a phone is its name.
+    const tablet = entry({
+      device: {
+        id: 'd-2',
+        label: "Aram's phone",
+        isConsole: false,
+        kind: 'tablet',
+        ownerName: null,
+      },
+    });
+    expect(deviceLabel(hy, tablet)).toBe("Aram's phone");
+
+    // A phone whose person was not found keeps the name the server gave it.
+    const nobody = entry({
+      device: {
+        id: 'd-3',
+        label: 'iPhone · Safari',
+        isConsole: false,
+        kind: 'phone',
+        ownerName: null,
+      },
+    });
+    expect(deviceLabel(ru, nobody)).toBe('iPhone · Safari');
+
+    const console = entry({
+      device: { id: null, label: 'Console', isConsole: false, kind: 'console', ownerName: null },
+    });
+    expect(deviceLabel(hy, console)).toBe('Վահանակ');
+  });
+
+  it('says a personal phone on an older entry in the reader’s language, from the name part', () => {
     const phone = entry({ device: { id: 'd-1', label: "Aram's phone", isConsole: false } });
     expect(deviceLabel(en, phone)).toBe('Aram’s phone');
     expect(deviceLabel(ru, phone)).toBe('Телефон: Aram');

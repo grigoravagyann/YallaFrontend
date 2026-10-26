@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { components } from '../generated/schema';
-import { fakeBackend, offSchema, type FakeRoute } from './fakeBackend.testkit';
+import { fakeBackend, type FakeRoute } from './fakeBackend.testkit';
 import { createStaffHttpGateway } from './staffHttpGateway';
 import { serviceRequest } from './staffMapping';
 
@@ -54,10 +54,9 @@ describe('the person behind a service request', () => {
   it('carries it on the branch list and on the acknowledgement', async () => {
     const { gateway, backend } = gatewayOver({
       [`GET /api/branches/${BRANCH}/service-requests`]: { body: [REQUEST] },
-      'POST /api/service-requests/sr-1/acknowledge': offSchema(
-        { body: { ...REQUEST, acknowledgedAtUtc: '2026-09-20T17:03:00Z' } },
-        'the gateway still sends clientCommandId, which this route takes no body for; reported, not changed (no behaviour change)',
-      ),
+      'POST /api/service-requests/sr-1/acknowledge': {
+        body: { ...REQUEST, acknowledgedAtUtc: '2026-09-20T17:03:00Z' },
+      },
     });
 
     const [listed] = await gateway.listServiceRequests(BRANCH);
@@ -71,7 +70,8 @@ describe('the person behind a service request', () => {
       requestId: 'sr-1',
       clientCommandId: 'c-ack',
     });
-    expect(backend.requests[1]?.body).toEqual({ clientCommandId: 'c-ack' });
+    // The route takes no body: the command id is the offline queue's key, kept on the client.
+    expect(backend.requests[1]?.body).toBeUndefined();
     expect(acknowledged.requestedByParticipantId).toBe(KAREN);
     expect(acknowledged.acknowledgedAtUtc).toBe('2026-09-20T17:03:00Z');
   });

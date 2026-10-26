@@ -51,6 +51,7 @@ const ENTRY: WireActivityItem = {
   actorName: 'Նարե Սարգսյան',
   deviceId: 'd-hall',
   deviceLabel: 'Սրահի պլանշետ',
+  deviceKind: 'tablet',
   category: 'payment',
   action: 'payment.discount',
   subjectType: 'tab',
@@ -86,7 +87,13 @@ describe('reading an entry', () => {
       occurredAtUtc: '2026-10-24T14:31:00Z',
       local: '2026-10-24 18:31',
       actor: { kind: 'staff', staffMemberId: 's-nare', name: 'Նարե Սարգսյան' },
-      device: { id: 'd-hall', label: 'Սրահի պլանշետ', isConsole: false },
+      device: {
+        id: 'd-hall',
+        label: 'Սրահի պլանշետ',
+        isConsole: false,
+        kind: 'tablet',
+        ownerName: null,
+      },
       category: 'payment',
       action: 'payment.discount',
       subject: { type: 'tab', id: 'tab-2', code: null },
@@ -171,8 +178,28 @@ describe('reading an entry', () => {
   });
 
   it('marks a console session: a staff entry with no device, labelled Console', () => {
-    const entry = activityEntryFromWire({ ...ENTRY, deviceId: null, deviceLabel: 'Console' });
-    expect(entry.device).toEqual({ id: null, label: 'Console', isConsole: true });
+    const entry = activityEntryFromWire({
+      ...ENTRY,
+      deviceId: null,
+      deviceLabel: 'Console',
+      deviceKind: 'console',
+    });
+    expect(entry.device).toEqual({
+      id: null,
+      label: 'Console',
+      isConsole: true,
+      kind: 'console',
+      ownerName: null,
+    });
+    // An older server says only the label.
+    const { deviceKind: _absent, ...older } = { ...ENTRY, deviceId: null, deviceLabel: 'Console' };
+    expect(activityEntryFromWire(older).device).toEqual({
+      id: null,
+      label: 'Console',
+      isConsole: true,
+      kind: null,
+      ownerName: null,
+    });
     const system = activityEntryFromWire({
       ...ENTRY,
       actorKind: 'system',
@@ -180,9 +207,36 @@ describe('reading an entry', () => {
       actorName: null,
       deviceId: null,
       deviceLabel: null,
+      deviceKind: null,
     });
     expect(system.actor).toEqual({ kind: 'system', staffMemberId: null, name: '' });
     expect(system.device.isConsole).toBe(false);
+    expect(system.device.kind).toBeNull();
+  });
+
+  it("keeps a phone's person beside its English label, and only for a phone", () => {
+    const phone = activityEntryFromWire({
+      ...ENTRY,
+      deviceId: 'd-phone',
+      deviceLabel: "Aram's phone",
+      deviceKind: 'phone',
+      deviceOwnerName: 'Aram Petrosyan',
+    });
+    expect(phone.device).toEqual({
+      id: 'd-phone',
+      label: "Aram's phone",
+      isConsole: false,
+      kind: 'phone',
+      ownerName: 'Aram Petrosyan',
+    });
+    // A word this client does not know is no kind; a person on a tablet is nobody.
+    const odd = activityEntryFromWire({
+      ...ENTRY,
+      deviceKind: 'kiosk',
+      deviceOwnerName: 'Aram Petrosyan',
+    });
+    expect(odd.device.kind).toBeNull();
+    expect(odd.device.ownerName).toBeNull();
   });
 });
 
