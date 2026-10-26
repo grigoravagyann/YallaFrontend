@@ -1,10 +1,11 @@
 import {
   readsPreOrderRail,
+  readsTakeawayCounter,
   type AwaitingApproval,
   type StaffFloor,
   type StaffGateway,
 } from '@yalla/api';
-import { queryKeys } from '@yalla/api/react';
+import { afterTakeawaySignal, queryKeys } from '@yalla/api/react';
 import type { LiveStream } from '@yalla/realtime';
 import type { QueryClient } from '@tanstack/react-query';
 import { useEffect, useRef, useState } from 'react';
@@ -15,8 +16,8 @@ import type { SetNotice } from './notices';
 
 /**
  * How often the floor is read whole while the tablet is in front of somebody,
- * whatever the change stream says. The stream carries table transitions and
- * admission signals; a booking made, approved, moved, cancelled or undone
+ * whatever the change stream says. The stream carries table transitions,
+ * admission signals and takeaway's (which read the counter again); a booking made, approved, moved, cancelled or undone
  * writes no row of its own, and a table's "reserved soon" is the server's to
  * draw from the clock. This read is what brings those in (review B1). Focus
  * and a connection coming back read it too, as every query does.
@@ -147,6 +148,13 @@ export function useFloorLiveStream({
                 queryKey: queryKeys.duePreOrders(branchId),
               });
             }
+            // A takeaway order moved anywhere at the branch (signal 8,
+            // 2026-10-26): the counter and the kitchen's queue are read again
+            // at once, instead of at the counter's next poll. The row names no
+            // table and no order, and the fold below passes over it.
+            if (unknownSignal || signalled.some((change) => readsTakeawayCounter(change.signal))) {
+              afterTakeawaySignal(queryClient, branchId);
+            }
             if (byBlock.length > 0) {
               const news = blockCancelledNews(
                 byBlock,
@@ -196,6 +204,7 @@ export function useFloorLiveStream({
             queryKey: queryKeys.tabsAwaitingAdmission(branchId),
           });
           void queryClient.invalidateQueries({ queryKey: queryKeys.duePreOrders(branchId) });
+          void queryClient.invalidateQueries({ queryKey: queryKeys.takeawayOrders(branchId) });
         },
         onError: () => {
           // Reported through the header's chip, which is the one place a
