@@ -137,7 +137,12 @@ export interface RejectTabCommand {
  * cleared by a move, or the guest answered "on my way". Same-status row like
  * 4 and 5: do not fold it; read the pre-order rail (`/pre-orders/due`) again —
  * and 7 TableTransferred (2026-10-24): the table's bill was handed to another
- * waiter (`transferTable`); re-read the floor, whose `serverName` moved.
+ * waiter (`transferTable`); re-read the floor, whose `serverName` moved —
+ * and 8 TakeawayChanged (2026-10-26): a takeaway order at the branch was
+ * placed, accepted, declined, cancelled, marked ready, collected or not
+ * collected. The one row about no table (`tableId` null, both statuses free,
+ * no order named): never fold it; read the takeaway counter and the kitchen's
+ * queue again (`readsTakeawayCounter`).
  */
 export type FloorChangeSignal =
   | 'tabAwaitingAdmission'
@@ -147,6 +152,7 @@ export type FloorChangeSignal =
   | 'bookingChanged'
   | 'preOrderChanged'
   | 'tableTransferred'
+  | 'takeawayChanged'
   | 'unknown';
 
 /** At most this many characters in a reject's reason, as the server bounds it. */

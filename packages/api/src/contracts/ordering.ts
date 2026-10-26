@@ -1012,8 +1012,13 @@ export interface TabEventPage {
  */
 export interface FloorChange {
   readonly sequence: number;
-  readonly tableId: string;
-  readonly tableLabel: string;
+  /**
+   * The table that changed. `null` only on a `takeawayChanged` entry, which
+   * is about the takeaway counter rather than a table (2026-10-26).
+   */
+  readonly tableId: string | null;
+  /** The table's label; `null` when there is no table. */
+  readonly tableLabel: string | null;
   readonly fromStatus: TableStatus;
   readonly toStatus: TableStatus;
   readonly atUtc: string;

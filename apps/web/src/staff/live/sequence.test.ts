@@ -270,3 +270,42 @@ describe('a pre-order row (signal 6)', () => {
     expect(result.kind).toBe('applied');
   });
 });
+
+describe('a takeaway row (signal 8)', () => {
+  /** As the server writes it: about the counter, no table, free to free, the system's. */
+  const takeaway = (sequence: number): FloorChange => ({
+    ...change(sequence, 't2', 'free'),
+    tableId: null,
+    tableLabel: null,
+    tableSessionId: null,
+    actor: 'system',
+    actorId: null,
+    reason: 'takeaway placed',
+    tabId: null,
+    signal: 'takeawayChanged',
+  });
+
+  it('folds nothing into the floor and never reads it again, but moves the sequence on', () => {
+    // An order placed, accepted or collected must not cost every tablet a
+    // whole-floor read: the counter is read again by the stream's handler.
+    const result = applyFloorChanges(floor, [takeaway(41), takeaway(43)]);
+    expect(result.kind).toBe('applied');
+    if (result.kind !== 'applied') return;
+    expect(result.changed).toEqual([]);
+    expect(result.floor.details).toEqual(floor.details);
+    expect(result.floor.plan).toEqual(floor.plan);
+    expect(result.floor.lastSequence).toBe(43);
+  });
+
+  it('folds the table changes around it as ever', () => {
+    const result = applyFloorChanges(floor, [
+      takeaway(41),
+      change(42, 't2', 'occupied'),
+      takeaway(43),
+    ]);
+    expect(result.kind).toBe('applied');
+    if (result.kind !== 'applied') return;
+    expect(result.changed).toEqual(['t2']);
+    expect(result.floor.lastSequence).toBe(43);
+  });
+});

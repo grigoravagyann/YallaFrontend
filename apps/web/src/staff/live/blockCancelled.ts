@@ -29,17 +29,25 @@ export function blockCancelledNews(
   };
   const news: BlockCancelled[] = [];
   for (const change of changes) {
-    if (change.signal !== 'bookingCancelledByBlock' || !change.reservationId) continue;
+    // A block's row always names its booking's table; one without is not news to say.
+    if (
+      change.signal !== 'bookingCancelledByBlock' ||
+      !change.reservationId ||
+      !change.tableLabel
+    ) {
+      continue;
+    }
+    const tableLabel = change.tableLabel;
     const next = floor.details.find((detail) => detail.nextReservationId === change.reservationId);
     const request = awaiting.find((entry) => entry.id === change.reservationId);
     const startUtc = next?.nextReservationStartUtc ?? request?.startUtc ?? null;
     if (
       !soon(startUtc) ||
-      news.some((entry) => entry.startUtc === startUtc && entry.tableLabel === change.tableLabel)
+      news.some((entry) => entry.startUtc === startUtc && entry.tableLabel === tableLabel)
     ) {
       continue;
     }
-    news.push({ tableLabel: change.tableLabel, startUtc: startUtc! });
+    news.push({ tableLabel, startUtc: startUtc! });
   }
   return news.sort((a, b) => a.startUtc.localeCompare(b.startUtc));
 }
