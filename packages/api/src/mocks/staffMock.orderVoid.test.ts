@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { LineAlreadyPaidError } from '../contracts/errors';
+import { LineAlreadyPaidError, OrderNotVoidableError } from '../contracts/errors';
 import { tableDetail } from '../contracts/service';
 import { createStaffMockGateway } from './staffMock';
 
@@ -95,5 +95,38 @@ describe('voiding a whole order', () => {
     const moved = await gateway.setOrderStatus({ orderId, status: 'ready', clientCommandId: 'r' });
 
     expect(moved.status).toBe('ready');
+  });
+
+  it('is refused for an order voided already, and the bill stays as it is', async () => {
+    const gateway = mock();
+    const orderId = '77777777-7777-4777-8777-777777777777';
+    const { tabId } = await tabWithOrder(gateway, orderId);
+    await gateway.setOrderStatus({ orderId, status: 'voided', clientCommandId: 'v-1' });
+    const before = (await gateway.getStaffTab(tabId))!;
+
+    await expect(
+      gateway.setOrderStatus({ orderId, status: 'voided', clientCommandId: 'v-2' }),
+    ).rejects.toBeInstanceOf(OrderNotVoidableError);
+
+    expect((await gateway.getStaffTab(tabId))!.totals).toEqual(before.totals);
+  });
+
+  it('is refused once the order is ready: the rail lets go only from new or the kitchen', async () => {
+    const gateway = mock();
+    const orderId = '88888888-8888-4888-8888-888888888888';
+    const { tabId } = await tabWithOrder(gateway, orderId);
+    await gateway.setOrderStatus({ orderId, status: 'inKitchen', clientCommandId: 'k' });
+    await gateway.setOrderStatus({ orderId, status: 'ready', clientCommandId: 'r' });
+    const before = (await gateway.getStaffTab(tabId))!;
+
+    await expect(
+      gateway.setOrderStatus({ orderId, status: 'voided', clientCommandId: 'v' }),
+    ).rejects.toBeInstanceOf(OrderNotVoidableError);
+
+    const after = (await gateway.getStaffTab(tabId))!;
+    expect(after.totals).toEqual(before.totals);
+    expect(after.lines.filter((line) => line.orderId === orderId).map((l) => l.status)).toEqual(
+      before.lines.filter((line) => line.orderId === orderId).map((l) => l.status),
+    );
   });
 });

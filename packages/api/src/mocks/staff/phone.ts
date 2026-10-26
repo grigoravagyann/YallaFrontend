@@ -1,4 +1,13 @@
-import type { MyPerformanceQuery, StaffMemberPerformance } from '../../contracts/activity';
+import type {
+  MyPerformanceQuery,
+  MyResults,
+  MyResultsQuery,
+  PerformanceFigures,
+  PerformanceRange,
+  StaffMemberPerformance,
+  StaffRecentList,
+  StaffRecentPage,
+} from '../../contracts/activity';
 import type {
   StaffPushConfig,
   StaffPushSubscriptionInput,
@@ -26,12 +35,34 @@ import {
 } from './context';
 import { ProblemCodes } from '../../generated/problemCodes';
 
+/** A person with nothing in the window. */
+const EMPTY_FIGURES: PerformanceFigures = {
+  tables: 0,
+  guests: 0,
+  salesAmd: 0,
+  averageCheckAmd: null,
+  tipsAmd: 0,
+  callMedianSeconds: null,
+  callsClaimed: 0,
+  replyMedianSeconds: null,
+  messagesAnswered: 0,
+  approvals: 0,
+  declines: 0,
+  cashAmd: 0,
+  cashPayments: 0,
+  discounts: 0,
+  comps: 0,
+  adjustmentsAmd: 0,
+  voids: 0,
+};
+
 /** The device itself: unpairing, push, notification settings, Today and My results. */
 export function phoneMethods(
   ctx: StaffMockContext,
 ): Pick<
   StaffGateway,
   | 'getMyPerformance'
+  | 'getMyResults'
   | 'unpairOwnPhone'
   | 'getPushConfig'
   | 'savePushSubscription'
@@ -58,50 +89,63 @@ export function phoneMethods(
     tables,
     tabs,
   } = ctx;
-  return {
-    async getMyPerformance(query: MyPerformanceQuery): Promise<StaffMemberPerformance> {
-      const url = '/api/staff/me/performance';
-      requireSession(url);
-      const self = me();
-      const range = { from: query.from, to: query.to };
-      const page = activity.member(url, ctx.branchId, self.id, range);
-      const list = query.list ?? 'orders';
+  /**
+   * The signed-in person's page for a range, every list read alike: the first
+   * `limit` of a list, and a cursor when there are more. Both "my own" reads
+   * answer from it, so one read's list is the other's to the entry.
+   */
+  function mine(url: string, range: PerformanceRange) {
+    requireSession(url);
+    const self = me();
+    const page = activity.member(url, ctx.branchId, self.id, range);
+    const firstPage = (list: StaffRecentList, limit: number): StaffRecentPage => {
       const recent =
         page && list !== 'orders'
           ? activity.recent(url, ctx.branchId, self.id, range, list, null)
           : (page?.recent ?? { list, items: [], nextCursor: null });
-      const limit = query.limit ?? 50;
-      const empty = {
-        tables: 0,
-        guests: 0,
-        salesAmd: 0,
-        averageCheckAmd: null,
-        tipsAmd: 0,
-        callMedianSeconds: null,
-        callsClaimed: 0,
-        replyMedianSeconds: null,
-        messagesAnswered: 0,
-        approvals: 0,
-        declines: 0,
-        cashAmd: 0,
-        cashPayments: 0,
-        discounts: 0,
-        comps: 0,
-        adjustmentsAmd: 0,
-        voids: 0,
+      return {
+        list,
+        items: recent.items.slice(0, limit),
+        nextCursor: recent.items.length > limit ? 'more' : recent.nextCursor,
       };
-      return settle({
+    };
+    return {
+      person: {
         ...range,
         staffMemberId: self.id,
         name: page?.name ?? self.name,
         role: page?.role ?? 'waiter',
         isActive: true,
-        figures: page?.figures ?? empty,
+        figures: page?.figures ?? EMPTY_FIGURES,
         daily: page?.daily ?? [],
+      },
+      firstPage,
+    };
+  }
+
+  return {
+    async getMyPerformance(query: MyPerformanceQuery): Promise<StaffMemberPerformance> {
+      const { person, firstPage } = mine('/api/staff/me/performance', {
+        from: query.from,
+        to: query.to,
+      });
+      return settle({ ...person, recent: firstPage(query.list ?? 'orders', query.limit ?? 50) });
+    },
+
+    async getMyResults(query: MyResultsQuery): Promise<MyResults> {
+      const { person, firstPage } = mine('/api/staff/me/results', {
+        from: query.from,
+        to: query.to,
+      });
+      const limit = query.limit ?? 10;
+      return settle({
+        ...person,
         recent: {
-          list,
-          items: recent.items.slice(0, limit),
-          nextCursor: recent.items.length > limit ? 'more' : recent.nextCursor,
+          orders: firstPage('orders', limit),
+          messages: firstPage('messages', limit),
+          bookings: firstPage('bookings', limit),
+          cash: firstPage('cash', limit),
+          calls: firstPage('calls', limit),
         },
       });
     },

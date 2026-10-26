@@ -1,10 +1,17 @@
 import { InfiniteQueryObserver, QueryClient, QueryObserver } from '@tanstack/react-query';
 import { describe, expect, it, vi } from 'vitest';
-import type { ActivityPage, ActivityQuery, StaffRecentQuery } from '../contracts/activity';
+import type {
+  ActivityPage,
+  ActivityQuery,
+  MyResults,
+  MyResultsQuery,
+  StaffRecentQuery,
+} from '../contracts/activity';
 import type { ServiceRequest } from '../contracts/ordering';
 import {
   activityOptions,
   claimServiceRequestOptions,
+  myResultsOptions,
   staffMemberPerformanceOptions,
   staffRecentOptions,
   transferTabOptions,
@@ -89,6 +96,82 @@ describe('the feed', () => {
     );
     observer.subscribe(() => {})();
     expect(gateway.getStaffMemberPerformance).not.toHaveBeenCalled();
+  });
+});
+
+describe('My results', () => {
+  function results(query: MyResultsQuery): MyResults {
+    const empty = (list: 'orders' | 'messages' | 'bookings' | 'cash' | 'calls') => ({
+      list,
+      items: [],
+      nextCursor: null,
+    });
+    return {
+      from: query.from,
+      to: query.to,
+      staffMemberId: 's-1',
+      name: 'Aram',
+      role: 'waiter',
+      isActive: true,
+      figures: {
+        tables: 0,
+        guests: 0,
+        salesAmd: 0,
+        averageCheckAmd: null,
+        tipsAmd: 0,
+        callMedianSeconds: null,
+        callsClaimed: 0,
+        replyMedianSeconds: null,
+        messagesAnswered: 0,
+        approvals: 0,
+        declines: 0,
+        cashAmd: 0,
+        cashPayments: 0,
+        discounts: 0,
+        comps: 0,
+        adjustmentsAmd: 0,
+        voids: 0,
+      },
+      daily: [],
+      recent: {
+        orders: empty('orders'),
+        messages: empty('messages'),
+        bookings: empty('bookings'),
+        cash: empty('cash'),
+        calls: empty('calls'),
+      },
+    };
+  }
+
+  it('reads a period once, keeps it on screen while the next loads, and waits while hidden', async () => {
+    const gateway = { getMyResults: vi.fn(async (query: MyResultsQuery) => results(query)) };
+    const client = new QueryClient();
+    const today = { from: '2026-10-24', to: '2026-10-24', limit: 5 };
+    const week = { from: '2026-10-18', to: '2026-10-24', limit: 5 };
+
+    const hidden = new QueryObserver(client, myResultsOptions(gateway, today, false));
+    hidden.subscribe(() => {})();
+    expect(gateway.getMyResults).not.toHaveBeenCalled();
+
+    const observer = new QueryObserver(client, myResultsOptions(gateway, today));
+    const unsubscribe = observer.subscribe(() => {});
+    await vi.waitFor(() => expect(observer.getCurrentResult().isSuccess).toBe(true));
+    expect(gateway.getMyResults).toHaveBeenCalledTimes(1);
+
+    observer.setOptions(myResultsOptions(gateway, week));
+    expect(observer.getCurrentResult().data?.from).toBe('2026-10-24');
+    expect(observer.getCurrentResult().isPlaceholderData).toBe(true);
+    await vi.waitFor(() => expect(observer.getCurrentResult().data?.from).toBe('2026-10-18'));
+    expect(gateway.getMyResults).toHaveBeenCalledTimes(2);
+    expect(queryKeys.myResults('', week.from, week.to, 5)).toEqual([
+      'staff',
+      'myResults',
+      '',
+      '2026-10-18',
+      '2026-10-24',
+      5,
+    ]);
+    unsubscribe();
   });
 });
 

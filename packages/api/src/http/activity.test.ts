@@ -542,6 +542,62 @@ describe('staff results', () => {
       { ...range, branchId: 'b-2', limit: '100' },
     ]);
   });
+  it('reads My results in one request: the figures, the chart and every list', async () => {
+    const page = (list: string, items: unknown[], nextCursor?: string) => ({
+      list,
+      items,
+      ...(nextCursor ? { nextCursor } : {}),
+    });
+    const backend = fakeBackend({
+      'GET /api/staff/me/results': (request) => ({
+        body: {
+          branchId: 'b-1',
+          from: request.query.get('from') ?? '',
+          to: request.query.get('to') ?? '',
+          kpis: ROW,
+          dailySales: [
+            { date: '2026-10-24', salesAmd: 100, tables: 1 },
+            { date: '2026-10-23', salesAmd: 0, tables: 0 },
+          ],
+          recent: {
+            orders: page('orders', [{ ...ENTRY, id: 'o-1' }], 'cur-o'),
+            messages: page('messages', [
+              { ...ENTRY, id: 'm-1', action: 'message.sent', seconds: 95 },
+            ]),
+            bookings: page('bookings', []),
+            cash: page('cash', []),
+            // A list the server named oddly still lands where it was asked for.
+            calls: page('nonsense', [{ ...ENTRY, id: 'c-1', seconds: 31 }]),
+          },
+        },
+      }),
+    });
+    const staff = createStaffHttpGateway(backend.client());
+    const range = { from: '2026-10-24', to: '2026-10-24' };
+    const mine = await staff.getMyResults({ ...range, limit: 5 });
+    expect(mine).toMatchObject({ name: 'Արամ', from: '2026-10-24', to: '2026-10-24' });
+    expect(mine.figures.salesAmd).toBe(214600);
+    expect(mine.daily.map((day) => day.date)).toEqual(['2026-10-23', '2026-10-24']);
+    expect(mine.recent.orders).toMatchObject({ list: 'orders', nextCursor: 'cur-o' });
+    expect(mine.recent.messages.items[0]).toMatchObject({ id: 'm-1', seconds: 95 });
+    expect(mine.recent.bookings).toEqual({ list: 'bookings', items: [], nextCursor: null });
+    expect(mine.recent.calls).toMatchObject({ list: 'calls', nextCursor: null });
+    expect(mine.recent.calls.items[0]).toMatchObject({ id: 'c-1', seconds: 31 });
+    await staff.getMyResults({ ...range, branchId: 'b-2', limit: 0 });
+    await staff.getMyResults(range);
+    expect(backend.requests.map((request) => request.path)).toEqual([
+      '/api/staff/me/results',
+      '/api/staff/me/results',
+      '/api/staff/me/results',
+    ]);
+    const queries = backend.requests.map((request) => Object.fromEntries(request.query.entries()));
+    expect(queries).toEqual([
+      { ...range, limit: '5' },
+      // An owner names the branch; the limit is the server's 1 to 100; absent, the server's 10.
+      { ...range, branchId: 'b-2', limit: '1' },
+      range,
+    ]);
+  });
 });
 
 describe('the floor', () => {

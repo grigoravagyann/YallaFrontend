@@ -377,6 +377,7 @@ describe('the order and tab dialogs', () => {
           offlineUnknown={false}
           cashRefusal={null}
           onVoid={() => {}}
+          onVoidOrder={() => {}}
           onAdjust={() => {}}
           onCash={async () => ({ kind: 'failed' as const })}
           onAskForBill={() => {}}

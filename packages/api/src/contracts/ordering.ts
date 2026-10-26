@@ -804,6 +804,21 @@ export interface VoidLineCommand {
 }
 
 /**
+ * Void a whole order on a tab: `POST /api/orders/{orderId}/status` with
+ * `voided`. The server voids every line of it still on the bill with the fixed
+ * reason "The whole order was voided." — there is no reason to send. Allowed
+ * from `new` or `inKitchen` only, and refused once the tab has been paid
+ * against (`line-already-paid`), as one line's void is.
+ */
+export interface VoidOrderCommand {
+  /** The branch and the tab the order is on, for the reads to refresh. Not sent. */
+  readonly branchId: string;
+  readonly tabId: string;
+  readonly orderId: string;
+  readonly clientCommandId: string;
+}
+
+/**
  * The words the server stores for a void, which the diner reads on their
  * phone: the waiter's own when they typed some, else the English sentence for
  * the preset. Never the slug — `guestChangedMind` on a bill somebody is

@@ -7,6 +7,7 @@ import { describeDaySlotsContract } from './daySlots.contract';
 import { describeDinerJourneyContract } from './dinerJourney.contract';
 import { resolveLiveSubject } from './liveSubject';
 import { describeMenuContract, describeReportContract } from './menuReports.contract';
+import { describeMyResultsContract } from './myResults.contract';
 import { describePlacesContract } from './places.contract';
 import { describePlatformHomeContract } from './platformHome.contract';
 import { describeReservationContract } from './reservation.contract';
@@ -76,6 +77,8 @@ function describeEveryContract(subject: ContractSubject): void {
   describeTabGapsContract(subject);
   // Unverified guests: an anonymous scan waits for a waiter, who turns it away.
   describeAdmissionContract(subject);
+  // My results in one read: the waiter's own numbers, after everything above.
+  describeMyResultsContract(subject);
 }
 
 describeEveryContract(mockSubject());

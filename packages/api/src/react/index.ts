@@ -125,6 +125,7 @@ export {
   activityTimelineOptions,
   claimServiceRequestOptions,
   myPerformanceOptions,
+  myResultsOptions,
   staffMemberPerformanceOptions,
   staffPerformanceOptions,
   staffRecentOptions,
@@ -134,6 +135,7 @@ export {
   useActivityTimeline,
   useClaimServiceRequest,
   useMyPerformance,
+  useMyResults,
   useStaffMemberPerformance,
   useStaffPerformance,
   useStaffRecent,
@@ -234,6 +236,7 @@ export {
   useTabsAwaitingAdmission,
   useUndoNoShow,
   useVoidLine,
+  useVoidOrder,
 } from './staffFloor';
 export type { UseStaffMenuOptions } from './staffFloor';
 export {

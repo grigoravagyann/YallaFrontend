@@ -117,6 +117,30 @@ export class LineAlreadyPaidError extends ApiError {
   }
 }
 
+/**
+ * Voiding a whole order the kitchen rail no longer lets go: it was already
+ * voided, or it has gone on to ready or served. The server allows a void only
+ * from `new` or `inKitchen` and answers anything else with a 409
+ * `conflicting-state`; nothing changed.
+ *
+ * Its own type because that 409 is otherwise a `ConcurrencyConflictError`,
+ * which reads as a table race. Thrown only for a move to `voided`: the rail's
+ * other refusals stay what they were.
+ */
+export class OrderNotVoidableError extends ApiError {
+  readonly orderId: string;
+
+  constructor(options: { url: string; orderId: string; requestId?: string | undefined }) {
+    super('This order has already been voided, or has left the kitchen.', {
+      status: PROBLEM_CODE_STATUS[ProblemCodes.ConflictingState],
+      url: options.url,
+      requestId: options.requestId,
+    });
+    this.name = 'OrderNotVoidableError';
+    this.orderId = options.orderId;
+  }
+}
+
 /** Why a named guest could not have an order put in their name. */
 export type OrderGuestState = 'notOnTab' | 'pending' | 'removed';
 

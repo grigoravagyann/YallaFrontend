@@ -4,6 +4,7 @@ import {
   isPaymentExceedsRemaining,
   LineAlreadyPaidError,
   newCommandId,
+  OrderNotVoidableError,
   type AdjustmentKind,
   type ServiceRequest,
   type StaffTab,
@@ -17,6 +18,7 @@ import {
   useCompLine,
   useRecordCashPayment,
   useVoidLine,
+  useVoidOrder,
 } from '@yalla/api/react';
 import type { QueryClient } from '@tanstack/react-query';
 import type { TFunction } from 'i18next';
@@ -53,8 +55,9 @@ export interface UseTabActionsOptions {
 }
 
 /**
- * What the tab overlay does to the tab it shows: a line voided, a comp or a
- * discount, the bill asked for, cash taken, the tab written off.
+ * What the tab overlay does to the tab it shows: a line or a whole order
+ * voided, a comp or a discount, the bill asked for, cash taken, the tab
+ * written off.
  *
  * Fresh handlers on every render, as the overlay has always been handed.
  */
@@ -74,9 +77,10 @@ export function useTabActions({
   setUnresolved,
 }: UseTabActionsOptions): Pick<
   TabPanelProps,
-  'onVoid' | 'onAdjust' | 'onAskForBill' | 'onCash' | 'onAbandon'
+  'onVoid' | 'onVoidOrder' | 'onAdjust' | 'onAskForBill' | 'onCash' | 'onAbandon'
 > {
   const voidLine = useVoidLine();
+  const voidOrder = useVoidOrder();
   const compLine = useCompLine();
   const abandonTab = useAbandonTab();
   const recordCash = useRecordCashPayment();
@@ -103,6 +107,39 @@ export function useTabActions({
                 error instanceof LineAlreadyPaidError
                   ? t('tab.notice.lineAlreadyPaid')
                   : t('tab.notice.failed'),
+            }),
+        },
+      );
+    },
+    onVoidOrder: (line: TabLine) => {
+      if (!activeTabId) return;
+      // What comes off, from the tab as it was read: the notice says it, and
+      // the tab is read again once the server answers (as for one line).
+      const offDram = (tab?.lines ?? [])
+        .filter((entry) => entry.orderId === line.orderId && entry.status === 'active')
+        .reduce((sum, entry) => sum + entry.lineTotalDram, 0);
+      voidOrder.mutate(
+        {
+          branchId,
+          tabId: activeTabId,
+          orderId: line.orderId,
+          clientCommandId: newCommandId(),
+        },
+        {
+          onSuccess: () =>
+            setNotice({
+              kind: 'info',
+              text: t('tab.notice.orderVoided', { amount: format.dram(offDram) }),
+            }),
+          onError: (error) =>
+            setNotice({
+              kind: 'warning',
+              text:
+                error instanceof LineAlreadyPaidError
+                  ? t('tab.notice.orderAlreadyPaid')
+                  : error instanceof OrderNotVoidableError
+                    ? t('tab.notice.orderNotVoidable')
+                    : t('tab.notice.failed'),
             }),
         },
       );

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { LineAlreadyPaidError } from '../contracts/errors';
+import { LineAlreadyPaidError, OrderNotVoidableError } from '../contracts/errors';
 import { ConcurrencyConflictError } from '../errors';
 import { fakeBackend, problemReply } from './fakeBackend.testkit';
 import { createStaffHttpGateway } from './staffHttpGateway';
@@ -53,5 +53,35 @@ describe('voiding a whole order on a paid tab', () => {
 
     expect(error).toBeInstanceOf(ConcurrencyConflictError);
     expect(error).not.toBeInstanceOf(LineAlreadyPaidError);
+  });
+
+  it('sends only the status: the server stamps its own reason on the lines', async () => {
+    const backend = fakeBackend({
+      [ROUTE]: problemReply(409, 'line-already-paid', { tabId: 'tab-1', lineId: 'l-1' }),
+    });
+    const gateway = createStaffHttpGateway(backend.client());
+
+    await caught(
+      gateway.setOrderStatus({ orderId: 'o-1', status: 'voided', clientCommandId: 'c-0' }),
+    );
+
+    expect(backend.requests[0]?.body).toEqual({ status: 5 });
+  });
+});
+
+describe('voiding an order the rail no longer lets go', () => {
+  it('is an OrderNotVoidableError, not a table race: voided already, ready or served', async () => {
+    const gateway = gatewayOver({
+      [ROUTE]: problemReply(409, 'conflicting-state', { orderId: 'o-1' }),
+    });
+
+    const error = await caught(
+      gateway.setOrderStatus({ orderId: 'o-1', status: 'voided', clientCommandId: 'c-3' }),
+    );
+
+    expect(error).toBeInstanceOf(OrderNotVoidableError);
+    expect(error).not.toBeInstanceOf(ConcurrencyConflictError);
+    expect((error as OrderNotVoidableError).orderId).toBe('o-1');
+    expect((error as OrderNotVoidableError).status).toBe(409);
   });
 });

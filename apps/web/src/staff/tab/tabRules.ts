@@ -16,11 +16,34 @@ const MANAGER_ROLES: readonly UserRole[] = ['owner', 'generalManager', 'manager'
 /**
  * Whether this role gets the tab's manager controls: comp a line, take a
  * percentage or an amount off the whole tab, and mark it unpaid — the server's
- * `ManagerOrAbove`. Voiding a line, taking cash and answering the bill request
- * are every waiter's.
+ * `ManagerOrAbove`. Voiding a line or a whole order, taking cash and answering
+ * the bill request are every waiter's.
  */
 export function isTabManager(role: UserRole): boolean {
   return MANAGER_ROLES.includes(role);
+}
+
+/**
+ * Whether this role may void a whole order: a waiter and above, as for one
+ * line. The server's `KitchenOrAbove` lets the kitchen in only to mark food
+ * ready, so the kitchen is refused (403) and never offered it.
+ */
+export function canVoidOrders(role: UserRole): boolean {
+  return role !== 'kitchen';
+}
+
+/**
+ * Whether the rail still lets this line's whole order be voided: the server
+ * allows it from new or in the kitchen only. Ready, served or voided already,
+ * it answers 409 — so the action is not offered.
+ */
+export function orderVoidable(line: TabLine): boolean {
+  return line.orderStatus === 'new' || line.orderStatus === 'inKitchen';
+}
+
+/** The lines of one order still on the bill: what voiding it takes off. */
+export function orderLinesOf(lines: readonly TabLine[], orderId: string): readonly TabLine[] {
+  return lines.filter((line) => line.orderId === orderId && line.status === 'active');
 }
 
 /** The pill on a line: where it is. A voided line says so whatever its order did. */

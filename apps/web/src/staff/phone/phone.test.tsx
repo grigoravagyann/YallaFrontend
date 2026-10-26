@@ -4,6 +4,8 @@ import {
   createQueryClient,
   createStaffMockGateway,
   ForbiddenError,
+  tableDetail,
+  type ActivityEntry,
   type EnrolledDevice,
   type StaffFloor,
   type StaffGateway,
@@ -766,10 +768,45 @@ describe('More', () => {
     expect(await screen.findByRole('button', { name: 'Lock now' })).toBeTruthy();
   });
 
+  /** One History entry of the waiter's, as My results' lists carry them. */
+  function entry(id: string, at: string, action: string): ActivityEntry {
+    return {
+      id,
+      occurredAtUtc: at,
+      local: at.slice(0, 16).replace('T', ' '),
+      actor: { kind: 'staff', staffMemberId: 's1', name: 'Aram Petrosyan' },
+      device: { id: 'd1', label: 'Aram’s phone', isConsole: false },
+      category: action.startsWith('booking.') ? 'booking' : 'payment',
+      action,
+      subject: { type: 'tab', id: 't1' },
+      tableSessionId: null,
+      tableLabel: null,
+      guestName: null,
+      itemNames: null,
+      amountAmd: null,
+      isMoney: false,
+      before: null,
+      after: null,
+      reason: null,
+      params: {},
+      lines: [],
+      seconds: null,
+    };
+  }
+
   it('opens My results: the periods, six tiles, the week’s chart and who sees them', async () => {
     signIn('waiter');
     const staffGateway = gateway();
-    const mine = vi.spyOn(staffGateway, 'getMyPerformance').mockImplementation(async (query) => ({
+    const paidInCash = entry('e-cash', '2026-10-25T12:00:00Z', 'payment.cash');
+    const page = (
+      list: 'orders' | 'messages' | 'bookings' | 'cash' | 'calls',
+      items: ActivityEntry[],
+    ) => ({
+      list,
+      items,
+      nextCursor: null,
+    });
+    const results = vi.spyOn(staffGateway, 'getMyResults').mockImplementation(async (query) => ({
       from: query.from,
       to: query.to,
       staffMemberId: 's1',
@@ -800,8 +837,22 @@ describe('More', () => {
         salesAmd: (index + 1) * 10_000,
         tables: index,
       })),
-      recent: { list: query.list ?? 'orders', items: [], nextCursor: null },
+      recent: {
+        orders: page('orders', [paidInCash]),
+        messages: page('messages', []),
+        bookings: page('bookings', [
+          entry('e-approved', '2026-10-25T11:00:00Z', 'booking.approved'),
+          entry('e-declined', '2026-10-25T10:00:00Z', 'booking.declined'),
+        ]),
+        // Cash is not one of the screen's lists; its bill is on orders too.
+        cash: page('cash', [
+          paidInCash,
+          entry('e-takeaway', '2026-10-25T13:00:00Z', 'takeaway.collected'),
+        ]),
+        calls: page('calls', []),
+      },
     }));
+    const perList = vi.spyOn(staffGateway, 'getMyPerformance');
     renderAt(staffGateway);
     const user = setupUser();
     await user.click(tab(await tabs(), /^More/u));
@@ -815,24 +866,33 @@ describe('More', () => {
     expect(
       screen.getByText('Only you and your manager see these numbers. Other waiters do not.'),
     ).toBeTruthy();
-    // A waiter reads their own: no branch named, and today first.
-    const first = mine.mock.calls[0]![0];
+    // The latest of the screen's lists, merged once: the cash bill, the two bookings.
+    expect(document.querySelectorAll('.ph-results-recent .ph-row')).toHaveLength(3);
+    // A waiter reads their own: no branch named, and today first — in one request.
+    expect(results).toHaveBeenCalledTimes(1);
+    const first = results.mock.calls[0]![0];
     expect(first.branchId).toBeUndefined();
     expect(first.from).toBe(first.to);
+    expect(first.limit).toBe(5);
 
+    // Another period: one more request, not one per list.
     await user.click(screen.getByRole('button', { name: '7 days' }));
     expect(screen.getByRole('button', { name: '7 days' }).getAttribute('aria-pressed')).toBe(
       'true',
     );
-    await waitFor(() =>
-      expect(mine.mock.calls.some(([query]) => query.from !== query.to)).toBe(true),
-    );
+    await waitFor(() => expect(results).toHaveBeenCalledTimes(2));
+    expect(results.mock.calls[1]![0].from).not.toBe(results.mock.calls[1]![0].to);
+    await user.click(screen.getByRole('button', { name: '30 days' }));
+    await waitFor(() => expect(results).toHaveBeenCalledTimes(3));
+    expect(await screen.findByText('9 tables')).toBeTruthy();
+    expect(results).toHaveBeenCalledTimes(3);
+    expect(perList).not.toHaveBeenCalled();
   });
 
   it('names the branch for an owner’s My results', async () => {
     signIn('owner');
     const staffGateway = gateway();
-    const mine = vi.spyOn(staffGateway, 'getMyPerformance');
+    const mine = vi.spyOn(staffGateway, 'getMyResults');
     renderAt(staffGateway);
     const user = setupUser();
     await user.click(tab(await tabs(), /^More/u));
@@ -898,5 +958,60 @@ describe('a tapped notification', () => {
     renderAt(staffGateway, `/staff/messages/${inbox.items[0]!.conversationId}`);
     expect(await screen.findByRole('button', { name: 'All messages' })).toBeTruthy();
     expect(document.querySelector('.msg-thread')).not.toBeNull();
+  });
+});
+
+describe('voiding a whole order on the phone', () => {
+  /** A fresh order of two dishes on an open tab, still new; a dish nothing else on it is called. */
+  async function freshOrder(staffGateway: StaffGateway) {
+    const floor = (await staffGateway.getFloor(BRANCH))!;
+    const table = floor.plan.tables.find((one) => tableDetail(floor, one.id)?.openTabId)!;
+    const tabId = tableDetail(floor, table.id)!.openTabId!;
+    const onTab = (await staffGateway.getStaffTab(tabId))!.lines.map((line) => line.name);
+    const dish = (await staffGateway.getMenu(BRANCH))!.sections
+      .flatMap((section) => section.items)
+      .find((item) => item.isAvailable && item.priceDram > 0 && !onTab.includes(item.name))!;
+    await staffGateway.placeOrder({
+      tabId,
+      clientCommandId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+      lines: [{ menuItemId: dish.id, quantity: 2, isShared: true, participantId: null }],
+    });
+    return { table, dish };
+  }
+
+  async function openLineMenu(role: UserRole) {
+    signIn(role);
+    const staffGateway = gateway();
+    const { table, dish } = await freshOrder(staffGateway);
+    const move = vi.spyOn(staffGateway, 'setOrderStatus');
+    renderAt(staffGateway, `/staff/floor?table=${table.id}`);
+    const user = setupUser();
+    const sheet = await screen.findByRole('dialog');
+    await user.click(await within(sheet).findByRole('button', { name: 'View the tab' }));
+    const tabPanel = await screen.findByRole('dialog', { name: `Tab · table ${table.label}` });
+    await user.click(
+      await within(tabPanel).findByRole('button', { name: `${dish.name}, actions` }),
+    );
+    const menu = screen.getByRole('dialog', { name: new RegExp(dish.name, 'u') });
+    return { user, menu, move, tabPanel, dish };
+  }
+
+  it('lets the waiter void it from the tab, after a confirm, as on the tablet', async () => {
+    const { user, menu, move, tabPanel } = await openLineMenu('waiter');
+    await user.click(within(menu).getByRole('button', { name: 'Void the whole order' }));
+    const confirm = screen.getByRole('alertdialog', { name: 'Void the whole order?' });
+    await user.click(within(confirm).getByRole('button', { name: 'Void the order' }));
+
+    await waitFor(() => expect(move).toHaveBeenCalledTimes(1));
+    expect(move.mock.calls[0]![0]).toEqual(expect.objectContaining({ status: 'voided' }));
+    expect(await screen.findByText(/^Order voided · /u)).toBeTruthy();
+    await waitFor(() =>
+      expect(within(tabPanel).getByText(/Voided · The whole order was voided\./u)).toBeTruthy(),
+    );
+  });
+
+  it('offers it to a manager on the phone too', async () => {
+    const { menu } = await openLineMenu('manager');
+    expect(within(menu).getByRole('button', { name: 'Void the whole order' })).toBeTruthy();
   });
 });
