@@ -11,9 +11,9 @@ import {
 } from '../../contracts/ordering';
 import { NotFoundError } from '../../errors';
 import { LineAlreadyPaidError, PaymentExceedsRemainingError } from '../../contracts/errors';
-import { computeBill } from '../billing';
+import { adjustmentReductions } from '../billing';
 import type { StaffGateway } from '../../staffGateway';
-import { type StaffMockContext, iso, SERVICE_CHARGE_PERCENT } from './context';
+import { type StaffMockContext, iso } from './context';
 
 /** Voids, comps, cash and writing a tab off. */
 export function billMethods(
@@ -64,29 +64,25 @@ export function billMethods(
         atUtc: iso(at),
       };
       tab.adjustments.push(record);
-      // Recomputed after the adjustment lands, so the reduction is the server's
-      // arithmetic rather than the client's guess at it.
-      const before = tab.adjustments.slice(0, -1);
-      const reduction =
-        computeBill({
-          lines: tab.lines.map((line) => ({
-            lineId: line.id,
-            ownerParticipantId: line.ownerParticipantId,
-            unitPriceDram: line.unitPriceDram,
-            quantity: line.quantity,
-            isVoided: line.status === 'voided',
-            isSplitAcrossParticipants: line.isShared || line.isTableAttributed,
-            shareParticipantIds: [],
-          })),
-          adjustments: before.map((a) => ({
-            lineId: a.lineId,
-            percent: a.percent,
-            amountDram: a.amountDram,
-          })),
-          participants: [],
-          serviceChargePercent: SERVICE_CHARGE_PERCENT,
-          paidDram: tab.paidDram,
-        }).bill.subtotalDram - totalsFor(tab).subtotalDram;
+      // Its own reduction in the bill's order, as the server answers it - what
+      // the History and the reports say - not the subtotal's drop.
+      const reductions = adjustmentReductions(
+        tab.lines.map((line) => ({
+          lineId: line.id,
+          ownerParticipantId: line.ownerParticipantId,
+          unitPriceDram: line.unitPriceDram,
+          quantity: line.quantity,
+          isVoided: line.status === 'voided',
+          isSplitAcrossParticipants: line.isShared || line.isTableAttributed,
+          shareParticipantIds: [],
+        })),
+        tab.adjustments.map((a) => ({
+          lineId: a.lineId,
+          percent: a.percent,
+          amountDram: a.amountDram,
+        })),
+      );
+      const reduction = reductions[reductions.length - 1] ?? 0;
 
       const applied: TabAdjustment = { ...record, reductionDram: Math.max(0, reduction) };
       tab.adjustments[tab.adjustments.length - 1] = applied;

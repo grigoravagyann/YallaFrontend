@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  adjustmentReductions,
   computeBill,
   percentOf,
   splitEvenly,
@@ -39,6 +40,40 @@ function line(id: string, overrides: Partial<BillingLine> = {}): BillingLine {
     ...overrides,
   };
 }
+
+describe('what each adjustment took off', () => {
+  // The server's TabLedger.ReductionOf case: a 3,200 dish and three 1,000 coffees.
+  const lines = [
+    line('khachapuri', { unitPriceDram: 3200 }),
+    line('coffee', { unitPriceDram: 1000, quantity: 3 }),
+  ];
+
+  it('gives a comp under a standing discount its own reduction, not the subtotal’s drop', () => {
+    const discount = { lineId: null, percent: 10, amountDram: null };
+    const comp = { lineId: 'khachapuri', percent: null, amountDram: 5000 };
+    expect(adjustmentReductions(lines, [discount, comp])).toEqual([300, 3200]);
+
+    const subtotal = (adjustments: (typeof discount | typeof comp)[]) =>
+      computeBill({
+        lines,
+        adjustments,
+        participants: [],
+        serviceChargePercent: 0,
+        paidDram: 0,
+      }).bill.subtotalDram;
+    // The subtotal drops by 2,880: the discount now takes 320 less.
+    expect(subtotal([discount]) - subtotal([discount, comp])).toBe(2880);
+  });
+
+  it('takes tab-wide ones in turn, each off what is left', () => {
+    expect(
+      adjustmentReductions(lines, [
+        { lineId: null, percent: 10, amountDram: null },
+        { lineId: null, percent: null, amountDram: 200 },
+      ]),
+    ).toEqual([620, 200]);
+  });
+});
 
 describe('splitting whole dram', () => {
   it('sums back exactly, with the remainder on the first part', () => {
