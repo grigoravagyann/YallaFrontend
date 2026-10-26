@@ -59,6 +59,38 @@ export default tseslint.config(
     },
   },
 
+  // A gateway test's stubbed answers are checked against generated/swagger.json
+  // at the fetch boundary (`checkedFetch` in http/wireSchema.testkit.ts, which
+  // `fakeBackend` always uses). A client built on a raw fetch, a stubbed global
+  // fetch or a fake client resolving `{ data }` would skip that check, which is
+  // how stubs drifted from the backend unnoticed. AGENTS.md, "Architecture checks".
+  {
+    files: ['packages/api/src/http/**/*.test.ts', 'packages/api/src/auth/**/*.test.ts'],
+    rules: {
+      'no-restricted-syntax': [
+        'error',
+        {
+          selector:
+            "CallExpression[callee.name='createApiClient']:not(:has(Property[key.name='fetch'][value.callee.name='checkedFetch']))",
+          message:
+            'Build the client with fakeBackend(...).client(), or pass fetch: checkedFetch(stub), so its answers are checked against swagger.json.',
+        },
+        {
+          selector:
+            "CallExpression[callee.object.name='vi'][callee.property.name='stubGlobal'][arguments.0.value='fetch']",
+          message:
+            'Stub the backend with fakeBackend(...) instead of the global fetch, so its answers are checked against swagger.json.',
+        },
+        {
+          selector:
+            "CallExpression[callee.property.name=/^mockResolvedValue(Once)?$/] > ObjectExpression > Property[key.name='data']",
+          message:
+            'A fake ApiClient resolving { data } skips the swagger check: stub the route with fakeBackend(...) instead.',
+        },
+      ],
+    },
+  },
+
   // React surfaces. `configs.flat.recommended` is the flat-config entry point;
   // the top-level `configs.recommended` is still eslintrc-shaped and ESLint 10
   // rejects it outright.
