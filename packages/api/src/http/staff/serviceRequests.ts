@@ -20,12 +20,17 @@ export function serviceRequestsMethods(
       return (data ?? []).map(serviceRequest);
     },
 
+    /**
+     * No body: the route takes none. Acknowledging is idempotent on the server
+     * (a second tap, or the offline queue sending it again, is a no-op that
+     * answers the request as it stands), so `clientCommandId` stays on the
+     * client - it is the queue's own key for the command, not the server's.
+     */
     async acknowledgeServiceRequest(
       command: AcknowledgeServiceRequestCommand,
     ): Promise<ServiceRequest> {
       const { data } = await client.post<Schemas['Yalla.Application.Ordering.ServiceRequestView']>(
         `/api/service-requests/${command.requestId}/acknowledge`,
-        { clientCommandId: command.clientCommandId },
       );
       return serviceRequest(data);
     },
