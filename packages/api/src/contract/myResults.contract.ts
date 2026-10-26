@@ -28,6 +28,8 @@ export function describeMyResultsContract(subject: ContractSubject): void {
     }
 
     it('answers every list at once, each as the one-list read answers it', async () => {
+      // The phone opens on the floor first; the mock adopts its branch from it.
+      await staff.getFloor(fixtures.branchId);
       const range = lastWeek();
       const limit = 3;
       const all = await staff.getMyResults({ ...range, limit });
