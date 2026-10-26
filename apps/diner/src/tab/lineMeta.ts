@@ -31,7 +31,7 @@ export function lineMetaParts(
       ? { key: 'bill.orderedBy', params: { name: line.orderedByName } }
       : { key: 'bill.forTheTable', params: {} };
 
-  const time = orderedAt(line.orderedAtUtc, timeZoneId, locale);
+  const time = lineOrderedAt(line, timeZoneId, locale);
 
   // How many ways it splits, from the snapshot taken when it was ordered.
   const split: CopyLine | null = line.isShared
@@ -51,7 +51,17 @@ export function lineMetaText(
   return parts.map((part) => (typeof part === 'string' ? part : translate(part))).join(' · ');
 }
 
-function orderedAt(value: string | null, timeZoneId: string, locale: Locale): string | null {
+/**
+ * When the line's order went in, on the branch's clock ("19:08"), or null when
+ * the server sent no time or one that is not an instant. The bill's rows and
+ * the paid receipt's both read it.
+ */
+export function lineOrderedAt(
+  line: Pick<RenderedLine, 'orderedAtUtc'>,
+  timeZoneId: string,
+  locale: Locale,
+): string | null {
+  const value = line.orderedAtUtc;
   if (!value || Number.isNaN(Date.parse(value))) return null;
   return formatTime(value, timeZoneId, locale);
 }

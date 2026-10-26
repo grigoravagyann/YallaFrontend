@@ -35,6 +35,7 @@ import { tabAccessCopy } from '../../../src/tab/access';
 import { admissionState, justAdmitted, type AdmissionState } from '../../../src/tab/admission';
 import { tabAccessGone } from '../../../src/tab/billRequest';
 import { canInvite } from '../../../src/tab/invite';
+import { lineOrderedAt } from '../../../src/tab/lineMeta';
 import { orderingBlock, orderingBlockKey } from '../../../src/tab/ordering';
 import { projectTab } from '../../../src/tab/projection';
 import { onTab, roster } from '../../../src/tab/roster';
@@ -631,12 +632,22 @@ function PaidView({ view, onDone }: { readonly view: DinerTabView; readonly onDo
               <Badge variant="closed" tone="soft" size="sm" label={t('tab.paid.closed')} />
             </View>
             <Dashed />
-            {lines.map((line) => (
-              <View key={line.id} style={styles.receiptRow}>
-                <Text style={styles.receiptLine}>{`${line.quantity} × ${line.name}`}</Text>
-                <Text style={styles.receiptAmount}>{formatDram(line.lineTotalDram, locale)}</Text>
-              </View>
-            ))}
+            {lines.map((line) => {
+              // When it went in, small and muted after the dish, on the
+              // branch's clock — as the bill said while the tab was open.
+              const orderedAt = lineOrderedAt(line, view.timeZoneId, locale);
+              return (
+                <View key={line.id} style={styles.receiptRow}>
+                  <Text style={styles.receiptLine}>
+                    {`${line.quantity} × ${line.name}`}
+                    {orderedAt ? (
+                      <Text style={styles.receiptMuted}>{` · ${orderedAt}`}</Text>
+                    ) : null}
+                  </Text>
+                  <Text style={styles.receiptAmount}>{formatDram(line.lineTotalDram, locale)}</Text>
+                </View>
+              );
+            })}
             {money.kind === 'table' ? (
               <View style={styles.receiptRow}>
                 <Text style={styles.receiptMuted}>
