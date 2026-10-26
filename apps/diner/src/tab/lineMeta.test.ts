@@ -2,7 +2,7 @@ import type { CopyLine } from '@yalla/api';
 import { i18next, initI18n } from '@yalla/i18n';
 import { DINER_NAMESPACES, dinerResources } from '@yalla/i18n/diner';
 import { beforeAll, describe, expect, it } from 'vitest';
-import { lineMetaParts, lineMetaText } from './lineMeta';
+import { lineMetaParts, lineMetaText, lineOrderedAt } from './lineMeta';
 import type { RenderedLine } from './projection';
 
 /**
@@ -85,5 +85,17 @@ describe('who and when, under each line', () => {
     for (const locale of ['en', 'hy', 'ru'] as const) {
       expect(await text(evening, locale)).toBe('Աննա · 23:45');
     }
+  });
+});
+
+describe('the time alone, as the paid receipt reads it', () => {
+  it("is the order's time on the branch's clock", () => {
+    expect(lineOrderedAt({ orderedAtUtc: ORDERED }, YEREVAN, 'hy')).toBe('19:08');
+    expect(lineOrderedAt({ orderedAtUtc: ORDERED }, 'Europe/Moscow', 'en')).toBe('18:08');
+  });
+
+  it('is nothing when the line carries no time, or one that is not an instant', () => {
+    expect(lineOrderedAt({ orderedAtUtc: null }, YEREVAN, 'en')).toBeNull();
+    expect(lineOrderedAt({ orderedAtUtc: 'yesterday' }, YEREVAN, 'en')).toBeNull();
   });
 });
