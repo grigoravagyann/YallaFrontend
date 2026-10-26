@@ -657,7 +657,7 @@ export interface StaffMemberPerformance extends PerformanceRange {
 
 /**
  * `GET /api/staff/me/performance` (`getMyPerformance`): the signed-in
- * person's own page — My results on the phone.
+ * person's own page, one list at a time — "more" of a list on My results.
  */
 export interface MyPerformanceQuery extends PerformanceRange {
   /** An owner or general manager, who has no home branch, names the branch. */
@@ -666,6 +666,26 @@ export interface MyPerformanceQuery extends PerformanceRange {
   readonly list?: StaffRecentList | undefined;
   /** How many of it: 1 to 100, the server's 50 when absent. */
   readonly limit?: number | undefined;
+}
+
+/**
+ * `GET /api/staff/me/results` (`getMyResults`): My results on the phone for a
+ * period in one read — the figures, the chart and every list's first page.
+ */
+export interface MyResultsQuery extends PerformanceRange {
+  /** An owner or general manager, who has no home branch, names the branch. */
+  readonly branchId?: string | undefined;
+  /** How many of each list: 1 to 100, the server's 10 when absent. */
+  readonly limit?: number | undefined;
+}
+
+/**
+ * The signed-in person's own numbers with the first page of every recent list:
+ * a person's page whose `recent` is all five lists at once, each the page
+ * `getMyPerformance` answers for that list (its cursor continues there).
+ */
+export interface MyResults extends Omit<StaffMemberPerformance, 'recent'> {
+  readonly recent: Readonly<Record<StaffRecentList, StaffRecentPage>>;
 }
 
 /** One page of one list. */
