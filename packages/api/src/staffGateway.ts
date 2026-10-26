@@ -37,6 +37,8 @@ import type { Menu } from './contracts/menu';
 import type {
   ClaimServiceRequestCommand,
   MyPerformanceQuery,
+  MyResults,
+  MyResultsQuery,
   StaffMemberPerformance,
   TabTransferResult,
   TabTransferTarget,
@@ -438,6 +440,18 @@ export interface StaffGateway {
    * @throws {ForbiddenError} the kitchen, or a branch that is not theirs.
    */
   getMyPerformance(query: MyPerformanceQuery): Promise<StaffMemberPerformance>;
+
+  /**
+   * My results in one read (2026-10-26): the same figures and sales by day as
+   * {@link StaffGateway.getMyPerformance}, with the first page of every recent
+   * list — `GET /api/staff/me/results`. The phone's screen reads a period with
+   * this one call; a list's `nextCursor` continues on `getMyPerformance`. The
+   * same caller and refusals.
+   *
+   * @throws {ForbiddenError} the kitchen, or a branch that is not theirs.
+   * @throws {ValidationError} a bad date or limit, or `branchId` missing for somebody venue-wide.
+   */
+  getMyResults(query: MyResultsQuery): Promise<MyResults>;
 
   // --- Money --------------------------------------------------------------
 

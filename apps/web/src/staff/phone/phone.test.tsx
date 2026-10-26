@@ -5,6 +5,7 @@ import {
   createStaffMockGateway,
   ForbiddenError,
   tableDetail,
+  type ActivityEntry,
   type EnrolledDevice,
   type StaffFloor,
   type StaffGateway,
@@ -767,10 +768,45 @@ describe('More', () => {
     expect(await screen.findByRole('button', { name: 'Lock now' })).toBeTruthy();
   });
 
+  /** One History entry of the waiter's, as My results' lists carry them. */
+  function entry(id: string, at: string, action: string): ActivityEntry {
+    return {
+      id,
+      occurredAtUtc: at,
+      local: at.slice(0, 16).replace('T', ' '),
+      actor: { kind: 'staff', staffMemberId: 's1', name: 'Aram Petrosyan' },
+      device: { id: 'd1', label: 'Aram’s phone', isConsole: false },
+      category: action.startsWith('booking.') ? 'booking' : 'payment',
+      action,
+      subject: { type: 'tab', id: 't1' },
+      tableSessionId: null,
+      tableLabel: null,
+      guestName: null,
+      itemNames: null,
+      amountAmd: null,
+      isMoney: false,
+      before: null,
+      after: null,
+      reason: null,
+      params: {},
+      lines: [],
+      seconds: null,
+    };
+  }
+
   it('opens My results: the periods, six tiles, the week’s chart and who sees them', async () => {
     signIn('waiter');
     const staffGateway = gateway();
-    const mine = vi.spyOn(staffGateway, 'getMyPerformance').mockImplementation(async (query) => ({
+    const paidInCash = entry('e-cash', '2026-10-25T12:00:00Z', 'payment.cash');
+    const page = (
+      list: 'orders' | 'messages' | 'bookings' | 'cash' | 'calls',
+      items: ActivityEntry[],
+    ) => ({
+      list,
+      items,
+      nextCursor: null,
+    });
+    const results = vi.spyOn(staffGateway, 'getMyResults').mockImplementation(async (query) => ({
       from: query.from,
       to: query.to,
       staffMemberId: 's1',
@@ -801,8 +837,22 @@ describe('More', () => {
         salesAmd: (index + 1) * 10_000,
         tables: index,
       })),
-      recent: { list: query.list ?? 'orders', items: [], nextCursor: null },
+      recent: {
+        orders: page('orders', [paidInCash]),
+        messages: page('messages', []),
+        bookings: page('bookings', [
+          entry('e-approved', '2026-10-25T11:00:00Z', 'booking.approved'),
+          entry('e-declined', '2026-10-25T10:00:00Z', 'booking.declined'),
+        ]),
+        // Cash is not one of the screen's lists; its bill is on orders too.
+        cash: page('cash', [
+          paidInCash,
+          entry('e-takeaway', '2026-10-25T13:00:00Z', 'takeaway.collected'),
+        ]),
+        calls: page('calls', []),
+      },
     }));
+    const perList = vi.spyOn(staffGateway, 'getMyPerformance');
     renderAt(staffGateway);
     const user = setupUser();
     await user.click(tab(await tabs(), /^More/u));
@@ -816,24 +866,33 @@ describe('More', () => {
     expect(
       screen.getByText('Only you and your manager see these numbers. Other waiters do not.'),
     ).toBeTruthy();
-    // A waiter reads their own: no branch named, and today first.
-    const first = mine.mock.calls[0]![0];
+    // The latest of the screen's lists, merged once: the cash bill, the two bookings.
+    expect(document.querySelectorAll('.ph-results-recent .ph-row')).toHaveLength(3);
+    // A waiter reads their own: no branch named, and today first — in one request.
+    expect(results).toHaveBeenCalledTimes(1);
+    const first = results.mock.calls[0]![0];
     expect(first.branchId).toBeUndefined();
     expect(first.from).toBe(first.to);
+    expect(first.limit).toBe(5);
 
+    // Another period: one more request, not one per list.
     await user.click(screen.getByRole('button', { name: '7 days' }));
     expect(screen.getByRole('button', { name: '7 days' }).getAttribute('aria-pressed')).toBe(
       'true',
     );
-    await waitFor(() =>
-      expect(mine.mock.calls.some(([query]) => query.from !== query.to)).toBe(true),
-    );
+    await waitFor(() => expect(results).toHaveBeenCalledTimes(2));
+    expect(results.mock.calls[1]![0].from).not.toBe(results.mock.calls[1]![0].to);
+    await user.click(screen.getByRole('button', { name: '30 days' }));
+    await waitFor(() => expect(results).toHaveBeenCalledTimes(3));
+    expect(await screen.findByText('9 tables')).toBeTruthy();
+    expect(results).toHaveBeenCalledTimes(3);
+    expect(perList).not.toHaveBeenCalled();
   });
 
   it('names the branch for an owner’s My results', async () => {
     signIn('owner');
     const staffGateway = gateway();
-    const mine = vi.spyOn(staffGateway, 'getMyPerformance');
+    const mine = vi.spyOn(staffGateway, 'getMyResults');
     renderAt(staffGateway);
     const user = setupUser();
     await user.click(tab(await tabs(), /^More/u));

@@ -13,6 +13,7 @@ import type {
   ActivitySubjectType,
   ClaimServiceRequestCommand,
   MyPerformanceQuery,
+  MyResultsQuery,
   PerformanceRange,
   StaffRecentList,
   StaffRecentPage,
@@ -118,6 +119,30 @@ export function myPerformanceOptions(
 
 export function useMyPerformance(query: MyPerformanceQuery, enabled = true) {
   return useQuery(myPerformanceOptions(useStaffGateway(), query, enabled));
+}
+
+/**
+ * My results in one read (`GET /api/staff/me/results`): the figures, the
+ * chart and the first page of every list for one range — one request per
+ * period the phone shows. The previous period stays on screen while the next
+ * loads.
+ */
+export function myResultsOptions(
+  gateway: Pick<StaffGateway, 'getMyResults'>,
+  query: MyResultsQuery,
+  enabled = true,
+) {
+  return {
+    queryKey: queryKeys.myResults(query.branchId ?? '', query.from, query.to, query.limit ?? 0),
+    queryFn: () => gateway.getMyResults(query),
+    enabled,
+    staleTime: staleTime.frequent,
+    placeholderData: keepPreviousData,
+  };
+}
+
+export function useMyResults(query: MyResultsQuery, enabled = true) {
+  return useQuery(myResultsOptions(useStaffGateway(), query, enabled));
 }
 
 // --- Staff results ---------------------------------------------------------------

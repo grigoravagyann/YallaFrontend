@@ -1348,6 +1348,8 @@ export type {
   ClaimServiceRequestCommand,
   DailySales,
   MyPerformanceQuery,
+  MyResults,
+  MyResultsQuery,
   PerformanceFigures,
   PerformancePeriod,
   PerformanceRange,

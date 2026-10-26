@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { transferRefusalOf } from '../contracts/activity';
+import { STAFF_RECENT_LISTS, transferRefusalOf } from '../contracts/activity';
 import { ForbiddenError, NotFoundError } from '../errors';
 import { createStaffMockGateway } from './staffMock';
 
@@ -122,5 +122,25 @@ describe('My results', () => {
     const messages = await gateway.getMyPerformance({ ...week, list: 'messages', limit: 3 });
     expect(messages.recent.list).toBe('messages');
     expect(messages.recent.items.every((entry) => entry.category === 'message')).toBe(true);
+  });
+
+  it('answers every list at once as the one-list reads do', async () => {
+    const gateway = createStaffMockGateway({
+      branchId: BRANCH,
+      latencyMs: 0,
+      now: () => new Date('2026-10-24T15:00:00Z'),
+    });
+    const week = { from: '2026-10-18', to: '2026-10-24' };
+    const all = await gateway.getMyResults({ ...week, limit: 3 });
+    const orders = await gateway.getMyPerformance({ ...week, limit: 3 });
+    expect(all.figures).toEqual(orders.figures);
+    expect(all.daily).toEqual(orders.daily);
+    for (const list of STAFF_RECENT_LISTS) {
+      const alone = await gateway.getMyPerformance({ ...week, list, limit: 3 });
+      expect(all.recent[list]).toEqual(alone.recent);
+    }
+    // Ten of each when no limit is said, as the server.
+    const unsaid = await gateway.getMyResults(week);
+    expect(unsaid.recent.orders.items.length).toBeLessThanOrEqual(10);
   });
 });
