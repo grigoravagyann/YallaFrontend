@@ -6,80 +6,60 @@ framework imports. React Native imports them directly; the web app consumes them
 as CSS custom properties written by `scripts/generate-css.mjs` from the same
 source, so the two cannot drift.
 
-The style is **organic, in white and green**: unbleached paper and living
-things. Pill controls, generous card radii, soft green-tinted shadows, a serif
-for display, a faint paper grain on the page. Warm on the diner side,
-instrument-grade on the staff side, from one token system. One rule protects
-the whole thing, and it is the thing to check before changing any value.
+The colours are **SHURJ** (`DESIGN.md` at the repo root is the full system):
+a white page, charcoal text, the Black Cherry for the one thing to press, and
+the state hues that carry meaning. Nothing else is coloured, and there is no
+blue: `noBlue.test.ts` fails on a blue in any token file here or in the diner
+theme, except the Telegram button and the map's "you" dot.
 
-## The accent: a beige fill, and an ink for every line
+## Two palettes
 
-The accent is beige, and it is two tokens because the beige is light.
+- **`console.ts`** (`consoleColor`, `--console-*`) is the source of truth for
+  the console, the venue console, the floor tablet and the public page.
+- **`color.ts`** (`color`, `--color-*`) is what the older web screens read. Its
+  neutrals and its action colour are `console.ts` values, so it cannot drift
+  from SHURJ: `paper` is `canvas`, `foreground` is `ink`, `primary` and
+  `primaryInk` are `brand`, `primaryForeground` is the ivory, `greenTint` is
+  `brandTint`, `info` is the waiting burgundy.
 
-| Token                     | Hex       | Use                                                       | Key ratio                 |
-| ------------------------- | --------- | --------------------------------------------------------- | ------------------------- |
-| `color.primary`           | `#C3B59F` | Fill only: primary button, active nav, selected, progress | ink on it 8.70:1          |
-| `color.primaryPressed`    | `#AD9C80` | Hover / pressed fill                                      | ink on it 6.54:1          |
-| `color.primaryForeground` | `#131A22` | The label on either fill — ink, never white               | white would be 2.01:1     |
-| `color.primaryInk`        | `#6B5C45` | Text, icons, links, borders, focused-field edges          | 6.48 white, 5.99 paper    |
-| `color.accentTint`        | `#EFECE6` | Hover and selected grounds                                | `primaryInk` on it 5.49:1 |
+The diner app has its own palette, `apps/diner/src/theme/colors.ts`.
 
-Three constraints, each enforced in `contrast.test.ts`:
+Three rules in `color.ts`, each enforced in `contrast.test.ts`:
 
-1. **`primary` is never text, a border or a focus edge.** It is 2.01:1 on
-   white; those roles use `primaryInk`, which clears 4.5 on white and paper and
-   3 on every ground a control sits on.
-2. **The accent stays out of the floor plan's colour channel.** At 0.14 chroma
-   the beige is a warm neutral; every chromatic table state is above 0.4. Beside
-   a plan, an accent fill carries a `primaryInk` edge, because the fill alone is
-   1.03:1 from an out-of-service table and the edge is 3.13:1.
-   `primaryOnFloorPlan` is the same fill as `primary`, kept for its importers.
-3. **Feedback colours reuse the state hues.** `color.danger` _is_ the occupied
-   red, `color.warning` _is_ the reserved amber, `color.success` _is_ the free
-   green, `color.info` _is_ the held blue. One green, one red, one amber and one
-   blue in the whole product. A second red would be a second thing red means.
+1. **The cherry is fill and line.** It is 15.39:1 on white, so `primaryInk`
+   is `primary`, and ivory reads 14.47:1 on it.
+2. **Feedback colours reuse the state hues.** `color.danger` _is_ the occupied
+   red, `color.warning` the reserved amber, `color.success` the free green,
+   `color.info` the held burgundy. A second red would be a second thing red
+   means.
+3. **Two text weights.** `subtleForeground` is `mutedForeground`.
 
 ### The protected six
 
 The six table states are the only colours in the product that carry
 information. Every one carries a **fill treatment as well as a hue**, because
 hue alone fails for red/green colour blindness and fails again on a sunlit
-terrace. The treatments are tokens the floor plan consumes, not details buried
-inside it:
+terrace:
 
 | State          | Fill      | Treatment                    | Label |
 | -------------- | --------- | ---------------------------- | ----- |
 | `free`         | `#35B37E` | solid, hairline outline      | ink   |
 | `reservedSoon` | `#C98A0E` | 45° diagonal stripes         | ink   |
-| `held`         | `#3B6FD4` | dotted outline               | white |
+| `held`         | `#6B1121` | dotted outline               | white |
 | `occupied`     | `#B93B3B` | solid, no pattern            | white |
 | `outOfService` | `#8B95A1` | cross-hatch at 70% opacity   | ink   |
-| `yourPick`     | `#17281F` | ink fill, 3px `surface` ring | white |
+| `yourPick`     | `#2D2927` | ink fill, 3px `surface` ring | white |
 
 The label colour is chosen per state by contrast, not assumed: white on the
 free green is 2.66:1, white on occupied red is 5.60:1. `compositedFill()`
 composites the one translucent state over the canvas so its label is checked
 against what is actually on screen. **Tables stay rectilinear**: `radius.table`
-is 2px, because the plan is a map of real furniture and a waiter needs to
-recognise the shape of table 7.
+is 2px. The web emits `--table-*` for the four states the public page's pins
+draw; held pins wear the reserved-soon fill there.
 
-## Colour
-
-White grounds and green identity. `surface` (`#FFFFFF`) for cards, sheets and
-the canvas; `paper` (`#F6F9F7`) for the page. Three text weights in green-black
-rather than grey (`foreground`, `mutedForeground`, `subtleForeground`) and
-hairlines in `border`, with `borderSoft` for card edges (the brief's "border at
-50%", frozen as a solid) and `borderInteractive` for control outlines.
-
-Every fill that text sits on is a solid. Three translucent values exist,
-`scrim`, `focusRing` and `surfaceGlass`, and each is something text never sits
-on: a veil, a glow, a frosted nav.
-
-Shadows are **green-tinted, soft and diffused**, never black. `elevation.soft`
-for resting cards and primary buttons, `float` for things that float, `lift` for
-the deepened shadow under a hovered or pressed control, and `sheet`, which is
-`float` mirrored upward, under a bottom sheet. Each has a `web` and a `native`
-form.
+Shadows (`elevation`) are the charcoal at low alpha, never black and never the
+cherry: `soft`, `float`, `lift`, and `sheet` (`float` mirrored upward). Each
+has a `web` and a `native` form.
 
 ## Type
 
@@ -122,7 +102,7 @@ corners) · `cardAccent` 48 (the one swollen corner of an asymmetric card) ·
 
 **Paper grain** (`paperGrain`) at 2.5% with a multiply blend, on `paper`
 grounds. **Blobs** (`blob`) as ambient background forms: large, blurred, low
-opacity, in `greenTint`. Both are allowed on the diner app's browse and empty
+opacity, in `greenTint` (the brand tint). Both are allowed on the diner app's browse and empty
 screens and on public pages. **Neither is ever over a floor plan or on a staff
 screen**: grain reduces contrast, and the staff tablet is read at two metres on
 a counter that may be in direct sun.
@@ -136,32 +116,14 @@ resolves everything to zero.
 
 **Touch targets:** `touchTarget.regular` 48 for buttons and inputs, `small` 40,
 `large` 56, `minimum` 44 on the diner app, `staff` 56 on every staff control.
-`icon`: Lucide at 24 with a 2px stroke, in a 56px `greenTint` container.
-
-## Two deviations from the brief, both for legibility
-
-The brief asks for every text-on-fill pair to be reported and anything under
-4.5:1 fixed by darkening rather than by lowering the standard. Two pairs needed
-it:
-
-- **`mutedForeground`** was specified as `#5F7268`, which is 4.48:1 on
-  `greenTint`, the ground of a selected row or an icon container. It ships as
-  `#5D7066` (4.61:1 there, 4.98:1 on paper, 5.28:1 on white).
-- **`subtleForeground`** was specified as `#93A39A`, which is 2.3–2.6:1 on every
-  ground. It ships as `#647569`: 4.89:1 on white and 4.62:1 on paper, the two
-  grounds tertiary text is set on. It is **not** legible on `greenTint`
-  (4.28:1), so the rule is that tertiary text never sits on a tinted fill, and
-  the test suite holds that rule rather than pretending the pair passes.
-
-One addition: **`borderInteractive`** (`#7E8D84`, ≥3.24:1), because the brief's
-`border` is 1.28:1 against white. That is fine for a divider, which WCAG treats
-as decoration, but a control boundary owes 3:1.
+`icon`: Lucide at 24 with a 2px stroke, in a 56px container.
 
 ## What is in here
 
 | Module          | Exports                                                                                                                                                      |
 | --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `color.ts`      | `color`; `textBackgrounds`, `subtleTextBackgrounds` for the tests                                                                                            |
+| `color.ts`      | `color` (built from `console.ts`); `textBackgrounds`, `subtleTextBackgrounds`, `tintedFills` for the tests                                                   |
+| `console.ts`    | `consoleColor`, `consoleSize`, `consoleRadius`, `consoleText`, `consoleShadow`                                                                               |
 | `tableState.ts` | `tableStatusStyle`, the six states with their full treatment; `tableStatusLegendOrder`; `compositedFill`                                                     |
 | `typography.ts` | `typeScale.diner / .staff / .console`; `fontFamily.body / .display`; `fontWeight`, `displayWeight`; `nativeFontFace`, `nativeDisplayFontFace`; `fontFeature` |
 | `space.ts`      | `space` (4px scale), `stepUp()`, `radius`, `touchTarget`, `icon`                                                                                             |
@@ -175,7 +137,7 @@ as decoration, but a control boundary owes 3:1.
 
 ```bash
 pnpm tokens:css                                  # writes apps/web/src/tokens.generated.css
-pnpm --filter @yalla/tokens test                 # the contrast and rule assertions
+pnpm --filter @yalla/tokens test                 # contrast, rule and no-blue assertions
 python packages/tokens/scripts/build-fonts.py    # both families; --only YallaSerif for one
 ```
 

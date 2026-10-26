@@ -1,5 +1,7 @@
 # Floor tablet redesign: handoff
 
+> **Colours:** this handoff predates SHURJ. Where it names a colour ("waiting is blue/amber", a brown or beige), `DESIGN.md` and the tokens (`packages/tokens/src/console.ts`) win: waiting and held are burgundy, and there is no blue.
+
 Everything a fresh session needs to implement the approved floor tablet
 redesign (`/staff`: the waiter's floor and the kitchen screen) in `apps/web`,
 plus the three backend gaps in the `Yalla` repo. The design was made on

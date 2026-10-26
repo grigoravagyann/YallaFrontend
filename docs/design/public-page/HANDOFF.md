@@ -1,5 +1,7 @@
 # Public page redesign: handoff
 
+> **Colours:** this handoff predates SHURJ. Where it names a colour ("waiting is blue/amber", a brown or beige), `DESIGN.md` and the tokens (`packages/tokens/src/console.ts`) win: waiting and held are burgundy, and there is no blue.
+
 Everything a fresh session needs to implement the approved public page
 redesign (the diner-facing web page at `yalla.am/{venue}/{branch}`, the branch
 chooser and the manage-booking link) in `apps/web/src/public`, plus the one
