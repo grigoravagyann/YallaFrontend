@@ -654,6 +654,10 @@
     "tableAttributed": "On the table",
     "lineActions": "{{name}}, actions",
     "voidLine": "Void the line",
+    "voidOrder": "Void the whole order",
+    "voidOrderTitle": "Void the whole order?",
+    "voidOrderWarn": "{{amount}} comes off the bill: every dish of this order, and the kitchen stops making it. The guest sees each one on their phone, marked voided.",
+    "voidOrderConfirm": "Void the order",
     "compLine": "On the house",
     "voidWhy": "What happened? The guest sees this reason on their phone.",
     "voidReason": {
@@ -703,9 +707,13 @@
       "discounted": "Discount on the whole bill · {{amount}}",
       "markedUnpaid": "{{amount}} recorded as a loss · the tab is closed",
       "lineAlreadyPaid": "This tab has been paid against, so a line cannot be voided now. Nothing changed.",
-      "failed": "That did not go through. Nothing changed."
+      "failed": "That did not go through. Nothing changed.",
+      "orderVoided": "Order voided · {{amount}} off the bill, the guest sees it",
+      "orderAlreadyPaid": "This tab has been paid against, so the order cannot be voided now. Nothing changed.",
+      "orderNotVoidable": "This order was already voided or has left the kitchen. Nothing changed."
     },
-    "voidAfterPayment": "This tab has been paid against, so a line cannot be voided now."
+    "voidAfterPayment": "This tab has been paid against, so a line cannot be voided now.",
+    "voidAfterPaymentOrder": "This tab has been paid against, so neither a line nor the order can be voided now."
   },
   "cash": {
     "title": "Take cash",

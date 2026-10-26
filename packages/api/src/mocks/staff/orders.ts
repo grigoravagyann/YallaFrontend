@@ -9,6 +9,7 @@ import {
   TabNotAcceptingOrdersError,
   OrderGuestUnavailableError,
   LineAlreadyPaidError,
+  OrderNotVoidableError,
 } from '../../contracts/errors';
 import { ValidationError, NotFoundError } from '../../errors';
 import type { StaffGateway } from '../../staffGateway';
@@ -222,6 +223,15 @@ export function ordersMethods(
       const order = orders.get(command.orderId);
       if (!order) throw new NotFoundError({ url: `/api/orders/${command.orderId}` });
       const tab = order.tabId ? tabs.get(order.tabId) : undefined;
+      // The rail lets an order be voided only from new or in the kitchen: one
+      // voided already, ready or served is a 409 `conflicting-state`, as the
+      // server answers it, and nothing changes.
+      if (command.status === 'voided' && order.status !== 'new' && order.status !== 'inKitchen') {
+        throw new OrderNotVoidableError({
+          url: `/api/orders/${command.orderId}/status`,
+          orderId: command.orderId,
+        });
+      }
       // As the server (2026-10-25): voiding a whole order voids every line of
       // it still on the bill, and is refused, as one line's void is, once the
       // tab has been paid against and the void would take money off it.
@@ -247,7 +257,15 @@ export function ordersMethods(
         if (live.length > 0) pushEvent(tab, 'lineVoided', now());
       }
       order.status = command.status;
-      if (tab) pushEvent(tab, 'orderStatusChanged', now());
+      if (tab) {
+        // The staff tab reads each line's order where it is now, as the server's does.
+        tab.lines.forEach((line, index) => {
+          if (line.orderId === order.id) {
+            tab.lines[index] = { ...line, orderStatus: command.status };
+          }
+        });
+        pushEvent(tab, 'orderStatusChanged', now());
+      }
       // A pre-order's ticket: its card reads the kitchen's progress (signal 6).
       if (order.preOrderReservationId) kitchenMoved(order.preOrderReservationId, command.status);
       return settle(orderEntry(order));

@@ -4,6 +4,7 @@ import {
   createQueryClient,
   createStaffMockGateway,
   ForbiddenError,
+  tableDetail,
   type ActivityEntry,
   type EnrolledDevice,
   type StaffFloor,
@@ -957,5 +958,60 @@ describe('a tapped notification', () => {
     renderAt(staffGateway, `/staff/messages/${inbox.items[0]!.conversationId}`);
     expect(await screen.findByRole('button', { name: 'All messages' })).toBeTruthy();
     expect(document.querySelector('.msg-thread')).not.toBeNull();
+  });
+});
+
+describe('voiding a whole order on the phone', () => {
+  /** A fresh order of two dishes on an open tab, still new; a dish nothing else on it is called. */
+  async function freshOrder(staffGateway: StaffGateway) {
+    const floor = (await staffGateway.getFloor(BRANCH))!;
+    const table = floor.plan.tables.find((one) => tableDetail(floor, one.id)?.openTabId)!;
+    const tabId = tableDetail(floor, table.id)!.openTabId!;
+    const onTab = (await staffGateway.getStaffTab(tabId))!.lines.map((line) => line.name);
+    const dish = (await staffGateway.getMenu(BRANCH))!.sections
+      .flatMap((section) => section.items)
+      .find((item) => item.isAvailable && item.priceDram > 0 && !onTab.includes(item.name))!;
+    await staffGateway.placeOrder({
+      tabId,
+      clientCommandId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+      lines: [{ menuItemId: dish.id, quantity: 2, isShared: true, participantId: null }],
+    });
+    return { table, dish };
+  }
+
+  async function openLineMenu(role: UserRole) {
+    signIn(role);
+    const staffGateway = gateway();
+    const { table, dish } = await freshOrder(staffGateway);
+    const move = vi.spyOn(staffGateway, 'setOrderStatus');
+    renderAt(staffGateway, `/staff/floor?table=${table.id}`);
+    const user = setupUser();
+    const sheet = await screen.findByRole('dialog');
+    await user.click(await within(sheet).findByRole('button', { name: 'View the tab' }));
+    const tabPanel = await screen.findByRole('dialog', { name: `Tab · table ${table.label}` });
+    await user.click(
+      await within(tabPanel).findByRole('button', { name: `${dish.name}, actions` }),
+    );
+    const menu = screen.getByRole('dialog', { name: new RegExp(dish.name, 'u') });
+    return { user, menu, move, tabPanel, dish };
+  }
+
+  it('lets the waiter void it from the tab, after a confirm, as on the tablet', async () => {
+    const { user, menu, move, tabPanel } = await openLineMenu('waiter');
+    await user.click(within(menu).getByRole('button', { name: 'Void the whole order' }));
+    const confirm = screen.getByRole('alertdialog', { name: 'Void the whole order?' });
+    await user.click(within(confirm).getByRole('button', { name: 'Void the order' }));
+
+    await waitFor(() => expect(move).toHaveBeenCalledTimes(1));
+    expect(move.mock.calls[0]![0]).toEqual(expect.objectContaining({ status: 'voided' }));
+    expect(await screen.findByText(/^Order voided · /u)).toBeTruthy();
+    await waitFor(() =>
+      expect(within(tabPanel).getByText(/Voided · The whole order was voided\./u)).toBeTruthy(),
+    );
+  });
+
+  it('offers it to a manager on the phone too', async () => {
+    const { menu } = await openLineMenu('manager');
+    expect(within(menu).getByRole('button', { name: 'Void the whole order' })).toBeTruthy();
   });
 });

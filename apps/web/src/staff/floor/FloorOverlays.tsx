@@ -12,7 +12,7 @@ import type { FloorOverlay } from './useTableActions';
 
 type TabActions = Pick<
   ComponentProps<typeof TabPanel>,
-  'onVoid' | 'onAdjust' | 'onAskForBill' | 'onCash' | 'onAbandon'
+  'onVoid' | 'onVoidOrder' | 'onAdjust' | 'onAskForBill' | 'onCash' | 'onAbandon'
 >;
 
 export interface FloorOverlaysProps {
@@ -138,6 +138,7 @@ export function FloorOverlays({
               : null
           }
           onVoid={tabActions.onVoid}
+          onVoidOrder={tabActions.onVoidOrder}
           onAdjust={tabActions.onAdjust}
           onAskForBill={tabActions.onAskForBill}
           onCash={tabActions.onCash}

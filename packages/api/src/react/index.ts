@@ -236,6 +236,7 @@ export {
   useTabsAwaitingAdmission,
   useUndoNoShow,
   useVoidLine,
+  useVoidOrder,
 } from './staffFloor';
 export type { UseStaffMenuOptions } from './staffFloor';
 export {
