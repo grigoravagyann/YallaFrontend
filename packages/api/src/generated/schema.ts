@@ -1,7 +1,7 @@
 /**
  * GENERATED FILE — do not edit.
  *
- * Source: http://localhost:5987/swagger.json
+ * Source: http://localhost:5877/swagger.json
  * Regenerate with: pnpm api:generate
  */
 
@@ -2049,7 +2049,7 @@ export interface paths {
         };
         /**
          * The branch's change stream, for catching up after a dropped connection
-         * @description Every table state change writes exactly one audit row in the same transaction as the change, so this is an ordered event log. A client that lost its connection sends the `maxSequence` from its last floor response as `afterSequence` and applies what comes back, in order, rather than refetching the whole floor and working out what moved. `maxSequence` in the response is where the branch's stream ends right now, not the last entry in this page - so a short page still tells you that you are up to date. `hasMore` is set when the page hit its cap; call again with the last sequence you received.
+         * @description Every table state change writes exactly one audit row in the same transaction as the change, so this is an ordered event log. A client that lost its connection sends the `maxSequence` from its last floor response as `afterSequence` and applies what comes back, in order, rather than refetching the whole floor and working out what moved. `maxSequence` in the response is where the branch's stream ends right now, not the last entry in this page - so a short page still tells you that you are up to date. `hasMore` is set when the page hit its cap; call again with the last sequence you received. A `signal` 8 entry (takeaway) is about the counter, not a table: `diningTableId` and `tableLabel` are null and both statuses are Free - re-read the takeaway counter, never fold it.
          */
         get: operations["getBranchChanges"];
         put?: never;
@@ -9469,9 +9469,9 @@ export interface components {
             atUtc: string;
             /**
              * Format: uuid
-             * @description The table that changed.
+             * @description The table that changed. Null only on a Signal 8 entry, which is about the takeaway counter.
              */
-            diningTableId: string;
+            diningTableId?: string | null;
             /** @description The <b>physical</b> state of a table: what somebody did to it. */
             fromStatus: components["schemas"]["Yalla.Domain.Enums.TableStatus"];
             /** @description Free text recorded with the transition. */
@@ -9490,8 +9490,10 @@ export interface components {
              * @description Set when the entry is about more than the table's status: 1 a scan's tab is waiting to be let in, 2 it was
              *     admitted, 3 it was turned away (on the Occupied-to-Free row when that freed the table) - refetch the
              *     awaiting-admission list; 4 a booking the platform cancelled for a no-show block and 5 any other booking event -
-             *     re-read the floor; 6 a booking's pre-order changed - re-read the pre-order rail. Absent on every ordinary
-             *     change. A same-status row (4 to 6) is never folded.
+             *     re-read the floor; 6 a booking's pre-order changed - re-read the pre-order rail; 7 the table was handed to another
+             *     waiter - re-read the floor; 8 a takeaway order was placed, accepted, declined, cancelled, marked ready, collected or
+             *     marked not collected - re-read the takeaway counter and the kitchen's queue (no table, both statuses Free). Absent on
+             *     every ordinary change. A same-status row (4 to 8) is never folded.
              */
             signal?: components["schemas"]["Yalla.Domain.Enums.TableChangeSignal"] | null;
             /**
@@ -9499,8 +9501,8 @@ export interface components {
              * @description The tab involved, when there was one - always on a Signal entry.
              */
             tabId?: string | null;
-            /** @description Its label, so a client can render without a second lookup. */
-            tableLabel: string;
+            /** @description Its label, so a client can render without a second lookup. Null when there is no table. */
+            tableLabel?: string | null;
             /**
              * Format: uuid
              * @description The seating opened or closed by this change, when there was one.
@@ -15832,10 +15834,10 @@ export interface components {
          * @description What a branch change-stream entry signals beyond the table's status, when it is about the tab on the
          *     table rather than the table itself. Persisted as its number on `TableStateChanges.Signal`.
          *
-         *     Values: 1 TabAwaitingAdmission, 2 TabAdmitted, 3 TabAdmissionRejected, 4 BookingCancelledByBlock, 5 BookingChanged, 6 PreOrderChanged, 7 TableTransferred.
+         *     Values: 1 TabAwaitingAdmission, 2 TabAdmitted, 3 TabAdmissionRejected, 4 BookingCancelledByBlock, 5 BookingChanged, 6 PreOrderChanged, 7 TableTransferred, 8 TakeawayChanged.
          * @enum {integer}
          */
-        "Yalla.Domain.Enums.TableChangeSignal": 1 | 2 | 3 | 4 | 5 | 6 | 7;
+        "Yalla.Domain.Enums.TableChangeSignal": 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8;
         /**
          * Format: int32
          * @description How a party came to occupy a table.

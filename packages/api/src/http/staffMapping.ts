@@ -449,8 +449,8 @@ export function floorChangePage(page: ChangePage): FloorChangePage {
     hasMore: page.hasMore,
     changes: page.changes.map((change): FloorChange => ({
       sequence: change.sequence,
-      tableId: change.diningTableId,
-      tableLabel: change.tableLabel,
+      tableId: change.diningTableId ?? null,
+      tableLabel: change.tableLabel ?? null,
       fromStatus: tableStatus(change.fromStatus),
       toStatus: tableStatus(change.toStatus),
       atUtc: change.atUtc,

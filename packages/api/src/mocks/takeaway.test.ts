@@ -44,7 +44,11 @@ let commandSequence = 0;
 const commandId = () =>
   `00000000-0000-4000-8000-${String((commandSequence += 1)).padStart(12, '0')}`;
 
-function book(branch: MockTakeawayBranch = MOCK_TAKEAWAY_BRANCHES[NORTH]!, start = WEDNESDAY_2PM) {
+function book(
+  branch: MockTakeawayBranch = MOCK_TAKEAWAY_BRANCHES[NORTH]!,
+  start = WEDNESDAY_2PM,
+  onChanged?: (record: { readonly code: string }, reason: string) => void,
+) {
   let clock = start;
   const fixture = publicBranchFixtures[NORTH]!;
   const takeaway = createMockTakeawayBook({
@@ -61,6 +65,7 @@ function book(branch: MockTakeawayBranch = MOCK_TAKEAWAY_BRANCHES[NORTH]!, start
       weeklyHours: fixture.weeklyHours,
     }),
     branches: { [NORTH]: branch },
+    onChanged,
   });
   return {
     takeaway,
@@ -578,6 +583,76 @@ describe("the floor tablet's world", () => {
   it('starts empty unless asked', async () => {
     const gateway = createStaffMockGateway({ now: () => new Date(WEDNESDAY_2PM) });
     expect((await gateway.listTakeawayOrders('b')).active).toEqual([]);
+  });
+
+  it('puts every move on the change stream as a takeaway row about no table, and no replay', async () => {
+    const gateway = createStaffMockGateway({
+      now: () => new Date(WEDNESDAY_2PM),
+      seedTakeaway: true,
+    });
+    const counter = await gateway.listTakeawayOrders('branch-cafe-01');
+    const start = (await gateway.getFloorChanges({ branchId: 'branch-cafe-01', afterSequence: 0 }))
+      .lastSequence;
+    const sent = counter.active.find((entry) => entry.status === 'sent')!;
+
+    await gateway.acceptTakeawayOrder({ orderId: sent.id, readyAtUtc: sent.requestedPickupUtc });
+    // A second tablet's accept is the same answer, and no second row.
+    await gateway.acceptTakeawayOrder({ orderId: sent.id, readyAtUtc: sent.requestedPickupUtc });
+    await gateway.markTakeawayOrderReady(sent.id);
+    await gateway.collectTakeawayOrder({ orderId: sent.id, method: 'card' });
+
+    const page = await gateway.getFloorChanges({
+      branchId: 'branch-cafe-01',
+      afterSequence: start,
+    });
+    expect(page.changes.map((change) => change.reason)).toEqual([
+      'takeaway accepted',
+      'takeaway ready',
+      'takeaway collected',
+    ]);
+    for (const change of page.changes) {
+      expect(change).toMatchObject({
+        signal: 'takeawayChanged',
+        tableId: null,
+        tableLabel: null,
+        fromStatus: 'free',
+        toStatus: 'free',
+        reservationId: null,
+        tabId: null,
+        actor: 'system',
+      });
+    }
+    expect(page.lastSequence).toBe(page.changes.at(-1)!.sequence);
+  });
+});
+
+describe('the book, told of every move', () => {
+  it('says placed, cancelled, declined and declined by the sweep, never on a replay', () => {
+    const told: string[] = [];
+    const { takeaway, advance } = book(
+      { ...MOCK_TAKEAWAY_BRANCHES[NORTH]!, autoAccept: false },
+      WEDNESDAY_2PM,
+      (record, reason) => told.push(`${record.code} ${reason}`),
+    );
+    const again = order();
+    const first = takeaway.place({ ...GUEST, command: again });
+    takeaway.place({ ...GUEST, command: again });
+    const second = takeaway.place({ ...GUEST, command: order() });
+    const third = takeaway.place({ ...GUEST, command: order() });
+    takeaway.cancel(URL, second.id, GUEST.actor);
+    takeaway.cancel(URL, second.id, GUEST.actor);
+    takeaway.decline(URL, third.id, 'Out of it');
+    advance(6);
+    takeaway.records();
+
+    expect(told).toEqual([
+      `${first.code} takeaway placed`,
+      `${second.code} takeaway placed`,
+      `${third.code} takeaway placed`,
+      `${second.code} takeaway cancelled`,
+      `${third.code} takeaway declined`,
+      `${first.code} takeaway declined`,
+    ]);
   });
 });
 

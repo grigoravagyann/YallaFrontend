@@ -13,7 +13,7 @@ import {
   TakeawaySlotUnavailableError,
   TakeawayStatusConflictError,
 } from '../contracts/errors';
-import { NO_TAKEAWAY } from '../contracts/takeaway';
+import { NO_TAKEAWAY, readsTakeawayCounter } from '../contracts/takeaway';
 import { NotFoundError, ValidationError } from '../errors';
 import { createConsoleHttpGateway, createMemoryIdentityStore } from './consoleHttpGateway';
 import { fakeBackend, problemReply, type FakeRoute } from './fakeBackend.testkit';
@@ -729,6 +729,61 @@ describe("the counter's takeaway routes", () => {
 
     const missing = await caught(gateway.markTakeawayOrderReady('nope'));
     expect(missing).toBeInstanceOf(NotFoundError);
+  });
+
+  it("reads a takeaway move on the floor's change stream: signal 8, about no table", async () => {
+    const { gateway, backend } = staffOver({
+      [`GET /api/branches/${BRANCH}/tables/changes`]: {
+        body: {
+          branchId: BRANCH,
+          afterSequence: 40,
+          maxSequence: 41,
+          hasMore: false,
+          changes: [
+            {
+              sequence: 41,
+              tableStateChangeId: '7a000000-0000-4000-8000-000000000041',
+              diningTableId: null,
+              tableLabel: null,
+              fromStatus: 1,
+              toStatus: 1,
+              reason: 'takeaway placed',
+              actorType: 3,
+              actorId: null,
+              atUtc: '2026-10-26T15:00:00Z',
+              tableSessionId: null,
+              reservationId: null,
+              tabId: null,
+              signal: 8,
+            },
+          ],
+        },
+      },
+    });
+
+    const page = await gateway.getFloorChanges({ branchId: BRANCH, afterSequence: 40 });
+
+    expect(backend.requests[0]?.query.get('afterSequence')).toBe('40');
+    expect(page.lastSequence).toBe(41);
+    expect(page.changes).toEqual([
+      {
+        sequence: 41,
+        tableId: null,
+        tableLabel: null,
+        fromStatus: 'free',
+        toStatus: 'free',
+        atUtc: '2026-10-26T15:00:00Z',
+        tableSessionId: null,
+        reservationId: null,
+        actor: 'system',
+        actorId: null,
+        reason: 'takeaway placed',
+        tabId: null,
+        signal: 'takeawayChanged',
+      },
+    ]);
+    expect(readsTakeawayCounter(page.changes[0]?.signal)).toBe(true);
+    expect(readsTakeawayCounter('preOrderChanged')).toBe(false);
   });
 });
 

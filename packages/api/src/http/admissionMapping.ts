@@ -55,6 +55,8 @@ const SIGNAL: Readonly<Record<number, FloorChangeSignal>> = {
   6: 'preOrderChanged',
   // The table was handed to another waiter (2026-10-24): the floor's `serverName` moved.
   7: 'tableTransferred',
+  // A takeaway order moved (2026-10-26): a row about the counter, with no table.
+  8: 'takeawayChanged',
 };
 
 export function admissionStatus(value: number | null | undefined): TabAdmissionStatus {

@@ -19,11 +19,13 @@ import {
   askOnMyWayOptions,
 } from './preOrders';
 import {
+  TAKEAWAY_COUNTER_POLL_MS,
   TAKEAWAY_ORDER_ACTIVE_POLL_MS,
   TAKEAWAY_ORDER_SENT_POLL_MS,
   afterTakeawayAction,
   afterTakeawayOrderChanged,
   afterTakeawaySettingsSaved,
+  afterTakeawaySignal,
   takeawayActionOptions,
   takeawayOrderPollMs,
 } from './takeaway';
@@ -99,6 +101,26 @@ describe('a move at the counter', () => {
     expect(read?.active.map((order) => order.status)).toEqual(['accepted', 'sent']);
     expect(invalidated(queryClient, queryKeys.takeawayOrders(BRANCH))).toBe(true);
     expect(invalidated(queryClient, queryKeys.orderQueue(BRANCH))).toBe(true);
+  });
+
+  it("reads the counter and the kitchen's queue again on the change stream's takeaway signal", () => {
+    const queryClient = client();
+    const counter = { active: [STAFF], finishedToday: [], sentCount: 1, readyCount: 0 };
+    queryClient.setQueryData(queryKeys.takeawayOrders(BRANCH), counter);
+    queryClient.setQueryData(queryKeys.orderQueue(BRANCH), []);
+    queryClient.setQueryData(queryKeys.takeawayOrders('b-elsewhere'), counter);
+
+    afterTakeawaySignal(queryClient, BRANCH);
+
+    // Read again, not patched: the row names no order.
+    expect(queryClient.getQueryData(queryKeys.takeawayOrders(BRANCH))).toBe(counter);
+    expect(invalidated(queryClient, queryKeys.takeawayOrders(BRANCH))).toBe(true);
+    expect(invalidated(queryClient, queryKeys.orderQueue(BRANCH))).toBe(true);
+    expect(invalidated(queryClient, queryKeys.takeawayOrders('b-elsewhere'))).toBe(false);
+  });
+
+  it('polls the counter only as a slow fallback now the stream carries takeaway', () => {
+    expect(TAKEAWAY_COUNTER_POLL_MS).toBe(60_000);
   });
 
   it('reads both again on a refusal, changing nothing itself', () => {
