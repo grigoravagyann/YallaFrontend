@@ -24,6 +24,8 @@ import {
   type DailySales,
   type PerformanceFigures,
   type MyPerformanceQuery,
+  type MyResults,
+  type MyResultsQuery,
   type PerformanceRange,
   type StaffMemberPerformance,
   type StaffPerformance,
@@ -82,6 +84,8 @@ export type WireStaffPerformanceTotals =
   Schemas['Yalla.Application.Activity.StaffPerformanceTotals'];
 export type WirePersonPerformance = Schemas['Yalla.Application.Activity.PersonPerformance'];
 export type WireRecentPage = Schemas['Yalla.Application.Activity.RecentPage'];
+/** `GET /api/staff/me/results`' answer: a person's page with every list's first page. */
+export type WireMyResults = Schemas['Yalla.Application.Activity.MyResults'];
 export type WireTableTransferResult = Schemas['Yalla.Application.Activity.TableTransferResult'];
 /** `POST /api/tabs/{tabId}/transfer`'s body. */
 export type WireTransferTableRequest = Schemas['Yalla.Api.Endpoints.TransferTableRequest'];
@@ -101,6 +105,8 @@ export type WireStaffPerformanceParams = NonNullable<
 export type WireMyPerformanceParams = NonNullable<
   operations['getMyPerformance']['parameters']['query']
 >;
+/** My results in one read: its query string. */
+export type WireMyResultsParams = NonNullable<operations['getMyResults']['parameters']['query']>;
 /** A person's page's query string. */
 export type WirePersonPerformanceParams = NonNullable<
   operations['getStaffMemberPerformance']['parameters']['query']
@@ -503,6 +509,39 @@ export function staffMemberPerformanceFromWire(
     readonly list?: StaffRecentList | undefined;
   },
 ): StaffMemberPerformance {
+  return {
+    ...personFromWire(wire, asked),
+    recent: staffRecentPageFromWire(wire?.recent, asked.list ?? 'orders'),
+  };
+}
+
+/**
+ * `GET /api/staff/me/results`: the same person, figures and chart as a
+ * person's page, and every list's first page, each read as that list's own.
+ */
+export function myResultsFromWire(
+  wire: Partial<WireMyResults> | null | undefined,
+  asked: PerformanceRange,
+): MyResults {
+  const page = (list: StaffRecentList) => staffRecentPageFromWire(wire?.recent?.[list], list);
+  return {
+    ...personFromWire(wire, { ...asked, staffMemberId: '' }),
+    recent: {
+      orders: page('orders'),
+      messages: page('messages'),
+      bookings: page('bookings'),
+      cash: page('cash'),
+      calls: page('calls'),
+    },
+  };
+}
+
+/** Who, the dates, the figures and the chart: a person's page without its list. */
+function personFromWire(
+  wire:
+    Partial<Pick<WirePersonPerformance, 'from' | 'to' | 'kpis' | 'dailySales'>> | null | undefined,
+  asked: PerformanceRange & { readonly staffMemberId: string },
+): Omit<StaffMemberPerformance, 'recent'> {
   const kpis = wire?.kpis;
   const daily: DailySales[] = (wire?.dailySales ?? []).flatMap((day) => {
     const date = text(day.date);
@@ -519,7 +558,6 @@ export function staffMemberPerformanceFromWire(
     isActive: kpis?.isActive !== false,
     figures: figuresFromWire(kpis),
     daily: daily.sort((a, b) => a.date.localeCompare(b.date)),
-    recent: staffRecentPageFromWire(wire?.recent, asked.list ?? 'orders'),
   };
 }
 
@@ -643,6 +681,18 @@ export function myPerformanceParams(query: MyPerformanceQuery): WireMyPerformanc
     to: query.to,
     ...(query.branchId ? { branchId: query.branchId } : {}),
     ...(query.list ? { list: query.list } : {}),
+    ...(query.limit !== undefined
+      ? { limit: String(Math.min(100, Math.max(1, Math.round(query.limit)))) }
+      : {}),
+  };
+}
+
+/** `GET /api/staff/me/results`' query: every value a string; `limit` is per list. */
+export function myResultsParams(query: MyResultsQuery): WireMyResultsParams {
+  return {
+    from: query.from,
+    to: query.to,
+    ...(query.branchId ? { branchId: query.branchId } : {}),
     ...(query.limit !== undefined
       ? { limit: String(Math.min(100, Math.max(1, Math.round(query.limit)))) }
       : {}),

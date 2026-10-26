@@ -1,7 +1,15 @@
-import type { MyPerformanceQuery, StaffMemberPerformance } from '../../contracts/activity';
+import type {
+  MyPerformanceQuery,
+  MyResults,
+  MyResultsQuery,
+  StaffMemberPerformance,
+} from '../../contracts/activity';
 import {
   myPerformanceParams,
+  myResultsFromWire,
+  myResultsParams,
   staffMemberPerformanceFromWire,
+  type WireMyResults,
   type WirePersonPerformance,
 } from '../activityMapping';
 import type { components } from '../../generated/schema';
@@ -23,6 +31,7 @@ export function phoneMethods(
 ): Pick<
   StaffGateway,
   | 'getMyPerformance'
+  | 'getMyResults'
   | 'unpairOwnPhone'
   | 'getPushConfig'
   | 'savePushSubscription'
@@ -43,6 +52,13 @@ export function phoneMethods(
         staffMemberId: '',
         list: query.list,
       });
+    },
+
+    async getMyResults(query: MyResultsQuery): Promise<MyResults> {
+      const { data } = await client.get<WireMyResults>('/api/staff/me/results', {
+        query: myResultsParams(query),
+      });
+      return myResultsFromWire(data, { from: query.from, to: query.to });
     },
 
     // --- The device itself: a personal phone, its pushes (2026-10-24) ---------

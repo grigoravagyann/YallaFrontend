@@ -22836,6 +22836,128 @@
         }
       }
     },
+    "/api/staff/me/results": {
+      "get": {
+        "tags": [
+          "staff"
+        ],
+        "summary": "My results in one read: the caller's numbers, chart and every recent list",
+        "description": "What the staff phone's My results shows for a period, in one call: `getMyPerformance`'s figures and chart with the first page of **every** recent list instead of one.\n\nQuery: `from`, `to` as `getMyPerformance`; `limit` - entries per list, 1 to 100, default 10; `branchId` for an owner or general manager, as there. `list` and `cursor` are not read.\n\nAnswers `{ branchId, from, to, kpis, dailySales, recent }`: `kpis` and `dailySales` as `getMyPerformance`; `recent` is `{ orders, messages, bookings, cash, calls }`, each the page `getMyPerformance?list=…` answers - `{ list, items, nextCursor }`, newest first - so a list's `nextCursor` continues there. A cash bill is on both `orders` and `cash`, as on the separate lists.\n\nThe same caller and the same refusals as `getMyPerformance`: a waiter or above by the stored row, their own numbers only; the kitchen and the platform are 403.",
+        "operationId": "getMyResults",
+        "parameters": [
+          {
+            "name": "from",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "branchId",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Application.Activity.MyResults"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request violated a domain rule or arrived malformed.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No usable token was presented, or the one presented was rejected.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "`forbidden`: the kitchen, the platform, or a branch not theirs.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such branch.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "A bad query value, or `branchId` missing for somebody venue-wide.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.ValidationFailedProblem"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests in the window, or a one-time credential is out of attempts.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected failure. Quote the traceId from the body.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/tabs/{tabId}/transfer": {
       "post": {
         "tags": [
@@ -31618,6 +31740,59 @@
         "additionalProperties": false,
         "description": "A day's sales on a person's chart."
       },
+      "Yalla.Application.Activity.MyResults": {
+        "required": [
+          "branchId",
+          "dailySales",
+          "from",
+          "kpis",
+          "recent",
+          "to"
+        ],
+        "type": "object",
+        "properties": {
+          "branchId": {
+            "type": "string",
+            "description": "The branch read.",
+            "format": "uuid"
+          },
+          "from": {
+            "type": "string",
+            "description": "The first date.",
+            "format": "date"
+          },
+          "to": {
+            "type": "string",
+            "description": "The last, inclusive.",
+            "format": "date"
+          },
+          "kpis": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Yalla.Application.Activity.StaffPerformanceRow"
+              }
+            ],
+            "description": "Their row, as on Staff → Results."
+          },
+          "dailySales": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Yalla.Application.Activity.DailySales"
+            },
+            "description": "As on a person's page: one entry per local date, a week ending on `to` at least."
+          },
+          "recent": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Yalla.Application.Activity.RecentLists"
+              }
+            ],
+            "description": "Every list's first page, `limit` entries each."
+          }
+        },
+        "additionalProperties": false,
+        "description": "My results in one read: the caller's numbers, their chart and the first page of every recent list - what the\nstaff phone's screen shows for a period, which took one `/api/staff/me/performance` call per list before."
+      },
       "Yalla.Application.Activity.PersonPerformance": {
         "required": [
           "branchId",
@@ -31670,6 +31845,60 @@
         },
         "additionalProperties": false,
         "description": "One person's page: their numbers, a day-by-day chart, and their recent work."
+      },
+      "Yalla.Application.Activity.RecentLists": {
+        "required": [
+          "bookings",
+          "calls",
+          "cash",
+          "messages",
+          "orders"
+        ],
+        "type": "object",
+        "properties": {
+          "orders": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Yalla.Application.Activity.RecentPage"
+              }
+            ],
+            "description": "Orders sent, pre-orders sent, voids, discounts, comps, bills closed in cash."
+          },
+          "messages": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Yalla.Application.Activity.RecentPage"
+              }
+            ],
+            "description": "Replies and \"are you coming?\"."
+          },
+          "bookings": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Yalla.Application.Activity.RecentPage"
+              }
+            ],
+            "description": "Approved, declined, seated, no-show."
+          },
+          "cash": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Yalla.Application.Activity.RecentPage"
+              }
+            ],
+            "description": "Cash at tables and at the takeaway counter."
+          },
+          "calls": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Yalla.Application.Activity.RecentPage"
+              }
+            ],
+            "description": "Calls claimed."
+          }
+        },
+        "additionalProperties": false,
+        "description": "The first page of each of a person's recent lists, read together for My results. Each page is the one\n`/api/staff/me/performance?list=…` answers, cursor included, so \"more\" continues there."
       },
       "Yalla.Application.Activity.RecentPage": {
         "required": [

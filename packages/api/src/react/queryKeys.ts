@@ -85,6 +85,9 @@ export const queryKeys = {
   /** My results: the signed-in person's own page, by range and recent list. */
   myPerformance: (branchId: string, from: string, to: string, list: string, limit: number) =>
     ['staff', 'myPerformance', branchId, from, to, list, limit] as const,
+  /** My results in one read: the figures, the chart and every list, by range and page size. */
+  myResults: (branchId: string, from: string, to: string, limit: number) =>
+    ['staff', 'myResults', branchId, from, to, limit] as const,
   /** Who a table can be handed to, read when the transfer chooser opens. */
   transferTargets: (tabId: string) => ['staff', 'transferTargets', tabId] as const,
   /** This device's push switches: the device's own, not a branch's. */

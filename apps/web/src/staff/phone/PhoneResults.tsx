@@ -4,8 +4,9 @@ import {
   type ActivityEntry,
   type DailySales,
   type PerformancePeriod,
+  type StaffRecentList,
 } from '@yalla/api';
-import { useMyPerformance } from '@yalla/api/react';
+import { useMyResults } from '@yalla/api/react';
 import { branchDayKey, intlTag, type Locale, type TimeZone } from '@yalla/format';
 import { useLocale, useTranslation } from '@yalla/i18n';
 import type { TFunction } from 'i18next';
@@ -30,12 +31,14 @@ export interface PhoneResultsProps {
 }
 
 /** The recent actions: a few of each list (orders, messages, bookings, calls), newest first. */
+const RECENT_LISTS: readonly StaffRecentList[] = ['orders', 'messages', 'bookings', 'calls'];
 const RECENT_EACH = 5;
 const RECENT_SHOWN = 8;
 
 /**
  * My results (history-stats MyStats artboard): a waiter's own numbers, from
- * their own session — `GET /api/staff/me/performance` — and nobody else's.
+ * their own session — `GET /api/staff/me/results`, one request per period —
+ * and nobody else's.
  * Today, seven or thirty days; six tiles; sales over the last seven days; the
  * latest things they did; and the note that only they and their manager see
  * it. There is no ranking here and no other name.
@@ -52,24 +55,15 @@ export function PhoneResults(props: PhoneResultsProps) {
   const range = performanceRange(period, today);
   const base = { ...range, ...(props.branchId ? { branchId: props.branchId } : {}) };
 
-  // The page itself (its figures, sales by day and the orders list), and the
-  // other lists beside it, a few of each, for one "latest" list.
-  const page = useMyPerformance({ ...base, list: 'orders', limit: RECENT_EACH }, props.active);
-  const messages = useMyPerformance(
-    { ...base, list: 'messages', limit: RECENT_EACH },
-    props.active,
-  );
-  const bookings = useMyPerformance(
-    { ...base, list: 'bookings', limit: RECENT_EACH },
-    props.active,
-  );
-  const calls = useMyPerformance({ ...base, list: 'calls', limit: RECENT_EACH }, props.active);
+  // One read per period: the figures, sales by day, and a few of each list,
+  // merged into one "latest" list.
+  const page = useMyResults({ ...base, limit: RECENT_EACH }, props.active);
 
   const recent = useMemo(() => {
     const seen = new Set<string>();
     const all: ActivityEntry[] = [];
-    for (const query of [page, messages, bookings, calls]) {
-      for (const entry of query.data?.recent.items ?? []) {
+    for (const list of RECENT_LISTS) {
+      for (const entry of page.data?.recent[list].items ?? []) {
         if (seen.has(entry.id)) continue;
         seen.add(entry.id);
         all.push(entry);
@@ -78,10 +72,8 @@ export function PhoneResults(props: PhoneResultsProps) {
     return all
       .sort((a, b) => b.occurredAtUtc.localeCompare(a.occurredAtUtc))
       .slice(0, RECENT_SHOWN);
-  }, [page, messages, bookings, calls]);
-  const recentLoading = [page, messages, bookings, calls].some(
-    (query) => query.isLoading && !query.data,
-  );
+  }, [page.data]);
+  const recentLoading = page.isLoading && !page.data;
 
   const data = page.data ?? null;
   const figures = data?.figures ?? null;

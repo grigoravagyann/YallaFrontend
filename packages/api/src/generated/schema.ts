@@ -1,7 +1,7 @@
 /**
  * GENERATED FILE — do not edit.
  *
- * Source: http://127.0.0.1:8099/swagger/v1/swagger.json
+ * Source: http://localhost:5987/swagger.json
  * Regenerate with: pnpm api:generate
  */
 
@@ -4200,6 +4200,32 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/staff/me/results": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * My results in one read: the caller's numbers, chart and every recent list
+         * @description What the staff phone's My results shows for a period, in one call: `getMyPerformance`'s figures and chart with the first page of **every** recent list instead of one.
+         *
+         *     Query: `from`, `to` as `getMyPerformance`; `limit` - entries per list, 1 to 100, default 10; `branchId` for an owner or general manager, as there. `list` and `cursor` are not read.
+         *
+         *     Answers `{ branchId, from, to, kpis, dailySales, recent }`: `kpis` and `dailySales` as `getMyPerformance`; `recent` is `{ orders, messages, bookings, cash, calls }`, each the page `getMyPerformance?list=…` answers - `{ list, items, nextCursor }`, newest first - so a list's `nextCursor` continues there. A cash bill is on both `orders` and `cash`, as on the separate lists.
+         *
+         *     The same caller and the same refusals as `getMyPerformance`: a waiter or above by the stored row, their own numbers only; the kitchen and the platform are 403.
+         */
+        get: operations["getMyResults"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/staff/push-config": {
         parameters: {
             query?: never;
@@ -7501,6 +7527,33 @@ export interface components {
             /** Format: int32 */
             tables: number;
         };
+        /**
+         * @description My results in one read: the caller's numbers, their chart and the first page of every recent list - what the
+         *     staff phone's screen shows for a period, which took one `/api/staff/me/performance` call per list before.
+         */
+        "Yalla.Application.Activity.MyResults": {
+            /**
+             * Format: uuid
+             * @description The branch read.
+             */
+            branchId: string;
+            /** @description As on a person's page: one entry per local date, a week ending on `to` at least. */
+            dailySales: components["schemas"]["Yalla.Application.Activity.DailySales"][];
+            /**
+             * Format: date
+             * @description The first date.
+             */
+            from: string;
+            /** @description Their row, as on Staff → Results. */
+            kpis: components["schemas"]["Yalla.Application.Activity.StaffPerformanceRow"];
+            /** @description Every list's first page, `limit` entries each. */
+            recent: components["schemas"]["Yalla.Application.Activity.RecentLists"];
+            /**
+             * Format: date
+             * @description The last, inclusive.
+             */
+            to: string;
+        };
         /** @description One person's page: their numbers, a day-by-day chart, and their recent work. */
         "Yalla.Application.Activity.PersonPerformance": {
             /**
@@ -7524,6 +7577,22 @@ export interface components {
              * @description The last, inclusive.
              */
             to: string;
+        };
+        /**
+         * @description The first page of each of a person's recent lists, read together for My results. Each page is the one
+         *     `/api/staff/me/performance?list=…` answers, cursor included, so "more" continues there.
+         */
+        "Yalla.Application.Activity.RecentLists": {
+            /** @description Approved, declined, seated, no-show. */
+            bookings: components["schemas"]["Yalla.Application.Activity.RecentPage"];
+            /** @description Calls claimed. */
+            calls: components["schemas"]["Yalla.Application.Activity.RecentPage"];
+            /** @description Cash at tables and at the takeaway counter. */
+            cash: components["schemas"]["Yalla.Application.Activity.RecentPage"];
+            /** @description Replies and "are you coming?". */
+            messages: components["schemas"]["Yalla.Application.Activity.RecentPage"];
+            /** @description Orders sent, pre-orders sent, voids, discounts, comps, bills closed in cash. */
+            orders: components["schemas"]["Yalla.Application.Activity.RecentPage"];
         };
         /** @description A page of one of a person's recent lists, newest first. */
         "Yalla.Application.Activity.RecentPage": {
@@ -32656,6 +32725,94 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Yalla.Application.Activity.PersonPerformance"];
+                };
+            };
+            /** @description The request violated a domain rule or arrived malformed. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description No usable token was presented, or the one presented was rejected. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description `forbidden`: the kitchen, the platform, or a branch not theirs. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description No such branch. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description A bad query value, or `branchId` missing for somebody venue-wide. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.ValidationFailedProblem"];
+                };
+            };
+            /** @description Too many requests in the window, or a one-time credential is out of attempts. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description Unexpected failure. Quote the traceId from the body. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+        };
+    };
+    getMyResults: {
+        parameters: {
+            query?: {
+                branchId?: string;
+                from?: string;
+                limit?: string;
+                to?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Yalla.Application.Activity.MyResults"];
                 };
             };
             /** @description The request violated a domain rule or arrived malformed. */
