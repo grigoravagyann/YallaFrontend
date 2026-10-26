@@ -26,12 +26,12 @@ export function Fact({
   );
 }
 
-/** A note that never blocks: amber for waiting, blue for the guest's side, red for a real problem. */
+/** A note that never blocks: amber for waiting, held burgundy for the guest's side, red for a real problem. */
 export function Warn({
   tone,
   children,
 }: {
-  readonly tone: 'amber' | 'blue' | 'red';
+  readonly tone: 'amber' | 'held' | 'red';
   readonly children: ReactNode;
 }) {
   return (

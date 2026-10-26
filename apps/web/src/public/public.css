@@ -1673,7 +1673,7 @@ body:has(.pub)::before {
   overflow-wrap: anywhere;
 }
 
-/* A line with its icon: green held, amber attention, red a real failure, blue waiting. */
+/* A line with its icon: green held, amber attention, red a real failure, burgundy waiting. */
 .pub-note {
   display: flex;
   align-items: flex-start;
@@ -1706,7 +1706,7 @@ body:has(.pub)::before {
   color: var(--console-red);
 }
 
-.pub-note.is-blue {
+.pub-note.is-waiting {
   background: var(--console-waiting-bg);
   color: var(--console-waiting);
 }
@@ -1975,7 +1975,7 @@ body:has(.pub)::before {
   text-align: center;
 }
 
-/* Read aloud at a door: the code, large, in the brand's frame; waiting, dashed blue. */
+/* Read aloud at a door: the code, large, in the brand's frame; waiting, dashed burgundy. */
 .pub-sheet-code {
   padding: var(--space-md);
   border: 2px solid var(--console-brand);
@@ -2052,7 +2052,7 @@ body:has(.pub)::before {
   background: var(--console-surface);
 }
 
-/* Pending must never look confirmed: waiting is blue (HANDOFF §3). */
+/* Pending must never look confirmed: waiting is burgundy (HANDOFF §3; DESIGN.md). */
 .pub-code.is-pending {
   border-style: dashed;
   border-color: var(--console-waiting);
@@ -2796,7 +2796,7 @@ a.pub-branch-card:hover {
   font-size: var(--console-text-public-label);
 }
 
-/* Confirmed green, waiting blue, declined red, over grey (HANDOFF §3). */
+/* Confirmed green, waiting burgundy, declined red, over grey (HANDOFF §3). */
 .pub-badge {
   align-self: flex-start;
   display: inline-flex;
@@ -2877,7 +2877,7 @@ a.pub-branch-card:hover {
   margin: 0;
 }
 
-/* Waiting for the venue: blue, never green (HANDOFF §3). */
+/* Waiting for the venue: burgundy, never green (HANDOFF §3). */
 .pub-notice-wait {
   border-color: var(--console-waiting);
   background: var(--console-waiting-bg);

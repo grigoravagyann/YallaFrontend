@@ -133,7 +133,7 @@ export function OccupiedTableActions({
       ) : null}
 
       {billRequest?.bill ? (
-        <Warn tone="blue">
+        <Warn tone="held">
           <b>
             {t('table.billAsked', {
               count: Math.max(0, format.minutesSince(billRequest.requestedAtUtc)),

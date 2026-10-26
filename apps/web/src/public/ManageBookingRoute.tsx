@@ -55,7 +55,7 @@ const ManageChange = lazy(() => import('./ManageChange'));
  * A booking for tonight may still be waiting for the venue's floor, which has
  * fifteen minutes to answer: the page counts them down and reads the booking
  * again until it is answered, slowly enough to leave the link's budget for a
- * change (`useManagedBooking`). Waiting is blue, never green (HANDOFF §3).
+ * change (`useManagedBooking`). Waiting is burgundy, never green (HANDOFF §3).
  *
  * A booking made without a verified number — legacy rows from the few hours
  * of 2026-10-20 when the page took them; none are made now (guest record) —
@@ -188,7 +188,7 @@ function manageViewOf(booking: ManagedBooking): ManageView {
   }
 }
 
-/** The badge: green confirmed, blue waiting, red declined, grey for what is over (HANDOFF §3). */
+/** The badge: green confirmed, burgundy waiting, red declined, grey for what is over (HANDOFF §3). */
 const BADGE: Readonly<Record<ManageView, { readonly tone: string; readonly key: string }>> = {
   active: { tone: 'is-ok', key: 'manage.badge.confirmed' },
   pending: { tone: 'is-pending', key: 'manage.badge.pending' },

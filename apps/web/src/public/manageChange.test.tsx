@@ -144,7 +144,7 @@ describe('saving the change', () => {
     expect(screen.getByText('1 guest')).toBeTruthy();
   });
 
-  it('says it waits for the venue when the answer is back to waiting, in blue', async () => {
+  it('says it waits for the venue when the answer is back to waiting, in burgundy', async () => {
     const harness = createHarness({ floorApprovesAtOnce: true });
     const { booking } = await bookAtLumen(harness);
     const move = harness.publicGateway.rescheduleManagedBooking.bind(harness.publicGateway);

@@ -67,14 +67,14 @@ export function SheetProgress({ step }: { readonly step: 0 | 1 | 2 }) {
   );
 }
 
-/** A coloured line with its icon: green held, amber attention, red failure, blue waiting. */
+/** A coloured line with its icon: green held, amber attention, red failure, burgundy waiting. */
 export function SheetNote({
   tone,
   children,
   noteRef,
   id,
 }: {
-  readonly tone: 'green' | 'amber' | 'red' | 'blue';
+  readonly tone: 'green' | 'amber' | 'red' | 'waiting';
   readonly children: ReactNode;
   /** Focusable, for the one note that takes the focus (the table taken). */
   readonly noteRef?: Ref<HTMLDivElement> | undefined;
@@ -97,5 +97,5 @@ const NOTE_ICON = {
   green: 'check',
   amber: 'alert',
   red: 'alert',
-  blue: 'send',
+  waiting: 'send',
 } as const;

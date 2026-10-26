@@ -48,12 +48,12 @@ export function HeldTableActions({
   return (
     <>
       {lateBy !== null && reservationId ? (
-        <Warn tone="blue">
+        <Warn tone="held">
           <b>{t('table.held.title')}</b>{' '}
           {t('table.held.body', { time: bookingWhen, late: lateText(t, lateBy) })}
         </Warn>
       ) : (
-        <Warn tone="blue">{t('table.held.kept')}</Warn>
+        <Warn tone="held">{t('table.held.kept')}</Warn>
       )}
       <Facts>
         <Fact label={t('table.fact.booked')}>

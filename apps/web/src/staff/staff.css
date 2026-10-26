@@ -1256,7 +1256,7 @@
   color: var(--console-muted);
 }
 
-/* A note never blocks: amber is waiting, blue is the guest's side, red is a
+/* A note never blocks: amber is waiting, held burgundy is the guest's side, red is a
    real problem. Its first words are bold, so the line reads at a glance. */
 .tp-warn {
   margin: 0;
@@ -1271,7 +1271,7 @@
   color: var(--console-amber);
 }
 
-.tp-warn[data-tone='blue'] {
+.tp-warn[data-tone='held'] {
   background: var(--console-floor-held);
   color: var(--console-floor-held-ink);
 }
@@ -2372,7 +2372,7 @@
   cursor: not-allowed;
 }
 
-/* Notes on these screens: amber is waiting, blue is the guest's side, green is
+/* Notes on these screens: amber is waiting, held burgundy is the guest's side, green is
    change to hand back, red is a real failure. Never colour alone: the words
    say it. */
 .ft-note {
