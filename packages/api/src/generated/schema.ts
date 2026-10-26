@@ -285,7 +285,7 @@ export interface paths {
          *
          *     **The PIN** is checked with the lockout every PIN sign-in has: a wrong one is `401 pin-invalid` and counts toward the person's five; the fifth is `403 account-locked`. A wrong PIN leaves the code usable until it expires.
          *
-         *     **The same browser again.** A live phone of this person's at the branch with the same `clientDeviceId` is reused (renamed to `deviceName`, a new device token). A live phone of somebody else's with it, or this person's at another branch, is unpaired - the browser holds one device token, and now it is this one. A live **tablet** with it is refused with `409` - a manager revokes the tablet first.
+         *     **The same browser again.** A live phone of this person's at the branch with the same `clientDeviceId` is reused (renamed to `deviceName`, its `platform` and `browser` replaced, a new device token). A live phone of somebody else's with it, or this person's at another branch, is unpaired - the browser holds one device token, and now it is this one. A live **tablet** with it is refused with `409` - a manager revokes the tablet first.
          *
          *     Kitchen staff cannot have a phone: `409 kitchen-phone-not-allowed`.
          */
@@ -728,7 +728,7 @@ export interface paths {
          * Every tablet and personal phone enrolled to this branch
          * @description Revoked devices are included, so the list is an audit trail rather than a roster.
          *
-         *     `kind` narrows it: `1` tablets, `2` personal phones; absent, both. Each item says its `kind`; a phone also names its person in `boundStaffMember` (`id`, `fullName`, `role`), and its `name` is what the phone called itself when it paired - its platform and browser, "iPhone · Safari". `lastSeenAtUtc` moves with every PIN sign-in and session renewal on the device; `revokedAtUtc` is when it was revoked or unpaired.
+         *     `kind` narrows it: `1` tablets, `2` personal phones; absent, both. Each item says its `kind`; a phone also names its person in `boundStaffMember` (`id`, `fullName`, `role`), and its `name` is what the phone called itself when it paired - its platform and browser in English, "iPhone · Safari" - and `platform` and `browser` are the same as parts, for the console to word in its reader's language (absent on a phone paired before them; read `name` then). `lastSeenAtUtc` moves with every PIN sign-in and session renewal on the device; `revokedAtUtc` is when it was revoked or unpaired.
          */
         get: operations["listBranchDevices"];
         put?: never;
@@ -4374,6 +4374,8 @@ export interface paths {
          *     **The service charge is computed after this**, so comping a dish comps its service charge with it - which is what a manager means by comping a dish.
          *
          *     Visible to the diner with its reason, for the same reason a void is.
+         *
+         *     `reductionAmd` is what this adjustment itself took off, in the bill's order - the amount the History and the reports give it - not the subtotal's drop: a comp under a standing tab-wide discount takes its line's whole price, while the subtotal drops by less.
          */
         post: operations["addTabAdjustment"];
         delete?: never;
@@ -5732,16 +5734,31 @@ export interface components {
         /** @description Body of `POST /api/auth/staff/phone-pair`. */
         "Yalla.Api.Endpoints.PhonePairRequest": {
             /**
+             * @description Its browser: `1` Safari, `2` Chrome, `3` Edge, `4` Firefox, `5` Opera, `6` Samsung
+             *     Internet. Absent when the phone does not recognise it.
+             */
+            browser?: components["schemas"]["Yalla.Domain.Enums.StaffDeviceBrowser"] | null;
+            /**
              * @description The identifier this browser minted for itself and keeps, as a tablet's `deviceId`. Pairing again with the same
              *     one reuses the phone rather than adding a row.
              */
             clientDeviceId: string;
             /** @description The pairing code the manager showed, from the QR or typed. */
             code: string;
-            /** @description What the console's Phones tab shows for it - the platform and browser, such as "iPhone · Safari". */
+            /**
+             * @description The platform and browser in a phrase, such as "iPhone · Safari": what the console's Phones tab shows for a phone that
+             *     did not send Platform, and the name its History entries keep.
+             */
             deviceName: string;
             /** @description The person's own PIN - the one they tap on the tablet. Never logged, never stored in the clear. */
             pin: string;
+            /**
+             * @description What the phone runs on, read from its own user agent: `1` other, `2` iPhone, `3` iPad, `4`
+             *     Android, `5` Windows, `6` Mac, `7` Linux. The console words the device from this and
+             *     Browser in its reader's language. Optional for an app that predates it; a number this list does
+             *     not name is kept as nothing rather than refused (the sign-in routes are outside the validation filter).
+             */
+            platform?: components["schemas"]["Yalla.Domain.Enums.StaffDevicePlatform"] | null;
         };
         /** @description An order, from a diner's phone or a waiter's tablet. */
         "Yalla.Api.Endpoints.PlaceOrderRequest": {
@@ -7406,10 +7423,21 @@ export interface components {
              */
             deviceId?: string | null;
             /**
+             * @description Where it came from, as parts rather than words: `console` (staff signed in to the console, no device),
+             *     `tablet` (its name is DeviceLabel) or `phone` (its person is
+             *     DeviceOwnerName). Absent for the guest and the system, for a device that was not found, and for a
+             *     tablet or phone on an entry written before 2026-10-26 - read DeviceLabel then.
+             */
+            deviceKind?: string | null;
+            /**
              * @description That device's label then - a tablet's name, "Aram's phone" for a personal phone - or `Console`; absent for the
-             *     guest and the system.
+             *     guest and the system. English for a phone and the console: word those from DeviceKind and
+             *     DeviceOwnerName instead. Kept for the CSV export and for entries written before 2026-10-26, which
+             *     carry no kind for a device.
              */
             deviceLabel?: string | null;
+            /** @description A phone's person then, by full name: whose phone. Absent for anything but a phone. */
+            deviceOwnerName?: string | null;
             /** @description The guest. */
             guestName?: string | null;
             /**
@@ -8253,6 +8281,8 @@ export interface components {
              * @description The branch it is bound to.
              */
             branchId: string;
+            /** @description A phone's browser as it said when it paired; absent on a tablet, or when it did not say. */
+            browser?: components["schemas"]["Yalla.Domain.Enums.StaffDeviceBrowser"] | null;
             /**
              * Format: date-time
              * @description When it redeemed its enrolment code.
@@ -8274,6 +8304,11 @@ export interface components {
             lastSeenAtUtc?: string | null;
             /** @description What the manager called it. */
             name: string;
+            /**
+             * @description A phone's platform as it said when it paired (`1` other ... `7` Linux); absent on a tablet and on a phone
+             *     paired before 2026-10-26.
+             */
+            platform?: components["schemas"]["Yalla.Domain.Enums.StaffDevicePlatform"] | null;
             /**
              * Format: date-time
              * @description When it was revoked or unpaired; absent while live.
@@ -10552,7 +10587,9 @@ export interface components {
             reason: string;
             /**
              * Format: int64
-             * @description What it actually took off, in whole dram.
+             * @description What it actually took off, in whole dram: its own reduction worked out in the bill's order (a line's own adjustments
+             *     before the tab-wide ones) - the amount the History and the reports give it. Not the subtotal's drop, which under a
+             *     standing tab-wide discount is less than a line's comp took. Zero once reversed.
              */
             reductionAmd: number;
             /**
@@ -15771,12 +15808,31 @@ export interface components {
         "Yalla.Domain.Enums.SpiceLevel": 0 | 1 | 2 | 3;
         /**
          * Format: int32
+         * @description What browser a paired phone said it is, read by the browser from its own user agent. Stored as the integer on
+         *     `StaffDevice`; never renumber. Absent when the phone did not recognise its browser.
+         *
+         *     Values: 1 Safari, 2 Chrome, 3 Edge, 4 Firefox, 5 Opera, 6 SamsungInternet.
+         * @enum {integer}
+         */
+        "Yalla.Domain.Enums.StaffDeviceBrowser": 1 | 2 | 3 | 4 | 5 | 6;
+        /**
+         * Format: int32
          * @description What an enrolled `StaffDevice` is. Stored as the integer; never renumber.
          *
          *     Values: 1 Tablet, 2 Phone.
          * @enum {integer}
          */
         "Yalla.Domain.Enums.StaffDeviceKind": 1 | 2;
+        /**
+         * Format: int32
+         * @description What a paired phone said it runs on, read by its own browser from its user agent. Stored as the integer on
+         *     `StaffDevice`; never renumber. The console words it in the reader's language - "iPhone · Safari" - rather than
+         *     the server or the phone writing an English label.
+         *
+         *     Values: 1 Other, 2 IPhone, 3 IPad, 4 Android, 5 Windows, 6 Mac, 7 Linux.
+         * @enum {integer}
+         */
+        "Yalla.Domain.Enums.StaffDevicePlatform": 1 | 2 | 3 | 4 | 5 | 6 | 7;
         /**
          * Format: int32
          * @description What a staff member is allowed to do, coarsely. Authorisation itself is a later task.

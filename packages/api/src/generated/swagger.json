@@ -537,7 +537,7 @@
           "admin"
         ],
         "summary": "Every tablet and personal phone enrolled to this branch",
-        "description": "Revoked devices are included, so the list is an audit trail rather than a roster.\n\n`kind` narrows it: `1` tablets, `2` personal phones; absent, both. Each item says its `kind`; a phone also names its person in `boundStaffMember` (`id`, `fullName`, `role`), and its `name` is what the phone called itself when it paired - its platform and browser, \"iPhone · Safari\". `lastSeenAtUtc` moves with every PIN sign-in and session renewal on the device; `revokedAtUtc` is when it was revoked or unpaired.",
+        "description": "Revoked devices are included, so the list is an audit trail rather than a roster.\n\n`kind` narrows it: `1` tablets, `2` personal phones; absent, both. Each item says its `kind`; a phone also names its person in `boundStaffMember` (`id`, `fullName`, `role`), and its `name` is what the phone called itself when it paired - its platform and browser in English, \"iPhone · Safari\" - and `platform` and `browser` are the same as parts, for the console to word in its reader's language (absent on a phone paired before them; read `name` then). `lastSeenAtUtc` moves with every PIN sign-in and session renewal on the device; `revokedAtUtc` is when it was revoked or unpaired.",
         "operationId": "listBranchDevices",
         "parameters": [
           {
@@ -9054,7 +9054,7 @@
           "auth"
         ],
         "summary": "Pair a personal phone with a code and the person's own PIN",
-        "description": "**A phone is a tablet that belongs to one person.** A manager issues a ten-minute, single-use code for somebody (`POST /api/branches/{branchId}/staff/{staffMemberId}/phone-pairings`), the phone scans it, and the person taps their own PIN. The answer is exactly what enrolling a tablet and then tapping a PIN would give: `device` is `enrolStaffDevice`'s body - keep `deviceToken` - and `session` is `signInStaffWithPin`'s, so the person is signed in.\n\nFrom then on the phone's PIN screen lists only that person (`GET /api/auth/staff/roster`), `GET /api/auth/staff/device` says `kind: 2` and names them in `boundStaffMember`, and `POST /api/auth/staff/pin` accepts only their id - anybody else's is refused as a wrong PIN.\n\n**The PIN** is checked with the lockout every PIN sign-in has: a wrong one is `401 pin-invalid` and counts toward the person's five; the fifth is `403 account-locked`. A wrong PIN leaves the code usable until it expires.\n\n**The same browser again.** A live phone of this person's at the branch with the same `clientDeviceId` is reused (renamed to `deviceName`, a new device token). A live phone of somebody else's with it, or this person's at another branch, is unpaired - the browser holds one device token, and now it is this one. A live **tablet** with it is refused with `409` - a manager revokes the tablet first.\n\nKitchen staff cannot have a phone: `409 kitchen-phone-not-allowed`.",
+        "description": "**A phone is a tablet that belongs to one person.** A manager issues a ten-minute, single-use code for somebody (`POST /api/branches/{branchId}/staff/{staffMemberId}/phone-pairings`), the phone scans it, and the person taps their own PIN. The answer is exactly what enrolling a tablet and then tapping a PIN would give: `device` is `enrolStaffDevice`'s body - keep `deviceToken` - and `session` is `signInStaffWithPin`'s, so the person is signed in.\n\nFrom then on the phone's PIN screen lists only that person (`GET /api/auth/staff/roster`), `GET /api/auth/staff/device` says `kind: 2` and names them in `boundStaffMember`, and `POST /api/auth/staff/pin` accepts only their id - anybody else's is refused as a wrong PIN.\n\n**The PIN** is checked with the lockout every PIN sign-in has: a wrong one is `401 pin-invalid` and counts toward the person's five; the fifth is `403 account-locked`. A wrong PIN leaves the code usable until it expires.\n\n**The same browser again.** A live phone of this person's at the branch with the same `clientDeviceId` is reused (renamed to `deviceName`, its `platform` and `browser` replaced, a new device token). A live phone of somebody else's with it, or this person's at another branch, is unpaired - the browser holds one device token, and now it is this one. A live **tablet** with it is refused with `409` - a manager revokes the tablet first.\n\nKitchen staff cannot have a phone: `409 kitchen-phone-not-allowed`.",
         "operationId": "pairStaffPhone",
         "requestBody": {
           "content": {
@@ -27170,7 +27170,7 @@
           "staff"
         ],
         "summary": "Manager: discount or comp",
-        "description": "Exactly one of `percent` and `amountAmd`. A `tabOrderLineId` applies it to that line; leaving it out applies it to the whole tab.\n\n**The service charge is computed after this**, so comping a dish comps its service charge with it - which is what a manager means by comping a dish.\n\nVisible to the diner with its reason, for the same reason a void is.",
+        "description": "Exactly one of `percent` and `amountAmd`. A `tabOrderLineId` applies it to that line; leaving it out applies it to the whole tab.\n\n**The service charge is computed after this**, so comping a dish comps its service charge with it - which is what a manager means by comping a dish.\n\nVisible to the diner with its reason, for the same reason a void is.\n\n`reductionAmd` is what this adjustment itself took off, in the bill's order - the amount the History and the reports give it - not the subtotal's drop: a comp under a standing tab-wide discount takes its line's whole price, while the subtotal drops by less.",
         "operationId": "addTabAdjustment",
         "parameters": [
           {
@@ -28113,7 +28113,25 @@
           },
           "deviceName": {
             "type": "string",
-            "description": "What the console's Phones tab shows for it - the platform and browser, such as \"iPhone · Safari\"."
+            "description": "The platform and browser in a phrase, such as \"iPhone · Safari\": what the console's Phones tab shows for a phone that\ndid not send Platform, and the name its History entries keep."
+          },
+          "platform": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Yalla.Domain.Enums.StaffDevicePlatform"
+              }
+            ],
+            "description": "What the phone runs on, read from its own user agent: `1` other, `2` iPhone, `3` iPad, `4`\nAndroid, `5` Windows, `6` Mac, `7` Linux. The console words the device from this and\nBrowser in its reader's language. Optional for an app that predates it; a number this list does\nnot name is kept as nothing rather than refused (the sign-in routes are outside the validation filter).",
+            "nullable": true
+          },
+          "browser": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Yalla.Domain.Enums.StaffDeviceBrowser"
+              }
+            ],
+            "description": "Its browser: `1` Safari, `2` Chrome, `3` Edge, `4` Firefox, `5` Opera, `6` Samsung\nInternet. Absent when the phone does not recognise it.",
+            "nullable": true
           }
         },
         "additionalProperties": false,
@@ -31467,7 +31485,17 @@
           },
           "deviceLabel": {
             "type": "string",
-            "description": "That device's label then - a tablet's name, \"Aram's phone\" for a personal phone - or `Console`; absent for the\nguest and the system.",
+            "description": "That device's label then - a tablet's name, \"Aram's phone\" for a personal phone - or `Console`; absent for the\nguest and the system. English for a phone and the console: word those from DeviceKind and\nDeviceOwnerName instead. Kept for the CSV export and for entries written before 2026-10-26, which\ncarry no kind for a device.",
+            "nullable": true
+          },
+          "deviceKind": {
+            "type": "string",
+            "description": "Where it came from, as parts rather than words: `console` (staff signed in to the console, no device),\n`tablet` (its name is DeviceLabel) or `phone` (its person is\nDeviceOwnerName). Absent for the guest and the system, for a device that was not found, and for a\ntablet or phone on an entry written before 2026-10-26 - read DeviceLabel then.",
+            "nullable": true
+          },
+          "deviceOwnerName": {
+            "type": "string",
+            "description": "A phone's person then, by full name: whose phone. Absent for anything but a phone.",
             "nullable": true
           },
           "category": {
@@ -33046,6 +33074,24 @@
             "type": "string",
             "description": "When it was revoked or unpaired; absent while live.",
             "format": "date-time",
+            "nullable": true
+          },
+          "platform": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Yalla.Domain.Enums.StaffDevicePlatform"
+              }
+            ],
+            "description": "A phone's platform as it said when it paired (`1` other ... `7` Linux); absent on a tablet and on a phone\npaired before 2026-10-26.",
+            "nullable": true
+          },
+          "browser": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Yalla.Domain.Enums.StaffDeviceBrowser"
+              }
+            ],
+            "description": "A phone's browser as it said when it paired; absent on a tablet, or when it did not say.",
             "nullable": true
           }
         },
@@ -37354,7 +37400,7 @@
           },
           "reductionAmd": {
             "type": "integer",
-            "description": "What it actually took off, in whole dram.",
+            "description": "What it actually took off, in whole dram: its own reduction worked out in the bill's order (a line's own adjustments\nbefore the tab-wide ones) - the amount the History and the reports give it. Not the subtotal's drop, which under a\nstanding tab-wide discount is less than a line's comp took. Zero once reversed.",
             "format": "int64"
           },
           "reason": {
@@ -46607,6 +46653,27 @@
           "Hot"
         ]
       },
+      "Yalla.Domain.Enums.StaffDeviceBrowser": {
+        "enum": [
+          1,
+          2,
+          3,
+          4,
+          5,
+          6
+        ],
+        "type": "integer",
+        "description": "What browser a paired phone said it is, read by the browser from its own user agent. Stored as the integer on\n`StaffDevice`; never renumber. Absent when the phone did not recognise its browser.\n\nValues: 1 Safari, 2 Chrome, 3 Edge, 4 Firefox, 5 Opera, 6 SamsungInternet.",
+        "format": "int32",
+        "x-enum-varnames": [
+          "Safari",
+          "Chrome",
+          "Edge",
+          "Firefox",
+          "Opera",
+          "SamsungInternet"
+        ]
+      },
       "Yalla.Domain.Enums.StaffDeviceKind": {
         "enum": [
           1,
@@ -46618,6 +46685,29 @@
         "x-enum-varnames": [
           "Tablet",
           "Phone"
+        ]
+      },
+      "Yalla.Domain.Enums.StaffDevicePlatform": {
+        "enum": [
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7
+        ],
+        "type": "integer",
+        "description": "What a paired phone said it runs on, read by its own browser from its user agent. Stored as the integer on\n`StaffDevice`; never renumber. The console words it in the reader's language - \"iPhone · Safari\" - rather than\nthe server or the phone writing an English label.\n\nValues: 1 Other, 2 IPhone, 3 IPad, 4 Android, 5 Windows, 6 Mac, 7 Linux.",
+        "format": "int32",
+        "x-enum-varnames": [
+          "Other",
+          "IPhone",
+          "IPad",
+          "Android",
+          "Windows",
+          "Mac",
+          "Linux"
         ]
       },
       "Yalla.Domain.Enums.StaffRole": {
