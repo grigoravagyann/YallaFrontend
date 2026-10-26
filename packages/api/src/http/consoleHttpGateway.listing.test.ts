@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { createAuthSession } from '../auth/session';
 import { createMemoryTokenStorage } from '../auth/storage';
 import { createApiClient } from '../client';
+import { checkedFetch, offSchema } from './wireSchema.testkit';
 import {
   FloorPlanChangedError,
   FloorPlanInvalidError,
@@ -40,7 +41,11 @@ function gatewayOver(fetchImpl: typeof globalThis.fetch) {
     refreshTokens: vi.fn(),
   });
   return createConsoleHttpGateway(
-    createApiClient({ baseUrl: BASE, fetch: fetchImpl, getToken: () => 'held-token' }),
+    createApiClient({
+      baseUrl: BASE,
+      fetch: checkedFetch(fetchImpl),
+      getToken: () => 'held-token',
+    }),
     { auth, identity: createMemoryIdentityStore() },
   );
 }
@@ -449,12 +454,28 @@ describe('review moderation over HTTP', () => {
     createdAtUtc: '2026-09-10T10:00:00Z',
     updatedAtUtc: '2026-09-10T10:00:00Z',
     hidden: false,
+    hiddenByPlatform: false,
+    reportCount: 0,
+  };
+  const SUMMARY = {
+    all: 2,
+    reported: 0,
+    hidden: 1,
+    visible: 1,
+    rating: 2,
+    ratingChange30Days: null,
+    distribution: [{ stars: 2, count: 2 }],
   };
 
   it('pages the platform list and reads absent keys as nulls', async () => {
     const fetchImpl = vi
       .fn()
-      .mockResolvedValue(json(200, { items: [WIRE_REVIEW], page: 2, pageSize: 20, total: 21 }));
+      .mockResolvedValue(
+        offSchema(
+          json(200, { items: [WIRE_REVIEW], page: 2, pageSize: 20, total: 21 }),
+          'a server before VC4 sends no summary; the gateway reads it as null',
+        ),
+      );
 
     const page = await gatewayOver(fetchImpl).listPlatformBranchReviews('b-1', { page: 2 });
 
@@ -507,6 +528,7 @@ describe('review moderation over HTTP', () => {
         page: 1,
         pageSize: 20,
         total: 2,
+        summary: SUMMARY,
       }),
     );
 
@@ -545,6 +567,7 @@ describe('review moderation over HTTP', () => {
         page: 1,
         pageSize: 20,
         total: 1,
+        summary: SUMMARY,
       }),
     );
 

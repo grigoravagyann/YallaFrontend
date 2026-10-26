@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { createAuthSession } from '../auth/session';
 import { createMemoryTokenStorage } from '../auth/storage';
 import { createApiClient } from '../client';
+import { checkedFetch } from './wireSchema.testkit';
 import { createConsoleHttpGateway, createMemoryIdentityStore } from './consoleHttpGateway';
 
 const BASE = 'https://api.test.yalla.am';
@@ -19,7 +20,11 @@ function gatewayOver(fetchImpl: typeof globalThis.fetch) {
     refreshTokens: vi.fn(),
   });
   return createConsoleHttpGateway(
-    createApiClient({ baseUrl: BASE, fetch: fetchImpl, getToken: () => 'held-token' }),
+    createApiClient({
+      baseUrl: BASE,
+      fetch: checkedFetch(fetchImpl),
+      getToken: () => 'held-token',
+    }),
     { auth, identity: createMemoryIdentityStore() },
   );
 }
@@ -67,6 +72,10 @@ describe('photo urls over HTTP', () => {
               spiceLevel: 0,
               isAvailable: true,
               displayOrder: 0,
+              isComplete: true,
+              missingFields: [],
+              availableForPreOrder: true,
+              availableForTakeaway: true,
               photo: WIRE_PHOTO,
             },
           ],

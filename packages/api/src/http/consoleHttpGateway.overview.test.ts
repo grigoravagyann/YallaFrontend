@@ -119,8 +119,35 @@ const TABLE_CHANGE = {
   affectedReservations: [],
 };
 
+/** The booking a release answers with, as `ReservationView` writes it. */
+const WIRE_RESERVATION = {
+  id: 'r-1',
+  code: 'K7Q2LM',
+  branchId: 'b-1',
+  branchName: 'Northern Avenue',
+  timeZoneId: 'Asia/Yerevan',
+  tableId: 't-5',
+  tableLabel: '5',
+  partySize: 2,
+  startUtc: '2026-10-18T14:00:00Z',
+  endUtc: '2026-10-18T16:00:00Z',
+  localDate: '2026-10-18',
+  localStartTime: '18:00',
+  localEndTime: '20:00',
+  status: 8,
+  guestName: 'Anahit',
+  guestPhone: '+37494555666',
+  phoneUnverified: false,
+  cancelledAfterDeadline: false,
+  cancellationDeadlineUtc: '2026-10-18T12:00:00Z',
+  clientCommandId: 'c-booked',
+  wasReplay: false,
+  awaitsEarlierGuestAnswer: false,
+  onMyWayOpensAtUtc: '2026-10-18T13:30:00Z',
+};
+
 const RELEASE = {
-  reservation: { id: 'r-1', status: 8 },
+  reservation: WIRE_RESERVATION,
   outcome: 1,
   countsTowardNoShowThreshold: true,
   tableId: 't-5',
@@ -219,6 +246,8 @@ describe('the overview over HTTP', () => {
       noShows: 3,
       lateCancellations: 0,
       isNewGuest: false,
+      unmarked: 1,
+      takeawayNoShows: 2,
       blockedUntilUtc: '2026-10-25T14:00:00Z',
     };
     const { gateway } = gatewayOver({
@@ -227,7 +256,7 @@ describe('the overview over HTTP', () => {
       },
     });
     const [row] = (await gateway.getBranchOverview('b-1')).todayBookings;
-    expect(row!.guestRecord).toEqual({ ...record, unmarked: 0, takeawayNoShows: 0 });
+    expect(row!.guestRecord).toEqual(record);
   });
 
   it('reads a closed branch, no comparison and an empty day', async () => {
@@ -369,7 +398,7 @@ describe('the row menu over HTTP', () => {
       'POST /api/reservations/r-1/release': {
         body: {
           ...RELEASE,
-          reservation: { id: 'r-1', status: 7 },
+          reservation: { ...WIRE_RESERVATION, status: 7 },
           outcome: 2,
           countsTowardNoShowThreshold: false,
           tableFreed: false,
@@ -387,7 +416,12 @@ describe('the row menu over HTTP', () => {
   it('says a replay was one, with what the booking was released as the first time', async () => {
     const { gateway } = gatewayOver({
       'POST /api/reservations/r-1/no-show': {
-        body: { ...RELEASE, reservation: { id: 'r-1', status: 7 }, outcome: 2, wasReplay: true },
+        body: {
+          ...RELEASE,
+          reservation: { ...WIRE_RESERVATION, status: 7 },
+          outcome: 2,
+          wasReplay: true,
+        },
       },
     });
     const result = await gateway.actOnBooking({ ...command, kind: 'noShow' });

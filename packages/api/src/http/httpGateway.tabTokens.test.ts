@@ -51,6 +51,7 @@ function tabView() {
     serviceChargePercent: 10,
     maxSequence: 12,
     adjustments: [],
+    admission: { status: 2, admittedBecause: 5 },
   };
 }
 

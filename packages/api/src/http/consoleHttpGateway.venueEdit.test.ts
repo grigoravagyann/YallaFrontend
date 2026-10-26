@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { createAuthSession } from '../auth/session';
 import { createMemoryTokenStorage } from '../auth/storage';
 import { createApiClient } from '../client';
+import { checkedFetch } from './wireSchema.testkit';
 import { SlugTakenError } from '../contracts/errors';
 import { createConsoleHttpGateway, createMemoryIdentityStore } from './consoleHttpGateway';
 
@@ -60,7 +61,11 @@ function gatewayOver(fetchImpl: typeof globalThis.fetch) {
     refreshTokens: vi.fn(),
   });
   return createConsoleHttpGateway(
-    createApiClient({ baseUrl: BASE, fetch: fetchImpl, getToken: () => 'held-token' }),
+    createApiClient({
+      baseUrl: BASE,
+      fetch: checkedFetch(fetchImpl),
+      getToken: () => 'held-token',
+    }),
     { auth, identity: createMemoryIdentityStore() },
   );
 }
@@ -118,7 +123,25 @@ describe('adding a branch over HTTP', () => {
   it('posts every field the command requires, then re-reads the venue', async () => {
     const fetchImpl = vi
       .fn()
-      .mockResolvedValueOnce(json({ branchId: 'b-2', venueId: 'v-1' }, 201))
+      .mockResolvedValueOnce(
+        json(
+          {
+            branchId: 'b-2',
+            venueId: 'v-1',
+            name: 'Komitas',
+            slug: 'komitas',
+            address: '5 Komitas Avenue, Yerevan',
+            latitude: 40.2,
+            longitude: 44.5,
+            timeZoneId: 'Asia/Yerevan',
+            isActive: true,
+            subscriptionTier: 1,
+            tableCount: 0,
+            openTabCount: 0,
+          },
+          201,
+        ),
+      )
       .mockResolvedValueOnce(json(WIRE_VENUE));
 
     await gatewayOver(fetchImpl).addBranch({

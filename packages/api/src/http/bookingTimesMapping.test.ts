@@ -4,7 +4,7 @@ import type { components } from '../generated/schema';
 import { approvalTrigger, declineReason } from './approvalMapping';
 import { awaitingApprovalFromWire, type WireAwaitingApproval } from './awaitingApprovalMapping';
 import { booking } from './dinerMapping';
-import { fakeBackend, problemReply, type FakeRoute } from './fakeBackend.testkit';
+import { fakeBackend, offSchema, problemReply, type FakeRoute } from './fakeBackend.testkit';
 import { createHttpGateway } from './httpGateway';
 import { availabilityFromResponse, daySlotsFromWire, type WireDaySlots } from './mapping';
 import { managedBookingFromWire, type WirePublicBooking } from './publicMapping';
@@ -490,7 +490,10 @@ describe("the earlier guest's answer", () => {
 
   it('reads the booking back when the answer carries no body', async () => {
     const { gateway, backend } = gatewayOver({
-      [route]: { status: 204 },
+      [route]: offSchema(
+        { status: 204 },
+        'the gateway still tolerates a bodiless answer; swagger declares only 200 with the booking — reported as a dead branch, not changed',
+      ),
       'GET /api/reservations/mine': { status: 200, body: { upcoming: [VIEW], past: [] } },
     });
 

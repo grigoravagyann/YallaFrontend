@@ -3,7 +3,7 @@ import { createAuthSession } from '../auth/session';
 import { createMemoryTokenStorage } from '../auth/storage';
 import { ValidationError } from '../errors';
 import { createConsoleHttpGateway, createMemoryIdentityStore } from './consoleHttpGateway';
-import { fakeBackend, type FakeRoute } from './fakeBackend.testkit';
+import { fakeBackend, offSchema, type FakeRoute } from './fakeBackend.testkit';
 
 /**
  * Home and Settings over HTTP (Main and Settings artboards), on the shapes the
@@ -259,9 +259,6 @@ describe('Settings over HTTP', () => {
           accessToken: 'access-after',
           refreshToken: 'refresh-after',
           expiresInSeconds: 900,
-          staffMemberId: 's-1',
-          fullName: 'Grigor Avagyan',
-          role: 5,
         },
       },
     });
@@ -275,7 +272,10 @@ describe('Settings over HTTP', () => {
 
   it('changes the password with both fields, and takes a 204', async () => {
     const { gateway, backend } = gatewayOver({
-      'POST /api/platform/me/password': { status: 204 },
+      'POST /api/platform/me/password': offSchema(
+        { status: 204 },
+        'the gateway still tolerates a bodiless answer; swagger declares only 200 with a fresh pair — reported as a dead branch, not changed',
+      ),
     });
     // No pair: nothing renewed, and nothing claimed about other devices.
     await expect(

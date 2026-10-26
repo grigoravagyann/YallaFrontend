@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { createAuthSession } from '../auth/session';
 import { createMemoryTokenStorage } from '../auth/storage';
 import { createConsoleHttpGateway, createMemoryIdentityStore } from './consoleHttpGateway';
-import { fakeBackend, type FakeRoute } from './fakeBackend.testkit';
+import { fakeBackend, offSchema, type FakeRoute } from './fakeBackend.testkit';
 
 /**
  * The menu's order and completeness over HTTP (VC3 wire §2): one PUT per
@@ -22,7 +22,8 @@ function gatewayOver(routes: Record<string, FakeRoute>) {
   return { gateway, backend };
 }
 
-const item = (id: string, displayOrder: number, missingFields?: string[]) => ({
+/** `missingFields: null` leaves the field out, as a server from before it did. */
+const item = (id: string, displayOrder: number, missingFields: string[] | null = []) => ({
   id,
   categoryId: 'c-1',
   name: id,
@@ -31,6 +32,8 @@ const item = (id: string, displayOrder: number, missingFields?: string[]) => ({
   isAvailable: true,
   isComplete: !missingFields?.length,
   displayOrder,
+  availableForPreOrder: true,
+  availableForTakeaway: true,
   ...(missingFields ? { missingFields } : {}),
 });
 
@@ -79,16 +82,19 @@ describe('the menu order over HTTP', () => {
 
   it("reads the server's missing fields in the client's names, and none when it sends none", async () => {
     const { gateway } = gatewayOver({
-      'GET /api/branches/b-1/menu/manage': {
-        body: [
-          {
-            id: 'c-1',
-            name: 'Coffee',
-            displayOrder: 0,
-            items: [item('i-1', 0, ['photo', 'allergens']), item('i-2', 1)],
-          },
-        ],
-      },
+      'GET /api/branches/b-1/menu/manage': offSchema(
+        {
+          body: [
+            {
+              id: 'c-1',
+              name: 'Coffee',
+              displayOrder: 0,
+              items: [item('i-1', 0, ['photo', 'allergens']), item('i-2', 1, null)],
+            },
+          ],
+        },
+        'i-2 comes from a server before missingFields, which the client must survive',
+      ),
     });
 
     const [coffee] = await gateway.getAdminMenu('b-1');

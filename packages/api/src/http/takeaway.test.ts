@@ -658,6 +658,7 @@ describe("the counter's takeaway routes", () => {
     const { gateway } = staffOver({
       [`GET /api/branches/${BRANCH}/takeaway-orders`]: {
         body: {
+          branchId: BRANCH,
           active: [WIRE_STAFF, { ...WIRE_STAFF, id: 'o-2', status: 1 }],
           finishedToday: [{ ...WIRE_STAFF, id: 'o-3', status: 4, paymentMethod: 1 }],
           sentCount: 1,
@@ -770,6 +771,8 @@ describe("the console's takeaway settings", () => {
           availableForPreOrder: true,
           availableForTakeaway: false,
           displayOrder: 0,
+          isComplete: true,
+          missingFields: [],
         },
       },
     });

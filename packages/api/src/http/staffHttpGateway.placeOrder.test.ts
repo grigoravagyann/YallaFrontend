@@ -31,6 +31,8 @@ const ORDER: OrderWire = {
   placedAtUtc: '2026-10-19T17:00:00Z',
   wasReplay: false,
   lines: [],
+  tableTotalVisible: true,
+  tabEventSequence: 7,
 } as unknown as OrderWire;
 
 function gatewayOver(routes: Readonly<Record<string, FakeRoute>>) {
@@ -247,6 +249,9 @@ describe('the dish photos order entry shows', () => {
                   prepMinutes: 20,
                   isAvailable: true,
                   isComplete: true,
+                  missingFields: [],
+                  availableForPreOrder: true,
+                  availableForTakeaway: true,
                   displayOrder: 1,
                 },
               ],
@@ -281,7 +286,7 @@ describe('an order the previous build queued (review S3)', () => {
         const body = request.body as { clientCommandId: string };
         // The server has group 0 already and replays it.
         return body.clientCommandId.endsWith('0000')
-          ? { status: 200, body: { ...ORDER, orderId: 'o-group-0', wasReplay: true } }
+          ? { status: 201, body: { ...ORDER, orderId: 'o-group-0', wasReplay: true } }
           : { status: 201, body: { ...ORDER, orderId: 'o-group-1' } };
       },
     });

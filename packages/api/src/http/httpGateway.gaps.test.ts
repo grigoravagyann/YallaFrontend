@@ -3,7 +3,13 @@ import type { RescheduleBookingCommand } from '../contracts/booking';
 import { BookingNotChangeableError, TableTakenError } from '../contracts/errors';
 import { NotFoundError } from '../errors';
 import type { components } from '../generated/schema';
-import { BASE_URL, fakeBackend, problemReply, type FakeRoute } from './fakeBackend.testkit';
+import {
+  BASE_URL,
+  fakeBackend,
+  offSchema,
+  problemReply,
+  type FakeRoute,
+} from './fakeBackend.testkit';
 import { createHttpGateway } from './httpGateway';
 
 /**
@@ -120,6 +126,8 @@ const DAY = {
       requiresApproval: false,
       freeTableCount: 0,
       unavailableReason: 8,
+      isRequestable: false,
+      requestableTableCount: 0,
     },
     {
       time: '19:30',
@@ -127,6 +135,8 @@ const DAY = {
       isAvailable: true,
       requiresApproval: true,
       freeTableCount: 3,
+      isRequestable: false,
+      requestableTableCount: 0,
     },
     {
       time: '09:00',
@@ -135,6 +145,8 @@ const DAY = {
       requiresApproval: false,
       freeTableCount: 0,
       unavailableReason: 1,
+      isRequestable: false,
+      requestableTableCount: 0,
     },
   ],
 };
@@ -186,7 +198,7 @@ describe('a day of slots', () => {
           requiresApproval: false,
           freeTableCount: 0,
           unavailableReason: 'pastLeadTime',
-          // Booking times, from a server before them: nothing asked, nothing cut.
+          // Nothing to ask the earlier guest for, nothing cut short.
           requestable: false,
           requestableTableCount: 0,
           mustFreeByUtc: null,
@@ -233,9 +245,10 @@ describe('a day of slots', () => {
 
   it('reads an empty day, and the 404 of a branch that does not exist as null', async () => {
     const shut = gatewayOver({
-      [route]: {
-        body: { branchId: BRANCH, date: '2026-09-20', partySize: 2, unavailableReason: 3 },
-      },
+      [route]: offSchema(
+        { body: { branchId: BRANCH, date: '2026-09-20', partySize: 2, unavailableReason: 3 } },
+        'slots and stepMinutes are required on BranchDaySlots; this proves the empty day and the 15-minute default for a server that omits them',
+      ),
     });
     await expect(
       shut.gateway.getDaySlots({ branchId: BRANCH, date: '2026-09-20', partySize: 2 }),
@@ -399,6 +412,7 @@ function tabView(over: Record<string, unknown> = {}) {
     serviceChargePercent: 10,
     maxSequence: 12,
     adjustments: [],
+    admission: { status: 2, admittedBecause: 5 },
     ...over,
   };
 }
@@ -466,7 +480,9 @@ describe('asking for the bill with a tip', () => {
   });
 
   it('sends the preset alone when there is no bill to describe', async () => {
-    const { gateway, backend } = gatewayOver({ [route]: { body: reply({ preset: 2 }) } });
+    const { gateway, backend } = gatewayOver({
+      [route]: { status: 201, body: reply({ preset: 2 }) },
+    });
 
     const call = await gateway.callWaiter({ tabId: TAB, reason: 'water', commandId: 'c1' });
 
@@ -478,6 +494,7 @@ describe('asking for the bill with a tip', () => {
   it('sends the scope and the tip, and answers with the amounts the server worked out', async () => {
     const { gateway, backend } = gatewayOver({
       [route]: {
+        status: 201,
         body: reply({ billScope: 2, billAmountAmd: 1650, tipPercent: 10, tipAmd: 150 }),
       },
     });
@@ -501,7 +518,13 @@ describe('asking for the bill with a tip', () => {
 
   it('sends the whole bill as 1, and reads a scope it does not know as no bill at all', async () => {
     const { gateway, backend } = gatewayOver({
-      [route]: { body: reply({ billScope: 9, billAmountAmd: 2950, tipPercent: 5, tipAmd: 225 }) },
+      [route]: offSchema(
+        {
+          status: 201,
+          body: reply({ billScope: 9, billAmountAmd: 2950, tipPercent: 5, tipAmd: 225 }),
+        },
+        'billScope 9 is outside the BillScope enum on purpose: a scope from a newer server reads as no bill',
+      ),
     });
 
     const call = await gateway.callWaiter({

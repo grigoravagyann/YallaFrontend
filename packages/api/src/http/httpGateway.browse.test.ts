@@ -4,6 +4,7 @@ import { fakeBackend } from './fakeBackend.testkit';
 import { createHttpGateway } from './httpGateway';
 
 type Card = components['schemas']['Yalla.Application.Public.PublicVenueCard'];
+type BranchPage = components['schemas']['Yalla.Application.Public.PublicBranchPage'];
 
 /**
  * Browse, against the one venue read the backend publishes.
@@ -148,9 +149,38 @@ describe('browse over /api/public/venues', () => {
   });
 
   it('reads how far ahead and how soon a branch books from its public page', async () => {
+    const PAGE: BranchPage = {
+      venueSlug: 'lumen-coffee',
+      branchSlug: 'northern-avenue',
+      branchId: '0b5f3c1e-0000-4000-8000-000000000001',
+      venueName: 'Lumen Coffee',
+      branchName: 'Northern Avenue',
+      venueType: 1,
+      address: 'Northern Avenue 5, Yerevan',
+      latitude: 40.18,
+      longitude: 44.51,
+      timeZoneId: 'Asia/Yerevan',
+      openingHours: [],
+      specialDays: [],
+      isOpenNow: true,
+      freeTableCount: 4,
+      tableCount: 12,
+      floorPlan: { areas: [], tables: [] },
+      acceptsWebBookings: true,
+      bookingWindowDays: 30,
+      policy: {
+        turnTimeMinutes: 90,
+        minLeadMinutes: 45,
+        cancellationDeadlineMinutes: 120,
+        acceptsPreOrders: false,
+      },
+      asOfUtc: '2026-10-22T12:00:00Z',
+      acceptsAppBookings: true,
+      venueBranchCount: 2,
+    };
     const backend = fakeBackend({
       'GET /api/public/branches/lumen-coffee/northern-avenue': {
-        body: { bookingWindowDays: 30, policy: { minLeadMinutes: 45 } },
+        body: PAGE,
       },
     });
     const gateway = createHttpGateway(backend.client(), {
@@ -159,7 +189,6 @@ describe('browse over /api/public/venues', () => {
 
     await expect(
       gateway.getBookingRules({ venueSlug: 'lumen-coffee', branchSlug: 'northern-avenue' }),
-      // No `acceptsAppBookings` on the page: a server from before the K9 gate, which books.
     ).resolves.toEqual({ bookingWindowDays: 30, minLeadMinutes: 45, acceptsAppBookings: true });
     await expect(
       gateway.getBookingRules({ venueSlug: 'lumen-coffee', branchSlug: 'gone' }),

@@ -160,6 +160,7 @@ describe('pairing a phone', () => {
       'GET /api/auth/staff/device': {
         body: {
           deviceId: 'dev-1',
+          clientDeviceId: 'browser-1',
           deviceName: 'iPhone · Safari',
           branchId: BRANCH,
           branchName: 'Centre',

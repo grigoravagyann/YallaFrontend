@@ -3,7 +3,7 @@ import { createAuthSession } from '../auth/session';
 import { createMemoryTokenStorage } from '../auth/storage';
 import { ReviewHiddenNoReplyError } from '../contracts/errors';
 import { createConsoleHttpGateway, createMemoryIdentityStore } from './consoleHttpGateway';
-import { fakeBackend, problemReply, type FakeRoute } from './fakeBackend.testkit';
+import { fakeBackend, offSchema, problemReply, type FakeRoute } from './fakeBackend.testkit';
 
 /**
  * Review replies over HTTP (VC4 wire §1): the reply and who hid a review on
@@ -31,6 +31,7 @@ const REVIEW = {
   rating: 3,
   text: 'Slow on a Friday.',
   authorName: 'Arthur',
+  dinerUserId: 'd-1',
   createdAtUtc: '2026-10-15T18:00:00Z',
   updatedAtUtc: '2026-10-15T18:00:00Z',
   hidden: false,
@@ -129,9 +130,10 @@ describe('the console review list', () => {
           },
         },
       },
-      'GET /api/platform/branches/b-1/reviews': {
-        body: { items: [], total: 0, page: 1, pageSize: 20 },
-      },
+      'GET /api/platform/branches/b-1/reviews': offSchema(
+        { body: { items: [], total: 0, page: 1, pageSize: 20 } },
+        'a server before VC4 sends no summary; the gateway reads it as none',
+      ),
     });
     const venue = await gateway.listVenueBranchReviews('b-1');
     expect(venue.summary).toMatchObject({ rating: null, ratingChange30Days: null });

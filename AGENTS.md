@@ -126,6 +126,10 @@ fails on a fixture that breaks it; give a new rule a case there. Elsewhere:
 - Diner colours: ESLint refuses console colours from `@yalla/tokens` and typed
   hex/`rgb()`/`hsl()` in `apps/diner/{app,src}` outside `src/theme` (tests and
   `launch/mark.ts` exempt; reasons in `eslint.config.js`).
+- Gateway tests (`packages/api/src/{http,auth}/**/*.test.ts`): ESLint refuses a
+  `createApiClient` without `fetch: checkedFetch(…)`, a stubbed global `fetch` and a fake
+  client resolving `{ data }` — use `fakeBackend(…)`, whose answers are checked against
+  `swagger.json`.
 - `generated/*` is imported, never edited: `check-generated-schema.mjs` re-renders `schema.ts`
   from `swagger.json` and `check-problem-codes.mjs` re-renders `problemCodes.ts` (both in
   `pnpm --filter @yalla/api test` and `api:check`); CI's contract job compares `swagger.json`
@@ -161,7 +165,12 @@ Example to copy end to end: takeaway — `contracts/takeaway.ts`, `http/takeaway
    or mapping file** — require cycles (`no-own-barrel` / `no-value-cycles` fail lint). Export new contract types from `src/index.ts`.
 7. Tests: HTTP mapping against `http/fakeBackend.testkit.ts` (see `http/takeaway.test.ts`),
    mock behaviour in `mocks/*.test.ts`, and a `contract/*.contract.ts` case when both
-   implementations can be held to it.
+   implementations can be held to it. Every stubbed exchange is checked against
+   `generated/swagger.json` (`checkedFetch` in `http/wireSchema.testkit.ts`): the request body
+   the gateway sends and every 2xx answer — missing required or unknown fields, wrong types,
+   forbidden nulls, enum values, undeclared statuses — and fails the test. Write stubs whole,
+   as the backend sends them; a deliberately off-schema answer (an older server, a malformed
+   body the gateway must survive) goes in `offSchema(reply, '<why>')`.
 
 ## Recipe: map a problem code to a typed error and copy
 

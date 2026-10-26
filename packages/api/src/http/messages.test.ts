@@ -10,7 +10,7 @@ import {
 import { messageFailure } from '../contracts/messageFailure';
 import { ForbiddenError, NotFoundError, ValidationError } from '../errors';
 import { createConsoleHttpGateway, createMemoryIdentityStore } from './consoleHttpGateway';
-import { fakeBackend, problemReply, type FakeRoute } from './fakeBackend.testkit';
+import { fakeBackend, offSchema, problemReply, type FakeRoute } from './fakeBackend.testkit';
 import { createHttpGateway } from './httpGateway';
 import {
   branchConversationsFromWire,
@@ -738,6 +738,8 @@ describe("the floor's routes", () => {
       nextReservationId: RESERVATION,
       nextReservationUnreadMessages: 2,
       sittingUnreadMessages: 0,
+      nextReservationPhoneUnverified: false,
+      openTabAwaitingAdmission: false,
     };
     const floor = {
       branchId: BRANCH,
@@ -772,7 +774,10 @@ describe("the floor's routes", () => {
 
     const { messages: _messages, ...older } = floor;
     const { gateway: before } = staffOver({
-      [`GET /api/branches/${BRANCH}/tables/floor`]: { body: older },
+      [`GET /api/branches/${BRANCH}/tables/floor`]: offSchema(
+        { body: older },
+        'messages is required on BranchFloorState; this proves a floor from a server before guest messages carries no floor line',
+      ),
     });
     expect('messages' in ((await before.getFloor(BRANCH)) ?? {})).toBe(false);
   });

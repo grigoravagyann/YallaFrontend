@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { createAuthSession } from '../auth/session';
 import { createMemoryTokenStorage } from '../auth/storage';
 import { createApiClient } from '../client';
+import { checkedFetch } from './wireSchema.testkit';
 import { VenueDeletionBlockedError } from '../contracts/errors';
 import { createConsoleHttpGateway, createMemoryIdentityStore } from './consoleHttpGateway';
 
@@ -37,7 +38,11 @@ function gatewayOver(fetchImpl: typeof globalThis.fetch) {
     refreshTokens: vi.fn(),
   });
   return createConsoleHttpGateway(
-    createApiClient({ baseUrl: BASE, fetch: fetchImpl, getToken: () => 'held-token' }),
+    createApiClient({
+      baseUrl: BASE,
+      fetch: checkedFetch(fetchImpl),
+      getToken: () => 'held-token',
+    }),
     { auth, identity: createMemoryIdentityStore() },
   );
 }
