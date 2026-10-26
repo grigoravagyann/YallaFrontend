@@ -28,7 +28,6 @@ const WAITER_TICKET = {
   lines: [
     {
       lineId: 'l-1',
-      orderId: 'o-1',
       menuItemId: 'm-steak',
       name: 'Steak',
       quantity: 2,
@@ -41,7 +40,6 @@ const WAITER_TICKET = {
     },
     {
       lineId: 'l-1b',
-      orderId: 'o-1',
       menuItemId: 'm-wine',
       name: 'Wine',
       quantity: 1,
@@ -61,7 +59,7 @@ const PHONE_TICKET = {
   orderId: 'o-2',
   tableLabel: '8',
   status: 1,
-  lines: [{ ...WAITER_TICKET.lines[0]!, lineId: 'l-2', orderId: 'o-2', note: null }],
+  lines: [{ ...WAITER_TICKET.lines[0]!, lineId: 'l-2', note: null }],
   placedByName: undefined,
 };
 
@@ -130,6 +128,9 @@ describe('the staff menu carries allergens', () => {
       prepMinutes: 5,
       isAvailable: true,
       isComplete: true,
+      missingFields: [],
+      availableForPreOrder: true,
+      availableForTakeaway: true,
       displayOrder: 1,
     });
     const gateway = gatewayOver({

@@ -69,6 +69,7 @@ const STAFF_VIEW: StaffView = {
   lines: [],
   adjustments: [],
   totals: { subtotalAmd: 0, serviceChargeAmd: 0, totalAmd: 0, paidAmd: 0, remainingAmd: 0 },
+  tipsAmd: 0,
   admission: {
     status: 2,
     admittedBecause: 1,

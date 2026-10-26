@@ -20,7 +20,7 @@ import { awaitingApprovalFromWire, type WireAwaitingApproval } from './awaitingA
 import { createConsoleHttpGateway, createMemoryIdentityStore } from './consoleHttpGateway';
 import { consoleBookingFromWire } from './consoleMapping';
 import { booking } from './dinerMapping';
-import { fakeBackend, problemReply, type FakeRoute } from './fakeBackend.testkit';
+import { fakeBackend, offSchema, problemReply, type FakeRoute } from './fakeBackend.testkit';
 import { createHttpGateway } from './httpGateway';
 import {
   preOrderFromWire,
@@ -715,6 +715,8 @@ describe("the floor's rail", () => {
                 came: 3,
                 noShows: 0,
                 lateCancellations: 0,
+                unmarked: 0,
+                takeawayNoShows: 0,
                 isNewGuest: false,
               },
             },
@@ -898,9 +900,10 @@ describe("the console's settings", () => {
 
   it('fills the product numbers a server leaves out', async () => {
     const { gateway } = consoleOver({
-      [`GET /api/branches/${BRANCH}/pre-order-settings`]: {
-        body: { acceptsPreOrders: false, minutesBefore: 30, excludedMenuItemIds: [] },
-      },
+      [`GET /api/branches/${BRANCH}/pre-order-settings`]: offSchema(
+        { body: { acceptsPreOrders: false, minutesBefore: 30, excludedMenuItemIds: [] } },
+        'an older server without bounds and the product numbers: the gateway fills them in',
+      ),
     });
     expect(await gateway.getPreOrderSettings(BRANCH)).toEqual({
       acceptsPreOrders: false,

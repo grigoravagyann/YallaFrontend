@@ -17,6 +17,7 @@ import type { components } from '../generated/schema';
 import {
   BASE_URL,
   fakeBackend,
+  offSchema,
   problemReply,
   type FakeReply,
   type FakeRoute,
@@ -64,9 +65,44 @@ const DETAIL = {
   gallery: [],
   tableCount: 0,
   acceptsWebBookings: true,
+  acceptsAppBookings: true,
+  specialDays: [],
   recentReviews: [],
+  ratingCounts: [0, 0, 0, 0, 0],
   rooms: [],
+  takeaway: { enabled: false, prepMinutes: 20 },
   asOfUtc: '2026-09-14T10:00:00Z',
+};
+
+/** The branch's public page, whole, as `GET /api/public/branches/{venueSlug}/{branchSlug}` answers. */
+const PAGE: Schemas['Yalla.Application.Public.PublicBranchPage'] = {
+  venueSlug: 'lumen',
+  branchSlug: 'cascade',
+  branchId: BRANCH,
+  venueName: 'Lumen Coffee',
+  branchName: 'Cascade',
+  venueType: 1,
+  address: 'Test address',
+  latitude: 40.1843,
+  longitude: 44.5129,
+  timeZoneId: 'Asia/Yerevan',
+  openingHours: [],
+  specialDays: [],
+  isOpenNow: true,
+  freeTableCount: 4,
+  tableCount: 12,
+  floorPlan: { areas: [], tables: [] },
+  acceptsWebBookings: true,
+  bookingWindowDays: 14,
+  policy: {
+    turnTimeMinutes: 90,
+    minLeadMinutes: 30,
+    cancellationDeadlineMinutes: 120,
+    acceptsPreOrders: false,
+  },
+  asOfUtc: '2026-09-14T10:00:00Z',
+  acceptsAppBookings: true,
+  venueBranchCount: 1,
 };
 
 const VIEW = {
@@ -90,6 +126,9 @@ const VIEW = {
   guestName: 'Test Diner',
   guestPhone: '+37491000101',
   wasReplay: false,
+  awaitsEarlierGuestAnswer: false,
+  onMyWayOpensAtUtc: '2026-09-20T13:30:00Z',
+  phoneUnverified: false,
 };
 
 const COMMAND: CreateBookingCommand = {
@@ -146,12 +185,11 @@ describe('the app booking gate and the booking note (K9)', () => {
   it('reads acceptsAppBookings from the detail and the page, and a server without it as booking', async () => {
     const { gateway } = gatewayOver({
       [`GET /api/public/branches/${BRANCH}`]: { body: { ...DETAIL, acceptsAppBookings: false } },
-      'GET /api/public/branches/lumen/cascade': {
-        body: { bookingWindowDays: 14, policy: { minLeadMinutes: 30 }, acceptsAppBookings: false },
-      },
-      'GET /api/public/branches/lumen/older': {
-        body: { bookingWindowDays: 14, policy: { minLeadMinutes: 30 } },
-      },
+      'GET /api/public/branches/lumen/cascade': { body: { ...PAGE, acceptsAppBookings: false } },
+      'GET /api/public/branches/lumen/older': offSchema(
+        { body: { ...PAGE, acceptsAppBookings: undefined } },
+        'a server from before the K9 gate sends no acceptsAppBookings; the gateway reads it as booking',
+      ),
     });
 
     expect((await gateway.getBranchDetail(BRANCH))?.acceptsAppBookings).toBe(false);
@@ -208,40 +246,44 @@ describe('reviews (K8) and reporting one', () => {
 
   it("reads the server's edited flag, and a server without one from the timestamps", async () => {
     const { gateway } = gatewayOver({
-      [`GET /api/public/branches/${BRANCH}/reviews`]: {
-        body: {
-          branchId: BRANCH,
-          rating: 4,
-          reviewCount: 3,
-          page: 1,
-          pageSize: 20,
-          reviews: [
-            {
-              reviewId: 'r1',
-              authorName: 'Anahit S.',
-              rating: 5,
-              createdAtUtc: 'a',
-              updatedAtUtc: 'b',
-              edited: false,
-            },
-            {
-              reviewId: 'r2',
-              authorName: 'Yalla diner',
-              rating: 4,
-              createdAtUtc: 'a',
-              updatedAtUtc: 'a',
-              edited: true,
-            },
-            {
-              reviewId: 'r3',
-              authorName: 'Test D.',
-              rating: 3,
-              createdAtUtc: 'a',
-              updatedAtUtc: 'b',
-            },
-          ],
+      [`GET /api/public/branches/${BRANCH}/reviews`]: offSchema(
+        {
+          body: {
+            branchId: BRANCH,
+            rating: 4,
+            reviewCount: 3,
+            ratingCounts: [0, 0, 1, 1, 1],
+            page: 1,
+            pageSize: 20,
+            reviews: [
+              {
+                reviewId: 'r1',
+                authorName: 'Anahit S.',
+                rating: 5,
+                createdAtUtc: 'a',
+                updatedAtUtc: 'b',
+                edited: false,
+              },
+              {
+                reviewId: 'r2',
+                authorName: 'Yalla diner',
+                rating: 4,
+                createdAtUtc: 'a',
+                updatedAtUtc: 'a',
+                edited: true,
+              },
+              {
+                reviewId: 'r3',
+                authorName: 'Test D.',
+                rating: 3,
+                createdAtUtc: 'a',
+                updatedAtUtc: 'b',
+              },
+            ],
+          },
         },
-      },
+        'r3 comes from a server before the edited flag; the gateway reads it from the timestamps',
+      ),
     });
 
     const page = await gateway.getBranchReviews({ branchId: BRANCH });
@@ -264,7 +306,12 @@ describe('reviews (K8) and reporting one', () => {
       hidden: true,
     });
 
-    const older = gatewayOver({ [`GET ${route}`]: { body: base } });
+    const older = gatewayOver({
+      [`GET ${route}`]: offSchema(
+        { body: base },
+        'a server before the public name and the hidden flag; the gateway reads null and false',
+      ),
+    });
     expect(await older.gateway.getMyBranchReview(BRANCH)).toMatchObject({
       publicAuthorName: null,
       hidden: false,
@@ -380,7 +427,7 @@ describe('the notifications feed (K12)', () => {
       {
         notificationId: 'n-8',
         kind: 'booking-reminder',
-        params: { tableLabel: '7', partySize: 2 },
+        params: { tableLabel: '7', partySize: '2' },
         branchId: BRANCH,
         branchName: 'Cascade',
         reservationId: 'res-1',
@@ -390,6 +437,7 @@ describe('the notifications feed (K12)', () => {
       {
         notificationId: 'n-7',
         kind: 'a-kind-from-a-newer-server',
+        params: {},
         createdAtUtc: '2026-09-13T10:00:00Z',
         read: true,
       },
@@ -553,6 +601,7 @@ describe('naming yourself on the tab', () => {
       serviceChargePercent: 10,
       maxSequence: 1,
       adjustments: [],
+      admission: { status: 2 },
     },
     token: {
       accessToken: 'participant-token',

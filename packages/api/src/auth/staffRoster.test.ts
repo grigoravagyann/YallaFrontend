@@ -7,25 +7,26 @@ import {
   type StaffRosterEntry,
 } from '../contracts/staffAuth';
 import { UnauthorizedError } from '../errors';
+import { fakeBackend } from '../http/fakeBackend.testkit';
 import { createStaffAuth, type StaffAuth } from './staffEndpoints';
 import { createStaffSession } from './staffSession';
 
 describe('GET /api/auth/staff/roster', () => {
   it('sends the device token the way /device does and maps the role number', async () => {
-    const get = vi.fn().mockResolvedValue({
-      data: [
-        { staffMemberId: 'a', fullName: 'Anna', role: 1 },
-        { staffMemberId: 'k', fullName: 'Kara', role: 4 },
-      ],
+    const backend = fakeBackend({
+      'GET /api/auth/staff/roster': {
+        body: [
+          { staffMemberId: 'a', fullName: 'Anna', role: 1, onShiftNow: false, endsNextDay: false },
+          { staffMemberId: 'k', fullName: 'Kara', role: 4, onShiftNow: false, endsNextDay: false },
+        ],
+      },
     });
-    const auth = createStaffAuth({ get } as unknown as ApiClient);
+    const auth = createStaffAuth(backend.client({ getToken: () => 'held-token' }));
 
     const roster = await auth.getRoster('device-token');
 
-    expect(get).toHaveBeenCalledWith('/api/auth/staff/roster', {
-      skipAuth: true,
-      headers: { authorization: 'Bearer device-token' },
-    });
+    expect(backend.requests[0]?.path).toBe('/api/auth/staff/roster');
+    expect(backend.requests[0]?.headers.get('authorization')).toBe('Bearer device-token');
     expect(roster).toEqual([
       { staffMemberId: 'a', fullName: 'Anna', role: 'owner', onShiftNow: false, shift: null },
       { staffMemberId: 'k', fullName: 'Kara', role: 'kitchen', onShiftNow: false, shift: null },
@@ -33,24 +34,26 @@ describe('GET /api/auth/staff/roster', () => {
   });
 
   it('reads who is on shift, and the shift, with its wall clock cut to minutes', async () => {
-    const get = vi.fn().mockResolvedValue({
-      data: [
-        {
-          staffMemberId: 'n',
-          fullName: 'Narek',
-          role: 3,
-          onShiftNow: true,
-          startsAt: '18:00:00',
-          endsAt: '02:00:00',
-          endsNextDay: true,
-          startsAtUtc: '2026-10-19T14:00:00Z',
-          endsAtUtc: '2026-10-19T22:00:00Z',
-        },
-        // Nothing to report: the fields are omitted, as the server omits nulls.
-        { staffMemberId: 's', fullName: 'Sona', role: 3, onShiftNow: false, endsNextDay: false },
-      ],
+    const backend = fakeBackend({
+      'GET /api/auth/staff/roster': {
+        body: [
+          {
+            staffMemberId: 'n',
+            fullName: 'Narek',
+            role: 3,
+            onShiftNow: true,
+            startsAt: '18:00:00',
+            endsAt: '02:00:00',
+            endsNextDay: true,
+            startsAtUtc: '2026-10-19T14:00:00Z',
+            endsAtUtc: '2026-10-19T22:00:00Z',
+          },
+          // Nothing to report: the fields are omitted, as the server omits nulls.
+          { staffMemberId: 's', fullName: 'Sona', role: 3, onShiftNow: false, endsNextDay: false },
+        ],
+      },
     });
-    const auth = createStaffAuth({ get } as unknown as ApiClient);
+    const auth = createStaffAuth(backend.client());
 
     const [narek, sona] = await auth.getRoster('device-token');
 

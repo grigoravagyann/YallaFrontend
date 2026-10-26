@@ -138,11 +138,11 @@ describe('the venues list over HTTP', () => {
     for (const [code, kind] of Object.entries(codes)) {
       const { gateway } = gatewayOver({
         'GET /api/platform/venues': {
-          body: page([summary({ readinessIssue: { code, count: null, branchName: null } })]),
+          body: page([summary({ readinessIssue: { code, count: null, branchName: 'Nor Nork' } })]),
         },
       });
       const [venue] = (await gateway.listVenues({})).items;
-      expect(venue?.readinessIssue, code).toEqual({ kind, count: null, branchName: null });
+      expect(venue?.readinessIssue, code).toEqual({ kind, count: null, branchName: 'Nor Nork' });
     }
   });
 

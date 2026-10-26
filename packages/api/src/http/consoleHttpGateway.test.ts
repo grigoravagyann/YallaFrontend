@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { createAuthSession } from '../auth/session';
 import { createMemoryTokenStorage } from '../auth/storage';
 import { createApiClient } from '../client';
+import { checkedFetch } from './wireSchema.testkit';
 import { StaffPermissionError } from '../contracts/errors';
 import { ConcurrencyConflictError, ForbiddenError, ValidationError } from '../errors';
 import { createConsoleHttpGateway, createMemoryIdentityStore } from './consoleHttpGateway';
@@ -36,7 +37,11 @@ function gatewayOver(fetchImpl: typeof globalThis.fetch) {
     refreshTokens: vi.fn(),
   });
   return createConsoleHttpGateway(
-    createApiClient({ baseUrl: BASE, fetch: fetchImpl, getToken: () => 'held-token' }),
+    createApiClient({
+      baseUrl: BASE,
+      fetch: checkedFetch(fetchImpl),
+      getToken: () => 'held-token',
+    }),
     { auth, identity: createMemoryIdentityStore() },
   );
 }
@@ -261,6 +266,10 @@ describe('deciding a pending booking over HTTP', () => {
     cancelledAfterDeadline: false,
     wasReplay: false,
     awaitingApprovalBecause: null,
+    phoneUnverified: false,
+    cancellationDeadlineUtc: '2026-09-12T13:00:00Z',
+    awaitsEarlierGuestAnswer: false,
+    onMyWayOpensAtUtc: '2026-09-12T14:30:00Z',
   };
 
   it('approves by posting to the approve route with an empty decision', async () => {
@@ -332,14 +341,27 @@ describe('deciding a pending booking over HTTP', () => {
           id: 'r-1',
           code: 'K7M2',
           branchId: 'b-1',
+          branchName: 'Northern Avenue',
+          timeZoneId: 'Asia/Yerevan',
           guestName: 'Ani Petrosyan',
           guestPhone: '+37491000001',
+          phoneUnverified: false,
           partySize: 10,
+          tableId: 't-4',
           tableLabel: 'T4',
+          startUtc: '2026-09-18T15:30:00Z',
+          endUtc: '2026-09-18T17:15:00Z',
           localDate: '2026-09-18',
           localStartTime: '19:30:00',
+          localEndTime: '21:15:00',
           status: 1,
           awaitingApprovalBecause: 2,
+          awaitsEarlierGuestAnswer: false,
+          cancelledAfterDeadline: false,
+          cancellationDeadlineUtc: '2026-09-18T13:30:00Z',
+          onMyWayOpensAtUtc: '2026-09-18T15:00:00Z',
+          clientCommandId: 'c-2',
+          wasReplay: false,
           note: 'Window seat, please.',
         },
       ]),

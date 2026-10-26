@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { createAuthSession } from '../auth/session';
 import { createMemoryTokenStorage } from '../auth/storage';
-import { fakeBackend, problemReply, type FakeRoute } from './fakeBackend.testkit';
+import { fakeBackend, offSchema, problemReply, type FakeRoute } from './fakeBackend.testkit';
 import { createHttpGateway } from './httpGateway';
 
 /**
@@ -44,6 +44,7 @@ function lineView(over: Record<string, unknown> = {}) {
     unitPriceAmd: 4500,
     lineTotalAmd: 4500,
     isShared: false,
+    isTableAttributed: false,
     isVoided: false,
     orderStatus: 2,
     sharedWithCount: 0,
@@ -84,6 +85,7 @@ function tabView(over: Record<string, unknown> = {}) {
     serviceChargePercent: 10,
     maxSequence: 12,
     adjustments: [],
+    admission: { status: 2, admittedBecause: 5 },
     ...over,
   };
 }
@@ -569,9 +571,10 @@ describe('on the tab', () => {
   it('carries when each line was ordered, and no time from a server that sends none', async () => {
     const older = lineView({ lineId: 'l2', orderedAtUtc: undefined });
     const { gateway } = await onTheTab({
-      [`GET /api/tabs/${TAB}`]: {
-        body: tabView({ myLines: [lineView(), older], tableLines: [lineView(), older] }),
-      },
+      [`GET /api/tabs/${TAB}`]: offSchema(
+        { body: tabView({ myLines: [lineView(), older], tableLines: [lineView(), older] }) },
+        'orderedAtUtc is required on TabLineView; this proves a line from a server before it was added reads as no time',
+      ),
     });
 
     const view = await gateway.getDinerTab(TAB);
@@ -629,6 +632,9 @@ describe('the menu', () => {
                   prepMinutes: 20,
                   isAvailable: true,
                   isComplete: true,
+                  missingFields: [],
+                  availableForPreOrder: true,
+                  availableForTakeaway: true,
                   displayOrder: 1,
                 },
               ],

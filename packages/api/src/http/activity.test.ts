@@ -191,7 +191,7 @@ describe('the feed', () => {
     const { gateway, backend } = consoleOver({
       'GET /api/branches/b-1/activity': {
         body: {
-          items: [ENTRY, { id: '' }],
+          items: [ENTRY, { ...ENTRY, id: '' }],
           nextCursor: 'c2',
           from: '2026-10-24',
           to: '2026-10-24',

@@ -26,7 +26,7 @@ function gatewayOver(routes: Record<string, FakeRoute>) {
 
 const scope = {
   branchIds: ['b-1'],
-  range: { fromLocalDate: '2026-10-12', toLocalDate: '2026-10-13' },
+  range: { fromLocalDate: '2026-10-12', toLocalDate: '2026-10-13', days: 2 },
   timeZoneId: 'Asia/Yerevan',
 };
 const none = { value: 0 };
@@ -40,8 +40,8 @@ function revenue(extra: Record<string, unknown> = {}) {
     averageTabAmd: none,
     averagePerHeadAmd: none,
     byDay: [
-      { localDate: '2026-10-12', revenueAmd: 100, tabs: 1 },
-      { localDate: '2026-10-13', revenueAmd: 200, tabs: 2 },
+      { localDate: '2026-10-12', revenueAmd: 100, tabs: 1, takeawayAmd: 0, takeawayOrders: 0 },
+      { localDate: '2026-10-13', revenueAmd: 200, tabs: 2, takeawayAmd: 0, takeawayOrders: 0 },
     ],
     byHour: [],
     cashAmd: none,
@@ -50,6 +50,11 @@ function revenue(extra: Record<string, unknown> = {}) {
     adjustmentsTotalAmd: none,
     tabs: none,
     previousByDay: [],
+    cardAmd: none,
+    hallAmd: none,
+    takeawayAmd: none,
+    takeawayOrders: none,
+    takeawayNotCollected: none,
     ...extra,
   };
 }
@@ -85,8 +90,14 @@ describe('the phase-5 report fields over HTTP', () => {
         body: revenue({
           tabs: { value: 3, previous: 4, changeFraction: -0.25 },
           previousByDay: [
-            { localDate: '2026-10-10', revenueAmd: 50, tabs: 1 },
-            { localDate: '2026-10-11', revenueAmd: 150, tabs: 3 },
+            { localDate: '2026-10-10', revenueAmd: 50, tabs: 1, takeawayAmd: 0, takeawayOrders: 0 },
+            {
+              localDate: '2026-10-11',
+              revenueAmd: 150,
+              tabs: 3,
+              takeawayAmd: 0,
+              takeawayOrders: 0,
+            },
           ],
         }),
       },

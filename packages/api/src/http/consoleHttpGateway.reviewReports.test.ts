@@ -43,7 +43,21 @@ describe("the platform's review list over HTTP", () => {
   it('asks for one filter and reads how often each review was reported', async () => {
     const { gateway, backend } = gatewayOver({
       'GET /api/platform/branches/b-1/reviews': {
-        body: { items: [REVIEW], page: 1, pageSize: 20, total: 1 },
+        body: {
+          items: [REVIEW],
+          page: 1,
+          pageSize: 20,
+          total: 1,
+          summary: {
+            all: 1,
+            reported: 1,
+            hidden: 0,
+            visible: 1,
+            rating: 1,
+            ratingChange30Days: null,
+            distribution: [5, 4, 3, 2, 1].map((stars) => ({ stars, count: stars === 1 ? 1 : 0 })),
+          },
+        },
       },
     });
     const page = await gateway.listPlatformBranchReviews('b-1', { filter: 'reported' });

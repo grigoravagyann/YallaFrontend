@@ -138,6 +138,8 @@ describe("a dish's photo over HTTP", () => {
           isComplete: false,
           displayOrder: 0,
           missingFields: ['photo'],
+          availableForPreOrder: true,
+          availableForTakeaway: true,
         },
       },
     });
@@ -153,6 +155,7 @@ describe('a new category or dish', () => {
   it('sends no display order, so the server puts it last', async () => {
     const { gateway, backend } = gatewayOver({
       'POST /api/branches/b-1/menu/categories': {
+        status: 201,
         body: { id: 'c-9', name: 'Tea', displayOrder: 4, items: [] },
       },
     });

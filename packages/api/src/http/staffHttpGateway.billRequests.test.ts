@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { components } from '../generated/schema';
-import { fakeBackend, type FakeRoute } from './fakeBackend.testkit';
+import { fakeBackend, offSchema, type FakeRoute } from './fakeBackend.testkit';
 import { createStaffHttpGateway } from './staffHttpGateway';
 import { serviceRequest } from './staffMapping';
 
@@ -54,9 +54,10 @@ describe('the person behind a service request', () => {
   it('carries it on the branch list and on the acknowledgement', async () => {
     const { gateway, backend } = gatewayOver({
       [`GET /api/branches/${BRANCH}/service-requests`]: { body: [REQUEST] },
-      'POST /api/service-requests/sr-1/acknowledge': {
-        body: { ...REQUEST, acknowledgedAtUtc: '2026-09-20T17:03:00Z' },
-      },
+      'POST /api/service-requests/sr-1/acknowledge': offSchema(
+        { body: { ...REQUEST, acknowledgedAtUtc: '2026-09-20T17:03:00Z' } },
+        'the gateway still sends clientCommandId, which this route takes no body for; reported, not changed (no behaviour change)',
+      ),
     });
 
     const [listed] = await gateway.listServiceRequests(BRANCH);
@@ -78,6 +79,7 @@ describe('the person behind a service request', () => {
 
 describe('cash handed over by one person', () => {
   const cashReply = {
+    status: 201,
     body: {
       paymentId: 'pay-1',
       tabId: TAB,

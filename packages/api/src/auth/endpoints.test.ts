@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { createApiClient } from '../client';
+import { checkedFetch } from '../http/wireSchema.testkit';
 import { UnauthorizedError } from '../errors';
 import type { UserRole } from '../contracts/console';
 import type { components } from '../generated/schema';
@@ -48,7 +49,11 @@ describe('resetting a venue-user password', () => {
   it('spends the link with no bearer, even when the client holds a token', async () => {
     const fetchImpl = vi.fn().mockResolvedValue(noContent());
     const auth = createVenueUserAuth(
-      createApiClient({ baseUrl: BASE, fetch: fetchImpl, getToken: () => 'held-token' }),
+      createApiClient({
+        baseUrl: BASE,
+        fetch: checkedFetch(fetchImpl),
+        getToken: () => 'held-token',
+      }),
     );
 
     await auth.resetPassword('tok-1', 'correct horse battery staple');
@@ -71,7 +76,7 @@ describe('resetting a venue-user password', () => {
     });
     const fetchImpl = vi.fn().mockResolvedValue(problem(401, 'reset-token-invalid'));
     const auth = createVenueUserAuth(
-      createApiClient({ baseUrl: BASE, fetch: fetchImpl, auth: session }),
+      createApiClient({ baseUrl: BASE, fetch: checkedFetch(fetchImpl), auth: session }),
     );
 
     await expect(
@@ -84,7 +89,11 @@ describe('resetting a venue-user password', () => {
   it('asks for a link by email, anonymously, in the language given', async () => {
     const fetchImpl = vi.fn().mockResolvedValue(new Response(null, { status: 202 }));
     const auth = createVenueUserAuth(
-      createApiClient({ baseUrl: BASE, fetch: fetchImpl, getToken: () => 'held-token' }),
+      createApiClient({
+        baseUrl: BASE,
+        fetch: checkedFetch(fetchImpl),
+        getToken: () => 'held-token',
+      }),
     );
 
     await auth.requestPasswordReset('owner@lumen.am', 'hy');

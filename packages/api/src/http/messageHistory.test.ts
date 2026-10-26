@@ -3,7 +3,7 @@ import { createAuthSession } from '../auth/session';
 import { createMemoryTokenStorage } from '../auth/storage';
 import { ForbiddenError, ValidationError } from '../errors';
 import { createConsoleHttpGateway, createMemoryIdentityStore } from './consoleHttpGateway';
-import { fakeBackend, problemReply, type FakeRoute } from './fakeBackend.testkit';
+import { fakeBackend, offSchema, problemReply, type FakeRoute } from './fakeBackend.testkit';
 import { conversationOutcome } from './messageHistoryMapping';
 
 /**
@@ -108,29 +108,32 @@ describe('the history list', () => {
 
   it('reads a row, its outcome and its cursor, and a thin row as empty', async () => {
     const { gateway } = gatewayOver({
-      'GET /api/branches/b-1/conversations/history': {
-        body: {
-          items: [
-            ROW,
-            {
-              conversationId: 'c-2',
-              subject: {
-                kind: 'takeaway',
-                id: 'ord-2',
-                label: 'T-485',
-                itemCount: 3,
-                totalAmd: 5400,
+      'GET /api/branches/b-1/conversations/history': offSchema(
+        {
+          body: {
+            items: [
+              ROW,
+              {
+                conversationId: 'c-2',
+                subject: {
+                  kind: 'takeaway',
+                  id: 'ord-2',
+                  label: 'T-485',
+                  itemCount: 3,
+                  totalAmd: 5400,
+                },
+                lastAtUtc: '2026-10-24T14:30:00Z',
               },
-              lastAtUtc: '2026-10-24T14:30:00Z',
-            },
-            // No subject id: nothing to open, so nothing to list.
-            { conversationId: 'c-3', subject: { kind: 'reservation' } },
-          ],
-          nextCursor: 'next-1',
-          from: '2026-10-18',
-          to: '2026-10-24',
+              // No subject id: nothing to open, so nothing to list.
+              { conversationId: 'c-3', subject: { kind: 'reservation' } },
+            ],
+            nextCursor: 'next-1',
+            from: '2026-10-18',
+            to: '2026-10-24',
+          },
         },
-      },
+        'rows c-2 and c-3 are thinner than the schema allows: the reader must survive them',
+      ),
     });
     const page = await gateway.listMessageHistory('b-1', FILTERS);
     expect(page.nextCursor).toBe('next-1');
@@ -175,7 +178,10 @@ describe('the history list', () => {
 
   it('keeps the range asked for when the answer leaves it out, and the last page has no cursor', async () => {
     const { gateway } = gatewayOver({
-      'GET /api/branches/b-1/conversations/history': { body: {} },
+      'GET /api/branches/b-1/conversations/history': offSchema(
+        { body: {} },
+        'an answer with nothing in it: the gateway keeps the range it asked for',
+      ),
     });
     expect(await gateway.listMessageHistory('b-1', FILTERS)).toEqual({
       items: [],
@@ -258,6 +264,8 @@ describe('the thread beside it', () => {
     subject: {
       kind: 'reservation',
       id: 'res-1',
+      venueName: 'Lumen Coffee',
+      branchId: 'b-1',
       tableLabel: '6',
       localTime: '19:30',
       outcome: 'came',
@@ -281,13 +289,27 @@ describe('the thread beside it', () => {
       },
     ],
     guestName: 'Անի Մարտիրոսյան',
+    guestPhone: '+37494555666',
+    guestsCanWrite: false,
+    canWrite: false,
+    pendingAsk: false,
+    unreadCount: 0,
   };
 
   it('reads the floor’s own route with a GET, and posts nothing', async () => {
     const { gateway, backend } = gatewayOver({
       'GET /api/reservations/res-1/conversation': { body: THREAD },
       'GET /api/takeaway-orders/ord-2/conversation': {
-        body: { ...THREAD, subject: { kind: 'takeaway', id: 'ord-2', takeawayCode: 'T-485' } },
+        body: {
+          ...THREAD,
+          subject: {
+            kind: 'takeaway',
+            id: 'ord-2',
+            venueName: 'Lumen Coffee',
+            branchId: 'b-1',
+            takeawayCode: 'T-485',
+          },
+        },
       },
     });
     const thread = await gateway.getStaffConversation({ kind: 'reservation', id: 'res-1' });

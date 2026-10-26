@@ -27,7 +27,7 @@ const TOKEN = 'tok_abc-123';
 const RESERVATION = '6f1d0a2e-0000-4000-8000-0000000000c1';
 const TABLE = '0b5f3c1e-0000-4000-8000-0000000000d7';
 
-const VIEW = {
+const VIEW: WirePublicBooking = {
   code: 'Y3107',
   status: 2,
   venueName: 'Lumen Coffee',
@@ -46,7 +46,11 @@ const VIEW = {
   cancellationDeadlineUtc: '2026-10-24T13:45:00Z',
   cancelledAfterDeadline: false,
   canCancel: true,
-} as unknown as WirePublicBooking;
+  canChange: true,
+  awaitsEarlierGuestAnswer: false,
+  phoneUnverified: false,
+  onYourWayAsked: false,
+};
 
 const CHANGE = {
   token: TOKEN,

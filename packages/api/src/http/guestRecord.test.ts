@@ -38,6 +38,12 @@ const RECORD = {
   lateCancellations: 0,
   isNewGuest: false,
 } as unknown as Schemas['Yalla.Application.Reservations.GuestRecord'];
+/** The record as today's server writes it, for the stubbed routes. */
+const WIRE_RECORD: Schemas['Yalla.Application.Reservations.GuestRecord'] = {
+  ...RECORD,
+  unmarked: 0,
+  takeawayNoShows: 0,
+};
 // A server before takeaway in the record (2026-10-23) says none: 0.
 const RECORD_READ = { ...RECORD, unmarked: 0, takeawayNoShows: 0, blockedUntilUtc: null };
 
@@ -145,12 +151,12 @@ describe('the guest record on the wire', () => {
     const gateway = consoleOver({
       [`GET /api/branches/${BRANCH}/reservations`]: {
         body: [
-          { ...VIEW, guestRecord: RECORD },
+          { ...VIEW, guestRecord: WIRE_RECORD },
           { ...VIEW, id: 'r-2' },
         ],
       },
       [`POST /api/reservations/${VIEW.id}/reject`]: {
-        body: { ...VIEW, status: 7, cancelledBecause: 1, guestRecord: RECORD },
+        body: { ...VIEW, status: 7, cancelledBecause: 1, guestRecord: WIRE_RECORD },
       },
     });
 
@@ -170,7 +176,7 @@ describe('the guest record on the wire', () => {
       [`GET /api/branches/${BRANCH}/reservations/awaiting`]: {
         body: [
           {
-            reservation: { ...VIEW, guestRecord: RECORD },
+            reservation: { ...VIEW, guestRecord: WIRE_RECORD },
             trigger: 1,
             approvalExpiresAtUtc: null,
           },
@@ -222,7 +228,7 @@ describe('the guest record on the wire', () => {
         body: {
           upcoming: [],
           past: [{ ...VIEW, status: 7, cancelledBecause: 1 }],
-          guestRecord: { ...RECORD, blockedUntilUtc: '2026-10-27T18:00:00Z' },
+          guestRecord: { ...WIRE_RECORD, blockedUntilUtc: '2026-10-27T18:00:00Z' },
         },
       },
     });

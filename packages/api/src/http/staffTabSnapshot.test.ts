@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { components } from '../generated/schema';
-import { fakeBackend } from './fakeBackend.testkit';
+import { fakeBackend, offSchema, type FakeReply } from './fakeBackend.testkit';
 import { createStaffHttpGateway } from './staffHttpGateway';
 
 /**
@@ -84,6 +84,7 @@ const VIEW: StaffView = {
       voidedAtUtc: '2026-10-19T13:00:00Z',
       orderStatus: 4,
       sharedWithCount: 2,
+      orderedAtUtc: '2026-10-19T12:31:00Z',
     },
   ],
   adjustments: [
@@ -106,10 +107,11 @@ const VIEW: StaffView = {
     remainingAmd: 3_136,
   },
   tipsAmd: 0,
+  admission: { status: 2, admittedBecause: 3 },
 } as unknown as StaffView;
 
-async function read() {
-  const backend = fakeBackend({ [`GET /api/tabs/${TAB}/participants`]: { body: VIEW } });
+async function read(reply: FakeReply = { body: VIEW }) {
+  const backend = fakeBackend({ [`GET /api/tabs/${TAB}/participants`]: reply });
   return (await createStaffHttpGateway(backend.client()).getStaffTab(TAB))!;
 }
 
@@ -153,7 +155,13 @@ describe('the tab staff read', () => {
 
   it("puts each line's order time on it, and none when the server sends none", async () => {
     // The Negroni's view is from a server that predates the field.
-    expect((await read()).lines.map((line) => line.placedAtUtc)).toEqual([
+    const [steak, latte, negroni] = VIEW.lines;
+    const older = { ...VIEW, lines: [steak, latte, { ...negroni, orderedAtUtc: undefined }] };
+    const reply = offSchema(
+      { body: older },
+      'orderedAtUtc is required on TabLineView; this proves a line from a server before it was added reads as no time',
+    );
+    expect((await read(reply)).lines.map((line) => line.placedAtUtc)).toEqual([
       '2026-10-19T12:31:00Z',
       '2026-10-19T12:44:00Z',
       null,

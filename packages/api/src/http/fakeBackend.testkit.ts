@@ -1,4 +1,7 @@
 import { createApiClient, type ApiClient, type ApiClientConfig } from '../client';
+import { checkedFetch, isOffSchema, offSchema } from './wireSchema.testkit';
+
+export { offSchema };
 
 /**
  * A backend in a box, for the gateway tests.
@@ -8,6 +11,11 @@ import { createApiClient, type ApiClient, type ApiClientConfig } from '../client
  * the same answer an unmapped route gets from ASP.NET, with no problem body —
  * which is what lets a test prove a gateway is calling a route that does not
  * exist rather than assume it.
+ *
+ * Every exchange goes through `checkedFetch` (`wireSchema.testkit.ts`): the
+ * body the gateway sends and every 2xx answer must match `swagger.json`, or the
+ * test fails. Write a stub whole, as the backend sends it; wrap a deliberately
+ * off-schema one in {@link offSchema} with the reason.
  *
  * Not a test file itself (no `.test.` in the name), so vitest never runs it; it
  * is imported by the ones that are.
@@ -64,7 +72,7 @@ export interface FakeBackend {
 export function fakeBackend(routes: Readonly<Record<string, FakeRoute>>): FakeBackend {
   const requests: FakeRequest[] = [];
 
-  const fetchImpl: typeof globalThis.fetch = async (input, init) => {
+  const answer: typeof globalThis.fetch = async (input, init) => {
     const url = new URL(typeof input === 'string' ? input : input.toString());
     const method = init?.method ?? 'GET';
     const raw = init?.body;
@@ -83,17 +91,19 @@ export function fakeBackend(routes: Readonly<Record<string, FakeRoute>>): FakeBa
 
     const reply = typeof route === 'function' ? await route(request) : route;
     const status = reply.status ?? 200;
-    if (reply.body === undefined) {
-      return new Response(null, { status, headers: { ...reply.headers } });
-    }
-    return new Response(JSON.stringify(reply.body), {
-      status,
-      headers: {
-        'content-type': status >= 400 ? 'application/problem+json' : 'application/json',
-        ...reply.headers,
-      },
-    });
+    const response =
+      reply.body === undefined
+        ? new Response(null, { status, headers: { ...reply.headers } })
+        : new Response(JSON.stringify(reply.body), {
+            status,
+            headers: {
+              'content-type': status >= 400 ? 'application/problem+json' : 'application/json',
+              ...reply.headers,
+            },
+          });
+    return isOffSchema(reply) ? offSchema(response, 'excused by the route') : response;
   };
+  const fetchImpl = checkedFetch(answer);
 
   return {
     requests,

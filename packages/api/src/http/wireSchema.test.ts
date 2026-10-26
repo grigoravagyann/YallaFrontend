@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { fakeBackend } from './fakeBackend.testkit';
 import {
   checkedFetch,
   offSchema,
@@ -148,6 +149,16 @@ describe('the fetch boundary', () => {
     await checkedFetch(async () => json({ code: 'forbidden' }, 403))(URL);
     await checkedFetch(async () => offSchema(json({ old: true }), 'a server from before'))(URL);
     expect(takeViolations()).toEqual([]);
+  });
+
+  it('runs every fakeBackend route through it', async () => {
+    const backend = fakeBackend({
+      'GET /api/branches/b-1/takeaway-settings': { body: { ...SETTINGS, prepMinutes: '25' } },
+    });
+    await backend.client().get('/api/branches/b-1/takeaway-settings');
+    expect(takeViolations()).toEqual([
+      'GET /api/branches/b-1/takeaway-settings (/api/branches/{branchId}/takeaway-settings) 200: $.prepMinutes: expected integer, got string "25"',
+    ]);
   });
 
   it('demands a reason to excuse an answer', () => {
