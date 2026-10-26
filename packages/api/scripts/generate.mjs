@@ -21,8 +21,8 @@
 import { writeFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import openapiTS, { astToString } from 'openapi-typescript';
 import { renderProblemCodes } from './problemCodes.mjs';
+import { renderSchema } from './schema.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const OUTPUT = resolve(HERE, '..', 'src', 'generated', 'schema.ts');
@@ -80,26 +80,7 @@ try {
     }),
   );
 
-  const ast = await openapiTS(document, {
-    additionalProperties: false,
-    // The backend sends dram as integers and timestamps as ISO strings; leaving
-    // these as `string`/`number` keeps the generated types honest.
-    alphabetize: true,
-  });
-
-  const banner = [
-    '/**',
-    ' * GENERATED FILE — do not edit.',
-    ' *',
-    ` * Source: ${url}`,
-    ' * Regenerate with: pnpm api:generate',
-    ' */',
-    '',
-    '/* eslint-disable */',
-    '',
-  ].join('\n');
-
-  writeFileSync(OUTPUT, `${banner}${astToString(ast)}`, 'utf8');
+  writeFileSync(OUTPUT, await renderSchema(document, url), 'utf8');
   console.log(`api:generate — wrote ${OUTPUT}`);
 
   writeFileSync(
