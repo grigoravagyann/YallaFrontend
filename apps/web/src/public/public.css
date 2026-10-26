@@ -1707,8 +1707,8 @@ body:has(.pub)::before {
 }
 
 .pub-note.is-blue {
-  background: var(--console-blue-bg);
-  color: var(--console-blue);
+  background: var(--console-waiting-bg);
+  color: var(--console-waiting);
 }
 
 /* The promise to free the table by the next booking, before Continue. */
@@ -1955,8 +1955,8 @@ body:has(.pub)::before {
 }
 
 .pub-done-mark.is-pending {
-  background: var(--console-blue-bg);
-  color: var(--console-blue);
+  background: var(--console-waiting-bg);
+  color: var(--console-waiting);
 }
 
 .pub-done-mark.is-declined {
@@ -1986,7 +1986,7 @@ body:has(.pub)::before {
 
 .pub-sheet-code.is-pending {
   border-style: dashed;
-  border-color: var(--console-blue);
+  border-color: var(--console-waiting);
 }
 
 .pub-sheet-code-label {
@@ -2055,17 +2055,17 @@ body:has(.pub)::before {
 /* Pending must never look confirmed: waiting is blue (HANDOFF §3). */
 .pub-code.is-pending {
   border-style: dashed;
-  border-color: var(--console-blue);
+  border-color: var(--console-waiting);
 }
 
 /* The minutes the venue has left to answer a booking for tonight. */
 .pub-answer {
   margin: var(--space-sm) 0 0;
   padding: var(--space-sm) var(--space-md);
-  border: 1px dashed var(--console-blue);
+  border: 1px dashed var(--console-waiting);
   border-radius: var(--console-radius-public-control);
-  background: var(--console-blue-bg);
-  color: var(--console-blue);
+  background: var(--console-waiting-bg);
+  color: var(--console-waiting);
   font-weight: var(--font-weight-semibold);
   font-variant-numeric: tabular-nums;
 }
@@ -2822,8 +2822,8 @@ a.pub-branch-card:hover {
 }
 
 .pub-badge.is-pending {
-  background: var(--console-blue-bg);
-  color: var(--console-blue);
+  background: var(--console-waiting-bg);
+  color: var(--console-waiting);
 }
 
 .pub-badge.is-off {
@@ -2879,9 +2879,9 @@ a.pub-branch-card:hover {
 
 /* Waiting for the venue: blue, never green (HANDOFF §3). */
 .pub-notice-wait {
-  border-color: var(--console-blue);
-  background: var(--console-blue-bg);
-  color: var(--console-blue);
+  border-color: var(--console-waiting);
+  background: var(--console-waiting-bg);
+  color: var(--console-waiting);
 }
 
 .pub-notice-wait p {

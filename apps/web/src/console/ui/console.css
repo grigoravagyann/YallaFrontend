@@ -2910,7 +2910,6 @@ body:has(.yc-savebar) .yc-toast-region {
   --color-border: var(--console-button-edge);
   --color-border-soft: var(--console-line);
   --color-border-strong: var(--console-button-edge);
-  --color-border-interactive: var(--console-control);
   --color-primary: var(--console-brand);
   --color-primary-ink: var(--console-brand);
   --color-primary-pressed: var(--console-brand-hover);
@@ -2919,7 +2918,6 @@ body:has(.yc-savebar) .yc-toast-region {
   --color-primary-on-floor-plan-pressed: var(--console-brand-hover);
   --color-primary-foreground: var(--console-brand-foreground);
   --color-green-tint: var(--console-brand-tint);
-  --color-accent-tint: var(--console-hover);
   --color-focus-ring: var(--console-focus);
   --color-danger: var(--console-red);
   --color-danger-pressed: var(--console-red-hover);
@@ -4344,8 +4342,8 @@ body:has(.yc-savebar) .yc-toast-region {
 }
 
 .yc-pill-blue {
-  background: var(--console-blue-bg);
-  color: var(--console-blue);
+  background: var(--console-waiting-bg);
+  color: var(--console-waiting);
 }
 
 /* A number that opens the screen it counts: "see the room". */
@@ -7738,7 +7736,7 @@ body:has(.yc-savebar) .yc-toast-region {
 
 /* A third share: card at the venue's terminal, between cash and in-app. */
 .yc-rp-c {
-  background: var(--console-blue);
+  background: var(--console-waiting);
 }
 
 .yc-rp-sw {

@@ -1,5 +1,7 @@
 # Platform-admin console redesign: handoff
 
+> **Colours:** this handoff predates SHURJ. Where it names a colour ("waiting is blue/amber", a brown or beige), `DESIGN.md` and the tokens (`packages/tokens/src/console.ts`) win: waiting and held are burgundy, and there is no blue.
+
 This folder is everything a fresh session needs to implement the approved
 platform-admin console redesign in `apps/web` (and the backend gaps in the
 `Yalla` repo). The design was approved by the user on 2026-10-18 after two

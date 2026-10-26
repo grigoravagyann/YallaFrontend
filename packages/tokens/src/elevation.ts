@@ -1,4 +1,5 @@
 import { color } from './color';
+import { parseHex } from './contrast';
 
 /**
  * Shadows: soft, diffused and ink-tinted, never pure black.
@@ -22,9 +23,11 @@ import { color } from './color';
  * - `sheet` — `float` mirrored upward, because a bottom sheet rises from the
  *   bottom edge and a downward shadow under it would be invisible.
  */
-// Ink, never the accent. A beige shadow under a white card is a glow, and this
-// system has no glows — an object casts the colour of the text beside it.
-const SHADOW_RGB = '19, 26, 34';
+// The text colour, never the brand: a cherry shadow under a white card is a
+// glow, and this system has no glows — an object casts the colour of the text
+// beside it. Read from the token, so it is the SHURJ charcoal (45, 41, 39), the
+// same ink `consoleShadow` uses, and cannot fall back to an old cool ink.
+const SHADOW_RGB = ((ink) => `${ink.r}, ${ink.g}, ${ink.b}`)(parseHex(color.foreground));
 
 interface NativeShadow {
   readonly shadowColor: string;

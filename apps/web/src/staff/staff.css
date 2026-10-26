@@ -28,9 +28,7 @@
   --color-border: var(--console-line);
   --color-border-soft: var(--console-line-soft);
   --color-border-strong: var(--console-button-edge);
-  --color-border-interactive: var(--console-control);
   --color-green-tint: var(--console-brand-tint);
-  --color-accent-tint: var(--console-brand-tint);
   --color-primary: var(--console-brand);
   --color-primary-pressed: var(--console-brand-hover);
   --color-primary-foreground: var(--console-brand-foreground);
@@ -44,7 +42,6 @@
   --color-warning-ink: var(--console-amber);
   --color-success: var(--console-green);
   --color-success-ink: var(--console-green);
-  --color-info: var(--console-blue);
   --color-focus-ring: var(--console-focus);
   --color-scrim: var(--console-scrim);
   --radius-card: var(--console-radius-card);

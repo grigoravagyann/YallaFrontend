@@ -6,9 +6,8 @@ import { renderTokenCss } from './css';
 /**
  * The platform-admin console's own palette, asserting things about itself.
  *
- * Approved on 2026-10-18 in place of the beige accent for this one area: a
- * cream canvas, a dark-brown sidebar and a brown primary button. The values
- * are the artboards' (`docs/design/console/source/_shell.css`), so what these
+ * Approved on 2026-10-18 and recoloured for SHURJ on 2026-10-22: a white
+ * canvas, a deep cherry sidebar and a Black Cherry primary button. What these
  * tests hold is that the look the user approved is also one a person can read.
  */
 
@@ -32,7 +31,7 @@ describe('console text', () => {
     });
   }
 
-  it('the label on the brown button clears AA at rest, hovered and busy', () => {
+  it('the label on the cherry button clears AA at rest, hovered and busy', () => {
     for (const fill of [consoleColor.brand, consoleColor.brandHover, consoleColor.brandBusy]) {
       expect(ratio(consoleColor.brandForeground, fill)).toBeGreaterThanOrEqual(AA_BODY);
     }
@@ -58,7 +57,7 @@ describe('console text', () => {
       [consoleColor.red, consoleColor.redBg],
       [consoleColor.green, consoleColor.greenBg],
       [consoleColor.grey, consoleColor.greyBg],
-      [consoleColor.blue, consoleColor.blueBg],
+      [consoleColor.waiting, consoleColor.waitingBg],
     ] as const;
     for (const [text, tint] of pairs) {
       expect(ratio(text, tint)).toBeGreaterThanOrEqual(AA_BODY);
@@ -365,7 +364,7 @@ describe('the floor tablet', () => {
 
   it('keeps the order, tab and cash words readable where they sit', () => {
     // Change to hand back, on the cash summary; a tile's "sold out" badge; the
-    // bill request's words on its blue; the button text on the green "Take cash".
+    // bill request's words on its white card; the button text on the green "Take cash".
     expect(ratio(consoleColor.green, consoleColor.surface)).toBeGreaterThanOrEqual(AA_BODY);
     expect(ratio(consoleColor.red, consoleColor.redBg)).toBeGreaterThanOrEqual(AA_BODY);
     expect(ratio(consoleColor.ink, consoleColor.floorHeld)).toBeGreaterThanOrEqual(AA_BODY);
@@ -374,10 +373,16 @@ describe('the floor tablet', () => {
     expect(ratio(consoleColor.muted, consoleColor.canvas)).toBeGreaterThanOrEqual(AA_BODY);
   });
 
-  it('keeps red for failures: waiting is amber, and no table state is red but occupied', () => {
+  it('keeps red for failures: booked is amber, held burgundy, and no table state is red but occupied', () => {
     expect(consoleColor.floorBookedInk).not.toBe(consoleColor.red);
     expect(consoleColor.floorHeldInk).not.toBe(consoleColor.red);
     expect(consoleColor.floorOffline).not.toBe(consoleColor.floorFailure);
+  });
+
+  it('draws waiting in the logo burgundy, never blue and never red', () => {
+    expect(consoleColor.waiting).toBe(consoleColor.control);
+    expect(consoleColor.waiting).not.toBe(consoleColor.red);
+    expect(consoleColor.waitingBg).toBe(consoleColor.brandTint);
   });
 });
 

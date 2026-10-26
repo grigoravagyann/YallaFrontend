@@ -1,5 +1,7 @@
 # Venue console redesign: handoff
 
+> **Colours:** this handoff predates SHURJ. Where it names a colour ("waiting is blue/amber", a brown or beige), `DESIGN.md` and the tokens (`packages/tokens/src/console.ts`) win: waiting and held are burgundy, and there is no blue.
+
 Everything a fresh session needs to implement the approved venue console
 redesign (owner, general manager, branch manager) in `apps/web`, plus the
 backend gaps in the `Yalla` repo. The design was approved by the user on
