@@ -1,4 +1,8 @@
-import { OrderGuestUnavailableError, type OrderGuestState } from '../../contracts/errors';
+import {
+  OrderGuestUnavailableError,
+  OrderNotVoidableError,
+  type OrderGuestState,
+} from '../../contracts/errors';
 import type { Menu } from '../../contracts/menu';
 import type {
   OrderQueueEntry,
@@ -179,6 +183,20 @@ export function ordersMethods(
         } satisfies Schemas['Yalla.Api.Endpoints.MoveOrderStatusRequest']);
         return orderQueueEntry(data);
       } catch (error) {
+        // An order the rail no longer lets go — voided already, or gone on to
+        // ready or served — is a 409 `conflicting-state` about the order, not
+        // a table race, so a void names it.
+        if (
+          command.status === 'voided' &&
+          error instanceof ApiError &&
+          error.code === ProblemCodes.ConflictingState
+        ) {
+          throw new OrderNotVoidableError({
+            url: error.url,
+            orderId: command.orderId,
+            requestId: error.requestId,
+          });
+        }
         // Voiding a whole order voids its lines (2026-10-25), so a tab paid
         // against refuses it as it refuses one line: `line-already-paid`, a
         // 409 that is not a race. Anything else is as it was.

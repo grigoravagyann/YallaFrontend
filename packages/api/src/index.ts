@@ -768,6 +768,7 @@ export {
   LineAlreadyPaidError,
   MenuItemUnavailableError,
   OrderGuestUnavailableError,
+  OrderNotVoidableError,
   PaymentExceedsRemainingError,
   PinLockedError,
   PinRejectedError,
@@ -862,6 +863,7 @@ export type {
   TabMoney,
   TabShares,
   VoidLineCommand,
+  VoidOrderCommand,
   VoidReason,
 } from './contracts/ordering';
 

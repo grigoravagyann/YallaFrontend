@@ -1,4 +1,4 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { type QueryClient, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { StaffFloor } from '../contracts/service';
 import type {
   AbandonTabCommand,
@@ -8,6 +8,7 @@ import type {
   RecordCashPaymentCommand,
   StaffTab,
   VoidLineCommand,
+  VoidOrderCommand,
 } from '../contracts/ordering';
 import type { Menu } from '../contracts/menu';
 import {
@@ -247,6 +248,37 @@ export function useVoidLine() {
       void queryClient.invalidateQueries({ queryKey: queryKeys.tabLines(command.tabId) });
       void queryClient.invalidateQueries({ queryKey: queryKeys.staffTab(command.tabId) });
     },
+  });
+}
+
+/**
+ * What a whole-order void reads again: the lines, the totals (two queries, as
+ * for a line's void) and the kitchen queue the order has left. Also after a
+ * refusal — the bill was paid, or the order moved on — because either means
+ * the tab on screen is out of date.
+ */
+export function afterOrderVoid(
+  queryClient: QueryClient,
+  command: Pick<VoidOrderCommand, 'branchId' | 'tabId'>,
+): void {
+  void queryClient.invalidateQueries({ queryKey: queryKeys.tabLines(command.tabId) });
+  void queryClient.invalidateQueries({ queryKey: queryKeys.staffTab(command.tabId) });
+  void queryClient.invalidateQueries({ queryKey: queryKeys.orderQueue(command.branchId) });
+}
+
+/**
+ * Void a whole order on a tab (the server voids its lines with it). Nothing
+ * optimistic, as a line's void: the tab is read again once the server answers.
+ * Never retried, and never queued offline: it changes what is owed.
+ */
+export function useVoidOrder() {
+  const gateway = useStaffGateway();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ orderId, clientCommandId }: VoidOrderCommand) =>
+      gateway.setOrderStatus({ orderId, status: 'voided', clientCommandId }),
+    retry: false,
+    onSettled: (_order, _error, command) => afterOrderVoid(queryClient, command),
   });
 }
 
