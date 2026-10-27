@@ -305,6 +305,45 @@
   font-variant-numeric: tabular-nums;
 }
 
+/* A feature the platform has not enabled at the branch: locked, not hidden. */
+.yc-nlock {
+  width: 14px;
+  height: 14px;
+  margin-left: auto;
+  opacity: 0.75;
+}
+
+/* The lock and its two lines, in a card or above a page (2026-10-27). */
+.yc-lock {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-sm);
+  margin: 0 0 var(--space-md);
+  padding: var(--space-md);
+  border: 1px solid var(--console-grey-line);
+  border-radius: var(--console-radius-control);
+  background: var(--console-grey-bg);
+  color: var(--console-ink);
+  font-size: var(--console-text-label);
+}
+
+.yc-lock .yc-i {
+  width: 16px;
+  height: 16px;
+  flex: none;
+  margin-top: 2px;
+  color: var(--console-grey);
+}
+
+/* A locked card's controls: shown as they stand, none of them usable. */
+.yc-lockset {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  opacity: 0.6;
+}
+
 /* The venue, the signed-in role and the branch, under the brand. */
 .yc-place {
   display: flex;
@@ -1648,44 +1687,173 @@ body:has(.yc-savebar) .yc-toast-region {
   margin-top: 2px;
 }
 
-.yc-tier {
+/* A set of features in a word, leading to where it is changed (2026-10-27). */
+.yc-featl {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  height: 28px;
+  min-height: 28px;
   padding: 0 10px;
   border: 1px solid var(--console-button-edge);
   border-radius: var(--console-radius-small);
   background: var(--console-surface);
   color: var(--console-ink);
-  font: inherit;
   font-size: var(--console-text-label);
   font-weight: var(--font-weight-semibold);
+  text-decoration: none;
   white-space: nowrap;
-  cursor: pointer;
 }
 
-.yc-tier:hover {
+.yc-featl:hover {
   border-color: var(--console-button-edge-hover);
   background: var(--console-hover);
 }
 
-.yc-tier.is-paid {
+.yc-featl.is-full {
   color: var(--console-brand);
 }
 
-.yc-tier.is-free {
-  color: var(--console-grey);
-}
-
-.yc-tier .yc-i {
+.yc-featl .yc-i {
   width: 14px;
   height: 14px;
   color: var(--console-muted);
 }
 
-.yc-tier-text {
+.yc-featl-text {
   color: var(--console-muted);
+}
+
+/* A branch's Features page: four groups of switches, the presets, the actions. */
+.yc-feat {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-lg);
+}
+
+.yc-feat-pre {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-sm);
+}
+
+.yc-feat-prel {
+  color: var(--console-muted);
+  font-size: var(--console-text-label);
+  font-weight: var(--font-weight-semibold);
+}
+
+.yc-feat-pre .yc-btn[aria-pressed='true'] {
+  border-color: var(--console-brand);
+  background: var(--console-brand-tint);
+  color: var(--console-brand);
+}
+
+.yc-feat-preh {
+  color: var(--console-muted);
+  font-size: var(--console-text-caption);
+}
+
+.yc-feat-gs {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr));
+  gap: var(--space-lg);
+}
+
+.yc-feat-g {
+  min-width: 0;
+  margin: 0;
+  padding: var(--space-md);
+  border: 1px solid var(--console-line);
+  border-radius: var(--console-radius-control);
+}
+
+.yc-feat-gl {
+  padding: 0 var(--space-xs);
+  font-size: var(--console-text-label);
+  font-weight: var(--font-weight-bold);
+}
+
+.yc-feat-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-md);
+  min-height: 44px;
+  padding: var(--space-sm) 0;
+}
+
+.yc-feat-row + .yc-feat-row {
+  border-top: 1px solid var(--console-line-soft);
+}
+
+.yc-feat-t {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.yc-feat-n {
+  font-weight: var(--font-weight-semibold);
+}
+
+.yc-feat-h {
+  color: var(--console-muted);
+  font-size: var(--console-text-caption);
+}
+
+.yc-feat-w {
+  display: inline-flex;
+  align-items: flex-start;
+  gap: 6px;
+  color: var(--console-amber);
+  font-size: var(--console-text-caption);
+  font-weight: var(--font-weight-semibold);
+}
+
+.yc-feat-w .yc-i {
+  width: 14px;
+  height: 14px;
+  flex: none;
+  margin-top: 2px;
+}
+
+.yc-feat-row .yc-swl {
+  min-height: 44px;
+}
+
+.yc-feat-acts {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-sm);
+}
+
+/* "Apply to all branches": the branches that change, before anything is sent. */
+.yc-feat-chg {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+  margin: 0 0 var(--space-md);
+  padding: 0;
+  list-style: none;
+}
+
+.yc-feat-chg li {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: var(--space-sm);
+}
+
+.yc-feat-chg span {
+  color: var(--console-muted);
+}
+
+.yc-sw:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
 }
 
 .yc-dot {

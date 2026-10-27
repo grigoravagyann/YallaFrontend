@@ -1,7 +1,7 @@
 import {
   ApiError,
   describeFailure,
-  venueTierSummary,
+  venueFeatures,
   type ConsoleVenue,
   type StaffSignInLink,
 } from '@yalla/api';
@@ -18,10 +18,12 @@ import { useResumeVenue, useSuspendVenue } from '../../data/queries';
 import { newCommandId } from '../../lib/commandId';
 import { Dialog } from '../ui/Dialog';
 import { ErrorState, errorKindFor } from '../ui/ErrorState';
+import { useFeatureText } from '../ui/featureText';
 import {
   AlertCircleIcon,
-  ChevronsUpDownIcon,
+  ChevronRightIcon,
   PauseIcon,
+  PolicyIcon,
   PlusIcon,
   RestoreIcon,
   SearchIcon,
@@ -34,12 +36,11 @@ import { issueFailureText } from '../venue/staff/signInIssue';
 import { CreateVenueDialog, type CreatedVenue } from './venues/CreateVenueDialog';
 import { DeleteVenueDialog } from './venues/DeleteVenueDialog';
 import { RowMenu, type RowMenuItem } from '../ui/RowMenu';
-import { TierDialog } from './venues/TierDialog';
 import { VenueThumb } from './venues/VenueThumb';
 import {
   DEFAULT_FILTERS,
+  FEATURE_FILTERS,
   STATUS_FILTERS,
-  TIER_FILTERS,
   filterVenues,
   issueText,
   isFiltered,
@@ -47,8 +48,8 @@ import {
   sortVenues,
   type SortDirection,
   type SortKey,
+  type FeatureFilter,
   type StatusFilter,
-  type TierFilter,
   type VenueListFilters,
 } from './venues/venueList';
 
@@ -72,12 +73,24 @@ const STATUS_LABEL: Readonly<Record<StatusFilter, string>> = {
   all: 'venues.filter.statusAll',
 };
 
-const TIER_LABEL: Readonly<Record<TierFilter, string>> = {
-  all: 'venues.filter.tierAll',
-  paid: 'venues.filter.tierPaid',
-  free: 'venues.filter.tierFree',
-  mixed: 'venues.filter.tierMixed',
+const FEATURE_LABEL: Readonly<Record<FeatureFilter, string>> = {
+  all: 'venues.filter.featuresAll',
+  full: 'features.preset.full',
+  basic: 'features.preset.basic',
+  custom: 'features.preset.custom',
+  mixed: 'features.preset.mixed',
 };
+
+/**
+ * Where a venue's features are changed: its one branch's Features page, or
+ * the venue page, whose branch list leads to each branch's.
+ */
+function featuresPath(venue: ConsoleVenue): string {
+  const only = venue.branchFeatures?.length === 1 ? venue.branchFeatures[0] : undefined;
+  return only
+    ? `/platform/venues/${venue.id}/branches/${only.id}/features`
+    : `/platform/venues/${venue.id}`;
+}
 
 const PILL: Readonly<Record<ConsoleVenue['status'], string>> = {
   active: 'yc-pill yc-pill-green',
@@ -87,7 +100,6 @@ const PILL: Readonly<Record<ConsoleVenue['status'], string>> = {
 };
 
 type Shown =
-  | { readonly kind: 'tier'; readonly venue: ConsoleVenue; readonly from: 'button' | 'menu' }
   | { readonly kind: 'delete'; readonly venue: ConsoleVenue }
   | { readonly kind: 'create' }
   | { readonly kind: 'once'; readonly created: Exclude<CreatedVenue, { kind: 'plain' }> };
@@ -95,13 +107,14 @@ type Shown =
 /**
  * Every venue on the platform (Venues artboard; HANDOFF section 8 step 2).
  *
- * - **Search, status and plan filters, sortable columns**, all in place over
+ * - **Search, status and feature filters, sortable columns**, all in place over
  *   the whole platform read once. Deleted venues are hidden by default and
  *   counted in the header, so "where did it go" has an answer on screen.
- * - **The plan column** summarises the branches' plans — the tier is per
- *   branch — and its button switches all of them, with a confirm that says
- *   what changes and the server's refusal named by branch.
- * - **The ⋮ menu** (arrow keys, Escape) has the plan, suspend or resume, and
+ * - **The features column** says in a word what the platform allows the
+ *   venue's branches — Full, Basic, one other set, or Mixed — and leads to
+ *   where it is changed: the branch's Features page (2026-10-27, in place of
+ *   the Free/Paid plan).
+ * - **The ⋮ menu** (arrow keys, Escape) has features, suspend or resume, and
  *   delete; a deleted venue's has restore.
  * - **Suspend and delete undo** from their toast. Delete is soft, typed by
  *   name, and refused while the venue is in use, with suspend offered instead.
@@ -150,8 +163,6 @@ export function VenuesRoute() {
     (venueId: string) => document.querySelector<HTMLElement>(`[data-kebab="${venueId}"]`),
     [],
   );
-  const tierButtonOf = (venueId: string) =>
-    document.querySelector<HTMLElement>(`[data-tier="${venueId}"]`);
   const all = useMemo(() => query.data ?? [], [query.data]);
   const visible = useMemo(
     () => sortVenues(filterVenues(all, filters, locale), sort.key, sort.direction, locale),
@@ -249,20 +260,13 @@ export function VenuesRoute() {
         },
       ];
     }
-    const summary = venueTierSummary(venue);
     const items: RowMenuItem[] = [];
-    if (summary.kind !== 'none') {
+    if (venueFeatures(venue).kind !== 'none') {
       items.push({
-        key: 'tier',
-        label: t(
-          summary.kind === 'paid'
-            ? 'venues.menu.toFree'
-            : summary.kind === 'free'
-              ? 'venues.menu.toPaid'
-              : 'venues.menu.changeTier',
-        ),
-        icon: <ChevronsUpDownIcon />,
-        onSelect: () => setShown({ kind: 'tier', venue, from: 'menu' }),
+        key: 'features',
+        label: t('venues.menu.features'),
+        icon: <PolicyIcon />,
+        onSelect: () => navigate(featuresPath(venue)),
       });
     }
     // Reactivating only lifts a suspension: a switched-off venue gets neither.
@@ -426,7 +430,7 @@ export function VenuesRoute() {
                 {showCuisine ? <th scope="col">{t('venues.column.cuisine')}</th> : null}
                 {showRating ? header('rating', t('venues.column.rating'), true) : null}
                 {header('tables', t('venues.column.tables'), true)}
-                <th scope="col">{t('venues.column.tier')}</th>
+                <th scope="col">{t('venues.column.features')}</th>
                 <th scope="col">{t('venues.column.status')}</th>
                 <th scope="col">
                   <span className="yc-sr">{t('venues.column.actions')}</span>
@@ -444,7 +448,6 @@ export function VenuesRoute() {
                   menuOpen={menuFor === venue.id}
                   onMenu={(open) => setMenuFor(open ? venue.id : null)}
                   menuItems={menuItems(venue)}
-                  onTier={() => setShown({ kind: 'tier', venue, from: 'button' })}
                 />
               ))}
             </tbody>
@@ -506,16 +509,16 @@ export function VenuesRoute() {
           </select>
         </div>
         <div className="yc-fld">
-          <label htmlFor="venues-tier">{t('venues.filter.tier')}</label>
+          <label htmlFor="venues-features">{t('venues.filter.features')}</label>
           <select
-            id="venues-tier"
+            id="venues-features"
             className="yc-ctl"
-            value={filters.tier}
-            onChange={(event) => setFilter('tier', event.target.value as TierFilter)}
+            value={filters.features}
+            onChange={(event) => setFilter('features', event.target.value as FeatureFilter)}
           >
-            {TIER_FILTERS.map((value) => (
+            {FEATURE_FILTERS.map((value) => (
               <option key={value} value={value}>
-                {t(TIER_LABEL[value])}
+                {t(FEATURE_LABEL[value])}
               </option>
             ))}
           </select>
@@ -532,20 +535,6 @@ export function VenuesRoute() {
       <section className="yc-card" aria-label={t('venues.list')}>
         {body}
       </section>
-
-      {shown?.kind === 'tier' ? (
-        <TierDialog
-          venue={shown.venue}
-          onClose={() => setShown(null)}
-          onDone={(message) => {
-            setShown(null);
-            toast.say(message);
-          }}
-          returnFocusTo={() =>
-            shown.from === 'button' ? tierButtonOf(shown.venue.id) : kebabOf(shown.venue.id)
-          }
-        />
-      ) : null}
 
       {shown?.kind === 'delete' ? (
         <DeleteVenueDialog
@@ -710,7 +699,6 @@ interface VenueRowProps {
   readonly menuOpen: boolean;
   readonly onMenu: (open: boolean) => void;
   readonly menuItems: readonly RowMenuItem[];
-  readonly onTier: () => void;
 }
 
 /** One decimal, in the reader's own numerals: "4.7", "4,7". */
@@ -727,19 +715,12 @@ function VenueRow({
   menuOpen,
   onMenu,
   menuItems,
-  onTier,
 }: VenueRowProps) {
   const { t } = useTranslation(['admin', 'common']);
+  const featureText = useFeatureText();
   const deleted = venue.status === 'deleted';
-  const summary = venueTierSummary(venue);
-  const tierLabel =
-    summary.kind === 'mixed'
-      ? t('venues.tierSummary.mixed', { paid: summary.paid, total: summary.total })
-      : summary.kind === 'none'
-        ? t('venues.tierSummary.none')
-        : summary.kind === 'paid'
-          ? t('tier.paid')
-          : t('tier.free');
+  const summary = venueFeatures(venue);
+  const featuresLabel = featureText.summary(summary);
   const typeLabel =
     venue.type === 'cafe'
       ? t('create.typeCafe')
@@ -796,18 +777,18 @@ function VenueRow({
       <td className="yc-num">{venue.tableCount}</td>
       <td>
         {deleted || summary.kind === 'none' ? (
-          <span className="yc-tier-text">{tierLabel}</span>
+          <span className="yc-featl-text">{featuresLabel}</span>
         ) : (
-          <button
-            type="button"
-            className={`yc-tier is-${summary.kind}`}
-            data-tier={venue.id}
-            aria-label={t('venues.tierButton', { tier: tierLabel })}
-            onClick={onTier}
+          <Link
+            className={`yc-featl is-${summary.kind}`}
+            to={featuresPath(venue)}
+            data-features={venue.id}
+            title={summary.features ? featureText.list(summary.features) : undefined}
+            aria-label={t('venues.featuresLink', { features: featuresLabel, venue: venue.name })}
           >
-            {tierLabel}
-            <ChevronsUpDownIcon />
-          </button>
+            {featuresLabel}
+            <ChevronRightIcon />
+          </Link>
         )}
       </td>
       <td>

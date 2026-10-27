@@ -51,6 +51,9 @@ vi.mock('@yalla/api/react', async (importOriginal) => ({
   ...(await importOriginal<typeof ApiReactModule>()),
   useGateway: () => current.gateway,
 }));
+// The place, for whether it takes reviews ("Rate your visit"); unknown by default.
+const placeHeld = vi.hoisted(() => ({ place: undefined as unknown }));
+vi.mock('../places/hooks', () => ({ usePlace: () => ({ data: placeHeld.place }) }));
 vi.mock('../lib/haptics', () => ({
   haptics: { select: vi.fn(), success: vi.fn(), tap: vi.fn() },
 }));
@@ -160,6 +163,7 @@ function row(text: string) {
 afterEach(() => {
   cleanup();
   vi.clearAllMocks();
+  placeHeld.place = undefined;
 });
 
 describe('the paid receipt', () => {
@@ -201,5 +205,19 @@ describe('the paid receipt', () => {
 
     expect(await screen.findByText(row('1 × Khorovats · 19:08'))).toBeDefined();
     expect(screen.queryByText(/Cake/)).toBeNull();
+  });
+});
+
+describe('rating the visit', () => {
+  it('asks for stars where the place takes reviews, or is not read yet', async () => {
+    renderReceipt(closedTab([line('l1')]));
+    expect(await screen.findByText('tab.paid.rate')).toBeDefined();
+  });
+
+  it('does not where the place has reviews off', async () => {
+    placeHeld.place = { features: ['appBookings', 'tableService'] };
+    renderReceipt(closedTab([line('l1')]));
+    await screen.findByText(row('1 × Khorovats · 19:08'));
+    expect(screen.queryByText('tab.paid.rate')).toBeNull();
   });
 });

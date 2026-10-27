@@ -488,16 +488,38 @@ export type {
   ManagedVenue,
   Page,
   StaffRole,
-  SubscriptionTier,
   UpdateVenueCommand,
   UserRole,
   UserScope,
   VenueBookingsSummary,
-  VenueBranchTier,
+  VenueBranchFeatures,
   VenueReadinessIssue,
   VenueStatus,
 } from './contracts/console';
-export { BOOKING_SUMMARY_DAYS, SUBSCRIPTION_TIERS, USER_ROLES } from './contracts/console';
+export { BOOKING_SUMMARY_DAYS, USER_ROLES } from './contracts/console';
+export type {
+  BranchFeature,
+  BranchFeaturePreset,
+  VenueFeatureSummary,
+} from './contracts/branchFeatures';
+export {
+  BASIC_FEATURES,
+  BRANCH_FEATURES,
+  FULL_FEATURES,
+  PRE_ORDER_NEEDS,
+  featurePreset,
+  hasFeature,
+  preOrdersWithoutBookings,
+  sameFeatures,
+  sortFeatures,
+  venueFeatureSummary,
+} from './contracts/branchFeatures';
+export {
+  FEATURE_NOT_ENABLED_CODE,
+  FeatureNotEnabledError,
+  blockedFeature,
+  isFeatureNotEnabled,
+} from './contracts/errors';
 export type {
   ChangePlatformPasswordCommand,
   DailyBookings,
@@ -514,24 +536,10 @@ export type {
   RecentVenue,
   VenueCount,
   VenueCounter,
-  VenueTierMix,
 } from './contracts/platformHome';
 export { PLATFORM_NAME_MAX_LENGTH, PLATFORM_PASSWORD_MIN_LENGTH } from './contracts/platformHome';
 export type { OtherSessionsEnded, VenueSession, VenueStaffProfile } from './contracts/venueAccount';
-export {
-  applyVenueTier,
-  checkVenueTier,
-  listAllConsoleVenues,
-  openTabsRefusal,
-  venueTierSummary,
-} from './platformVenues';
-export type {
-  VenueTierBlocker,
-  VenueTierCheck,
-  VenueTierRefusal,
-  VenueTierResult,
-  VenueTierSummary,
-} from './platformVenues';
+export { listAllConsoleVenues, venueFeatures } from './platformVenues';
 export type { BranchPublicProfile, BranchPublicProfileInput } from './contracts/publicProfile';
 export type { AmenityKey, VenueListing, VenueListingInput } from './contracts/listing';
 export { AMENITY_KEYS, MAX_DISTRICT_LENGTH, MAX_GALLERY_PHOTOS } from './contracts/listing';

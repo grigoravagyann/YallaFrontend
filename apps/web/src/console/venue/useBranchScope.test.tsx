@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import type { ManagedBranch } from '@yalla/api';
+import { BASIC_FEATURES, type ManagedBranch } from '@yalla/api';
 import { act, cleanup, renderHook } from '@testing-library/react';
 import { afterEach, describe, expect, it } from 'vitest';
 import { useBranchScope } from './useBranchScope';
@@ -23,7 +23,7 @@ function branch(id: string, name: string, isActive = true): ManagedBranch {
     slug: id,
     timeZoneId: 'Asia/Yerevan',
     tableCount: 0,
-    subscriptionTier: 'free',
+    features: BASIC_FEATURES,
     openTabCount: null,
     isActive,
   };

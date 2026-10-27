@@ -1,4 +1,5 @@
 import {
+  isFeatureNotEnabled,
   KitchenPhoneNotAllowedError,
   PairingCodeExpiredError,
   PairingCodeInvalidError,
@@ -47,13 +48,15 @@ export interface PairPhoneScreenProps {
 type Step = 'intro' | 'scan' | 'code' | 'checking' | 'preview' | 'pin' | 'done' | 'install';
 
 /** Why a code did not get as far as the PIN, or the PIN as far as a phone. */
-type Failure = 'invalid' | 'expired' | 'unusable' | 'kitchen' | 'offline' | 'failed';
+type Failure = 'invalid' | 'expired' | 'unusable' | 'kitchen' | 'phoneOff' | 'offline' | 'failed';
 
 function failureOf(error: unknown): Failure {
   if (error instanceof PairingCodeExpiredError) return 'expired';
   if (error instanceof PairingCodeInvalidError) return 'invalid';
   if (error instanceof PairingCodeUnusableError) return 'unusable';
   if (error instanceof KitchenPhoneNotAllowedError) return 'kitchen';
+  // Staff phones are switched off at the branch (2026-10-27): a new code will not help.
+  if (isFeatureNotEnabled(error)) return 'phoneOff';
   return describeFailure(error) === 'offline' ? 'offline' : 'failed';
 }
 

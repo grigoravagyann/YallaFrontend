@@ -21,12 +21,15 @@ import { TakeawayRailSection } from '../takeaway/TakeawayAccept';
 import type { FloorRailShared } from './FloorPhone';
 import type { Selection } from './useFloorCommands';
 import type { useFloorScreens } from './useFloorScreens';
+import type { FloorFeatures } from './floorFeatures';
 
 type OrderQueuePanelProps = ComponentProps<typeof OrderQueuePanel>;
 
 export interface FloorTabletProps {
   readonly screens: ReturnType<typeof useFloorScreens>;
   readonly identity: StaffSessionIdentity;
+  /** What the platform allows here: a view it has not is not offered. */
+  readonly features: FloorFeatures;
   readonly branchId: string;
   readonly timeZoneId: string;
   readonly place: string;
@@ -80,6 +83,7 @@ export interface FloorTabletProps {
 export function FloorTablet({
   screens,
   identity,
+  features,
   branchId,
   timeZoneId,
   place,
@@ -121,7 +125,9 @@ export function FloorTablet({
   takeawayCounterNode,
 }: FloorTabletProps) {
   const { t } = useTranslation(['staff', 'admin', 'common']);
-  const { view, setView, navigate, onMessagesPath } = screens;
+  const { view: asked, setView, navigate, onMessagesPath } = screens;
+  // A view the platform has switched off since (or a link into one) is the floor.
+  const view = asked === 'takeaway' && !features.takeaway && !takeawayInUse ? 'floor' : asked;
 
   return (
     <div className="floor" data-surface="staff">
@@ -219,7 +225,7 @@ export function FloorTablet({
           {...rail}
           messagesFirst={messagesFirst}
           takeaway={
-            branchId ? (
+            branchId && (features.takeaway || takeawayInUse) ? (
               <TakeawayRailSection
                 branchId={branchId}
                 orders={takeawayToAnswer}

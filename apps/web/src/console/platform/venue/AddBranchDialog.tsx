@@ -28,7 +28,7 @@ export interface AddBranchDialogProps {
 /**
  * Another branch for a venue (VenueDetail artboard): the same fields as a
  * venue's first branch, for the same reasons — an Armenian name gives no web
- * address, and a blank pin would land at 0,0. It starts on Free with an empty
+ * address, and a blank pin would land at 0,0. It starts on Basic with an empty
  * floor; the venue's team adds the rooms, the menu and the hours.
  */
 export function AddBranchDialog({ venue, onClose, onAdded }: AddBranchDialogProps) {

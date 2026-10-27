@@ -18,6 +18,7 @@ import { preOrdersMethods } from './console/preOrders';
 import { takeawayMethods } from './console/takeaway';
 import { messagesMethods } from './console/messages';
 import { activityMethods } from './console/activity';
+import { branchFeaturesMethods } from './console/branchFeatures';
 
 export { MOCK_PLATFORM_PASSWORD, MOCK_VENUE_PASSWORD } from './console/context';
 export type { ConsoleMockOptions } from './console/context';
@@ -37,6 +38,7 @@ export function createConsoleMockGateway(options: ConsoleMockOptions = {}): Cons
     ...platformHomeMethods(ctx),
     ...venueAccountMethods(ctx),
     ...floorPlanMethods(ctx),
+    ...branchFeaturesMethods(ctx),
     ...menuMethods(ctx),
     ...hoursMethods(ctx),
     ...publicPageMethods(ctx),

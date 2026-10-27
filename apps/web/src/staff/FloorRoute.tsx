@@ -34,6 +34,7 @@ import { tableCardText } from './tableCard';
 import { TableList } from './TableList';
 import { TakeawayCounter } from './takeaway/TakeawayCounter';
 import { useTakeawayReady } from './takeaway/useTakeawayReady';
+import { floorFeatures } from './floor/floorFeatures';
 import { NoShowSection, type MarkedNoShow } from './UndoNoShowNotice';
 import { useBranchFormat } from './useBranchFormat';
 import { useConnectionState } from './useConnectionState';
@@ -117,6 +118,8 @@ export function FloorRoute({ identity, device = null, paused, onUnpair }: FloorR
   const timeZoneId = floor?.plan.timeZoneId ?? 'Asia/Yerevan';
   const format = useBranchFormat(timeZoneId);
 
+  /** What the platform allows here (2026-10-27): what the floor draws and asks. */
+  const features = floorFeatures(identity);
   /** The screen on show, its address, and the phone's tabs and screens. */
   const screens = useFloorScreens(identity.role);
   const {
@@ -264,7 +267,7 @@ export function FloorRoute({ identity, device = null, paused, onUnpair }: FloorR
     inbox,
     reminderClock,
     reminders,
-  } = useFloorQueries(branchId, active, timeZoneId);
+  } = useFloorQueries(branchId, active, timeZoneId, features);
   const canWriteMessages = staffMayWrite(identity.role, {
     waitersCanWrite: inbox?.waitersCanWrite ?? true,
   });
@@ -572,6 +575,7 @@ export function FloorRoute({ identity, device = null, paused, onUnpair }: FloorR
     branchId ? (
       <MessagesInbox
         branchId={branchId}
+        messagesOff={!features.messages}
         inbox={inbox}
         loading={inboxQuery.isLoading && !isOfflinePaused(inboxQuery)}
         failed={inboxQuery.isError || (isOfflinePaused(inboxQuery) && !inboxQuery.data)}
@@ -646,6 +650,7 @@ export function FloorRoute({ identity, device = null, paused, onUnpair }: FloorR
         // party counted on one table never carries over to the next.
         key={selection.tableId}
         table={selectedTable}
+        tableService={features.tableService}
         detail={selectedDetail}
         timeZoneId={timeZoneId}
         projectedStatus={queue.projected(selection.tableId)}
@@ -797,7 +802,8 @@ export function FloorRoute({ identity, device = null, paused, onUnpair }: FloorR
         items={inbox?.items ?? []}
         remindAfterMinutes={inbox?.remindAfterMinutes ?? 3}
         now={reminderClock}
-        canWrite={canWriteMessages}
+        // Switched off at the branch: the rail reads, and replies nowhere.
+        canWrite={canWriteMessages && features.messages}
         staffName={identity.fullName}
         timeZoneId={timeZoneId}
         online={queue.online}
@@ -844,6 +850,7 @@ export function FloorRoute({ identity, device = null, paused, onUnpair }: FloorR
   const shared = {
     screens,
     identity,
+    features,
     branchId,
     timeZoneId,
     place,

@@ -1,10 +1,12 @@
-import type {
-  OutboxCounts,
-  OverviewBookings,
-  PlatformActivityEntry,
-  PlatformOverview,
-  RecentVenue,
-  VenueCounter,
+import {
+  BRANCH_FEATURES,
+  type BranchFeature,
+  type OutboxCounts,
+  type OverviewBookings,
+  type PlatformActivityEntry,
+  type PlatformOverview,
+  type RecentVenue,
+  type VenueCounter,
 } from '@yalla/api';
 import { useOutboxHealth, usePlatformActivity, usePlatformOverview } from '@yalla/api/react';
 import { branchDayKey, formatDate, formatTime } from '@yalla/format';
@@ -121,12 +123,10 @@ function Home({
   const chartId = useId();
   const number = (value: number) => new Intl.NumberFormat(locale).format(value);
   const venues = overview.venues;
+  // The plan split is gone with the plan (2026-10-27): branches and state instead.
   const split = [
-    venues.paid > 0 || venues.mixed + venues.free === 0
-      ? t('home.kpi.paid', { count: venues.paid })
-      : null,
-    venues.mixed > 0 ? t('home.kpi.mixed', { count: venues.mixed }) : null,
-    venues.free > 0 ? t('home.kpi.free', { count: venues.free }) : null,
+    t('home.kpi.branches', { count: venues.branches }),
+    venues.suspended > 0 ? t('home.kpi.suspended', { count: venues.suspended }) : null,
   ]
     .filter(Boolean)
     .join(' · ');
@@ -672,12 +672,6 @@ function RecentVenues({
   const { t } = useTranslation(['admin', 'common']);
   const typeLabel = useVenueTypeLabel();
   const titleId = useId();
-  const plan = (venue: RecentVenue) =>
-    venue.tierMix === 'mixed'
-      ? t('venues.tierSummary.mixed', { paid: venue.paidBranchCount, total: venue.branchCount })
-      : venue.tierMix === 'paid'
-        ? t('tier.paid')
-        : t('tier.free');
   return (
     <section className="yc-card" aria-labelledby={titleId}>
       <div className="yc-card-h">
@@ -698,7 +692,9 @@ function RecentVenues({
               <tr>
                 <th scope="col">{t('venues.column.name')}</th>
                 <th scope="col">{t('venues.column.category')}</th>
-                <th scope="col">{t('venues.column.tier')}</th>
+                <th scope="col" className="yc-num">
+                  {t('home.recent.branches')}
+                </th>
                 <th scope="col">{t('venues.column.status')}</th>
                 <th scope="col">{t('home.recent.added')}</th>
               </tr>
@@ -718,7 +714,7 @@ function RecentVenues({
                     </div>
                   </td>
                   <td>{typeLabel(venue.type)}</td>
-                  <td>{plan(venue)}</td>
+                  <td className="yc-num">{venue.branchCount}</td>
                   <td>
                     <span className={PILL[venue.status]}>
                       <span className="yc-dot" aria-hidden="true" />
@@ -800,7 +796,13 @@ function ActivityFeed({ now, locale }: { readonly now: string; readonly locale: 
 }
 
 function feedIcon(action: string): ReactNode {
-  if (action === 'branch.tier-change') return <ArrowsUpDownIcon className="yc-fi-i" />;
+  if (
+    action === 'branch.tier-change' ||
+    action === 'branch.features-change' ||
+    action === 'venue.features-apply'
+  ) {
+    return <ArrowsUpDownIcon className="yc-fi-i" />;
+  }
   if (action === 'venue.suspend') return <PauseIcon className="yc-fi-i" />;
   if (action === 'venue.delete') return <TrashIcon className="yc-fi-i" />;
   if (action === 'venue.restore' || action === 'venue.reactivate') {
@@ -820,6 +822,37 @@ function feedIcon(action: string): ReactNode {
     return <PadlockIcon className="yc-fi-i" />;
   }
   return <DotIcon className="yc-fi-i" />;
+}
+
+/** Feature names in the server's order, as a feed sentence lists them. */
+function featureList(features: readonly BranchFeature[], t: Translate): string {
+  return BRANCH_FEATURES.filter((feature) => features.includes(feature))
+    .map((feature) => t(`features.name.${feature}`))
+    .join(', ');
+}
+
+/** `branch.features-change`: what was switched on, off, or both. */
+function featuresChangeSentence(
+  entry: PlatformActivityEntry,
+  names: { readonly target: string; readonly venue: string },
+  t: Translate,
+): string {
+  const added = entry.featuresChange?.added ?? [];
+  const removed = entry.featuresChange?.removed ?? [];
+  if (added.length > 0 && removed.length > 0) {
+    return t('home.activity.action.featuresBoth', {
+      ...names,
+      added: featureList(added, t),
+      removed: featureList(removed, t),
+    });
+  }
+  if (added.length > 0) {
+    return t('home.activity.action.featuresOn', { ...names, features: featureList(added, t) });
+  }
+  if (removed.length > 0) {
+    return t('home.activity.action.featuresOff', { ...names, features: featureList(removed, t) });
+  }
+  return t('home.activity.action.featuresChange', names);
 }
 
 /** What the actor did, as a sentence after their name. Never a guest's name: the log has none. */
@@ -843,10 +876,21 @@ function sentence(entry: PlatformActivityEntry, t: Translate): string {
       return t('home.activity.action.branchCreate', { target, venue });
     case 'branch.update':
       return t('home.activity.action.branchUpdate', { target, venue });
+    // A row from before 2026-10-27, when a branch had a plan rather than features.
     case 'branch.tier-change':
       return entry.tierTo === 'free'
         ? t('home.activity.action.tierFree', { target, venue })
         : t('home.activity.action.tierPaid', { target, venue });
+    case 'branch.features-change':
+      return featuresChangeSentence(entry, { target, venue }, t);
+    case 'venue.features-apply':
+      return entry.featuresApply
+        ? t('home.activity.action.featuresApply', {
+            venue,
+            features: featureList(entry.featuresApply.features, t),
+            count: entry.featuresApply.changedCount,
+          })
+        : t('home.activity.action.featuresApplySome', { venue });
     case 'branch.relocate':
       return t('home.activity.action.branchRelocate', { target, venue });
     case 'staff.create': {

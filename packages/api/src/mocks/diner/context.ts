@@ -128,6 +128,7 @@ import {
 } from '../../contracts/messages';
 import { createMockConversationBook, type MockConversationSubjectInfo } from '../messages';
 import { ProblemCodes } from '../../generated/problemCodes';
+import { fixtureMockFeatures } from '../branchFeaturesMock';
 
 /** Great-circle distance in kilometres. */
 export function haversineKm(
@@ -3289,6 +3290,8 @@ export function createDinerMockContext(options: MockGatewayOptions = {}) {
       reviewCount: own.length,
       badges: [],
       coverPhoto: publicVenueFixtures[venue.id]?.coverPhoto ?? null,
+      // What the platform allows there, as the fixture seeds it.
+      features: fixtureMockFeatures(branch.id),
     };
   }
 

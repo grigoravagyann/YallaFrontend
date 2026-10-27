@@ -199,7 +199,13 @@ export type CommandRefusal =
    * An order voided whole on a tab already paid against (2026-10-25): the
    * void would take money off a paid bill, which is a refund. A manager comps.
    */
-  | { readonly kind: 'lineAlreadyPaid' };
+  | { readonly kind: 'lineAlreadyPaid' }
+  /**
+   * The platform has switched a feature off at the branch since the command
+   * was queued (`feature-not-enabled`, 2026-10-27): not a table race, and no
+   * retry will change it.
+   */
+  | { readonly kind: 'featureOff' };
 
 /** Why the server would not take an order. The whole send was refused; nothing was placed. */
 export type OrderRefusal =

@@ -21,6 +21,7 @@ import { preOrdersMethods } from './console/preOrders';
 import { takeawayMethods } from './console/takeaway';
 import { messagesMethods } from './console/messages';
 import { activityMethods } from './console/activity';
+import { branchFeaturesMethods } from './console/branchFeatures';
 
 export { createMemoryIdentityStore } from './console/context';
 export type { ConsoleHttpGatewayOptions, ConsoleIdentityStore } from './console/context';
@@ -28,8 +29,8 @@ export type { ConsoleHttpGatewayOptions, ConsoleIdentityStore } from './console/
 /**
  * The console over HTTP.
  *
- * Two tiers of venue read. Venue *management* — listing, creating, suspending
- * — is the platform tier: `/api/platform/venues`, guarded by
+ * Two kinds of venue read. Venue *management* — listing, creating, suspending
+ * — is the platform's: `/api/platform/venues`, guarded by
  * `PlatformAdminOnly` server-side, and a venue user calling it gets a 403 that
  * surfaces as a plain refusal rather than a retry loop. The venue *a person
  * runs* is `GET /api/venues/{venueId}/manage`, the one read an owner or a
@@ -52,6 +53,7 @@ export function createConsoleHttpGateway(
     ...platformHomeMethods(ctx),
     ...venueAccountMethods(ctx),
     ...floorPlanMethods(ctx),
+    ...branchFeaturesMethods(ctx),
     ...menuMethods(ctx),
     ...photosMethods(ctx),
     ...hoursMethods(ctx),

@@ -1,4 +1,4 @@
-import type { BookingSummaryDays, ListVenuesQuery, SubscriptionTier } from '../contracts/console';
+import type { BookingSummaryDays, ListVenuesQuery } from '../contracts/console';
 import type { ConversationSubjectKind } from '../contracts/messages';
 import type { MessageHistoryFilters } from '../contracts/messageHistory';
 import type { ActivityFilters } from '../contracts/activity';
@@ -57,9 +57,6 @@ export const queryKeys = {
    * invalidation reaches it.
    */
   allConsoleVenues: ['console', 'venues', 'all'] as const,
-  /** What a tier switch would do. Never cached: it is asked as the dialog opens. */
-  venueTierCheck: (venueId: string, tier: SubscriptionTier, branchIds: readonly string[] | null) =>
-    ['console', 'venueTierCheck', venueId, tier, branchIds] as const,
   /** Under the venue, so a venue command's invalidation of the venue reaches it too. */
   venueBookingsSummary: (venueId: string, days: BookingSummaryDays) =>
     ['console', 'venue', venueId, 'bookingsSummary', days] as const,

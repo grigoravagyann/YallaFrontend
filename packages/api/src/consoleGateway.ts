@@ -102,10 +102,10 @@ import type {
   ListVenuesQuery,
   ManagedVenue,
   Page,
-  SubscriptionTier,
   UpdateVenueCommand,
   VenueBookingsSummary,
 } from './contracts/console';
+import type { BranchFeature } from './contracts/branchFeatures';
 
 /**
  * Everything the web console needs from a data source.
@@ -134,7 +134,7 @@ export interface ConsoleGateway {
   listVenues(query: ListVenuesQuery): Promise<Page<ConsoleVenue>>;
 
   /**
-   * The platform tier's view of one venue: `GET /api/platform/venues/{id}`,
+   * The platform's view of one venue: `GET /api/platform/venues/{id}`,
    * **platform admin only**. Every owner and manager is answered 403, which is
    * why no venue screen may read its branches from here — see
    * {@link getManagedVenue}.
@@ -175,7 +175,7 @@ export interface ConsoleGateway {
   updateVenue(command: UpdateVenueCommand): Promise<ConsoleVenueDetail>;
 
   /**
-   * Another branch, on the Free tier and an empty floor, like a venue's first.
+   * Another branch, on the Basic features and an empty floor, like a venue's first.
    * Answers with the whole venue so the screen replaces its copy.
    *
    * @throws {SlugTakenError} the venue already has a branch at that address.
@@ -310,10 +310,35 @@ export interface ConsoleGateway {
    */
   signOutOtherVenueSessions(): Promise<OtherSessionsEnded>;
 
-  /** Platform admin only; an owner cannot change what they are paying for. */
-  setBranchTier(input: {
+  /**
+   * The whole set of features the platform allows at one branch
+   * (`PUT /api/platform/branches/{id}/features`). Platform admin only: an owner
+   * switches things on and off inside this set, never the set itself. Answers
+   * with the venue, re-read, so the screen replaces its copy.
+   *
+   * @throws {ValidationError} 422 `validation-failed` on `features`: pre-orders
+   * without app or web bookings.
+   * @throws {BranchNotReadyError} 409 `branch-not-ready`: table service turned
+   * on while the menu has unfinished dishes.
+   * @throws {ConcurrencyConflictError} 409 with no context: table service
+   * turned off while tabs are open, or the venue is deleted.
+   */
+  setBranchFeatures(input: {
     branchId: string;
-    tier: SubscriptionTier;
+    features: readonly BranchFeature[];
+    commandId: string;
+  }): Promise<ConsoleVenueDetail>;
+
+  /**
+   * One set for every branch of a venue, atomically
+   * (`PUT /api/platform/venues/{id}/features`): every branch changes, or none.
+   *
+   * @throws the same refusals as {@link setBranchFeatures}; a
+   * {@link BranchNotReadyError} names the branch whose menu refused.
+   */
+  applyVenueFeatures(input: {
+    venueId: string;
+    features: readonly BranchFeature[];
     commandId: string;
   }): Promise<ConsoleVenueDetail>;
 

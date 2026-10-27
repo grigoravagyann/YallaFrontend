@@ -4,6 +4,7 @@ import {
   HoldAlreadyExtendedError,
   HoldNotActiveError,
   TableRequestClosedError,
+  isFeatureNotEnabled,
 } from '../../contracts/errors';
 import { ApiError } from '../../errors';
 import type { YallaGateway } from '../../gateway';
@@ -127,28 +128,52 @@ export function bookingsMethods(
     // backend, so no reservation ever reached it.
 
     /**
-     * `POST /api/reservations`, in the branch's wall-clock date and time.
+     * A new booking, in the branch's wall-clock date and time, by its channel
+     * (2026-10-27: the server decides app or web by the route, not a field):
      *
-     * The server answers 201 for a new booking and 200 for a replay of the same
+     * - `app`: `POST /api/reservations`. Its `channel` is deprecated and
+     *   ignored (always App), but still required by the schema, so it is sent.
+     * - `web`: the public page's own `POST /api/public/branches/{id}/reservations`,
+     *   same diner auth and body, the branch in the path and no channel.
+     *
+     * Either answers 201 for a new booking and 200 for a replay of the same
      * `clientCommandId`, with the same body; both are a booking.
      */
     async createBooking(command): Promise<Booking> {
       const { date, time } = localDateTime(command.slotUtc, command.timeZoneId);
-      // Checked against the request shape by `satisfies` while `acceptsFreeByUtc`
-      // is ahead of it (booking times); inline again once the schema has it.
-      const body = {
-        branchId: command.branchId,
-        tableId: command.tableId,
-        date,
-        time,
-        partySize: command.partySize,
-        guestName: command.guestName,
-        guestPhone: command.guestPhone,
-        clientCommandId: command.commandId,
-        channel: CHANNEL_CODE[command.channel],
-        note: noteOrNull(command.note),
-      } satisfies Schemas['Yalla.Api.Endpoints.CreateReservationRequest'];
       try {
+        if (command.channel === 'web') {
+          // Checked against the request shape by `satisfies`; `acceptsFreeByUtc` goes on after.
+          const body = {
+            tableId: command.tableId,
+            date,
+            time,
+            partySize: command.partySize,
+            guestName: command.guestName,
+            guestPhone: command.guestPhone,
+            clientCommandId: command.commandId,
+            note: noteOrNull(command.note),
+          } satisfies Schemas['Yalla.Api.Endpoints.CreatePublicReservationRequest'];
+          const { data } = await client.post<
+            Schemas['Yalla.Application.Reservations.ReservationView']
+          >(
+            `/api/public/branches/${command.branchId}/reservations`,
+            withFreeBy(body, command.acceptsFreeByUtc),
+          );
+          return toBooking(data);
+        }
+        const body = {
+          branchId: command.branchId,
+          tableId: command.tableId,
+          date,
+          time,
+          partySize: command.partySize,
+          guestName: command.guestName,
+          guestPhone: command.guestPhone,
+          clientCommandId: command.commandId,
+          channel: CHANNEL_CODE.app,
+          note: noteOrNull(command.note),
+        } satisfies Schemas['Yalla.Api.Endpoints.CreateReservationRequest'];
         const { data } = await client.post<
           Schemas['Yalla.Application.Reservations.ReservationView']
         >('/api/reservations', withFreeBy(body, command.acceptsFreeByUtc));
@@ -213,6 +238,7 @@ export function bookingsMethods(
       } catch (error) {
         // Lapsed, let go by the later guest, or answered on another device.
         if (
+          !isFeatureNotEnabled(error) &&
           error instanceof ApiError &&
           (error.status === 409 ||
             error.status === 410 ||

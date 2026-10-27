@@ -2,7 +2,7 @@ import { useTranslation } from '@yalla/i18n';
 import { useId, type ReactNode } from 'react';
 import { NavLink } from 'react-router-dom';
 import { DevRoleSwitcher } from '../../auth/DevRoleSwitcher';
-import { SignOutIcon } from './icons';
+import { LockIcon, SignOutIcon } from './icons';
 import { ToastProvider } from './toast';
 import './console.css';
 import { Wordmark } from '../../components/Wordmark';
@@ -23,6 +23,12 @@ export interface ShellLink {
    * the bare number.
    */
   readonly badge?: { readonly count: number; readonly sayKey: string } | null | undefined;
+  /**
+   * The platform has not enabled the page's feature at this branch
+   * (2026-10-27): the link stays — locked, not hidden — with a lock and the
+   * reason for the ear; the page says the rest.
+   */
+  readonly locked?: boolean | undefined;
 }
 
 /** Links under one heading. The platform's three links have none. */
@@ -174,9 +180,19 @@ function ShellNavLink({ link }: { link: ShellLink }) {
   const { t } = useTranslation(['admin', 'common']);
   const count = link.badge?.count ?? 0;
   return (
-    <NavLink to={link.to} end={link.end ?? false}>
+    <NavLink
+      to={link.to}
+      end={link.end ?? false}
+      {...(link.locked ? { className: 'is-locked' } : {})}
+    >
       {link.icon}
       {t(link.labelKey)}
+      {link.locked ? (
+        <>
+          <LockIcon className="yc-i yc-nlock" />
+          <span className="yc-sr">, {t('featureLocked.nav')}</span>
+        </>
+      ) : null}
       {link.badge && count > 0 ? (
         <>
           {/* The number for the eye; the sentence for the ear, said once. */}

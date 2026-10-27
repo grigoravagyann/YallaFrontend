@@ -6,6 +6,7 @@ import type {
 } from '../../contracts/console';
 import { ForbiddenError } from '../../errors';
 import { SlugTakenError, VenueDeletionBlockedError } from '../../contracts/errors';
+import { BASIC_FEATURES } from '../../contracts/branchFeatures';
 import type { ConsoleGateway } from '../../consoleGateway';
 import { type ConsoleMockContext, DEFAULT_PAGE_SIZE, URL_TAG, type VenueRecord } from './context';
 
@@ -124,7 +125,8 @@ export function venuesMethods(
             // A new venue has no floor plan yet — the team draws it during
             // onboarding, which is exactly the next task.
             tableCount: 0,
-            subscriptionTier: 'free',
+            // A new branch starts on Basic: everything but table service.
+            features: BASIC_FEATURES,
             openTabCount: 0,
           },
         ],
@@ -167,7 +169,7 @@ export function venuesMethods(
         name: command.name.trim(),
         timeZoneId: command.timeZoneId,
         tableCount: 0,
-        subscriptionTier: 'free',
+        features: BASIC_FEATURES,
         openTabCount: 0,
       });
       log(

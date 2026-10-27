@@ -25,6 +25,12 @@ import { lastLine, rowTitle } from './messageText';
  */
 export interface MessagesInboxProps {
   readonly branchId: string;
+  /**
+   * Guest messages are switched off at the branch (2026-10-27): the inbox and
+   * the threads stay readable — a guest's "on my way" still matters — and no
+   * thread offers a composer.
+   */
+  readonly messagesOff?: boolean | undefined;
   readonly inbox: BranchConversations | null;
   readonly loading: boolean;
   readonly failed: boolean;
@@ -143,6 +149,7 @@ export function MessagesInbox(props: MessagesInboxProps) {
           item={currentItem}
           templates={props.inbox?.templates ?? null}
           waitersCanWrite={props.inbox?.waitersCanWrite ?? true}
+          messagesOff={props.messagesOff ?? false}
           staffName={props.staffName}
           timeZoneId={props.timeZoneId}
           online={props.online}
@@ -211,6 +218,7 @@ export function MessagesInbox(props: MessagesInboxProps) {
           item={currentItem}
           templates={props.inbox?.templates ?? null}
           waitersCanWrite={props.inbox?.waitersCanWrite ?? true}
+          messagesOff={props.messagesOff ?? false}
           staffName={props.staffName}
           timeZoneId={props.timeZoneId}
           online={props.online}

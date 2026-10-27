@@ -14,13 +14,15 @@ import { createConsoleHarness, initConsoleTestI18n } from '../venue/reports/test
 
 /**
  * The platform venues list (Venues artboard, HANDOFF section 8 step 2): search,
- * a status filter with deleted venues hidden by default, a tier filter,
- * sortable columns, the tier button with its confirm, the ⋮ menu on arrow
- * keys, the three-step create, and an undo on everything destructive.
+ * a status filter with deleted venues hidden by default, a features filter,
+ * sortable columns, the features column leading to where they are changed,
+ * the ⋮ menu on arrow keys, the three-step create, and an undo on everything
+ * destructive.
  *
- * Against the real console mock, whose demo world is the artboard's: Mountain
- * View is refused Paid, Sunset Lounge may go Paid, Cascade Cafe's open tabs
- * block its delete.
+ * Against the real console mock, whose demo world is the artboard's: Cascade
+ * Cafe is on Full, Sunset Lounge on Basic, Garden Bistro on a set of its own,
+ * Yalla Demo Cafe's branches differ, and Cascade Cafe's open tabs block its
+ * delete.
  */
 
 let AppRoutes: typeof AppRoutesComponent;
@@ -54,9 +56,11 @@ async function loaded() {
 }
 
 const rowOf = (name: string) => screen.getByRole('link', { name }).closest('tr')!;
+/** The venues' names, in order: each row's name link, not its features link. */
 const names = () =>
   within(screen.getByRole('table'))
     .queryAllByRole('link')
+    .filter((link) => link.classList.contains('yc-vname'))
     .map((link) => link.textContent);
 
 describe('the venues list', () => {
@@ -70,10 +74,11 @@ describe('the venues list', () => {
     expect(screen.getByText(/deleted ones are hidden/u)).toBeTruthy();
 
     const mountain = rowOf('Mountain View');
-    // The readiness line, amber and named for its branch; the tier summary.
+    // The readiness line, amber and named for its branch; the features in a word.
     expect(within(mountain).getByText('4 dishes unfinished · Նոր Նորք')).toBeTruthy();
-    expect(within(rowOf('Yalla Demo Cafe')).getByText('Mixed · 1/2')).toBeTruthy();
-    expect(within(rowOf('Cascade Cafe')).getByText('Paid')).toBeTruthy();
+    expect(within(rowOf('Yalla Demo Cafe')).getByText('Mixed')).toBeTruthy();
+    expect(within(rowOf('Cascade Cafe')).getByText('Full')).toBeTruthy();
+    expect(within(rowOf('Sunset Lounge')).getByText('Basic')).toBeTruthy();
     expect(within(rowOf('Garden Bistro')).getByText('Suspended')).toBeTruthy();
   });
 
@@ -84,27 +89,30 @@ describe('the venues list', () => {
 
     await user.selectOptions(screen.getByLabelText('Status'), 'deleted');
     expect(names()).toEqual(['Old Town Pub']);
-    // A deleted venue's tier is a word, not a button: there is nothing to change.
-    expect(within(rowOf('Old Town Pub')).queryByRole('button', { name: /plan/u })).toBeNull();
+    // A deleted venue's features are a word, not a link: there is nothing to change.
+    expect(within(rowOf('Old Town Pub')).queryByRole('link', { name: /features/u })).toBeNull();
 
     await user.selectOptions(screen.getByLabelText('Status'), 'all');
     expect(names()).toContain('Old Town Pub');
     expect(names()).toContain('Sunset Lounge');
   });
 
-  it('filters by the tier summary, mixed venues included', async () => {
+  it('filters by the features summary, mixed and custom venues included', async () => {
     const user = userEvent.setup();
     renderList();
     await loaded();
 
-    await user.selectOptions(screen.getByLabelText('Plan'), 'mixed');
+    await user.selectOptions(screen.getByLabelText('Features'), 'mixed');
     expect(names()).toContain('Yalla Demo Cafe');
     expect(names()).not.toContain('Sunset Lounge');
     expect(names()).not.toContain('Cascade Cafe');
 
-    await user.selectOptions(screen.getByLabelText('Plan'), 'free');
+    await user.selectOptions(screen.getByLabelText('Features'), 'basic');
     expect(names()).toContain('Sunset Lounge');
     expect(names()).not.toContain('Yalla Demo Cafe');
+
+    await user.selectOptions(screen.getByLabelText('Features'), 'custom');
+    expect(names()).toEqual(['Garden Bistro']);
   });
 
   it('searches the name, the web address and the district', async () => {
@@ -158,204 +166,32 @@ describe('the venues list', () => {
   });
 });
 
-describe('the tier button', () => {
-  it('refuses Mountain View before anything is sent, naming the branch', async () => {
-    const user = userEvent.setup();
-    const gateway = createConsoleMockGateway({ latencyMs: 0, role: 'platformAdmin' });
-    const setTier = vi.spyOn(gateway, 'setBranchTier');
-    renderList('/platform/venues', gateway);
-    await loaded();
-
-    await user.click(within(rowOf('Mountain View')).getByRole('button', { name: /plan, press/u }));
-    const dialog = await screen.findByRole('alertdialog', {
-      name: 'Mountain View cannot go paid yet',
-    });
-    expect(
-      within(dialog).getByText('Նոր Նորք: 4 dishes are not ready to show a guest'),
-    ).toBeTruthy();
-    expect(within(dialog).queryByRole('button', { name: 'Make paid' })).toBeNull();
-    expect(setTier).not.toHaveBeenCalled();
-
-    await user.click(within(dialog).getByRole('button', { name: 'Got it' }));
-    expect(screen.queryByRole('alertdialog')).toBeNull();
-    expect(document.activeElement).toBe(
-      within(rowOf('Mountain View')).getByRole('button', { name: /plan, press/u }),
-    );
-  });
-
-  it('moves Sunset Lounge to Paid after a confirm that says what changes', async () => {
-    const user = userEvent.setup();
-    renderList();
-    await loaded();
-
-    await user.click(within(rowOf('Sunset Lounge')).getByRole('button', { name: /plan, press/u }));
-    const dialog = await screen.findByRole('alertdialog', { name: 'Make Sunset Lounge paid?' });
-    expect(within(dialog).getByText(/at every branch of the venue/u)).toBeTruthy();
-    expect(within(dialog).getByText(/order from their phones/u)).toBeTruthy();
-    // The safe choice holds the focus.
-    await waitFor(() =>
-      expect(document.activeElement).toBe(within(dialog).getByRole('button', { name: 'Cancel' })),
-    );
-
-    await user.click(await within(dialog).findByRole('button', { name: 'Make paid' }));
-    expect(await screen.findByText('Sunset Lounge is now on the Paid plan')).toBeTruthy();
-    await waitFor(() => expect(within(rowOf('Sunset Lounge')).getByText('Paid')).toBeTruthy());
-  });
-
-  it('finishes a mixed venue: every branch to the plan chosen', async () => {
+describe('the features column', () => {
+  it("leads a one-branch venue to its branch's Features page", async () => {
     const user = userEvent.setup();
     renderList();
     await loaded();
 
     await user.click(
-      within(rowOf('Yalla Demo Cafe')).getByRole('button', { name: /plan, press/u }),
+      within(rowOf('Sunset Lounge')).getByRole('link', { name: /Sunset Lounge: features Basic/u }),
     );
-    const dialog = await screen.findByRole('alertdialog', { name: "Yalla Demo Cafe's plan" });
-    expect(within(dialog).getByRole('radio', { name: 'Paid' })).toBeTruthy();
-    await user.click(await within(dialog).findByRole('button', { name: 'Make paid' }));
-    await waitFor(() => expect(within(rowOf('Yalla Demo Cafe')).getByText('Paid')).toBeTruthy());
-  });
-
-  it('says which branches moved and which refused when the server stops part of a switch', async () => {
-    const user = userEvent.setup();
-    const mock = createConsoleMockGateway({ latencyMs: 0, role: 'platformAdmin' });
-    // Readiness unreadable: the check lets the switch start, and the server decides.
-    const gateway: ConsoleGateway = {
-      ...mock,
-      getBranchReadiness: () => Promise.reject(new Error('unreadable')),
-    };
-    const id = (await mock.listVenues({ pageSize: 200 })).items.find(
-      (venue) => venue.name === 'Mountain View',
-    )!.id;
-    const branches = (await mock.getVenue(id))!.branches;
-    renderList('/platform/venues', gateway);
-    await loaded();
-
-    await user.click(within(rowOf('Mountain View')).getByRole('button', { name: /plan, press/u }));
-    const dialog = await screen.findByRole('alertdialog', { name: 'Make Mountain View paid?' });
-    await user.click(await within(dialog).findByRole('button', { name: 'Make paid' }));
-    const refused = await screen.findByRole('alertdialog', {
-      name: 'Mountain View cannot go paid yet',
-    });
-    expect(
-      within(refused).getByText('Նոր Նորք: 4 dishes are not ready to show a guest'),
-    ).toBeTruthy();
-    const moved = branches.find((branch) => branch.name !== 'Նոր Նորք')!;
-    expect(within(refused).getByText(`Already changed: ${moved.name}.`)).toBeTruthy();
-    // The list says what is true now: one branch paid of two.
-    await user.click(within(refused).getByRole('button', { name: 'Got it' }));
-    await waitFor(() =>
-      expect(within(rowOf('Mountain View')).getByText(/Mixed · 1\/2/u)).toBeTruthy(),
+    expect(await screen.findByRole('heading', { level: 2, name: 'Features' })).toBeTruthy();
+    expect(screen.getByRole('switch', { name: 'Table service' }).getAttribute('aria-checked')).toBe(
+      'false',
     );
   });
 
-  it('refuses Cascade Cafe going Free before anything is sent: its tabs are open', async () => {
+  it('leads a venue of several branches to the venue page, where each has its own', async () => {
     const user = userEvent.setup();
-    const gateway = createConsoleMockGateway({ latencyMs: 0, role: 'platformAdmin' });
-    const setTier = vi.spyOn(gateway, 'setBranchTier');
-    renderList('/platform/venues', gateway);
-    await loaded();
-
-    await user.click(within(rowOf('Cascade Cafe')).getByRole('button', { name: /plan, press/u }));
-    expect(
-      await screen.findByRole('alertdialog', { name: 'Cascade Cafe cannot go free yet' }),
-    ).toBeTruthy();
-    expect(screen.getByText(/Կենտրոն: Tabs are open/u)).toBeTruthy();
-    expect(screen.queryByRole('button', { name: 'Make free' })).toBeNull();
-    expect(setTier).not.toHaveBeenCalled();
-    expect(within(rowOf('Cascade Cafe')).getByText('Paid')).toBeTruthy();
-  });
-
-  it('keeps Free open for a mixed venue whose free branch stops it going Paid', async () => {
-    const user = userEvent.setup();
-    const mock = createConsoleMockGateway({ latencyMs: 0, role: 'platformAdmin' });
-    const id = (await mock.listVenues({ pageSize: 200 })).items.find(
-      (venue) => venue.name === 'Yalla Demo Cafe',
-    )!.id;
-    const detail = (await mock.getVenue(id))!;
-    const free = detail.branches.find((branch) => branch.subscriptionTier === 'free')!;
-    const sent: { branchId: string; tier: string }[] = [];
-    const gateway: ConsoleGateway = {
-      ...mock,
-      // The free branch's menu is unfinished; nobody has a tab open.
-      getBranchReadiness: async (branchId) => ({
-        ...(await mock.getBranchReadiness(branchId)),
-        ...(branchId === free.id ? { incompleteMenuItemCount: 3 } : {}),
-      }),
-      getVenue: async (venueId) => {
-        const venue = await mock.getVenue(venueId);
-        return (
-          venue && {
-            ...venue,
-            branches: venue.branches.map((branch) => ({ ...branch, openTabCount: 0 })),
-          }
-        );
-      },
-      setBranchTier: async (input) => {
-        sent.push({ branchId: input.branchId, tier: input.tier });
-        return (await mock.getVenue(id))!;
-      },
-    };
-    renderList('/platform/venues', gateway);
+    renderList();
     await loaded();
 
     await user.click(
-      within(rowOf('Yalla Demo Cafe')).getByRole('button', { name: /plan, press/u }),
-    );
-    const dialog = await screen.findByRole('alertdialog', { name: "Yalla Demo Cafe's plan" });
-    // Paid is refused where it stands, with the reason, and nothing is sent.
-    expect(
-      await within(dialog).findByText(`${free.name}: 3 dishes are not ready to show a guest`),
-    ).toBeTruthy();
-    const makePaid = within(dialog).getByRole('button', { name: 'Make paid' });
-    await waitFor(() => expect(makePaid.getAttribute('aria-disabled')).toBe('true'));
-    await user.click(makePaid);
-    expect(sent).toEqual([]);
-
-    // Free is still a choice.
-    await user.click(within(dialog).getByRole('radio', { name: 'Free' }));
-    await user.click(await within(dialog).findByRole('button', { name: 'Make free' }));
-    await waitFor(() => expect(sent.map((call) => call.tier)).toEqual(['free']));
-  });
-});
-
-describe('going Free from the list', () => {
-  it("names the branches that can't come back to Paid, and still goes", async () => {
-    const user = userEvent.setup();
-    const mock = createConsoleMockGateway({ latencyMs: 0, role: 'platformAdmin' });
-    const gateway: ConsoleGateway = {
-      ...mock,
-      getVenue: async (venueId) => {
-        const venue = await mock.getVenue(venueId);
-        return (
-          venue && {
-            ...venue,
-            branches: venue.branches.map((branch) => ({ ...branch, openTabCount: 0 })),
-          }
-        );
-      },
-      // Cascade Cafe's only branch, paid, with three dishes unfinished since.
-      getBranchReadiness: async (branchId) => ({
-        ...(await mock.getBranchReadiness(branchId)),
-        incompleteMenuItemCount: branchId === 'b-cascade-center' ? 3 : 0,
+      within(rowOf('Yalla Demo Cafe')).getByRole('link', {
+        name: /Yalla Demo Cafe: features Mixed/u,
       }),
-    };
-    const setTier = vi.spyOn(gateway, 'setBranchTier');
-    renderList('/platform/venues', gateway);
-    await loaded();
-
-    await user.click(within(rowOf('Cascade Cafe')).getByRole('button', { name: /plan, press/u }));
-    const dialog = await screen.findByRole('alertdialog', { name: 'Make Cascade Cafe free?' });
-    const warning = await within(dialog).findByRole('note');
-    expect(warning.textContent).toContain(
-      "These branches can't go back to Paid until their menu is finished",
     );
-    expect(
-      within(warning).getByText('Կենտրոն: 3 dishes are not ready to show a guest'),
-    ).toBeTruthy();
-
-    await user.click(within(dialog).getByRole('button', { name: 'Make free' }));
-    await waitFor(() => expect(setTier).toHaveBeenCalledTimes(1));
+    expect(await screen.findByRole('heading', { level: 1, name: 'Yalla Demo Cafe' })).toBeTruthy();
   });
 });
 
@@ -374,7 +210,7 @@ describe('the ⋮ menu', () => {
 
     const menu = screen.getByRole('menu', { name: 'Actions for Sunset Lounge' });
     const items = within(menu).getAllByRole('menuitem');
-    expect(items.map((item) => item.textContent)).toEqual(['Make paid', 'Suspend', 'Delete']);
+    expect(items.map((item) => item.textContent)).toEqual(['Features', 'Suspend', 'Delete']);
     expect(document.activeElement).toBe(items[0]);
 
     await user.keyboard('{ArrowDown}');
@@ -432,7 +268,7 @@ describe('the ⋮ menu', () => {
       within(rowOf('Sunset Lounge')).getByRole('button', { name: 'Actions for Sunset Lounge' }),
     );
     const items = within(screen.getByRole('menu')).getAllByRole('menuitem');
-    expect(items.map((item) => item.textContent)).toEqual(['Make paid', 'Delete']);
+    expect(items.map((item) => item.textContent)).toEqual(['Features', 'Delete']);
   });
 
   it('keeps the focus on the item it is on when the list behind the menu refreshes', async () => {

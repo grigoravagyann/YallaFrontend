@@ -3,12 +3,13 @@ import { createAuthSession } from '../auth/session';
 import { createMemoryTokenStorage } from '../auth/storage';
 import { createConsoleHttpGateway, createMemoryIdentityStore } from './consoleHttpGateway';
 import { BASE_URL, fakeBackend, type FakeRoute } from './fakeBackend.testkit';
+import { BASIC_FEATURES, FULL_FEATURES } from '../contracts/branchFeatures';
 
 /**
  * The platform venues list over HTTP, for the redesigned list (Venues
  * artboard), on the row `GET /api/platform/venues` serves: rating, review
  * count, open tabs, the readiness issue, the cover thumbnail, each branch's
- * tier, cuisine, district, the status and the creation date. The fixture is
+ * features, cuisine, district, the status and the creation date. The fixture is
  * a row copied from the live backend (2026-10-18).
  */
 
@@ -25,16 +26,19 @@ function summary(extra: Record<string, unknown> = {}) {
     deletedAtUtc: null,
     branchCount: 2,
     tableCount: 18,
-    paidBranchCount: 1,
-    subscriptionTier: 2,
     status: 1,
-    tierMix: 2,
     branches: [
-      { branchId: 'b-1', name: 'Kanaker', subscriptionTier: 2, isActive: true, issues: [] },
+      {
+        branchId: 'b-1',
+        name: 'Kanaker',
+        features: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
+        isActive: true,
+        issues: [],
+      },
       {
         branchId: 'b-2',
         name: 'Nor Nork',
-        subscriptionTier: 1,
+        features: [1, 2, 3, 4, 6, 7, 8, 9, 10],
         isActive: true,
         issues: [{ code: 'incomplete-dishes', count: 4 }],
       },
@@ -70,10 +74,10 @@ function gatewayOver(routes: Record<string, FakeRoute>) {
 }
 
 describe('the venues list over HTTP', () => {
-  it("reads how many branches are paid: the list's tier summary", async () => {
+  it("reads each branch's features: the list's feature summary", async () => {
     const { gateway } = gatewayOver({ 'GET /api/platform/venues': { body: page([summary()]) } });
     const [venue] = (await gateway.listVenues({})).items;
-    expect(venue?.paidBranchCount).toBe(1);
+    expect(venue?.branchFeatures?.map((branch) => branch.features.length)).toEqual([10, 9]);
     expect(venue?.branchCount).toBe(2);
   });
 
@@ -87,9 +91,9 @@ describe('the venues list over HTTP', () => {
       readinessIssue: { kind: 'incompleteDishes', count: 4, branchName: 'Nor Nork' },
       // Resolved against the API, as every photo link the console shows is.
       coverThumbnailUrl: `${BASE_URL}/api/photos/p-1/thumbnail`,
-      branchTiers: [
-        { id: 'b-1', name: 'Kanaker', subscriptionTier: 'paid' },
-        { id: 'b-2', name: 'Nor Nork', subscriptionTier: 'free' },
+      branchFeatures: [
+        { id: 'b-1', name: 'Kanaker', features: FULL_FEATURES },
+        { id: 'b-2', name: 'Nor Nork', features: BASIC_FEATURES },
       ],
       cuisine: 'Armenian',
       district: 'Kanaker',

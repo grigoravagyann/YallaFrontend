@@ -472,6 +472,7 @@ function headOf(entry: ConflictEntry, label: string, t: TFunction): string {
   if (refusal?.kind === 'notFound') return t('conflicts.head.gone', { label });
   if (refusal?.kind === 'forbidden') return t('conflicts.head.forbidden', { label });
   if (refusal?.kind === 'lineAlreadyPaid') return t('conflicts.head.orderNotVoided', { label });
+  if (refusal?.kind === 'featureOff') return t('conflicts.head.featureOff', { label });
   if (command.kind === 'placeOrder') return t('conflicts.head.order', { label });
   if (command.kind === 'setOrderStatus') return t('conflicts.head.orderMoved', { label });
   if (command.kind === 'acknowledgeServiceRequest') return t('conflicts.head.call', { label });
@@ -495,6 +496,9 @@ function whyOf(entry: ConflictEntry, t: TFunction): string {
   }
   if (refusal?.kind === 'forbidden') return t('conflicts.why.forbidden');
   if (refusal?.kind === 'lineAlreadyPaid') return t('conflicts.why.lineAlreadyPaid');
+  if (refusal?.kind === 'featureOff') {
+    return `${t('features.off')} ${t('features.askManager')}`;
+  }
   if (command.kind === 'placeOrder') {
     // The order screen's own sentences, with "a guest" for the name the
     // conflict does not carry.

@@ -6,8 +6,10 @@ import {
   PairingCodeInvalidError,
   PairingCodeUnusableError,
   PinRejectedError,
+  blockedFeature,
 } from '../contracts/errors';
 import type { StaffCredentialStorage } from '../contracts/staffAuth';
+import { FULL_FEATURES, type BranchFeature } from '../contracts/branchFeatures';
 import { createMockRegistry } from './mockRegistry';
 import { createMockStaffAuth } from './staffAuthMock';
 import { MOCK_STAFF_PIN, fixtureStaffFor } from './staffFixture';
@@ -159,6 +161,80 @@ describe('pairing a phone (mock)', () => {
       device: null,
       identity: null,
     });
+  });
+});
+
+describe('staff phones switched off at the branch (mock)', () => {
+  const allBut = (registryFeatures: readonly BranchFeature[]) =>
+    registryFeatures.filter((feature) => feature !== 'staffPhone');
+
+  it('refuses pairing with feature-not-enabled, and leaves the code usable', async () => {
+    issue('K7Q2M9XW4P', waiter.id);
+    registry.branchFeatures.set(branch.id, {
+      branchId: branch.id,
+      features: allBut(FULL_FEATURES),
+    });
+    const phone = session();
+    await phone.restore();
+
+    const caught = await phone
+      .pairPhone({ code: 'K7Q2M9XW4P', pin: MOCK_STAFF_PIN, deviceName: 'n' })
+      .then(() => null)
+      .catch((error: unknown) => error);
+
+    expect(blockedFeature(caught)).toBe('staffPhone');
+    expect(registry.phonePairings.get('K7Q2M9XW4P')?.redeemedAtUtc).toBeNull();
+    expect(phone.getSnapshot().state).toBe('unenrolled');
+  });
+
+  it('carries the features on the session, and signs a phone out when a renewal drops it', async () => {
+    issue('K7Q2M9XW4P', waiter.id);
+    const phone = session();
+    await phone.restore();
+    await phone.pairPhone({ code: 'K7Q2M9XW4P', pin: MOCK_STAFF_PIN, deviceName: 'n' });
+    expect(phone.getSnapshot().identity?.features).toContain('staffPhone');
+    expect(phone.getSnapshot().device?.features).toContain('staffPhone');
+
+    registry.branchFeatures.set(branch.id, {
+      branchId: branch.id,
+      features: allBut(FULL_FEATURES),
+    });
+    expect(await phone.refresh()).toBeNull();
+    // Locked with the reason, not unpaired: switched back on, it signs in again.
+    expect(phone.getSnapshot()).toMatchObject({ state: 'locked', lastSignOut: 'phoneOff' });
+    expect(phone.getSnapshot().device?.kind).toBe('phone');
+
+    // A PIN is refused while it stays off, with the same refusal.
+    const caught = await phone
+      .signInWithPin({ staffMemberId: waiter.id, pin: MOCK_STAFF_PIN })
+      .then(() => null)
+      .catch((error: unknown) => error);
+    expect(blockedFeature(caught)).toBe('staffPhone');
+  });
+});
+
+describe('the kitchen screen switched off at the branch (mock)', () => {
+  it('locks a kitchen session when a renewal drops it, and keeps the tablet', async () => {
+    expect(kitchen).toBeTruthy();
+    registry.enrolmentCodes.set('H3Q2M9XW4P', {
+      code: 'H3Q2M9XW4P',
+      branchId: branch.id,
+      expiresAtUtc: new Date(now.getTime() + 60 * 60_000).toISOString(),
+      spentAtUtc: null,
+    });
+    const tablet = session();
+    await tablet.restore();
+    await tablet.enrol({ code: 'H3Q2M9XW4P', deviceName: 'Kitchen' });
+    await tablet.signInWithPin({ staffMemberId: kitchen!.id, pin: MOCK_STAFF_PIN });
+    expect(tablet.getSnapshot().identity?.features).toContain('kitchenDisplay');
+
+    registry.branchFeatures.set(branch.id, {
+      branchId: branch.id,
+      features: FULL_FEATURES.filter((feature) => feature !== 'kitchenDisplay'),
+    });
+    expect(await tablet.refresh()).toBeNull();
+    expect(tablet.getSnapshot()).toMatchObject({ state: 'locked', lastSignOut: 'kitchenOff' });
+    expect(tablet.getSnapshot().device?.branchId).toBe(branch.id);
   });
 });
 

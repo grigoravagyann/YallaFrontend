@@ -314,3 +314,15 @@ describe('why a booking waits for the venue', () => {
     );
   });
 });
+
+describe('a booking the platform has not enabled here (2026-10-27)', () => {
+  it('is its own sentence, never "something went wrong"', () => {
+    const failure = bookingFailure(
+      new errors.FeatureNotEnabledError({ url: URL, feature: 'appBookings', branchId: 'b' }),
+      YEREVAN,
+      'en',
+    );
+    expect(failure.kind).toBe('featureOff');
+    expect(failure.line.key).toBe('confirm.error.featureOff');
+  });
+});

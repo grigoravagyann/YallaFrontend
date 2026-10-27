@@ -43,6 +43,8 @@ import {
  */
 export interface MessageThreadProps {
   readonly branchId: string;
+  /** Guest messages switched off at the branch: read only, said so. */
+  readonly messagesOff?: boolean | undefined;
   readonly subject: ConversationSubjectRef;
   /** The inbox's row, while the list has it: the title before the thread's own read lands. */
   readonly item: StaffConversationListItem | null;
@@ -59,6 +61,7 @@ export interface MessageThreadProps {
 }
 
 export function MessageThread({
+  messagesOff = false,
   branchId,
   subject,
   item,
@@ -142,7 +145,7 @@ export function MessageThread({
   const localTime = thread?.subject.localTime ?? item?.subject.localTime ?? null;
 
   const open = thread?.open ?? item?.open ?? true;
-  const canWrite = Boolean(thread?.canWrite) && open;
+  const canWrite = Boolean(thread?.canWrite) && open && !messagesOff;
   const text = messageText(draft);
   const tooLong = draft.trim().length > MESSAGE_MAX_LENGTH;
   const sendable = canWrite && online && !send.isPending && messageViolations(text).length === 0;
@@ -305,6 +308,8 @@ export function MessageThread({
       <div className="msg-compose">
         {!thread ? null : !open ? (
           <p className="msg-closed">{t('messages.thread.closed')}</p>
+        ) : messagesOff ? (
+          <p className="msg-closed">{t('messages.thread.featureOff')}</p>
         ) : !thread.canWrite ? (
           <p className="msg-closed">
             {waitersCanWrite ? t('messages.thread.readOnly') : t('messages.thread.readOnlyWaiters')}

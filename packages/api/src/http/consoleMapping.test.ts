@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest';
 import type { components } from '../generated/schema';
 import {
   branchFromWire,
-  subscriptionTier,
   venueDetailFromWire,
   venueFromWire,
   venuePageFromWire,
@@ -24,12 +23,15 @@ const wireVenue = (
   isDeleted: false,
   branchCount: 1,
   tableCount: 8,
-  paidBranchCount: 1,
-  subscriptionTier: 2,
   status: 1,
-  tierMix: 3,
   branches: [
-    { branchId: 'b1', name: 'Yerevan Centre', subscriptionTier: 2, isActive: true, issues: [] },
+    {
+      branchId: 'b1',
+      name: 'Yerevan Centre',
+      features: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
+      isActive: true,
+      issues: [],
+    },
   ],
   createdAtUtc: '2026-06-01T09:00:00Z',
   notReadyBranchCount: 0,
@@ -50,7 +52,7 @@ const wireBranch = (
   longitude: 44.515,
   timeZoneId: 'Asia/Yerevan',
   isActive: true,
-  subscriptionTier: 1,
+  features: [1, 2, 3, 4, 6, 7, 8, 9, 10],
   tableCount: 8,
   openTabCount: 0,
   ...over,
@@ -62,9 +64,9 @@ describe('enums', () => {
     expect(venueType(2)).toBe('restaurant');
   });
 
-  it('maps the two tiers the backend actually has', () => {
-    expect(subscriptionTier(1)).toBe('free');
-    expect(subscriptionTier(2)).toBe('paid');
+  it('maps the features by number, in order, dropping one this client does not know', () => {
+    const branch = branchFromWire(wireBranch({ features: [10, 5, 1, 11 as never] }));
+    expect(branch.features).toEqual(['appBookings', 'tableService', 'reports']);
   });
 });
 
@@ -83,7 +85,7 @@ describe('venue rows', () => {
     const venue = venueFromWire(wireVenue());
     expect(venue.id).toBe('01a07293-598c-7529-9862-bfa66dd66837');
     expect(venue.type).toBe('cafe');
-    expect(venue.subscriptionTier).toBe('paid');
+    expect(venue.branchFeatures?.[0]?.features).toHaveLength(10);
     expect(venue.status).toBe('active');
     expect(venue.branchCount).toBe(1);
     expect(venue.tableCount).toBe(8);
@@ -123,7 +125,7 @@ describe('branches and detail', () => {
     const branch = branchFromWire(wireBranch({ openTabCount: 3, district: 'Kentron' }));
     expect(branch.id).toBe('b1');
     expect(branch.timeZoneId).toBe('Asia/Yerevan');
-    expect(branch.subscriptionTier).toBe('free');
+    expect(branch.features).not.toContain('tableService');
     expect(branch.openTabCount).toBe(3);
     expect(branch.district).toBe('Kentron');
   });
@@ -161,5 +163,13 @@ describe('paging', () => {
       typeof venuePageFromWire
     >[0]);
     expect(page.items).toEqual([]);
+  });
+});
+
+describe('a feature set the server does not send', () => {
+  it('is every feature, not none: an older server blocks nothing', () => {
+    const branch = branchFromWire({ ...wireBranch(), features: undefined as never });
+    expect(branch.features).toHaveLength(10);
+    expect(branchFromWire(wireBranch({ features: [] })).features).toEqual([]);
   });
 });

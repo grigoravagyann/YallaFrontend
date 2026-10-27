@@ -45,6 +45,8 @@ export interface OccupiedTableActionsProps {
   readonly onAdmissionDecided: ((outcome: AdmissionOutcome) => void) | undefined;
   readonly onStartTab: () => void;
   readonly startingTab: boolean;
+  /** False where the platform has not allowed table service: no tab is started here. */
+  readonly tableService: boolean;
   readonly onOrder: () => void;
   readonly onOpenTab: () => void;
   readonly onCash: () => void;
@@ -75,6 +77,7 @@ export function OccupiedTableActions({
   onAdmissionDecided,
   onStartTab,
   startingTab,
+  tableService,
   onOrder,
   onOpenTab,
   onCash,
@@ -166,7 +169,10 @@ export function OccupiedTableActions({
         is not a floor command the tablet queues — and not while this
         table's seating is itself still waiting to sync, because the
         server has nobody seated there to bill yet. */}
-        {detail && detail.openTabId === null ? (
+        {detail && detail.openTabId === null && !tableService ? (
+          // Not the waiter's to fix: the platform has not allowed tabs here.
+          <p className="tp-hint">{t('table.tableServiceOff')}</p>
+        ) : detail && detail.openTabId === null ? (
           <>
             <Warn tone="amber">
               <b>{t('table.noTab')}</b> {t('table.noTabWhy')}

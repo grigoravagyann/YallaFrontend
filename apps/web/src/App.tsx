@@ -12,12 +12,14 @@ import { PlatformLayout } from './console/platform/PlatformLayout';
 import { HomeRoute } from './console/platform/HomeRoute';
 import { SettingsRoute } from './console/platform/SettingsRoute';
 import { ErrorState, errorKindFor } from './console/ui/ErrorState';
+import { BranchFeaturesRoute } from './console/platform/BranchFeaturesRoute';
 import { BranchFloorPlanRoute } from './console/platform/BranchFloorPlanRoute';
 import { BranchPublicPageRoute } from './console/platform/BranchPublicPageRoute';
 import { BranchReviewsRoute } from './console/platform/BranchReviewsRoute';
 import { VenueDetailRoute } from './console/platform/VenueDetailRoute';
 import { VenuesRoute } from './console/platform/VenuesRoute';
 import { VenueLayout } from './console/venue/VenueLayout';
+import { FeatureGate } from './console/venue/featureLock';
 import { AccountScreen } from './console/venue/account/AccountScreen';
 import { MenuEditorScreen } from './console/venue/menu/MenuEditorScreen';
 import { OpeningHoursScreen } from './console/venue/hours/OpeningHoursScreen';
@@ -269,6 +271,14 @@ export function AppRoutes({ user }: { user: ConsoleUser }) {
                 </RequireRole>
               }
             />
+            <Route
+              path="/platform/venues/:venueId/branches/:branchId/features"
+              element={
+                <RequireRole allow={PLATFORM_ROLES}>
+                  <BranchFeaturesRoute />
+                </RequireRole>
+              }
+            />
           </>
         ) : null}
 
@@ -283,6 +293,9 @@ export function AppRoutes({ user }: { user: ConsoleUser }) {
             <Route path="hours" element={<OpeningHoursScreen />} />
             <Route path="policy" element={<ReservationPolicyScreen />} />
             <Route path="public" element={<PublicPageScreen />} />
+            {/* Reviews and Messages stay readable when the platform has them
+                off, with the lock on top and the writing disabled; Reports is
+                a locked page, as the server refuses its reads (2026-10-27). */}
             <Route path="reviews" element={<VenueReviewsScreen />} />
             {/* Every guest conversation of the branch, read only: owner, GM
                 and the branch manager (their own branch), as Reviews. */}
@@ -301,9 +314,11 @@ export function AppRoutes({ user }: { user: ConsoleUser }) {
             <Route
               path="reports"
               element={
-                <Suspense fallback={<div className="report-skeleton" aria-hidden="true" />}>
-                  <ReportsScreen />
-                </Suspense>
+                <FeatureGate feature="reports" titleKey="nav.reports">
+                  <Suspense fallback={<div className="report-skeleton" aria-hidden="true" />}>
+                    <ReportsScreen />
+                  </Suspense>
+                </FeatureGate>
               }
             />
           </Route>

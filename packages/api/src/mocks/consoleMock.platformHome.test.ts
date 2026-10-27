@@ -24,16 +24,13 @@ async function caught(promise: Promise<unknown>): Promise<unknown> {
 }
 
 describe('the overview', () => {
-  it('counts the venues it lists, by tier and by state, with deleted ones apart', async () => {
+  it('counts the venues it lists, by state, with deleted ones apart', async () => {
     const gateway = mock();
     const overview = await gateway.getPlatformOverview();
     const { items } = await gateway.listVenues({ pageSize: 200, includeDeleted: true });
     const deleted = items.filter((venue) => venue.status === 'deleted');
     expect(overview.venues.deleted).toBe(deleted.length);
     expect(overview.venues.total).toBe(items.length - deleted.length);
-    expect(overview.venues.paid + overview.venues.mixed + overview.venues.free).toBe(
-      overview.venues.total,
-    );
     expect(overview.venues.active + overview.venues.suspended + overview.venues.inactive).toBe(
       overview.venues.total,
     );

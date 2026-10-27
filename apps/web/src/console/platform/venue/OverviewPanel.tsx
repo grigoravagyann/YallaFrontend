@@ -1,5 +1,6 @@
 import {
-  venueTierSummary,
+  venueFeatureSummary,
+  venueFeatures,
   type BranchReadiness,
   type ConsoleBranch,
   type ConsoleVenueDetail,
@@ -10,28 +11,28 @@ import { formatDate } from '@yalla/format';
 import { useLocale, useTranslation } from '@yalla/i18n';
 import { useId, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
-import { AlertCircleIcon, CheckIcon, ChevronsUpDownIcon, PlusIcon } from '../../ui/icons';
+import { useFeatureText } from '../../ui/featureText';
+import { AlertCircleIcon, CheckIcon, ChevronRightIcon, PlusIcon } from '../../ui/icons';
 
 /** Every venue in the pilot is in Yerevan. */
 const CONSOLE_TIME_ZONE = 'Asia/Yerevan';
 
 export interface OverviewPanelProps {
   readonly venue: ConsoleVenueDetail;
-  /** Opens the plan dialog for one branch; absent on a deleted venue. */
-  readonly onBranchPlan: ((branch: ConsoleBranch) => void) | null;
   /** Opens "Add a branch"; absent on a deleted venue. */
   readonly onAddBranch: (() => void) | null;
 }
 
 /**
  * The venue page's Overview tab (VenueDetail artboard): four numbers, the
- * branches with each one's own plan and the way into its public page, rooms
- * and reviews, what is still not ready for guests, and the venue's details.
+ * branches with what the platform allows each one (its Features page) and the
+ * way into its public page, rooms and reviews, what is still not ready for
+ * guests, and the venue's details.
  *
  * Every number is the source's or absent: an open-tab count nobody reported is
  * "not reported", never a zero that says the floor is clear.
  */
-export function OverviewPanel({ venue, onBranchPlan, onAddBranch }: OverviewPanelProps) {
+export function OverviewPanel({ venue, onAddBranch }: OverviewPanelProps) {
   const { t } = useTranslation(['admin', 'common']);
   const { locale } = useLocale();
   const bookings = useVenueBookingsSummary(venue.id, 30);
@@ -47,7 +48,8 @@ export function OverviewPanel({ venue, onBranchPlan, onAddBranch }: OverviewPane
   );
   const branchesWithTabs = venue.branches.filter((branch) => (branch.openTabCount ?? 0) > 0);
   const owner = (staff.data ?? []).find((member) => member.role === 'owner' && member.isActive);
-  const summary = venueTierSummary(venue);
+  const summary = venueFeatures(venue);
+  const text = useFeatureText();
 
   const kpis: { label: string; value: ReactNode; foot: ReactNode }[] = [
     {
@@ -142,7 +144,7 @@ export function OverviewPanel({ venue, onBranchPlan, onAddBranch }: OverviewPane
                         {t('venuePage.branches.openTabs')}
                       </th>
                     ) : null}
-                    <th scope="col">{t('venuePage.branches.plan')}</th>
+                    <th scope="col">{t('venuePage.branches.features')}</th>
                     <th scope="col">{t('venuePage.branches.manage')}</th>
                   </tr>
                 </thead>
@@ -154,7 +156,6 @@ export function OverviewPanel({ venue, onBranchPlan, onAddBranch }: OverviewPane
                       branch={branch}
                       today={today.get(branch.id) ?? null}
                       knowsTabs={knowsTabs}
-                      onPlan={onBranchPlan}
                     />
                   ))}
                 </tbody>
@@ -178,19 +179,13 @@ export function OverviewPanel({ venue, onBranchPlan, onAddBranch }: OverviewPane
             {owner ? owner.fullName : t('venuePage.facts.noOwner')}
             {owner?.email ? <span>{owner.email}</span> : null}
           </dd>
-          <dt>{t('venuePage.facts.plan')}</dt>
+          <dt>{t('venuePage.facts.features')}</dt>
           <dd>
-            {summary.kind === 'mixed'
-              ? t('venues.tierSummary.mixed', { paid: summary.paid, total: summary.total })
-              : summary.kind === 'paid'
-                ? t('tier.paid')
-                : t('tier.free')}
+            {text.summary(summary)}
             <span>
-              {summary.kind === 'mixed'
-                ? t('venuePage.facts.planMixed')
-                : summary.kind === 'paid'
-                  ? t('venuePage.facts.planPaid')
-                  : t('venuePage.facts.planFree')}
+              {summary.kind === 'custom' && summary.features
+                ? text.list(summary.features)
+                : t(`venuePage.facts.featuresAre.${summary.kind}`)}
             </span>
           </dd>
           {venue.createdAtUtc ? (
@@ -212,17 +207,16 @@ function BranchRow({
   branch,
   today,
   knowsTabs,
-  onPlan,
 }: {
   readonly venueId: string;
   readonly branch: ConsoleBranch;
   /** `null` until the summary has answered: not a zero nobody counted. */
   readonly today: number | null;
   readonly knowsTabs: boolean;
-  readonly onPlan: ((branch: ConsoleBranch) => void) | null;
 }) {
   const { t } = useTranslation(['admin', 'common']);
-  const plan = branch.subscriptionTier === 'paid' ? t('tier.paid') : t('tier.free');
+  const text = useFeatureText();
+  const features = text.summary(venueFeatureSummary([branch]));
   const base = `/platform/venues/${venueId}/branches/${branch.id}`;
   return (
     <tr>
@@ -239,20 +233,15 @@ function BranchRow({
       <td className="yc-num">{today ?? '—'}</td>
       {knowsTabs ? <td className="yc-num">{branch.openTabCount ?? '—'}</td> : null}
       <td>
-        {onPlan ? (
-          <button
-            type="button"
-            className={`yc-tier is-${branch.subscriptionTier}`}
-            data-branch-tier={branch.id}
-            aria-label={t('venuePage.branches.planButton', { plan, branch: branch.name })}
-            onClick={() => onPlan(branch)}
-          >
-            {plan}
-            <ChevronsUpDownIcon />
-          </button>
-        ) : (
-          <span className="yc-tier-text">{plan}</span>
-        )}
+        <Link
+          className="yc-featl"
+          to={`${base}/features`}
+          data-branch-features={branch.id}
+          aria-label={t('venuePage.branches.featuresLink', { features, branch: branch.name })}
+        >
+          {features}
+          <ChevronRightIcon />
+        </Link>
       </td>
       <td>
         {/* A platform admin holds no branch claim, so these pages take the

@@ -1,7 +1,7 @@
 import type { ConsoleGateway } from '../../consoleGateway';
 import type { AdminMenuCategory, AdminMenuItem, MenuItemDeletion } from '../../contracts/menuAdmin';
 import { absolutePhoto } from '../photoUrl';
-import { CategoryInUseError } from '../../contracts/errors';
+import { CategoryInUseError, isFeatureNotEnabled } from '../../contracts/errors';
 import { ApiError } from '../../errors';
 import type { components } from '../../generated/schema';
 import {
@@ -79,7 +79,7 @@ export function menuMethods(
       try {
         await client.delete(`${BRANCHES}/${branchId}/menu/categories/${categoryId}`);
       } catch (error) {
-        if (error instanceof ApiError && error.status === 409) {
+        if (!isFeatureNotEnabled(error) && error instanceof ApiError && error.status === 409) {
           throw new CategoryInUseError({
             url: error.url,
             categoryId,

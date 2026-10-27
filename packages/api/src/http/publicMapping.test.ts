@@ -58,6 +58,7 @@ describe('the open state on the public branch page', () => {
     tableCount: 8,
     floorPlan: { areas: [], tables: [] },
     acceptsWebBookings: true,
+    features: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
     acceptsAppBookings: true,
     bookingWindowDays: 14,
     policy: {
@@ -164,6 +165,7 @@ describe('the rooms on the public branch page', () => {
       tables: [],
     },
     acceptsWebBookings: true,
+    features: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
     acceptsAppBookings: true,
     bookingWindowDays: 14,
     policy: {

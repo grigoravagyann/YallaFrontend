@@ -13,14 +13,21 @@ import { useRequestArrivals } from '../ApprovalPanel';
 import { useMessageReminders } from '../messages/useMessageReminders';
 import { useCachedMenu } from '../useCachedMenu';
 import { useMinuteClock } from '../useMinuteClock';
+import type { FloorFeatures } from './floorFeatures';
 
 /**
  * Everything the floor reads beside the floor itself: the menu, the kitchen's
  * queue, the calls, the bookings waiting for an answer, the tables waiting to
  * be let in, the pre-orders, the takeaway counter and the guest messages.
- * Each paused while the tablet is locked.
+ * Each paused while the tablet is locked, and each not asked where the
+ * platform has not allowed its feature (`floorFeatures`).
  */
-export function useFloorQueries(branchId: string, active: boolean, timeZoneId: string) {
+export function useFloorQueries(
+  branchId: string,
+  active: boolean,
+  timeZoneId: string,
+  features: FloorFeatures,
+) {
   /**
    * The menu, from disk first and the network second.
    *
@@ -38,7 +45,7 @@ export function useFloorQueries(branchId: string, active: boolean, timeZoneId: s
   const awaitingQuery = useAwaitingApproval(branchId, active);
   const awaiting = useRequestArrivals(awaitingQuery.data, timeZoneId);
   /** Tables that scanned with no verified number, waiting to be let in. */
-  const admissionQuery = useTabsAwaitingAdmission(branchId, active);
+  const admissionQuery = useTabsAwaitingAdmission(branchId, active && features.tableService);
   const waitingTables = useMemo(() => admissionQuery.data ?? [], [admissionQuery.data]);
   /**
    * Bookings with a pre-order, from the branch's `minutesBefore` until they
@@ -62,12 +69,16 @@ export function useFloorQueries(branchId: string, active: boolean, timeZoneId: s
    */
   const takeawayInUse =
     takeawayCounter !== null &&
-    (takeawayCounter.active.length > 0 || takeawayCounter.finishedToday.length > 0);
+    (features.takeaway
+      ? takeawayCounter.active.length > 0 || takeawayCounter.finishedToday.length > 0
+      : // Blocked by the platform: only orders still in flight keep the counter.
+        takeawayCounter.active.length > 0);
   /**
    * Guest messages (2026-10-23): the Messages tab and its badge, the rail's
    * section and the reminder. Polled every ten seconds, in the background too:
    * a guest's message pushes nothing to the tablet.
    */
+  // Read even with guest messages off: a guest's "on my way" still matters.
   const inboxQuery = useBranchConversations(branchId, active);
   const inbox = inboxQuery.data ?? null;
   const reminderClock = useNow(15_000);

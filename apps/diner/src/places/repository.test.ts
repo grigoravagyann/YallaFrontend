@@ -60,6 +60,7 @@ const LISTING: BranchListing = {
   reviewCount: 2,
   badges: ['popular'],
   coverPhoto: null,
+  features: null,
 };
 
 const DETAIL: BranchDetail = {

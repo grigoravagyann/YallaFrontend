@@ -1,7 +1,7 @@
 /**
  * GENERATED FILE — do not edit.
  *
- * Source: http://localhost:5987/swagger.json (the `x-problem-codes` extension)
+ * Source: http://localhost:5437/swagger.json (the `x-problem-codes` extension)
  * Regenerate with: pnpm api:generate
  *
  * Every problem code the backend answers with. Each is declared once, on its
@@ -47,7 +47,7 @@ export const ProblemCodes = {
   BookingTooEarly: 'booking-too-early',
   /** 409 Bookings not accepted — A booking from the diner app at a branch that is not taking app bookings. */
   BookingsNotAccepted: 'bookings-not-accepted',
-  /** 409 Branch is not ready for diners — The branch's menu has unfinished dishes, so it cannot be switched to Paid. */
+  /** 409 Branch is not ready for diners — The branch's menu has unfinished dishes, so table service cannot be turned on. */
   BranchNotReady: 'branch-not-ready',
   /** 409 Branch not open for business — The branch is not open for business: venue suspended or deleted, or branch switched off. */
   BranchUnavailable: 'branch-unavailable',
@@ -55,7 +55,7 @@ export const ProblemCodes = {
   ClientCommandIdInUse: 'client-command-id-in-use',
   /** 409 Concurrent update — Someone else changed the row first: re-read and retry. */
   ConcurrentUpdate: 'concurrent-update',
-  /** 409 Conflicting state — The operation is not legal in the current state; a staff order's unorderable guest is named in context. */
+  /** 409 Conflicting state — The operation is not legal in the current state; a staff order's unorderable guest, or the branch whose open tabs keep table service on, is named in context. */
   ConflictingState: 'conflicting-state',
   /** 409 Conversation closed — Writing to a guest-message thread that has closed. */
   ConversationClosed: 'conversation-closed',
@@ -71,7 +71,7 @@ export const ProblemCodes = {
   EnrolmentCodeInvalid: 'enrolment-code-invalid',
   /** 409 Hold extensions not offered — The branch offers no hold extensions. */
   ExtensionsNotOffered: 'extensions-not-offered',
-  /** 409 Feature not enabled for this branch — The branch's tier does not include this feature. */
+  /** 409 Feature not enabled for this branch — The platform has not allowed this feature at the branch. */
   FeatureNotEnabled: 'feature-not-enabled',
   /** 409 Floor plan changed — The floor plan was saved by somebody else since the editor loaded it. */
   FloorPlanChanged: 'floor-plan-changed',
@@ -476,7 +476,7 @@ export interface BookingsNotAcceptedProblemContext {
   readonly branchId: string;
 }
 
-/** `branch-not-ready` (409): The branch's menu has unfinished dishes, so it cannot be switched to Paid. */
+/** `branch-not-ready` (409): The branch's menu has unfinished dishes, so table service cannot be turned on. */
 export interface BranchNotReadyProblemContext {
   readonly branchId: string;
   readonly incompleteMenuItemCount: number;
@@ -493,12 +493,14 @@ export interface ConcurrentUpdateProblemContext {
   readonly currentVersion: string;
 }
 
-/** `conflicting-state` (409): The operation is not legal in the current state; a staff order's unorderable guest is named in context. */
+/** `conflicting-state` (409): The operation is not legal in the current state; a staff order's unorderable guest, or the branch whose open tabs keep table service on, is named in context. */
 export interface ConflictingStateProblemContext {
-  readonly field: string;
-  readonly participantId: string;
+  readonly field?: string;
+  readonly participantId?: string;
   /** `ParticipantStatus`: 1 PendingApproval, 2 Approved, 3 Removed. */
-  readonly participantStatus: 1 | 2 | 3;
+  readonly participantStatus?: 1 | 2 | 3;
+  readonly branchId?: string;
+  readonly openTabCount?: number;
 }
 
 /** `conversation-closed` (409): Writing to a guest-message thread that has closed. */
@@ -519,12 +521,11 @@ export interface ExtensionsNotOfferedProblemContext {
   readonly startUtc: string;
 }
 
-/** `feature-not-enabled` (409): The branch's tier does not include this feature. */
+/** `feature-not-enabled` (409): The platform has not allowed this feature at the branch. */
 export interface FeatureNotEnabledProblemContext {
-  readonly feature: string;
+  /** `BranchFeature`: 1 AppBookings, 2 WebBookings, 3 PreOrders, 4 Takeaway, 5 TableService, 6 GuestMessages, 7 Reviews, 8 StaffPhone, 9 KitchenDisplay, 10 Reports. */
+  readonly feature: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10;
   readonly branchId: string;
-  /** `SubscriptionTier`: 1 Free, 2 Paid. */
-  readonly currentTier: 1 | 2;
 }
 
 /** `floor-plan-changed` (409): The floor plan was saved by somebody else since the editor loaded it. */

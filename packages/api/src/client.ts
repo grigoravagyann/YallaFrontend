@@ -14,6 +14,7 @@ import {
   UnauthorizedError,
   ValidationError,
 } from './errors';
+import { FeatureNotEnabledError } from './contracts/errors/features';
 import { parseProblem } from './problem';
 import { ProblemCodes } from './generated/problemCodes';
 
@@ -148,6 +149,12 @@ function toError(response: Response, url: string, body: unknown): ApiError {
     case 404:
       return new NotFoundError(base);
     case 409:
+      // Not a conflict to refresh away: the platform has not allowed the
+      // feature. Still a `ConcurrencyConflictError`, so nothing that reads a
+      // 409 as "not now" changes; the class carries which feature.
+      if (problem?.code === ProblemCodes.FeatureNotEnabled) {
+        return new FeatureNotEnabledError(base);
+      }
       return new ConcurrencyConflictError({
         ...base,
         expectedVersion: stringField(body, 'expectedVersion'),

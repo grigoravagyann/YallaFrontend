@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { FULL_FEATURES } from '../contracts/branchFeatures';
 import { createStaffAuth } from '../auth/staffEndpoints';
 import {
   KitchenPhoneNotAllowedError,
@@ -49,6 +50,7 @@ const SESSION = {
   fullName: 'Aram Petrosyan',
   role: 3,
   branchId: BRANCH,
+  features: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
 };
 
 describe('pairing a phone', () => {
@@ -123,6 +125,7 @@ describe('pairing a phone', () => {
       fullName: 'Aram Petrosyan',
       role: 'waiter',
       branchId: BRANCH,
+      features: FULL_FEATURES,
     });
   });
 
@@ -218,11 +221,13 @@ describe('pairing a phone', () => {
           enrolledAtUtc: '2026-10-24T18:00:00Z',
           kind: 2,
           boundStaffMember: { id: PERSON, fullName: 'Aram Petrosyan', role: 3 },
+          features: [1, 2, 3, 4, 6, 7, 8, 9, 10],
         },
       },
     });
     const device = await auth.getDevice('device-token');
     expect(device.kind).toBe('phone');
+    expect(device.features).not.toContain('tableService');
     expect(device.boundStaffMember).toEqual({
       id: PERSON,
       fullName: 'Aram Petrosyan',

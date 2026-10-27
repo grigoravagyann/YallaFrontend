@@ -608,13 +608,16 @@ function BranchPage({
 
         <MenuSection menu={menuQuery.data} />
         <AboutSection branch={branch} detail={detail} />
-        <ReviewsSection
-          branchId={branch.id}
-          detail={detail}
-          failed={detailFailed}
-          onRetry={retryDetail}
-          locale={locale}
-        />
+        {/* Reviews switched off here (2026-10-27): not shown, not "none yet". */}
+        {branch.features.includes('reviews') ? (
+          <ReviewsSection
+            branchId={branch.id}
+            detail={detail}
+            failed={detailFailed}
+            onRetry={retryDetail}
+            locale={locale}
+          />
+        ) : null}
         <OpeningHours branch={branch} locale={locale} />
         <FindUs branch={branch} detail={detail} />
       </div>

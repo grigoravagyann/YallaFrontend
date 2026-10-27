@@ -16,12 +16,14 @@ import { createConsoleHarness, initConsoleTestI18n } from '../venue/reports/test
 /**
  * One venue, for the platform admin (VenueDetail artboard; HANDOFF section 8
  * step 3): the suspended banner, edit, suspend and delete, the tabs Overview /
- * Staff / Bookings on a roving tabindex, the branch table with each branch's
- * own plan, adding a branch, the four-step add-staff wizard with its sign-in
- * shown once, and the bookings as aggregates only.
+ * Staff / Bookings on a roving tabindex, the branch table with what each
+ * branch may use (its Features page, tested in BranchFeaturesRoute.test),
+ * adding a branch, the four-step add-staff wizard with its sign-in shown
+ * once, and the bookings as aggregates only.
  *
  * Against the real console mock: Lumen Coffee has staff, Mountain View has a
- * branch whose menu refuses Paid, Cascade Cafe's open tabs block its delete.
+ * branch whose menu refuses table service, Cascade Cafe's open tabs block its
+ * delete.
  */
 
 let AppRoutes: typeof AppRoutesComponent;
@@ -56,27 +58,6 @@ const branchRow = (name: string) =>
     .getByText(name)
     .closest('tr')!;
 const staffRow = (name: string) => screen.getByText(name).closest('tr')!;
-
-/** Yalla Demo Cafe with nobody at a tab, and its paid branch's menu unfinished since. */
-function unfinishedPaidBranch(): ConsoleGateway {
-  const mock = createConsoleMockGateway({ latencyMs: 0, role: 'platformAdmin' });
-  return {
-    ...mock,
-    getVenue: async (venueId) => {
-      const venue = await mock.getVenue(venueId);
-      return (
-        venue && {
-          ...venue,
-          branches: venue.branches.map((branch) => ({ ...branch, openTabCount: 0 })),
-        }
-      );
-    },
-    getBranchReadiness: async (branchId) => ({
-      ...(await mock.getBranchReadiness(branchId)),
-      incompleteMenuItemCount: branchId === 'b-yalla-demo-center' ? 2 : 0,
-    }),
-  };
-}
 
 async function openTab(user: ReturnType<typeof userEvent.setup>, name: RegExp) {
   await user.click(screen.getByRole('tab', { name }));
@@ -179,77 +160,14 @@ describe('the branch table', () => {
     );
   });
 
-  it("refuses the unready branch's Paid before anything is sent, naming the dishes", async () => {
-    const user = userEvent.setup();
-    const gateway = createConsoleMockGateway({ latencyMs: 0, role: 'platformAdmin' });
-    const setTier = vi.spyOn(gateway, 'setBranchTier');
-    renderVenue('v-mountain', gateway);
-    await heading('Mountain View');
-
-    await user.click(within(branchRow('Նոր Նորք')).getByRole('button', { name: /plan at/u }));
-    const dialog = await screen.findByRole('alertdialog', {
-      name: 'The Նոր Նորք branch cannot go paid yet',
-    });
-    expect(within(dialog).getByText(/4 dishes are not ready/u)).toBeTruthy();
-    expect(setTier).not.toHaveBeenCalled();
-  });
-
-  it('moves one branch to Paid and leaves the other alone', async () => {
-    const user = userEvent.setup();
+  it("says what each branch may use, and leads to that branch's Features page", async () => {
     renderVenue('v-mountain');
     await heading('Mountain View');
-
-    await user.click(within(branchRow('Քանաքեռ')).getByRole('button', { name: /plan at/u }));
-    const dialog = await screen.findByRole('alertdialog', {
-      name: 'Make the Քանաքեռ branch paid?',
-    });
-    expect(within(dialog).getByText(/at this branch only/u)).toBeTruthy();
-    await user.click(await within(dialog).findByRole('button', { name: 'Make paid' }));
-
-    expect(await screen.findByText('Քանաքեռ is now on the Paid plan')).toBeTruthy();
-    await waitFor(() =>
-      expect(
-        within(branchRow('Քանաքեռ')).getByRole('button', { name: /^Paid plan/u }),
-      ).toBeTruthy(),
+    const link = within(branchRow('Նոր Նորք')).getByRole('link', { name: /features Basic/u });
+    expect(link.getAttribute('href')).toBe(
+      '/platform/venues/v-mountain/branches/b-mountain-nornork/features',
     );
-    expect(within(branchRow('Նոր Նորք')).getByRole('button', { name: /^Free plan/u })).toBeTruthy();
-  });
-
-  it("refuses going Free while the branch's tabs are open", async () => {
-    const user = userEvent.setup();
-    renderVenue('v-cascade');
-    await heading('Cascade Cafe');
-    await user.click(within(branchRow('Կենտրոն')).getByRole('button', { name: /plan at/u }));
-    // Refused as the dialog opens, from the tabs the venue read reports: nothing to press.
-    const dialog = await screen.findByRole('alertdialog', {
-      name: 'The Կենտրոն branch cannot go free yet',
-    });
-    expect(within(dialog).queryByRole('button', { name: 'Make free' })).toBeNull();
-    expect(within(dialog).getByText(/Tabs are open/u)).toBeTruthy();
-  });
-
-  it("warns, going Free, that an unready branch can't come back to Paid — and still goes", async () => {
-    const user = userEvent.setup();
-    const gateway = unfinishedPaidBranch();
-    const setTier = vi.spyOn(gateway, 'setBranchTier');
-    renderVenue('v-yalla-demo', gateway);
-    await heading('Yalla Demo Cafe');
-
-    await user.click(within(branchRow('Կենտրոն')).getByRole('button', { name: /plan at/u }));
-    const dialog = await screen.findByRole('alertdialog', {
-      name: 'Make the Կենտրոն branch free?',
-    });
-    const warning = await within(dialog).findByRole('note');
-    expect(warning.textContent).toContain("It can't go back to Paid until its menu is finished");
-    expect(within(warning).getByText('2 dishes are not ready to show a guest')).toBeTruthy();
-
-    // The warning is not a refusal: the same confirm goes through.
-    await user.click(within(dialog).getByRole('button', { name: 'Make free' }));
-    await waitFor(() => expect(setTier).toHaveBeenCalledTimes(1));
-    expect(setTier.mock.calls[0]![0]).toMatchObject({
-      branchId: 'b-yalla-demo-center',
-      tier: 'free',
-    });
+    expect(link.textContent).toContain('Basic');
   });
 
   it('adds a branch, with errors under the fields first', async () => {
@@ -298,12 +216,10 @@ describe('the overview', () => {
     );
   });
 
-  it('describes the Paid plan without a payment in the app — guests pay the waiter', async () => {
+  it('says what the venue may use, in a word and a line', async () => {
     renderVenue('v-cascade');
     await heading('Cascade Cafe');
-    expect(
-      screen.getByText('Ordering by phone, table tabs, asking for the bill in the app'),
-    ).toBeTruthy();
+    expect(screen.getByText('Everything, table service included')).toBeTruthy();
     expect(screen.queryByText(/paying in the app|payment in the app/u)).toBeNull();
   });
 });

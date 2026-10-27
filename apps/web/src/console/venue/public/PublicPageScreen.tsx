@@ -9,6 +9,7 @@ import { useToast } from '../../ui/toast';
 import { PhotoPicker } from '../menu/PhotoPicker';
 import { useUnsavedChangesGuard } from '../useUnsavedChangesGuard';
 import { useVenueOutlet } from '../VenueLayout';
+import { FeatureLockNotice, useFeatureLocked } from '../featureLock';
 import { AppCardPreview, type ListingDraft, type PublicPageDraft } from './AppCardPreview';
 import { ListingSection } from './ListingSection';
 
@@ -173,6 +174,9 @@ function PageForm({
   readonly onDraft: (draft: PublicPageDraft) => void;
 }) {
   const { t } = useTranslation(['admin', 'common']);
+  // Web bookings blocked by the platform (2026-10-27): the switch stands as
+  // saved, locked. The platform's own page is not under a venue's outlet.
+  const bookingsLocked = useFeatureLocked('webBookings') && audience === 'venue';
   const toast = useToast();
   const save = useSavePublicProfile(branchId);
   const titleId = useId();
@@ -286,11 +290,13 @@ function PageForm({
           ) : null}
         </div>
 
+        {bookingsLocked ? <FeatureLockNotice feature="webBookings" /> : null}
         <div className="yc-pp-switch">
           <button
             type="button"
             className="yc-sw"
             role="switch"
+            disabled={bookingsLocked}
             aria-checked={acceptsWebBookings}
             aria-labelledby="pp-bookings-l"
             aria-describedby="pp-bookings-d"

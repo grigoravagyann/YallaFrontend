@@ -7,9 +7,8 @@ import type {
   ManagedBranch,
   ManagedVenue,
   Page,
-  SubscriptionTier,
   VenueBookingsSummary,
-  VenueBranchTier,
+  VenueBranchFeatures,
   VenueReadinessIssue,
   VenueStatus,
   VenueType,
@@ -33,6 +32,7 @@ import { reviewReplyFromWire, reviewSummaryFromWire } from './reviewReplyMapping
 import { cancellationCause, guestRecordFromWire } from './guestRecordMapping';
 import { bookingPreOrderFields, type WireBookingPreOrderFields } from './preOrderMapping';
 import { venueTypeFromCode } from './venueTypeMapping';
+import { branchFeaturesFromWire } from './branchFeatureMapping';
 
 type Schemas = components['schemas'];
 export type WireModeratedReview = Schemas['Yalla.Application.Reviews.ModeratedReviewView'];
@@ -66,11 +66,6 @@ type WirePage =
 /** `Yalla.Domain.Enums.VenueType`: 1 Cafe, 2 Restaurant, 3 Bar — the one shared decoder. */
 export function venueType(value: number): VenueType {
   return venueTypeFromCode(value);
-}
-
-/** `Yalla.Domain.Enums.SubscriptionTier`: 1 Free, 2 Paid. */
-export function subscriptionTier(value: number): SubscriptionTier {
-  return value === 2 ? 'paid' : 'free';
 }
 
 /**
@@ -141,10 +136,10 @@ export function venueFromWire(
   venue: WireVenue,
   resolveUrl: (url: string) => string = (url) => url,
 ): ConsoleVenue {
-  const branchTiers: VenueBranchTier[] = venue.branches.map((branch) => ({
+  const branchFeatures: VenueBranchFeatures[] = venue.branches.map((branch) => ({
     id: branch.branchId,
     name: branch.name,
-    subscriptionTier: subscriptionTier(branch.subscriptionTier),
+    features: branchFeaturesFromWire(branch.features),
   }));
   return {
     id: venue.venueId,
@@ -154,8 +149,6 @@ export function venueFromWire(
     status: venueStatusFromWire(venue),
     branchCount: venue.branchCount,
     tableCount: venue.tableCount,
-    subscriptionTier: subscriptionTier(venue.subscriptionTier),
-    paidBranchCount: venue.paidBranchCount,
     createdAtUtc: venue.createdAtUtc,
     suspendedAtUtc: venue.suspendedAtUtc ?? null,
     // `null` is "no reviews yet", not zero.
@@ -170,7 +163,7 @@ export function venueFromWire(
         })
       : null,
     coverThumbnailUrl: venue.coverThumbnailUrl ? resolveUrl(venue.coverThumbnailUrl) : null,
-    branchTiers,
+    branchFeatures,
     cuisine: venue.cuisine ?? null,
     district: venue.district ?? null,
   };
@@ -185,7 +178,7 @@ export function branchFromWire(branch: WireBranch): ConsoleBranch {
     address: branch.address,
     timeZoneId: branch.timeZoneId,
     tableCount: branch.tableCount,
-    subscriptionTier: subscriptionTier(branch.subscriptionTier),
+    features: branchFeaturesFromWire(branch.features),
     // Absent says "not asked", which is not the same answer as zero.
     openTabCount: typeof branch.openTabCount === 'number' ? branch.openTabCount : null,
     ...(branch.district !== undefined ? { district: branch.district ?? null } : {}),
@@ -218,7 +211,7 @@ export function managedBranchFromWire(branch: WireManagedBranch): ManagedBranch 
     timeZoneId: branch.timeZoneId,
     isActive: branch.isActive,
     tableCount: branch.tableCount,
-    subscriptionTier: subscriptionTier(branch.subscriptionTier),
+    features: branchFeaturesFromWire(branch.features),
     openTabCount: null,
   };
 }

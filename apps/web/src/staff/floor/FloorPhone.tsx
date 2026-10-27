@@ -25,6 +25,7 @@ import { connectionChip } from '../StaffHeader';
 import type { BranchFormat } from '../useBranchFormat';
 import type { ConnectionState } from '@yalla/realtime';
 import type { Selection } from './useFloorCommands';
+import type { FloorFeatures } from './floorFeatures';
 import type { useFloorScreens } from './useFloorScreens';
 
 /** Venue-wide people: My results names the branch for them. */
@@ -39,6 +40,8 @@ export type FloorRailShared = Omit<
 export interface FloorPhoneProps {
   readonly screens: ReturnType<typeof useFloorScreens>;
   readonly identity: StaffSessionIdentity;
+  /** What the platform allows here: a tab it has not is not offered. */
+  readonly features: FloorFeatures;
   readonly branchId: string;
   readonly active: boolean;
   readonly timeZoneId: string;

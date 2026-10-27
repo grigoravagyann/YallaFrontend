@@ -1,4 +1,4 @@
-import { describeFailure } from '@yalla/api';
+import { describeFailure, isFeatureNotEnabled } from '@yalla/api';
 import { useTranslation } from '@yalla/i18n';
 import type { StyleProp, ViewStyle } from 'react-native';
 import { ErrorState } from './ErrorState';
@@ -30,6 +30,11 @@ export function QueryErrorState({ error, offline, onRetry, style }: QueryErrorSt
 
   if (kind === 'offline') {
     return <ErrorState offline {...(onRetry ? { onRetry } : {})} {...(style ? { style } : {})} />;
+  }
+  // The platform has not enabled this at the place (2026-10-27): said kindly,
+  // with no retry — trying again will not switch it on.
+  if (!offline && isFeatureNotEnabled(error)) {
+    return <ErrorState title={t('place.featureOff')} {...(style ? { style } : {})} />;
   }
   if (kind === 'unavailable') {
     return (

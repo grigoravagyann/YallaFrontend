@@ -50,6 +50,7 @@ const LISTING = {
   freeTableCount: 4,
   reviewCount: 0,
   badges: [],
+  features: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
   coverPhoto: {
     photoId: 'p1',
     thumbnailUrl: '/api/photos/p1/thumbnail',
@@ -93,6 +94,7 @@ const PAGE: Schemas['Yalla.Application.Public.PublicBranchPage'] = {
   tableCount: 12,
   floorPlan: { areas: [], tables: [] },
   acceptsWebBookings: true,
+  features: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
   bookingWindowDays: 14,
   policy: {
     turnTimeMinutes: 90,

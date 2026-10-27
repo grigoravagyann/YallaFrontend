@@ -28,6 +28,7 @@ import {
 import { PageHeader } from '../../ui/PageHeader';
 import { useToast } from '../../ui/toast';
 import { useVenueOutlet } from '../VenueLayout';
+import { FeatureLockNotice, useFeatureLocked } from '../featureLock';
 
 const PAGE_SIZE = 20;
 
@@ -59,9 +60,12 @@ const PAGE_SIZE = 20;
 export function VenueReviewsScreen() {
   const { t } = useTranslation(['admin', 'common']);
   const { branchId, branchName, timeZoneId } = useVenueOutlet();
+  // Reviews switched off by the platform (2026-10-27): readable, the lock on top.
+  const reviewsLocked = useFeatureLocked('reviews');
   return (
     <div className="yc-page">
       <PageHeader title={t('reviews.title')} sub={t('reviews.sub', { branch: branchName ?? '' })} />
+      {reviewsLocked ? <FeatureLockNotice feature="reviews" /> : null}
       {branchId ? (
         // Another branch is another list: nothing open carries over.
         <VenueReviews key={branchId} branchId={branchId} timeZoneId={timeZoneId} />
@@ -92,6 +96,7 @@ function VenueReviews({
   const list = useVenueBranchReviews(branchId, { filter, page, pageSize: PAGE_SIZE });
   const visibility = useSetVenueReviewVisibility(branchId);
   const reply = useReviewReply(branchId);
+  const reviewsLocked = useFeatureLocked('reviews');
   const [editing, setEditing] = useState<Editing>(null);
   const [failure, setFailure] = useState<string | null>(null);
   /** Hidden by Yalla since this list was read: the server refused to show them again. */
@@ -326,6 +331,9 @@ function VenueReviews({
                       type="button"
                       id={replyId(review)}
                       className="yc-btn yc-btn-pri yc-btn-sm"
+                      // Reviews switched off by the platform: no reply; hiding
+                      // and the reports still work (2026-10-27).
+                      disabled={reviewsLocked}
                       onClick={() => {
                         setEditing({ reviewId: review.reviewId, kind: 'reply' });
                         focusLater(`rv-reply-${review.reviewId}`);

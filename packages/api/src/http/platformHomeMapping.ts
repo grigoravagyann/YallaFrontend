@@ -6,10 +6,10 @@ import type {
   PlatformAdminProfile,
   PlatformOverview,
   VenueCounter,
-  VenueTierMix,
 } from '../contracts/platformHome';
 import type { components } from '../generated/schema';
-import { readinessIssueFromWire, subscriptionTier, venueStatusFromWire } from './consoleMapping';
+import { branchFeaturesFromWire } from './branchFeatureMapping';
+import { readinessIssueFromWire, venueStatusFromWire } from './consoleMapping';
 import { staffRole } from './staffAdminMapping';
 import { venueTypeFromCode } from './venueTypeMapping';
 
@@ -26,13 +26,6 @@ type WireOutbox = Schemas['Yalla.Application.Messaging.OutboxHealthView'];
 type WireActivity = Schemas['Yalla.Application.Platform.ActivityFeed'];
 type WireActivityEntry = Schemas['Yalla.Application.Platform.ActivityEntry'];
 type WireProfile = Schemas['Yalla.Application.Platform.PlatformAdminProfile'];
-
-/** `TierMix`: 1 Free (no branch paid, or no branch), 2 Mixed, 3 Paid. */
-const TIER_MIX: Readonly<Record<number, VenueTierMix>> = { 1: 'free', 2: 'mixed', 3: 'paid' };
-
-export function tierMixFromWire(code: number): VenueTierMix {
-  return TIER_MIX[code] ?? 'free';
-}
 
 function counter(wire: WireCounter): VenueCounter {
   return {
@@ -90,9 +83,7 @@ export function overviewFromWire(wire: WireOverview): PlatformOverview {
         isDeleted: venue.status === 4,
         isSuspended: venue.status === 2,
       }),
-      tierMix: tierMixFromWire(venue.tierMix),
       branchCount: venue.branchCount,
-      paidBranchCount: venue.paidBranchCount,
       createdAtUtc: venue.createdAtUtc,
     })),
     outbox: outboxCounts(wire.outbox),
@@ -126,7 +117,20 @@ function detailNumber(detail: unknown, key: string): number | null {
   return typeof value === 'number' ? value : null;
 }
 
+/** A list member of `detail`, as the server wrote it; empty when absent. */
+function detailList(detail: unknown, key: string): readonly unknown[] {
+  if (detail === null || typeof detail !== 'object') return [];
+  const value = (detail as Record<string, unknown>)[key];
+  return Array.isArray(value) ? value : [];
+}
+
+function detailFlag(detail: unknown, key: string): boolean {
+  if (detail === null || typeof detail !== 'object') return false;
+  return (detail as Record<string, unknown>)[key] === true;
+}
+
 export function activityEntryFromWire(wire: WireActivityEntry): PlatformActivityEntry {
+  // `SubscriptionTier`, before 2026-10-27: 1 Free, 2 Paid.
   const to = wire.action === 'branch.tier-change' ? detailNumber(wire.detail, 'to') : null;
   const role = wire.action === 'staff.create' ? detailNumber(wire.detail, 'role') : null;
   return {
@@ -140,7 +144,23 @@ export function activityEntryFromWire(wire: WireActivityEntry): PlatformActivity
     },
     target: { type: wire.target.type, id: wire.target.id, name: wire.target.displayName ?? null },
     venue: wire.venue ? { id: wire.venue.venueId, name: wire.venue.name } : null,
-    tierTo: to === null ? null : subscriptionTier(to),
+    tierTo: to === null ? null : to === 2 ? 'paid' : 'free',
+    featuresChange:
+      wire.action === 'branch.features-change'
+        ? {
+            added: branchFeaturesFromWire(detailList(wire.detail, 'added')),
+            removed: branchFeaturesFromWire(detailList(wire.detail, 'removed')),
+            viaVenue: detailFlag(wire.detail, 'viaVenue'),
+          }
+        : null,
+    featuresApply:
+      wire.action === 'venue.features-apply'
+        ? {
+            features: branchFeaturesFromWire(detailList(wire.detail, 'features')),
+            branchCount: detailNumber(wire.detail, 'branchCount') ?? 0,
+            changedCount: detailList(wire.detail, 'changedBranchIds').length,
+          }
+        : null,
     staffRole: role === null ? null : staffRole(role),
   };
 }

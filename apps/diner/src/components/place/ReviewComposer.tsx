@@ -4,6 +4,7 @@ import {
   ReviewNeedsVisitError,
   publicAuthorName,
   staleTime,
+  isFeatureNotEnabled,
 } from '@yalla/api';
 import { useGateway } from '@yalla/api/react';
 import { branchDayKey } from '@yalla/format';
@@ -145,7 +146,9 @@ function VerifiedComposer({ placeId, timeZoneId, initialRating, style }: ReviewC
       ? t('place.review.needsVisit')
       : save.error instanceof PhoneNotVerifiedError
         ? t('place.review.verifyHint')
-        : t('place.review.failed')
+        : isFeatureNotEnabled(save.error)
+          ? t('place.featureOff')
+          : t('place.review.failed')
     : null;
 
   // The server's own answer once there is a review; the same rule applied to

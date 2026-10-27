@@ -5,15 +5,10 @@ import type {
   ConsoleVenueDetail,
   CreateVenueCommand,
   ListVenuesQuery,
-  SubscriptionTier,
   UpdateVenueCommand,
 } from '../contracts/console';
-import {
-  applyVenueTier,
-  checkVenueTier,
-  listAllConsoleVenues,
-  type VenueTierResult,
-} from '../platformVenues';
+import type { BranchFeature } from '../contracts/branchFeatures';
+import { listAllConsoleVenues } from '../platformVenues';
 import { staleTime } from '../queryClient';
 import { useConsoleGateway } from './gateways';
 import { queryKeys } from './queryKeys';
@@ -118,11 +113,24 @@ export function useAddBranch() {
   return useVenueCommand((command: AddBranchCommand) => gateway.addBranch(command));
 }
 
-/** Platform admin only. Answers with the whole venue, so the cache is replaced like the others. */
-export function useSetBranchTier() {
+/**
+ * The features the platform allows at one branch. Platform admin only.
+ * Answers with the whole venue, so the cache is replaced like the others.
+ */
+export function useSetBranchFeatures() {
   const gateway = useConsoleGateway();
-  return useVenueCommand((input: { branchId: string; tier: SubscriptionTier; commandId: string }) =>
-    gateway.setBranchTier(input),
+  return useVenueCommand(
+    (input: { branchId: string; features: readonly BranchFeature[]; commandId: string }) =>
+      gateway.setBranchFeatures(input),
+  );
+}
+
+/** One set for every branch of a venue, all or nothing. Platform admin only. */
+export function useApplyVenueFeatures() {
+  const gateway = useConsoleGateway();
+  return useVenueCommand(
+    (input: { venueId: string; features: readonly BranchFeature[]; commandId: string }) =>
+      gateway.applyVenueFeatures(input),
   );
 }
 
@@ -180,60 +188,4 @@ export function useRestoreVenue() {
   return useVenueCommand((input: { venueId: string; commandId: string }) =>
     gateway.restoreVenue(input),
   );
-}
-
-/**
- * What switching every branch of a venue to `tier` would do, asked as the
- * tier dialog opens (`checkVenueTier`): the branches it would move, and going
- * Paid, the ones whose menu refuses. Read fresh every time — a stale "ready"
- * is the one answer worse than none.
- */
-export function useVenueTierCheck(
-  input: {
-    readonly venueId: string;
-    readonly tier: SubscriptionTier;
-    /** One branch, from the venue page; absent, every branch (the list's button). */
-    readonly branchIds?: readonly string[] | undefined;
-  } | null,
-) {
-  const gateway = useConsoleGateway();
-  return useQuery({
-    queryKey: queryKeys.venueTierCheck(
-      input?.venueId ?? '',
-      input?.tier ?? 'free',
-      input?.branchIds ?? null,
-    ),
-    queryFn: () => checkVenueTier(gateway, input!),
-    enabled: input !== null,
-    staleTime: 0,
-    gcTime: 0,
-    retry: false,
-  });
-}
-
-/**
- * Switch every branch of a venue to one tier (`applyVenueTier`). Resolves
- * with what moved and what refused — a refusal is an answer, not a failure —
- * and refreshes the list and the venue whatever happened, since a switch that
- * stopped halfway still changed something.
- */
-export function useSetVenueTier() {
-  const gateway = useConsoleGateway();
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: (input: {
-      venueId: string;
-      tier: SubscriptionTier;
-      commandId: string;
-      branchIds?: readonly string[] | undefined;
-    }) => applyVenueTier(gateway, input),
-    onSuccess: (result: VenueTierResult) => {
-      queryClient.setQueryData(queryKeys.consoleVenue(result.venue.id), result.venue);
-      void queryClient.invalidateQueries({ queryKey: queryKeys.managedVenue(result.venue.id) });
-    },
-    onSettled: () => {
-      void queryClient.invalidateQueries({ queryKey: ['console', 'venues'] });
-      refreshPlatformViews(queryClient);
-    },
-  });
 }

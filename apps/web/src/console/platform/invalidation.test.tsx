@@ -12,7 +12,7 @@ import {
   useSaveBranchListing,
   useSaveFloorPlan,
   useSetReviewVisibility,
-  useSetVenueTier,
+  useSetBranchFeatures,
   useSuspendVenue,
   useUpdateMenuItem,
   useVenueBookingsSummary,
@@ -95,11 +95,15 @@ describe('a change reaches every view of it', () => {
     expect(stale().overview && stale().activity).toBe(true);
   });
 
-  it('switching a tier', async () => {
+  it("switching a branch's features", async () => {
     const { wrapper, stale } = setup();
-    const { result } = renderHook(() => useSetVenueTier(), { wrapper });
+    const { result } = renderHook(() => useSetBranchFeatures(), { wrapper });
     await act(() =>
-      result.current.mutateAsync({ venueId: 'v-sunset', tier: 'paid', commandId: 'c-4' }),
+      result.current.mutateAsync({
+        branchId: 'b-sunset-north',
+        features: ['appBookings', 'reviews'],
+        commandId: 'c-4',
+      }),
     );
     expect(stale().overview && stale().activity && stale().list).toBe(true);
   });

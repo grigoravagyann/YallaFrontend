@@ -20,7 +20,7 @@ import { Text } from '../../src/components/Text';
 import { useMenuDetail } from '../../src/data/orderQueries';
 import { MessagesCard } from '../../src/messages/MessagesCard';
 import { usePlace } from '../../src/places/hooks';
-import { formatClock } from '../../src/places/model';
+import { formatClock, placeOffers } from '../../src/places/model';
 import { useSession } from '../../src/stores/session';
 import { cartFromOrder, useTakeawayCart } from '../../src/takeaway/cart';
 import { cancelFailureLine, takeawayFailure } from '../../src/takeaway/failure';
@@ -182,7 +182,8 @@ function StatusBody({
 
   const cta = declined
     ? { label: t('takeaway.status.chooseAnotherTime'), onPress: tryAgain }
-    : order.status === 'collected'
+    : // Rating only where the place takes reviews (2026-10-27).
+      order.status === 'collected' && placeOffers(place ?? {}, 'reviews')
       ? {
           label: t('takeaway.status.rate'),
           onPress: () =>

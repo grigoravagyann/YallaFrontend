@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import 'fake-indexeddb/auto';
 import {
+  FULL_FEATURES,
   createQueryClient,
   createStaffMockGateway,
   type EnrolledDevice,
@@ -68,7 +69,13 @@ function signIn(role: StaffSessionIdentity['role']): void {
   const next: StaffSessionSnapshot = {
     state: 'signedIn',
     device,
-    identity: { staffMemberId: 's1', fullName: 'Sona Vardanyan', role, branchId: BRANCH },
+    identity: {
+      staffMemberId: 's1',
+      fullName: 'Sona Vardanyan',
+      role,
+      branchId: BRANCH,
+      features: FULL_FEATURES,
+    },
     lastSignOut: null,
   };
   snapshot.current = next;

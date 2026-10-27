@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import 'fake-indexeddb/auto';
 import {
+  FULL_FEATURES,
   ConcurrencyConflictError,
   TabAdmissionDecidedError,
   createQueryClient,
@@ -96,7 +97,13 @@ function signIn(): void {
   session.set({
     state: 'signedIn',
     device,
-    identity: { staffMemberId: 's1', fullName: 'Sona Vardanyan', role: 'waiter', branchId: BRANCH },
+    identity: {
+      staffMemberId: 's1',
+      fullName: 'Sona Vardanyan',
+      role: 'waiter',
+      branchId: BRANCH,
+      features: FULL_FEATURES,
+    },
     lastSignOut: null,
   } satisfies StaffSessionSnapshot);
 }

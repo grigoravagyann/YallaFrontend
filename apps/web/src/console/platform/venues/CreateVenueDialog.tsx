@@ -649,8 +649,8 @@ export function CreateVenueDialog({ takenSlugs, onClose, onCreated }: CreateVenu
               <dd>
                 {lat}, {lng} · {TIME_ZONE}
               </dd>
-              <dt>{t('venues.add.summaryTier')}</dt>
-              <dd>{t('venues.add.summaryTierValue')}</dd>
+              <dt>{t('venues.add.summaryFeatures')}</dt>
+              <dd>{t('venues.add.summaryFeaturesValue')}</dd>
             </dl>
           </>
         ) : null}

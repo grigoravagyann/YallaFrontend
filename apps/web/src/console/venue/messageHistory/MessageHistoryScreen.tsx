@@ -41,6 +41,7 @@ import {
 import { PageHeader } from '../../ui/PageHeader';
 import { SearchIcon } from '../../ui/icons';
 import { useVenueOutlet } from '../VenueLayout';
+import { FeatureLockNotice, useFeatureLocked } from '../featureLock';
 import { HistoryThread } from './HistoryThread';
 import { localDateLabel, subjectParts, whenLabel } from './historyText';
 
@@ -67,6 +68,9 @@ const STACKED_QUERY = '(max-width: 1179px)';
 export function MessageHistoryScreen() {
   const { t } = useTranslation(['admin', 'common']);
   const { branchId, branchName, timeZoneId } = useVenueOutlet();
+  // Guest messages switched off by the platform (2026-10-27): the history stays
+  // readable with the lock on top; there is no composer here to disable.
+  const messagesLocked = useFeatureLocked('guestMessages');
   const [, setParams] = useSearchParams();
 
   // Another branch is another list: a conversation open on the last one
@@ -92,6 +96,7 @@ export function MessageHistoryScreen() {
         title={t('messageHistory.title')}
         sub={t('messageHistory.sub', { branch: branchName ?? '' })}
       />
+      {messagesLocked ? <FeatureLockNotice feature="guestMessages" /> : null}
       {branchId ? (
         <MessageHistory key={branchId} branchId={branchId} timeZoneId={timeZoneId} />
       ) : (

@@ -14,6 +14,7 @@ import { PageHeader } from '../../ui/PageHeader';
 import { useToast } from '../../ui/toast';
 import { useUnsavedChangesGuard } from '../useUnsavedChangesGuard';
 import { useVenueOutlet } from '../VenueLayout';
+import { FeatureLockedControls, useFeatureLocked } from '../featureLock';
 import {
   PRE_ORDER_CARD_ID,
   PreOrderSettingsCard,
@@ -152,6 +153,8 @@ function PolicyForm({
   readonly initial: ReservationPolicy;
 }) {
   const { t } = useTranslation(['admin', 'common']);
+  // Scanning a table's QR is table service: blocked by the platform, its rules are locked.
+  const tableServiceLocked = useFeatureLocked('tableService');
   const { locale } = useLocale();
   const toast = useToast();
   const save = useSaveReservationPolicy(branchId);
@@ -363,18 +366,23 @@ function PolicyForm({
                   <p className="yc-cap">{t(`policy.group.${group}.body`)}</p>
                 </div>
               </div>
-              {fieldsInGroup(group, fields).map((field) => (
-                <PolicyField
-                  key={field.key}
-                  spec={field}
-                  policy={draft}
-                  shipped={defaults[field.key]}
-                  invalid={invalid.includes(field.key)}
-                  refused={refused.has(field.key)}
-                  disabled={save.isPending}
-                  onChange={set}
-                />
-              ))}
+              <FeatureLockedControls
+                feature="tableService"
+                locked={group === 'scanning' && tableServiceLocked}
+              >
+                {fieldsInGroup(group, fields).map((field) => (
+                  <PolicyField
+                    key={field.key}
+                    spec={field}
+                    policy={draft}
+                    shipped={defaults[field.key]}
+                    invalid={invalid.includes(field.key)}
+                    refused={refused.has(field.key)}
+                    disabled={save.isPending}
+                    onChange={set}
+                  />
+                ))}
+              </FeatureLockedControls>
               <p className="yc-pol-example">
                 <PhoneIcon />
                 <span>

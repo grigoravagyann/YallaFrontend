@@ -16,14 +16,14 @@ import type {
   ManagedBranch,
   ManagedVenue,
   Page,
-  SubscriptionTier,
   UserRole,
-  VenueBranchTier,
+  VenueBranchFeatures,
   VenueReadinessIssue,
   VenueBookingsSummary,
   VenueStatus,
   VenueType,
 } from '../../contracts/console';
+import { mockBranchFeatures } from '../branchFeaturesMock';
 import { OutOfScopeError } from '../../contracts/errors';
 import {
   type ApiError,
@@ -86,7 +86,6 @@ import {
   type PlatformActivityEntry,
   type PlatformOverview,
   type VenueCount,
-  type VenueTierMix,
 } from '../../contracts/platformHome';
 import type { AdminMenuCategory, AdminMenuItem, Photo } from '../../contracts/menuAdmin';
 import type { SpiceLevel } from '../../contracts/ordering';
@@ -383,10 +382,10 @@ const VENUE_ACCOUNT_ROLES: readonly UserRole[] = ['owner', 'generalManager', 'ma
 /** Monday first: Friday and Saturday are the busy nights. */
 const WEEKDAY_SHARE = [0.1, 0.11, 0.11, 0.14, 0.2, 0.21, 0.13];
 
-/** Both tiers across the fixture so the list column is not one repeated value. */
-function tierFor(index: number): SubscriptionTier {
-  return index % 2 === 0 ? 'paid' : 'free';
-}
+/** What a feed line carries beyond who, what and where. */
+type ActivityExtra = Partial<
+  Pick<PlatformActivityEntry, 'tierTo' | 'staffRole' | 'featuresChange' | 'featuresApply'>
+>;
 
 /**
  * The console mock's world: every venue, branch, menu, booking, review and person it holds, and the helpers the gateway's methods share. One per `createConsoleMockGateway`; the methods, by feature, are in this folder.
@@ -847,7 +846,10 @@ export function createConsoleMockContext(options: ConsoleMockOptions = {}) {
    * already maps to {@link ConcurrencyConflictError}. The detail is the thing a
    * screen shows, so the mock has to carry one the way the wire does.
    */
-  function conflict(detail: string): ConcurrencyConflictError {
+  function conflict(
+    detail: string,
+    context?: Readonly<Record<string, unknown>>,
+  ): ConcurrencyConflictError {
     return new ConcurrencyConflictError({
       url: URL_TAG,
       problem: {
@@ -857,6 +859,7 @@ export function createConsoleMockContext(options: ConsoleMockOptions = {}) {
         detail,
         code: ProblemCodes.ConflictingState,
         traceId: 'mock',
+        ...(context ? { context } : {}),
       },
     });
   }
@@ -2002,14 +2005,14 @@ export function createConsoleMockContext(options: ConsoleMockOptions = {}) {
     return result;
   }
 
-  mockVenues.forEach((venue, venueIndex) => {
+  mockVenues.forEach((venue) => {
     const branches: ConsoleBranch[] = venue.branches.map((branch, branchIndex) => ({
       id: branch.id,
       venueId: venue.id,
       name: branch.name,
       timeZoneId: branch.timeZoneId,
       tableCount: branch.totalTables,
-      subscriptionTier: tierFor(venueIndex + branchIndex),
+      features: mockBranchFeatures(registry, branch.id),
       // One branch in the fixture is mid-service, so "cannot delete, table 7 has
       // an open tab" is a state the screen can actually be driven into.
       openTabCount: venue.id === 'v-lumen' && branchIndex === 0 ? 2 : 0,
@@ -2072,7 +2075,7 @@ export function createConsoleMockContext(options: ConsoleMockOptions = {}) {
         name: seed.name,
         timeZoneId: 'Asia/Yerevan',
         tableCount: seed.tableCount,
-        subscriptionTier: seed.tier,
+        features: registry.branchFeatures.get(seed.id)?.features ?? seed.features,
         openTabCount: seed.openTabs,
       })),
       staff: [],
@@ -2133,23 +2136,14 @@ export function createConsoleMockContext(options: ConsoleMockOptions = {}) {
     return { rating: Math.round(average * 10) / 10, reviewCount: ratings.length };
   }
 
-  /** The tier the list column shows: the best one any branch is on. */
-  /** The server's older rollup: Paid only when every branch is; a mixed venue reads Free. */
-  function headlineTier(record: VenueRecord): SubscriptionTier {
-    return record.branches.length > 0 &&
-      record.branches.every((branch) => branch.subscriptionTier === 'paid')
-      ? 'paid'
-      : 'free';
-  }
-
   function toRow(record: VenueRecord): ConsoleVenue {
     const first = record.branches[0];
     const listing = first ? listingFor(first.id) : null;
     const cover = first ? profileFor(first.id).coverPhoto : null;
-    const branchTiers: VenueBranchTier[] = record.branches.map((branch) => ({
+    const branchFeatures: VenueBranchFeatures[] = record.branches.map((branch) => ({
       id: branch.id,
       name: branch.name,
-      subscriptionTier: branch.subscriptionTier,
+      features: branch.features,
     }));
     return {
       id: record.id,
@@ -2159,9 +2153,6 @@ export function createConsoleMockContext(options: ConsoleMockOptions = {}) {
       status: record.status,
       branchCount: record.branches.length,
       tableCount: record.branches.reduce((sum, branch) => sum + branch.tableCount, 0),
-      subscriptionTier: headlineTier(record),
-      paidBranchCount: record.branches.filter((branch) => branch.subscriptionTier === 'paid')
-        .length,
       createdAtUtc: record.createdAtUtc,
       suspendedAtUtc: record.suspendedAtUtc,
       // The list's newer columns, which the mock always reports.
@@ -2171,7 +2162,7 @@ export function createConsoleMockContext(options: ConsoleMockOptions = {}) {
       coverThumbnailUrl: record.demo
         ? record.demo.coverThumbnailUrl
         : (cover?.thumbnailUrl ?? null),
-      branchTiers,
+      branchFeatures,
       cuisine: record.demo ? record.demo.cuisine : (listing?.cuisine ?? null),
       district: record.demo ? record.demo.district : (listing?.district ?? null),
     };
@@ -2260,18 +2251,10 @@ export function createConsoleMockContext(options: ConsoleMockOptions = {}) {
     return new Date(date.getTime() + 4 * 60 * 60 * 1000).toISOString().slice(0, 10);
   }
 
-  function tierMixOf(record: VenueRecord): VenueTierMix {
-    const paid = record.branches.filter((branch) => branch.subscriptionTier === 'paid').length;
-    if (paid === 0) return 'free';
-    return paid === record.branches.length ? 'paid' : 'mixed';
-  }
-
   /** `PlatformOverviewQuery`, over the mock's world: Home in one read. */
   function overviewOf(): PlatformOverview {
     seedBookings();
     const live = [...venues.values()].filter((record) => record.status !== 'deleted');
-    const mix = live.map(tierMixOf);
-    const count = (wanted: VenueTierMix) => mix.filter((value) => value === wanted).length;
 
     // Thirty days, oldest first, today last: each branch books at its weekly
     // rate, shared out by weekday, with a stable wobble so no two weeks match.
@@ -2360,19 +2343,11 @@ export function createConsoleMockContext(options: ConsoleMockOptions = {}) {
       generatedAtUtc: today.toISOString(),
       venues: {
         total: live.length,
-        paid: count('paid'),
-        mixed: count('mixed'),
-        free: count('free'),
         active: live.filter((record) => record.status === 'active').length,
         suspended: live.filter((record) => record.status === 'suspended').length,
         inactive: live.filter((record) => record.status === 'inactive').length,
         deleted: venues.size - live.length,
         branches: live.reduce((total, record) => total + record.branches.length, 0),
-        paidBranches: live.reduce(
-          (total, record) =>
-            total + record.branches.filter((branch) => branch.subscriptionTier === 'paid').length,
-          0,
-        ),
       },
       bookings: {
         last7Days,
@@ -2393,10 +2368,7 @@ export function createConsoleMockContext(options: ConsoleMockOptions = {}) {
         slug: record.slug,
         type: record.type,
         status: record.status,
-        tierMix: tierMixOf(record),
         branchCount: record.branches.length,
-        paidBranchCount: record.branches.filter((branch) => branch.subscriptionTier === 'paid')
-          .length,
         createdAtUtc: record.createdAtUtc,
       })),
       outbox: outboxOf(),
@@ -2443,7 +2415,7 @@ export function createConsoleMockContext(options: ConsoleMockOptions = {}) {
     action: string,
     target: { type: string; id: string; name: string | null },
     venue: VenueRecord | null,
-    extra: Partial<Pick<PlatformActivityEntry, 'tierTo' | 'staffRole'>> = {},
+    extra: ActivityExtra = {},
   ): void {
     seedActivity();
     activity.unshift({
@@ -2454,6 +2426,8 @@ export function createConsoleMockContext(options: ConsoleMockOptions = {}) {
       target,
       venue: venue ? { id: venue.id, name: venue.name } : null,
       tierTo: extra.tierTo ?? null,
+      featuresChange: extra.featuresChange ?? null,
+      featuresApply: extra.featuresApply ?? null,
       staffRole: extra.staffRole ?? null,
     });
   }
@@ -2477,7 +2451,7 @@ export function createConsoleMockContext(options: ConsoleMockOptions = {}) {
         role: 'platformAdmin',
         name: admin.fullName,
       },
-      extra: Partial<Pick<PlatformActivityEntry, 'tierTo' | 'staffRole'>> = {},
+      extra: ActivityExtra = {},
     ) =>
       seeded.push({
         id: `activity-seed-${seeded.length + 1}`,
@@ -2487,19 +2461,30 @@ export function createConsoleMockContext(options: ConsoleMockOptions = {}) {
         target,
         venue: { id: record.id, name: record.name },
         tierTo: extra.tierTo ?? null,
+        featuresChange: extra.featuresChange ?? null,
+        featuresApply: extra.featuresApply ?? null,
         staffRole: extra.staffRole ?? null,
       });
 
-    const paid = list.find((record) =>
-      record.branches.some((branch) => branch.subscriptionTier === 'paid'),
+    const full = list.find((record) =>
+      record.branches.some((branch) => branch.features.includes('tableService')),
     );
-    const paidBranch = paid?.branches.find((branch) => branch.subscriptionTier === 'paid');
-    if (paid && paidBranch) {
+    const fullBranch = full?.branches.find((branch) => branch.features.includes('tableService'));
+    if (full && fullBranch) {
       entry(
         2.4,
+        'branch.features-change',
+        full,
+        { type: 'Branch', id: fullBranch.id, name: fullBranch.name },
+        undefined,
+        { featuresChange: { added: ['tableService'], removed: [], viaVenue: false } },
+      );
+      // A row from before the features: the feed still says what it was.
+      entry(
+        200,
         'branch.tier-change',
-        paid,
-        { type: 'Branch', id: paidBranch.id, name: paidBranch.name },
+        full,
+        { type: 'Branch', id: fullBranch.id, name: fullBranch.name },
         undefined,
         { tierTo: 'paid' },
       );

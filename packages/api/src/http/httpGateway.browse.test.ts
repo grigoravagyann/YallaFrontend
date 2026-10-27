@@ -167,6 +167,7 @@ describe('browse over /api/public/venues', () => {
       tableCount: 12,
       floorPlan: { areas: [], tables: [] },
       acceptsWebBookings: true,
+      features: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
       bookingWindowDays: 30,
       policy: {
         turnTimeMinutes: 90,

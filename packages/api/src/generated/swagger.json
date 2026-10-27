@@ -3296,7 +3296,7 @@
           "admin"
         ],
         "summary": "What this branch still needs before it can take diners",
-        "description": "The onboarding checklist, answered by the server: floor plan drawn, tables labelled, at least one menu category, how many menu items are still incomplete, hours set, reservation policy reviewed, staff enrolled, at least one tablet.\n\nThe console used to render this from a client-side guess, which meant the console and the server had two different ideas of ready - and only the server's decides whether the branch may be switched to `Paid`. `incompleteMenuItemCount` is the line that gate enforces, and `incompleteMenuItemIds` says which items to finish.\n\n`blockers` says what is left in sentences; `issues` says the same lines, one for one and in the same order, as stable codes - `no-tables`, `tables-unlabelled`, `no-menu`, `menu-empty`, `incomplete-dishes` (with `count`), `no-hours`, `policy-not-reviewed`, `no-staff`, `no-device`.",
+        "description": "The onboarding checklist, answered by the server: floor plan drawn, tables labelled, at least one menu category, how many menu items are still incomplete, hours set, reservation policy reviewed, staff enrolled, at least one tablet.\n\nThe console used to render this from a client-side guess, which meant the console and the server had two different ideas of ready - and only the server's decides whether table service may be turned on there. `incompleteMenuItemCount` is the line that gate enforces, and `incompleteMenuItemIds` says which items to finish.\n\n`blockers` says what is left in sentences; `issues` says the same lines, one for one and in the same order, as stable codes - `no-tables`, `tables-unlabelled`, `no-menu`, `menu-empty`, `incomplete-dishes` (with `count`), `no-hours`, `policy-not-reviewed`, `no-staff`, `no-device`.",
         "operationId": "getBranchReadiness",
         "parameters": [
           {
@@ -4789,7 +4789,7 @@
           "admin"
         ],
         "summary": "Add an item; only a name and a price are required",
-        "description": "**A photo and the descriptive fields are optional here and required to go live.** Ingredients, allergens, portion size, prep minutes and a photo are what a diner would otherwise ask a waiter, so an item without them is not fit to show one - but requiring them at this point meant an eighty-dish menu could not be entered without eighty photo uploads first, in order, before a single name or price could be typed. That is not the order the work happens in.\n\nSo the rule moved rather than went away. An item saved without them comes back with `isComplete: false`; `GET /api/branches/{branchId}/readiness` counts it; the branch cannot be switched to `Paid` while any remain; and the diner-facing menu does not return it at all.",
+        "description": "**A photo and the descriptive fields are optional here and required to go live.** Ingredients, allergens, portion size, prep minutes and a photo are what a diner would otherwise ask a waiter, so an item without them is not fit to show one - but requiring them at this point meant an eighty-dish menu could not be entered without eighty photo uploads first, in order, before a single name or price could be typed. That is not the order the work happens in.\n\nSo the rule moved rather than went away. An item saved without them comes back with `isComplete: false`; `GET /api/branches/{branchId}/readiness` counts it; the branch cannot have table service turned on while any remain; and the diner-facing menu does not return it at all.",
         "operationId": "createMenuItem",
         "parameters": [
           {
@@ -10229,7 +10229,7 @@
             }
           },
           "409": {
-            "description": "The table is out of service, or the tab there is being settled and takes no new people. Also returned when this `clientCommandId` was used by a different device. `scan-turned-away`: a waiter just turned a scan away (`context.retryAfterUtc`).",
+            "description": "The table is out of service, or the tab there is being settled and takes no new people. Also returned when this `clientCommandId` was used by a different device. `scan-turned-away`: a waiter just turned a scan away (`context.retryAfterUtc`). `feature-not-enabled` (`context.feature` 5 TableService, `context.branchId`): the platform has not allowed table service at the branch - every tab route answers it there.",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -11666,6 +11666,154 @@
         }
       }
     },
+    "/api/public/branches/{branchId}/reservations": {
+      "post": {
+        "tags": [
+          "diner"
+        ],
+        "summary": "Book a table from the public page",
+        "description": "**The public page's booking route** (yalla.am/{venue}/{branch}): `createReservation`'s rules, body and answer, with the branch in the path and no `channel` - it books on the `Web` channel. So it needs web bookings allowed by the platform (`409 feature-not-enabled`, `context.feature` 2) and the venue's online bookings switched on (`409 web-bookings-not-accepted`); the reservation policy need not have been saved, as the app's must. The diner is the one the code flow signed in (a proved number, as for `createReservation`).\n\nIdempotent on `clientCommandId`: a retry returns the original booking, 200 rather than 201. Everything else - the statuses, short notice, the guest before, the limits and every refusal - is `createReservation`'s.",
+        "operationId": "createPublicReservation",
+        "parameters": [
+          {
+            "name": "branchId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "allOf": [
+                  {
+                    "$ref": "#/components/schemas/Yalla.Api.Endpoints.CreatePublicReservationRequest"
+                  }
+                ],
+                "description": "Body of `POST /api/public/branches/{branchId}/reservations`: the public page's booking."
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Application.Reservations.ReservationView"
+                }
+              }
+            }
+          },
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Application.Reservations.ReservationView"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request violated a domain rule or arrived malformed.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No usable token was presented, or the one presented was rejected.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "`phone-not-verified`: the account registered with a number it has never proved. Send the diner through the code flow (`request-code`, `verify-code`) first; reading and cancelling bookings stay open meanwhile. `booking-blocked-no-shows`: blocked until `context.blockedUntilUtc`.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.BookingBlockedProblem"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such branch or table.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "`feature-not-enabled` (web bookings blocked by the platform), `web-bookings-not-accepted`, and every conflict `createReservation` answers.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.PhoneHasActiveBookingProblem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "A branch rule refused the booking. Each rule has its own `code` - `reservation-party-exceeds-capacity`, `reservation-outside-opening-hours` and so on - with the numbers behind it in `context`, so the app can say which table to pick instead rather than showing a generic failure.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests in the window, or a one-time credential is out of attempts.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected failure. Quote the traceId from the body.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The table's booking lock could not be had in time. `context.retryable` is true: unlike the 409, this one is worth retrying - with the same `clientCommandId`, so a retry that crosses with a late-committing original is recognised as a replay.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.LockTimeoutProblem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/branches/{branchId}/menu": {
       "get": {
         "tags": [
@@ -12559,7 +12707,7 @@
           "diner"
         ],
         "summary": "Book a table",
-        "description": "Idempotent on `clientCommandId`: a retry returns the original booking and creates nothing, answering 200 rather than 201. Lands as `Confirmed`, or `PendingApproval` (`awaitingApprovalBecause` says why) when the booking is at **short notice** - for the branch's today, or starting under six hours from now - the branch approves every booking, the party is over the branch's threshold, or the diner is over the rolling no-show threshold.\n\nA short-notice booking (`awaitingApprovalBecause` 4) is the floor's to decide, by `approvalExpiresAtUtc` - fifteen minutes from now, or the start if sooner. Unanswered by then it is declined (`CancelledByVenue`, `declinedBecause` 2 NoAnswer) and the diner gets a `reservation-decided` push with `expired` true. Count down to `approvalExpiresAtUtc`; read the booking again to see the answer.\n\nA booking for a table whose previous booking started under three hours before (`awaitingApprovalBecause` 5 EarlierGuestConsent) waits on that guest's yes, for **two hours** at most (`approvalExpiresAtUtc`, never past their start nor this one's). When `awaitsEarlierGuestAnswer` is true they are asked in the app and only they answer - unanswered it is declined with `declinedBecause` 4 EarlierGuestNoAnswer. When it is false the floor calls them and decides, by the same deadline - unanswered it is declined with `declinedBecause` 2 NoAnswer.\n\n**Only an account whose number is proved books** (`403 phone-not-verified` otherwise - send the diner to verify it). **At most three active bookings per proved number**, at every venue: the fourth is `409 phone-has-active-booking` with `context.maxActiveBookings` and the diner's own earliest active booking (`reservationId`, `code`, `startUtc`, `localDate`, `localStartTime`, `venueName`, `branchName`). **A guest blocked for no-shows** (three in three days) is `403 booking-blocked-no-shows` with `context.blockedUntilUtc` until the block ends.\n\nWith `autoConfirmGuestsWithGoodRecord` on at a branch that approves every booking, a guest with a good record is confirmed at once - see `GET /api/branches/{id}/reservation-policy`.\n\n**One table at a time per diner, anywhere**: a sitting that overlaps another of the diner's own live bookings (pending, confirmed or seated) is `409 reservation-overlaps-own`, with `context` naming the booking already held - `reservationId`, `code` (its door code), `localDate` (`\"2026-10-22\"`, the branch's calendar - say the day when it differs), `localStartTime` (`\"19:30:00\"`), `tableLabel`, `venueName` and `branchName` - so the app can say \"You already have a booking at Café Aram at 19:30\". At the same branch sittings that only touch do not overlap; at **another venue** the two need **30 minutes** between them (with a 90-minute sitting, starts less than 2 hours apart are refused). A retry with the same `clientCommandId` still answers as a replay.",
+        "description": "**The diner app's booking route.** It books on the `App` channel whatever the body says: `channel` is deprecated and ignored (the public page books through `createPublicReservation`). So it needs app bookings allowed by the platform (`409 feature-not-enabled`, `context.feature` 1) and, the venue's own gate, online bookings switched on with the reservation policy saved (`409 bookings-not-accepted`).\n\nIdempotent on `clientCommandId`: a retry returns the original booking and creates nothing, answering 200 rather than 201. Lands as `Confirmed`, or `PendingApproval` (`awaitingApprovalBecause` says why) when the booking is at **short notice** - for the branch's today, or starting under six hours from now - the branch approves every booking, the party is over the branch's threshold, or the diner is over the rolling no-show threshold.\n\nA short-notice booking (`awaitingApprovalBecause` 4) is the floor's to decide, by `approvalExpiresAtUtc` - fifteen minutes from now, or the start if sooner. Unanswered by then it is declined (`CancelledByVenue`, `declinedBecause` 2 NoAnswer) and the diner gets a `reservation-decided` push with `expired` true. Count down to `approvalExpiresAtUtc`; read the booking again to see the answer.\n\nA booking for a table whose previous booking started under three hours before (`awaitingApprovalBecause` 5 EarlierGuestConsent) waits on that guest's yes, for **two hours** at most (`approvalExpiresAtUtc`, never past their start nor this one's). When `awaitsEarlierGuestAnswer` is true they are asked in the app and only they answer - unanswered it is declined with `declinedBecause` 4 EarlierGuestNoAnswer. When it is false the floor calls them and decides, by the same deadline - unanswered it is declined with `declinedBecause` 2 NoAnswer.\n\n**Only an account whose number is proved books** (`403 phone-not-verified` otherwise - send the diner to verify it). **At most three active bookings per proved number**, at every venue: the fourth is `409 phone-has-active-booking` with `context.maxActiveBookings` and the diner's own earliest active booking (`reservationId`, `code`, `startUtc`, `localDate`, `localStartTime`, `venueName`, `branchName`). **A guest blocked for no-shows** (three in three days) is `403 booking-blocked-no-shows` with `context.blockedUntilUtc` until the block ends.\n\nWith `autoConfirmGuestsWithGoodRecord` on at a branch that approves every booking, a guest with a good record is confirmed at once - see `GET /api/branches/{id}/reservation-policy`.\n\n**One table at a time per diner, anywhere**: a sitting that overlaps another of the diner's own live bookings (pending, confirmed or seated) is `409 reservation-overlaps-own`, with `context` naming the booking already held - `reservationId`, `code` (its door code), `localDate` (`\"2026-10-22\"`, the branch's calendar - say the day when it differs), `localStartTime` (`\"19:30:00\"`), `tableLabel`, `venueName` and `branchName` - so the app can say \"You already have a booking at Café Aram at 19:30\". At the same branch sittings that only touch do not overlap; at **another venue** the two need **30 minutes** between them (with a 90-minute sitting, starts less than 2 hours apart are refused). A retry with the same `clientCommandId` still answers as a replay.",
         "operationId": "createReservation",
         "requestBody": {
           "content": {
@@ -18329,7 +18477,7 @@
           "platform"
         ],
         "summary": "Create a venue with its first branch",
-        "description": "A venue with no branch is useless, so the first branch is created in the same transaction. A failure creates neither. The branch's `subscriptionTier` defaults to Free.\n\n**Missing fields are reported together.** An empty body names `name`, `slug` and `firstBranch` in one 422, each in `context.fields`, rather than making somebody submit three times to discover three problems. Nested fields are dotted - `firstBranch.address`.\n\n**Out-of-range values are still reported one at a time**, as a 400 - a latitude of 200 refuses before the next field is looked at. The bounds live in the `Venue` and `Branch` constructors rather than in a limits class of their own, so collecting them would mean a second copy of every rule. See `docs/platform-admin.md`.",
+        "description": "A venue with no branch is useless, so the first branch is created in the same transaction. A failure creates neither. The branch's `features` default to the Basic preset - every feature but table service (5).\n\n**Missing fields are reported together.** An empty body names `name`, `slug` and `firstBranch` in one 422, each in `context.fields`, rather than making somebody submit three times to discover three problems. Nested fields are dotted - `firstBranch.address`.\n\n**Out-of-range values are still reported one at a time**, as a 400 - a latitude of 200 refuses before the next field is looked at. The bounds live in the `Venue` and `Branch` constructors rather than in a limits class of their own, so collecting them would mean a second copy of every rule. See `docs/platform-admin.md`.",
         "operationId": "createVenue",
         "requestBody": {
           "content": {
@@ -18434,7 +18582,7 @@
           "platform"
         ],
         "summary": "Venues, with search, filters, sorting and paging",
-        "description": "Each row is what the console's venue table shows: the branch, active-table and paid-branch counts; `tierMix` (1 Free, 2 Mixed, 3 Paid - billing is per branch, so a venue is Mixed when only some branches pay) and `branches`, every branch with its own tier and `issues`; `status` (1 Active, 2 Suspended, 3 Inactive, 4 Deleted); `averageRating` and `reviewCount` over the published reviews of every branch; `openTabCount`; `readinessIssue` (`code`, `count`, `branchName`), the first thing a guest would find missing at an active branch - setup progress, so suspended venues count and switched-off branches never do - `no-tables`, `no-menu`, `incomplete-dishes`, `no-hours` or `no-photo`; `coverThumbnailUrl`, the first branch's cover thumbnail; `district`, `cuisine` and `createdAtUtc`.\n\n`search` matches the venue's name and slug and each branch's name and district. `status`: `live` (default: every venue not deleted), `all`, `active`, `suspended`, `inactive` or `deleted`; the older `includeDeleted=true` is `all` when no `status` is sent. `tier`: `free`, `mixed` or `paid`; blank is every tier. `sort`: `name` (default), `rating`, `tables` or `created`; `dir`: `asc` (default) or `desc` - a venue with no rating sorts below every rated one. `page` from 1, `pageSize` 1-200 (default 20).",
+        "description": "Each row is what the console's venue table shows: the branch and active-table counts; `branches`, every branch with the `features` the platform allows there and its `issues`; `status` (1 Active, 2 Suspended, 3 Inactive, 4 Deleted); `averageRating` and `reviewCount` over the published reviews of every branch; `openTabCount`; `readinessIssue` (`code`, `count`, `branchName`), the first thing a guest would find missing at an active branch - setup progress, so suspended venues count and switched-off branches never do - `no-tables`, `no-menu`, `incomplete-dishes`, `no-hours` or `no-photo`; `coverThumbnailUrl`, the first branch's cover thumbnail; `district`, `cuisine` and `createdAtUtc`.\n\n`search` matches the venue's name and slug and each branch's name and district. `status`: `live` (default: every venue not deleted), `all`, `active`, `suspended`, `inactive` or `deleted`; the older `includeDeleted=true` is `all` when no `status` is sent. `sort`: `name` (default), `rating`, `tables` or `created`; `dir`: `asc` (default) or `desc` - a venue with no rating sorts below every rated one. `page` from 1, `pageSize` 1-200 (default 20).",
         "operationId": "listVenues",
         "parameters": [
           {
@@ -18478,13 +18626,6 @@
             }
           },
           {
-            "name": "tier",
-            "in": "query",
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
             "name": "sort",
             "in": "query",
             "schema": {
@@ -18511,7 +18652,7 @@
             }
           },
           "400": {
-            "description": "`status`, `tier`, `sort` or `dir` is not a value it takes; `context.field` names it.",
+            "description": "`status`, `sort` or `dir` is not a value it takes; `context.field` names it.",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -18569,7 +18710,7 @@
           "platform"
         ],
         "summary": "Home: the platform's numbers in one read",
-        "description": "**Aggregates only** - no guest's name, phone or booking code at any depth.\n\n`venues`: venues not deleted, split by `tierMix` (`paid` every branch paid, `mixed` some, `free` none) and by state, with `deleted` counted apart and the branch totals. `bookings`: bookings by the day of the visit, on each branch's own calendar, cancelled ones left out - `perDay` is thirty entries, oldest first and today last (the 14-day chart is the last fourteen), `last7Days` against `previous7Days` with `changePercent` (absent when the previous week had none). `pendingApprovals`: booking requests still waiting for a venue whose visit is ahead; `openTabs`: tabs open or closing now - each a total and the venues it comes from, most first. `notReady`: branches diners can reach that a guest would find unfinished - `no-tables`, `no-menu`, `incomplete-dishes`, `no-hours`, `no-photo` (the first twenty, newest venues first, and the `total`). `recentVenues`: the five newest venues not deleted. `outbox`: the counts `GET /api/platform/outbox` serves, with `deadLetteredLastDay` - the messages given up on in the last 24 hours, what Home's alert counts.",
+        "description": "**Aggregates only** - no guest's name, phone or booking code at any depth.\n\n`venues`: venues not deleted, split by state, with `deleted` counted apart and the branch total. `bookings`: bookings by the day of the visit, on each branch's own calendar, cancelled ones left out - `perDay` is thirty entries, oldest first and today last (the 14-day chart is the last fourteen), `last7Days` against `previous7Days` with `changePercent` (absent when the previous week had none). `pendingApprovals`: booking requests still waiting for a venue whose visit is ahead; `openTabs`: tabs open or closing now - each a total and the venues it comes from, most first. `notReady`: branches diners can reach that a guest would find unfinished - `no-tables`, `no-menu`, `incomplete-dishes`, `no-hours`, `no-photo` (the first twenty, newest venues first, and the `total`). `recentVenues`: the five newest venues not deleted. `outbox`: the counts `GET /api/platform/outbox` serves, with `deadLetteredLastDay` - the messages given up on in the last 24 hours, what Home's alert counts.",
         "operationId": "getPlatformOverview",
         "responses": {
           "200": {
@@ -19451,7 +19592,7 @@
                     "$ref": "#/components/schemas/Yalla.Application.Platform.CreateBranchCommand"
                   }
                 ],
-                "description": "Add a branch. The tier is per branch - a chain with four locations pays four times."
+                "description": "Add a branch. Features are per branch - a chain with four locations is four customers."
               }
             }
           },
@@ -19546,8 +19687,8 @@
         "tags": [
           "platform"
         ],
-        "summary": "Name, address, coordinates, timezone, active flag, tier",
-        "description": "`subscriptionTier` is set here, per branch. Moving a branch to Free switches off tabs and ordering there; the tab endpoints answer `feature-not-enabled`. It is refused while the branch has open tabs, because hiding a live bill from the people who owe it strands real money on a real table.\n\n**Moving a branch to Paid is refused while its menu has unfinished items.** This is where the rule that a dish needs a photo, ingredients, allergens, a portion size and a prep time is actually enforced - at the moment the branch starts taking diners, rather than at the moment somebody types a name and a price. The refusal is `branch-not-ready` and carries `incompleteMenuItemCount`; `GET /api/branches/{branchId}/readiness` lists which items are left.",
+        "summary": "Name, address, coordinates, timezone, active flag",
+        "description": "Every field optional; only the ones sent change. The features the branch may use are set with `PUT /api/platform/branches/{branchId}/features`. Audited as `branch.update`.",
         "operationId": "updateBranch",
         "parameters": [
           {
@@ -19627,11 +19768,267 @@
             }
           },
           "409": {
-            "description": "Going Paid with an unfinished menu, or going Free with open tabs.",
+            "description": "The venue is deleted.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests in the window, or a one-time credential is out of attempts.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected failure. Quote the traceId from the body.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/platform/branches/{branchId}/features": {
+      "put": {
+        "tags": [
+          "platform"
+        ],
+        "summary": "Allow or block the features a branch may use",
+        "description": "Body: `{ \"features\": [1, 2, ...] }`, the **whole** set to allow - anything left out is blocked, `[]` blocks everything. 1 AppBookings, 2 WebBookings, 3 PreOrders, 4 Takeaway, 5 TableService, 6 GuestMessages, 7 Reviews, 8 StaffPhone, 9 KitchenDisplay, 10 Reports. The presets are the console's: Basic is every feature but 5, Full is all ten.\n\n**The venue's own switches are kept.** Blocking takeaway leaves `takeawayEnabled` as the owner set it, so allowing it again restores it; diners see a feature only when it is allowed *and* switched on.\n\n**Pre-orders (3) need app (1) or web (2) bookings** - 422 on `features` otherwise.\n\n**Table service (5) on needs a finished menu** - `branch-not-ready` with `incompleteMenuItemCount`, the rule going Paid had; `GET /api/branches/{branchId}/readiness` lists what is left. **Off waits for open tabs**: blocking it switches every tab route off there (`feature-not-enabled`), which would strand a live bill.\n\nWork already in flight when a feature is blocked finishes normally. Answers the branch as the venue page shows it, `features` in numeric order. A set equal to the current one changes and audits nothing. Audited as `branch.features-change` (`from`, `to`, `added`, `removed`).",
+        "operationId": "setBranchFeatures",
+        "parameters": [
+          {
+            "name": "branchId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "allOf": [
+                  {
+                    "$ref": "#/components/schemas/Yalla.Api.Endpoints.SetBranchFeaturesRequest"
+                  }
+                ],
+                "description": "Body of `PUT /api/platform/branches/{branchId}/features` and `PUT /api/platform/venues/{venueId}/features`."
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Application.Platform.BranchSummary"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request violated a domain rule or arrived malformed.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No usable token was presented, or the one presented was rejected.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller is authenticated but not allowed to perform this action.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such branch.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "`branch-not-ready`: table service turned on with an unfinished menu. `conflicting-state` when table service is turned off with tabs open (`context.branchId`, `context.openTabCount`), or, with no `context`, when the venue is deleted.",
             "content": {
               "application/problem+json": {
                 "schema": {
                   "$ref": "#/components/schemas/Yalla.Api.Errors.BranchNotReadyProblem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "`features` missing, a value that is not a feature, or pre-orders without a booking channel.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.ValidationFailedProblem"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests in the window, or a one-time credential is out of attempts.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected failure. Quote the traceId from the body.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/platform/venues/{venueId}/features": {
+      "put": {
+        "tags": [
+          "platform"
+        ],
+        "summary": "Give every branch of a venue the same features",
+        "description": "Body: `{ \"features\": [1, 2, ...] }`, the **whole** set to allow - anything left out is blocked, `[]` blocks everything. 1 AppBookings, 2 WebBookings, 3 PreOrders, 4 Takeaway, 5 TableService, 6 GuestMessages, 7 Reviews, 8 StaffPhone, 9 KitchenDisplay, 10 Reports. The presets are the console's: Basic is every feature but 5, Full is all ten.\n\n**The venue's own switches are kept.** Blocking takeaway leaves `takeawayEnabled` as the owner set it, so allowing it again restores it; diners see a feature only when it is allowed *and* switched on.\n\n**Pre-orders (3) need app (1) or web (2) bookings** - 422 on `features` otherwise.\n\n**Table service (5) on needs a finished menu** - `branch-not-ready` with `incompleteMenuItemCount`, the rule going Paid had; `GET /api/branches/{branchId}/readiness` lists what is left. **Off waits for open tabs**: blocking it switches every tab route off there (`feature-not-enabled`), which would strand a live bill.\n\nWork already in flight when a feature is blocked finishes normally. Every branch of the venue, switched-off ones included, gets the set **in one transaction**: a refusal at any branch changes none of them, and names the branch. Answers the venue. Each branch that changed is audited as `branch.features-change` (`viaVenue` true), and the call as `venue.features-apply` (`features`, `branchCount`, `changedBranchIds`); when nothing changed, nothing is written.",
+        "operationId": "applyVenueFeatures",
+        "parameters": [
+          {
+            "name": "venueId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "allOf": [
+                  {
+                    "$ref": "#/components/schemas/Yalla.Api.Endpoints.SetBranchFeaturesRequest"
+                  }
+                ],
+                "description": "Body of `PUT /api/platform/branches/{branchId}/features` and `PUT /api/platform/venues/{venueId}/features`."
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Application.Platform.VenueDetail"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request violated a domain rule or arrived malformed.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No usable token was presented, or the one presented was rejected.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller is authenticated but not allowed to perform this action.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such venue.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "`branch-not-ready`: a branch would turn table service on with an unfinished menu (`context.branchId` names it). `conflicting-state` when a branch would turn table service off with tabs open (`context.branchId` names the first such branch, `context.openTabCount` its tabs), or, with no `context`, when the venue is deleted.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.BranchNotReadyProblem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "`features` missing, a value that is not a feature, or pre-orders without a booking channel.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.ValidationFailedProblem"
                 }
               }
             }
@@ -21276,7 +21673,7 @@
             }
           },
           "409": {
-            "description": "`table-not-seated`: nobody is sitting there - seat the party first. (A table still Occupied after its last bill was paid is not refused: the party gets a new sitting and the new tab on it.) Also returned, with no `context`, when the table is out of service, the branch is not on a tier with tabs, or this `clientCommandId` opened a tab somewhere else.",
+            "description": "`table-not-seated`: nobody is sitting there - seat the party first. (A table still Occupied after its last bill was paid is not refused: the party gets a new sitting and the new tab on it.) Also returned, with no `context`, when the table is out of service or this `clientCommandId` opened a tab somewhere else; and as `feature-not-enabled` (`context.feature` 5, `context.branchId`) when the platform has not allowed table service at the branch.",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -27595,6 +27992,75 @@
         "additionalProperties": false,
         "description": "Body of `POST /api/takeaway-orders/{orderId}/collect`."
       },
+      "Yalla.Api.Endpoints.CreatePublicReservationRequest": {
+        "required": [
+          "clientCommandId",
+          "date",
+          "guestName",
+          "guestPhone",
+          "partySize",
+          "tableId",
+          "time"
+        ],
+        "type": "object",
+        "properties": {
+          "tableId": {
+            "type": "string",
+            "description": "The table the diner picked off the room photos.",
+            "format": "uuid"
+          },
+          "date": {
+            "type": "string",
+            "description": "Local calendar date at the branch, e.g. `2026-09-12`.",
+            "format": "date"
+          },
+          "time": {
+            "type": "string",
+            "description": "Local wall-clock start at the branch, e.g. `19:30`.",
+            "format": "time"
+          },
+          "partySize": {
+            "type": "integer",
+            "description": "How many are coming.",
+            "format": "int32"
+          },
+          "guestName": {
+            "type": "string",
+            "description": "Who to ask for at the door."
+          },
+          "guestPhone": {
+            "type": "string",
+            "description": "How to reach them when they are late."
+          },
+          "clientCommandId": {
+            "type": "string",
+            "description": "The caller's own id for this booking. <b>Required</b>: a retry answers the first booking.",
+            "format": "uuid"
+          },
+          "stayHint": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Yalla.Domain.Enums.StayHint"
+              }
+            ],
+            "description": "Advisory only. The interval comes from the branch's turn time.",
+            "nullable": true
+          },
+          "note": {
+            "type": "string",
+            "description": "A note to the venue. Optional; trimmed, blank means none, at most 500 characters, refused as\n`validation-failed` naming `note` with bound `max`.",
+            "nullable": true
+          },
+          "acceptsFreeByUtc": {
+            "type": "string",
+            "description": "\"I'll free the table by 21:25\": the table's `mustFreeByUtc` from availability, once the diner agreed to it -\nexactly as on Yalla.Api.Endpoints.CreateReservationRequest.",
+            "format": "date-time",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false,
+        "description": "Body of `POST /api/public/branches/{branchId}/reservations`: the public page's booking."
+      },
       "Yalla.Api.Endpoints.CreateReservationRequest": {
         "required": [
           "branchId",
@@ -27662,7 +28128,8 @@
                 "$ref": "#/components/schemas/Yalla.Domain.Enums.ReservationChannel"
               }
             ],
-            "description": "Where a booking was made from."
+            "description": "Where a booking was made from.",
+            "deprecated": true
           },
           "note": {
             "type": "string",
@@ -28923,6 +29390,21 @@
         "additionalProperties": false,
         "description": "Body of a `.../conversation/messages` send - the guest's and the venue's."
       },
+      "Yalla.Api.Endpoints.SetBranchFeaturesRequest": {
+        "type": "object",
+        "properties": {
+          "features": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Yalla.Domain.Enums.BranchFeature"
+            },
+            "description": "The whole set to allow, by number - anything left out is blocked, `[]` blocks everything: 1 AppBookings,\n2 WebBookings, 3 PreOrders, 4 Takeaway, 5 TableService, 6 GuestMessages, 7 Reviews, 8 StaffPhone, 9 KitchenDisplay,\n10 Reports. Pre-orders need app or web bookings.",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false,
+        "description": "Body of `PUT /api/platform/branches/{branchId}/features` and `PUT /api/platform/venues/{venueId}/features`."
+      },
       "Yalla.Api.Endpoints.SetDinerPasswordRequest": {
         "required": [
           "newPassword"
@@ -29718,7 +30200,7 @@
           }
         },
         "additionalProperties": false,
-        "description": "`branch-not-ready`, 409. Finish the menu, then switch the tier."
+        "description": "`branch-not-ready`, 409. Finish the menu, then turn table service on."
       },
       "Yalla.Api.Errors.FieldViolationShape": {
         "required": [
@@ -32776,6 +33258,7 @@
           "deviceId",
           "deviceName",
           "enrolledAtUtc",
+          "features",
           "kind",
           "venueName"
         ],
@@ -32817,6 +33300,13 @@
             "description": "When it was last used.",
             "format": "date-time",
             "nullable": true
+          },
+          "features": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Yalla.Domain.Enums.BranchFeature"
+            },
+            "description": "The features the platform allows at the branch, in numeric order, for the PIN screen and the app shell before\nanybody signs in (a kitchen screen without kitchen display 9, a phone without staff phone 8). Absent only from a\nresponse built before 2026-10-27."
           },
           "kind": {
             "allOf": [
@@ -33166,6 +33656,7 @@
           "accessToken",
           "branchId",
           "expiresInSeconds",
+          "features",
           "fullName",
           "renewalToken",
           "role",
@@ -33207,6 +33698,13 @@
             "type": "string",
             "description": "The branch this session may act on, and only this one.",
             "format": "uuid"
+          },
+          "features": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Yalla.Domain.Enums.BranchFeature"
+            },
+            "description": "The features the platform allows at the branch, in numeric order - read again on every renewal, so a change reaches\nthe tablet within one. Hide what is not listed (table service 5, takeaway 4, guest messages 6, kitchen display 9,\nstaff phone 8, pre-orders 3); the venue's own switches still apply inside it."
           }
         },
         "additionalProperties": false,
@@ -38760,7 +39258,7 @@
           },
           "action": {
             "type": "string",
-            "description": "The stable slug - `venue.create`, `venue.update`, `venue.suspend`,\n`venue.reactivate`, `venue.delete`, `branch.create`, `branch.update`,\n`branch.tier-change`, `branch.relocate`, `staff.create`, `staff.sign-in-issued`,\n`staff.phone-pairing-issued`, `staff.phone-unpaired`,\n`venue.restore`, `review.hide`, `review.unhide`, `review.dismiss-reports`,\n`review.restore-reports`, `review.remove-reply` (the platform taking a venue's reply down - a\nvenue's own replies and removals are left out of the feed), `table.regenerate-qr`,\n`admin.rename`, `admin.password-change`, and a venue user's own `account.rename`,\n`account.password-change`, `account.sign-out-others`."
+            "description": "The stable slug - `venue.create`, `venue.update`, `venue.suspend`,\n`venue.reactivate`, `venue.delete`, `branch.create`, `branch.update`,\n`branch.features-change` (and, before 2026-10-27, `branch.tier-change`), `venue.features-apply`,\n`branch.relocate`, `staff.create`, `staff.sign-in-issued`,\n`staff.phone-pairing-issued`, `staff.phone-unpaired`,\n`venue.restore`, `review.hide`, `review.unhide`, `review.dismiss-reports`,\n`review.restore-reports`, `review.remove-reply` (the platform taking a venue's reply down - a\nvenue's own replies and removals are left out of the feed), `table.regenerate-qr`,\n`admin.rename`, `admin.password-change`, and a venue user's own `account.rename`,\n`account.password-change`, `account.sign-out-others`."
           },
           "actor": {
             "allOf": [
@@ -38959,13 +39457,13 @@
         "required": [
           "address",
           "branchId",
+          "features",
           "isActive",
           "latitude",
           "longitude",
           "name",
           "openTabCount",
           "slug",
-          "subscriptionTier",
           "tableCount",
           "timeZoneId",
           "venueId"
@@ -39012,13 +39510,12 @@
             "type": "boolean",
             "description": "Whether the branch is switched on."
           },
-          "subscriptionTier": {
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/Yalla.Domain.Enums.SubscriptionTier"
-              }
-            ],
-            "description": "What a <b>branch</b> pays for. Stored per branch, never per venue: a chain with four locations\nis four paying customers. The venue-level view is a rollup."
+          "features": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Yalla.Domain.Enums.BranchFeature"
+            },
+            "description": "The features the platform allows there, in numeric order: 1 AppBookings, 2 WebBookings, 3 PreOrders, 4 Takeaway,\n5 TableService, 6 GuestMessages, 7 Reviews, 8 StaffPhone, 9 KitchenDisplay, 10 Reports. The owner's own switches\nwork inside it. Set with `PUT /api/platform/branches/{id}/features`."
           },
           "tableCount": {
             "type": "integer",
@@ -39039,53 +39536,6 @@
         "additionalProperties": false,
         "description": "One branch as the platform's venue page shows it."
       },
-      "Yalla.Application.Platform.BranchTierView": {
-        "required": [
-          "branchId",
-          "isActive",
-          "issues",
-          "name",
-          "subscriptionTier"
-        ],
-        "type": "object",
-        "properties": {
-          "branchId": {
-            "type": "string",
-            "description": "The branch.",
-            "format": "uuid"
-          },
-          "name": {
-            "type": "string",
-            "description": "Its name."
-          },
-          "subscriptionTier": {
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/Yalla.Domain.Enums.SubscriptionTier"
-              }
-            ],
-            "description": "What a <b>branch</b> pays for. Stored per branch, never per venue: a chain with four locations\nis four paying customers. The venue-level view is a rollup."
-          },
-          "isActive": {
-            "type": "boolean",
-            "description": "Whether the branch is switched on."
-          },
-          "issues": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/Yalla.Application.BranchSettings.ReadinessIssue"
-            },
-            "description": "What a guest would find missing at the branch, in checklist order: `no-tables`, `no-menu`,\n`incomplete-dishes` (with `count`), `no-hours`, then `no-photo`. Empty when there\nis nothing to do. Always empty for a deleted venue, which is not worked out. The full checklist is\n`GET /api/branches/{id}/readiness`."
-          },
-          "district": {
-            "type": "string",
-            "description": "The branch's district as the listing form saved it; absent when it has none.",
-            "nullable": true
-          }
-        },
-        "additionalProperties": false,
-        "description": "One branch's tier and what it still lacks, as the venue list shows it."
-      },
       "Yalla.Application.Platform.CreateBranchCommand": {
         "required": [
           "address",
@@ -39093,42 +39543,47 @@
           "longitude",
           "name",
           "slug",
-          "subscriptionTier",
           "timeZoneId"
         ],
         "type": "object",
         "properties": {
           "name": {
-            "type": "string"
+            "type": "string",
+            "description": "Its name."
           },
           "slug": {
-            "type": "string"
+            "type": "string",
+            "description": "URL segment, unique within the venue."
           },
           "address": {
-            "type": "string"
+            "type": "string",
+            "description": "Street address."
           },
           "latitude": {
             "type": "number",
+            "description": "The map pin.",
             "format": "double"
           },
           "longitude": {
             "type": "number",
+            "description": "The map pin.",
             "format": "double"
           },
           "timeZoneId": {
-            "type": "string"
+            "type": "string",
+            "description": "IANA zone."
           },
-          "subscriptionTier": {
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/Yalla.Domain.Enums.SubscriptionTier"
-              }
-            ],
-            "description": "What a <b>branch</b> pays for. Stored per branch, never per venue: a chain with four locations\nis four paying customers. The venue-level view is a rollup."
+          "features": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Yalla.Domain.Enums.BranchFeature"
+            },
+            "description": "The features the platform allows there. Absent is the Basic preset - everything but table service (5). Pre-orders\n(3) need app (1) or web (2) bookings.",
+            "nullable": true
           }
         },
         "additionalProperties": false,
-        "description": "Add a branch. The tier is per branch - a chain with four locations pays four times."
+        "description": "Add a branch. Features are per branch - a chain with four locations is four customers."
       },
       "Yalla.Application.Platform.CreateVenueCommand": {
         "required": [
@@ -39159,7 +39614,7 @@
                 "$ref": "#/components/schemas/Yalla.Application.Platform.CreateBranchCommand"
               }
             ],
-            "description": "Add a branch. The tier is per branch - a chain with four locations pays four times."
+            "description": "Add a branch. Features are per branch - a chain with four locations is four customers."
           }
         },
         "additionalProperties": false,
@@ -39361,11 +39816,7 @@
           "active",
           "branches",
           "deleted",
-          "free",
           "inactive",
-          "mixed",
-          "paid",
-          "paidBranches",
           "suspended",
           "total"
         ],
@@ -39373,22 +39824,7 @@
         "properties": {
           "total": {
             "type": "integer",
-            "description": "Venues not deleted: Paid + Mixed + Free.",
-            "format": "int32"
-          },
-          "paid": {
-            "type": "integer",
-            "description": "Every branch paid.",
-            "format": "int32"
-          },
-          "mixed": {
-            "type": "integer",
-            "description": "Some branches paid.",
-            "format": "int32"
-          },
-          "free": {
-            "type": "integer",
-            "description": "No branch paid, or no branch.",
+            "description": "Venues not deleted.",
             "format": "int32"
           },
           "active": {
@@ -39415,15 +39851,10 @@
             "type": "integer",
             "description": "Branches of the venues in Total.",
             "format": "int32"
-          },
-          "paidBranches": {
-            "type": "integer",
-            "description": "How many of those are paid.",
-            "format": "int32"
           }
         },
         "additionalProperties": false,
-        "description": "Venue counts. Everything but Deleted counts venues that are not deleted; the tier\nsplit is per venue, from its branches' tiers (Yalla.Application.Platform.TierMix)."
+        "description": "Venue counts. Everything but Deleted counts venues that are not deleted."
       },
       "Yalla.Application.Platform.PagedResult`1[[Yalla.Application.Platform.VenueSummary, Yalla.Application, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null]]": {
         "required": [
@@ -39562,10 +39993,8 @@
           "branchCount",
           "createdAtUtc",
           "name",
-          "paidBranchCount",
           "slug",
           "status",
-          "tierMix",
           "type",
           "venueId"
         ],
@@ -39597,19 +40026,7 @@
             ],
             "description": "A venue's state, as one value. Derived from the venue's flags; never stored."
           },
-          "tierMix": {
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/Yalla.Application.Platform.TierMix"
-              }
-            ],
-            "description": "How a venue's branches are spread over the tiers. Derived; never stored."
-          },
           "branchCount": {
-            "type": "integer",
-            "format": "int32"
-          },
-          "paidBranchCount": {
             "type": "integer",
             "format": "int32"
           },
@@ -39620,21 +40037,6 @@
         },
         "additionalProperties": false,
         "description": "A recently added venue, as Home's table shows it."
-      },
-      "Yalla.Application.Platform.TierMix": {
-        "enum": [
-          1,
-          2,
-          3
-        ],
-        "type": "integer",
-        "description": "How a venue's branches are spread over the tiers. Derived; never stored.\n\nValues: 1 Free, 2 Mixed, 3 Paid.",
-        "format": "int32",
-        "x-enum-varnames": [
-          "Free",
-          "Mixed",
-          "Paid"
-        ]
       },
       "Yalla.Application.Platform.UpdateBranchCommand": {
         "type": "object",
@@ -39663,14 +40065,6 @@
           },
           "isActive": {
             "type": "boolean",
-            "nullable": true
-          },
-          "subscriptionTier": {
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/Yalla.Domain.Enums.SubscriptionTier"
-              }
-            ],
             "nullable": true
           }
         },
@@ -39762,6 +40156,52 @@
         "additionalProperties": false,
         "description": "One venue's bookings over the last 7 or 30 days, as counts, for the venue page. <b>Aggregates\nonly</b>: no guest's name, phone or code."
       },
+      "Yalla.Application.Platform.VenueBranchView": {
+        "required": [
+          "branchId",
+          "features",
+          "isActive",
+          "issues",
+          "name"
+        ],
+        "type": "object",
+        "properties": {
+          "branchId": {
+            "type": "string",
+            "description": "The branch.",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string",
+            "description": "Its name."
+          },
+          "features": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Yalla.Domain.Enums.BranchFeature"
+            },
+            "description": "The features the platform allows there, in numeric order. Set with `PUT /api/platform/branches/{id}/features`."
+          },
+          "isActive": {
+            "type": "boolean",
+            "description": "Whether the branch is switched on."
+          },
+          "issues": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Yalla.Application.BranchSettings.ReadinessIssue"
+            },
+            "description": "What a guest would find missing at the branch, in checklist order: `no-tables`, `no-menu`,\n`incomplete-dishes` (with `count`), `no-hours`, then `no-photo`. Empty when there\nis nothing to do. Always empty for a deleted venue, which is not worked out. The full checklist is\n`GET /api/branches/{id}/readiness`."
+          },
+          "district": {
+            "type": "string",
+            "description": "The branch's district as the listing form saved it; absent when it has none.",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false,
+        "description": "One branch's features and what it still lacks, as the venue list shows it."
+      },
       "Yalla.Application.Platform.VenueCount": {
         "required": [
           "count",
@@ -39798,7 +40238,7 @@
                 "$ref": "#/components/schemas/Yalla.Application.Platform.VenueSummary"
               }
             ],
-            "description": "One venue as the platform sees it, with the per-branch tier rolled up."
+            "description": "One venue as the platform sees it, with its branches' rollups."
           },
           "branches": {
             "type": "array",
@@ -39862,13 +40302,10 @@
           "name",
           "notReadyBranchCount",
           "openTabCount",
-          "paidBranchCount",
           "reviewCount",
           "slug",
           "status",
-          "subscriptionTier",
           "tableCount",
-          "tierMix",
           "type",
           "venueId"
         ],
@@ -39929,19 +40366,6 @@
             "description": "How many <b>active</b> tables across all of them. A table kept only for its history is not one the\nroom has, the same rule the readiness checklist counts by.",
             "format": "int32"
           },
-          "paidBranchCount": {
-            "type": "integer",
-            "description": "How many of those branches are on the paid tier.",
-            "format": "int32"
-          },
-          "subscriptionTier": {
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/Yalla.Domain.Enums.SubscriptionTier"
-              }
-            ],
-            "description": "What a <b>branch</b> pays for. Stored per branch, never per venue: a chain with four locations\nis four paying customers. The venue-level view is a rollup."
-          },
           "status": {
             "allOf": [
               {
@@ -39950,20 +40374,12 @@
             ],
             "description": "The four booleans above as one value: 4 Deleted, else 2 Suspended, else 3 Inactive (switched off),\nelse 1 Active."
           },
-          "tierMix": {
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/Yalla.Application.Platform.TierMix"
-              }
-            ],
-            "description": "1 Free (no branch paid, or no branch at all), 2 Mixed (some), 3 Paid (every one) - what the list's\ntier column shows, with PaidBranchCount of BranchCount."
-          },
           "branches": {
             "type": "array",
             "items": {
-              "$ref": "#/components/schemas/Yalla.Application.Platform.BranchTierView"
+              "$ref": "#/components/schemas/Yalla.Application.Platform.VenueBranchView"
             },
-            "description": "Every branch with its own tier, active ones first, then by name."
+            "description": "Every branch with the features the platform allows there, active ones first, then by name."
           },
           "averageRating": {
             "type": "number",
@@ -40017,7 +40433,7 @@
           }
         },
         "additionalProperties": false,
-        "description": "One venue as the platform sees it, with the per-branch tier rolled up."
+        "description": "One venue as the platform sees it, with its branches' rollups."
       },
       "Yalla.Application.Platform.WeekdayCount": {
         "required": [
@@ -40362,11 +40778,11 @@
           },
           "acceptsWebBookings": {
             "type": "boolean",
-            "description": "Whether the public page offers booking."
+            "description": "Whether the public page offers booking: web bookings (2) is in `listing.features`."
           },
           "acceptsAppBookings": {
             "type": "boolean",
-            "description": "Whether the diner app may book here: online bookings switched on <b>and</b> the reservation policy\nsaved by somebody at the venue (K9). False means hide the booking button."
+            "description": "Whether the diner app may book here: app bookings allowed by the platform, online bookings switched on <b>and</b>\nthe reservation policy saved by somebody at the venue (K9) - app bookings (1) is in `listing.features`. False\nmeans hide the booking button."
           },
           "recentReviews": {
             "type": "array",
@@ -40414,6 +40830,7 @@
           "branchId",
           "branchName",
           "branchSlug",
+          "features",
           "freeTableCount",
           "isOpenNow",
           "latitude",
@@ -40532,6 +40949,13 @@
             "description": "The hero picture, or absent.",
             "nullable": true
           },
+          "features": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Yalla.Domain.Enums.BranchFeature"
+            },
+            "description": "The features <b>on</b> here as a diner sees them, in numeric order: allowed by the platform <b>and</b> switched on by\nthe venue where the venue has a switch - app bookings (1: online bookings on and a saved reservation policy), web\nbookings (2: online bookings on), pre-orders (3: accepted), takeaway (4: enabled), guest\nmessages (6: guests may write); the rest (5 table service, 7 reviews, 8-10) as allowed. Hide what is not listed."
+          },
           "district": {
             "type": "string",
             "description": "The part of town, e.g. \"Kentron\" - what the app prints after the venue type and the cuisine. Free\ntext from the venue, or absent when not set. Search matches it.",
@@ -40585,6 +41009,7 @@
           "branchId",
           "branchName",
           "branchSlug",
+          "features",
           "floorPlan",
           "freeTableCount",
           "isOpenNow",
@@ -40711,6 +41136,13 @@
             "type": "string",
             "description": "When the server read the live half of this page. FreeTableCount,\nIsOpenNow and each table's `isFree` are true as of this instant and no\nlater; the rest is stable. The page shows the staleness rather than implying there is none,\nbecause this link is cached for seconds and shared for days.",
             "format": "date-time"
+          },
+          "features": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Yalla.Domain.Enums.BranchFeature"
+            },
+            "description": "The features <b>on</b> here as a diner sees them, in numeric order: allowed by the platform <b>and</b> switched on by\nthe venue where the venue has a switch - app bookings (1: online bookings on and a saved reservation policy), web\nbookings (2: online bookings on), pre-orders (3: accepted), takeaway (4: enabled), guest\nmessages (6: guests may write); the rest (5 table service, 7 reviews, 8-10) as allowed. Hide what is not listed.\nRead live, like AcceptsWebBookings."
           },
           "coverPhoto": {
             "allOf": [
@@ -41107,7 +41539,7 @@
         "properties": {
           "enabled": {
             "type": "boolean",
-            "description": "The venue takes takeaway orders from the app."
+            "description": "The venue takes takeaway orders from the app: allowed by the platform and switched on by the venue."
           },
           "prepMinutes": {
             "type": "integer",
@@ -46316,10 +46748,10 @@
       "Yalla.Application.Venues.ManagedBranchView": {
         "required": [
           "branchId",
+          "features",
           "isActive",
           "name",
           "slug",
-          "subscriptionTier",
           "tableCount",
           "timeZoneId",
           "venueId"
@@ -46352,13 +46784,12 @@
             "type": "boolean",
             "description": "False for a branch the platform has switched off. It is listed so the switcher can say so."
           },
-          "subscriptionTier": {
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/Yalla.Domain.Enums.SubscriptionTier"
-              }
-            ],
-            "description": "What a <b>branch</b> pays for. Stored per branch, never per venue: a chain with four locations\nis four paying customers. The venue-level view is a rollup."
+          "features": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Yalla.Domain.Enums.BranchFeature"
+            },
+            "description": "The features the platform allows at the branch, in numeric order. The console shows the others <b>locked</b>\n(\"contact SHURJ\"), never hidden; the owner's own switches work only inside this set."
           },
           "tableCount": {
             "type": "integer",
@@ -46481,6 +46912,35 @@
         "x-enum-varnames": [
           "WholeBill",
           "MyShare"
+        ]
+      },
+      "Yalla.Domain.Enums.BranchFeature": {
+        "enum": [
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          8,
+          9,
+          10
+        ],
+        "type": "integer",
+        "description": "One feature the platform admin allows or blocks <b>per branch</b>. Replaced the Free/Paid\n`SubscriptionTier` on 2026-10-27.\n\nValues: 1 AppBookings, 2 WebBookings, 3 PreOrders, 4 Takeaway, 5 TableService, 6 GuestMessages, 7 Reviews, 8 StaffPhone, 9 KitchenDisplay, 10 Reports.",
+        "format": "int32",
+        "x-enum-varnames": [
+          "AppBookings",
+          "WebBookings",
+          "PreOrders",
+          "Takeaway",
+          "TableService",
+          "GuestMessages",
+          "Reviews",
+          "StaffPhone",
+          "KitchenDisplay",
+          "Reports"
         ]
       },
       "Yalla.Domain.Enums.DeclineReason": {
@@ -46746,19 +47206,6 @@
           "OneHour",
           "TwoHours",
           "ThreeHoursPlus"
-        ]
-      },
-      "Yalla.Domain.Enums.SubscriptionTier": {
-        "enum": [
-          1,
-          2
-        ],
-        "type": "integer",
-        "description": "What a <b>branch</b> pays for. Stored per branch, never per venue: a chain with four locations\nis four paying customers. The venue-level view is a rollup.\n\nValues: 1 Free, 2 Paid.",
-        "format": "int32",
-        "x-enum-varnames": [
-          "Free",
-          "Paid"
         ]
       },
       "Yalla.Domain.Enums.TabAdmission": {
@@ -47563,7 +48010,7 @@
       "name": "BranchNotReady",
       "status": 409,
       "title": "Branch is not ready for diners",
-      "description": "The branch's menu has unfinished dishes, so it cannot be switched to Paid.",
+      "description": "The branch's menu has unfinished dishes, so table service cannot be turned on.",
       "context": {
         "type": "object",
         "properties": {
@@ -47634,7 +48081,7 @@
       "name": "ConflictingState",
       "status": 409,
       "title": "Conflicting state",
-      "description": "The operation is not legal in the current state; a staff order's unorderable guest is named in context.",
+      "description": "The operation is not legal in the current state; a staff order's unorderable guest, or the branch whose open tabs keep table service on, is named in context.",
       "context": {
         "type": "object",
         "properties": {
@@ -47659,13 +48106,16 @@
               "Removed"
             ],
             "x-enum-name": "ParticipantStatus"
+          },
+          "branchId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "openTabCount": {
+            "type": "integer",
+            "format": "int32"
           }
         },
-        "required": [
-          "field",
-          "participantId",
-          "participantStatus"
-        ],
         "additionalProperties": false
       }
     },
@@ -47767,35 +48217,47 @@
       "name": "FeatureNotEnabled",
       "status": 409,
       "title": "Feature not enabled for this branch",
-      "description": "The branch's tier does not include this feature.",
+      "description": "The platform has not allowed this feature at the branch.",
       "context": {
         "type": "object",
         "properties": {
           "feature": {
-            "type": "string"
-          },
-          "branchId": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "currentTier": {
             "type": "integer",
             "format": "int32",
             "enum": [
               1,
-              2
+              2,
+              3,
+              4,
+              5,
+              6,
+              7,
+              8,
+              9,
+              10
             ],
             "x-enum-varnames": [
-              "Free",
-              "Paid"
+              "AppBookings",
+              "WebBookings",
+              "PreOrders",
+              "Takeaway",
+              "TableService",
+              "GuestMessages",
+              "Reviews",
+              "StaffPhone",
+              "KitchenDisplay",
+              "Reports"
             ],
-            "x-enum-name": "SubscriptionTier"
+            "x-enum-name": "BranchFeature"
+          },
+          "branchId": {
+            "type": "string",
+            "format": "uuid"
           }
         },
         "required": [
           "feature",
-          "branchId",
-          "currentTier"
+          "branchId"
         ],
         "additionalProperties": false
       }

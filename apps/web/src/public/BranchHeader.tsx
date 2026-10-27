@@ -70,10 +70,12 @@ export function FactsLine({
   }
   if (detail === null) return null;
 
-  const { rating, reviewCount, district, priceLevel } = detail.listing;
+  const { rating, reviewCount, district, priceLevel, features } = detail.listing;
   const level = priceLevel !== null && priceLevel >= 1 && priceLevel <= 4 ? priceLevel : null;
+  // Reviews switched off here (2026-10-27): no rating and no "no reviews yet".
+  const reviewsOn = features?.includes('reviews') ?? true;
   const parts = [
-    reviewCount > 0 ? (
+    !reviewsOn ? null : reviewCount > 0 ? (
       <span key="rating">
         {rating !== null ? (
           <>

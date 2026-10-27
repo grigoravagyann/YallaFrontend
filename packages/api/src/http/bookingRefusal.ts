@@ -114,7 +114,9 @@ export function rethrowBookingRefusal(
         reservationId:
           typeof context['reservationId'] === 'string' ? context['reservationId'] : undefined,
       });
+    // The app's switch, or the public page route's web channel (2026-10-27).
     case ProblemCodes.BookingsNotAccepted:
+    case ProblemCodes.WebBookingsNotAccepted:
       throw new BookingsNotAcceptedError({
         ...base,
         branchId: typeof context['branchId'] === 'string' ? context['branchId'] : command.branchId,

@@ -1,5 +1,5 @@
 import { type FavoriteBranch, MAX_FAVORITES } from '../../contracts/favorites';
-import { TooManyFavoritesError } from '../../contracts/errors';
+import { TooManyFavoritesError, isFeatureNotEnabled } from '../../contracts/errors';
 import { ApiError } from '../../errors';
 import type { YallaGateway } from '../../gateway';
 import type { components } from '../../generated/schema';
@@ -30,7 +30,7 @@ export function favoritesMethods(
         await client.put(`/api/diner/favorites/${encodeURIComponent(branchId)}`);
       } catch (error) {
         // The route's one 409 is the cap. A 404 (unknown or inactive) passes through.
-        if (error instanceof ApiError && error.status === 409) {
+        if (!isFeatureNotEnabled(error) && error instanceof ApiError && error.status === 409) {
           throw new TooManyFavoritesError({
             url: error.url,
             requestId: error.requestId,
@@ -56,7 +56,7 @@ export function favoritesMethods(
         );
         return favoritesFromWire(data, client.baseUrl);
       } catch (error) {
-        if (error instanceof ApiError && error.status === 409) {
+        if (!isFeatureNotEnabled(error) && error instanceof ApiError && error.status === 409) {
           throw new TooManyFavoritesError({
             url: error.url,
             requestId: error.requestId,

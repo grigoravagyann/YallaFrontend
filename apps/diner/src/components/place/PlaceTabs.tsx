@@ -21,6 +21,8 @@ export const placeTabs: readonly PlaceTab[] = ['menu', 'rooms', 'reviews', 'abou
 export interface PlaceTabsProps {
   readonly value: PlaceTab;
   readonly onChange: (tab: PlaceTab) => void;
+  /** The sections the place has: Reviews goes where they are switched off. Default all four. */
+  readonly tabs?: readonly PlaceTab[];
   readonly style?: StyleProp<ViewStyle>;
 }
 
@@ -37,7 +39,7 @@ const UNDERLINE = 2;
  * Menu · Rooms · Reviews · About: labels set left to right over a hairline,
  * with a 2px amber underline that slides to the active one and takes its width.
  */
-export function PlaceTabs({ value, onChange, style }: PlaceTabsProps) {
+export function PlaceTabs({ value, onChange, tabs = placeTabs, style }: PlaceTabsProps) {
   const { t } = useTranslation('diner');
   const reduced = useReducedMotion();
   const [spans, setSpans] = useState<Readonly<Partial<Record<PlaceTab, Span>>>>({});
@@ -77,7 +79,7 @@ export function PlaceTabs({ value, onChange, style }: PlaceTabsProps) {
   return (
     <View accessibilityRole="tablist" style={[styles.row, style]}>
       <View pointerEvents="none" style={styles.track} />
-      {placeTabs.map((tab) => {
+      {tabs.map((tab) => {
         const selected = tab === value;
         return (
           <Pressable

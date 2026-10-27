@@ -51,6 +51,7 @@ export interface StaffHeaderProps {
    * screen, which has no tab for them.
    */
   readonly messagesWaiting?: number | undefined;
+
   /**
    * Switches the screen. Left out where the floor cannot be opened at all — a
    * kitchen account, which the server refuses the floor — and then the bar

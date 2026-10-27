@@ -1,4 +1,5 @@
 import {
+  isFeatureNotEnabled,
   PinLockedError,
   PinRejectedError,
   describeFailure,
@@ -124,7 +125,9 @@ export function PinScreen({ device, lastSignOut }: PinScreenProps) {
   /** "Someone else" was opened by a tap: its first name takes focus once it shows. */
   const focusOthers = useRef(false);
   const [busy, setBusy] = useState(false);
-  const [failure, setFailure] = useState<'wrong' | 'locked' | 'offline' | 'failed' | null>(null);
+  const [failure, setFailure] = useState<
+    'wrong' | 'locked' | 'offline' | 'featureOff' | 'failed' | null
+  >(null);
   /** The server locked the chosen person's PIN; until when, when it said. */
   const [lock, setLock] = useState<{ readonly until: string | null } | null>(null);
   /** Consecutive wrong PINs for the person currently selected. */
@@ -271,6 +274,9 @@ export function PinScreen({ device, lastSignOut }: PinScreenProps) {
       } else if (error instanceof PinRejectedError) {
         setAttempts((current) => current + 1);
         setFailure('wrong');
+      } else if (isFeatureNotEnabled(error)) {
+        // The kitchen screen (or this phone) is switched off by the platform.
+        setFailure('featureOff');
       } else {
         setFailure(describeFailure(error) === 'offline' ? 'offline' : 'failed');
       }
@@ -393,6 +399,14 @@ export function PinScreen({ device, lastSignOut }: PinScreenProps) {
               <LockIcon />
               <span>{lastSignOut === 'idle' ? t('pin.lockedByIdle') : t('pin.sessionEnded')}</span>
             </p>
+          ) : lastSignOut === 'kitchenOff' || lastSignOut === 'phoneOff' ? (
+            <p className="ft-pin-note">
+              <LockIcon />
+              <span>
+                {t(lastSignOut === 'kitchenOff' ? 'features.kitchenOff' : 'features.phoneOff')}{' '}
+                {t('features.askManager')}
+              </span>
+            </p>
           ) : null}
 
           <div className="ft-pin-people">
@@ -511,6 +525,11 @@ export function PinScreen({ device, lastSignOut }: PinScreenProps) {
               <p className="is-error" role="alert">
                 <span>{t('pin.wrong')}</span>
                 {showRemaining ? <span> {t('pin.attemptsLeft', { count: remaining })}</span> : null}
+              </p>
+            ) : failure === 'featureOff' ? (
+              <p className="is-error" role="alert">
+                <span>{t('features.off')}</span>
+                <small>{t('features.askManager')}</small>
               </p>
             ) : failure === 'failed' ? (
               <p className="is-error" role="alert">

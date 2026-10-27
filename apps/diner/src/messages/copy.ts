@@ -163,6 +163,8 @@ export function failureLine(failure: MessageFailure): CopyLine {
       return { key: 'messages.failure.notFound' };
     case 'offline':
       return { key: 'messages.failure.offline' };
+    case 'featureOff':
+      return { key: 'messages.failure.featureOff' };
     default:
       return { key: 'messages.failure.generic' };
   }
@@ -174,7 +176,11 @@ export function failureLine(failure: MessageFailure): CopyLine {
  * guests-cannot-write one. The text stays in the draft either way.
  */
 export function failureHidesComposer(failure: MessageFailure): boolean {
-  return failure.kind === 'closed' || failure.kind === 'guestsCannotWrite';
+  return (
+    failure.kind === 'closed' ||
+    failure.kind === 'guestsCannotWrite' ||
+    failure.kind === 'featureOff'
+  );
 }
 
 /** The thread screen of a subject, with the text a push's Reply could not send. */

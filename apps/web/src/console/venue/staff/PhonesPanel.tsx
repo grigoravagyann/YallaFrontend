@@ -1,5 +1,6 @@
 import {
   KitchenPhoneNotAllowedError,
+  isFeatureNotEnabled,
   canSetStaffPin,
   type PhonePairingCode,
   type StaffActorRef,
@@ -14,6 +15,7 @@ import { QueryFailureNotice } from '../../../components/QueryFailureNotice';
 import { Dialog } from '../../ui/Dialog';
 import { useToast } from '../../ui/toast';
 import { PairPhoneDialog } from './PairPhoneDialog';
+import { FeatureLockNotice, useFeatureLocked } from '../featureLock';
 import { phoneDeviceName } from './phoneDeviceName';
 
 export interface PhonesPanelProps {
@@ -53,6 +55,8 @@ export function PhonesPanel({ branchId, timeZoneId, locale, people, actor }: Pho
   const { t } = useTranslation(['admin', 'common']);
   const toast = useToast();
   const titleId = useId();
+  // Staff phones blocked by the platform (2026-10-27): no new pairing.
+  const locked = useFeatureLocked('staffPhone');
 
   const [pairing, setPairing] = useState<{
     readonly member: StaffMember;
@@ -101,7 +105,9 @@ export function PhonesPanel({ branchId, timeZoneId, locale, people, actor }: Pho
           toast.say(
             error instanceof KitchenPhoneNotAllowedError
               ? t('phones.kitchenRefused')
-              : t('phones.pairFailed'),
+              : isFeatureNotEnabled(error)
+                ? `${t('featureLocked.title')}. ${t('featureLocked.body')}`
+                : t('phones.pairFailed'),
             { tone: 'error' },
           ),
       },
@@ -133,6 +139,9 @@ export function PhonesPanel({ branchId, timeZoneId, locale, people, actor }: Pho
         </div>
       </div>
 
+      {/* Staff phones switched off by the platform: pairing is locked, while
+          unpairing a phone still works, as the server allows (2026-10-27). */}
+      {locked ? <FeatureLockNotice feature="staffPhone" /> : null}
       {devices.isError ? (
         <div className="yc-st-pad">
           <QueryFailureNotice error={devices.error} onRetry={() => void devices.refetch()} />

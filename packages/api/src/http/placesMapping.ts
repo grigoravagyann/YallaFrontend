@@ -25,6 +25,7 @@ import { venueTypeFromCode } from './venueTypeMapping';
 import { publicReplyFromWire } from './reviewReplyMapping';
 import { dinerTakeawaySummaryFromWire, publicTakeawayInfoFromWire } from './takeawayMapping';
 import { conversationSummaryFromWire } from './messagesMapping';
+import { branchFeaturesFromWire } from './branchFeatureMapping';
 export { venueTypeCode, venueTypeFromCode } from './venueTypeMapping';
 
 type Schemas = components['schemas'];
@@ -145,6 +146,8 @@ export function branchListingFromWire(wire: WireBranchListing, baseUrl: string):
     reviewCount: wire.reviewCount ?? 0,
     badges: (wire.badges ?? []).filter((badge): badge is BranchBadge => BADGES.has(badge)),
     coverPhoto: photoFrom(baseUrl, wire.coverPhoto),
+    // Required on the wire since 2026-10-27; absent is an older server.
+    features: Array.isArray(wire.features) ? branchFeaturesFromWire(wire.features) : null,
   };
 }
 

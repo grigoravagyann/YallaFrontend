@@ -130,7 +130,8 @@
       "currentNone": "Nobody holds this table yet.",
       "logged": "Recorded in the history at {{time}}: {{from}} → {{to}}.",
       "close": "Done"
-    }
+    },
+    "tableServiceOff": "Tabs and ordering from the table aren't enabled for this branch. Ask your manager: SHURJ turns them on."
   },
   "queue": {
     "conflicts_one": "{{count}} needs a decision",
@@ -424,7 +425,8 @@
       "call": "Table {{label}} · the call was already answered",
       "gone": "Table {{label}} · it is no longer there",
       "forbidden": "Table {{label}} · not allowed under this sign-in",
-      "orderNotVoided": "Table {{label}} · the order was not voided"
+      "orderNotVoided": "Table {{label}} · the order was not voided",
+      "featureOff": "Table {{label}} · not sent: it isn't enabled for this branch"
     },
     "notApplied": "Your “{{action}}” from {{time}} was not applied.",
     "action": {
@@ -1299,7 +1301,8 @@
         "generic": "Not sent. Try again."
       },
       "party_one": "{{count}} guest",
-      "party_other": "{{count}} guests"
+      "party_other": "{{count}} guests",
+      "featureOff": "Guest messages aren't enabled for this branch: you can read, not reply."
     },
     "tile_one": "{{count}} new message",
     "tile_other": "{{count}} new messages",
@@ -1429,7 +1432,8 @@
         "unusable": "That code cannot pair this phone: it was used already, or this browser is set up as a floor tablet. Ask your manager for a new code.",
         "kitchen": "The kitchen uses the floor tablet, not a phone.",
         "offline": "No connection. The code is checked by the server: try again once you are online.",
-        "failed": "Something went wrong. Try again."
+        "failed": "Something went wrong. Try again.",
+        "phoneOff": "Staff phones aren't enabled for this branch. Ask your manager: SHURJ turns them on."
       },
       "tryAgain": "Try again",
       "startOver": "Start over",
@@ -1547,5 +1551,17 @@
       },
       "privacy": "Only you and your manager see these numbers. Other waiters do not."
     }
+  },
+  "features": {
+    "off": "This isn't enabled for this branch.",
+    "askManager": "Ask your manager: SHURJ turns it on.",
+    "kitchenOff": "The kitchen screen isn't enabled for this branch.",
+    "phoneOff": "Staff phones aren't enabled for this branch.",
+    "kitchenOffTitle": "No kitchen screen here",
+    "signOut": "Sign out",
+    "phoneOffTitle": "This phone is paused",
+    "stillOff": "Still off. Try again once your manager says it is back.",
+    "tryAgain": "Try again",
+    "forgetPhone": "Forget this phone here"
   }
 }

@@ -172,7 +172,7 @@ describe('console mock — venues list', () => {
     const venue = page.items[0];
     expect(venue?.branchCount).toBe(3);
     expect(venue?.tableCount).toBeGreaterThan(0);
-    expect(venue?.subscriptionTier).toBeTruthy();
+    expect(venue?.branchFeatures).toHaveLength(3);
   });
 });
 

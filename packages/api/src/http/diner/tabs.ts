@@ -21,6 +21,7 @@ import {
   TableOutOfServiceError,
   TabsNotEnabledError,
   UnknownTableCodeError,
+  isFeatureNotEnabled,
 } from '../../contracts/errors';
 import { ApiError, NotFoundError, UnauthorizedError } from '../../errors';
 import type { YallaGateway } from '../../gateway';
@@ -275,7 +276,7 @@ export function tabsMethods(
         if (error instanceof UnauthorizedError || error instanceof NotFoundError) {
           throw new InviteExpiredError({ url: error.url, requestId: error.requestId });
         }
-        if (error instanceof ApiError && error.status === 409) {
+        if (!isFeatureNotEnabled(error) && error instanceof ApiError && error.status === 409) {
           throw new TabClosedError({ url: error.url, tabId: '' });
         }
         throw error;
@@ -292,7 +293,7 @@ export function tabsMethods(
         await client.post(`/api/tabs/${tabId}/leave`, undefined, await tabAuth(tabId));
         forgetTabToken(tabId);
       } catch (error) {
-        if (error instanceof ApiError && error.status === 409) {
+        if (!isFeatureNotEnabled(error) && error instanceof ApiError && error.status === 409) {
           throw new HostCannotLeaveError({ url: error.url, tabId, requestId: error.requestId });
         }
         throw ended(error, tabId);

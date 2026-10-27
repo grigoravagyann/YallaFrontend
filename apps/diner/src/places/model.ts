@@ -1,4 +1,4 @@
-import type { PublicTakeawayInfo, TableUnavailableReason } from '@yalla/api';
+import type { BranchFeature, PublicTakeawayInfo, TableUnavailableReason } from '@yalla/api';
 import { branchDayKey, instantFromZonedClock, intlTag, type Locale } from '@yalla/format';
 
 /**
@@ -254,6 +254,21 @@ export interface Place {
    * has not photographed a room yet.
    */
   readonly rooms: readonly PlaceRoom[];
+  /**
+   * What is on here as a diner sees it (2026-10-27): allowed by the platform
+   * and switched on by the venue. What is not in it is not offered — the
+   * rating and the reviews, booking, takeaway, messages. Absent or `null`
+   * where the source does not say, which hides nothing.
+   */
+  readonly features?: readonly BranchFeature[] | null;
+}
+
+/**
+ * Whether the place offers `feature`. Unknown (an older server, a seed with
+ * no list) is yes: nothing is hidden on a guess.
+ */
+export function placeOffers(place: Pick<Place, 'features'>, feature: BranchFeature): boolean {
+  return !Array.isArray(place.features) || place.features.includes(feature);
 }
 
 /** A place the map can pin: one whose venue has set a location. */

@@ -217,11 +217,8 @@
       "statusInactive": "Switched off only",
       "statusDeleted": "Deleted",
       "statusAll": "All, deleted included",
-      "tier": "Plan",
-      "tierAll": "All",
-      "tierPaid": "Paid",
-      "tierFree": "Free",
-      "tierMixed": "Mixed"
+      "features": "Features",
+      "featuresAll": "All"
     },
     "column": {
       "name": "Venue",
@@ -229,9 +226,9 @@
       "cuisine": "Cuisine",
       "rating": "Rating",
       "tables": "Tables",
-      "tier": "Plan",
       "status": "Status",
-      "actions": "Actions"
+      "actions": "Actions",
+      "features": "Features"
     },
     "rating": "★ {{rating}} ({{count}})",
     "ratingSr_one": "{{rating}} stars, {{count}} review",
@@ -247,20 +244,13 @@
       "other": "Not ready for guests",
       "atBranch": "{{issue}} · {{branch}}"
     },
-    "tierSummary": {
-      "mixed": "Mixed · {{paid}}/{{total}}",
-      "none": "No branch"
-    },
-    "tierButton": "{{tier}} plan, press to change",
     "menu": {
       "label": "Actions for {{name}}",
-      "toPaid": "Make paid",
-      "toFree": "Make free",
-      "changeTier": "Change plan",
       "suspend": "Suspend",
       "resume": "Resume",
       "delete": "Delete",
-      "restore": "Restore"
+      "restore": "Restore",
+      "features": "Features"
     },
     "toast": {
       "suspended": "{{name}} was suspended",
@@ -270,8 +260,6 @@
       "undeleted": "{{name}} is back",
       "restored": "{{name}} was restored",
       "suspendedInstead": "{{name}} was suspended instead of deleted",
-      "nowPaid": "{{name}} is now on the Paid plan",
-      "nowFree": "{{name}} is now on the Free plan",
       "created": "{{name}} was created · you can give the owner a sign-in from the venue page",
       "listed": "{{name}} was added to the list",
       "copyManual": "Select the link and copy it with Ctrl+C"
@@ -283,44 +271,6 @@
       "deletedBody": "Deleted venues stay here, so they can be restored.",
       "clear": "Clear filters",
       "first": "No venues yet. Add the first one."
-    },
-    "tierDialog": {
-      "titlePaid": "Make {{name}} paid?",
-      "titleFree": "Make {{name}} free?",
-      "titleMixed": "{{name}}'s plan",
-      "titleRefusedPaid": "{{name}} cannot go paid yet",
-      "titleRefusedFree": "{{name}} cannot go free yet",
-      "lead": "The change takes effect at once, at every branch of the venue.",
-      "mixedLead": "{{paid}} of {{total}} branches are paid. Choose one plan for all of them.",
-      "choose": "Plan for every branch",
-      "checking": "Checking the menu…",
-      "checkingTabs": "Checking the open tabs…",
-      "paid1": "Guests will order from their phones, by the table QR or a booking code",
-      "paid2": "Table tabs open; guests ask for the bill in the app and pay the waiter",
-      "paid3": "Bookings and the public page keep working as before",
-      "free1": "Guests will no longer order from their phones",
-      "free2": "No table tabs will open, and nobody can ask for the bill from their phone",
-      "free3": "Bookings, the menu and the public page stay",
-      "noReturn": "It can't go back to Paid until its menu is finished:",
-      "noReturnVenue": "These branches can't go back to Paid until their menu is finished:",
-      "cancel": "Cancel",
-      "toPaid": "Make paid",
-      "toFree": "Make free",
-      "working": "Changing…",
-      "gotIt": "Got it",
-      "notReady_one": "{{count}} dish is not ready to show a guest",
-      "notReady_other": "{{count}} dishes are not ready to show a guest",
-      "openTabs": "Tabs are open: going free would hide those bills from the people who owe them",
-      "atBranch": "{{branch}}: {{reason}}",
-      "notReadyHint": "The venue's team finishes the menu in their console: a name, a price and a photo for every dish. Then try again.",
-      "openTabsHint": "Wait until the tabs are settled, then try again.",
-      "perBranchHint": "You can change each branch's plan on its own on the venue page.",
-      "changedAlready": "Already changed: {{branches}}.",
-      "branchTitlePaid": "Make the {{name}} branch paid?",
-      "branchTitleFree": "Make the {{name}} branch free?",
-      "branchRefusedPaid": "The {{name}} branch cannot go paid yet",
-      "branchRefusedFree": "The {{name}} branch cannot go free yet",
-      "branchLead": "The change takes effect at once, at this branch only."
     },
     "deleteDialog": {
       "title": "Delete {{name}}?",
@@ -370,8 +320,6 @@
       "summaryVenue": "Venue",
       "summaryBranch": "Branch",
       "summaryMap": "Map",
-      "summaryTier": "Plan",
-      "summaryTierValue": "Free · you can change it later",
       "required": "required field",
       "requiredMark": "required",
       "cancel": "Cancel",
@@ -399,7 +347,9 @@
         "field": "The server refused \"{{field}}\": {{detail}}"
       },
       "ownerFailed": "The venue was created, but the owner could not be added: {{reason}} Add them from the venue page's Staff tab.",
-      "linkFailed": "The owner was added, with the PIN above. Their sign-in link was not made: {{reason}}"
+      "linkFailed": "The owner was added, with the PIN above. Their sign-in link was not made: {{reason}}",
+      "summaryFeatures": "Features",
+      "summaryFeaturesValue": "Basic · table service is turned on from the branch's Features page"
     },
     "once": {
       "title": "{{name}} was created",
@@ -415,18 +365,14 @@
       "openVenue": "Open the venue page",
       "done": "Done",
       "pinNag": "Write the PIN down first: once you try again you will not see it any more. Press again to go on anyway."
-    }
+    },
+    "featuresLink": "{{venue}}: features {{features}}, open to change"
   },
   "status": {
     "active": "Active",
     "suspended": "Suspended",
     "inactive": "Switched off",
     "deleted": "Deleted"
-  },
-  "tier": {
-    "free": "Free",
-    "paid": "Paid",
-    "label": "Subscription tier"
   },
   "venue": {
     "notFound": "That venue could not be found.",
@@ -1825,11 +1771,11 @@
       "tables": "Tables",
       "today": "Bookings today",
       "openTabs": "Open tabs",
-      "plan": "Plan",
       "manage": "Manage",
       "isNew": "No rooms or menu yet",
-      "planButton": "{{plan}} plan at {{branch}}, press to change",
-      "empty": "No branches yet."
+      "empty": "No branches yet.",
+      "features": "Features",
+      "featuresLink": "{{branch}}: features {{features}}, open to change"
     },
     "readiness": {
       "title": "Readiness",
@@ -1864,12 +1810,16 @@
       "title": "Details",
       "owner": "Owner",
       "noOwner": "None yet",
-      "plan": "Plan",
-      "planPaid": "Ordering by phone, table tabs, asking for the bill in the app",
-      "planFree": "Bookings and the public page",
-      "planMixed": "The branches are on different plans",
       "added": "Added",
-      "publicPage": "Public page"
+      "publicPage": "Public page",
+      "features": "Features",
+      "featuresAre": {
+        "full": "Everything, table service included",
+        "basic": "Everything but table service",
+        "mixed": "The branches have different sets",
+        "none": "No branch yet",
+        "custom": "The same set at every branch"
+      }
     },
     "staff": {
       "branch": "Branch",
@@ -2027,9 +1977,7 @@
       "undone": "Change undone",
       "suspended": "{{name}} was suspended",
       "activeAgain": "{{name}} is active again",
-      "branchAdded": "Branch {{name}} was added",
-      "branchPaid": "{{name}} is now on the Paid plan",
-      "branchFree": "{{name}} is now on the Free plan"
+      "branchAdded": "Branch {{name}} was added"
     }
   },
   "branchPage": {
@@ -2038,7 +1986,8 @@
       "label": "Branch sections",
       "public": "Public page",
       "rooms": "Rooms and tables",
-      "reviews": "Reviews"
+      "reviews": "Reviews",
+      "features": "Features"
     },
     "preview": {
       "label": "Preview",
@@ -2142,12 +2091,6 @@
       }
     },
     "kpi": {
-      "paid_one": "{{count}} paid",
-      "paid_other": "{{count}} paid",
-      "mixed_one": "{{count}} mixed",
-      "mixed_other": "{{count}} mixed",
-      "free_one": "{{count}} free",
-      "free_other": "{{count}} free",
       "bookings": "Bookings this week",
       "vsLastWeek": "on last week",
       "sameAsLastWeek": "Same as last week",
@@ -2157,7 +2100,11 @@
       "atVenues_one": "at {{count}} venue · show",
       "atVenues_other": "at {{count}} venues · show",
       "nobodyWaiting": "Nobody waiting",
-      "noTabs": "No tabs open"
+      "noTabs": "No tabs open",
+      "branches_one": "{{count}} branch",
+      "branches_other": "{{count}} branches",
+      "suspended_one": "{{count}} suspended",
+      "suspended_other": "{{count}} suspended"
     },
     "drill": {
       "pendingTitle": "Bookings awaiting approval, by venue",
@@ -2192,7 +2139,8 @@
     "recent": {
       "title": "Recently added",
       "added": "Added",
-      "empty": "No venues yet"
+      "empty": "No venues yet",
+      "branches": "Branches"
     },
     "activity": {
       "title": "Recent activity",
@@ -2234,7 +2182,14 @@
         "password": "changed their password",
         "other": "made a change",
         "signOutOthers": "signed out of their other devices",
-        "reviewRemoveReply": "removed the venue's reply on a review at {{target}}"
+        "reviewRemoveReply": "removed the venue's reply on a review at {{target}}",
+        "featuresOn": "turned on {{features}} at {{target}} · {{venue}}",
+        "featuresOff": "turned off {{features}} at {{target}} · {{venue}}",
+        "featuresBoth": "turned on {{added}} and off {{removed}} at {{target}} · {{venue}}",
+        "featuresChange": "changed the features of {{target}} · {{venue}}",
+        "featuresApplySome": "gave every branch of {{venue}} the same features",
+        "featuresApply_one": "gave every branch of {{venue}} the same features ({{count}} changed): {{features}}",
+        "featuresApply_other": "gave every branch of {{venue}} the same features ({{count}} changed): {{features}}"
       }
     },
     "blocks": {
@@ -3059,5 +3014,86 @@
       "tip": "Tip",
       "response": "Response"
     }
+  },
+  "features": {
+    "title": "Features",
+    "cap": "What this branch may use. The venue switches things on and off inside this set; a feature switched off here keeps the venue's own settings for when it comes back.",
+    "presets": "Start from",
+    "on": "On",
+    "off": "Off",
+    "save": "Save features",
+    "discard": "Discard changes",
+    "saved": "Features saved for {{branch}}",
+    "applyNone": "Every branch already has these features.",
+    "applyConfirm": "Apply to all branches",
+    "applied": "{{venue}}: every branch has these features now",
+    "deleted": "This venue is deleted: its branches' features can't be changed.",
+    "count": "{{on}} of {{total}}",
+    "applyBody": "All at once, or none if one branch refuses. The set: {{summary}}.",
+    "applyAll_one": "Apply to the {{count}} branch of this venue",
+    "applyAll_other": "Apply to all {{count}} branches of this venue",
+    "applyTitle_one": "Give the {{count}} branch of {{venue}} these features?",
+    "applyTitle_other": "Give all {{count}} branches of {{venue}} these features?",
+    "applyChanging_one": "{{count}} branch changes:",
+    "applyChanging_other": "{{count}} branches change:",
+    "preset": {
+      "full": "Full",
+      "basic": "Basic",
+      "custom": "Custom",
+      "mixed": "Mixed",
+      "none": "No branch"
+    },
+    "presetHint": {
+      "basic": "Basic is everything but table service; Full is all ten.",
+      "full": "Full is all ten features."
+    },
+    "group": {
+      "bookings": "Bookings",
+      "service": "Orders & service",
+      "guests": "Guests",
+      "staff": "Staff & tools"
+    },
+    "refusal": {
+      "preOrders": "Pre-orders need app bookings or web bookings. Turn one of them on, or pre-orders off.",
+      "openTabs": "A branch has tabs open. Turning table service off would hide those bills from the people who owe them. Wait until they are settled.",
+      "offline": "You are offline. Nothing was changed.",
+      "failed": "The features didn't save. Try again.",
+      "notReady_one": "{{branch}}: {{count}} dish on the menu is unfinished. Finish the menu, then turn table service on.",
+      "notReady_other": "{{branch}}: {{count}} dishes on the menu are unfinished. Finish the menu, then turn table service on.",
+      "openTabsAt_one": "Tabs are open at {{branches}}. Turning table service off would hide those bills from the people who owe them. Wait until they are settled.",
+      "openTabsAt_other": "Tabs are open at {{branches}}. Turning table service off would hide those bills from the people who owe them. Wait until they are settled.",
+      "openTabsCount_one": "{{branch}} has {{count}} open tab. Turning table service off would hide that bill from the people who owe it. Wait until it is settled.",
+      "openTabsCount_other": "{{branch}} has {{count}} open tabs. Turning table service off would hide those bills from the people who owe them. Wait until they are settled."
+    },
+    "name": {
+      "appBookings": "App bookings",
+      "webBookings": "Web bookings",
+      "preOrders": "Pre-orders",
+      "takeaway": "Takeaway",
+      "tableService": "Table service",
+      "guestMessages": "Guest messages",
+      "reviews": "Reviews",
+      "staffPhone": "Staff phones",
+      "kitchenDisplay": "Kitchen screen",
+      "reports": "Reports"
+    },
+    "hint": {
+      "appBookings": "Diners book and move bookings in the SHURJ app.",
+      "webBookings": "Booking from the branch's public page, and moving a booking from its link.",
+      "preOrders": "Dishes chosen ahead with a booking. Needs app or web bookings.",
+      "takeaway": "Orders from the app, paid at pickup.",
+      "tableService": "Tabs, ordering by the table QR and from the waiter, the bill with a tip, payments.",
+      "guestMessages": "Threads between the venue and a guest about a booking or a takeaway.",
+      "reviews": "Diners' reviews: writing them, showing them publicly, and the venue's replies.",
+      "staffPhone": "Pairing staff phones, signing in on them, and pushes to them.",
+      "kitchenDisplay": "The kitchen screen and its tickets.",
+      "reports": "Reports in the console and the CSV export."
+    }
+  },
+  "featureLocked": {
+    "title": "Not enabled for this branch",
+    "body": "Contact SHURJ to turn it on.",
+    "nav": "not enabled for this branch",
+    "named": "{{feature}} is not enabled for this branch."
   }
 }
