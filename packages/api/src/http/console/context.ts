@@ -2,7 +2,12 @@ import type { VenueUserIdentity } from '../../auth/endpoints';
 import type { AuthSession, TokenPair } from '../../auth/session';
 import type { ApiClient } from '../../client';
 import { absolutePhotoUrl } from '../photoUrl';
-import { StaffPermissionError, StaffPinTakenError, SlugTakenError } from '../../contracts/errors';
+import {
+  StaffPermissionError,
+  StaffPinTakenError,
+  SlugTakenError,
+  isFeatureNotEnabled,
+} from '../../contracts/errors';
 import { ApiError } from '../../errors';
 import type { components } from '../../generated/schema';
 import { parseProblem } from '../../problem';
@@ -116,7 +121,7 @@ export function createConsoleHttpContext(client: ApiClient, options: ConsoleHttp
    * raises, and the fix is a specific field.
    */
   function translate(error: unknown, context: { slug?: string }): never {
-    if (error instanceof ApiError && error.status === 409) {
+    if (!isFeatureNotEnabled(error) && error instanceof ApiError && error.status === 409) {
       throw new SlugTakenError({ url: error.url, slug: context.slug ?? '' });
     }
     throw error;

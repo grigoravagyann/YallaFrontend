@@ -14,7 +14,8 @@ function orderRefusalOf(refusal: CommandRefusal | undefined): OrderRefusal {
   return refusal &&
     refusal.kind !== 'notFound' &&
     refusal.kind !== 'forbidden' &&
-    refusal.kind !== 'lineAlreadyPaid'
+    refusal.kind !== 'lineAlreadyPaid' &&
+    refusal.kind !== 'featureOff'
     ? refusal
     : { kind: 'other' };
 }

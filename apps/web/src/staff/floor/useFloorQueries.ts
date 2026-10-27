@@ -78,7 +78,8 @@ export function useFloorQueries(
    * section and the reminder. Polled every ten seconds, in the background too:
    * a guest's message pushes nothing to the tablet.
    */
-  const inboxQuery = useBranchConversations(branchId, active && features.messages);
+  // Read even with guest messages off: a guest's "on my way" still matters.
+  const inboxQuery = useBranchConversations(branchId, active);
   const inbox = inboxQuery.data ?? null;
   const reminderClock = useNow(15_000);
   const reminders = useMessageReminders(

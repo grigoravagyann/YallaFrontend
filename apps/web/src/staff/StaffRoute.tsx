@@ -297,7 +297,11 @@ export function StaffRoute() {
       ) : null}
 
       {locked ? (
-        isPhoneDevice(snapshot.device) && snapshot.device.boundStaffMember ? (
+        !snapshot.device && snapshot.lastSignOut === 'phoneOff' ? (
+          // A phone whose staff phones were switched off: its device read is
+          // refused, so it cannot even show its own keypad. Said, with a retry.
+          <FeatureOffScreen kind="phone" />
+        ) : isPhoneDevice(snapshot.device) && snapshot.device.boundStaffMember ? (
           // A personal phone opens with its own person's PIN, and nobody else's.
           <PhonePinScreen device={snapshot.device} lastSignOut={snapshot.lastSignOut} />
         ) : (

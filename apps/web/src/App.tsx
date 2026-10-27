@@ -293,26 +293,13 @@ export function AppRoutes({ user }: { user: ConsoleUser }) {
             <Route path="hours" element={<OpeningHoursScreen />} />
             <Route path="policy" element={<ReservationPolicyScreen />} />
             <Route path="public" element={<PublicPageScreen />} />
-            {/* A feature the platform has not enabled at the branch is a
-                locked page, not a missing one (2026-10-27). */}
-            <Route
-              path="reviews"
-              element={
-                <FeatureGate feature="reviews" titleKey="nav.reviews">
-                  <VenueReviewsScreen />
-                </FeatureGate>
-              }
-            />
+            {/* Reviews and Messages stay readable when the platform has them
+                off, with the lock on top and the writing disabled; Reports is
+                a locked page, as the server refuses its reads (2026-10-27). */}
+            <Route path="reviews" element={<VenueReviewsScreen />} />
             {/* Every guest conversation of the branch, read only: owner, GM
                 and the branch manager (their own branch), as Reviews. */}
-            <Route
-              path="messages"
-              element={
-                <FeatureGate feature="guestMessages" titleKey="nav.messages">
-                  <MessageHistoryScreen />
-                </FeatureGate>
-              }
-            />
+            <Route path="messages" element={<MessageHistoryScreen />} />
             <Route path="staff" element={<StaffScreen />} />
             {/* Activity history and staff results (2026-10-24): who did what,
                 one bill's or booking's story, and one person's page. */}

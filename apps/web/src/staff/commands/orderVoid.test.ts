@@ -1,4 +1,9 @@
-import { ConcurrencyConflictError, LineAlreadyPaidError, type StaffGateway } from '@yalla/api';
+import {
+  ConcurrencyConflictError,
+  FeatureNotEnabledError,
+  LineAlreadyPaidError,
+  type StaffGateway,
+} from '@yalla/api';
 import { describe, expect, it } from 'vitest';
 import {
   FRESH_REFUSAL_MS,
@@ -109,5 +114,30 @@ describe('saying it on the screen', () => {
   it('is silent on one restored after a reload, and on other refusals', () => {
     expect(freshPaidRefusal([entry('a', 0)], new Set(), FRESH_REFUSAL_MS + 1)).toBeNull();
     expect(freshPaidRefusal([entry('b', 10_000, false)], new Set(), 10_500)).toBeNull();
+  });
+});
+
+describe('a queued command the platform has switched off since', () => {
+  it('is refused as feature-off, never filed as a table race', async () => {
+    const action = await sendCommand(queued('v-3'), {
+      gateway: gatewayRefusing(
+        new FeatureNotEnabledError({
+          url: '/api/orders/o-1/status',
+          feature: 'staffPhone',
+          branchId: 'b',
+        }),
+      ),
+      floor: null,
+      nowMs,
+    });
+
+    expect(action).toEqual({
+      type: 'conflicted',
+      id: 'v-3',
+      observed: null,
+      reason: 'refused',
+      atMs: 1_500,
+      refusal: { kind: 'featureOff' },
+    });
   });
 });

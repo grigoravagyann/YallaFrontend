@@ -142,24 +142,24 @@ afterEach(() => {
 
 describe('what the floor offers', () => {
   it('reads the features from the session, offering everything where it does not say', () => {
-    expect(floorFeatures({ features: without('takeaway', 'kitchenDisplay') })).toEqual({
+    expect(floorFeatures({ features: without('takeaway', 'guestMessages') })).toEqual({
       takeaway: false,
-      messages: true,
-      kitchen: false,
+      messages: false,
       tableService: true,
     });
     expect(floorFeatures({} as never).tableService).toBe(true);
   });
 
-  it('draws no Kitchen and no Messages view where the platform has them off', async () => {
+  it('keeps the Kitchen view and the read-only Messages with them off', async () => {
+    // KitchenDisplay gates the kitchen account, not the floor's Kitchen view,
+    // where waiters mark orders ready; guest messages stay readable.
     signIn(without('kitchenDisplay', 'guestMessages'));
     renderFloor(gatewayWith());
 
     await screen.findByRole('heading', { level: 1, name: 'Floor' });
     const views = screen.getByRole('navigation', { name: 'Screens' });
-    expect(within(views).getByRole('button', { name: /^Floor/u })).toBeTruthy();
-    expect(within(views).queryByRole('button', { name: /^Kitchen/u })).toBeNull();
-    expect(within(views).queryByRole('button', { name: /^Messages/u })).toBeNull();
+    expect(within(views).getByRole('button', { name: /^Kitchen/u })).toBeTruthy();
+    expect(within(views).getByRole('button', { name: /^Messages/u })).toBeTruthy();
   });
 
   it('keeps both where they are on', async () => {
@@ -193,5 +193,23 @@ describe('the kitchen with its screen switched off', () => {
     );
     // The keypad's own line, above the PIN, says it.
     expect(notes.some((note) => note.closest('.ft-pin-note'))).toBe(true);
+  });
+});
+
+describe('a phone whose staff phones were switched off, on launch', () => {
+  it('says so, with a retry and a way to forget it, instead of the tablet keypad', async () => {
+    session.set({
+      state: 'locked',
+      device: null,
+      identity: null,
+      lastSignOut: 'phoneOff',
+    } satisfies StaffSessionSnapshot);
+    renderFloor(gatewayWith());
+
+    const alert = await screen.findByRole('alert');
+    expect(within(alert).getByRole('heading', { name: 'This phone is paused' })).toBeTruthy();
+    expect(alert.textContent).toContain("Staff phones aren't enabled for this branch.");
+    expect(within(alert).getByRole('button', { name: 'Try again' })).toBeTruthy();
+    expect(within(alert).getByRole('button', { name: 'Forget this phone here' })).toBeTruthy();
   });
 });

@@ -1,5 +1,9 @@
 import type { ConsoleGateway } from '../../consoleGateway';
-import { ReviewHiddenByPlatformError, ReviewHiddenNoReplyError } from '../../contracts/errors';
+import {
+  ReviewHiddenByPlatformError,
+  ReviewHiddenNoReplyError,
+  isFeatureNotEnabled,
+} from '../../contracts/errors';
 import { ApiError, ForbiddenError } from '../../errors';
 import type { components } from '../../generated/schema';
 import {
@@ -107,7 +111,7 @@ export function reviewsMethods(
         );
         return venueReviewFromWire(data);
       } catch (error) {
-        if (error instanceof ApiError && error.status === 409) {
+        if (!isFeatureNotEnabled(error) && error instanceof ApiError && error.status === 409) {
           throw new ReviewHiddenNoReplyError({
             url: error.url,
             requestId: error.requestId,

@@ -8,6 +8,7 @@ import {
 import { ApiError, ConcurrencyConflictError, isConcurrencyConflict } from '../errors';
 import { fakeBackend } from './fakeBackend.testkit';
 import { createStaffHttpGateway } from './staffHttpGateway';
+import { createHttpGateway } from './httpGateway';
 
 const BRANCH = '0b5f3c1e-0000-4000-8000-000000000001';
 
@@ -87,5 +88,18 @@ describe('a feature the platform has not allowed', () => {
     });
     expect(error.feature).toBeNull();
     expect(isFeatureNotEnabled(error)).toBe(true);
+  });
+
+  it("is not read as a gateway's own 409 first: a review report stays feature-off", async () => {
+    const backend = fakeBackend({
+      'POST /api/diner/reviews/r-1/report': refusal(7),
+    });
+    const gateway = createHttpGateway(backend.client(), { audience: 'diner' });
+    const caught = await gateway
+      .reportReview({ reviewId: 'r-1', reason: 'spam', note: null })
+      .then(() => null)
+      .catch((error: unknown) => error);
+    expect(caught).toBeInstanceOf(FeatureNotEnabledError);
+    expect(blockedFeature(caught)).toBe('reviews');
   });
 });

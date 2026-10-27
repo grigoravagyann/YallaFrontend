@@ -15,7 +15,7 @@ import { QueryFailureNotice } from '../../../components/QueryFailureNotice';
 import { Dialog } from '../../ui/Dialog';
 import { useToast } from '../../ui/toast';
 import { PairPhoneDialog } from './PairPhoneDialog';
-import { FeatureLockedControls, useFeatureLocked } from '../featureLock';
+import { FeatureLockNotice, useFeatureLocked } from '../featureLock';
 import { phoneDeviceName } from './phoneDeviceName';
 
 export interface PhonesPanelProps {
@@ -55,7 +55,7 @@ export function PhonesPanel({ branchId, timeZoneId, locale, people, actor }: Pho
   const { t } = useTranslation(['admin', 'common']);
   const toast = useToast();
   const titleId = useId();
-  // Staff phones blocked by the platform (2026-10-27): the list as it stands, locked.
+  // Staff phones blocked by the platform (2026-10-27): no new pairing.
   const locked = useFeatureLocked('staffPhone');
 
   const [pairing, setPairing] = useState<{
@@ -139,156 +139,157 @@ export function PhonesPanel({ branchId, timeZoneId, locale, people, actor }: Pho
         </div>
       </div>
 
-      <FeatureLockedControls feature="staffPhone" locked={locked}>
-        {devices.isError ? (
-          <div className="yc-st-pad">
-            <QueryFailureNotice error={devices.error} onRetry={() => void devices.refetch()} />
-          </div>
-        ) : devices.isLoading ? (
-          <p className="yc-empty-line" role="status">
-            {t('loading')}
-          </p>
-        ) : rows.length === 0 ? (
-          <p className="yc-empty-line">{t('phones.empty')}</p>
-        ) : (
-          <div className="yc-tscroll">
-            <table className="yc-tbl yc-phones" aria-labelledby={titleId}>
-              <thead>
-                <tr>
-                  <th scope="col">{t('phones.column.person')}</th>
-                  <th scope="col">{t('phones.column.phone')}</th>
-                  <th scope="col">{t('phones.column.seen')}</th>
-                  <th scope="col">
-                    <span className="yc-sr">{t('phones.column.action')}</span>
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {rows.map((member) => {
-                  const phone = phoneOf(member.id);
-                  const kitchen = member.role === 'kitchen';
-                  const allowed = may && canSetStaffPin(actor, member);
-                  return (
-                    <tr key={member.id}>
-                      <th scope="row" className="yc-phones-who">
-                        {member.fullName}
-                        <span>{t(`role.${member.role}`)}</span>
-                      </th>
-                      <td>
-                        {phone ? (
-                          phoneDeviceName(t, phone)
-                        ) : (
-                          <span className="yc-muted">{t('phones.notPaired')}</span>
-                        )}
-                      </td>
-                      <td className="yc-muted">
-                        {phone
-                          ? phone.lastSeenAtUtc
-                            ? when(phone.lastSeenAtUtc)
-                            : t('phones.never')
-                          : '—'}
-                      </td>
-                      <td className="yc-phones-act">
-                        {kitchen ? (
-                          <span className="yc-muted">{t('phones.kitchen')}</span>
-                        ) : !allowed ? (
-                          <span className="yc-muted">{t('staff.action.notYours')}</span>
-                        ) : phone ? (
-                          <button
-                            type="button"
-                            className="yc-btn yc-btn-ghost-red yc-btn-sm"
-                            data-unpair={member.id}
-                            aria-label={t('phones.unpairNamed', { name: member.fullName })}
-                            onClick={() => setConfirming({ member, device: phone })}
-                          >
-                            {t('phones.unpair')}
-                          </button>
-                        ) : (
-                          <button
-                            type="button"
-                            className="yc-btn yc-btn-pri yc-btn-sm"
-                            data-pair={member.id}
-                            aria-label={t('phones.pairNamed', { name: member.fullName })}
-                            aria-busy={
-                              create.isPending && create.variables?.staffMemberId === member.id
-                            }
-                            onClick={() => issue(member)}
-                          >
-                            {t('phones.pair')}
-                          </button>
-                        )}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        )}
+      {/* Staff phones switched off by the platform: pairing is locked, while
+          unpairing a phone still works, as the server allows (2026-10-27). */}
+      {locked ? <FeatureLockNotice feature="staffPhone" /> : null}
+      {devices.isError ? (
+        <div className="yc-st-pad">
+          <QueryFailureNotice error={devices.error} onRetry={() => void devices.refetch()} />
+        </div>
+      ) : devices.isLoading ? (
+        <p className="yc-empty-line" role="status">
+          {t('loading')}
+        </p>
+      ) : rows.length === 0 ? (
+        <p className="yc-empty-line">{t('phones.empty')}</p>
+      ) : (
+        <div className="yc-tscroll">
+          <table className="yc-tbl yc-phones" aria-labelledby={titleId}>
+            <thead>
+              <tr>
+                <th scope="col">{t('phones.column.person')}</th>
+                <th scope="col">{t('phones.column.phone')}</th>
+                <th scope="col">{t('phones.column.seen')}</th>
+                <th scope="col">
+                  <span className="yc-sr">{t('phones.column.action')}</span>
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((member) => {
+                const phone = phoneOf(member.id);
+                const kitchen = member.role === 'kitchen';
+                const allowed = may && canSetStaffPin(actor, member);
+                return (
+                  <tr key={member.id}>
+                    <th scope="row" className="yc-phones-who">
+                      {member.fullName}
+                      <span>{t(`role.${member.role}`)}</span>
+                    </th>
+                    <td>
+                      {phone ? (
+                        phoneDeviceName(t, phone)
+                      ) : (
+                        <span className="yc-muted">{t('phones.notPaired')}</span>
+                      )}
+                    </td>
+                    <td className="yc-muted">
+                      {phone
+                        ? phone.lastSeenAtUtc
+                          ? when(phone.lastSeenAtUtc)
+                          : t('phones.never')
+                        : '—'}
+                    </td>
+                    <td className="yc-phones-act">
+                      {kitchen ? (
+                        <span className="yc-muted">{t('phones.kitchen')}</span>
+                      ) : !allowed ? (
+                        <span className="yc-muted">{t('staff.action.notYours')}</span>
+                      ) : phone ? (
+                        <button
+                          type="button"
+                          className="yc-btn yc-btn-ghost-red yc-btn-sm"
+                          data-unpair={member.id}
+                          aria-label={t('phones.unpairNamed', { name: member.fullName })}
+                          onClick={() => setConfirming({ member, device: phone })}
+                        >
+                          {t('phones.unpair')}
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          className="yc-btn yc-btn-pri yc-btn-sm"
+                          data-pair={member.id}
+                          aria-label={t('phones.pairNamed', { name: member.fullName })}
+                          aria-busy={
+                            create.isPending && create.variables?.staffMemberId === member.id
+                          }
+                          onClick={() => issue(member)}
+                        >
+                          {t('phones.pair')}
+                        </button>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
 
-        {pairing ? (
-          <PairPhoneDialog
-            name={pairing.member.fullName}
-            pairing={pairing.code}
-            renewing={create.isPending}
-            paired={pairedNow}
-            returnFocusTo={pairButton(pairing.member.id)}
-            onRenew={() => issue(pairing.member)}
-            onClose={() => {
-              setPairing(null);
-              void devices.refetch();
-            }}
-          />
-        ) : null}
+      {pairing ? (
+        <PairPhoneDialog
+          name={pairing.member.fullName}
+          pairing={pairing.code}
+          renewing={create.isPending}
+          paired={pairedNow}
+          returnFocusTo={pairButton(pairing.member.id)}
+          onRenew={() => issue(pairing.member)}
+          onClose={() => {
+            setPairing(null);
+            void devices.refetch();
+          }}
+        />
+      ) : null}
 
-        {confirming ? (
-          <Dialog
-            alert
-            title={t('phones.confirm.title', { name: confirming.member.fullName })}
-            description={t('phones.confirm.body', {
-              device: phoneDeviceName(t, confirming.device),
-            })}
-            onClose={revoke.isPending ? () => undefined : () => setConfirming(null)}
-            dismissible={!revoke.isPending}
-            returnFocusTo={pairButton(confirming.member.id)}
-          >
-            <p className="yc-help">{t('phones.confirm.again')}</p>
-            <div className="yc-acts">
-              <button
-                type="button"
-                className="yc-btn yc-btn-sec"
-                data-autofocus=""
-                disabled={revoke.isPending}
-                onClick={() => setConfirming(null)}
-              >
-                {t('common:action.cancel')}
-              </button>
-              <button
-                type="button"
-                className="yc-btn yc-btn-danger"
-                aria-busy={revoke.isPending}
-                onClick={() => {
-                  if (revoke.isPending) return;
-                  const { member, device } = confirming;
-                  revoke.mutate(
-                    { branchId, deviceId: device.id },
-                    {
-                      onSuccess: () => {
-                        setConfirming(null);
-                        toast.say(t('phones.unpairedToast', { name: member.fullName }));
-                      },
-                      onError: () => toast.say(t('phones.unpairFailed'), { tone: 'error' }),
+      {confirming ? (
+        <Dialog
+          alert
+          title={t('phones.confirm.title', { name: confirming.member.fullName })}
+          description={t('phones.confirm.body', {
+            device: phoneDeviceName(t, confirming.device),
+          })}
+          onClose={revoke.isPending ? () => undefined : () => setConfirming(null)}
+          dismissible={!revoke.isPending}
+          returnFocusTo={pairButton(confirming.member.id)}
+        >
+          <p className="yc-help">{t('phones.confirm.again')}</p>
+          <div className="yc-acts">
+            <button
+              type="button"
+              className="yc-btn yc-btn-sec"
+              data-autofocus=""
+              disabled={revoke.isPending}
+              onClick={() => setConfirming(null)}
+            >
+              {t('common:action.cancel')}
+            </button>
+            <button
+              type="button"
+              className="yc-btn yc-btn-danger"
+              aria-busy={revoke.isPending}
+              onClick={() => {
+                if (revoke.isPending) return;
+                const { member, device } = confirming;
+                revoke.mutate(
+                  { branchId, deviceId: device.id },
+                  {
+                    onSuccess: () => {
+                      setConfirming(null);
+                      toast.say(t('phones.unpairedToast', { name: member.fullName }));
                     },
-                  );
-                }}
-              >
-                {revoke.isPending ? <span className="yc-spin" aria-hidden="true" /> : null}
-                {t('phones.confirm.unpair')}
-              </button>
-            </div>
-          </Dialog>
-        ) : null}
-      </FeatureLockedControls>
+                    onError: () => toast.say(t('phones.unpairFailed'), { tone: 'error' }),
+                  },
+                );
+              }}
+            >
+              {revoke.isPending ? <span className="yc-spin" aria-hidden="true" /> : null}
+              {t('phones.confirm.unpair')}
+            </button>
+          </div>
+        </Dialog>
+      ) : null}
     </section>
   );
 }

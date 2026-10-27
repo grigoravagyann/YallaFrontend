@@ -45,7 +45,11 @@ export function PhonePinScreen({ device, lastSignOut }: PhonePinScreenProps) {
   const [failure, setFailure] = useState<'wrong' | 'offline' | 'phoneOff' | 'failed' | null>(null);
   const [lock, setLock] = useState<{ readonly until: string | null } | null>(null);
   // The device read says staff phones are off at the branch: said before a PIN.
-  const phoneOffHere = Array.isArray(device.features) && !device.features.includes('staffPhone');
+  // Or the lock said so and no device read has answered since: a read that
+  // answers with the feature back clears it.
+  const phoneOffHere = Array.isArray(device.features)
+    ? !device.features.includes('staffPhone')
+    : lastSignOut === 'phoneOff';
   const [attempts, setAttempts] = useState(0);
   const [online, setOnline] = useState(() =>
     typeof navigator === 'undefined' ? true : navigator.onLine,
@@ -136,7 +140,7 @@ export function PhonePinScreen({ device, lastSignOut }: PhonePinScreenProps) {
                   : t('phone.pin.wrong'),
               tone: 'error',
             }
-          : failure === 'phoneOff' || lastSignOut === 'phoneOff' || phoneOffHere
+          : failure === 'phoneOff' || phoneOffHere
             ? { text: `${t('features.phoneOff')} ${t('features.askManager')}`, tone: 'error' }
             : failure === 'failed'
               ? { text: t('pin.failed'), tone: 'error' }

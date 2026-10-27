@@ -5,10 +5,16 @@ import type { components } from '../generated/schema';
 /** `Yalla.Domain.Enums.BranchFeature`: 1 AppBookings … 10 Reports. */
 export type WireBranchFeature = components['schemas']['Yalla.Domain.Enums.BranchFeature'];
 
-/** A set from the wire, in the server's order, each once, values this client does not know dropped. */
+/**
+ * A set from the wire, in the server's order, each once, values this client
+ * does not know dropped. **Absent is unknown, and unknown is everything**: an
+ * older server that sends no set has not blocked anything, and reading it as
+ * `[]` would lock every screen. An empty array is a real answer: all blocked.
+ */
 export function branchFeaturesFromWire(
   values: readonly unknown[] | null | undefined,
 ): BranchFeature[] {
+  if (values === null || values === undefined) return [...BRANCH_FEATURES];
   const known = new Set<BranchFeature>();
   for (const value of values ?? []) {
     const feature = branchFeatureFromCode(value);

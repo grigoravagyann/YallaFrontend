@@ -346,6 +346,13 @@ export function createStaffSession(config: StaffSessionConfig): StaffSession {
           await unenrol();
           return null;
         }
+        // A phone at a branch whose staff phones the platform switched off:
+        // its own device read is refused (409, 2026-10-27). Not revoked — it
+        // comes back when the feature does — so it is locked, with the reason.
+        if (blockedFeature(error) === 'staffPhone') {
+          await lock('phoneOff');
+          return null;
+        }
         // Offline on a tablet that *is* enrolled. The keypad still works —
         // the PIN exchange needs the server, but showing the enrolment screen
         // here would suggest the tablet has been kicked out when it has not.

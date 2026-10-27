@@ -17,6 +17,7 @@ import {
   type TableActionCommand,
   type TableActionResult,
   ProblemCodes,
+  isFeatureNotEnabled,
 } from '@yalla/api';
 import { localConflict, preconditionHolds } from './reducer';
 import { isTableAction, type CommandRefusal, type OrderRefusal, type QueuedCommand } from './types';
@@ -118,6 +119,19 @@ export async function sendCommand(
       error instanceof UnauthorizedError
     ) {
       return { type: 'deferred', id: command.id };
+    }
+
+    // A feature the platform switched off (staff phones, table service):
+    // refused, said as such — never filed as a table race.
+    if (isFeatureNotEnabled(error)) {
+      return {
+        type: 'conflicted',
+        id: command.id,
+        observed: null,
+        reason: 'refused',
+        atMs: nowMs(),
+        refusal: { kind: 'featureOff' },
+      };
     }
 
     // An order refused on its own merits: never a table race, and it says why.

@@ -2,6 +2,7 @@ import {
   CannotReportOwnReviewError,
   ReviewNeedsVisitError,
   PhoneNotVerifiedError,
+  isFeatureNotEnabled,
 } from '../../contracts/errors';
 import { ApiError, ForbiddenError, NotFoundError } from '../../errors';
 import type { YallaGateway } from '../../gateway';
@@ -158,7 +159,7 @@ export function branchesMethods(
           note: noteOrNull(note),
         } satisfies Schemas['Yalla.Application.Diners.ReportReviewCommand']);
       } catch (error) {
-        if (error instanceof ApiError && error.status === 409) {
+        if (!isFeatureNotEnabled(error) && error instanceof ApiError && error.status === 409) {
           throw new CannotReportOwnReviewError({ url: error.url, requestId: error.requestId });
         }
         throw error;

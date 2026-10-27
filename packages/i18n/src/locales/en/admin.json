@@ -1817,7 +1817,8 @@
         "full": "Everything, table service included",
         "basic": "Everything but table service",
         "mixed": "The branches have different sets",
-        "none": "No branch yet"
+        "none": "No branch yet",
+        "custom": "The same set at every branch"
       }
     },
     "staff": {

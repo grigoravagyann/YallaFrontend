@@ -55,6 +55,8 @@ import {
   typography,
   type IoniconName,
 } from '../../../src/theme';
+import { usePlace } from '../../../src/places/hooks';
+import { placeOffers } from '../../../src/places/model';
 
 /** Slow enough not to be a battery problem, quick enough to feel current. */
 const POLL_MS = 8_000;
@@ -571,6 +573,10 @@ function PaidView({ view, onDone }: { readonly view: DinerTabView; readonly onDo
   const { locale } = useLocale();
   const router = useRouter();
   const [rating, setRating] = useState(0);
+  // Reviews switched off at the place (2026-10-27): no "Rate your visit".
+  // Unknown until the place is read, which offers it, as before.
+  const { data: place } = usePlace(view.branchId);
+  const reviewsOn = placeOffers(place ?? {}, 'reviews');
 
   const rendered = projectTab(view, view.timeZoneId);
   const lines = (rendered.tableLines ?? rendered.myLines).filter((line) => !line.isVoided);
@@ -688,28 +694,30 @@ function PaidView({ view, onDone }: { readonly view: DinerTabView; readonly onDo
           </Card>
         </Rise>
 
-        <Rise delay={320} style={styles.stretch}>
-          <View style={styles.rateCard}>
-            <Text style={styles.rateTitle}>{t('tab.paid.rate')}</Text>
-            <View style={styles.stars}>
-              {[1, 2, 3, 4, 5].map((stars) => (
-                <Pressable
-                  key={stars}
-                  accessibilityRole="button"
-                  accessibilityLabel={t('place.review.starLabel', { rating: stars })}
-                  onPress={() => rateVisit(stars)}
-                  style={({ pressed }) => [styles.star, pressed && styles.pressed]}
-                >
-                  <Ionicons
-                    name={stars <= rating ? ratingIcon.filled : ratingIcon.empty}
-                    size={iconSize.xl}
-                    color={colors.warningInk}
-                  />
-                </Pressable>
-              ))}
+        {reviewsOn ? (
+          <Rise delay={320} style={styles.stretch}>
+            <View style={styles.rateCard}>
+              <Text style={styles.rateTitle}>{t('tab.paid.rate')}</Text>
+              <View style={styles.stars}>
+                {[1, 2, 3, 4, 5].map((stars) => (
+                  <Pressable
+                    key={stars}
+                    accessibilityRole="button"
+                    accessibilityLabel={t('place.review.starLabel', { rating: stars })}
+                    onPress={() => rateVisit(stars)}
+                    style={({ pressed }) => [styles.star, pressed && styles.pressed]}
+                  >
+                    <Ionicons
+                      name={stars <= rating ? ratingIcon.filled : ratingIcon.empty}
+                      size={iconSize.xl}
+                      color={colors.warningInk}
+                    />
+                  </Pressable>
+                ))}
+              </View>
             </View>
-          </View>
-        </Rise>
+          </Rise>
+        ) : null}
       </ScrollView>
 
       <View style={styles.paidFooter}>

@@ -165,3 +165,11 @@ describe('paging', () => {
     expect(page.items).toEqual([]);
   });
 });
+
+describe('a feature set the server does not send', () => {
+  it('is every feature, not none: an older server blocks nothing', () => {
+    const branch = branchFromWire({ ...wireBranch(), features: undefined as never });
+    expect(branch.features).toHaveLength(10);
+    expect(branchFromWire(wireBranch({ features: [] })).features).toEqual([]);
+  });
+});

@@ -6,14 +6,19 @@ import type { StaffSessionIdentity } from '@yalla/api';
  * is not drawn: its tab, its rail section and its actions go, and its queries
  * are not asked. Work already in flight is not stranded: a takeaway already
  * placed keeps its counter until it is collected.
+ *
+ * KitchenDisplay is not here: it gates the kitchen **account** (its own
+ * screen), never the floor's Kitchen view, where waiters and managers mark
+ * orders ready — the server refuses only the Kitchen role.
  */
 export interface FloorFeatures {
   /** The Takeaway tab and the rail's takeaway section. */
   readonly takeaway: boolean;
-  /** The Messages tab, the inbox and the rail's message section. */
+  /**
+   * Writing to guests. Off, the inbox and the rail stay, read only: staff
+   * still need a guest's "on my way" and "running late".
+   */
   readonly messages: boolean;
-  /** The Kitchen view (the board on the floor tablet). */
-  readonly kitchen: boolean;
   /** Tabs, ordering from the table and payments: starting a tab or an order. */
   readonly tableService: boolean;
 }
@@ -25,7 +30,6 @@ export function floorFeatures(identity: Pick<StaffSessionIdentity, 'features'>):
   return {
     takeaway: has('takeaway'),
     messages: has('guestMessages'),
-    kitchen: has('kitchenDisplay'),
     tableService: has('tableService'),
   };
 }

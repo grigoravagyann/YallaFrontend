@@ -1,4 +1,4 @@
-import { UnsupportedImageError } from '../contracts/errors';
+import { UnsupportedImageError, isFeatureNotEnabled } from '../contracts/errors';
 import { ApiError, ForbiddenError, UnauthorizedError } from '../errors';
 import { parseProblem } from '../problem';
 
@@ -40,7 +40,7 @@ export function photoRejection(url: string, status: number, body: unknown): ApiE
  * untouched, so the client's own 401/404 mapping stands.
  */
 export function photoRejectionFrom(error: unknown): unknown {
-  if (!(error instanceof ApiError)) return error;
+  if (!(error instanceof ApiError) || isFeatureNotEnabled(error)) return error;
   if (error.status === 409 || error.status === 413 || error.status === 415) {
     return photoRejection(error.url, error.status, error.body);
   }

@@ -425,7 +425,8 @@
       "call": "Table {{label}} · the call was already answered",
       "gone": "Table {{label}} · it is no longer there",
       "forbidden": "Table {{label}} · not allowed under this sign-in",
-      "orderNotVoided": "Table {{label}} · the order was not voided"
+      "orderNotVoided": "Table {{label}} · the order was not voided",
+      "featureOff": "Table {{label}} · not sent: it isn't enabled for this branch"
     },
     "notApplied": "Your “{{action}}” from {{time}} was not applied.",
     "action": {
@@ -1300,7 +1301,8 @@
         "generic": "Not sent. Try again."
       },
       "party_one": "{{count}} guest",
-      "party_other": "{{count}} guests"
+      "party_other": "{{count}} guests",
+      "featureOff": "Guest messages aren't enabled for this branch: you can read, not reply."
     },
     "tile_one": "{{count}} new message",
     "tile_other": "{{count}} new messages",
@@ -1556,6 +1558,10 @@
     "kitchenOff": "The kitchen screen isn't enabled for this branch.",
     "phoneOff": "Staff phones aren't enabled for this branch.",
     "kitchenOffTitle": "No kitchen screen here",
-    "signOut": "Sign out"
+    "signOut": "Sign out",
+    "phoneOffTitle": "This phone is paused",
+    "stillOff": "Still off. Try again once your manager says it is back.",
+    "tryAgain": "Try again",
+    "forgetPhone": "Forget this phone here"
   }
 }

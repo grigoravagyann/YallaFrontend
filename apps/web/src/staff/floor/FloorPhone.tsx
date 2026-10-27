@@ -88,7 +88,6 @@ export interface FloorPhoneProps {
 export function FloorPhone({
   screens,
   identity,
-  features,
   branchId,
   active,
   timeZoneId,
@@ -172,7 +171,7 @@ export function FloorPhone({
     ...(manager ? [{ key: 'today' as const }] : []),
     { key: 'now', count: nowWaiting },
     { key: 'floor' },
-    ...(features.messages ? [{ key: 'messages' as const, count: messagesWaiting }] : []),
+    { key: 'messages', count: messagesWaiting },
     ...(takeawayTab ? [{ key: 'takeaway' as const, count: takeawayCount }] : []),
     { key: 'more' },
   ];
@@ -297,7 +296,7 @@ export function FloorPhone({
         {floorTables}
       </section>
 
-      {!approving && phoneTab === 'messages' && features.messages ? (
+      {!approving && phoneTab === 'messages' ? (
         <div className="ph-screen ph-messages">{messagesInbox}</div>
       ) : null}
 

@@ -4,6 +4,7 @@ import {
   HoldAlreadyExtendedError,
   HoldNotActiveError,
   TableRequestClosedError,
+  isFeatureNotEnabled,
 } from '../../contracts/errors';
 import { ApiError } from '../../errors';
 import type { YallaGateway } from '../../gateway';
@@ -237,6 +238,7 @@ export function bookingsMethods(
       } catch (error) {
         // Lapsed, let go by the later guest, or answered on another device.
         if (
+          !isFeatureNotEnabled(error) &&
           error instanceof ApiError &&
           (error.status === 409 ||
             error.status === 410 ||

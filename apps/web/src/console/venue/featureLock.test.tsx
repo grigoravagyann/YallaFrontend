@@ -13,6 +13,7 @@ import { QueryFailureNotice } from '../../components/QueryFailureNotice';
 import { ToastProvider } from '../ui/toast';
 import { FeatureGate } from './featureLock';
 import { ReservationPolicyScreen } from './policy/ReservationPolicyScreen';
+import { VenueReviewsScreen } from './reviews/VenueReviewsScreen';
 import { createConsoleHarness, initConsoleTestI18n } from './reports/testHarness';
 import { venueNavGroups } from './VenueLayout';
 
@@ -103,6 +104,17 @@ describe('a page that is one feature', () => {
     );
     expect(screen.getByText('the reports')).toBeTruthy();
     expect(screen.queryByRole('note')).toBeNull();
+  });
+});
+
+describe('Reviews with reviews switched off', () => {
+  it('stays readable with the lock on top, and no review can be replied to', async () => {
+    renderUnder(<VenueReviewsScreen />, without('reviews'));
+    expect(screen.getByRole('heading', { level: 1, name: 'Reviews' })).toBeTruthy();
+    expect(screen.getByRole('note').textContent).toContain(LOCK);
+    const replies = await screen.findAllByRole('button', { name: 'Reply' });
+    expect(replies.length).toBeGreaterThan(0);
+    for (const reply of replies) expect((reply as HTMLButtonElement).disabled).toBe(true);
   });
 });
 

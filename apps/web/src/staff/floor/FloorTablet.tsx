@@ -127,12 +127,7 @@ export function FloorTablet({
   const { t } = useTranslation(['staff', 'admin', 'common']);
   const { view: asked, setView, navigate, onMessagesPath } = screens;
   // A view the platform has switched off since (or a link into one) is the floor.
-  const view =
-    (asked === 'kitchen' && !features.kitchen) ||
-    (asked === 'messages' && !features.messages) ||
-    (asked === 'takeaway' && !features.takeaway && !takeawayInUse)
-      ? 'floor'
-      : asked;
+  const view = asked === 'takeaway' && !features.takeaway && !takeawayInUse ? 'floor' : asked;
 
   return (
     <div className="floor" data-surface="staff">
@@ -168,8 +163,7 @@ export function FloorTablet({
             ? takeawayCounter.sentCount + takeawayCounter.readyCount
             : undefined
         }
-        messagesWaiting={features.messages ? messagesWaiting : undefined}
-        kitchenView={features.kitchen}
+        messagesWaiting={messagesWaiting}
         floorWaiting={floorWaiting}
         onSelectView={(next) => {
           setSelection(null);

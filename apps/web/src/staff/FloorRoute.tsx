@@ -575,6 +575,7 @@ export function FloorRoute({ identity, device = null, paused, onUnpair }: FloorR
     branchId ? (
       <MessagesInbox
         branchId={branchId}
+        messagesOff={!features.messages}
         inbox={inbox}
         loading={inboxQuery.isLoading && !isOfflinePaused(inboxQuery)}
         failed={inboxQuery.isError || (isOfflinePaused(inboxQuery) && !inboxQuery.data)}
@@ -795,23 +796,23 @@ export function FloorRoute({ identity, device = null, paused, onUnpair }: FloorR
     ) : null,
     unresolved: unresolvedList,
     onSettle: settleUnresolved,
-    messages:
-      branchId && features.messages ? (
-        <MessagesRailSection
-          branchId={branchId}
-          items={inbox?.items ?? []}
-          remindAfterMinutes={inbox?.remindAfterMinutes ?? 3}
-          now={reminderClock}
-          canWrite={canWriteMessages}
-          staffName={identity.fullName}
-          timeZoneId={timeZoneId}
-          online={queue.online}
-          failed={inboxQuery.isError && !inboxQuery.data}
-          icon={ICONS.chat}
-          onReply={openConversation}
-          onOpenInbox={() => openConversation(null)}
-        />
-      ) : null,
+    messages: branchId ? (
+      <MessagesRailSection
+        branchId={branchId}
+        items={inbox?.items ?? []}
+        remindAfterMinutes={inbox?.remindAfterMinutes ?? 3}
+        now={reminderClock}
+        // Switched off at the branch: the rail reads, and replies nowhere.
+        canWrite={canWriteMessages && features.messages}
+        staffName={identity.fullName}
+        timeZoneId={timeZoneId}
+        online={queue.online}
+        failed={inboxQuery.isError && !inboxQuery.data}
+        icon={ICONS.chat}
+        onReply={openConversation}
+        onOpenInbox={() => openConversation(null)}
+      />
+    ) : null,
   };
 
   const overlays = (
