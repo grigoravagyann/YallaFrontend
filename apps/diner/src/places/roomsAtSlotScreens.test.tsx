@@ -46,6 +46,7 @@ const router = vi.hoisted(() => ({
 
 vi.mock('@expo/vector-icons', () => ({ Ionicons: () => null }));
 vi.mock('expo-linear-gradient', () => ({ LinearGradient: () => null }));
+vi.mock('expo-status-bar', () => ({ StatusBar: () => null }));
 vi.mock('expo-router', () => ({
   Stack: { Screen: () => null },
   useRouter: () => router,

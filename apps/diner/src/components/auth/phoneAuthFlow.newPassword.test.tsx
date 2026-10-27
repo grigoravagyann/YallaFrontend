@@ -25,16 +25,17 @@ const router = vi.hoisted(() => ({
   canGoBack: vi.fn(() => true),
 }));
 const navigation = vi.hoisted(() => ({
-  addListener: vi.fn(() => () => undefined),
   getState: vi.fn(() => ({ routes: [{}, {}] })),
 }));
 
 vi.mock('@expo/vector-icons', () => ({ Ionicons: () => null }));
 vi.mock('expo-linear-gradient', () => ({ LinearGradient: () => null }));
+vi.mock('expo-clipboard', () => ({ getStringAsync: vi.fn(async () => '') }));
 vi.mock('expo-router', () => ({
   Stack: { Screen: () => null },
   useRouter: () => router,
   useNavigation: () => navigation,
+  usePreventRemove: () => () => undefined,
   useLocalSearchParams: () => ({}),
 }));
 vi.mock('react-native-safe-area-context', () => ({
@@ -152,7 +153,7 @@ describe('a forgotten password, after the code', () => {
 
   it('goes the same way after the Telegram bot', async () => {
     const gateway = createMockGateway({ latencyMs: 0 });
-    const open = vi.spyOn(Linking, 'openURL').mockResolvedValue(true);
+    const open = vi.spyOn(Linking, 'openURL').mockResolvedValue(undefined);
     renderFlow(gateway, 'forgotPassword');
 
     fireEvent.click(await screen.findByRole('button', { name: 'verify.telegramButton' }));

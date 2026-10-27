@@ -39,15 +39,17 @@ const SCAN_ROUTE: NavRouteName = 'scan';
  * `title` for labels, and honours `href: null` (expo-router hides such a route
  * by giving it `tabBarItemStyle: { display: 'none' }`).
  */
-export function FloatingTabBar({ state, descriptors, navigation }: BottomTabBarProps) {
+export function FloatingTabBar({ state, descriptors, emitter, navigateToTab }: BottomTabBarProps) {
   const insets = useSafeAreaInsets();
 
-  const press = (routeKey: string, routeName: string, focused: boolean) => {
-    const event = navigation.emit({ type: 'tabPress', target: routeKey, canPreventDefault: true });
-    if (!focused && !event.defaultPrevented) navigation.navigate(routeName);
+  // The same press as expo-router's own tab bar: `tabPress` first, so a screen
+  // can prevent it, then switch by route key.
+  const press = (routeKey: string, focused: boolean) => {
+    const event = emitter.emit({ type: 'tabPress', target: routeKey, canPreventDefault: true });
+    if (!focused && !event.defaultPrevented) navigateToTab(routeKey);
   };
   const longPress = (routeKey: string) => {
-    navigation.emit({ type: 'tabLongPress', target: routeKey });
+    emitter.emit({ type: 'tabLongPress', target: routeKey });
   };
 
   return (
@@ -82,7 +84,7 @@ export function FloatingTabBar({ state, descriptors, navigation }: BottomTabBarP
                   active={focused}
                   accessibilityLabel={a11yLabel}
                   {...(options.tabBarButtonTestID ? { testID: options.tabBarButtonTestID } : {})}
-                  onPress={() => press(route.key, route.name, focused)}
+                  onPress={() => press(route.key, focused)}
                   onLongPress={() => longPress(route.key)}
                   style={styles.scanSlot}
                 />
@@ -98,7 +100,7 @@ export function FloatingTabBar({ state, descriptors, navigation }: BottomTabBarP
                 focused={focused}
                 {...(options.tabBarBadge !== undefined ? { badge: options.tabBarBadge } : {})}
                 {...(options.tabBarButtonTestID ? { testID: options.tabBarButtonTestID } : {})}
-                onPress={() => press(route.key, route.name, focused)}
+                onPress={() => press(route.key, focused)}
                 onLongPress={() => longPress(route.key)}
               />
             );
