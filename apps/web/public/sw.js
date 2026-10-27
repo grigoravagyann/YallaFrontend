@@ -13,11 +13,25 @@
  * anything that looks like data goes to the network or fails loudly.
  */
 
-const VERSION = 'v2';
+const VERSION = 'v3';
 const SHELL_CACHE = `yalla-shell-${VERSION}`;
 
 /** The minimum needed to paint something without a network. */
-const SHELL_URLS = ['/', '/index.html', '/manifest.webmanifest', '/favicon.svg'];
+const SHELL_URLS = [
+  '/',
+  '/index.html',
+  '/manifest.webmanifest',
+  '/manifest-link.js',
+  '/favicon.svg',
+];
+
+/**
+ * The script that picks the page's manifest (index.html loads it before the
+ * bundle) changes with a deploy under the same name, as index.html does: network
+ * first, the cached copy only offline. Cache first would keep an old one until
+ * VERSION moves. The manifests themselves stay the browser's business.
+ */
+const UNHASHED = new Set(['/manifest-link.js']);
 
 /** Hashed build output. Immutable by construction, so cache-first is safe. */
 const ASSET_PATH = /^\/assets\//;
@@ -74,6 +88,21 @@ self.addEventListener('fetch', (event) => {
         const cache = await caches.open(SHELL_CACHE);
         return (await cache.match('/index.html')) ?? Response.error();
       }),
+    );
+    return;
+  }
+
+  if (UNHASHED.has(url.pathname)) {
+    event.respondWith(
+      fetch(request)
+        .then((response) => {
+          if (response.ok) {
+            const copy = response.clone();
+            void caches.open(SHELL_CACHE).then((cache) => cache.put(request, copy));
+          }
+          return response;
+        })
+        .catch(async () => (await caches.match(request)) ?? Response.error()),
     );
     return;
   }

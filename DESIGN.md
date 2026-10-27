@@ -407,7 +407,7 @@ Every console role works on a phone, and the console installs from Safari's
 exactly as before: every phone rule sits under one of two queries
 (`consoleMedia` in `console.ts`).
 
-- **`(max-width: 760px)` is the layout.** The sidebar becomes a drawer
+- **`(max-width: 799px)` is the layout.** The sidebar becomes a drawer
   behind a sticky top bar, 56px plus the status bar's safe area: the menu
   button, the wordmark, the branch chip (venue roles) and the avatar. The
   drawer is the sidebar itself, so everything on it is reachable: the grouped
@@ -415,7 +415,7 @@ exactly as before: every phone rule sits under one of two queries
   sign-out. It is a modal dialog: the focus stays inside, Escape or a tap on
   the scrim closes it, and so does any navigation; reduced motion drops its
   slide. A count on any link puts a dot on the menu button.
-- **`(pointer: coarse), (max-width: 760px)` is the sizing**, so a touch
+- **`(pointer: coarse), (max-width: 799px)` is the sizing**, so a touch
   iPad with the desktop layout gets it too. `consoleTouchSize` and
   `consoleTouchText` are written over the same `--console-*` properties:
   buttons, small buttons, chips, kebabs, step arrows, menu items and nav

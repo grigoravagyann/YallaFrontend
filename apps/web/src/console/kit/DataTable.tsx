@@ -3,7 +3,7 @@ import '../ui/console.css';
 import '../ui/phone-tables.css';
 
 /**
- * How a table sits on a phone (`max-width: 760px`):
+ * How a table sits on a phone (`max-width: 799px`):
  * - `scroll` (the default) keeps its columns and scrolls sideways in its card;
  * - `cards` stacks each row as a card. The row's title cell (a `yc-tc-main`
  *   cell, else a `th scope="row"`, else the first cell) heads it; the row's

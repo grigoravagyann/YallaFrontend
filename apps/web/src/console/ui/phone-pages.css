@@ -6,7 +6,7 @@
  * Loaded after `console.css` (`auth/RequireRole.tsx`), so a rule here wins
  * over the desktop one it names at the same specificity. Every rule sits under
  * a phone query, so a desktop with a mouse looks exactly as it did:
- * - `(max-width: 760px)` is the phone layout;
+ * - `(max-width: 799px)` is the phone layout;
  * - `(pointer: coarse)` is touch sizing, so a touch iPad gets the bigger
  *   targets too (DESIGN.md, "Console on a phone").
  * -------------------------------------------------------------------------- */
@@ -14,7 +14,7 @@
 /* ---- Tab strips: they still scroll sideways, with a fade on the edge that
  * has more (`scrollStrip.ts` sets `is-fade-start` / `is-fade-end`). The mask
  * reads only alpha, so the token's colour is never seen. */
-@media (max-width: 760px), (pointer: coarse) {
+@media (max-width: 799px), (pointer: coarse) {
   .yc-tabs.is-fade-end,
   .yc-subtabs.is-fade-end,
   .yc-toc.is-fade-end {
@@ -72,7 +72,7 @@
 }
 
 /* ---- The policy page: one column, the save buttons wrap. */
-@media (max-width: 760px) {
+@media (max-width: 799px) {
   /* The groups: one strip that scrolls sideways, not nine rows of links. */
   .yc-toc {
     flex-wrap: nowrap;
@@ -172,7 +172,7 @@
 }
 
 /* The stepper (− 30 +): a finger's size, and 16px so iOS does not zoom. */
-@media (max-width: 760px), (pointer: coarse) {
+@media (max-width: 799px), (pointer: coarse) {
   .yc-step button {
     width: 44px;
     height: 44px;
@@ -185,7 +185,7 @@
 }
 
 /* ---- 11px text outside tables (DESIGN.md: nothing on the web under 12px). */
-@media (max-width: 760px) {
+@media (max-width: 799px) {
   .yc-rl-y,
   .yc-rl-x,
   .yc-bc-y,
@@ -218,7 +218,7 @@
 
 /* ---- Message history: the list or the thread, never both. The thread is
  * shown once a guest is opened (`has-thread`), with its Back button. */
-@media (max-width: 760px) {
+@media (max-width: 799px) {
   .yc-mh-layout:not(.has-thread) > .yc-mh-thread,
   .yc-mh-layout.has-thread > .yc-mh-list,
   .yc-mh-filters.has-thread {
@@ -235,7 +235,7 @@
 }
 
 /* ---- Opening hours. */
-@media (max-width: 760px) {
+@media (max-width: 799px) {
   /* "Copy…": a sheet at the screen's foot, above the save bar, so its
    * buttons are always on screen however far down the day is. */
   .yc-pop {
@@ -244,7 +244,8 @@
     right: var(--space-lg);
     bottom: calc(var(--space-lg) + env(safe-area-inset-bottom, 0px));
     left: var(--space-lg);
-    z-index: 30;
+    /* Under the drawer's scrim (27): an open drawer covers it, as it covers the page. */
+    z-index: 26;
     width: auto;
     max-height: calc(100dvh - 2 * var(--space-lg) - env(safe-area-inset-top, 0px));
     overflow-y: auto;
@@ -305,7 +306,7 @@
   }
 }
 
-@media (max-width: 760px), (pointer: coarse) {
+@media (max-width: 799px), (pointer: coarse) {
   .yc-pop label {
     height: 44px;
   }
@@ -333,7 +334,7 @@
 }
 
 /* ---- The public page, reviews, rooms: their own small controls. */
-@media (max-width: 760px), (pointer: coarse) {
+@media (max-width: 799px), (pointer: coarse) {
   .yc-seg button {
     height: 44px;
   }
@@ -351,5 +352,18 @@
 
   .yc-ordc {
     gap: var(--space-xs);
+  }
+}
+
+/* Text links that are a page's way somewhere: the breadcrumbs above a venue
+   or branch, and the dishes the reports rank. 18px tall on a desktop; a
+   finger's height under touch, the line itself unchanged. */
+@media (max-width: 799px), (pointer: coarse) {
+  .yc .yc-crumbs a,
+  .yc .yc-rp-rank a,
+  .yc .yc-rp-never a {
+    display: inline-flex;
+    align-items: center;
+    min-height: 44px;
   }
 }

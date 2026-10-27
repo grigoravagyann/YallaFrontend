@@ -160,6 +160,14 @@ describe('the service worker', () => {
     expect(worker.dispatch(get(`${ORIGIN}/favicon.svg`))).toBe('handled');
   });
 
+  it('reads the manifest picker from the network first, the cache only offline', () => {
+    // Not a hashed file: cache first would keep an old reserved-path list on
+    // an installed tablet until the worker's version moved.
+    expect(worker.dispatch(get(`${ORIGIN}/manifest-link.js`))).toBe('handled');
+    expect(worker.cacheMatches).not.toHaveBeenCalled();
+    expect(worker.dispatch(get(`${ORIGIN}/manifest-console.webmanifest`))).toBe('passthrough');
+  });
+
   it('leaves anything it does not recognise to the network', () => {
     // The default is passthrough, not "cache it and hope". A payload this
     // worker has never heard of is data until proved otherwise.

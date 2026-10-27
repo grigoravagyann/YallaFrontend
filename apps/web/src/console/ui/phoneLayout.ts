@@ -2,7 +2,7 @@ import { consoleMedia } from '@yalla/tokens';
 import { useSyncExternalStore } from 'react';
 
 /**
- * The console's phone layout (`consoleMedia.phone`, max-width 760px): the
+ * The console's phone layout (`consoleMedia.phone`, max-width 799px): the
  * sidebar is a top bar and a drawer, and tables are cards. The stylesheets
  * repeat the query text, since a media query cannot read a custom property.
  */

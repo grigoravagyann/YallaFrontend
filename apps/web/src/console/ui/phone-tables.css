@@ -3,7 +3,7 @@
    two hidden-on-desktop helpers lives under a phone or touch query.
 
    A `DataTable phone="cards"` (kit/DataTable.tsx) stacks each row as a card
-   at 760px and below: the title cell on top, the row's actions top-right and
+   at 799px and below: the title cell on top, the row's actions top-right and
    always in view, every other cell a line labelled from its column header
    (`data-label`, which DataTable writes). Header cells with a sort button
    stay above the cards as a strip of chips.
@@ -17,7 +17,7 @@
 
 /* Touch: the targets inside tables reach 44px (buttons, kebabs, switches and
    the reorder arrows are the controls' own rules). */
-@media (pointer: coarse), (max-width: 760px) {
+@media (pointer: coarse), (max-width: 799px) {
   .yc-sortb,
   .yc-res-sort,
   .yc-featl,
@@ -38,7 +38,7 @@
   }
 }
 
-@media (max-width: 760px) {
+@media (max-width: 799px) {
   .yc-tbl.yc-cards,
   .yc-tbl.yc-cards > tbody,
   .yc-tbl.yc-cards > tfoot {
@@ -345,7 +345,7 @@
   }
 }
 
-@media (max-width: 760px) and (prefers-reduced-motion: reduce) {
+@media (max-width: 799px) and (prefers-reduced-motion: reduce) {
   .yc-tbl.yc-mn-tbl.yc-cards > tbody > tr.is-linked {
     animation: none;
   }

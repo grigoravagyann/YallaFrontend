@@ -535,8 +535,8 @@ export const consoleText = {
  *   desktop layout, gets the sizes in `consoleTouchSize` and `consoleTouchText`.
  */
 export const consoleMedia = {
-  phone: '(max-width: 760px)',
-  touch: '(pointer: coarse), (max-width: 760px)',
+  phone: '(max-width: 799px)',
+  touch: '(pointer: coarse), (max-width: 799px)',
 } as const;
 
 /**

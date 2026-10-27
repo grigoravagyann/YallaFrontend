@@ -53,7 +53,10 @@ describe('the manifest a path installs', () => {
 
   it('follows the back button too', () => {
     window.history.pushState(null, '', '/staff');
-    window.history.replaceState(null, '', '/a-cafe/main');
+    // Under the patch, as the browser's own Back moves the address: only the
+    // popstate listener can notice.
+    History.prototype.replaceState.call(window.history, null, '', '/a-cafe/main');
+    expect(manifest()).not.toBeNull();
     window.dispatchEvent(new PopStateEvent('popstate'));
     expect(manifest()).toBeNull();
   });

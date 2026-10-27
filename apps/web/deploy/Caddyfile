@@ -57,7 +57,7 @@
 		# deploy under the same name. `no-cache` still allows ETag revalidation,
 		# so a tablet on the floor fetches the new shell on its next load rather
 		# than a week later.
-		@shell path /index.html /sw.js /manifest.webmanifest
+		@shell path /index.html /sw.js /manifest.webmanifest /manifest-console.webmanifest /manifest-link.js
 		header @shell Cache-Control "no-cache"
 
 		file_server

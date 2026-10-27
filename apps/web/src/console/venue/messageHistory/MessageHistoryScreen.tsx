@@ -17,9 +17,10 @@ import {
 import { useMessageHistory } from '@yalla/api/react';
 import { branchDayKey, type Locale, type TimeZone } from '@yalla/format';
 import { useLocale, useTranslation } from '@yalla/i18n';
+import { PHONE_QUERY } from '../../ui/phoneLayout';
 import type { TFunction } from 'i18next';
 import { Fragment, useEffect, useId, useRef, useState, type FormEvent } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { firstName, shortName } from '../../../messages/messageText';
 import {
   ChipGroup,
@@ -54,8 +55,6 @@ const STACKED_QUERY = '(max-width: 1179px)';
  * never both. Opening a guest puts the thread in the list's place; its Back
  * button, or the phone's own, brings the list again.
  */
-const PHONE_QUERY = '(max-width: 760px)';
-
 const onPhone = () => window.matchMedia?.(PHONE_QUERY).matches ?? false;
 
 /**
@@ -307,8 +306,13 @@ function MessageHistory({
   });
 
   const navigate = useNavigate();
-  /** The open thread was pushed from this list on a phone: Back pops it rather than adding one. */
-  const pushedThread = useRef(false);
+  /**
+   * The open thread was pushed from this list on a phone: Back pops it rather
+   * than adding one. In the entry's history state, not a ref, so it holds when
+   * the screen mounts again on that entry (a reload, Back from another page).
+   */
+  const pushedThread =
+    (useLocation().state as { threadFromList?: boolean } | null)?.threadFromList === true;
   /** Back on a phone: the row it came from takes the focus once the list is drawn again. */
   const focusAfterBack = useRef<string | null>(null);
   useEffect(() => {
@@ -322,8 +326,10 @@ function MessageHistory({
     // On a phone the thread takes the list's place, so it is a new entry:
     // the phone's own Back returns to the list.
     const phone = onPhone();
-    setParam('thread', threadParam(item.subject), { replace: !phone });
-    pushedThread.current = phone;
+    setParam('thread', threadParam(item.subject), {
+      replace: !phone,
+      state: phone ? { threadFromList: true } : undefined,
+    });
     // Stacked on a phone, the thread is below the list: the focus goes to it.
     if (window.matchMedia?.(STACKED_QUERY).matches) {
       focusThread.current = threadParam(item.subject);
@@ -333,8 +339,7 @@ function MessageHistory({
   function backToList() {
     if (opened && onPhone()) {
       focusAfterBack.current = selectedItem ? rowButtonId(selectedItem) : listTitleId;
-      if (pushedThread.current) {
-        pushedThread.current = false;
+      if (pushedThread) {
         navigate(-1);
       } else {
         setParam('thread', null, { replace: true });

@@ -102,7 +102,8 @@ describe('Tabs', () => {
         />,
       );
       const strip = screen.getByRole('tablist', { name: 'Staff' });
-      expect(strip.scrollLeft).toBe(600 - 300 + STRIP_FADE_PX);
+      // The last tab: as far as the strip goes, never past it.
+      expect(strip.scrollLeft).toBe(600 - 300);
       expect(strip.classList.contains('is-fade-start')).toBe(true);
     } finally {
       delete (HTMLElement.prototype as { clientWidth?: number }).clientWidth;

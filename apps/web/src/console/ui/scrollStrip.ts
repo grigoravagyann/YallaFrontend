@@ -33,11 +33,13 @@ export function revealInStrip(strip: HTMLElement, item: HTMLElement): void {
     markStripEdges(strip);
     return;
   }
-  if (at.left < box.left + STRIP_FADE_PX) {
-    strip.scrollLeft += at.left - box.left - STRIP_FADE_PX;
-  } else if (at.right > box.right - STRIP_FADE_PX) {
-    strip.scrollLeft += at.right - box.right + STRIP_FADE_PX;
-  }
+  // Within the strip's own range, as a browser clamps it: so the edges read
+  // after it are the ones the strip will show.
+  const shift =
+    at.left < box.left + STRIP_FADE_PX
+      ? at.left - box.left - STRIP_FADE_PX
+      : at.right - box.right + STRIP_FADE_PX;
+  strip.scrollLeft = Math.min(room, Math.max(0, strip.scrollLeft + shift));
   markStripEdges(strip);
 }
 

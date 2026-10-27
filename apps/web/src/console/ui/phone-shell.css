@@ -5,9 +5,9 @@
  * Two queries, and nothing here outside them, so a desktop with a mouse is
  * drawn exactly as before:
  *
- * - `(max-width: 760px)` is the phone layout (`consoleMedia.phone`): a sticky
+ * - `(max-width: 799px)` is the phone layout (`consoleMedia.phone`): a sticky
  *   top bar, and the sidebar as a drawer from the left.
- * - `(pointer: coarse), (max-width: 760px)` is touch (`consoleMedia.touch`):
+ * - `(pointer: coarse), (max-width: 799px)` is touch (`consoleMedia.touch`):
  *   the generated tokens already make buttons, chips, kebabs, the step arrows,
  *   menu items and nav links 44px and fields 16px; this file catches what does
  *   not read a token.
@@ -25,7 +25,7 @@
 /* --------------------------------------------------------------------------
  * Under a finger
  * -------------------------------------------------------------------------- */
-@media (pointer: coarse), (max-width: 760px) {
+@media (pointer: coarse), (max-width: 799px) {
   /* Every field 16px, whatever class drew it (a stepper, the tags, a range
      select, the branch switcher), or iOS zooms the page in on focus. */
   .yc
@@ -91,7 +91,7 @@
 /* --------------------------------------------------------------------------
  * The phone layout
  * -------------------------------------------------------------------------- */
-@media (max-width: 760px) {
+@media (max-width: 799px) {
   .yc-app {
     flex-direction: column;
   }
@@ -360,7 +360,7 @@
   }
 }
 
-@media (max-width: 760px) and (prefers-reduced-motion: reduce) {
+@media (max-width: 799px) and (prefers-reduced-motion: reduce) {
   .yc-side,
   .yc-side.is-open {
     transition: none;

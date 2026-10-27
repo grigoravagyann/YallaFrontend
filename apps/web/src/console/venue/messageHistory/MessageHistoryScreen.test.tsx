@@ -352,11 +352,11 @@ describe('the message history page', () => {
 });
 
 describe('the message history on a phone', () => {
-  /** A phone: under the console's 760px, so under the 1180px stacking too. */
+  /** A phone: under the console's 799px, so under the 1180px stacking too. */
   function asPhone() {
     const original = window.matchMedia;
     window.matchMedia = ((query: string) => ({
-      matches: /max-width: (760|1179)px/u.test(query),
+      matches: /max-width: (799|1179)px/u.test(query),
       media: query,
       onchange: null,
       addEventListener: () => undefined,
