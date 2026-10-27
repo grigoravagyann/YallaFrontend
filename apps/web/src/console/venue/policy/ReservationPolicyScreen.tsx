@@ -11,6 +11,7 @@ import { useEffect, useRef, useState } from 'react';
 import { QueryFailureNotice } from '../../../components/QueryFailureNotice';
 import { InfoIcon, PhoneIcon } from '../../ui/icons';
 import { PageHeader } from '../../ui/PageHeader';
+import { useScrollStrip } from '../../ui/scrollStrip';
 import { useToast } from '../../ui/toast';
 import { useUnsavedChangesGuard } from '../useUnsavedChangesGuard';
 import { useVenueOutlet } from '../VenueLayout';
@@ -273,6 +274,9 @@ function PolicyForm({
                 ? t('policy.bar.unreviewed')
                 : t('policy.bar.saved');
 
+  // On a phone the groups are one strip that scrolls sideways, an overflowing edge faded.
+  const tocRef = useScrollStrip<HTMLElement>('[aria-current]', []);
+
   return (
     <div className="yc-page yc-pol-page">
       <PageHeader
@@ -318,7 +322,7 @@ function PolicyForm({
       ) : null}
 
       <div className="yc-pol">
-        <nav className="yc-card yc-toc" aria-label={t('policy.tocLabel')}>
+        <nav ref={tocRef} className="yc-card yc-toc" aria-label={t('policy.tocLabel')}>
           {POLICY_GROUPS.map((group) => {
             const changed = fieldsInGroup(group, fields).filter((field) =>
               fromDefault.includes(field.key),

@@ -1,0 +1,355 @@
+/* --------------------------------------------------------------------------
+ * The console on a phone (2026-10-27), page by page: the policy page, the
+ * tab strips, the report charts' small text, message history, opening hours,
+ * the public page, reviews and the rooms editor.
+ *
+ * Loaded after `console.css` (`auth/RequireRole.tsx`), so a rule here wins
+ * over the desktop one it names at the same specificity. Every rule sits under
+ * a phone query, so a desktop with a mouse looks exactly as it did:
+ * - `(max-width: 760px)` is the phone layout;
+ * - `(pointer: coarse)` is touch sizing, so a touch iPad gets the bigger
+ *   targets too (DESIGN.md, "Console on a phone").
+ * -------------------------------------------------------------------------- */
+
+/* ---- Tab strips: they still scroll sideways, with a fade on the edge that
+ * has more (`scrollStrip.ts` sets `is-fade-start` / `is-fade-end`). The mask
+ * reads only alpha, so the token's colour is never seen. */
+@media (max-width: 760px), (pointer: coarse) {
+  .yc-tabs.is-fade-end,
+  .yc-subtabs.is-fade-end,
+  .yc-toc.is-fade-end {
+    -webkit-mask-image: linear-gradient(
+      to right,
+      var(--console-ink) calc(100% - 32px),
+      transparent
+    );
+    mask-image: linear-gradient(to right, var(--console-ink) calc(100% - 32px), transparent);
+  }
+
+  .yc-tabs.is-fade-start,
+  .yc-subtabs.is-fade-start,
+  .yc-toc.is-fade-start {
+    -webkit-mask-image: linear-gradient(to left, var(--console-ink) calc(100% - 32px), transparent);
+    mask-image: linear-gradient(to left, var(--console-ink) calc(100% - 32px), transparent);
+  }
+
+  .yc-tabs.is-fade-start.is-fade-end,
+  .yc-subtabs.is-fade-start.is-fade-end,
+  .yc-toc.is-fade-start.is-fade-end {
+    -webkit-mask-image: linear-gradient(
+      to right,
+      transparent,
+      var(--console-ink) 32px,
+      var(--console-ink) calc(100% - 32px),
+      transparent
+    );
+    mask-image: linear-gradient(
+      to right,
+      transparent,
+      var(--console-ink) 32px,
+      var(--console-ink) calc(100% - 32px),
+      transparent
+    );
+  }
+
+  .yc-tabs,
+  .yc-subtabs {
+    scrollbar-width: none;
+  }
+
+  .yc-tabs::-webkit-scrollbar,
+  .yc-subtabs::-webkit-scrollbar {
+    display: none;
+  }
+
+  .yc-tab {
+    height: 44px;
+  }
+
+  .yc .yc-subtabs a {
+    height: 44px;
+  }
+}
+
+/* ---- The policy page: one column, the save buttons wrap. */
+@media (max-width: 760px) {
+  /* The groups: one strip that scrolls sideways, not nine rows of links. */
+  .yc-toc {
+    flex-wrap: nowrap;
+    gap: var(--space-sm);
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    padding: 0;
+    border: 0;
+    background: none;
+    box-shadow: none;
+    scrollbar-width: none;
+  }
+
+  .yc-toc::-webkit-scrollbar {
+    display: none;
+  }
+
+  /* Each group a chip in the strip. */
+  .yc .yc-toc a {
+    flex: none;
+    min-height: 44px;
+    padding: 0 var(--space-md);
+    border: 1px solid var(--console-button-edge);
+    border-radius: var(--console-radius-pill);
+    background: var(--console-surface);
+    white-space: nowrap;
+  }
+
+  /* An anchor lands below the phone's sticky top bar, not under it. */
+  .yc-pol-groups > section {
+    scroll-margin-top: calc(56px + env(safe-area-inset-top, 0px) + var(--space-md));
+  }
+
+  /* The field: what it is and why, then the control under it, full width. */
+  .yc-pf {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--space-md);
+    padding: var(--space-lg);
+  }
+
+  .yc-pf-w {
+    max-width: none;
+  }
+
+  .yc-pf-c {
+    align-items: flex-start;
+  }
+
+  .yc-pf-d {
+    flex-wrap: wrap;
+  }
+
+  .yc-pol-example {
+    margin: 0 var(--space-lg) var(--space-lg);
+  }
+
+  .yc-po-rules,
+  .yc-po-save {
+    padding-right: var(--space-lg);
+    padding-left: var(--space-lg);
+  }
+
+  /* "Save the pre-order settings" is long in Armenian: the line goes under
+   * the status, and the button's words wrap rather than leave the screen. */
+  .yc-po-save {
+    flex-wrap: wrap;
+  }
+
+  .yc-po-save .yc-grow {
+    flex: 1 1 100%;
+  }
+
+  .yc .yc-po-save .yc-btn,
+  .yc .yc-savebar .yc-btn {
+    max-width: 100%;
+    height: auto;
+    min-height: 44px;
+    padding-top: var(--space-xs);
+    padding-bottom: var(--space-xs);
+    white-space: normal;
+    text-align: center;
+  }
+
+  /* The save bars (policy, hours, rooms): close to the screen's foot; a
+   * short sentence shares the line with the buttons, a long one goes above. */
+  .yc-savebar {
+    bottom: calc(var(--space-sm) + env(safe-area-inset-bottom, 0px));
+    gap: var(--space-sm) var(--space-md);
+    padding: var(--space-md);
+  }
+
+  .yc-savebar .yc-grow {
+    flex: 1 1 12em;
+    min-width: 0;
+    font-size: var(--console-text-label);
+  }
+}
+
+/* The stepper (− 30 +): a finger's size, and 16px so iOS does not zoom. */
+@media (max-width: 760px), (pointer: coarse) {
+  .yc-step button {
+    width: 44px;
+    height: 44px;
+  }
+
+  .yc .yc-step input {
+    height: 44px;
+    font-size: 16px;
+  }
+}
+
+/* ---- 11px text outside tables (DESIGN.md: nothing on the web under 12px). */
+@media (max-width: 760px) {
+  .yc-rl-y,
+  .yc-rl-x,
+  .yc-bc-y,
+  .yc-bc-v,
+  .yc-bc-marker span,
+  .yc-bc-x,
+  .yc-today,
+  .yc-miss,
+  .yc-mchips span,
+  .yc-tn,
+  .yc-you {
+    font-size: 12px;
+  }
+
+  /* An hour by hour chart (17 bars) has no room for every label at 12px:
+   * every other one, the bars keep their places. */
+  .yc-bc-x:has(> span:nth-child(13)) > span:nth-child(even) {
+    visibility: hidden;
+  }
+
+  /* The y-axis is a column of its own: room for "100%" at 12px. */
+  .yc-bc-y {
+    width: 40px;
+  }
+
+  .yc-rl-plot {
+    left: 48px;
+  }
+}
+
+/* ---- Message history: the list or the thread, never both. The thread is
+ * shown once a guest is opened (`has-thread`), with its Back button. */
+@media (max-width: 760px) {
+  .yc-mh-layout:not(.has-thread) > .yc-mh-thread,
+  .yc-mh-layout.has-thread > .yc-mh-list,
+  .yc-mh-filters.has-thread {
+    display: none;
+  }
+
+  .yc-mh-thead {
+    padding: var(--space-md) var(--space-lg);
+  }
+
+  .yc-mh-logbox {
+    max-height: none;
+  }
+}
+
+/* ---- Opening hours. */
+@media (max-width: 760px) {
+  /* "Copy…": a sheet at the screen's foot, above the save bar, so its
+   * buttons are always on screen however far down the day is. */
+  .yc-pop {
+    position: fixed;
+    top: auto;
+    right: var(--space-lg);
+    bottom: calc(var(--space-lg) + env(safe-area-inset-bottom, 0px));
+    left: var(--space-lg);
+    z-index: 30;
+    width: auto;
+    max-height: calc(100dvh - 2 * var(--space-lg) - env(safe-area-inset-top, 0px));
+    overflow-y: auto;
+  }
+
+  .yc-pop-acts .yc-btn {
+    flex: 1;
+  }
+
+  .yc-dacts {
+    flex-wrap: wrap;
+  }
+
+  /* Opens and closes side by side on a 360px phone, 16px type and all. */
+  .yc-day {
+    padding: var(--space-md) var(--space-lg);
+  }
+
+  .yc .yc-tm {
+    width: 128px;
+    padding: 0 var(--space-sm);
+  }
+
+  .yc-span {
+    gap: var(--space-xs);
+  }
+
+  /* A special day: the date and its hours, the remove button at the end. */
+  .yc-sd li {
+    grid-template-columns: minmax(0, 1fr) auto;
+    padding: 10px var(--space-lg);
+  }
+
+  .yc-sd li > :nth-child(2) {
+    grid-column: 1;
+    grid-row: 2;
+  }
+
+  .yc-sd li > :nth-child(3) {
+    grid-column: 2;
+    grid-row: 1 / span 2;
+  }
+
+  .yc-sdadd {
+    padding: var(--space-md) var(--space-lg);
+  }
+
+  .yc .yc-sdadd .yc-sd-name {
+    width: 100%;
+  }
+
+  .yc-sdadd label {
+    flex: 1 1 140px;
+  }
+
+  .yc .yc-sdadd .yc-ctl {
+    width: 100%;
+  }
+}
+
+@media (max-width: 760px), (pointer: coarse) {
+  .yc-pop label {
+    height: 44px;
+  }
+
+  .yc-pop input {
+    width: 20px;
+    height: 20px;
+  }
+
+  .yc .yc-tm {
+    height: 44px;
+    font-size: 16px;
+  }
+
+  .yc .yc-sdadd .yc-ctl,
+  .yc .yc-sd-add {
+    height: 44px;
+    font-size: 16px;
+  }
+
+  .yc-ib {
+    width: 44px;
+    height: 44px;
+  }
+}
+
+/* ---- The public page, reviews, rooms: their own small controls. */
+@media (max-width: 760px), (pointer: coarse) {
+  .yc-seg button {
+    height: 44px;
+  }
+
+  .yc-ach,
+  .yc-rchip {
+    height: auto;
+    min-height: 44px;
+  }
+
+  .yc-rooms .yc-kebab {
+    width: 44px;
+    height: 44px;
+  }
+
+  .yc-ordc {
+    gap: var(--space-xs);
+  }
+}

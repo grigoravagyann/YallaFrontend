@@ -1,4 +1,5 @@
-import type { KeyboardEvent, ReactNode } from 'react';
+import { type KeyboardEvent, type ReactNode } from 'react';
+import { useScrollStrip } from './scrollStrip';
 
 export interface TabItem<T extends string> {
   readonly id: T;
@@ -25,6 +26,9 @@ export const panelId = (prefix: string, id: string) => `${prefix}-panel-${id}`;
  * list — the selected tab — and the arrow keys, Home and End move between
  * them, selecting as they go. The panel is the caller's, with
  * `role="tabpanel"`, `id={panelId(...)}` and `aria-labelledby={tabId(...)}`.
+ *
+ * On a phone the strip scrolls sideways: an overflowing edge fades, and the
+ * selected tab is scrolled into view on mount and whenever it changes.
  */
 export function Tabs<T extends string>({
   label,
@@ -33,6 +37,11 @@ export function Tabs<T extends string>({
   onSelect,
   idPrefix,
 }: TabsProps<T>) {
+  const stripRef = useScrollStrip<HTMLDivElement>('[aria-selected="true"]', [
+    selected,
+    tabs.length,
+  ]);
+
   function onKey(event: KeyboardEvent<HTMLDivElement>) {
     const at = tabs.findIndex((tab) => tab.id === selected);
     const last = tabs.length - 1;
@@ -59,7 +68,7 @@ export function Tabs<T extends string>({
   }
 
   return (
-    <div className="yc-tabs" role="tablist" aria-label={label} onKeyDown={onKey}>
+    <div ref={stripRef} className="yc-tabs" role="tablist" aria-label={label} onKeyDown={onKey}>
       {tabs.map((tab) => {
         const on = tab.id === selected;
         return (

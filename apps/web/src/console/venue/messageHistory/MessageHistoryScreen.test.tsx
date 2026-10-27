@@ -350,3 +350,75 @@ describe('the message history page', () => {
     }
   });
 });
+
+describe('the message history on a phone', () => {
+  /** A phone: under the console's 760px, so under the 1180px stacking too. */
+  function asPhone() {
+    const original = window.matchMedia;
+    window.matchMedia = ((query: string) => ({
+      matches: /max-width: (760|1179)px/u.test(query),
+      media: query,
+      onchange: null,
+      addEventListener: () => undefined,
+      removeEventListener: () => undefined,
+      addListener: () => undefined,
+      removeListener: () => undefined,
+      dispatchEvent: () => false,
+    })) as typeof window.matchMedia;
+    return () => {
+      window.matchMedia = original;
+    };
+  }
+
+  it('shows the list or the thread, never both, and Back brings the list again', async () => {
+    const restore = asPhone();
+    try {
+      const user = userEvent.setup();
+      renderHistory();
+      const list = await table();
+      const layout = list.closest('.yc-mh-layout') as HTMLElement;
+      const filters = screen.getByRole('search', { name: 'Filter the messages' });
+      // Nothing opened yet: the list (the CSS hides the thread beside it).
+      expect(layout.classList.contains('has-thread')).toBe(false);
+      expect(filters.classList.contains('has-thread')).toBe(false);
+
+      await user.click(within(list).getByRole('button', { name: 'Կարեն Ս.' }));
+      const pane = await screen.findByRole('region', { name: 'Կարեն Ս.' });
+      expect(params().get('thread')).toBe(`takeaway:${NORTH}-hist-t2`);
+      // The thread in the list's place, the filters with the list.
+      expect(layout.classList.contains('has-thread')).toBe(true);
+      expect(filters.classList.contains('has-thread')).toBe(true);
+      await waitFor(() =>
+        expect(document.activeElement).toBe(within(pane).getByRole('heading', { level: 2 })),
+      );
+
+      await user.click(within(pane).getByRole('button', { name: 'Back to the list' }));
+      await waitFor(() => expect(params().get('thread')).toBeNull());
+      expect(layout.classList.contains('has-thread')).toBe(false);
+      expect(filters.classList.contains('has-thread')).toBe(false);
+      // The focus is back on the row it came from.
+      await waitFor(() =>
+        expect(document.activeElement).toBe(within(list).getByRole('button', { name: 'Կարեն Ս.' })),
+      );
+    } finally {
+      restore();
+    }
+  });
+
+  it('opens on the thread a link names, and Back from it shows the list', async () => {
+    const restore = asPhone();
+    try {
+      const user = userEvent.setup();
+      renderHistory(gateway(), `?thread=takeaway:${NORTH}-hist-t2`);
+      const pane = await screen.findByRole('region', { name: 'Կարեն Ս.' }, { timeout: 5000 });
+      const layout = pane.closest('.yc-mh-layout') as HTMLElement;
+      expect(layout.classList.contains('has-thread')).toBe(true);
+      await user.click(within(pane).getByRole('button', { name: 'Back to the list' }));
+      await waitFor(() => expect(params().get('thread')).toBeNull());
+      expect(layout.classList.contains('has-thread')).toBe(false);
+      expect(seen.location).toBe('/venue/messages');
+    } finally {
+      restore();
+    }
+  });
+});
