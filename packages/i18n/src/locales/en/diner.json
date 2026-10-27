@@ -437,7 +437,7 @@
       "maxActiveBookingsNext": "You already have {{max}} active bookings — the most one phone number can hold. Cancel one (the next is {{venue}}, {{date}} at {{time}}) and try again.",
       "blockedNoShows": "You can't book until {{date}}, {{time}}, because of three missed bookings in three days.",
       "blockedNoShowsPlain": "You can't book for a week because of three missed bookings in three days.",
-      "featureOff": "This place isn't taking that from the app right now."
+      "featureOff": "This place isn't taking bookings this way right now."
     },
     "checkAgain": "Check again",
     "nameLabel": "Name for the booking",

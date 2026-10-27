@@ -846,7 +846,10 @@ export function createConsoleMockContext(options: ConsoleMockOptions = {}) {
    * already maps to {@link ConcurrencyConflictError}. The detail is the thing a
    * screen shows, so the mock has to carry one the way the wire does.
    */
-  function conflict(detail: string): ConcurrencyConflictError {
+  function conflict(
+    detail: string,
+    context?: Readonly<Record<string, unknown>>,
+  ): ConcurrencyConflictError {
     return new ConcurrencyConflictError({
       url: URL_TAG,
       problem: {
@@ -856,6 +859,7 @@ export function createConsoleMockContext(options: ConsoleMockOptions = {}) {
         detail,
         code: ProblemCodes.ConflictingState,
         traceId: 'mock',
+        ...(context ? { context } : {}),
       },
     });
   }

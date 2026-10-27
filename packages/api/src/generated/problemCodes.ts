@@ -55,7 +55,7 @@ export const ProblemCodes = {
   ClientCommandIdInUse: 'client-command-id-in-use',
   /** 409 Concurrent update — Someone else changed the row first: re-read and retry. */
   ConcurrentUpdate: 'concurrent-update',
-  /** 409 Conflicting state — The operation is not legal in the current state; a staff order's unorderable guest is named in context. */
+  /** 409 Conflicting state — The operation is not legal in the current state; a staff order's unorderable guest, or the branch whose open tabs keep table service on, is named in context. */
   ConflictingState: 'conflicting-state',
   /** 409 Conversation closed — Writing to a guest-message thread that has closed. */
   ConversationClosed: 'conversation-closed',
@@ -493,12 +493,14 @@ export interface ConcurrentUpdateProblemContext {
   readonly currentVersion: string;
 }
 
-/** `conflicting-state` (409): The operation is not legal in the current state; a staff order's unorderable guest is named in context. */
+/** `conflicting-state` (409): The operation is not legal in the current state; a staff order's unorderable guest, or the branch whose open tabs keep table service on, is named in context. */
 export interface ConflictingStateProblemContext {
-  readonly field: string;
-  readonly participantId: string;
+  readonly field?: string;
+  readonly participantId?: string;
   /** `ParticipantStatus`: 1 PendingApproval, 2 Approved, 3 Removed. */
-  readonly participantStatus: 1 | 2 | 3;
+  readonly participantStatus?: 1 | 2 | 3;
+  readonly branchId?: string;
+  readonly openTabCount?: number;
 }
 
 /** `conversation-closed` (409): Writing to a guest-message thread that has closed. */

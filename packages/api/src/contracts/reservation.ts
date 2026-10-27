@@ -20,6 +20,7 @@ import {
   BookingOverlapsOwnError,
   BookingBlockedNoShowsError,
   BookingRejectedError,
+  BookingsNotAcceptedError,
   BranchUnavailableError,
   ExpiredCodeError,
   FreeByRequiredError,
@@ -763,7 +764,9 @@ export function bookingFailure(
   if (error instanceof BranchUnavailableError) {
     return { kind: 'branchUnavailable', line: line('confirm.error.branchUnavailable') };
   }
-  if (isFeatureNotEnabled(error)) {
+  // Not taking bookings this way: the platform's switch (`feature-not-enabled`)
+  // or the venue's (`bookings-not-accepted`, `web-bookings-not-accepted`).
+  if (isFeatureNotEnabled(error) || error instanceof BookingsNotAcceptedError) {
     return { kind: 'featureOff', line: line('confirm.error.featureOff') };
   }
   if (

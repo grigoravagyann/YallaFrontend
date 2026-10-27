@@ -124,7 +124,10 @@ describe('the Features page', () => {
     await user.click(toggle('Table service'));
     await user.click(screen.getByRole('button', { name: 'Save features' }));
 
-    expect((await screen.findByRole('alert')).textContent).toMatch(/Tabs are open at Կենտրոն/u);
+    // The server names the branch and its tabs in the refusal's context.
+    expect((await screen.findByRole('alert')).textContent).toContain(
+      'Կենտրոն has 15 open tabs. Turning table service off would hide those bills',
+    );
   });
 
   it('warns, before anything is sent, that pre-orders need a booking channel', async () => {

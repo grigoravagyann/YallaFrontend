@@ -3060,7 +3060,9 @@
       "notReady_one": "{{branch}}: {{count}} dish on the menu is unfinished. Finish the menu, then turn table service on.",
       "notReady_other": "{{branch}}: {{count}} dishes on the menu are unfinished. Finish the menu, then turn table service on.",
       "openTabsAt_one": "Tabs are open at {{branches}}. Turning table service off would hide those bills from the people who owe them. Wait until they are settled.",
-      "openTabsAt_other": "Tabs are open at {{branches}}. Turning table service off would hide those bills from the people who owe them. Wait until they are settled."
+      "openTabsAt_other": "Tabs are open at {{branches}}. Turning table service off would hide those bills from the people who owe them. Wait until they are settled.",
+      "openTabsCount_one": "{{branch}} has {{count}} open tab. Turning table service off would hide that bill from the people who owe it. Wait until it is settled.",
+      "openTabsCount_other": "{{branch}} has {{count}} open tabs. Turning table service off would hide those bills from the people who owe them. Wait until they are settled."
     },
     "name": {
       "appBookings": "App bookings",

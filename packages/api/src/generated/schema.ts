@@ -3531,6 +3531,28 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/public/branches/{branchId}/reservations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Book a table from the public page
+         * @description **The public page's booking route** (yalla.am/{venue}/{branch}): `createReservation`'s rules, body and answer, with the branch in the path and no `channel` - it books on the `Web` channel. So it needs web bookings allowed by the platform (`409 feature-not-enabled`, `context.feature` 2) and the venue's online bookings switched on (`409 web-bookings-not-accepted`); the reservation policy need not have been saved, as the app's must. The diner is the one the code flow signed in (a proved number, as for `createReservation`).
+         *
+         *     Idempotent on `clientCommandId`: a retry returns the original booking, 200 rather than 201. Everything else - the statuses, short notice, the guest before, the limits and every refusal - is `createReservation`'s.
+         */
+        post: operations["createPublicReservation"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/public/branches/{branchId}/reviews": {
         parameters: {
             query?: never;
@@ -3660,7 +3682,9 @@ export interface paths {
         put?: never;
         /**
          * Book a table
-         * @description Idempotent on `clientCommandId`: a retry returns the original booking and creates nothing, answering 200 rather than 201. Lands as `Confirmed`, or `PendingApproval` (`awaitingApprovalBecause` says why) when the booking is at **short notice** - for the branch's today, or starting under six hours from now - the branch approves every booking, the party is over the branch's threshold, or the diner is over the rolling no-show threshold.
+         * @description **The diner app's booking route.** It books on the `App` channel whatever the body says: `channel` is deprecated and ignored (the public page books through `createPublicReservation`). So it needs app bookings allowed by the platform (`409 feature-not-enabled`, `context.feature` 1) and, the venue's own gate, online bookings switched on with the reservation policy saved (`409 bookings-not-accepted`).
+         *
+         *     Idempotent on `clientCommandId`: a retry returns the original booking and creates nothing, answering 200 rather than 201. Lands as `Confirmed`, or `PendingApproval` (`awaitingApprovalBecause` says why) when the booking is at **short notice** - for the branch's today, or starting under six hours from now - the branch approves every booking, the party is over the branch's threshold, or the diner is over the rolling no-show threshold.
          *
          *     A short-notice booking (`awaitingApprovalBecause` 4) is the floor's to decide, by `approvalExpiresAtUtc` - fifteen minutes from now, or the start if sooner. Unanswered by then it is declined (`CancelledByVenue`, `declinedBecause` 2 NoAnswer) and the diner gets a `reservation-decided` push with `expired` true. Count down to `approvalExpiresAtUtc`; read the booking again to see the answer.
          *
@@ -5513,6 +5537,51 @@ export interface components {
             /** @description 1 Cash, 2 Card. */
             method: components["schemas"]["Yalla.Domain.Takeaway.TakeawayPaymentMethod"];
         };
+        /** @description Body of `POST /api/public/branches/{branchId}/reservations`: the public page's booking. */
+        "Yalla.Api.Endpoints.CreatePublicReservationRequest": {
+            /**
+             * Format: date-time
+             * @description "I'll free the table by 21:25": the table's `mustFreeByUtc` from availability, once the diner agreed to it -
+             *     exactly as on Yalla.Api.Endpoints.CreateReservationRequest.
+             */
+            acceptsFreeByUtc?: string | null;
+            /**
+             * Format: uuid
+             * @description The caller's own id for this booking. <b>Required</b>: a retry answers the first booking.
+             */
+            clientCommandId: string;
+            /**
+             * Format: date
+             * @description Local calendar date at the branch, e.g. `2026-09-12`.
+             */
+            date: string;
+            /** @description Who to ask for at the door. */
+            guestName: string;
+            /** @description How to reach them when they are late. */
+            guestPhone: string;
+            /**
+             * @description A note to the venue. Optional; trimmed, blank means none, at most 500 characters, refused as
+             *     `validation-failed` naming `note` with bound `max`.
+             */
+            note?: string | null;
+            /**
+             * Format: int32
+             * @description How many are coming.
+             */
+            partySize: number;
+            /** @description Advisory only. The interval comes from the branch's turn time. */
+            stayHint?: components["schemas"]["Yalla.Domain.Enums.StayHint"] | null;
+            /**
+             * Format: uuid
+             * @description The table the diner picked off the room photos.
+             */
+            tableId: string;
+            /**
+             * Format: time
+             * @description Local wall-clock start at the branch, e.g. `19:30`.
+             */
+            time: string;
+        };
         /** @description Body for booking a table. */
         "Yalla.Api.Endpoints.CreateReservationRequest": {
             /**
@@ -5528,7 +5597,10 @@ export interface components {
              * @description The branch being booked.
              */
             branchId: string;
-            /** @description Where a booking was made from. */
+            /**
+             * @deprecated
+             * @description Where a booking was made from.
+             */
             channel: components["schemas"]["Yalla.Domain.Enums.ReservationChannel"];
             /**
              * Format: uuid
@@ -27511,7 +27583,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
                 };
             };
-            /** @description `branch-not-ready`: table service turned on with an unfinished menu. Also returned, with no `context`, when table service is turned off with tabs open, or the venue is deleted. */
+            /** @description `branch-not-ready`: table service turned on with an unfinished menu. `conflicting-state` when table service is turned off with tabs open (`context.branchId`, `context.openTabCount`), or, with no `context`, when the venue is deleted. */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -28936,7 +29008,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
                 };
             };
-            /** @description `branch-not-ready`: a branch would turn table service on with an unfinished menu (`context.branchId` names it). Also returned, with no `context`, when a branch would turn table service off with tabs open, or the venue is deleted. */
+            /** @description `branch-not-ready`: a branch would turn table service on with an unfinished menu (`context.branchId` names it). `conflicting-state` when a branch would turn table service off with tabs open (`context.branchId` names the first such branch, `context.openTabCount` its tabs), or, with no `context`, when the venue is deleted. */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -30302,6 +30374,122 @@ export interface operations {
                 };
                 content: {
                     "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+        };
+    };
+    createPublicReservation: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                branchId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["Yalla.Api.Endpoints.CreatePublicReservationRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Yalla.Application.Reservations.ReservationView"];
+                };
+            };
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Yalla.Application.Reservations.ReservationView"];
+                };
+            };
+            /** @description The request violated a domain rule or arrived malformed. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description No usable token was presented, or the one presented was rejected. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description `phone-not-verified`: the account registered with a number it has never proved. Send the diner through the code flow (`request-code`, `verify-code`) first; reading and cancelling bookings stay open meanwhile. `booking-blocked-no-shows`: blocked until `context.blockedUntilUtc`. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.BookingBlockedProblem"];
+                };
+            };
+            /** @description No such branch or table. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description `feature-not-enabled` (web bookings blocked by the platform), `web-bookings-not-accepted`, and every conflict `createReservation` answers. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.PhoneHasActiveBookingProblem"];
+                };
+            };
+            /** @description A branch rule refused the booking. Each rule has its own `code` - `reservation-party-exceeds-capacity`, `reservation-outside-opening-hours` and so on - with the numbers behind it in `context`, so the app can say which table to pick instead rather than showing a generic failure. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description Too many requests in the window, or a one-time credential is out of attempts. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description Unexpected failure. Quote the traceId from the body. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description The table's booking lock could not be had in time. `context.retryable` is true: unlike the 409, this one is worth retrying - with the same `clientCommandId`, so a retry that crosses with a late-committing original is recognised as a replay. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.LockTimeoutProblem"];
                 };
             };
         };

@@ -231,7 +231,8 @@ export default function BookingSheet({
         partySize,
         guestName: who.guestName,
         guestPhone: who.guestPhone,
-        // No app, so no push channel: the server knows not to promise one.
+        // The public page's own route (2026-10-27), and no push channel: the
+        // server knows not to promise one.
         channel: 'web',
         ...(who.note ? { note: who.note } : {}),
         ...(requiredFreeBy && agreedFreeBy ? { acceptsFreeByUtc: requiredFreeBy } : {}),

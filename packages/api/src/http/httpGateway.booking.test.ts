@@ -3,6 +3,7 @@ import type { CreateBookingCommand } from '../contracts/booking';
 import type { components } from '../generated/schema';
 import { fakeBackend, problemReply, type FakeRoute } from './fakeBackend.testkit';
 import { createHttpGateway } from './httpGateway';
+import { BookingsNotAcceptedError } from '../contracts/errors';
 
 type Schemas = components['schemas'];
 type ReservationViewWire = Schemas['Yalla.Application.Reservations.ReservationView'];
@@ -182,12 +183,38 @@ describe('creating a booking', () => {
     });
   });
 
-  it('sends channel 2 from the public web page', async () => {
+  it('books from the public page on its own route, the branch in the path and no channel', async () => {
+    const { gateway, backend } = gatewayOver({
+      [`POST /api/public/branches/${BRANCH}/reservations`]: { status: 201, body: VIEW },
+    });
+    await gateway.createBooking({ ...COMMAND, channel: 'web' });
+    const body = backend.requests[0]?.body as Record<string, unknown>;
+    expect(backend.requests[0]?.path).toBe(`/api/public/branches/${BRANCH}/reservations`);
+    expect(body).not.toHaveProperty('channel');
+    expect(body).not.toHaveProperty('branchId');
+    expect(body['clientCommandId']).toBe(COMMAND.commandId);
+  });
+
+  it('books from the app on /api/reservations, which is always the app channel', async () => {
     const { gateway, backend } = gatewayOver({
       'POST /api/reservations': { status: 201, body: VIEW },
     });
-    await gateway.createBooking({ ...COMMAND, channel: 'web' });
-    expect((backend.requests[0]?.body as { channel: number }).channel).toBe(2);
+    await gateway.createBooking({ ...COMMAND, channel: 'app' });
+    expect((backend.requests[0]?.body as { channel: number }).channel).toBe(1);
+  });
+
+  it('reads the public route refusing web bookings as not taking bookings', async () => {
+    const { gateway } = gatewayOver({
+      [`POST /api/public/branches/${BRANCH}/reservations`]: problemReply(
+        409,
+        'web-bookings-not-accepted',
+      ),
+    });
+    const caught = await gateway
+      .createBooking({ ...COMMAND, channel: 'web' })
+      .then(() => null)
+      .catch((error: unknown) => error);
+    expect(caught).toBeInstanceOf(BookingsNotAcceptedError);
   });
 
   it('names the venue when the browse list has been read', async () => {

@@ -1,8 +1,10 @@
 import {
   BranchNotReadyError,
   ConcurrencyConflictError,
+  ProblemCodes,
   ValidationError,
   isOffline,
+  problemContext,
   type BranchFeature,
   type ConsoleVenueDetail,
 } from '@yalla/api';
@@ -45,6 +47,15 @@ export function featuresRefusalText(
   }
   if (error instanceof ConcurrencyConflictError) {
     if (venue.status === 'deleted') return t('features.deleted');
+    // The server names the branch whose open tabs refused, and how many.
+    const context = problemContext(error.problem, ProblemCodes.ConflictingState);
+    if (typeof context.branchId === 'string') {
+      const count = typeof context.openTabCount === 'number' ? context.openTabCount : 0;
+      return count > 0
+        ? t('features.refusal.openTabsCount', { branch: nameOf(context.branchId), count })
+        : t('features.refusal.openTabsAt', { branches: nameOf(context.branchId), count: 1 });
+    }
+    // A server that names none: the branches the venue read says have tabs open.
     if (!features.includes('tableService')) {
       const busy = venue.branches
         .filter(

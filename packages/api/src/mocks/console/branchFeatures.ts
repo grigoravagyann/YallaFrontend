@@ -57,8 +57,10 @@ export function branchFeaturesMethods(
     const had = branch.features.includes('tableService');
     const wants = next.includes('tableService');
     if (had && !wants && (branch.openTabCount ?? 0) > 0) {
+      // As the server's (2026-10-27): the branch that refused, and its tabs.
       throw conflict(
         `${branch.name} has ${branch.openTabCount ?? 0} open tab(s). Turning table service off would hide those bills from the people who owe them. Wait until they are settled.`,
+        { branchId: branch.id, openTabCount: branch.openTabCount ?? 0 },
       );
     }
     if (!had && wants) {
