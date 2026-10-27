@@ -7,6 +7,7 @@ import {
   type BranchFeature,
   type EnrolledDevice,
   type StaffGateway,
+  type StaffRosterEntry,
   type StaffSessionSnapshot,
 } from '@yalla/api';
 import { GatewayProvider } from '@yalla/api/react';
@@ -52,13 +53,14 @@ vi.mock('../offline/commandStore', async (importOriginal) =>
 );
 
 const refreshDevice = vi.hoisted(() => vi.fn(async () => undefined));
+const roster = vi.hoisted(() => vi.fn(async (): Promise<readonly StaffRosterEntry[]> => []));
 
 vi.mock('./auth/staffSession', () => ({
   staffAuthAvailable: true,
   staffSession: {
     restore: async () => undefined,
     refreshDevice,
-    roster: async () => [],
+    roster,
     signOut: async () => {
       const now = session.get() as StaffSessionSnapshot;
       session.set({ ...now, state: 'locked', lastSignOut: 'signedOut' });
@@ -137,6 +139,8 @@ afterEach(() => {
   cleanup();
   vi.restoreAllMocks();
   refreshDevice.mockClear();
+  roster.mockReset();
+  roster.mockResolvedValue([]);
   resetCommandStore();
 });
 
@@ -193,6 +197,45 @@ describe('the kitchen with its screen switched off', () => {
     );
     // The keypad's own line, above the PIN, says it.
     expect(notes.some((note) => note.closest('.ft-pin-note'))).toBe(true);
+  });
+});
+
+describe('the tablet keypad after a reload, with the kitchen screen switched off', () => {
+  it('tells a kitchen account before a PIN, from the device record, and keeps the pad shut', async () => {
+    roster.mockResolvedValue([
+      {
+        staffMemberId: 'k1',
+        fullName: 'Hasmik Kitchen',
+        role: 'kitchen',
+        onShiftNow: false,
+        shift: null,
+      },
+      {
+        staffMemberId: 'w1',
+        fullName: 'Aram Waiter',
+        role: 'waiter',
+        onShiftNow: false,
+        shift: null,
+      },
+    ]);
+    // A reload: locked, no reason remembered, only the device's own features.
+    session.set({
+      state: 'locked',
+      device: { ...device, features: without('kitchenDisplay') },
+      identity: null,
+      lastSignOut: null,
+    } satisfies StaffSessionSnapshot);
+    renderFloor(gatewayWith());
+
+    (await screen.findByRole('button', { name: 'Hasmik Kitchen' })).click();
+    const alert = await screen.findByRole('alert');
+    expect(alert.textContent).toContain("The kitchen screen isn't enabled for this branch.");
+    expect((screen.getByRole('button', { name: '1' }) as HTMLButtonElement).disabled).toBe(true);
+
+    // A waiter on the same tablet is not held up by it.
+    screen.getByRole('button', { name: 'Aram Waiter' }).click();
+    expect(await screen.findByRole('button', { name: '1' })).toHaveProperty('disabled', false);
+    expect(screen.queryByText(/The kitchen screen isn't enabled/u)).toBeNull();
   });
 });
 

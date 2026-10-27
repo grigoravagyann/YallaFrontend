@@ -212,7 +212,14 @@ export function PinScreen({ device, lastSignOut }: PinScreenProps) {
   const chosenId = staffMemberId ?? (typing ? typedId.trim() || null : null);
   const chosen = people.find((person) => person.staffMemberId === staffMemberId);
   const locked = lock !== null && (lock.until === null || Date.parse(lock.until) > now.getTime());
-  const padOff = busy || chosenId === null || locked || !online;
+  // The kitchen screen switched off at this branch, from the tablet's own
+  // device record: it holds across a reload, which the reason the last lock
+  // gave does not. A kitchen account picked here is told before typing a PIN
+  // the server would only refuse.
+  const allowed = device?.features;
+  const kitchenOffHere = allowed !== undefined && !allowed.includes('kitchenDisplay');
+  const chosenKitchenOff = kitchenOffHere && chosen?.entry?.role === 'kitchen';
+  const padOff = busy || chosenId === null || locked || !online || chosenKitchenOff;
 
   function reset(): void {
     setPin('');
@@ -520,6 +527,11 @@ export function PinScreen({ device, lastSignOut }: PinScreenProps) {
               <p className="is-error" role="alert">
                 <span>{t('pin.locked')}</span>
                 <small>{t('pin.askManager')}</small>
+              </p>
+            ) : chosenKitchenOff ? (
+              <p className="is-error" role="alert">
+                <span>{t('features.kitchenOff')}</span>
+                <small>{t('features.askManager')}</small>
               </p>
             ) : failure === 'wrong' ? (
               <p className="is-error" role="alert">
