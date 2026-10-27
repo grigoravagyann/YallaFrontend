@@ -27,8 +27,10 @@ function axisTop(most: number): number {
  *
  * Every number is reachable without a pointer: each column is one stop of a
  * roving group (the arrow keys, Home and End move between days) whose name
- * says the day and its sales, the same words the tooltip shows on hover or
- * focus — and "Show the numbers" opens the same series as a table.
+ * says the day and its sales, the same words the tooltip shows on hover,
+ * focus or a tap — and "Show the numbers" opens the same series as a table.
+ * A tap is a click: iOS gives a tapped button no focus, and a finger's
+ * pointer leaves the moment it lifts, so the tip stays until the next tap.
  */
 export function SalesChart({ daily, today, locale }: SalesChartProps) {
   const { t } = useTranslation(['admin', 'common']);
@@ -110,7 +112,9 @@ export function SalesChart({ daily, today, locale }: SalesChartProps) {
             role="group"
             aria-label={t('person.chart.label')}
             onKeyDown={onKey}
-            onPointerLeave={() => setActive(null)}
+            onPointerLeave={(event) => {
+              if (event.pointerType === 'mouse') setActive(null);
+            }}
           >
             {daily.map((day, index) => {
               const isToday = day.date === today;
@@ -125,7 +129,13 @@ export function SalesChart({ daily, today, locale }: SalesChartProps) {
                     className={isToday ? 'yc-sc-hit is-today' : 'yc-sc-hit'}
                     tabIndex={index === stop ? 0 : -1}
                     aria-label={said(day)}
-                    onPointerEnter={() => setActive(index)}
+                    onPointerEnter={(event) => {
+                      if (event.pointerType === 'mouse') setActive(index);
+                    }}
+                    onClick={() => {
+                      setActive(index);
+                      setFocusIndex(index);
+                    }}
                     onFocus={() => {
                       setActive(index);
                       setFocusIndex(index);
