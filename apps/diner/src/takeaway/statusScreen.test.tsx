@@ -139,7 +139,7 @@ describe('a sent order', () => {
   });
 
   it('calls the venue and opens directions', async () => {
-    const open = vi.spyOn(Linking, 'openURL').mockResolvedValue(true);
+    const open = vi.spyOn(Linking, 'openURL').mockResolvedValue(undefined);
     gateway.getTakeawayOrder.mockResolvedValue(takeawayOrder());
     renderStatus();
 

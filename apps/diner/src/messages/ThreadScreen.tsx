@@ -25,6 +25,7 @@ import {
   View,
   type NativeScrollEvent,
   type NativeSyntheticEvent,
+  type ScrollViewInstance,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { EmptyState } from '../components/EmptyState';
@@ -191,7 +192,7 @@ function Thread({
   const [answeredAsk, setAnsweredAsk] = useState<string | null | undefined>(undefined);
   /** The last text tried, and its command id: sent again unchanged, it is the same command. */
   const attempt = useRef<{ readonly text: string; readonly id: string } | null>(null);
-  const scroll = useRef<ScrollView>(null);
+  const scroll = useRef<ScrollViewInstance>(null);
   /**
    * The reader is at the newest message (or has just sent): what arrives is
    * scrolled to. Scrolled up to read back, they stay where they are and

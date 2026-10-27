@@ -275,7 +275,7 @@ export default function BookingsScreen() {
             />
           </Rise>
         )}
-        ListEmptyComponent={hero ? null : empty}
+        ListEmptyComponent={hero ? undefined : empty}
         ListFooterComponent={<GuestRecordCard record={record} style={styles.record} />}
       />
 

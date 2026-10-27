@@ -13,7 +13,9 @@ import {
   TextInput as RNTextInput,
   StyleSheet,
   type StyleProp,
+  type TextInputInstance,
   type TextInputProps,
+  type TextInstance,
   type TextProps,
   type TextStyle,
 } from 'react-native';
@@ -63,21 +65,26 @@ function nearestDisplayWeight(weight: TextStyle['fontWeight']): DisplayWeightVal
  * `display` switches to Yalla Serif for the two display steps of the type
  * scale — screen titles, the big number on a card. Body text never sets it.
  *
- * The type of the same name is the underlying native handle, so `useRef<Text>`
- * and `useRef<TextInput>` keep meaning what they always did.
+ * The type of the same name is the underlying native handle (React Native's
+ * `TextInstance` / `TextInputInstance`), so `useRef<Text>` and
+ * `useRef<TextInput>` give a ref with `measure`, `focus` and friends.
  */
-export type Text = RNText;
+export type Text = TextInstance;
 export function Text({
   style,
   display = false,
   ref,
   ...props
-}: TextProps & { ref?: Ref<RNText>; display?: boolean }) {
+}: TextProps & { ref?: Ref<TextInstance>; display?: boolean }) {
   return <RNText ref={ref} {...props} style={withFace([styles.ink, style], display)} />;
 }
 
-export type TextInput = RNTextInput;
-export function TextInput({ style, ref, ...props }: TextInputProps & { ref?: Ref<RNTextInput> }) {
+export type TextInput = TextInputInstance;
+export function TextInput({
+  style,
+  ref,
+  ...props
+}: TextInputProps & { ref?: Ref<TextInputInstance> }) {
   return (
     <RNTextInput
       ref={ref}

@@ -272,7 +272,7 @@ export default function NotificationsScreen() {
         ListFooterComponent={
           feed.isFetchingNextPage ? (
             <ActivityIndicator color={colors.primary} style={styles.footer} />
-          ) : null
+          ) : undefined
         }
         ListEmptyComponent={
           <EmptyState

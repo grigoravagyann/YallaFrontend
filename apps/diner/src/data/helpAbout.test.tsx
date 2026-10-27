@@ -57,7 +57,7 @@ describe('About', () => {
     cleanup();
 
     vi.stubEnv('EXPO_PUBLIC_TERMS_URL', 'https://example.test/terms');
-    const open = vi.spyOn(Linking, 'openURL').mockResolvedValue(true);
+    const open = vi.spyOn(Linking, 'openURL').mockResolvedValue(undefined);
     render(<AboutScreen />);
 
     fireEvent.click(screen.getByRole('button', { name: 'about.terms' }));
@@ -104,7 +104,7 @@ describe('Help & Support', () => {
   it('offers the configured email and phone, and opens them with mailto: and tel:', () => {
     vi.stubEnv('EXPO_PUBLIC_SUPPORT_EMAIL', 'help@example.test');
     vi.stubEnv('EXPO_PUBLIC_SUPPORT_PHONE', '+374 91 000 123');
-    const open = vi.spyOn(Linking, 'openURL').mockResolvedValue(true);
+    const open = vi.spyOn(Linking, 'openURL').mockResolvedValue(undefined);
 
     render(<HelpScreen />);
 

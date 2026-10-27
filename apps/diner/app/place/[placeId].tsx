@@ -15,7 +15,8 @@ import {
   useWindowDimensions,
   type NativeScrollEvent,
   type NativeSyntheticEvent,
-  type ScrollView,
+  type ScrollViewInstance,
+  type ViewInstance,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useReducedMotion } from '../../src/hooks/useReducedMotion';
@@ -231,7 +232,7 @@ function PlaceDetails({
   // The page is one long read — Menu, Rooms, Reviews, About — and the tabs
   // jump to a section and follow the one being read. The scroll is read on
   // every event but React only hears when the answer changes.
-  const scrollRef = useRef<ScrollView>(null);
+  const scrollRef = useRef<ScrollViewInstance>(null);
   const sectionTops = useRef<Partial<Record<PlaceTab, number>>>({});
   const frame = useRef({ viewport: 0, content: 0, barHeight });
   const [tab, setTab] = useState<PlaceTab>('menu');
@@ -290,11 +291,11 @@ function PlaceDetails({
    * block's size changes, so a section pushed down by the menu arriving would
    * keep its old place.
    */
-  const contentRef = useRef<View>(null);
-  const menuRef = useRef<View>(null);
-  const roomsRef = useRef<View>(null);
-  const reviewsRef = useRef<View>(null);
-  const aboutRef = useRef<View>(null);
+  const contentRef = useRef<ViewInstance>(null);
+  const menuRef = useRef<ViewInstance>(null);
+  const roomsRef = useRef<ViewInstance>(null);
+  const reviewsRef = useRef<ViewInstance>(null);
+  const aboutRef = useRef<ViewInstance>(null);
   const measureSection = useCallback((key: PlaceTab, then?: (top: number) => void) => {
     const content = contentRef.current;
     const node = {

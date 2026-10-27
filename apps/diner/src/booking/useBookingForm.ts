@@ -2,7 +2,7 @@ import { isShortNotice, type CopyLine } from '@yalla/api';
 import { formatTime } from '@yalla/format';
 import { useLocale, useTranslation } from '@yalla/i18n';
 import { useCallback, useMemo, useState, type MutableRefObject, type RefObject } from 'react';
-import type { ScrollView } from 'react-native';
+import type { ScrollViewInstance } from 'react-native';
 import type { BookingChange } from '../components/bookings/changeBooking';
 import { useBookingRules } from '../data/queries';
 import { useMinuteClock } from '../hooks/useMinuteClock';
@@ -35,7 +35,7 @@ export interface BookingFormInput {
 
 /** The scroller and where "Pick a table" starts in it, held by the form that draws them. */
 export interface BookingFormRefs {
-  readonly scrollRef: RefObject<ScrollView | null>;
+  readonly scrollRef: RefObject<ScrollViewInstance | null>;
   // Where "Pick a table" starts in the scroll, so a table taken under the
   // diner's finger can bring them back to the photo.
   readonly pickTop: MutableRefObject<number>;
