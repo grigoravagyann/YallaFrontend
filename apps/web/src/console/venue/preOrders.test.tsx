@@ -331,6 +331,10 @@ describe('the menu', () => {
       name: 'Cappuccino: can be pre-ordered',
     });
     expect(toggle.getAttribute('aria-checked')).toBe('true');
+    // The tooltip's words beside the switch, for a phone where nothing hovers.
+    const said = () => toggle.parentElement!.querySelector('.yc-mn-po-state')?.textContent;
+    expect(toggle.getAttribute('title')).toBe('Offered');
+    expect(said()).toBe('Offered');
 
     await user.click(toggle);
     await waitFor(() => expect(save).toHaveBeenCalledTimes(1));
@@ -345,6 +349,7 @@ describe('the menu', () => {
       ),
     ).toBeTruthy();
     await waitFor(() => expect(toggle.getAttribute('aria-checked')).toBe('false'));
+    expect(said()).toBe('Not offered');
 
     await user.click(toggle);
     await waitFor(() => expect(save).toHaveBeenCalledTimes(2));

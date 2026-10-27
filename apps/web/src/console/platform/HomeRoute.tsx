@@ -34,6 +34,7 @@ import {
   VenuesIcon,
   WarningIcon,
 } from '../ui/icons';
+import { DataTable } from '../kit';
 import { PageHeader } from '../ui/PageHeader';
 import { BookingBlocksCard } from './BookingBlocksCard';
 import { useVenueTypeLabel } from './venue/venueFields';
@@ -686,47 +687,45 @@ function RecentVenues({
       {venues.length === 0 ? (
         <p className="yc-empty-line">{t('home.recent.empty')}</p>
       ) : (
-        <div className="yc-tscroll">
-          <table className="yc-tbl" aria-labelledby={titleId}>
-            <thead>
-              <tr>
-                <th scope="col">{t('venues.column.name')}</th>
-                <th scope="col">{t('venues.column.category')}</th>
-                <th scope="col" className="yc-num">
-                  {t('home.recent.branches')}
-                </th>
-                <th scope="col">{t('venues.column.status')}</th>
-                <th scope="col">{t('home.recent.added')}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {venues.map((venue) => (
-                <tr key={venue.id}>
-                  <td>
-                    <div className="yc-vcell">
-                      <VenueThumb venue={{ name: venue.name }} />
-                      <div>
-                        <Link className="yc-vname" to={`/platform/venues/${venue.id}`}>
-                          {venue.name}
-                        </Link>
-                        <div className="yc-slug">{venue.slug}</div>
-                      </div>
+        <DataTable labelledBy={titleId} phone="cards">
+          <thead>
+            <tr>
+              <th scope="col">{t('venues.column.name')}</th>
+              <th scope="col">{t('venues.column.category')}</th>
+              <th scope="col" className="yc-num">
+                {t('home.recent.branches')}
+              </th>
+              <th scope="col">{t('venues.column.status')}</th>
+              <th scope="col">{t('home.recent.added')}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {venues.map((venue) => (
+              <tr key={venue.id}>
+                <td>
+                  <div className="yc-vcell">
+                    <VenueThumb venue={{ name: venue.name }} />
+                    <div>
+                      <Link className="yc-vname" to={`/platform/venues/${venue.id}`}>
+                        {venue.name}
+                      </Link>
+                      <div className="yc-slug">{venue.slug}</div>
                     </div>
-                  </td>
-                  <td>{typeLabel(venue.type)}</td>
-                  <td className="yc-num">{venue.branchCount}</td>
-                  <td>
-                    <span className={PILL[venue.status]}>
-                      <span className="yc-dot" aria-hidden="true" />
-                      {t(`status.${venue.status}`)}
-                    </span>
-                  </td>
-                  <td>{formatDate(venue.createdAtUtc, CONSOLE_TIME_ZONE, locale)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+                  </div>
+                </td>
+                <td>{typeLabel(venue.type)}</td>
+                <td className="yc-num">{venue.branchCount}</td>
+                <td>
+                  <span className={PILL[venue.status]}>
+                    <span className="yc-dot" aria-hidden="true" />
+                    {t(`status.${venue.status}`)}
+                  </span>
+                </td>
+                <td>{formatDate(venue.createdAtUtc, CONSOLE_TIME_ZONE, locale)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </DataTable>
       )}
     </section>
   );

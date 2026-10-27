@@ -34,6 +34,7 @@ import { useLocale, useTranslation } from '@yalla/i18n';
 import { useEffect, useMemo, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import { QueryFailureNotice } from '../../../components/QueryFailureNotice';
+import { DataTable } from '../../kit';
 import { Dialog } from '../../ui/Dialog';
 import {
   AlertCircleIcon,
@@ -772,193 +773,204 @@ export function MenuEditorScreen() {
               </p>
             </div>
           ) : (
-            <div className="yc-tscroll">
-              <table
-                className={[
-                  'yc-tbl yc-mn-tbl',
-                  preOrders ? 'has-preorder' : '',
-                  takeaway ? 'has-takeaway' : '',
-                ]
-                  .filter(Boolean)
-                  .join(' ')}
-              >
-                <thead>
-                  <tr>
-                    <th scope="col">{t('menu.column.dish')}</th>
-                    <th scope="col" className="yc-num">
-                      {t('menu.column.price')}
+            <DataTable
+              caption={t('nav.menu')}
+              phone="cards"
+              className={[
+                'yc-mn-tbl',
+                preOrders ? 'has-preorder' : '',
+                takeaway ? 'has-takeaway' : '',
+              ]
+                .filter(Boolean)
+                .join(' ')}
+            >
+              <thead>
+                <tr>
+                  <th scope="col">{t('menu.column.dish')}</th>
+                  <th scope="col" className="yc-num">
+                    {t('menu.column.price')}
+                  </th>
+                  <th scope="col">{t('menu.column.available')}</th>
+                  {preOrders ? (
+                    <th scope="col" className="yc-mn-po">
+                      {t('menu.column.preOrder')}
                     </th>
-                    <th scope="col">{t('menu.column.available')}</th>
-                    {preOrders ? (
-                      <th scope="col" className="yc-mn-po">
-                        {t('menu.column.preOrder')}
-                      </th>
-                    ) : null}
-                    {takeaway ? (
-                      <th scope="col" className="yc-mn-po">
-                        {t('menu.column.takeaway')}
-                      </th>
-                    ) : null}
-                    <th scope="col">{t('menu.column.status')}</th>
-                    <th scope="col">
-                      <span className="yc-sr">{t('menu.column.actions')}</span>
+                  ) : null}
+                  {takeaway ? (
+                    <th scope="col" className="yc-mn-po">
+                      {t('menu.column.takeaway')}
                     </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {visibleItems.map((item) => {
-                    // The server's own list when it sends one (VC3 wire §2).
-                    const gaps = storedGaps(item);
-                    const siblings =
-                      categories.find((category) => category.id === item.categoryId)?.items ?? [];
-                    const index = siblings.indexOf(item);
-                    return (
-                      <tr
-                        key={item.id}
-                        // Addressable, so the reports screen can link straight at
-                        // a dish nobody ordered.
-                        id={menuItemAnchorId(item.id)}
-                        draggable={canOrder}
-                        onDragStart={() => setDragging({ list: 'item', index })}
-                        onDragOver={(event) => event.preventDefault()}
-                        onDrop={() => {
-                          if (canOrder && dragging?.list === 'item') {
-                            void move('item', dragging.index, index);
-                          }
-                          setDragging(null);
-                        }}
-                        className={
-                          [
-                            item.isAvailable ? '' : 'is-sold',
-                            linkedItemId === item.id ? 'is-linked' : '',
-                          ]
-                            .filter(Boolean)
-                            .join(' ') || undefined
+                  ) : null}
+                  <th scope="col">{t('menu.column.status')}</th>
+                  <th scope="col">
+                    <span className="yc-sr">{t('menu.column.actions')}</span>
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {visibleItems.map((item) => {
+                  // The server's own list when it sends one (VC3 wire §2).
+                  const gaps = storedGaps(item);
+                  const siblings =
+                    categories.find((category) => category.id === item.categoryId)?.items ?? [];
+                  const index = siblings.indexOf(item);
+                  return (
+                    <tr
+                      key={item.id}
+                      // Addressable, so the reports screen can link straight at
+                      // a dish nobody ordered.
+                      id={menuItemAnchorId(item.id)}
+                      draggable={canOrder}
+                      onDragStart={() => setDragging({ list: 'item', index })}
+                      onDragOver={(event) => event.preventDefault()}
+                      onDrop={() => {
+                        if (canOrder && dragging?.list === 'item') {
+                          void move('item', dragging.index, index);
                         }
-                      >
-                        <td>
-                          <div className="yc-dish">
-                            {item.photo.thumbnailUrl ? (
-                              <img className="yc-dish-ph" src={item.photo.cardUrl} alt="" />
-                            ) : (
-                              <span className="yc-dish-ph yc-dish-none" aria-hidden="true">
-                                <ImageIcon />
-                              </span>
-                            )}
-                            <div className="yc-dish-t">
-                              <div className="yc-dn">{item.name}</div>
-                              <div className="yc-dd">
-                                {item.description.trim() || t('menu.dish.noDescription')}
-                              </div>
-                              {gaps.length > 0 ? (
-                                <div className="yc-mchips">
-                                  {gaps.map((gap) => (
-                                    <span key={gap}>{t(`menu.gap.${gap}`)}</span>
-                                  ))}
-                                </div>
-                              ) : null}
-                            </div>
-                          </div>
-                        </td>
-                        <td className="yc-num">{fmt(item.priceDram)}</td>
-                        <td>
-                          <span className="yc-swl">
-                            <button
-                              type="button"
-                              className="yc-sw"
-                              role="switch"
-                              aria-checked={item.isAvailable}
-                              aria-label={t('menu.dish.availableAria', { name: item.name })}
-                              aria-disabled={availabilityFor !== null}
-                              onClick={() => toggleAvailable(item)}
-                            />
-                            {item.isAvailable ? t('menu.available') : t('menu.soldOut')}
-                          </span>
-                        </td>
-                        {preOrders ? (
-                          <td className="yc-mn-po">
-                            {/* The switch alone: the column says what it is,
-                                its knob and its name say which way it is. */}
-                            <button
-                              type="button"
-                              className="yc-sw"
-                              role="switch"
-                              aria-checked={!preOrders.excludedMenuItemIds.includes(item.id)}
-                              aria-label={t('menu.dish.preOrderAria', { name: item.name })}
-                              aria-disabled={preOrderFor !== null}
-                              title={
-                                preOrders.excludedMenuItemIds.includes(item.id)
-                                  ? t('menu.preOrderNo')
-                                  : t('menu.preOrderYes')
-                              }
-                              onClick={() => togglePreOrder(item)}
-                            />
-                          </td>
-                        ) : null}
-                        {takeaway ? (
-                          <td className="yc-mn-po">
-                            <button
-                              type="button"
-                              className="yc-sw"
-                              role="switch"
-                              aria-checked={item.availableForTakeaway !== false}
-                              aria-label={t('menu.dish.takeawayAria', { name: item.name })}
-                              aria-disabled={takeawayFor !== null}
-                              title={
-                                item.availableForTakeaway === false
-                                  ? t('menu.takeawayNo')
-                                  : t('menu.takeawayYes')
-                              }
-                              onClick={() => toggleTakeaway(item)}
-                            />
-                          </td>
-                        ) : null}
-                        <td>
-                          {gaps.length > 0 ? (
-                            <span className="yc-pill yc-pill-amber">
-                              <span className="yc-dot" aria-hidden="true" />
-                              {t('menu.incomplete.badge', { count: gaps.length })}
-                            </span>
+                        setDragging(null);
+                      }}
+                      className={
+                        [
+                          item.isAvailable ? '' : 'is-sold',
+                          linkedItemId === item.id ? 'is-linked' : '',
+                        ]
+                          .filter(Boolean)
+                          .join(' ') || undefined
+                      }
+                    >
+                      <td>
+                        <div className="yc-dish">
+                          {item.photo.thumbnailUrl ? (
+                            <img className="yc-dish-ph" src={item.photo.cardUrl} alt="" />
                           ) : (
-                            <span className="yc-pill yc-pill-green">
-                              <span className="yc-dot" aria-hidden="true" />
-                              {t('menu.complete')}
+                            <span className="yc-dish-ph yc-dish-none" aria-hidden="true">
+                              <ImageIcon />
                             </span>
                           )}
-                        </td>
-                        <td className="yc-num">
-                          <span className="yc-row-acts">
-                            {canOrder ? (
-                              <MoveButtons
-                                name={item.name}
-                                first={index === 0}
-                                last={index === siblings.length - 1}
-                                busy={moving}
-                                onMove={(delta) => void move('item', index, index + delta)}
-                              />
+                          <div className="yc-dish-t">
+                            <div className="yc-dn">{item.name}</div>
+                            <div className="yc-dd">
+                              {item.description.trim() || t('menu.dish.noDescription')}
+                            </div>
+                            {gaps.length > 0 ? (
+                              <div className="yc-mchips">
+                                {gaps.map((gap) => (
+                                  <span key={gap}>{t(`menu.gap.${gap}`)}</span>
+                                ))}
+                              </div>
                             ) : null}
-                            <button
-                              type="button"
-                              className="yc-btn yc-btn-sec yc-btn-sm"
-                              onClick={() =>
-                                setEditing({
-                                  mode: 'edit',
-                                  item,
-                                  draft: itemToDraft(item),
-                                  photo: item.photo.photoId ? item.photo : null,
-                                })
-                              }
-                            >
-                              {t('common:action.edit')}
-                            </button>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="yc-num">{fmt(item.priceDram)}</td>
+                      <td>
+                        <span className="yc-swl">
+                          <button
+                            type="button"
+                            className="yc-sw"
+                            role="switch"
+                            aria-checked={item.isAvailable}
+                            aria-label={t('menu.dish.availableAria', { name: item.name })}
+                            aria-disabled={availabilityFor !== null}
+                            onClick={() => toggleAvailable(item)}
+                          />
+                          {item.isAvailable ? t('menu.available') : t('menu.soldOut')}
+                        </span>
+                      </td>
+                      {preOrders ? (
+                        <td className="yc-mn-po">
+                          {/* The switch alone: the column says what it is,
+                                its knob and its name say which way it is. */}
+                          <button
+                            type="button"
+                            className="yc-sw"
+                            role="switch"
+                            aria-checked={!preOrders.excludedMenuItemIds.includes(item.id)}
+                            aria-label={t('menu.dish.preOrderAria', { name: item.name })}
+                            aria-disabled={preOrderFor !== null}
+                            title={
+                              preOrders.excludedMenuItemIds.includes(item.id)
+                                ? t('menu.preOrderNo')
+                                : t('menu.preOrderYes')
+                            }
+                            onClick={() => togglePreOrder(item)}
+                          />
+                          {/* The tooltip's words, where nothing hovers (a phone). */}
+                          <span className="yc-mn-po-state" aria-hidden="true">
+                            {preOrders.excludedMenuItemIds.includes(item.id)
+                              ? t('menu.preOrderNo')
+                              : t('menu.preOrderYes')}
                           </span>
                         </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
+                      ) : null}
+                      {takeaway ? (
+                        <td className="yc-mn-po">
+                          <button
+                            type="button"
+                            className="yc-sw"
+                            role="switch"
+                            aria-checked={item.availableForTakeaway !== false}
+                            aria-label={t('menu.dish.takeawayAria', { name: item.name })}
+                            aria-disabled={takeawayFor !== null}
+                            title={
+                              item.availableForTakeaway === false
+                                ? t('menu.takeawayNo')
+                                : t('menu.takeawayYes')
+                            }
+                            onClick={() => toggleTakeaway(item)}
+                          />
+                          <span className="yc-mn-po-state" aria-hidden="true">
+                            {item.availableForTakeaway === false
+                              ? t('menu.takeawayNo')
+                              : t('menu.takeawayYes')}
+                          </span>
+                        </td>
+                      ) : null}
+                      <td>
+                        {gaps.length > 0 ? (
+                          <span className="yc-pill yc-pill-amber">
+                            <span className="yc-dot" aria-hidden="true" />
+                            {t('menu.incomplete.badge', { count: gaps.length })}
+                          </span>
+                        ) : (
+                          <span className="yc-pill yc-pill-green">
+                            <span className="yc-dot" aria-hidden="true" />
+                            {t('menu.complete')}
+                          </span>
+                        )}
+                      </td>
+                      <td className="yc-num yc-tc-act">
+                        <span className="yc-row-acts">
+                          {canOrder ? (
+                            <MoveButtons
+                              name={item.name}
+                              first={index === 0}
+                              last={index === siblings.length - 1}
+                              busy={moving}
+                              onMove={(delta) => void move('item', index, index + delta)}
+                            />
+                          ) : null}
+                          <button
+                            type="button"
+                            className="yc-btn yc-btn-sec yc-btn-sm"
+                            onClick={() =>
+                              setEditing({
+                                mode: 'edit',
+                                item,
+                                draft: itemToDraft(item),
+                                photo: item.photo.photoId ? item.photo : null,
+                              })
+                            }
+                          >
+                            {t('common:action.edit')}
+                          </button>
+                        </span>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </DataTable>
           )}
         </section>
       </div>

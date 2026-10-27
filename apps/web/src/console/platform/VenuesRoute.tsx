@@ -16,6 +16,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useResumeVenue, useSuspendVenue } from '../../data/queries';
 import { newCommandId } from '../../lib/commandId';
+import { DataTable } from '../kit';
 import { Dialog } from '../ui/Dialog';
 import { ErrorState, errorKindFor } from '../ui/ErrorState';
 import { useFeatureText } from '../ui/featureText';
@@ -362,31 +363,28 @@ export function VenuesRoute() {
     );
   } else if (query.isLoading) {
     body = (
-      <div className="yc-tscroll">
-        <table className="yc-tbl" aria-busy="true">
-          <caption className="yc-sr">{t('venues.loading')}</caption>
-          <tbody>
-            {Array.from({ length: SKELETON_ROWS }, (_, row) => (
-              <tr key={row} aria-hidden="true">
-                <td>
-                  <div className="yc-vcell">
-                    <span className="yc-sk yc-sk-thumb" />
-                    <span className="yc-sk-lines">
-                      <span className="yc-sk yc-sk-name" />
-                      <span className="yc-sk yc-sk-slug" />
-                    </span>
-                  </div>
+      <DataTable caption={t('venues.loading')} busy phone="cards">
+        <tbody>
+          {Array.from({ length: SKELETON_ROWS }, (_, row) => (
+            <tr key={row} aria-hidden="true">
+              <td>
+                <div className="yc-vcell">
+                  <span className="yc-sk yc-sk-thumb" />
+                  <span className="yc-sk-lines">
+                    <span className="yc-sk yc-sk-name" />
+                    <span className="yc-sk yc-sk-slug" />
+                  </span>
+                </div>
+              </td>
+              {Array.from({ length: columns - 1 }, (_, cell) => (
+                <td key={cell}>
+                  <span className="yc-sk yc-sk-cell" />
                 </td>
-                {Array.from({ length: columns - 1 }, (_, cell) => (
-                  <td key={cell}>
-                    <span className="yc-sk yc-sk-cell" />
-                  </td>
-                ))}
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </DataTable>
     );
   } else if (all.length === 0) {
     body = (
@@ -420,39 +418,37 @@ export function VenuesRoute() {
   } else {
     body = (
       <>
-        {/* Scrolls sideways on a phone rather than squeezing eight columns. */}
-        <div className="yc-tscroll">
-          <table className="yc-tbl">
-            <thead>
-              <tr>
-                {header('name', t('venues.column.name'))}
-                <th scope="col">{t('venues.column.category')}</th>
-                {showCuisine ? <th scope="col">{t('venues.column.cuisine')}</th> : null}
-                {showRating ? header('rating', t('venues.column.rating'), true) : null}
-                {header('tables', t('venues.column.tables'), true)}
-                <th scope="col">{t('venues.column.features')}</th>
-                <th scope="col">{t('venues.column.status')}</th>
-                <th scope="col">
-                  <span className="yc-sr">{t('venues.column.actions')}</span>
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {visible.map((venue) => (
-                <VenueRow
-                  key={venue.id}
-                  venue={venue}
-                  showRating={showRating}
-                  showCuisine={showCuisine}
-                  locale={locale}
-                  menuOpen={menuFor === venue.id}
-                  onMenu={(open) => setMenuFor(open ? venue.id : null)}
-                  menuItems={menuItems(venue)}
-                />
-              ))}
-            </tbody>
-          </table>
-        </div>
+        {/* A card per venue on a phone, its menu top-right. */}
+        <DataTable caption={t('venues.title')} phone="cards">
+          <thead>
+            <tr>
+              {header('name', t('venues.column.name'))}
+              <th scope="col">{t('venues.column.category')}</th>
+              {showCuisine ? <th scope="col">{t('venues.column.cuisine')}</th> : null}
+              {showRating ? header('rating', t('venues.column.rating'), true) : null}
+              {header('tables', t('venues.column.tables'), true)}
+              <th scope="col">{t('venues.column.features')}</th>
+              <th scope="col">{t('venues.column.status')}</th>
+              <th scope="col">
+                <span className="yc-sr">{t('venues.column.actions')}</span>
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {visible.map((venue) => (
+              <VenueRow
+                key={venue.id}
+                venue={venue}
+                showRating={showRating}
+                showCuisine={showCuisine}
+                locale={locale}
+                menuOpen={menuFor === venue.id}
+                onMenu={(open) => setMenuFor(open ? venue.id : null)}
+                menuItems={menuItems(venue)}
+              />
+            ))}
+          </tbody>
+        </DataTable>
         <div className="yc-foot">{footLine}</div>
       </>
     );
@@ -790,6 +786,10 @@ function VenueRow({
             <ChevronRightIcon />
           </Link>
         )}
+        {/* The tooltip's list, in words where nothing hovers (a phone). */}
+        {!deleted && summary.kind !== 'none' && summary.kind !== 'full' && summary.features ? (
+          <span className="yc-featl-list">{featureText.list(summary.features)}</span>
+        ) : null}
       </td>
       <td>
         <span className={PILL[venue.status]}>

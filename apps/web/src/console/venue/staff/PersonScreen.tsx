@@ -375,7 +375,7 @@ function RecentList({
   if (items.length === 0) return <EmptyLine>{t('person.lists.empty')}</EmptyLine>;
   return (
     <>
-      <DataTable className="yc-pp-tbl" caption={t(LIST_LABEL[list])}>
+      <DataTable className="yc-pp-tbl" caption={t(LIST_LABEL[list])} phone="cards">
         <TableHead
           columns={[
             { label: t(c1) },

@@ -193,6 +193,16 @@ describe('the features column', () => {
     );
     expect(await screen.findByRole('heading', { level: 1, name: 'Yalla Demo Cafe' })).toBeTruthy();
   });
+
+  it('says the features in words beside the link, where a phone shows no tooltip', async () => {
+    renderList();
+    await loaded();
+
+    const row = rowOf('Sunset Lounge');
+    const link = within(row).getByRole('link', { name: /Sunset Lounge: features Basic/u });
+    expect(link.getAttribute('title')).toBeTruthy();
+    expect(row.querySelector('.yc-featl-list')?.textContent).toBe(link.getAttribute('title'));
+  });
 });
 
 describe('the ⋮ menu', () => {

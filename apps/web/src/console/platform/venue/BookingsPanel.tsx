@@ -3,6 +3,7 @@ import { useVenueBookingsSummary } from '@yalla/api/react';
 import { useLocale, useTranslation } from '@yalla/i18n';
 import { useId, useState } from 'react';
 import { PadlockIcon } from '../../ui/icons';
+import { DataTable } from '../../kit';
 
 /** The status bars, in the order a booking's life runs, each with its colour class. */
 const STATUSES: readonly { key: keyof BookingStatusCounts; tone: string }[] = [
@@ -195,36 +196,34 @@ export function BookingsPanel({ venueId }: { readonly venueId: string }) {
               {t('venuePage.bookings.byBranch')}
             </h2>
           </div>
-          <div className="yc-tscroll">
-            <table className="yc-tbl" aria-labelledby={branchId}>
-              <thead>
-                <tr>
-                  <th scope="col">{t('venuePage.branches.name')}</th>
-                  <th scope="col" className="yc-num">
-                    {t('venuePage.bookings.total')}
+          <DataTable labelledBy={branchId} phone="cards">
+            <thead>
+              <tr>
+                <th scope="col">{t('venuePage.branches.name')}</th>
+                <th scope="col" className="yc-num">
+                  {t('venuePage.bookings.total')}
+                </th>
+                {STATUSES.map(({ key }) => (
+                  <th key={key} scope="col" className="yc-num">
+                    {statusLabel(key)}
                   </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {data.byBranch.map((row) => (
+                <tr key={row.branchId}>
+                  <td className="yc-pn">{row.name}</td>
+                  <td className="yc-num">{number(row.total)}</td>
                   {STATUSES.map(({ key }) => (
-                    <th key={key} scope="col" className="yc-num">
-                      {statusLabel(key)}
-                    </th>
+                    <td key={key} className="yc-num">
+                      {number(row[key])}
+                    </td>
                   ))}
                 </tr>
-              </thead>
-              <tbody>
-                {data.byBranch.map((row) => (
-                  <tr key={row.branchId}>
-                    <td className="yc-pn">{row.name}</td>
-                    <td className="yc-num">{number(row.total)}</td>
-                    {STATUSES.map(({ key }) => (
-                      <td key={key} className="yc-num">
-                        {number(row[key])}
-                      </td>
-                    ))}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+              ))}
+            </tbody>
+          </DataTable>
         </section>
       </>
     );
