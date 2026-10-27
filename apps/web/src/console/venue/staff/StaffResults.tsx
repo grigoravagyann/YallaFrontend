@@ -256,6 +256,7 @@ export function StaffResults({
         caption={periodCaption(t, range, today, locale)}
         captionClassName="yc-res-cap"
         busy={query.isPlaceholderData}
+        phone="cards"
       >
         <thead>
           <tr>

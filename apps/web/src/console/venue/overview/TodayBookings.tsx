@@ -22,6 +22,7 @@ import { RowMenu, type RowMenuItem } from '../../ui/RowMenu';
 import { TOAST_UNDO_MS, useToast } from '../../ui/toast';
 import { bookingActionFailureText } from './bookingActionFailure';
 import { GuestRecordLine } from './GuestRecordLine';
+import { DataTable } from '../../kit';
 
 type Filter = 'next' | 'seated' | 'all';
 const FILTERS: readonly Filter[] = ['next', 'seated', 'all'];
@@ -432,110 +433,102 @@ export function TodayBookings({
             : t(`overview.bookings.emptyFilter.${filter}`)}
         </p>
       ) : (
-        <div className="yc-tscroll">
-          <table className="yc-tbl" aria-labelledby={titleId}>
-            <thead>
-              <tr>
-                <th scope="col">{t('overview.bookings.column.time')}</th>
-                <th scope="col">{t('overview.bookings.column.guest')}</th>
-                <th scope="col" className="yc-num">
-                  {t('overview.bookings.column.party')}
-                </th>
-                <th scope="col">{t('overview.bookings.column.table')}</th>
-                <th scope="col">{t('overview.bookings.column.source')}</th>
-                <th scope="col">{t('overview.bookings.column.status')}</th>
-                <th scope="col">
-                  <span className="yc-sr">{t('overview.bookings.column.actions')}</span>
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {shown.map((row) => {
-                const { booking } = row;
-                const heldKind = held.get(booking.id);
-                const state = (heldKind && HELD_STATE[heldKind]) ?? row.state;
-                const clock = booking.localStartTime.slice(0, 5);
-                // After midnight of the service day, the start is tomorrow's.
-                const time =
-                  booking.localDate !== overview.serviceDate
-                    ? t('overview.load.nextDay', { hour: clock })
-                    : clock;
-                const isBusy = busy.has(booking.id);
-                const isHeld = held.has(booking.id);
-                const menuItems = isBusy || isHeld ? [] : items(row);
-                // A no-show the server has, still in its undo window.
-                const undoableUntil =
-                  !isHeld && row.state === 'noShow' ? undoUntil(booking, zone, now) : null;
-                const note = isHeld
-                  ? t('overview.bookings.heldNote')
-                  : undoableUntil
-                    ? t('overview.bookings.undoNote', {
-                        time: formatTime(undoableUntil, zone, locale),
-                      })
-                    : state === 'changeRequested'
-                      ? t('overview.bookings.changeNote')
-                      : state === 'late' && booking.lateNudgeAtUtc && booking.lateNudgeSent !== null
-                        ? t(
-                            booking.lateNudgeSent
-                              ? 'overview.bookings.nudged'
-                              : 'overview.bookings.nudgeAt',
-                            {
-                              time: formatTime(booking.lateNudgeAtUtc, zone, locale),
-                            },
-                          )
-                        : null;
-                return (
-                  <tr key={booking.id} aria-busy={isBusy || undefined}>
-                    <td className="yc-strong">{time}</td>
-                    <td>
-                      <span className="yc-bk-who">{booking.guestName}</span>
-                      <GuestRecordLine
-                        record={booking.guestRecord}
-                        surface="admin"
-                        timeZoneId={overview.timeZoneId}
-                        now={now}
-                        className="yc-bk-record"
+        <DataTable labelledBy={titleId} phone="cards">
+          <thead>
+            <tr>
+              <th scope="col">{t('overview.bookings.column.time')}</th>
+              <th scope="col">{t('overview.bookings.column.guest')}</th>
+              <th scope="col" className="yc-num">
+                {t('overview.bookings.column.party')}
+              </th>
+              <th scope="col">{t('overview.bookings.column.table')}</th>
+              <th scope="col">{t('overview.bookings.column.source')}</th>
+              <th scope="col">{t('overview.bookings.column.status')}</th>
+              <th scope="col">
+                <span className="yc-sr">{t('overview.bookings.column.actions')}</span>
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {shown.map((row) => {
+              const { booking } = row;
+              const heldKind = held.get(booking.id);
+              const state = (heldKind && HELD_STATE[heldKind]) ?? row.state;
+              const clock = booking.localStartTime.slice(0, 5);
+              // After midnight of the service day, the start is tomorrow's.
+              const time =
+                booking.localDate !== overview.serviceDate
+                  ? t('overview.load.nextDay', { hour: clock })
+                  : clock;
+              const isBusy = busy.has(booking.id);
+              const isHeld = held.has(booking.id);
+              const menuItems = isBusy || isHeld ? [] : items(row);
+              // A no-show the server has, still in its undo window.
+              const undoableUntil =
+                !isHeld && row.state === 'noShow' ? undoUntil(booking, zone, now) : null;
+              const note = isHeld
+                ? t('overview.bookings.heldNote')
+                : undoableUntil
+                  ? t('overview.bookings.undoNote', {
+                      time: formatTime(undoableUntil, zone, locale),
+                    })
+                  : state === 'changeRequested'
+                    ? t('overview.bookings.changeNote')
+                    : state === 'late' && booking.lateNudgeAtUtc && booking.lateNudgeSent !== null
+                      ? t(
+                          booking.lateNudgeSent
+                            ? 'overview.bookings.nudged'
+                            : 'overview.bookings.nudgeAt',
+                          {
+                            time: formatTime(booking.lateNudgeAtUtc, zone, locale),
+                          },
+                        )
+                      : null;
+              return (
+                <tr key={booking.id} aria-busy={isBusy || undefined}>
+                  <td className="yc-strong">{time}</td>
+                  <td className="yc-tc-main">
+                    <span className="yc-bk-who">{booking.guestName}</span>
+                    <GuestRecordLine
+                      record={booking.guestRecord}
+                      surface="admin"
+                      timeZoneId={overview.timeZoneId}
+                      now={now}
+                      className="yc-bk-record"
+                    />
+                  </td>
+                  <td className="yc-num">{booking.partySize}</td>
+                  <td>{t('approvals.table', { label: booking.tableLabel })}</td>
+                  <td className="yc-muted">{t(`overview.bookings.channel.${booking.channel}`)}</td>
+                  <td>
+                    <span className={PILL[state]}>
+                      <span className="yc-dot" aria-hidden="true" />
+                      {state === 'late'
+                        ? t('overview.bookings.status.late', {
+                            count: minutesLate(booking, now),
+                          })
+                        : t(`overview.bookings.status.${state}`)}
+                    </span>
+                    {note ? <span className="yc-bk-note">{note}</span> : null}
+                  </td>
+                  <td className="yc-mcell">
+                    {isBusy ? (
+                      <span className="yc-spin yc-bk-spin" role="status" aria-label={t('saving')} />
+                    ) : menuItems.length > 0 ? (
+                      <RowMenu
+                        id={`bk-${booking.id}`}
+                        label={t('overview.bookings.menu', { name: booking.guestName, time })}
+                        items={menuItems}
+                        open={menu === booking.id}
+                        onOpenChange={(open) => setMenu(open ? booking.id : null)}
                       />
-                    </td>
-                    <td className="yc-num">{booking.partySize}</td>
-                    <td>{t('approvals.table', { label: booking.tableLabel })}</td>
-                    <td className="yc-muted">
-                      {t(`overview.bookings.channel.${booking.channel}`)}
-                    </td>
-                    <td>
-                      <span className={PILL[state]}>
-                        <span className="yc-dot" aria-hidden="true" />
-                        {state === 'late'
-                          ? t('overview.bookings.status.late', {
-                              count: minutesLate(booking, now),
-                            })
-                          : t(`overview.bookings.status.${state}`)}
-                      </span>
-                      {note ? <span className="yc-bk-note">{note}</span> : null}
-                    </td>
-                    <td className="yc-mcell">
-                      {isBusy ? (
-                        <span
-                          className="yc-spin yc-bk-spin"
-                          role="status"
-                          aria-label={t('saving')}
-                        />
-                      ) : menuItems.length > 0 ? (
-                        <RowMenu
-                          id={`bk-${booking.id}`}
-                          label={t('overview.bookings.menu', { name: booking.guestName, time })}
-                          items={menuItems}
-                          open={menu === booking.id}
-                          onOpenChange={(open) => setMenu(open ? booking.id : null)}
-                        />
-                      ) : null}
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
+                    ) : null}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </DataTable>
       )}
       {/* The server lists 200 at most; a list cut short says so rather than passing for the day. */}
       {overview.todayBookingsTruncated ? (

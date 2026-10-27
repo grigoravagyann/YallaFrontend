@@ -346,6 +346,7 @@ function MessageHistory({
         className="yc-mh-tbl"
         caption={t('messageHistory.table.caption')}
         busy={list.isPlaceholderData}
+        phone="cards"
       >
         <TableHead
           columns={[

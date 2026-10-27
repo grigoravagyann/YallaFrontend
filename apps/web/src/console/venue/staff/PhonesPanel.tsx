@@ -17,6 +17,7 @@ import { useToast } from '../../ui/toast';
 import { PairPhoneDialog } from './PairPhoneDialog';
 import { FeatureLockNotice, useFeatureLocked } from '../featureLock';
 import { phoneDeviceName } from './phoneDeviceName';
+import { DataTable } from '../../kit';
 
 export interface PhonesPanelProps {
   readonly branchId: string;
@@ -153,79 +154,77 @@ export function PhonesPanel({ branchId, timeZoneId, locale, people, actor }: Pho
       ) : rows.length === 0 ? (
         <p className="yc-empty-line">{t('phones.empty')}</p>
       ) : (
-        <div className="yc-tscroll">
-          <table className="yc-tbl yc-phones" aria-labelledby={titleId}>
-            <thead>
-              <tr>
-                <th scope="col">{t('phones.column.person')}</th>
-                <th scope="col">{t('phones.column.phone')}</th>
-                <th scope="col">{t('phones.column.seen')}</th>
-                <th scope="col">
-                  <span className="yc-sr">{t('phones.column.action')}</span>
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((member) => {
-                const phone = phoneOf(member.id);
-                const kitchen = member.role === 'kitchen';
-                const allowed = may && canSetStaffPin(actor, member);
-                return (
-                  <tr key={member.id}>
-                    <th scope="row" className="yc-phones-who">
-                      {member.fullName}
-                      <span>{t(`role.${member.role}`)}</span>
-                    </th>
-                    <td>
-                      {phone ? (
-                        phoneDeviceName(t, phone)
-                      ) : (
-                        <span className="yc-muted">{t('phones.notPaired')}</span>
-                      )}
-                    </td>
-                    <td className="yc-muted">
-                      {phone
-                        ? phone.lastSeenAtUtc
-                          ? when(phone.lastSeenAtUtc)
-                          : t('phones.never')
-                        : '—'}
-                    </td>
-                    <td className="yc-phones-act">
-                      {kitchen ? (
-                        <span className="yc-muted">{t('phones.kitchen')}</span>
-                      ) : !allowed ? (
-                        <span className="yc-muted">{t('staff.action.notYours')}</span>
-                      ) : phone ? (
-                        <button
-                          type="button"
-                          className="yc-btn yc-btn-ghost-red yc-btn-sm"
-                          data-unpair={member.id}
-                          aria-label={t('phones.unpairNamed', { name: member.fullName })}
-                          onClick={() => setConfirming({ member, device: phone })}
-                        >
-                          {t('phones.unpair')}
-                        </button>
-                      ) : (
-                        <button
-                          type="button"
-                          className="yc-btn yc-btn-pri yc-btn-sm"
-                          data-pair={member.id}
-                          aria-label={t('phones.pairNamed', { name: member.fullName })}
-                          aria-busy={
-                            create.isPending && create.variables?.staffMemberId === member.id
-                          }
-                          onClick={() => issue(member)}
-                        >
-                          {t('phones.pair')}
-                        </button>
-                      )}
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
+        <DataTable className="yc-phones" labelledBy={titleId} phone="cards">
+          <thead>
+            <tr>
+              <th scope="col">{t('phones.column.person')}</th>
+              <th scope="col">{t('phones.column.phone')}</th>
+              <th scope="col">{t('phones.column.seen')}</th>
+              <th scope="col">
+                <span className="yc-sr">{t('phones.column.action')}</span>
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((member) => {
+              const phone = phoneOf(member.id);
+              const kitchen = member.role === 'kitchen';
+              const allowed = may && canSetStaffPin(actor, member);
+              return (
+                <tr key={member.id}>
+                  <th scope="row" className="yc-phones-who">
+                    {member.fullName}
+                    <span>{t(`role.${member.role}`)}</span>
+                  </th>
+                  <td>
+                    {phone ? (
+                      phoneDeviceName(t, phone)
+                    ) : (
+                      <span className="yc-muted">{t('phones.notPaired')}</span>
+                    )}
+                  </td>
+                  <td className="yc-muted">
+                    {phone
+                      ? phone.lastSeenAtUtc
+                        ? when(phone.lastSeenAtUtc)
+                        : t('phones.never')
+                      : '—'}
+                  </td>
+                  <td className="yc-phones-act yc-tc-act">
+                    {kitchen ? (
+                      <span className="yc-muted">{t('phones.kitchen')}</span>
+                    ) : !allowed ? (
+                      <span className="yc-muted">{t('staff.action.notYours')}</span>
+                    ) : phone ? (
+                      <button
+                        type="button"
+                        className="yc-btn yc-btn-ghost-red yc-btn-sm"
+                        data-unpair={member.id}
+                        aria-label={t('phones.unpairNamed', { name: member.fullName })}
+                        onClick={() => setConfirming({ member, device: phone })}
+                      >
+                        {t('phones.unpair')}
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        className="yc-btn yc-btn-pri yc-btn-sm"
+                        data-pair={member.id}
+                        aria-label={t('phones.pairNamed', { name: member.fullName })}
+                        aria-busy={
+                          create.isPending && create.variables?.staffMemberId === member.id
+                        }
+                        onClick={() => issue(member)}
+                      >
+                        {t('phones.pair')}
+                      </button>
+                    )}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </DataTable>
       )}
 
       {pairing ? (

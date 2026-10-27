@@ -13,6 +13,7 @@ import { useId, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import { useFeatureText } from '../../ui/featureText';
 import { AlertCircleIcon, CheckIcon, ChevronRightIcon, PlusIcon } from '../../ui/icons';
+import { DataTable } from '../../kit';
 
 /** Every venue in the pilot is in Yerevan. */
 const CONSOLE_TIME_ZONE = 'Asia/Yerevan';
@@ -128,39 +129,37 @@ export function OverviewPanel({ venue, onAddBranch }: OverviewPanelProps) {
           {venue.branches.length === 0 ? (
             <p className="yc-empty-line">{t('venuePage.branches.empty')}</p>
           ) : (
-            <div className="yc-tscroll">
-              <table className="yc-tbl" aria-labelledby={branchesId}>
-                <thead>
-                  <tr>
-                    <th scope="col">{t('venuePage.branches.name')}</th>
+            <DataTable labelledBy={branchesId} phone="cards">
+              <thead>
+                <tr>
+                  <th scope="col">{t('venuePage.branches.name')}</th>
+                  <th scope="col" className="yc-num">
+                    {t('venuePage.branches.tables')}
+                  </th>
+                  <th scope="col" className="yc-num">
+                    {t('venuePage.branches.today')}
+                  </th>
+                  {knowsTabs ? (
                     <th scope="col" className="yc-num">
-                      {t('venuePage.branches.tables')}
+                      {t('venuePage.branches.openTabs')}
                     </th>
-                    <th scope="col" className="yc-num">
-                      {t('venuePage.branches.today')}
-                    </th>
-                    {knowsTabs ? (
-                      <th scope="col" className="yc-num">
-                        {t('venuePage.branches.openTabs')}
-                      </th>
-                    ) : null}
-                    <th scope="col">{t('venuePage.branches.features')}</th>
-                    <th scope="col">{t('venuePage.branches.manage')}</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {venue.branches.map((branch) => (
-                    <BranchRow
-                      key={branch.id}
-                      venueId={venue.id}
-                      branch={branch}
-                      today={today.get(branch.id) ?? null}
-                      knowsTabs={knowsTabs}
-                    />
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                  ) : null}
+                  <th scope="col">{t('venuePage.branches.features')}</th>
+                  <th scope="col">{t('venuePage.branches.manage')}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {venue.branches.map((branch) => (
+                  <BranchRow
+                    key={branch.id}
+                    venueId={venue.id}
+                    branch={branch}
+                    today={today.get(branch.id) ?? null}
+                    knowsTabs={knowsTabs}
+                  />
+                ))}
+              </tbody>
+            </DataTable>
           )}
         </section>
 
