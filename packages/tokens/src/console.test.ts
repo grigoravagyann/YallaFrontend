@@ -1,7 +1,17 @@
 import { describe, expect, it } from 'vitest';
-import { consoleColor, consoleRadius, consoleShadow, consoleSize, consoleText } from './console';
+import {
+  consoleColor,
+  consoleMedia,
+  consoleRadius,
+  consoleShadow,
+  consoleSize,
+  consoleText,
+  consoleTouchSize,
+  consoleTouchText,
+} from './console';
 import { AA_BODY, contrastRatio } from './contrast';
 import { renderTokenCss } from './css';
+import { touchTarget } from './space';
 
 /**
  * The platform-admin console's own palette, asserting things about itself.
@@ -155,6 +165,30 @@ describe('console sizes', () => {
     expect(consoleText.title).toBe(28);
     expect(consoleText.section).toBe(17);
     expect(consoleText.body).toBe(14);
+  });
+});
+
+describe('the console under a finger', () => {
+  it('grows every control to the 44px target and every field to 16px', () => {
+    for (const size of Object.values(consoleTouchSize)) {
+      expect(size).toBeGreaterThanOrEqual(touchTarget.minimum);
+    }
+    // Under 16px, iOS zooms the page in when a field takes the focus.
+    expect(consoleTouchText.input).toBeGreaterThanOrEqual(16);
+    expect(consoleSize.drawerItem).toBeGreaterThanOrEqual(touchTarget.minimum);
+  });
+
+  it('writes the bigger sizes over the same properties, only under the touch query', () => {
+    const css = renderTokenCss();
+    const at = css.indexOf(`@media ${consoleMedia.touch} {`);
+    expect(at).toBeGreaterThan(-1);
+    const block = css.slice(at, css.indexOf('\n}\n', at));
+    expect(block).toContain('--console-size-button: 44px;');
+    expect(block).toContain('--console-size-button-small: 44px;');
+    expect(block).toContain('--console-text-input: 16px;');
+    // The desktop keeps its pointer sizes.
+    expect(css).toContain('--console-size-button: 40px;');
+    expect(css).toContain('--console-text-input: 14px;');
   });
 });
 

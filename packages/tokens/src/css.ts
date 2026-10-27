@@ -1,6 +1,15 @@
 import { blob, paperGrain } from './ambient';
 import { color } from './color';
-import { consoleColor, consoleRadius, consoleShadow, consoleSize, consoleText } from './console';
+import {
+  consoleColor,
+  consoleMedia,
+  consoleRadius,
+  consoleShadow,
+  consoleSize,
+  consoleText,
+  consoleTouchSize,
+  consoleTouchText,
+} from './console';
 import { elevation } from './elevation';
 import { duration, easing, scale } from './motion';
 import { icon, radius, space, touchTarget } from './space';
@@ -54,6 +63,28 @@ function consoleVars(): string[] {
       ([name, value]) => `--console-shadow-${kebab(name)}: ${value};`,
     ),
   ];
+}
+
+/**
+ * The console under a finger (`consoleMedia.touch`): the same properties,
+ * bigger, so nothing on a desktop with a mouse moves.
+ */
+function consoleTouchBlock(): string {
+  const lines = [
+    ...Object.entries(consoleTouchSize).map(
+      ([name, value]) => `--console-size-${kebab(name)}: ${value}px;`,
+    ),
+    ...Object.entries(consoleTouchText).map(
+      ([name, value]) => `--console-text-${kebab(name)}: ${value}px;`,
+    ),
+  ];
+  return [
+    `@media ${consoleMedia.touch} {`,
+    '  :root {',
+    ...lines.map((line) => `    ${line}`),
+    '  }',
+    '}',
+  ].join('\n');
 }
 
 /**
@@ -208,7 +239,20 @@ export function renderTokenCss(): string {
     ...([600, 700] as const).map((w) => fontFace('Yalla Serif', 'YallaSerif', w)),
   ].join('\n\n');
 
-  return [header, '', fontFaces, '', base, '', staff, '', dinerPreview, '', reducedMotion, ''].join(
-    '\n',
-  );
+  return [
+    header,
+    '',
+    fontFaces,
+    '',
+    base,
+    '',
+    consoleTouchBlock(),
+    '',
+    staff,
+    '',
+    dinerPreview,
+    '',
+    reducedMotion,
+    '',
+  ].join('\n');
 }

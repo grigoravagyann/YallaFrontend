@@ -1,7 +1,16 @@
 export { color, subtleTextBackgrounds, textBackgrounds, tintedFills } from './color';
 export type { ColorToken } from './color';
 
-export { consoleColor, consoleRadius, consoleShadow, consoleSize, consoleText } from './console';
+export {
+  consoleColor,
+  consoleMedia,
+  consoleRadius,
+  consoleShadow,
+  consoleSize,
+  consoleText,
+  consoleTouchSize,
+  consoleTouchText,
+} from './console';
 export type { ConsoleColorToken } from './console';
 
 export { compositedFill, tableStatusStyle, tableStatusLegendOrder } from './tableState';
