@@ -21,6 +21,15 @@ export function mockBranchFeatures(
   return seededMockFeatures(branchId) ?? FULL_FEATURES;
 }
 
+/**
+ * The fixture's set, without the registry: for the diner and public mocks,
+ * which ship in bundles that must not touch browser storage (the public
+ * page's). A switch made in the console mock does not reach them.
+ */
+export function fixtureMockFeatures(branchId: string): readonly BranchFeature[] {
+  return seededMockFeatures(branchId) ?? FULL_FEATURES;
+}
+
 /** The fixture's own set for a `mockVenues` branch; `null` for a branch it does not hold. */
 export function seededMockFeatures(branchId: string): readonly BranchFeature[] | null {
   for (const [venueIndex, venue] of mockVenues.entries()) {
