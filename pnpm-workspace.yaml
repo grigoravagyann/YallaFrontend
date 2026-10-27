@@ -28,6 +28,6 @@ minimumReleaseAgeExclude:
 # One React across the hoisted store: two copies would give React Native the
 # classic "Invalid hook call" at runtime.
 overrides:
-  react: 19.2.3
-  react-dom: 19.2.3
-  react-native: 0.86.3
+  react: 19.3.0
+  react-dom: 19.3.0
+  react-native: 0.88.0
