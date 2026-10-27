@@ -25,7 +25,8 @@ export interface PlatformLayoutProps {
 /**
  * The platform admin's shell (docs/design/console): the console's one shell
  * (`ConsoleShell`, shared with the venue console) with the three destinations
- * and who is signed in. Below 800px the sidebar becomes a bar across the top.
+ * and who is signed in. On a phone the sidebar is a drawer behind a top bar
+ * (`ConsoleShell`).
  *
  * The language picker is not here on purpose: it lives in Settings and on the
  * sign-in page only.

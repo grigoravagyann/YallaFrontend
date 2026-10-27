@@ -409,6 +409,15 @@ export function MenuIcon(props: IconProps) {
   );
 }
 
+/** The phone's navigation drawer: three lines (not the dish menu above). */
+export function DrawerIcon(props: IconProps) {
+  return (
+    <Icon strokeWidth={2} {...props}>
+      <path d="M4 6h16M4 12h16M4 18h16" />
+    </Icon>
+  );
+}
+
 /** Rooms and tables. */
 export function RoomsIcon(props: IconProps) {
   return (

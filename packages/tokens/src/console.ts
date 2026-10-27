@@ -361,10 +361,24 @@ export const consoleSize = {
   buttonTall: 44,
   /** Status pills. */
   pill: 24,
+  /** A filter chip (`.yc-chip`). */
+  chip: 36,
+  /** A row's ⋮ button (`.yc-kebab`). */
+  kebab: 36,
+  /** A step mover's arrow (`.yc-mini`). */
+  mini: 28,
+  /** An item in a row's ⋮ menu. */
+  menuItem: 38,
   /** A nav link's height. */
   navItem: 44,
   /** In the grouped sidebar, where ten links and four headings share the height. */
   navItemGrouped: 40,
+  /** The phone's top bar, below the status bar's safe area (`consoleMedia.phone`). */
+  phoneBar: 56,
+  /** A link in the phone's drawer. */
+  drawerItem: 48,
+  /** The drawer's widest: the page stays in sight beside it. */
+  drawer: 320,
   avatar: 32,
   icon: 18,
   /** The main column's padding: 32 top, 40 sides on a desktop. */
@@ -471,6 +485,8 @@ export const consoleText = {
   title: 28,
   section: 17,
   body: 14,
+  /** A field's text: the body, and 16 on a touch screen (`consoleTouchText`). */
+  input: 14,
   /** Field labels, captions, small buttons. */
   label: 13,
   caption: 12,
@@ -508,6 +524,42 @@ export const consoleText = {
   /** Inputs and selects: 16, or iOS zooms the page on focus. */
   publicInput: 16,
 } as const;
+
+/**
+ * The console on a phone (2026-10-27). Two queries, each with its own job:
+ *
+ * - `phone` is the layout: the sidebar becomes a top bar and a drawer, and
+ *   tables become cards. A media query cannot read a custom property, so the
+ *   stylesheets repeat this text; `ConsoleShell` reads it here.
+ * - `touch` is the sizing: a finger, on a phone or on a touch iPad with the
+ *   desktop layout, gets the sizes in `consoleTouchSize` and `consoleTouchText`.
+ */
+export const consoleMedia = {
+  phone: '(max-width: 799px)',
+  touch: '(pointer: coarse), (max-width: 799px)',
+} as const;
+
+/**
+ * What `consoleSize` becomes under `consoleMedia.touch`: every control at
+ * least the 44px target (`touchTarget.minimum`). The generated CSS writes
+ * these over the same `--console-size-*` properties, so every rule that reads
+ * one grows with it and the desktop keeps its pointer sizes.
+ */
+export const consoleTouchSize = {
+  button: 44,
+  buttonSmall: 44,
+  chip: 44,
+  kebab: 44,
+  mini: 44,
+  menuItem: 44,
+  navItem: 44,
+  navItemGrouped: 44,
+} as const satisfies Partial<Record<keyof typeof consoleSize, number>>;
+
+/** And what `consoleText` becomes there: 16px fields, or iOS zooms the page on focus. */
+export const consoleTouchText = {
+  input: 16,
+} as const satisfies Partial<Record<keyof typeof consoleText, number>>;
 
 export const consoleShadow = {
   dialog: '0 24px 60px rgba(45, 41, 39, 0.3)',

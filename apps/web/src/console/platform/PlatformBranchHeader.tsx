@@ -6,7 +6,8 @@ import {
 } from '@yalla/api';
 import { usePlatformBranchReviews } from '@yalla/api/react';
 import { useTranslation } from '@yalla/i18n';
-import { useEffect, useRef, type ReactNode } from 'react';
+import type { ReactNode } from 'react';
+import { useScrollStrip } from '../ui/scrollStrip';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useConsoleVenue } from '../../data/queries';
 import { ErrorState, errorKindFor } from '../ui/ErrorState';
@@ -83,18 +84,12 @@ export function BranchPage({ tab, children }: BranchPageProps) {
     filter: 'reported',
     pageSize: 1,
   });
-  // On a phone the three tabs scroll sideways: the current one is brought into view.
-  const tabsRef = useRef<HTMLElement>(null);
+  // On a phone the tabs scroll sideways: the current one is brought into view,
+  // and an overflowing edge fades.
   const shownBranch = route.branch?.id;
   // The badge arrives after the tabs and widens the last one.
   const badge = reported.data?.total;
-  useEffect(() => {
-    const nav = tabsRef.current;
-    const current = nav?.querySelector<HTMLElement>('[aria-current="page"]');
-    if (!nav || !current) return;
-    const overflow = current.offsetLeft + current.offsetWidth - nav.clientWidth;
-    if (overflow > 0) nav.scrollLeft = overflow;
-  }, [tab, shownBranch, badge]);
+  const tabsRef = useScrollStrip<HTMLElement>('[aria-current="page"]', [tab, shownBranch, badge]);
 
   if (route.isLoading) {
     return (

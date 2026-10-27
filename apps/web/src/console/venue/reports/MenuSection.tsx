@@ -123,7 +123,7 @@ export function MenuSection({ query, locale, onCsv }: MenuSectionProps) {
               <p className="yc-help">{t('reports.menu.voids.none')}</p>
             ) : (
               <>
-                <DataTable caption={t('reports.menu.voids.title')}>
+                <DataTable caption={t('reports.menu.voids.title')} phone="cards">
                   <TableHead
                     columns={[
                       { label: t('reports.menu.voids.item') },

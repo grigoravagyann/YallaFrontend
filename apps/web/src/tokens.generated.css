@@ -309,8 +309,15 @@
   --console-size-button-small: 32px;
   --console-size-button-tall: 44px;
   --console-size-pill: 24px;
+  --console-size-chip: 36px;
+  --console-size-kebab: 36px;
+  --console-size-mini: 28px;
+  --console-size-menu-item: 38px;
   --console-size-nav-item: 44px;
   --console-size-nav-item-grouped: 40px;
+  --console-size-phone-bar: 56px;
+  --console-size-drawer-item: 48px;
+  --console-size-drawer: 320px;
   --console-size-avatar: 32px;
   --console-size-icon: 18px;
   --console-size-main-pad-y: 32px;
@@ -369,6 +376,7 @@
   --console-text-title: 28px;
   --console-text-section: 17px;
   --console-text-body: 14px;
+  --console-text-input: 14px;
   --console-text-label: 13px;
   --console-text-caption: 12px;
   --console-text-nav: 15px;
@@ -395,6 +403,20 @@
   --console-shadow-photo-text: 0 1px 12px rgba(0, 0, 0, 0.5);
   --console-shadow-phone: 0 16px 40px rgba(45, 41, 39, 0.18);
   --console-shadow-card-hover: 0 2px 10px rgba(75, 12, 24, 0.06);
+}
+
+@media (pointer: coarse), (max-width: 799px) {
+  :root {
+    --console-size-button: 44px;
+    --console-size-button-small: 44px;
+    --console-size-chip: 44px;
+    --console-size-kebab: 44px;
+    --console-size-mini: 44px;
+    --console-size-menu-item: 44px;
+    --console-size-nav-item: 44px;
+    --console-size-nav-item-grouped: 44px;
+    --console-text-input: 16px;
+  }
 }
 
 [data-surface='staff'] {

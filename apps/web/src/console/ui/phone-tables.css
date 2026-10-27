@@ -1,0 +1,352 @@
+/* --------------------------------------------------------------------------
+   Tables on a phone (2026-10-27). Desktop is untouched: every rule but the
+   two hidden-on-desktop helpers lives under a phone or touch query.
+
+   A `DataTable phone="cards"` (kit/DataTable.tsx) stacks each row as a card
+   at 799px and below: the title cell on top, the row's actions top-right and
+   always in view, every other cell a line labelled from its column header
+   (`data-label`, which DataTable writes). Header cells with a sort button
+   stay above the cards as a strip of chips.
+   -------------------------------------------------------------------------- */
+
+/* Words a phone shows in place of a hover tooltip; a desktop keeps the tooltip. */
+.yc-featl-list,
+.yc-mn-po-state {
+  display: none;
+}
+
+/* Touch: the targets inside tables reach 44px (buttons, kebabs, switches and
+   the reorder arrows are the controls' own rules). */
+@media (pointer: coarse), (max-width: 799px) {
+  .yc-sortb,
+  .yc-res-sort,
+  .yc-featl,
+  .yc-mh-guest {
+    min-height: 44px;
+  }
+
+  .yc .yc-blinks a,
+  .yc-tbl.yc-cards td a,
+  .yc-tbl.yc-cards th a {
+    display: inline-flex;
+    align-items: center;
+    min-height: 44px;
+  }
+
+  .yc .yc-blinks {
+    column-gap: var(--space-lg);
+  }
+}
+
+@media (max-width: 799px) {
+  .yc-tbl.yc-cards,
+  .yc-tbl.yc-cards > tbody,
+  .yc-tbl.yc-cards > tfoot {
+    display: block;
+  }
+
+  .yc-tbl.yc-cards > caption:not(.yc-sr) {
+    display: block;
+  }
+
+  /* The header: only its sort buttons stay, as a strip that scrolls sideways. */
+  .yc-tbl.yc-cards > thead {
+    display: block;
+  }
+
+  .yc-tbl.yc-cards > thead:not(:has(button)) {
+    display: none;
+  }
+
+  .yc-tbl.yc-cards > thead > tr {
+    display: flex;
+    gap: var(--space-sm);
+    overflow-x: auto;
+    padding: var(--space-sm) var(--space-lg);
+    border-bottom: 1px solid var(--console-line-soft);
+    background: var(--console-surface-muted);
+  }
+
+  .yc-tbl.yc-cards > thead th {
+    display: none;
+  }
+
+  .yc-tbl.yc-cards > thead th:has(button) {
+    display: block;
+    flex: none;
+    padding: 0;
+    border: 0;
+    background: none;
+  }
+
+  .yc-tbl.yc-cards > thead th > button {
+    width: auto;
+    min-height: 44px;
+    padding: 0 var(--space-md);
+    border: 1px solid var(--console-button-edge);
+    border-radius: var(--console-radius-pill);
+    background: var(--console-surface);
+  }
+
+  /* A row is a card: the title and the actions share the first line. */
+  .yc-tbl.yc-cards > tbody > tr,
+  .yc-tbl.yc-cards > tfoot > tr {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: start;
+    gap: 6px var(--space-md);
+    padding: var(--space-md) var(--space-lg);
+    border-bottom: 1px solid var(--console-line-soft);
+  }
+
+  .yc-tbl.yc-cards > tbody:last-of-type > tr:last-child {
+    border-bottom: 0;
+  }
+
+  .yc-tbl.yc-cards > tfoot > tr {
+    border-top: 2px solid var(--console-line);
+    border-bottom: 0;
+    background: var(--console-surface-muted);
+  }
+
+  .yc-tbl.yc-cards > tbody > tr > *,
+  .yc-tbl.yc-cards > tfoot > tr > * {
+    grid-column: 1 / -1;
+    display: block;
+    min-width: 0;
+    max-width: none;
+    padding: 0;
+    border: 0;
+    background: none;
+    box-shadow: none;
+    text-align: left;
+    white-space: normal;
+    overflow-wrap: break-word;
+  }
+
+  .yc-tbl.yc-cards tbody tr:hover > * {
+    background: none;
+  }
+
+  /* The title: a `yc-tc-main` cell, else the row's header, else the first cell. */
+  .yc-tbl.yc-cards > :is(tbody, tfoot) > tr > .yc-tc-main,
+  .yc-tbl.yc-cards > :is(tbody, tfoot) > tr:not(:has(> .yc-tc-main)) > th[scope='row'],
+  .yc-tbl.yc-cards
+    > :is(tbody, tfoot)
+    > tr:not(:has(> .yc-tc-main, > th[scope='row']))
+    > :first-child {
+    grid-row: 1;
+    grid-column: 1;
+    align-self: center;
+  }
+
+  /* A row header reads as a title, not as the column heads' small grey; a
+     table's own row-header look still wins. */
+  :where(.yc-tbl.yc-cards > :is(tbody, tfoot) > tr) > th {
+    color: var(--console-ink);
+    font-size: var(--console-text-body);
+    font-weight: var(--font-weight-semibold);
+  }
+
+  /* The actions: top-right, never scrolled away. */
+  .yc-tbl.yc-cards > :is(tbody, tfoot) > tr > :is(.yc-mcell, .yc-tc-act) {
+    grid-row: 1;
+    grid-column: 2;
+    justify-self: end;
+    width: auto;
+    max-width: 11rem;
+    text-align: right;
+  }
+
+  /* Every other cell is a line: its column's name in the first 40%, the value
+     after it, wrapping under itself. (`:where` keeps "not the title or the
+     actions" weightless, so one table below can restyle its lines.) */
+  .yc-tbl.yc-cards
+    > :is(tbody, tfoot)
+    > tr
+    > [data-label]:not([data-label='']):where(
+      :not(
+        .yc-tc-main,
+        .yc-mcell,
+        .yc-tc-act,
+        th[scope='row'],
+        tr:not(:has(> .yc-tc-main, > th[scope='row'])) > :first-child
+      )
+    ) {
+    padding-left: 40%;
+  }
+
+  .yc-tbl.yc-cards
+    > :is(tbody, tfoot)
+    > tr
+    > [data-label]:not([data-label='']):where(
+      :not(
+        .yc-tc-main,
+        .yc-mcell,
+        .yc-tc-act,
+        th[scope='row'],
+        tr:not(:has(> .yc-tc-main, > th[scope='row'])) > :first-child
+      )
+    )::before {
+    content: attr(data-label);
+    float: left;
+    /* 40% of the cell is two thirds of what its padding leaves. */
+    width: 66.667%;
+    margin-left: -66.667%;
+    padding-right: var(--space-md);
+    box-sizing: border-box;
+    color: var(--console-muted);
+    font-size: var(--console-text-caption);
+    font-weight: var(--font-weight-semibold);
+    line-height: 1.75;
+  }
+
+  .yc-tbl.yc-cards
+    > :is(tbody, tfoot)
+    > tr
+    > [data-label]:not([data-label='']):where(
+      :not(
+        .yc-tc-main,
+        .yc-mcell,
+        .yc-tc-act,
+        th[scope='row'],
+        tr:not(:has(> .yc-tc-main, > th[scope='row'])) > :first-child
+      )
+    )::after {
+    content: '';
+    display: block;
+    clear: both;
+  }
+
+  .yc-tbl.yc-cards .yc-num {
+    text-align: left;
+  }
+
+  /* Cells that hold their width on a desktop give it up in a card. */
+  .yc-tbl.yc-cards .yc-vcell {
+    min-width: 0;
+    max-width: none;
+  }
+
+  .yc-tbl.yc-cards .yc-featl-list {
+    display: block;
+    margin-top: var(--space-xs);
+    color: var(--console-muted);
+    font-size: var(--console-text-caption);
+    line-height: 1.5;
+  }
+
+  /* --- Venues: the loading rows are cards too ----------------------------- */
+  .yc-tbl.yc-cards .yc-sk-cell {
+    width: 60%;
+  }
+
+  /* --- Menu: the dish heads the card; move and edit sit top-right --------- */
+  .yc-tbl.yc-mn-tbl.yc-cards tbody .yc-dish {
+    min-width: 0;
+    align-items: flex-start;
+  }
+
+  .yc-tbl.yc-mn-tbl.yc-cards .yc-dd {
+    max-width: none;
+    -webkit-line-clamp: 2;
+  }
+
+  .yc-tbl.yc-mn-tbl.yc-cards .yc-mchips span {
+    font-size: var(--console-text-caption);
+  }
+
+  .yc-tbl.yc-mn-tbl.yc-cards .yc-row-acts {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: var(--space-sm);
+  }
+
+  .yc-tbl.yc-mn-tbl.yc-cards .yc-ordc {
+    gap: var(--space-sm);
+  }
+
+  .yc-tbl.yc-mn-tbl.yc-cards .yc-swl {
+    white-space: normal;
+    vertical-align: middle;
+  }
+
+  .yc-tbl.yc-mn-tbl.yc-cards .yc-sw {
+    vertical-align: middle;
+  }
+
+  .yc-tbl.yc-mn-tbl.yc-cards .yc-mn-po-state {
+    display: inline;
+    margin-left: var(--space-sm);
+    font-size: var(--console-text-label);
+    vertical-align: middle;
+  }
+
+  .yc-tbl.yc-mn-tbl.yc-cards > tbody > tr.is-sold > * {
+    opacity: 1;
+  }
+
+  .yc-tbl.yc-mn-tbl.yc-cards > tbody > tr.is-sold {
+    opacity: 0.6;
+  }
+
+  .yc-tbl.yc-mn-tbl.yc-cards > tbody > tr.is-linked {
+    animation: yc-linked 2.4s ease-out;
+  }
+
+  /* --- Messages: the open conversation keeps its tint and bar ------------- */
+  .yc-tbl.yc-mh-tbl.yc-cards > tbody > tr.is-on {
+    background: var(--console-brand-tint);
+    box-shadow: inset 3px 0 0 var(--console-brand);
+  }
+
+  .yc-tbl.yc-mh-tbl.yc-cards > tbody > tr.is-on > * {
+    background: none;
+    box-shadow: none;
+  }
+
+  /* --- Staff results: the figures as a two-column board under the name ---- */
+  .yc-tbl.yc-res-tbl.yc-cards > tbody > tr,
+  .yc-tbl.yc-res-tbl.yc-cards > tfoot > tr {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--space-sm) var(--space-md);
+  }
+
+  .yc-tbl.yc-res-tbl.yc-cards > :is(tbody, tfoot) > tr > th[scope='row'] {
+    grid-column: 1 / -1;
+  }
+
+  .yc-tbl.yc-res-tbl.yc-cards > :is(tbody, tfoot) > tr > td {
+    grid-column: auto;
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* Its figures are tiles: the name above the number, no indent. */
+  .yc-tbl.yc-res-tbl.yc-cards > :is(tbody, tfoot) > tr > td[data-label] {
+    padding-left: 0;
+  }
+
+  .yc-tbl.yc-res-tbl.yc-cards > :is(tbody, tfoot) > tr > td[data-label]::before {
+    display: block;
+    float: none;
+    width: auto;
+    margin-left: 0;
+    padding-right: 0;
+    line-height: 1.5;
+  }
+
+  .yc-tbl.yc-res-tbl.yc-cards > :is(tbody, tfoot) > tr > td[data-label]::after {
+    content: none;
+  }
+
+  .yc-tbl.yc-res-tbl.yc-cards > thead > tr {
+    padding-block: var(--space-sm);
+  }
+}
+
+@media (max-width: 799px) and (prefers-reduced-motion: reduce) {
+  .yc-tbl.yc-mn-tbl.yc-cards > tbody > tr.is-linked {
+    animation: none;
+  }
+}

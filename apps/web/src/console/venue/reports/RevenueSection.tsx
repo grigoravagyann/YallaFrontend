@@ -3,6 +3,7 @@ import { useRevenueReport } from '@yalla/api/react';
 import { formatDram, type Locale } from '@yalla/format';
 import { useTranslation } from '@yalla/i18n';
 import { useId, useMemo, useState } from 'react';
+import { DataTable } from '../../kit';
 import { BarChart, type Bar } from './BarChart';
 import { hadPreviousPeriod, revenueCsv } from './csv';
 import { serviceHours } from './hours';
@@ -176,9 +177,8 @@ export function RevenueSection({ query, locale, periodName, onCsv }: RevenueSect
               <p className="yc-rp-reading">{t('reports.revenue.oneDay')}</p>
             )}
             {points.length > 1 ? (
-              <div id={tableId} hidden={!table} className="yc-tscroll">
-                <table className="yc-tbl">
-                  <caption className="yc-sr">{title}</caption>
+              <div id={tableId} hidden={!table}>
+                <DataTable caption={title} phone="cards">
                   <thead>
                     <tr>
                       <th scope="col">{t('reports.revenue.day')}</th>
@@ -211,7 +211,7 @@ export function RevenueSection({ query, locale, periodName, onCsv }: RevenueSect
                       </tr>
                     ))}
                   </tbody>
-                </table>
+                </DataTable>
               </div>
             ) : null}
           </div>

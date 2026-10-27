@@ -134,6 +134,8 @@
   font-weight: var(--font-weight-medium);
   text-decoration: none;
   white-space: nowrap;
+  /* Holds its screen-reader-only words (`.yc-sr`, absolute) inside itself. */
+  position: relative;
 }
 
 .yc .yc-nav a:hover {
@@ -471,100 +473,7 @@
   outline: none;
 }
 
-/*
- * On a phone the sidebar becomes a bar across the top: the brand and who is
- * signed in on one line, the three destinations on the next. Three links fit
- * in a row, and a bar costs a phone far less height than a stacked column.
- */
-@media (max-width: 799px) {
-  .yc-app {
-    flex-direction: column;
-  }
-
-  .yc-side {
-    position: static;
-    height: auto;
-    overflow-y: visible;
-    align-self: stretch;
-    flex: none;
-    width: auto;
-    flex-direction: row;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: var(--space-md);
-    padding: var(--space-md) var(--space-lg);
-  }
-
-  /* Desktop only (the venue handoff): on a phone the grouped links run in the
-     same one row as the platform's, without their headings. */
-  .yc-side.is-grouped {
-    flex-basis: auto;
-    width: auto;
-    padding: var(--space-md) var(--space-lg);
-  }
-
-  .yc-ngrp {
-    flex-direction: row;
-  }
-
-  .yc-ngroup {
-    display: none;
-  }
-
-  .yc-brand {
-    padding: 0;
-  }
-
-  .yc-side-foot {
-    position: static;
-    margin: 0 0 0 auto;
-    padding-bottom: 0;
-    background: none;
-    flex-direction: row;
-    align-items: center;
-    min-width: 0;
-  }
-
-  .yc-me {
-    padding: 0;
-    background: none;
-  }
-
-  .yc-me-t {
-    max-width: 140px;
-  }
-
-  .yc-nav {
-    order: 3;
-    flex: 1 0 100%;
-    flex-direction: row;
-    overflow-x: auto;
-  }
-
-  .yc .yc-nav a {
-    height: 40px;
-    padding: 0 10px;
-    gap: var(--space-sm);
-    font-size: var(--console-text-body);
-  }
-
-  /* The mock's role switcher is a desktop tool; on a phone it would push the
-     three destinations below the fold. */
-  .yc-side .dev-role {
-    display: none;
-  }
-
-  .yc-main {
-    padding: var(--console-size-narrow-pad-y) var(--console-size-narrow-pad-x) var(--space-xxl);
-  }
-}
-
-/* The words carry the nav on a narrow phone; the icons only repeat them. */
-@media (max-width: 479px) {
-  .yc-nav .yc-i {
-    display: none;
-  }
-}
+/* On a phone the sidebar is a drawer behind a top bar: `phone-shell.css`. */
 
 /* --------------------------------------------------------------------------
  * Page header, cards, type
@@ -753,7 +662,8 @@
   background: var(--console-surface);
   color: var(--console-ink);
   font: inherit;
-  font-size: var(--console-text-body);
+  /* 16px on a touch screen, or iOS zooms the page in on focus. */
+  font-size: var(--console-text-input);
 }
 
 .yc-ctl:hover {
@@ -1870,8 +1780,8 @@ body:has(.yc-savebar) .yc-toast-region {
 }
 
 .yc-kebab {
-  width: 36px;
-  height: 36px;
+  width: var(--console-size-kebab);
+  height: var(--console-size-kebab);
   display: inline-grid;
   place-items: center;
   padding: 0;
@@ -1905,7 +1815,7 @@ body:has(.yc-savebar) .yc-toast-region {
   display: flex;
   align-items: center;
   gap: 10px;
-  height: 38px;
+  height: var(--console-size-menu-item);
   padding: 0 10px;
   border: 0;
   border-radius: 7px;
@@ -3449,7 +3359,7 @@ body:has(.yc-savebar) .yc-toast-region {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  height: 36px;
+  height: var(--console-size-chip);
   padding: 0 14px;
   border: 1px solid var(--console-button-edge);
   border-radius: var(--console-radius-pill);
@@ -5120,8 +5030,8 @@ body:has(.yc-savebar) .yc-toast-region {
 
 /* A two-arrow step mover, and the arrow at the end that cannot move. */
 .yc-mini {
-  width: 28px;
-  height: 28px;
+  width: var(--console-size-mini);
+  height: var(--console-size-mini);
   flex: none;
   display: grid;
   place-items: center;

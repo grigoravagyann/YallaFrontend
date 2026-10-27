@@ -180,7 +180,13 @@
     "signOut": "Sign out",
     "mainNav": "Main navigation",
     "skipToContent": "Skip to content",
-    "brandSub": "console"
+    "brandSub": "console",
+    "openMenu": "Open navigation",
+    "openMenuAttention": "Open navigation — something is waiting for you",
+    "closeMenu": "Close navigation",
+    "drawer": "Navigation",
+    "person": "Your account: {{name}}",
+    "changeBranch": "Branch: {{name}}. Change branch"
   },
   "role": {
     "platformAdmin": "Platform admin",

@@ -2,6 +2,8 @@ import type { UserRole } from '@yalla/api';
 import { useTranslation } from '@yalla/i18n';
 import { ErrorState } from '../console/ui/ErrorState';
 import '../console/ui/console.css';
+// After console.css: the phone rules for single pages (2026-10-27).
+import '../console/ui/phone-pages.css';
 import { landingPathFor, useCurrentUser } from './useCurrentUser';
 
 export interface RequireRoleProps {

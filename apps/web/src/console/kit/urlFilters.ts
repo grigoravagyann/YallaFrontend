@@ -16,6 +16,8 @@ export interface UrlFilterCodec<F> {
 export interface WriteOptions {
   /** Replace the current history entry rather than push a new one (Back skips it). */
   readonly replace?: boolean;
+  /** History state for the entry written, read back with `useLocation().state`. */
+  readonly state?: unknown;
 }
 
 /** Sets `key`, or deletes it when `value` is null. */
@@ -66,7 +68,7 @@ export function useUrlFilters<F>(codec: UrlFilterCodec<F>) {
           putParam(copy, key, value);
           return copy;
         },
-        { replace: options.replace ?? false },
+        { replace: options.replace ?? false, state: options.state },
       );
     },
     [setParams],

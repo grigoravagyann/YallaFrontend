@@ -14,6 +14,7 @@ import { OnceLinkDialog } from '../../ui/OnceLinkDialog';
 import { useToast } from '../../ui/toast';
 import { AddStaffWizard, type Hired } from '../../venue/staff/AddStaffWizard';
 import { IssueSignInDialog } from '../../venue/staff/IssueSignInDialog';
+import { DataTable } from '../../kit';
 
 /** Every venue in the pilot is in Yerevan. */
 const CONSOLE_TIME_ZONE = 'Asia/Yerevan';
@@ -182,82 +183,80 @@ export function StaffPanel({ venue, canChange }: StaffPanelProps) {
               : t('venuePage.staff.emptyFiltered')}
           </p>
         ) : (
-          <div className="yc-tscroll">
-            <table className="yc-tbl" aria-labelledby={listId}>
-              <thead>
-                <tr>
-                  <th scope="col">{t('venuePage.staff.person')}</th>
-                  <th scope="col">{t('venuePage.staff.role')}</th>
-                  <th scope="col">{t('venuePage.staff.branch')}</th>
-                  <th scope="col">{t('venuePage.staff.status')}</th>
-                  <th scope="col">
-                    <span className="yc-sr">{t('venuePage.staff.actions')}</span>
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {people.map((member) => {
-                  const status = statusOf(member);
-                  const issuable = canChange && canIssueSignIn(PLATFORM_ACTOR, member);
-                  const action = member.email
-                    ? t('venuePage.staff.newLink')
-                    : t('venuePage.staff.giveSignIn');
-                  const contact = member.email
-                    ? member.email
-                    : isAdminRole(member.role)
-                      ? member.phone
-                      : t('venuePage.staff.byPin');
-                  return (
-                    <tr key={member.id} className={member.isActive ? undefined : 'is-dim'}>
-                      <td>
-                        <div className="yc-person">
-                          <span className="yc-av" aria-hidden="true">
-                            {initialsOf(member.fullName)}
-                          </span>
-                          <div>
-                            <div className="yc-pn">{member.fullName}</div>
-                            <div className="yc-pe">{contact}</div>
-                          </div>
-                        </div>
-                      </td>
-                      <td>{t(`role.${member.role}`)}</td>
-                      <td>{branchName(member.branchId)}</td>
-                      <td>
-                        <span className={PILL[status]}>
-                          <span className="yc-dot" aria-hidden="true" />
-                          {statusLabel(status)}
+          <DataTable labelledBy={listId} phone="cards">
+            <thead>
+              <tr>
+                <th scope="col">{t('venuePage.staff.person')}</th>
+                <th scope="col">{t('venuePage.staff.role')}</th>
+                <th scope="col">{t('venuePage.staff.branch')}</th>
+                <th scope="col">{t('venuePage.staff.status')}</th>
+                <th scope="col">
+                  <span className="yc-sr">{t('venuePage.staff.actions')}</span>
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {people.map((member) => {
+                const status = statusOf(member);
+                const issuable = canChange && canIssueSignIn(PLATFORM_ACTOR, member);
+                const action = member.email
+                  ? t('venuePage.staff.newLink')
+                  : t('venuePage.staff.giveSignIn');
+                const contact = member.email
+                  ? member.email
+                  : isAdminRole(member.role)
+                    ? member.phone
+                    : t('venuePage.staff.byPin');
+                return (
+                  <tr key={member.id} className={member.isActive ? undefined : 'is-dim'}>
+                    <td>
+                      <div className="yc-person">
+                        <span className="yc-av" aria-hidden="true">
+                          {initialsOf(member.fullName)}
                         </span>
-                      </td>
-                      <td className="yc-num">
-                        {issuable ? (
-                          <button
-                            type="button"
-                            className="yc-btn yc-btn-sec yc-btn-sm"
-                            data-link={member.id}
-                            aria-label={t('venuePage.staff.actionFor', {
-                              action,
-                              name: member.fullName,
-                            })}
-                            onClick={() =>
-                              setShown({
-                                kind: 'issue',
-                                member,
-                                email: member.email ?? '',
-                                failure: null,
-                                returnTo: `[data-link="${member.id}"]`,
-                              })
-                            }
-                          >
-                            {action}
-                          </button>
-                        ) : null}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+                        <div>
+                          <div className="yc-pn">{member.fullName}</div>
+                          <div className="yc-pe">{contact}</div>
+                        </div>
+                      </div>
+                    </td>
+                    <td>{t(`role.${member.role}`)}</td>
+                    <td>{branchName(member.branchId)}</td>
+                    <td>
+                      <span className={PILL[status]}>
+                        <span className="yc-dot" aria-hidden="true" />
+                        {statusLabel(status)}
+                      </span>
+                    </td>
+                    <td className="yc-num yc-tc-act">
+                      {issuable ? (
+                        <button
+                          type="button"
+                          className="yc-btn yc-btn-sec yc-btn-sm"
+                          data-link={member.id}
+                          aria-label={t('venuePage.staff.actionFor', {
+                            action,
+                            name: member.fullName,
+                          })}
+                          onClick={() =>
+                            setShown({
+                              kind: 'issue',
+                              member,
+                              email: member.email ?? '',
+                              failure: null,
+                              returnTo: `[data-link="${member.id}"]`,
+                            })
+                          }
+                        >
+                          {action}
+                        </button>
+                      ) : null}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </DataTable>
         )}
       </section>
 

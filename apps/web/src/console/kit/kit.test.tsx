@@ -320,6 +320,105 @@ describe('DataTable', () => {
     expect(table.getAttribute('aria-busy')).toBe('true');
     expect(table.querySelector('caption')?.className).toBe('yc-res-cap');
   });
+
+  it('keeps sideways scrolling unless asked for cards, and labels no cell then', () => {
+    render(
+      <DataTable caption="Activity">
+        <TableHead columns={[{ label: 'Who' }]} />
+        <tbody>
+          <tr>
+            <td>Ani</td>
+          </tr>
+        </tbody>
+      </DataTable>,
+    );
+    expect(screen.getByRole('table').className).toBe('yc-tbl');
+    expect(screen.getByRole('cell').hasAttribute('data-label')).toBe(false);
+  });
+
+  it('as cards on a phone, labels each cell from its header and keeps the row’s actions', async () => {
+    function Rows() {
+      const [more, setMore] = useState(false);
+      return (
+        <>
+          <section aria-labelledby="t">
+            <h2 id="t">Venues</h2>
+            <DataTable labelledBy="t" className="yc-x" phone="cards">
+              <thead>
+                <tr>
+                  <th scope="col">
+                    <button type="button">
+                      Name
+                      <span aria-hidden="true">↕</span>
+                    </button>
+                  </th>
+                  <th scope="col" className="yc-num">
+                    Tables
+                  </th>
+                  <th scope="col" data-label="Rating">
+                    <svg aria-hidden="true" />
+                  </th>
+                  <th scope="col">
+                    <span className="yc-sr">Actions</span>
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>Lumen</td>
+                  <td className="yc-num">12</td>
+                  <td data-label="">4.7</td>
+                  <td className="yc-mcell">
+                    <button type="button" aria-label="Actions for Lumen">
+                      ⋮
+                    </button>
+                  </td>
+                </tr>
+                {more ? (
+                  <tr>
+                    <td>Ararat</td>
+                    <td className="yc-num">8</td>
+                    <td>4.1</td>
+                    <td className="yc-mcell" />
+                  </tr>
+                ) : null}
+                <tr>
+                  <td colSpan={4}>That is all</td>
+                </tr>
+              </tbody>
+            </DataTable>
+          </section>
+          <button type="button" onClick={() => setMore(true)}>
+            More
+          </button>
+        </>
+      );
+    }
+    render(<Rows />);
+
+    const table = screen.getByRole('table', { name: 'Venues' });
+    expect(table.className).toBe('yc-tbl yc-x yc-cards');
+    expect(table.querySelector('caption')).toBeNull();
+
+    const labels = () =>
+      Array.from(table.querySelectorAll('tbody tr')).map((row) =>
+        Array.from(row.children).map((cell) => cell.getAttribute('data-label')),
+      );
+    // The arrow is left out of "Name"; a header's own data-label names an icon;
+    // a cell's own data-label wins; a cell across columns gets none.
+    expect(labels()).toEqual([['Name', 'Tables', '', 'Actions'], ['']]);
+    expect(screen.getByRole('button', { name: 'Actions for Lumen' })).toBeTruthy();
+
+    // A row a child adds later is labelled too.
+    await userEvent.click(screen.getByRole('button', { name: 'More' }));
+    await vi.waitFor(() =>
+      expect(labels()).toEqual([
+        ['Name', 'Tables', '', 'Actions'],
+        ['Name', 'Tables', 'Rating', 'Actions'],
+        [''],
+      ]),
+    );
+  });
 });
 
 // --- Inputs -----------------------------------------------------------------------

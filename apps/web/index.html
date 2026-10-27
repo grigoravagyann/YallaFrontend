@@ -12,10 +12,16 @@
          this makes sure nothing else ever carries one. -->
     <meta name="referrer" content="no-referrer" />
 
-    <!-- Installed as a PWA on floor tablets and on staff phones. `start_url`
-         and `scope` in the manifest are /staff, so installing gives a waiter an
-         icon that opens straight into the room, or their phone. -->
+    <!-- Installed as a PWA from "Add to Home Screen". On /staff the staff
+         manifest: `start_url` and `scope` are /staff, so installing gives a
+         waiter an icon that opens straight into the room, or their phone. On
+         the console's paths the console's (`manifest-console.webmanifest`,
+         scope /, and / sends each role to its home). On the public venue page
+         and a booking's manage link none, so a diner never installs the
+         console. `manifest-link.js` picks, before anything else runs: a file,
+         because the CSP allows no inline script. -->
     <link rel="manifest" href="/manifest.webmanifest" />
+    <script src="/manifest-link.js"></script>
     <!-- consoleColor.sidebar (#3A0912), the floor tablet bar, from @yalla/tokens; the manifest carries the same value. -->
     <meta name="theme-color" content="#3A0912" />
     <!-- iOS reads neither the manifest's icons nor an SVG here: a PNG, and

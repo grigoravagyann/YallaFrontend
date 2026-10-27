@@ -330,7 +330,7 @@ empty); the serif is reached by name.
 | Floor tablet | the staff scale: base 18, steps 14, 16, 18, 22, 30, 40, metric 44                                 |
 
 Nothing on the web is under 12px. Public-page inputs are 16px so iOS does not
-zoom on focus. The generated CSS sets the console scale on `:root`, the staff
+zoom on focus, and so is every console field on a touch screen. The generated CSS sets the console scale on `:root`, the staff
 scale under `[data-surface='staff']`, and the diner scale under
 `[data-surface='diner']` (the public page).
 
@@ -390,7 +390,8 @@ outline reads as calm; a shadow reads as a component kit.
 | Diner               | 44 minimum (`layout.touchTarget`); controls 48, the one big press 56, action tiles 72                                    |
 | Floor tablet, phone | the staff sizes (`--touch-*`): primary actions 56 to 64 tall, every target at least 44×44 with 8 between; PIN keys 96×76 |
 | Public page         | buttons and controls 48, a page state's action 52, language buttons at least 48, table pins 44                           |
-| Consoles (pointer)  | buttons 40, small 32, 44 on the sign-in pages; nav links 44, or 40 in the grouped sidebar                                |
+| Consoles (pointer)  | buttons 40, small 32, 44 on the sign-in pages; nav links 44, or 40 in the grouped sidebar; chips 36, kebabs 36           |
+| Consoles (touch)    | under `(pointer: coarse)` or a phone: every button, chip, kebab, step arrow, menu item and nav link 44; fields 16px      |
 
 The shared `touchTarget` is `minimum 44`, `small 40`, `regular 48`,
 `large 56`, `staff 56`. The tablet is used standing, in a hurry, often
@@ -398,6 +399,40 @@ one-handed, so it has no hover and every control has a pressed state. Buttons
 there take `min-height`, never a fixed `height`, which collapses inside a flex
 column. Destructive actions never sit next to frequent ones: a "void" beside a
 "seat" is a mis-tap during a Friday rush.
+
+## Console on a phone
+
+Every console role works on a phone, and the console installs from Safari's
+"Add to Home Screen" like the staff app. A desktop with a mouse is drawn
+exactly as before: every phone rule sits under one of two queries
+(`consoleMedia` in `console.ts`).
+
+- **`(max-width: 799px)` is the layout.** The sidebar becomes a drawer
+  behind a sticky top bar, 56px plus the status bar's safe area: the menu
+  button, the wordmark, the branch chip (venue roles) and the avatar. The
+  drawer is the sidebar itself, so everything on it is reachable: the grouped
+  links in 48px rows, the venue panel with the branch switcher, the person and
+  sign-out. It is a modal dialog: the focus stays inside, Escape or a tap on
+  the scrim closes it, and so does any navigation; reduced motion drops its
+  slide. A count on any link puts a dot on the menu button.
+- **`(pointer: coarse), (max-width: 799px)` is the sizing**, so a touch
+  iPad with the desktop layout gets it too. `consoleTouchSize` and
+  `consoleTouchText` are written over the same `--console-*` properties:
+  buttons, small buttons, chips, kebabs, step arrows, menu items and nav
+  links 44, fields 16px (under 16, iOS zooms the page on focus). A switch
+  keeps its 40x24 track inside a 44x44 hit area.
+- **Words wrap.** On a phone buttons and pills may run to two lines rather
+  than off the screen, with a `min-height`, never a fixed height.
+- **Tables are cards.** The primary cell is the title, the rest are
+  label: value lines, and the row's actions and status stay in sight; no
+  action is ever scrolled off-screen.
+- **Tab strips scroll** with a fade on the overflowing edge, the active tab in
+  view. A messages screen shows the list or the thread, never both.
+- **Nothing is hover-only.** What a tooltip says is in the text or a tap away.
+- **Installing.** `manifest-console.webmanifest` ("SHURJ Console", scope
+  and start URL `/`, which sends each role home) on the console's paths, the
+  staff manifest on `/staff`, and none on a diner's pages
+  (`public/manifest-link.js`).
 
 ## Motion
 
