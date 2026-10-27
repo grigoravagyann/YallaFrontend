@@ -128,10 +128,14 @@ export function applyFloorChanges(
     //
     // The table was handed to another waiter (signal 7, 2026-10-24): the row
     // does not say to whom, the floor read does (`serverName`).
+    //
+    // The table's tab was written off (signal 9, 2026-10-27): the row's status
+    // is the table's own, not a transition, and only a read says the tab is gone.
     if (
       change.signal === 'bookingCancelledByBlock' ||
       change.signal === 'bookingChanged' ||
       change.signal === 'tableTransferred' ||
+      change.signal === 'tabWrittenOff' ||
       change.signal === 'unknown'
     ) {
       return { kind: 'gap', expected: floor.lastSequence + 1, received: change.sequence };

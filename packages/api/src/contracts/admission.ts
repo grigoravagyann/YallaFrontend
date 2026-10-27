@@ -142,7 +142,11 @@ export interface RejectTabCommand {
  * placed, accepted, declined, cancelled, marked ready, collected or not
  * collected. The one row about no table (`tableId` null, both statuses free,
  * no order named): never fold it; read the takeaway counter and the kitchen's
- * queue again (`readsTakeawayCounter`).
+ * queue again (`readsTakeawayCounter`) —
+ * and 9 TabWrittenOff (2026-10-27): a manager wrote the table's tab off (the
+ * party left without paying). Its open calls were answered with it and its
+ * orders left the kitchen's queue; same-status row, never folded: read the
+ * floor, the calls and the queue again (`useFloorLiveStream`).
  */
 export type FloorChangeSignal =
   | 'tabAwaitingAdmission'
@@ -153,6 +157,7 @@ export type FloorChangeSignal =
   | 'preOrderChanged'
   | 'tableTransferred'
   | 'takeawayChanged'
+  | 'tabWrittenOff'
   | 'unknown';
 
 /** At most this many characters in a reject's reason, as the server bounds it. */

@@ -155,6 +155,14 @@ export function useFloorLiveStream({
             if (unknownSignal || signalled.some((change) => readsTakeawayCounter(change.signal))) {
               afterTakeawaySignal(queryClient, branchId);
             }
+            // A tab written off (signal 9, 2026-10-27): its calls were answered
+            // and its orders left the kitchen's queue with it. Both are read
+            // again at once, not at the calls' next poll; so is the floor,
+            // through the fold's gap below.
+            if (unknownSignal || signalled.some((change) => change.signal === 'tabWrittenOff')) {
+              void queryClient.invalidateQueries({ queryKey: queryKeys.serviceRequests(branchId) });
+              void queryClient.invalidateQueries({ queryKey: queryKeys.orderQueue(branchId) });
+            }
             if (byBlock.length > 0) {
               const news = blockCancelledNews(
                 byBlock,
