@@ -129,6 +129,16 @@ export default tseslint.config(
     },
   },
 
+  // Points index.html's manifest link at the app this path installs, before
+  // the bundle loads: plain JS served as-is from `public/`, in the page.
+  {
+    files: ['**/public/manifest-link.js'],
+    languageOptions: {
+      sourceType: 'script',
+      globals: { ...globals.browser },
+    },
+  },
+
   // The diner app has its own theme. The shared colour, elevation and type-size
   // tokens describe the console's palette; a diner screen reaching past
   // `src/theme` for them is how the shared-tab flow ended up on the wrong one.
