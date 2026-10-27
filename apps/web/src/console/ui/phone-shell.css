@@ -58,6 +58,18 @@
     min-height: var(--console-size-menu-item);
   }
 
+  /* The other shared pressables: a segmented choice (spice, period), an
+     allergen toggle, a small icon button (a photo's remove). */
+  .yc .yc-seg button,
+  .yc .yc-alck {
+    min-height: var(--console-size-button);
+  }
+
+  .yc .yc-ib {
+    width: var(--console-size-kebab);
+    height: var(--console-size-kebab);
+  }
+
   .yc-me,
   .yc-bfix {
     min-height: var(--console-size-button);
@@ -335,6 +347,16 @@
 
   .yc-swl {
     white-space: normal;
+  }
+
+  /* Home's blocked numbers: "Lift" goes under the number rather than being
+     squeezed off the card by the 220px text column at 360px. */
+  .yc-blocks li {
+    flex-wrap: wrap;
+  }
+
+  .yc-blocks li > .yc-btn {
+    margin-left: auto;
   }
 }
 
