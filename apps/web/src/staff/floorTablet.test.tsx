@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import 'fake-indexeddb/auto';
 import {
+  FULL_FEATURES,
   LineAlreadyPaidError,
   NoShowUndoWindowClosedError,
   ReservationNotStartedError,
@@ -97,7 +98,13 @@ function signIn(withDevice: EnrolledDevice | null = device): void {
   session.set({
     state: 'signedIn',
     device: withDevice,
-    identity: { staffMemberId: 's1', fullName: 'Sona Vardanyan', role: 'waiter', branchId: BRANCH },
+    identity: {
+      staffMemberId: 's1',
+      fullName: 'Sona Vardanyan',
+      role: 'waiter',
+      branchId: BRANCH,
+      features: FULL_FEATURES,
+    },
     lastSignOut: null,
   } satisfies StaffSessionSnapshot);
 }

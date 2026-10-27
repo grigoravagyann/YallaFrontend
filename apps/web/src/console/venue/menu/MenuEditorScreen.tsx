@@ -48,6 +48,7 @@ import { PageHeader } from '../../ui/PageHeader';
 import { useToast } from '../../ui/toast';
 import { menuItemAnchorId, menuItemIdFromHash } from '../menuAnchors';
 import { useVenueOutlet } from '../VenueLayout';
+import { useFeatureLocked } from '../featureLock';
 import { BulkPhotoDrop } from './BulkPhotoDrop';
 import { CategoryNameDialog } from './CategoryNameDialog';
 import { DESCRIPTIVE_FIELDS, DishDrawer, knownValues } from './DishDrawer';
@@ -136,7 +137,11 @@ export function MenuEditorScreen() {
   const preOrderQuery = usePreOrderSettings(branchId ?? undefined);
   const savePreOrders = useSavePreOrderSettings(branchId ?? undefined);
   /** The branch's pre-order settings, while it takes them: the column is there only then. */
-  const preOrders = preOrderQuery.data?.acceptsPreOrders ? preOrderQuery.data : null;
+  // Pre-orders blocked by the platform (2026-10-27): no per-dish switch; the
+  // Policy card says why.
+  const preOrdersLocked = useFeatureLocked('preOrders');
+  const preOrders =
+    preOrderQuery.data?.acceptsPreOrders && !preOrdersLocked ? preOrderQuery.data : null;
   /** The dish whose "for takeaway" switch is being saved: one at a time, as availability. */
   const [takeawayFor, setTakeawayFor] = useState<string | null>(null);
   const takeawayQuery = useTakeawaySettings(branchId ?? undefined);

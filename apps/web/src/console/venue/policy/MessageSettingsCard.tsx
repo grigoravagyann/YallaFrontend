@@ -14,6 +14,7 @@ import { useEffect, useRef, useState } from 'react';
 import { QueryFailureNotice } from '../../../components/QueryFailureNotice';
 import { InfoIcon, TrashIcon } from '../../ui/icons';
 import { useToast } from '../../ui/toast';
+import { FeatureLockedControls, useFeatureLocked } from '../featureLock';
 import { useUnsavedChangesGuard } from '../useUnsavedChangesGuard';
 import type { PreOrderCardDraft } from './PreOrderSettingsCard';
 
@@ -48,6 +49,8 @@ export function MessageSettingsCard({
   readonly onDraft?: ((draft: MessagesCardDraft | null) => void) | undefined;
 }) {
   const { t } = useTranslation(['admin', 'common']);
+  // Blocked by the platform (2026-10-27): shown as it stands, locked.
+  const locked = useFeatureLocked('guestMessages');
   const query = useMessageSettings(branchId);
   const titleId = `${MESSAGES_CARD_ID}-h`;
 
@@ -61,18 +64,20 @@ export function MessageSettingsCard({
           <p className="yc-cap">{t('messages.body')}</p>
         </div>
       </div>
-      {query.isError ? (
-        <div className="yc-ov-pad">
-          <QueryFailureNotice error={query.error} onRetry={() => void query.refetch()} />
-        </div>
-      ) : query.data ? (
-        // Another branch is another form: nothing typed carries over.
-        <MessagesForm key={branchId} saved={query.data} branchId={branchId} onDraft={onDraft} />
-      ) : (
-        <p className="yc-empty-line" role="status">
-          {t('loading')}
-        </p>
-      )}
+      <FeatureLockedControls feature="guestMessages" locked={locked}>
+        {query.isError ? (
+          <div className="yc-ov-pad">
+            <QueryFailureNotice error={query.error} onRetry={() => void query.refetch()} />
+          </div>
+        ) : query.data ? (
+          // Another branch is another form: nothing typed carries over.
+          <MessagesForm key={branchId} saved={query.data} branchId={branchId} onDraft={onDraft} />
+        ) : (
+          <p className="yc-empty-line" role="status">
+            {t('loading')}
+          </p>
+        )}
+      </FeatureLockedControls>
     </section>
   );
 }

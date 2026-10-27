@@ -1,4 +1,4 @@
-import { describeFailure } from '@yalla/api';
+import { blockedFeature, describeFailure } from '@yalla/api';
 import { useTranslation } from '@yalla/i18n';
 
 export interface QueryFailureNoticeProps {
@@ -24,9 +24,12 @@ export interface QueryFailureNoticeProps {
 export function QueryFailureNotice({ error, offline, onRetry }: QueryFailureNoticeProps) {
   const { t } = useTranslation(['admin', 'common']);
   const kind = offline ? 'offline' : describeFailure(error);
+  // `feature-not-enabled`: not a fault to retry, the platform's switch.
+  const locked = !offline && blockedFeature(error) !== undefined;
 
-  const message =
-    kind === 'offline'
+  const message = locked
+    ? `${t('featureLocked.title')}. ${t('featureLocked.body')}`
+    : kind === 'offline'
       ? t('state.offline')
       : kind === 'unavailable'
         ? t('state.notAvailable')
@@ -36,7 +39,7 @@ export function QueryFailureNotice({ error, offline, onRetry }: QueryFailureNoti
             ? t('state.signedOut')
             : t('state.error');
 
-  const canRetry = onRetry && kind !== 'unavailable' && kind !== 'forbidden';
+  const canRetry = onRetry && !locked && kind !== 'unavailable' && kind !== 'forbidden';
 
   return (
     <div className={`notice notice-${kind}`} role={kind === 'offline' ? 'status' : 'alert'}>

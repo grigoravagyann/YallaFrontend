@@ -305,6 +305,45 @@
   font-variant-numeric: tabular-nums;
 }
 
+/* A feature the platform has not enabled at the branch: locked, not hidden. */
+.yc-nlock {
+  width: 14px;
+  height: 14px;
+  margin-left: auto;
+  opacity: 0.75;
+}
+
+/* The lock and its two lines, in a card or above a page (2026-10-27). */
+.yc-lock {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-sm);
+  margin: 0 0 var(--space-md);
+  padding: var(--space-md);
+  border: 1px solid var(--console-grey-line);
+  border-radius: var(--console-radius-control);
+  background: var(--console-grey-bg);
+  color: var(--console-ink);
+  font-size: var(--console-text-label);
+}
+
+.yc-lock .yc-i {
+  width: 16px;
+  height: 16px;
+  flex: none;
+  margin-top: 2px;
+  color: var(--console-grey);
+}
+
+/* A locked card's controls: shown as they stand, none of them usable. */
+.yc-lockset {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  opacity: 0.6;
+}
+
 /* The venue, the signed-in role and the branch, under the brand. */
 .yc-place {
   display: flex;

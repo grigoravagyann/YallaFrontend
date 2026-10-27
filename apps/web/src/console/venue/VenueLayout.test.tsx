@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import 'fake-indexeddb/auto';
 import {
+  BASIC_FEATURES,
   createQueryClient,
   type ConsoleGateway,
   type ConsoleUser,
@@ -194,7 +195,7 @@ function branchSummary(branchId: string, name: string, slug: string) {
     longitude: 44.5136,
     timeZoneId: 'Asia/Yerevan',
     isActive: true,
-    subscriptionTier: 1,
+    features: [1, 2, 3, 4, 6, 7, 8, 9, 10],
     tableCount: 0,
     openTabCount: 0,
   } satisfies Schemas['Yalla.Application.Platform.BranchSummary'];
@@ -217,13 +218,22 @@ const VENUE_DETAIL = {
     deletedAtUtc: null,
     branchCount: 2,
     tableCount: 0,
-    paidBranchCount: 0,
-    subscriptionTier: 1,
     status: 1,
-    tierMix: 1,
     branches: [
-      { branchId: B1, name: 'Northern Avenue', subscriptionTier: 1, isActive: true, issues: [] },
-      { branchId: B2, name: 'Cascade', subscriptionTier: 1, isActive: true, issues: [] },
+      {
+        branchId: B1,
+        name: 'Northern Avenue',
+        features: [1, 2, 3, 4, 6, 7, 8, 9, 10],
+        isActive: true,
+        issues: [],
+      },
+      {
+        branchId: B2,
+        name: 'Cascade',
+        features: [1, 2, 3, 4, 6, 7, 8, 9, 10],
+        isActive: true,
+        issues: [],
+      },
     ],
     createdAtUtc: '2026-09-10T08:00:00Z',
     notReadyBranchCount: 0,
@@ -258,7 +268,7 @@ function managedVenue(venueId: string, name: string, slug: string, branches: rea
       slug: branchSlug,
       timeZoneId: 'Asia/Yerevan',
       isActive: true,
-      subscriptionTier: 1,
+      features: [1, 2, 3, 4, 6, 7, 8, 9, 10],
       tableCount: 0,
     })),
   };
@@ -1117,7 +1127,7 @@ describe('what the layout hands down', () => {
         timeZoneId: 'Asia/Yerevan',
         isActive: true,
         tableCount: 0,
-        subscriptionTier: 'free' as const,
+        features: BASIC_FEATURES,
         openTabCount: null,
       })),
     };
@@ -1127,8 +1137,6 @@ describe('what the layout hands down', () => {
         ...two,
         branchCount: 2,
         tableCount: 0,
-        subscriptionTier: 'free',
-        paidBranchCount: 0,
         createdAtUtc: null,
         suspendedAtUtc: null,
         staff: null,

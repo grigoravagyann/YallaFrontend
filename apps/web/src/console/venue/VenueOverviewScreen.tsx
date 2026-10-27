@@ -12,6 +12,7 @@ import { LoadChart } from './overview/LoadChart';
 import { TodayBookings } from './overview/TodayBookings';
 import { WorthALook } from './overview/WorthALook';
 import { useVenueOutlet } from './VenueLayout';
+import { useFeatureLocked } from './featureLock';
 
 type Translate = ReturnType<typeof useTranslation>['t'];
 
@@ -173,6 +174,9 @@ function Kpis({
   const { t } = useTranslation(['admin', 'common']);
   const number = (value: number) => new Intl.NumberFormat(locale).format(value);
   const { bookings, inRoom, openTabs, revenue } = overview;
+  // Table service blocked by the platform: tabs already open still finish,
+  // and are counted; with none left, the card says why there are none.
+  const tabsLocked = useFeatureLocked('tableService') && openTabs.count === 0;
   return (
     <div className="yc-kpis">
       <Kpi label={t('overview.kpi.bookings')} value={number(bookings.total)}>
@@ -205,9 +209,11 @@ function Kpis({
         </span>
       </Link>
       <Kpi label={t('overview.kpi.tabs')} value={number(openTabs.count)}>
-        {openTabs.unpaidAmd > 0
-          ? t('overview.kpi.unpaid', { amount: formatDram(openTabs.unpaidAmd, locale) })
-          : t('overview.kpi.nothingUnpaid')}
+        {tabsLocked
+          ? t('featureLocked.title')
+          : openTabs.unpaidAmd > 0
+            ? t('overview.kpi.unpaid', { amount: formatDram(openTabs.unpaidAmd, locale) })
+            : t('overview.kpi.nothingUnpaid')}
       </Kpi>
       <Kpi label={revenueLabel(t, overview, locale)} value={formatDram(revenue.todayAmd, locale)}>
         <RevenueChange change={revenue.changePercent} locale={locale} />

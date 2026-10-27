@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import 'fake-indexeddb/auto';
 import {
+  FULL_FEATURES,
   ConversationClosedError,
   createQueryClient,
   createStaffMockGateway,
@@ -104,7 +105,13 @@ function signIn(role: 'waiter' | 'kitchen' | 'manager' = 'waiter'): void {
   session.set({
     state: 'signedIn',
     device,
-    identity: { staffMemberId: 's1', fullName: 'Sona Vardanyan', role, branchId: BRANCH },
+    identity: {
+      staffMemberId: 's1',
+      fullName: 'Sona Vardanyan',
+      role,
+      branchId: BRANCH,
+      features: FULL_FEATURES,
+    },
     lastSignOut: null,
   } satisfies StaffSessionSnapshot);
 }

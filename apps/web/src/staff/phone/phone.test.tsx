@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import 'fake-indexeddb/auto';
 import {
+  FULL_FEATURES,
   createQueryClient,
   createStaffMockGateway,
   ForbiddenError,
@@ -104,7 +105,13 @@ function signIn(role: UserRole = 'waiter'): void {
   session.set({
     state: 'signedIn',
     device,
-    identity: { staffMemberId: 's1', fullName: 'Aram Petrosyan', role, branchId: BRANCH },
+    identity: {
+      staffMemberId: 's1',
+      fullName: 'Aram Petrosyan',
+      role,
+      branchId: BRANCH,
+      features: FULL_FEATURES,
+    },
     lastSignOut: null,
   } satisfies StaffSessionSnapshot);
 }
@@ -744,6 +751,7 @@ describe('More', () => {
         fullName: 'Aram Petrosyan',
         role: 'waiter',
         branchId: BRANCH,
+        features: FULL_FEATURES,
       },
       lastSignOut: null,
     } satisfies StaffSessionSnapshot);

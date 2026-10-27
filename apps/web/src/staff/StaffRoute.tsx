@@ -1,4 +1,9 @@
-import { isPhoneDevice, type EnrolledDevice, type StaffSessionIdentity } from '@yalla/api';
+import {
+  FULL_FEATURES,
+  isPhoneDevice,
+  type EnrolledDevice,
+  type StaffSessionIdentity,
+} from '@yalla/api';
 import { useTranslation } from '@yalla/i18n';
 import { useCallback, useEffect, useState } from 'react';
 import { Navigate, useLocation, useNavigate } from 'react-router-dom';
@@ -302,6 +307,8 @@ function StaffFloor({
           fullName: user.displayName,
           role: user.role,
           branchId: user.scope.branchIds[0] ?? '',
+          // The dev role switcher has no session to read them from: all of them.
+          features: FULL_FEATURES,
         }
       : null;
 

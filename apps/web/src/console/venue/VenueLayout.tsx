@@ -1,4 +1,4 @@
-import type { ConsoleUser, ManagedBranch, VenueType } from '@yalla/api';
+import type { BranchFeature, ConsoleUser, ManagedBranch, VenueType } from '@yalla/api';
 import { useVenueProfile } from '@yalla/api/react';
 import { useTranslation } from '@yalla/i18n';
 import { useId, useState } from 'react';
@@ -51,10 +51,19 @@ export const VENUE_ACCOUNT_PATH = '/venue/account';
  */
 export function venueNavGroups(
   counts: VenueNavCounts,
-  { floor }: { readonly floor: boolean } = { floor: false },
+  {
+    floor,
+    features = null,
+  }: {
+    readonly floor: boolean;
+    /** What the platform allows at the branch on screen; `null` until it is known. */
+    readonly features?: readonly BranchFeature[] | null;
+  } = { floor: false },
 ): readonly ShellGroup[] {
   const badge = (count: number | null, sayKey: string) =>
     count === null ? null : { count, sayKey };
+  // Locked, not hidden (2026-10-27): the page says why.
+  const locked = (feature: BranchFeature) => features !== null && !features.includes(feature);
   return [
     {
       id: 'today',
@@ -104,10 +113,21 @@ export function venueNavGroups(
           labelKey: 'nav.reviews',
           icon: <StarIcon />,
           badge: badge(counts.reportedReviews, 'nav.badge.reportedReviews'),
+          locked: locked('reviews'),
         },
         // Every guest conversation of the branch, read only (2026-10-24).
-        { to: '/venue/messages', labelKey: 'nav.messages', icon: <MessagesIcon /> },
-        { to: '/venue/reports', labelKey: 'nav.reports', icon: <ReportsIcon /> },
+        {
+          to: '/venue/messages',
+          labelKey: 'nav.messages',
+          icon: <MessagesIcon />,
+          locked: locked('guestMessages'),
+        },
+        {
+          to: '/venue/reports',
+          labelKey: 'nav.reports',
+          icon: <ReportsIcon />,
+          locked: locked('reports'),
+        },
       ],
     },
   ];
@@ -178,6 +198,7 @@ export function VenueLayout({ user }: VenueLayoutProps) {
           // (K5); a manager's save of either is refused and audited as a
           // refusal, so the editors are not offered.
           canRelocate: user.role === 'owner',
+          features: current?.features ?? null,
         } satisfies VenueOutletContext
       }
     />
@@ -185,7 +206,10 @@ export function VenueLayout({ user }: VenueLayoutProps) {
 
   return (
     <ConsoleShell
-      groups={venueNavGroups(counts, { floor: FLOOR_ROLES.includes(user.role) })}
+      groups={venueNavGroups(counts, {
+        floor: FLOOR_ROLES.includes(user.role),
+        features: current?.features ?? null,
+      })}
       place={
         <VenuePlace
           venueName={venue.data?.name ?? (venue.isLoading ? t('loading') : '')}
@@ -344,6 +368,13 @@ export interface VenueOutletContext {
    * the platform section, which says so itself.
    */
   readonly canRelocate: boolean;
+  /**
+   * What the platform allows at the branch (2026-10-27). A feature not in it
+   * is drawn locked, not hidden ("Not enabled for this branch. Contact SHURJ
+   * to turn it on."), with its controls disabled; `null` (or absent, from a
+   * host that does not say) locks nothing. See `featureLock.tsx`.
+   */
+  readonly features?: readonly BranchFeature[] | null;
 }
 
 export function useVenueOutlet(): VenueOutletContext {

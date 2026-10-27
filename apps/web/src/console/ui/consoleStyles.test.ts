@@ -45,6 +45,8 @@ function redesignFiles(): string[] {
     join(SRC, 'console', 'platform', 'HomeRoute.tsx'),
     // The venue console's shell and My account (venue-console redesign phase 1).
     join(SRC, 'console', 'venue', 'VenueLayout.tsx'),
+    // Locked features (2026-10-27): the lock every venue screen shares.
+    join(SRC, 'console', 'venue', 'featureLock.tsx'),
     ...inFolder(join(SRC, 'console', 'venue', 'account')),
     // Overview (venue-console redesign phase 2).
     join(SRC, 'console', 'venue', 'VenueOverviewScreen.tsx'),

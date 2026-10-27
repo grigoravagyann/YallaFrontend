@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import 'fake-indexeddb/auto';
 import {
+  FULL_FEATURES,
   createQueryClient,
   createStaffMockGateway,
   type EnrolledDevice,
@@ -92,7 +93,7 @@ function signIn(who: typeof SONA): void {
   session.set({
     state: 'signedIn',
     device,
-    identity: { ...who, role: 'waiter', branchId: BRANCH },
+    identity: { ...who, role: 'waiter', branchId: BRANCH, features: FULL_FEATURES },
     lastSignOut: null,
   } satisfies StaffSessionSnapshot);
 }
