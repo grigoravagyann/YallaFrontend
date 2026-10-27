@@ -1,7 +1,7 @@
 /**
  * GENERATED FILE — do not edit.
  *
- * Source: http://localhost:5437/swagger.json
+ * Source: http://localhost:5347/swagger.json
  * Regenerate with: pnpm api:generate
  */
 
@@ -1183,7 +1183,7 @@ export interface paths {
         };
         /**
          * The kitchen queue
-         * @description Open orders for the branch, oldest first, with the table label, the lines and their kitchen notes. Omit `status` for everything still outstanding - New, InKitchen and Ready - which is what a kitchen screen shows.
+         * @description Open orders for the branch, oldest first, with the table label, the lines and their kitchen notes. Omit `status` for everything still outstanding - New, InKitchen and Ready - which is what a kitchen screen shows. A written-off tab's orders are not listed (`abandonTab`): the party has gone, so nothing on it is sent, cooked or carried.
          *
          *     `placedByName` is who sent each ticket: the waiter's name as the PIN roster shows it, read as they are now (renamed or no longer active, it is still theirs). **Absent** when a diner ordered from their own phone - say it came from the app. Nothing else of the staff member is on a ticket.
          */
@@ -2049,7 +2049,7 @@ export interface paths {
         };
         /**
          * The branch's change stream, for catching up after a dropped connection
-         * @description Every table state change writes exactly one audit row in the same transaction as the change, so this is an ordered event log. A client that lost its connection sends the `maxSequence` from its last floor response as `afterSequence` and applies what comes back, in order, rather than refetching the whole floor and working out what moved. `maxSequence` in the response is where the branch's stream ends right now, not the last entry in this page - so a short page still tells you that you are up to date. `hasMore` is set when the page hit its cap; call again with the last sequence you received. A `signal` 8 entry (takeaway) is about the counter, not a table: `diningTableId` and `tableLabel` are null and both statuses are Free - re-read the takeaway counter, never fold it.
+         * @description Every table state change writes exactly one audit row in the same transaction as the change, so this is an ordered event log. A client that lost its connection sends the `maxSequence` from its last floor response as `afterSequence` and applies what comes back, in order, rather than refetching the whole floor and working out what moved. `maxSequence` in the response is where the branch's stream ends right now, not the last entry in this page - so a short page still tells you that you are up to date. `hasMore` is set when the page hit its cap; call again with the last sequence you received. A `signal` 8 entry (takeaway) is about the counter, not a table: `diningTableId` and `tableLabel` are null and both statuses are Free - re-read the takeaway counter, never fold it. A `signal` 9 entry is a tab written off (`tabId`), in the table's status as it stands: re-read the calls, the order queue and the floor, never fold it.
          */
         get: operations["getBranchChanges"];
         put?: never;
@@ -4428,6 +4428,8 @@ export interface paths {
         /**
          * Manager: write off an outstanding balance
          * @description The diners left without paying and the venue is accepting the loss. Kept for reporting rather than deleted - a venue's write-offs are a number it needs.
+         *
+         *     Nothing of the tab stays live on the floor: its open calls (the bill request included) are answered by this manager and leave `getOpenServiceRequests`; its orders leave the queue (`getBranchOrders`) at the place on the rail they had reached - none is voided, the amount written off is the bill as it stood - and no longer move. The branch's change stream carries a `signal` 9 row naming the tab, so every tablet re-reads its calls and queue at once.
          */
         post: operations["abandonTab"];
         delete?: never;
@@ -9674,8 +9676,10 @@ export interface components {
              *     awaiting-admission list; 4 a booking the platform cancelled for a no-show block and 5 any other booking event -
              *     re-read the floor; 6 a booking's pre-order changed - re-read the pre-order rail; 7 the table was handed to another
              *     waiter - re-read the floor; 8 a takeaway order was placed, accepted, declined, cancelled, marked ready, collected or
-             *     marked not collected - re-read the takeaway counter and the kitchen's queue (no table, both statuses Free). Absent on
-             *     every ordinary change. A same-status row (4 to 8) is never folded.
+             *     marked not collected - re-read the takeaway counter and the kitchen's queue (no table, both statuses Free); 9 a tab
+             *     was written off - its calls were answered and its orders left the queue: re-read the calls, the kitchen's queue and
+             *     the floor (the table's status as it stands, both sides). Absent on every ordinary change. A same-status row (4 to 9)
+             *     is never folded.
              */
             signal?: components["schemas"]["Yalla.Domain.Enums.TableChangeSignal"] | null;
             /**
@@ -16011,10 +16015,10 @@ export interface components {
          * @description What a branch change-stream entry signals beyond the table's status, when it is about the tab on the
          *     table rather than the table itself. Persisted as its number on `TableStateChanges.Signal`.
          *
-         *     Values: 1 TabAwaitingAdmission, 2 TabAdmitted, 3 TabAdmissionRejected, 4 BookingCancelledByBlock, 5 BookingChanged, 6 PreOrderChanged, 7 TableTransferred, 8 TakeawayChanged.
+         *     Values: 1 TabAwaitingAdmission, 2 TabAdmitted, 3 TabAdmissionRejected, 4 BookingCancelledByBlock, 5 BookingChanged, 6 PreOrderChanged, 7 TableTransferred, 8 TakeawayChanged, 9 TabWrittenOff.
          * @enum {integer}
          */
-        "Yalla.Domain.Enums.TableChangeSignal": 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8;
+        "Yalla.Domain.Enums.TableChangeSignal": 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9;
         /**
          * Format: int32
          * @description How a party came to occupy a table.
@@ -27106,7 +27110,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
                 };
             };
-            /** @description The rail does not allow that transition (`conflicting-state`), or `line-already-paid`: voiding an order on a tab that has been paid against would be a refund. */
+            /** @description The rail does not allow that transition (`conflicting-state`), or the order's tab was written off (`conflicting-state`: it is off the queue and does not move - read the queue again), or `line-already-paid`: voiding an order on a tab that has been paid against would be a refund. */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -35235,6 +35239,15 @@ export interface operations {
             };
             /** @description This token is for a different tab, the participant was removed, or the tab closed longer ago than the receipt grace period. Decided by the policy, before the handler runs. Or `billScope` 1 WholeBill from somebody the table total is hidden from. */
             403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description `tab-awaiting-admission`: the bill (preset 3) from a tab no waiter has let in yet; or `conflicting-state`: the tab was written off (`abandonTab`) - nobody is at the table. */
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };

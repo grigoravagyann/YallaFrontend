@@ -91,6 +91,7 @@ async function follow(changes: readonly FloorChange[]) {
   queryClient.setQueryData(queryKeys.staffFloor(BRANCH), FLOOR);
   queryClient.setQueryData(queryKeys.takeawayOrders(BRANCH), COUNTER);
   queryClient.setQueryData(queryKeys.orderQueue(BRANCH), []);
+  queryClient.setQueryData(queryKeys.serviceRequests(BRANCH), []);
   queryClient.setQueryData(queryKeys.duePreOrders(BRANCH), { items: [], nextDueAtUtc: null });
 
   await act(() => vi.advanceTimersByTimeAsync(4_100));
@@ -108,6 +109,25 @@ beforeEach(() => {
 afterEach(() => {
   cleanup();
   vi.useRealTimers();
+});
+
+describe('a written-off tab on the change stream (signal 9)', () => {
+  it("reads the calls and the kitchen's queue again at once, and the floor", async () => {
+    const { invalidated } = await follow([
+      row(11, {
+        tableId: 't1',
+        fromStatus: 'occupied',
+        toStatus: 'occupied',
+        reason: 'tab written off',
+        tabId: 'tab-1',
+        signal: 'tabWrittenOff',
+      }),
+    ]);
+
+    expect(invalidated(queryKeys.serviceRequests(BRANCH))).toBe(true);
+    expect(invalidated(queryKeys.orderQueue(BRANCH))).toBe(true);
+    expect(invalidated(queryKeys.staffFloor(BRANCH))).toBe(true);
+  });
 });
 
 describe('a takeaway signal on the change stream', () => {

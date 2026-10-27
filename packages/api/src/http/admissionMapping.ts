@@ -57,6 +57,8 @@ const SIGNAL: Readonly<Record<number, FloorChangeSignal>> = {
   7: 'tableTransferred',
   // A takeaway order moved (2026-10-26): a row about the counter, with no table.
   8: 'takeawayChanged',
+  // A manager wrote the tab off (2026-10-27): its calls and queued orders went with it.
+  9: 'tabWrittenOff',
 };
 
 export function admissionStatus(value: number | null | undefined): TabAdmissionStatus {

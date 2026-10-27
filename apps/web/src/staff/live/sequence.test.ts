@@ -229,6 +229,20 @@ describe('a table handed to another waiter (signal 7)', () => {
   });
 });
 
+describe('a tab written off (signal 9)', () => {
+  it('reads the floor again: the row is the table as it is, not where the tab went', () => {
+    const result = applyFloorChanges(floor, [
+      {
+        ...change(41, 't2', 'occupied'),
+        fromStatus: 'occupied',
+        tabId: 'tab-2',
+        signal: 'tabWrittenOff',
+      },
+    ]);
+    expect(result.kind).toBe('gap');
+  });
+});
+
 describe('a pre-order row (signal 6)', () => {
   it('leaves a free table with its booking coming as it is, without reading the floor (review S1)', () => {
     // A pre-order's table is normally free with that booking next until the

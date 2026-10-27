@@ -748,6 +748,10 @@ describe('the floor', () => {
     expect(floorChangeSignal(7)).toBe('tableTransferred');
   });
 
+  it('reads the change stream’s TabWrittenOff (9) by name', () => {
+    expect(floorChangeSignal(9)).toBe('tabWrittenOff');
+  });
+
   it('says why a transfer was refused: the target, or a bill that is over', async () => {
     const problem = (status: number, code: string, context: Record<string, unknown>) => ({
       status,

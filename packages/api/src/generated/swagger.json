@@ -11992,6 +11992,16 @@
               }
             }
           },
+          "409": {
+            "description": "`tab-awaiting-admission`: the bill (preset 3) from a tab no waiter has let in yet; or `conflicting-state`: the tab was written off (`abandonTab`) - nobody is at the table.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
           "422": {
             "description": "`billScope` or `tipPercent` refused - on a preset other than 3, a tip with no scope, a tip outside 0 to 25, or a scope that leaves nothing to pay. `context.fields` names each.",
             "content": {
@@ -22529,7 +22539,7 @@
           "staff"
         ],
         "summary": "The kitchen queue",
-        "description": "Open orders for the branch, oldest first, with the table label, the lines and their kitchen notes. Omit `status` for everything still outstanding - New, InKitchen and Ready - which is what a kitchen screen shows.\n\n`placedByName` is who sent each ticket: the waiter's name as the PIN roster shows it, read as they are now (renamed or no longer active, it is still theirs). **Absent** when a diner ordered from their own phone - say it came from the app. Nothing else of the staff member is on a ticket.",
+        "description": "Open orders for the branch, oldest first, with the table label, the lines and their kitchen notes. Omit `status` for everything still outstanding - New, InKitchen and Ready - which is what a kitchen screen shows. A written-off tab's orders are not listed (`abandonTab`): the party has gone, so nothing on it is sent, cooked or carried.\n\n`placedByName` is who sent each ticket: the waiter's name as the PIN roster shows it, read as they are now (renamed or no longer active, it is still theirs). **Absent** when a diner ordered from their own phone - say it came from the app. Nothing else of the staff member is on a ticket.",
         "operationId": "getBranchOrders",
         "parameters": [
           {
@@ -22696,7 +22706,7 @@
             }
           },
           "409": {
-            "description": "The rail does not allow that transition (`conflicting-state`), or `line-already-paid`: voiding an order on a tab that has been paid against would be a refund.",
+            "description": "The rail does not allow that transition (`conflicting-state`), or the order's tab was written off (`conflicting-state`: it is off the queue and does not move - read the queue again), or `line-already-paid`: voiding an order on a tab that has been paid against would be a refund.",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -23005,7 +23015,7 @@
           "staff"
         ],
         "summary": "Manager: write off an outstanding balance",
-        "description": "The diners left without paying and the venue is accepting the loss. Kept for reporting rather than deleted - a venue's write-offs are a number it needs.",
+        "description": "The diners left without paying and the venue is accepting the loss. Kept for reporting rather than deleted - a venue's write-offs are a number it needs.\n\nNothing of the tab stays live on the floor: its open calls (the bill request included) are answered by this manager and leave `getOpenServiceRequests`; its orders leave the queue (`getBranchOrders`) at the place on the rail they had reached - none is voided, the amount written off is the bill as it stood - and no longer move. The branch's change stream carries a `signal` 9 row naming the tab, so every tablet re-reads its calls and queue at once.",
         "operationId": "abandonTab",
         "parameters": [
           {
@@ -23666,7 +23676,7 @@
           "staff"
         ],
         "summary": "The branch's change stream, for catching up after a dropped connection",
-        "description": "Every table state change writes exactly one audit row in the same transaction as the change, so this is an ordered event log. A client that lost its connection sends the `maxSequence` from its last floor response as `afterSequence` and applies what comes back, in order, rather than refetching the whole floor and working out what moved. `maxSequence` in the response is where the branch's stream ends right now, not the last entry in this page - so a short page still tells you that you are up to date. `hasMore` is set when the page hit its cap; call again with the last sequence you received. A `signal` 8 entry (takeaway) is about the counter, not a table: `diningTableId` and `tableLabel` are null and both statuses are Free - re-read the takeaway counter, never fold it.",
+        "description": "Every table state change writes exactly one audit row in the same transaction as the change, so this is an ordered event log. A client that lost its connection sends the `maxSequence` from its last floor response as `afterSequence` and applies what comes back, in order, rather than refetching the whole floor and working out what moved. `maxSequence` in the response is where the branch's stream ends right now, not the last entry in this page - so a short page still tells you that you are up to date. `hasMore` is set when the page hit its cap; call again with the last sequence you received. A `signal` 8 entry (takeaway) is about the counter, not a table: `diningTableId` and `tableLabel` are null and both statuses are Free - re-read the takeaway counter, never fold it. A `signal` 9 entry is a tab written off (`tabId`), in the table's status as it stands: re-read the calls, the order queue and the floor, never fold it.",
         "operationId": "getBranchChanges",
         "parameters": [
           {
@@ -35878,7 +35888,7 @@
                 "$ref": "#/components/schemas/Yalla.Domain.Enums.TableChangeSignal"
               }
             ],
-            "description": "Set when the entry is about more than the table's status: 1 a scan's tab is waiting to be let in, 2 it was\nadmitted, 3 it was turned away (on the Occupied-to-Free row when that freed the table) - refetch the\nawaiting-admission list; 4 a booking the platform cancelled for a no-show block and 5 any other booking event -\nre-read the floor; 6 a booking's pre-order changed - re-read the pre-order rail; 7 the table was handed to another\nwaiter - re-read the floor; 8 a takeaway order was placed, accepted, declined, cancelled, marked ready, collected or\nmarked not collected - re-read the takeaway counter and the kitchen's queue (no table, both statuses Free). Absent on\nevery ordinary change. A same-status row (4 to 8) is never folded.",
+            "description": "Set when the entry is about more than the table's status: 1 a scan's tab is waiting to be let in, 2 it was\nadmitted, 3 it was turned away (on the Occupied-to-Free row when that freed the table) - refetch the\nawaiting-admission list; 4 a booking the platform cancelled for a no-show block and 5 any other booking event -\nre-read the floor; 6 a booking's pre-order changed - re-read the pre-order rail; 7 the table was handed to another\nwaiter - re-read the floor; 8 a takeaway order was placed, accepted, declined, cancelled, marked ready, collected or\nmarked not collected - re-read the takeaway counter and the kitchen's queue (no table, both statuses Free); 9 a tab\nwas written off - its calls were answered and its orders left the queue: re-read the calls, the kitchen's queue and\nthe floor (the table's status as it stands, both sides). Absent on every ordinary change. A same-status row (4 to 9)\nis never folded.",
             "nullable": true
           }
         },
@@ -47340,10 +47350,11 @@
           5,
           6,
           7,
-          8
+          8,
+          9
         ],
         "type": "integer",
-        "description": "What a branch change-stream entry signals beyond the table's status, when it is about the tab on the\ntable rather than the table itself. Persisted as its number on `TableStateChanges.Signal`.\n\nValues: 1 TabAwaitingAdmission, 2 TabAdmitted, 3 TabAdmissionRejected, 4 BookingCancelledByBlock, 5 BookingChanged, 6 PreOrderChanged, 7 TableTransferred, 8 TakeawayChanged.",
+        "description": "What a branch change-stream entry signals beyond the table's status, when it is about the tab on the\ntable rather than the table itself. Persisted as its number on `TableStateChanges.Signal`.\n\nValues: 1 TabAwaitingAdmission, 2 TabAdmitted, 3 TabAdmissionRejected, 4 BookingCancelledByBlock, 5 BookingChanged, 6 PreOrderChanged, 7 TableTransferred, 8 TakeawayChanged, 9 TabWrittenOff.",
         "format": "int32",
         "x-enum-varnames": [
           "TabAwaitingAdmission",
@@ -47353,7 +47364,8 @@
           "BookingChanged",
           "PreOrderChanged",
           "TableTransferred",
-          "TakeawayChanged"
+          "TakeawayChanged",
+          "TabWrittenOff"
         ]
       },
       "Yalla.Domain.Enums.TableSessionSource": {
