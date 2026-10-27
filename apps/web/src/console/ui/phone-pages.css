@@ -259,8 +259,13 @@
   }
 
   /* Opens and closes side by side on a 360px phone, 16px type and all. */
+  .yc-day {
+    padding: var(--space-md) var(--space-lg);
+  }
+
   .yc .yc-tm {
-    width: 124px;
+    width: 128px;
+    padding: 0 var(--space-sm);
   }
 
   .yc-span {
