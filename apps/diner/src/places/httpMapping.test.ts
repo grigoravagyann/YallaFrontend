@@ -33,6 +33,7 @@ const LISTING: BranchListing = {
   reviewCount: 0,
   badges: ['new'],
   coverPhoto: null,
+  features: null,
 };
 
 const CONTEXT = { now: new Date('2026-09-14T10:00:00Z'), locale: 'en' as const, position: null };

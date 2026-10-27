@@ -23,6 +23,7 @@ import {
   ServiceRequestRateLimitedError,
   TabNotAcceptingOrdersError,
   TableBusyError,
+  isFeatureNotEnabled,
   type UnavailablePreOrderItem,
 } from './errors';
 import type { FloorChangeSignal } from './admission';
@@ -702,7 +703,9 @@ export function preOrderFailure(
   if (error instanceof PreOrderAlreadySentError) {
     return { kind: 'alreadySent', line: copy('preOrder.error.alreadySent') };
   }
-  if (error instanceof PreOrdersNotAcceptedError) {
+  // The platform has not enabled pre-orders here (2026-10-27): to the guest,
+  // the same as a venue that takes none.
+  if (error instanceof PreOrdersNotAcceptedError || isFeatureNotEnabled(error)) {
     return { kind: 'notAccepted', line: copy('preOrder.error.notAccepted') };
   }
   if (error instanceof PreOrderItemsUnavailableError) {
@@ -789,6 +792,10 @@ export function preOrderActionFailure(error: unknown): PreOrderActionFailure {
   }
   if (error instanceof TableBusyError) {
     return { kind: 'busy', line: copy('preOrders.error.busy') };
+  }
+  // Not a change to look at again: the platform has a feature off here.
+  if (isFeatureNotEnabled(error)) {
+    return { kind: 'forbidden', line: copy('preOrders.error.forbidden') };
   }
   if (error instanceof ConcurrencyConflictError) {
     return { kind: 'changed', line: copy('preOrders.error.changed') };

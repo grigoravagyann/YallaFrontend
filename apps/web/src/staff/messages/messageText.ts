@@ -137,6 +137,8 @@ export function messageFailureText(t: TFunction, failure: MessageFailure): strin
       return t('messages.thread.error.notFound');
     case 'offline':
       return t('messages.thread.error.offline');
+    case 'featureOff':
+      return t('features.off');
     case 'generic':
       return t('messages.thread.error.generic');
   }

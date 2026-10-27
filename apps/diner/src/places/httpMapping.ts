@@ -217,6 +217,7 @@ export function placeFromListing(listing: BranchListing, context: PlaceMappingCo
     acceptsAppBookings: null,
     reviews: [],
     rooms: [],
+    features: listing.features,
   };
 }
 

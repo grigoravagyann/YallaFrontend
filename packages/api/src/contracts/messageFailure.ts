@@ -13,6 +13,7 @@ import {
   GuestsCannotWriteError,
   MessagesTooFastError,
   WaitersCannotWriteError,
+  isFeatureNotEnabled,
 } from './errors';
 
 /**
@@ -33,6 +34,8 @@ import {
  * - `notFound`: the booking or order is gone, or not this diner's.
  * - `offline`: it never arrived, or the answer did not: the same
  *   `clientCommandId` is safe to send again.
+ * - `featureOff`: the platform has not enabled guest messages at the branch
+ *   (`feature-not-enabled`, 2026-10-27): no composer, and nothing to retry.
  * - `generic`: anything else.
  */
 export type MessageFailure =
@@ -48,6 +51,7 @@ export type MessageFailure =
   | { readonly kind: 'invalid'; readonly violations: readonly FieldViolation[] }
   | { readonly kind: 'notFound' }
   | { readonly kind: 'offline' }
+  | { readonly kind: 'featureOff' }
   | { readonly kind: 'generic' };
 
 /** A messages failure, as the kind of sentence to show. */
@@ -78,6 +82,7 @@ export function messageFailure(error: unknown): MessageFailure {
             : [],
     };
   }
+  if (isFeatureNotEnabled(error)) return { kind: 'featureOff' };
   if (error instanceof ForbiddenError) return { kind: 'forbidden' };
   if (error instanceof NotFoundError) return { kind: 'notFound' };
   if (

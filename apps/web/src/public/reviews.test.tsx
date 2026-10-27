@@ -133,6 +133,37 @@ async function settle() {
   });
 }
 
+describe('a branch with reviews switched off (2026-10-27)', () => {
+  it('shows no rating, no "none yet", and no reviews section', async () => {
+    const harness = createHarness({ now: FRIDAY_EVENING, showcase: true });
+    const resolve = harness.publicGateway.resolveBranch.bind(harness.publicGateway);
+    vi.spyOn(harness.publicGateway, 'resolveBranch').mockImplementation(async (input) => {
+      const branch = await resolve(input);
+      return branch && { ...branch, features: branch.features.filter((f) => f !== 'reviews') };
+    });
+    const detail = harness.gateway.getBranchDetail.bind(harness.gateway);
+    vi.spyOn(harness.gateway, 'getBranchDetail').mockImplementation(async (id) => {
+      const found = await detail(id);
+      return (
+        found && {
+          ...found,
+          listing: {
+            ...found.listing,
+            features: (found.listing.features ?? []).filter((f) => f !== 'reviews'),
+          },
+        }
+      );
+    });
+    render(harness.wrap(<PublicApp />, LUMEN));
+
+    await screen.findByRole('heading', { level: 1 });
+    await settle();
+    expect(screen.queryByRole('region', { name: 'Reviews' })).toBeNull();
+    expect(screen.queryByText(/reviews?\)/u)).toBeNull();
+    expect(screen.queryByText('No reviews yet')).toBeNull();
+  });
+});
+
 describe('the reviews', () => {
   it('shows the newest three first, each with its stars, and the venue’s reply signed short', async () => {
     render(createHarness({ now: FRIDAY_EVENING, showcase: true }).wrap(<PublicApp />, LUMEN));

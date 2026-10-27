@@ -9,6 +9,7 @@ import {
   TakeawayStatusConflictError,
   UnauthorizedError,
   ValidationError,
+  isFeatureNotEnabled,
   isOffline,
   type MenuItemDetail,
   type TakeawayStatus,
@@ -56,7 +57,11 @@ export function takeawayFailure(error: unknown): TakeawayFailure {
   if (error instanceof BookingBlockedNoShowsError) {
     return { kind: 'blocked', blockedUntilUtc: error.blockedUntilUtc };
   }
-  if (error instanceof TakeawayNotAcceptedError) return { kind: 'notAccepted' };
+  // The platform has not enabled takeaway here (2026-10-27): to the guest,
+  // the same as a place that takes no takeaway.
+  if (error instanceof TakeawayNotAcceptedError || isFeatureNotEnabled(error)) {
+    return { kind: 'notAccepted' };
+  }
   if (error instanceof TakeawayClosedError) return { kind: 'closed', opensAt: error.opensAt };
   if (error instanceof TakeawayBusyError) return { kind: 'busy' };
   if (error instanceof TakeawaySlotUnavailableError) {

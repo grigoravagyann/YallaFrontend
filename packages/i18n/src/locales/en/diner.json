@@ -436,7 +436,8 @@
       "maxActiveBookings": "You already have {{max}} active bookings — the most one phone number can hold. Cancel one, or wait until one is over.",
       "maxActiveBookingsNext": "You already have {{max}} active bookings — the most one phone number can hold. Cancel one (the next is {{venue}}, {{date}} at {{time}}) and try again.",
       "blockedNoShows": "You can't book until {{date}}, {{time}}, because of three missed bookings in three days.",
-      "blockedNoShowsPlain": "You can't book for a week because of three missed bookings in three days."
+      "blockedNoShowsPlain": "You can't book for a week because of three missed bookings in three days.",
+      "featureOff": "This place isn't taking that from the app right now."
     },
     "checkAgain": "Check again",
     "nameLabel": "Name for the booking",
@@ -1020,7 +1021,8 @@
     },
     "ratingReviews_one": "{{rating}} · {{countLabel}} review",
     "ratingReviews_other": "{{rating}} · {{countLabel}} reviews",
-    "until": "until {{time}}"
+    "until": "until {{time}}",
+    "featureOff": "That isn't available at this place right now."
   },
   "tables": {
     "title": "Tables right now",
@@ -1849,7 +1851,8 @@
       "invalid": "A message is 1 to 500 characters.",
       "notFound": "This booking is no longer on your account.",
       "offline": "No connection, so the message wasn't sent. Try again.",
-      "generic": "The message wasn't sent. Try again."
+      "generic": "The message wasn't sent. Try again.",
+      "featureOff": "Messages aren't available at this place. Call the venue instead."
     },
     "card": {
       "title": "Messages with the venue",

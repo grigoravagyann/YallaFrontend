@@ -32,6 +32,7 @@ import {
   TelegramUnavailableError,
   TooManyAttemptsError,
   WrongCodeError,
+  isFeatureNotEnabled,
 } from './errors';
 import { NetworkError, ServerError, TimeoutError, TooManyRequestsError } from '../errors';
 
@@ -561,6 +562,12 @@ export type BookingFailure =
   | { readonly kind: 'busy'; readonly line: CopyLine }
   | { readonly kind: 'commandInUse'; readonly line: CopyLine }
   | { readonly kind: 'branchUnavailable'; readonly line: CopyLine }
+  /**
+   * The platform has not enabled bookings (app or web) or pre-orders at the
+   * branch (`feature-not-enabled`, 2026-10-27): not here, not now, and nothing
+   * the guest can change by trying again.
+   */
+  | { readonly kind: 'featureOff'; readonly line: CopyLine }
   | { readonly kind: 'phoneNotVerified'; readonly line: CopyLine }
   | {
       readonly kind: 'overlapsOwn';
@@ -755,6 +762,9 @@ export function bookingFailure(
   }
   if (error instanceof BranchUnavailableError) {
     return { kind: 'branchUnavailable', line: line('confirm.error.branchUnavailable') };
+  }
+  if (isFeatureNotEnabled(error)) {
+    return { kind: 'featureOff', line: line('confirm.error.featureOff') };
   }
   if (
     error instanceof NetworkError ||

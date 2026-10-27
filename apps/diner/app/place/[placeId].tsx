@@ -48,6 +48,7 @@ import {
   type Place,
   type PlaceRoom,
   type TablePhotoMarker,
+  placeOffers,
 } from '../../src/places/model';
 import { floorPlanParams } from '../../src/places/navigation';
 import { PlaceMenu } from '../../src/places/PlaceMenu';
@@ -478,6 +479,8 @@ function PlaceDetails({
   // venue set — or the street, for one that has not set it.
   const kindLine = [copy.typeLine, placeDistrict(place)].filter(Boolean).join(' · ');
 
+  // Reviews switched off here (2026-10-27): no rating, no list, no composer.
+  const reviewsOn = placeOffers(place, 'reviews');
   // "4.6 · 120 reviews", in the locale's digits.
   const rating = useMemo(() => {
     if (place.rating === null) return t('place.noReviews');
@@ -643,12 +646,14 @@ function PlaceDetails({
               {kindLine}
             </Text>
             <View style={styles.metaRow}>
-              <View style={styles.metaItem}>
-                {place.rating !== null ? (
-                  <Ionicons name={actionIcon.star} size={13} color={colors.ratingStar} />
-                ) : null}
-                <Text style={styles.metaText}>{rating}</Text>
-              </View>
+              {reviewsOn ? (
+                <View style={styles.metaItem}>
+                  {place.rating !== null ? (
+                    <Ionicons name={actionIcon.star} size={13} color={colors.ratingStar} />
+                  ) : null}
+                  <Text style={styles.metaText}>{rating}</Text>
+                </View>
+              ) : null}
               {copy.distance ? <Text style={styles.metaText}>{copy.distance}</Text> : null}
               <Badge variant={isOpen ? 'open' : 'closed'} size="sm" />
               {hoursNote ? (
@@ -672,7 +677,12 @@ function PlaceDetails({
             style={[styles.pad, styles.actions]}
           />
 
-          <PlaceTabs value={tab} onChange={pickTab} style={[styles.pad, styles.tabs]} />
+          <PlaceTabs
+            value={tab}
+            onChange={pickTab}
+            tabs={reviewsOn ? placeTabs : placeTabs.filter((key) => key !== 'reviews')}
+            style={[styles.pad, styles.tabs]}
+          />
 
           {/* Menu: the dishes, section by section. */}
           <View
@@ -730,34 +740,36 @@ function PlaceDetails({
             )}
           </View>
 
-          {/* Reviews, and the diner's own. */}
-          <View
-            ref={reviewsRef}
-            collapsable={false}
-            onLayout={measureSections}
-            style={[styles.pad, styles.section]}
-          >
-            <Text display accessibilityRole="header" style={styles.sectionTitle}>
-              {t('place.tab.reviews')}
-            </Text>
-            <View style={styles.sectionBody}>
-              <ReviewList placeId={place.id} reviews={place.reviews} />
-              {place.ratingCount > place.reviews.length ? (
-                <Button
-                  label={t('place.reviews.seeAll', { count: place.ratingCount })}
-                  variant="outline"
-                  onPress={openAllReviews}
-                  style={styles.seeAll}
+          {/* Reviews, and the diner's own: where the place has them on. */}
+          {reviewsOn ? (
+            <View
+              ref={reviewsRef}
+              collapsable={false}
+              onLayout={measureSections}
+              style={[styles.pad, styles.section]}
+            >
+              <Text display accessibilityRole="header" style={styles.sectionTitle}>
+                {t('place.tab.reviews')}
+              </Text>
+              <View style={styles.sectionBody}>
+                <ReviewList placeId={place.id} reviews={place.reviews} />
+                {place.ratingCount > place.reviews.length ? (
+                  <Button
+                    label={t('place.reviews.seeAll', { count: place.ratingCount })}
+                    variant="outline"
+                    onPress={openAllReviews}
+                    style={styles.seeAll}
+                  />
+                ) : null}
+                <ReviewComposer
+                  placeId={place.id}
+                  timeZoneId={place.timeZoneId}
+                  initialRating={initialRating}
+                  style={styles.composer}
                 />
-              ) : null}
-              <ReviewComposer
-                placeId={place.id}
-                timeZoneId={place.timeZoneId}
-                initialRating={initialRating}
-                style={styles.composer}
-              />
+              </View>
             </View>
-          </View>
+          ) : null}
 
           {/* About: the venue's words, what it offers, where and when. */}
           <View

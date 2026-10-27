@@ -60,6 +60,7 @@ describe('placeTitle', () => {
       reviewCount: 0,
       badges: [],
       coverPhoto: null,
+      features: null,
     };
     const place = placeFromListing(listing, {
       now: new Date('2026-09-14T10:00:00Z'),
