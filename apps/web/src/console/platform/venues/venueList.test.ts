@@ -1,4 +1,4 @@
-import type { ConsoleVenue } from '@yalla/api';
+import { BASIC_FEATURES, FULL_FEATURES, type ConsoleVenue } from '@yalla/api';
 import { describe, expect, it } from 'vitest';
 import {
   DEFAULT_FILTERS,
@@ -20,8 +20,7 @@ function venue(name: string, extra: Partial<ConsoleVenue> = {}): ConsoleVenue {
     status: 'active',
     branchCount: 1,
     tableCount: 10,
-    subscriptionTier: 'free',
-    paidBranchCount: 0,
+    branchFeatures: [{ id: `${name}-1`, name, features: BASIC_FEATURES }],
     createdAtUtc: null,
     suspendedAtUtc: null,
     ...extra,
@@ -32,13 +31,20 @@ const VENUES = [
   venue('Alpha', { rating: 4.1, tableCount: 5 }),
   venue('Bravo', { rating: null, tableCount: 30, status: 'suspended' }),
   venue('Charlie', { rating: 4.9, tableCount: 12, status: 'deleted' }),
-  venue('Delta', { branchCount: 2, paidBranchCount: 1, district: 'Arabkir' }),
+  venue('Delta', {
+    branchCount: 2,
+    district: 'Arabkir',
+    branchFeatures: [
+      { id: 'd1', name: 'Arabkir', features: FULL_FEATURES },
+      { id: 'd2', name: 'Komitas', features: BASIC_FEATURES },
+    ],
+  }),
   venue('Echo', {
     branchCount: 2,
     status: 'inactive',
-    branchTiers: [
-      { id: 'e1', name: 'Kentron', subscriptionTier: 'free' },
-      { id: 'e2', name: 'Nor Nork', subscriptionTier: 'free' },
+    branchFeatures: [
+      { id: 'e1', name: 'Kentron', features: ['appBookings', 'reviews'] },
+      { id: 'e2', name: 'Nor Nork', features: ['reviews', 'appBookings'] },
     ],
   }),
 ];
@@ -59,9 +65,14 @@ describe('filtering the venues list', () => {
     expect(filterVenues(VENUES, filters({ status: 'all' }), 'en')).toHaveLength(5);
   });
 
-  it('filters by the tier summary', () => {
-    expect(names(filterVenues(VENUES, filters({ tier: 'mixed' }), 'en'))).toEqual(['Delta']);
-    expect(names(filterVenues(VENUES, filters({ tier: 'paid' }), 'en'))).toEqual([]);
+  it('filters by the feature summary', () => {
+    expect(names(filterVenues(VENUES, filters({ features: 'mixed' }), 'en'))).toEqual(['Delta']);
+    expect(names(filterVenues(VENUES, filters({ features: 'custom' }), 'en'))).toEqual(['Echo']);
+    expect(names(filterVenues(VENUES, filters({ features: 'basic' }), 'en'))).toEqual([
+      'Alpha',
+      'Bravo',
+    ]);
+    expect(names(filterVenues(VENUES, filters({ features: 'full' }), 'en'))).toEqual([]);
   });
 
   it("searches every branch's name, not only the first one's", () => {
@@ -75,7 +86,7 @@ describe('filtering the venues list', () => {
   it('knows when anything narrows the list', () => {
     expect(isFiltered(DEFAULT_FILTERS)).toBe(false);
     expect(isFiltered(filters({ query: '  ' }))).toBe(false);
-    expect(isFiltered(filters({ tier: 'free' }))).toBe(true);
+    expect(isFiltered(filters({ features: 'basic' }))).toBe(true);
   });
 });
 

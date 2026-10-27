@@ -100,10 +100,10 @@ describe('Home', () => {
     expect(screen.queryByText(/did not reach guests/u)).toBeNull();
   });
 
-  it('shows the venues by plan and the week against the one before', async () => {
+  it('shows the venues with their branches and the week against the one before', async () => {
     const source = gateway((overview) => ({
       ...overview,
-      venues: { ...overview.venues, total: 8, paid: 5, mixed: 0, free: 3 },
+      venues: { ...overview.venues, total: 8, branches: 11, suspended: 1 },
       bookings: { ...overview.bookings, last7Days: 312, previous7Days: 278, changePercent: 12.2 },
     }));
     renderHome(source);
@@ -112,7 +112,7 @@ describe('Home', () => {
     });
     expect(venues.getAttribute('href')).toBe('/platform/venues');
     expect(within(venues).getByText('8')).toBeTruthy();
-    expect(within(venues).getByText('5 paid · 3 free')).toBeTruthy();
+    expect(within(venues).getByText('11 branches · 1 suspended')).toBeTruthy();
 
     const week = screen.getByRole('link', { name: /^Bookings this week/u });
     expect(within(week).getByText('312')).toBeTruthy();
@@ -192,6 +192,8 @@ describe('Home', () => {
     renderHome();
     const feed = await screen.findByRole('region', { name: 'Recent activity' });
     await waitFor(() => expect(within(feed).getAllByRole('listitem').length).toBeGreaterThan(0));
+    // A switch made today, and a plan change from before the features: both said.
+    expect(within(feed).getByText(/turned on Table service at/u)).toBeTruthy();
     expect(within(feed).getByText(/switched .* to Paid/u)).toBeTruthy();
     expect(within(feed).getByText(/added Mariam Avetisyan as branch manager/u)).toBeTruthy();
   });
@@ -209,6 +211,8 @@ describe('Home', () => {
           target: { type: 'StaffMember', id: 's-2', name: 'Mariam Avetisyan' },
           venue: { id: 'v-1', name: 'Cascade Cafe' },
           tierTo: null,
+          featuresChange: null,
+          featuresApply: null,
           staffRole: null,
         },
       ],
@@ -229,6 +233,8 @@ describe('Home', () => {
       target: { type: 'Branch', id: 'b-1', name: 'Կենտրոն' },
       venue: { id: 'v-1', name: 'Cascade Cafe' },
       tierTo: null,
+      featuresChange: null,
+      featuresApply: null,
       staffRole: null,
     });
     renderHome({
@@ -261,6 +267,8 @@ describe('Home', () => {
       target: { type: 'StaffMember', id: 's-1', name: 'Aram Hakobyan' },
       venue: { id: 'v-1', name: 'Cascade Cafe' },
       tierTo: null,
+      featuresChange: null,
+      featuresApply: null,
       staffRole: null,
     });
     renderHome({

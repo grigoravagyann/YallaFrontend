@@ -36,6 +36,9 @@ function redesignFiles(): string[] {
     join(SRC, 'console', 'platform', 'BranchPublicPageRoute.tsx'),
     join(SRC, 'console', 'platform', 'BranchFloorPlanRoute.tsx'),
     join(SRC, 'console', 'platform', 'BranchReviewsRoute.tsx'),
+    // A branch's Features page (2026-10-27), with its apply-to-all dialog.
+    join(SRC, 'console', 'platform', 'BranchFeaturesRoute.tsx'),
+    ...inFolder(join(SRC, 'console', 'platform', 'features')),
     join(SRC, 'console', 'platform', 'PlatformLayout.tsx'),
     join(SRC, 'console', 'platform', 'SettingsRoute.tsx'),
     // Home (redesign phase 5).
@@ -77,7 +80,8 @@ describe('the console redesign', () => {
   it('names no colour outside @yalla/tokens', () => {
     const files = redesignFiles();
     expect(files.some((file) => file.endsWith('.css'))).toBe(true);
-    expect(files.some((file) => file.endsWith('TierDialog.tsx'))).toBe(true);
+    expect(files.some((file) => file.endsWith('BranchFeaturesRoute.tsx'))).toBe(true);
+    expect(files.some((file) => file.endsWith('ApplyToVenueDialog.tsx'))).toBe(true);
     expect(files.some((file) => file.endsWith('AddStaffWizard.tsx'))).toBe(true);
     expect(files.some((file) => file.endsWith('BranchReviewsRoute.tsx'))).toBe(true);
     expect(files.some((file) => file.endsWith('AccountScreen.tsx'))).toBe(true);

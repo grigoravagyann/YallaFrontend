@@ -2,8 +2,7 @@ import {
   ApiError,
   NotFoundError,
   describeFailure,
-  venueTierSummary,
-  type ConsoleBranch,
+  venueFeatures,
   type ConsoleVenueDetail,
 } from '@yalla/api';
 import { useRestoreVenue, useStaff } from '@yalla/api/react';
@@ -16,6 +15,7 @@ import { newCommandId } from '../../lib/commandId';
 import { ErrorState, errorKindFor } from '../ui/ErrorState';
 import { PauseIcon, RestoreIcon, TrashIcon } from '../ui/icons';
 import { Tabs, panelId, tabId } from '../ui/Tabs';
+import { useFeatureText } from '../ui/featureText';
 import { useToast } from '../ui/toast';
 import { AddBranchDialog } from './venue/AddBranchDialog';
 import { BookingsPanel } from './venue/BookingsPanel';
@@ -25,7 +25,6 @@ import { StaffPanel } from './venue/StaffPanel';
 import { SuspendVenueDialog } from './venue/SuspendVenueDialog';
 import { useVenueTypeLabel } from './venue/venueFields';
 import { DeleteVenueDialog } from './venues/DeleteVenueDialog';
-import { TierDialog } from './venues/TierDialog';
 import { VenueThumb } from './venues/VenueThumb';
 
 /** Every venue in the pilot is in Yerevan. */
@@ -39,8 +38,7 @@ type Shown =
   | { readonly kind: 'edit' }
   | { readonly kind: 'suspend' }
   | { readonly kind: 'delete' }
-  | { readonly kind: 'branch' }
-  | { readonly kind: 'tier'; readonly branch: ConsoleBranch };
+  | { readonly kind: 'branch' };
 
 /** Focus what a selector names once the render that brings it back has happened. */
 function focusSoon(selector: string) {
@@ -51,12 +49,12 @@ function focusSoon(selector: string) {
  * One venue, for the platform admin (VenueDetail artboard; HANDOFF section 8
  * step 3).
  *
- * - **Header**: the venue's picture, name, state, plan, type and web address,
+ * - **Header**: the venue's picture, name, state, features, type and web address,
  *   with Edit, Suspend and Delete. A suspended venue carries a banner with
  *   Resume; a deleted one a banner with Restore and nothing else to change.
  * - **Tabs** on a roving tabindex, the selected one in the address
  *   (`?tab=staff`) so a link can open it: Overview (numbers, the branches with
- *   each one's own plan, readiness, details), Staff (the wizard and sign-ins,
+ *   what each one may use, readiness, details), Staff (the wizard and sign-ins,
  *   shown once), Bookings (totals only).
  * - **Suspend and delete undo** from their toast; a delete goes back to the
  *   list, where the undo still stands.
@@ -72,6 +70,7 @@ export function VenueDetailRoute() {
   const navigate = useNavigate();
   const toast = useToast();
   const typeLabel = useVenueTypeLabel();
+  const featureText = useFeatureText();
   const [params, setParams] = useSearchParams();
   const query = useConsoleVenue(venueId);
   const staff = useStaff(venueId);
@@ -126,7 +125,7 @@ export function VenueDetailRoute() {
 
   const deleted = venue.status === 'deleted';
   const suspended = venue.status === 'suspended';
-  const summary = venueTierSummary(venue);
+  const summary = venueFeatures(venue);
   const activeStaff = (staff.data ?? []).filter((member) => member.isActive).length;
 
   async function run(action: () => Promise<unknown>): Promise<boolean> {
@@ -231,11 +230,8 @@ export function VenueDetailRoute() {
             </span>
             {summary.kind !== 'none' ? (
               <span className="yc-pill yc-pill-brand">
-                {summary.kind === 'mixed'
-                  ? t('venues.tierSummary.mixed', { paid: summary.paid, total: summary.total })
-                  : summary.kind === 'paid'
-                    ? t('tier.paid')
-                    : t('tier.free')}
+                <span className="yc-sr">{t('venues.column.features')}: </span>
+                {featureText.summary(summary)}
               </span>
             ) : null}
             <span>{[typeLabel(venue.type), venue.cuisine].filter(Boolean).join(' · ')}</span>
@@ -306,7 +302,6 @@ export function VenueDetailRoute() {
         {tab === 'overview' ? (
           <OverviewPanel
             venue={venue}
-            onBranchPlan={deleted ? null : (branch) => setShown({ kind: 'tier', branch })}
             onAddBranch={deleted ? null : () => setShown({ kind: 'branch' })}
           />
         ) : tab === 'staff' ? (
@@ -388,21 +383,6 @@ export function VenueDetailRoute() {
             setShown(null);
             toast.say(t('venuePage.toast.branchAdded', { name }));
           }}
-        />
-      ) : null}
-
-      {shown?.kind === 'tier' ? (
-        <TierDialog
-          venue={venue}
-          branch={shown.branch}
-          onClose={() => setShown(null)}
-          onDone={(message) => {
-            setShown(null);
-            toast.say(message);
-          }}
-          returnFocusTo={() =>
-            document.querySelector<HTMLElement>(`[data-branch-tier="${shown.branch.id}"]`)
-          }
         />
       ) : null}
     </>

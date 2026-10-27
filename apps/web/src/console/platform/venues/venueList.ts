@@ -1,4 +1,4 @@
-import { venueTierSummary, type ConsoleVenue, type VenueReadinessIssue } from '@yalla/api';
+import { venueFeatures, type ConsoleVenue, type VenueReadinessIssue } from '@yalla/api';
 
 import type { useTranslation } from '@yalla/i18n';
 
@@ -26,9 +26,18 @@ export const STATUS_FILTERS: readonly StatusFilter[] = [
   'all',
 ];
 
-/** By the tier summary: every branch paid, none, or some. */
-export type TierFilter = 'all' | 'paid' | 'free' | 'mixed';
-export const TIER_FILTERS: readonly TierFilter[] = ['all', 'paid', 'free', 'mixed'];
+/**
+ * By what the platform allows (2026-10-27, in place of the plan): every branch
+ * on Full, on Basic, on the same other set, or branches on different sets.
+ */
+export type FeatureFilter = 'all' | 'full' | 'basic' | 'custom' | 'mixed';
+export const FEATURE_FILTERS: readonly FeatureFilter[] = [
+  'all',
+  'full',
+  'basic',
+  'custom',
+  'mixed',
+];
 
 export type SortKey = 'name' | 'rating' | 'tables';
 /** 1 ascending, -1 descending. */
@@ -37,16 +46,16 @@ export type SortDirection = 1 | -1;
 export interface VenueListFilters {
   readonly query: string;
   readonly status: StatusFilter;
-  readonly tier: TierFilter;
+  readonly features: FeatureFilter;
 }
 
-export const DEFAULT_FILTERS: VenueListFilters = { query: '', status: 'live', tier: 'all' };
+export const DEFAULT_FILTERS: VenueListFilters = { query: '', status: 'live', features: 'all' };
 
 export function isFiltered(filters: VenueListFilters): boolean {
   return (
     filters.query.trim() !== '' ||
     filters.status !== DEFAULT_FILTERS.status ||
-    filters.tier !== DEFAULT_FILTERS.tier
+    filters.features !== DEFAULT_FILTERS.features
   );
 }
 
@@ -61,8 +70,8 @@ function statusMatches(venue: ConsoleVenue, status: StatusFilter): boolean {
   }
 }
 
-function tierMatches(venue: ConsoleVenue, tier: TierFilter): boolean {
-  return tier === 'all' || venueTierSummary(venue).kind === tier;
+function featuresMatch(venue: ConsoleVenue, features: FeatureFilter): boolean {
+  return features === 'all' || venueFeatures(venue).kind === features;
 }
 
 /**
@@ -74,7 +83,7 @@ function haystack(venue: ConsoleVenue, locale: string): string {
   return [
     venue.name,
     venue.slug,
-    ...(venue.branchTiers ?? []).map((branch) => branch.name),
+    ...(venue.branchFeatures ?? []).map((branch) => branch.name),
     venue.district ?? '',
     venue.cuisine ?? '',
   ]
@@ -91,7 +100,7 @@ export function filterVenues(
   return venues.filter(
     (venue) =>
       statusMatches(venue, filters.status) &&
-      tierMatches(venue, filters.tier) &&
+      featuresMatch(venue, filters.features) &&
       (!needle || haystack(venue, locale).includes(needle)),
   );
 }

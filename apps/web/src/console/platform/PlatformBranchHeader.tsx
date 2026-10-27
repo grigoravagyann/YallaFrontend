@@ -46,12 +46,13 @@ export function usePlatformBranchRoute(): PlatformBranchRoute {
   };
 }
 
-/** The three pages of a branch, in the order the sub-tabs show them. */
-export type BranchTab = 'public' | 'rooms' | 'reviews';
+/** The four pages of a branch, in the order the sub-tabs show them. */
+export type BranchTab = 'public' | 'rooms' | 'reviews' | 'features';
 const SEGMENT: Readonly<Record<BranchTab, string>> = {
   public: 'public',
   rooms: 'floorplan',
   reviews: 'reviews',
+  features: 'features',
 };
 
 export interface BranchPageProps {
@@ -66,10 +67,10 @@ export interface BranchPageProps {
 
 /**
  * A branch's page for the platform admin (BranchPublic, BranchRooms and
- * Reviews artboards): one header for all three — the breadcrumbs Venues /
+ * Reviews artboards, and Features): one header for all four — the breadcrumbs Venues /
  * venue / branch, the branch's name and address, a switcher to the same page
  * of another branch, and the sub-tabs Public page / Rooms and tables /
- * Reviews, the last with how many reviews diners reported.
+ * Reviews / Features, Reviews with how many reviews diners reported.
  *
  * A branch that is not in the venue — a stale link, a deleted branch — is
  * the shared "not found", not an empty page.
@@ -139,6 +140,8 @@ export function BranchPage({ tab, children }: BranchPageProps) {
           }
         : {}),
     },
+    // What the platform allows here (2026-10-27): the switches that replaced the plan.
+    { key: 'features', label: t('branchPage.tabs.features') },
   ];
 
   return (

@@ -12,7 +12,6 @@ export {
   useDeleteVenue,
   useManagedVenue,
   useResumeVenue,
-  useSetBranchTier,
   useSuspendVenue,
   useUpdateVenue,
 } from '@yalla/api/react';

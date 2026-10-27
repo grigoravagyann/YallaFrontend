@@ -58,7 +58,7 @@ function renderAt(path: string, gateway?: ConsoleGateway) {
 const CASCADE = '/platform/venues/v-cascade/branches/b-cascade-center';
 
 describe('the branch header', () => {
-  it('names the branch, the way back, and the three pages', async () => {
+  it('names the branch, the way back, and the four pages', async () => {
     renderAt(`${CASCADE}/public`);
     expect(await screen.findByRole('heading', { level: 1, name: 'Կենտրոն' })).toBeTruthy();
     const crumbs = screen.getByRole('navigation', { name: 'You are here' });
@@ -76,6 +76,7 @@ describe('the branch header', () => {
       `${CASCADE}/public`,
       `${CASCADE}/floorplan`,
       `${CASCADE}/reviews`,
+      `${CASCADE}/features`,
     ]);
     expect(
       within(tabs).getByRole('link', { name: 'Public page' }).getAttribute('aria-current'),

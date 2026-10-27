@@ -12,6 +12,7 @@ import { PlatformLayout } from './console/platform/PlatformLayout';
 import { HomeRoute } from './console/platform/HomeRoute';
 import { SettingsRoute } from './console/platform/SettingsRoute';
 import { ErrorState, errorKindFor } from './console/ui/ErrorState';
+import { BranchFeaturesRoute } from './console/platform/BranchFeaturesRoute';
 import { BranchFloorPlanRoute } from './console/platform/BranchFloorPlanRoute';
 import { BranchPublicPageRoute } from './console/platform/BranchPublicPageRoute';
 import { BranchReviewsRoute } from './console/platform/BranchReviewsRoute';
@@ -266,6 +267,14 @@ export function AppRoutes({ user }: { user: ConsoleUser }) {
               element={
                 <RequireRole allow={PLATFORM_ROLES}>
                   <BranchReviewsRoute />
+                </RequireRole>
+              }
+            />
+            <Route
+              path="/platform/venues/:venueId/branches/:branchId/features"
+              element={
+                <RequireRole allow={PLATFORM_ROLES}>
+                  <BranchFeaturesRoute />
                 </RequireRole>
               }
             />
