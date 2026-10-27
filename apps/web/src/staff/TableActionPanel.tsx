@@ -104,6 +104,11 @@ export interface TableActionPanelProps {
   readonly onStartTab: () => void;
   readonly startingTab: boolean;
   /**
+   * False where the platform has not allowed table service at the branch
+   * (2026-10-27): no tab is started here, and the panel says why. Default true.
+   */
+  readonly tableService?: boolean | undefined;
+  /**
    * The table's tab, when a scan with no verified number opened it and it
    * waits for a waiter: Admit and Reject, as on the rail. Online only.
    */
@@ -461,6 +466,7 @@ export function TableActionPanel(props: TableActionPanelProps) {
                 onAdmissionDecided={props.onAdmissionDecided}
                 onStartTab={props.onStartTab}
                 startingTab={props.startingTab}
+                tableService={props.tableService ?? true}
                 onOrder={props.onOrder}
                 onOpenTab={props.onOpenTab}
                 onCash={props.onCash}

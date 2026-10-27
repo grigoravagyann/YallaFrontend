@@ -1,4 +1,5 @@
 import {
+  isFeatureNotEnabled,
   PinLockedError,
   PinRejectedError,
   describeFailure,
@@ -41,8 +42,10 @@ export function PhonePinScreen({ device, lastSignOut }: PhonePinScreenProps) {
   const [pin, setPinState] = useState('');
   const entered = useRef('');
   const [busy, setBusy] = useState(false);
-  const [failure, setFailure] = useState<'wrong' | 'offline' | 'failed' | null>(null);
+  const [failure, setFailure] = useState<'wrong' | 'offline' | 'phoneOff' | 'failed' | null>(null);
   const [lock, setLock] = useState<{ readonly until: string | null } | null>(null);
+  // The device read says staff phones are off at the branch: said before a PIN.
+  const phoneOffHere = Array.isArray(device.features) && !device.features.includes('staffPhone');
   const [attempts, setAttempts] = useState(0);
   const [online, setOnline] = useState(() =>
     typeof navigator === 'undefined' ? true : navigator.onLine,
@@ -92,6 +95,9 @@ export function PhonePinScreen({ device, lastSignOut }: PhonePinScreenProps) {
       } else if (error instanceof PinRejectedError) {
         setAttempts((count) => count + 1);
         setFailure('wrong');
+      } else if (isFeatureNotEnabled(error)) {
+        // Staff phones are switched off at the branch: a PIN will not fix it.
+        setFailure('phoneOff');
       } else {
         setFailure(describeFailure(error) === 'offline' ? 'offline' : 'failed');
       }
@@ -130,13 +136,15 @@ export function PhonePinScreen({ device, lastSignOut }: PhonePinScreenProps) {
                   : t('phone.pin.wrong'),
               tone: 'error',
             }
-          : failure === 'failed'
-            ? { text: t('pin.failed'), tone: 'error' }
-            : lastSignOut === 'idle'
-              ? { text: t('pin.lockedByIdle'), tone: 'quiet' }
-              : lastSignOut === 'expired'
-                ? { text: t('pin.sessionEnded'), tone: 'quiet' }
-                : { text: t('phone.pin.enter'), tone: 'quiet' };
+          : failure === 'phoneOff' || lastSignOut === 'phoneOff' || phoneOffHere
+            ? { text: `${t('features.phoneOff')} ${t('features.askManager')}`, tone: 'error' }
+            : failure === 'failed'
+              ? { text: t('pin.failed'), tone: 'error' }
+              : lastSignOut === 'idle'
+                ? { text: t('pin.lockedByIdle'), tone: 'quiet' }
+                : lastSignOut === 'expired'
+                  ? { text: t('pin.sessionEnded'), tone: 'quiet' }
+                  : { text: t('phone.pin.enter'), tone: 'quiet' };
 
   return (
     <div className="ph-lock" data-surface="staff">

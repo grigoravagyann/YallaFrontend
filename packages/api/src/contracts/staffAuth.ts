@@ -231,7 +231,13 @@ export type StaffSignOutReason =
    * A phone whose branch no longer has staff phones (2026-10-27): the platform
    * switched them off. Not the person's doing, and a PIN will not fix it.
    */
-  | 'phoneOff';
+  | 'phoneOff'
+  /**
+   * A kitchen account at a branch whose kitchen screen the platform switched
+   * off (2026-10-27): every call it makes is refused, so it is not left on a
+   * board that cannot load. Waiters and managers still sign in.
+   */
+  | 'kitchenOff';
 
 /** Where the device token and the renewal handle live between launches. */
 export interface StaffCredentialStorage {

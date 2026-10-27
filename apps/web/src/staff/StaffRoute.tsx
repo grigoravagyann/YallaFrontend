@@ -1,5 +1,6 @@
 import {
   FULL_FEATURES,
+  blockedFeature,
   isPhoneDevice,
   type EnrolledDevice,
   type StaffSessionIdentity,
@@ -18,6 +19,7 @@ import { PinScreen } from './auth/PinScreen';
 import { staffAuthAvailable, staffSession } from './auth/staffSession';
 import { useStaffSessionSnapshot, useTouchOnInteraction } from './auth/useStaffSession';
 import { FloorRoute } from './FloorRoute';
+import { FeatureOffScreen } from './FeatureOffScreen';
 import { KitchenRoute } from './KitchenRoute';
 import { PairPhoneScreen } from './pair/PairPhoneScreen';
 import { PhonePinScreen } from './phone/PhonePinScreen';
@@ -124,6 +126,36 @@ export function StaffRoute() {
    * says whether anybody is actually signed in.
    */
   const identity = snapshot.identity;
+
+  /**
+   * A phone at a branch whose staff phones the platform switched off, or a
+   * kitchen account whose kitchen screen it switched off, is refused on every
+   * call with `feature-not-enabled` (2026-10-27) — not a 401, and not a sign-out
+   * of the device. Whichever read or command hears it first locks the session
+   * with the reason, so the keypad says why rather than the floor failing.
+   */
+  const phoneDevice = isPhoneDevice(snapshot.device);
+  const kitchenRole = identity?.role === 'kitchen';
+  useEffect(() => {
+    const session = staffSession;
+    if (!session) return undefined;
+    const hear = (error: unknown) => {
+      const blocked = blockedFeature(error);
+      if (session.getSnapshot().state !== 'signedIn') return;
+      if (blocked === 'staffPhone' && phoneDevice) void session.lock('phoneOff');
+      else if (blocked === 'kitchenDisplay' && kitchenRole) void session.lock('kitchenOff');
+    };
+    const offQueries = queryClient.getQueryCache().subscribe((event) => {
+      if (event.type === 'updated' && event.action.type === 'error') hear(event.action.error);
+    });
+    const offMutations = queryClient.getMutationCache().subscribe((event) => {
+      if (event.type === 'updated' && event.action.type === 'error') hear(event.action.error);
+    });
+    return () => {
+      offQueries();
+      offMutations();
+    };
+  }, [queryClient, phoneDevice, kitchenRole]);
 
   /**
    * Enrolled on this screen, just now.
@@ -324,6 +356,8 @@ function StaffFloor({
   // server, and branching here keeps every read it cannot make out of the tree
   // rather than guarding each one inside the floor screen.
   if (resolved.role === 'kitchen') {
+    // The platform has not enabled the kitchen screen here: said, with the way out.
+    if (!resolved.features.includes('kitchenDisplay')) return <FeatureOffScreen />;
     return <KitchenRoute identity={resolved} device={device} paused={paused} />;
   }
 

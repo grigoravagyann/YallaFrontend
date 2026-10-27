@@ -27,6 +27,8 @@ const REDESIGNED = [
   'floor/FloorOverlays.tsx',
   'floor/FloorPhone.tsx',
   'floor/FloorTablet.tsx',
+  'floor/floorFeatures.ts',
+  'FeatureOffScreen.tsx',
   'TableActionPanel.tsx',
   'tablePanel/AffectedBookings.tsx',
   'tablePanel/FreeTableActions.tsx',

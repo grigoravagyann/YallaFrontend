@@ -213,6 +213,31 @@ describe('staff phones switched off at the branch (mock)', () => {
   });
 });
 
+describe('the kitchen screen switched off at the branch (mock)', () => {
+  it('locks a kitchen session when a renewal drops it, and keeps the tablet', async () => {
+    expect(kitchen).toBeTruthy();
+    registry.enrolmentCodes.set('H3Q2M9XW4P', {
+      code: 'H3Q2M9XW4P',
+      branchId: branch.id,
+      expiresAtUtc: new Date(now.getTime() + 60 * 60_000).toISOString(),
+      spentAtUtc: null,
+    });
+    const tablet = session();
+    await tablet.restore();
+    await tablet.enrol({ code: 'H3Q2M9XW4P', deviceName: 'Kitchen' });
+    await tablet.signInWithPin({ staffMemberId: kitchen!.id, pin: MOCK_STAFF_PIN });
+    expect(tablet.getSnapshot().identity?.features).toContain('kitchenDisplay');
+
+    registry.branchFeatures.set(branch.id, {
+      branchId: branch.id,
+      features: FULL_FEATURES.filter((feature) => feature !== 'kitchenDisplay'),
+    });
+    expect(await tablet.refresh()).toBeNull();
+    expect(tablet.getSnapshot()).toMatchObject({ state: 'locked', lastSignOut: 'kitchenOff' });
+    expect(tablet.getSnapshot().device?.branchId).toBe(branch.id);
+  });
+});
+
 describe("the device's pushes and Today (mock gateway)", () => {
   it('starts with the defaults and keeps what is saved', async () => {
     const gateway = createStaffMockGateway({ branchId: branch.id });

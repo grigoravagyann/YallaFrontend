@@ -52,6 +52,11 @@ export interface StaffHeaderProps {
    */
   readonly messagesWaiting?: number | undefined;
   /**
+   * Whether the floor offers the Kitchen view: false where the platform has
+   * not allowed the kitchen screen at the branch (2026-10-27). Default true.
+   */
+  readonly kitchenView?: boolean | undefined;
+  /**
    * Switches the screen. Left out where the floor cannot be opened at all — a
    * kitchen account, which the server refuses the floor — and then the bar
    * offers the kitchen alone.
@@ -99,6 +104,7 @@ export function StaffHeader({
   floorWaiting = 0,
   takeawayWaiting,
   messagesWaiting,
+  kitchenView = true,
   onSelectView,
   onSwitchPerson,
 }: StaffHeaderProps) {
@@ -182,19 +188,21 @@ export function StaffHeader({
                 </span>
               ) : null}
             </button>
-            <button
-              type="button"
-              aria-current={view === 'kitchen' ? 'page' : undefined}
-              aria-label={kitchenName}
-              onClick={() => onSelectView('kitchen')}
-            >
-              {t('kitchen.title')}
-              {kitchenWaiting > 0 ? (
-                <span className="ft-views-count" aria-hidden="true">
-                  {kitchenWaiting}
-                </span>
-              ) : null}
-            </button>
+            {kitchenView ? (
+              <button
+                type="button"
+                aria-current={view === 'kitchen' ? 'page' : undefined}
+                aria-label={kitchenName}
+                onClick={() => onSelectView('kitchen')}
+              >
+                {t('kitchen.title')}
+                {kitchenWaiting > 0 ? (
+                  <span className="ft-views-count" aria-hidden="true">
+                    {kitchenWaiting}
+                  </span>
+                ) : null}
+              </button>
+            ) : null}
             {takeawayWaiting !== undefined ? (
               <button
                 type="button"

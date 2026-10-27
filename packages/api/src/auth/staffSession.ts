@@ -262,6 +262,13 @@ export function createStaffSession(config: StaffSessionConfig): StaffSession {
           await lock('phoneOff');
           return null;
         }
+        if (
+          result.identity.role === 'kitchen' &&
+          !result.identity.features.includes('kitchenDisplay')
+        ) {
+          await lock('kitchenOff');
+          return null;
+        }
         await adopt({
           identity: result.identity,
           accessToken: result.tokens.accessToken,
@@ -275,8 +282,9 @@ export function createStaffSession(config: StaffSessionConfig): StaffSession {
           return null;
         }
         // A server that refuses the renewal itself once staff phones are off.
-        if (blockedFeature(error) === 'staffPhone') {
-          await lock('phoneOff');
+        const blocked = blockedFeature(error);
+        if (blocked === 'staffPhone' || blocked === 'kitchenDisplay') {
+          await lock(blocked === 'staffPhone' ? 'phoneOff' : 'kitchenOff');
           return null;
         }
         // Could not reach the server, or it fell over: the handle may still be

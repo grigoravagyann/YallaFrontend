@@ -25,6 +25,7 @@ import { connectionChip } from '../StaffHeader';
 import type { BranchFormat } from '../useBranchFormat';
 import type { ConnectionState } from '@yalla/realtime';
 import type { Selection } from './useFloorCommands';
+import type { FloorFeatures } from './floorFeatures';
 import type { useFloorScreens } from './useFloorScreens';
 
 /** Venue-wide people: My results names the branch for them. */
@@ -39,6 +40,8 @@ export type FloorRailShared = Omit<
 export interface FloorPhoneProps {
   readonly screens: ReturnType<typeof useFloorScreens>;
   readonly identity: StaffSessionIdentity;
+  /** What the platform allows here: a tab it has not is not offered. */
+  readonly features: FloorFeatures;
   readonly branchId: string;
   readonly active: boolean;
   readonly timeZoneId: string;
@@ -85,6 +88,7 @@ export interface FloorPhoneProps {
 export function FloorPhone({
   screens,
   identity,
+  features,
   branchId,
   active,
   timeZoneId,
@@ -168,7 +172,7 @@ export function FloorPhone({
     ...(manager ? [{ key: 'today' as const }] : []),
     { key: 'now', count: nowWaiting },
     { key: 'floor' },
-    { key: 'messages', count: messagesWaiting },
+    ...(features.messages ? [{ key: 'messages' as const, count: messagesWaiting }] : []),
     ...(takeawayTab ? [{ key: 'takeaway' as const, count: takeawayCount }] : []),
     { key: 'more' },
   ];
@@ -293,7 +297,7 @@ export function FloorPhone({
         {floorTables}
       </section>
 
-      {!approving && phoneTab === 'messages' ? (
+      {!approving && phoneTab === 'messages' && features.messages ? (
         <div className="ph-screen ph-messages">{messagesInbox}</div>
       ) : null}
 
