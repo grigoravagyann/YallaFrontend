@@ -89,7 +89,10 @@ describe('the platform shell', () => {
     renderShell();
     expect(screen.getByText('Grigor Avagyan')).toBeTruthy();
     expect(screen.getByText('Platform admin')).toBeTruthy();
-    expect(screen.getByText('GA').getAttribute('aria-hidden')).toBe('true');
+    // At the sidebar's foot, and on the phone's top bar.
+    for (const initials of screen.getAllByText('GA')) {
+      expect(initials.getAttribute('aria-hidden')).toBe('true');
+    }
   });
 
   it('names the admin by their name now, not the one the token was issued with', async () => {

@@ -186,7 +186,13 @@
     "signOut": "Выйти",
     "mainNav": "Основная навигация",
     "skipToContent": "Перейти к содержимому",
-    "brandSub": "панель"
+    "brandSub": "панель",
+    "openMenu": "Открыть навигацию",
+    "openMenuAttention": "Открыть навигацию — кое-что ждёт вас",
+    "closeMenu": "Закрыть навигацию",
+    "drawer": "Навигация",
+    "person": "Ваш аккаунт: {{name}}",
+    "changeBranch": "Филиал: {{name}}. Сменить филиал"
   },
   "role": {
     "platformAdmin": "Администратор платформы",

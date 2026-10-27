@@ -8,7 +8,7 @@ import { FLOOR_ROLES } from '../../auth/useCurrentUser';
 import { QueryFailureNotice } from '../../components/QueryFailureNotice';
 import { usingMockData } from '../../data/gateway';
 import { useManagedVenue } from '../../data/queries';
-import { ConsoleShell, initialsOf, type ShellGroup } from '../ui/ConsoleShell';
+import { ConsoleShell, initialsOf, useShellDrawer, type ShellGroup } from '../ui/ConsoleShell';
 import { Dialog } from '../ui/Dialog';
 import {
   ClockIcon,
@@ -228,6 +228,8 @@ export function VenueLayout({ user }: VenueLayoutProps) {
         />
       }
       person={{ name, caption: t('nav.account'), accountTo: VENUE_ACCOUNT_PATH }}
+      // The branch on screen, in the phone's top bar: a tap opens the switcher.
+      barChip={current ? { label: current.name, switchable: branches.length > 1 } : null}
     >
       <div className="yc-legacy">
         {onAccount ? (
@@ -298,6 +300,8 @@ interface VenuePlaceProps {
 function VenuePlace({ venueName, roleLabel, branches, current, onSwitch }: VenuePlaceProps) {
   const { t } = useTranslation(['admin', 'common']);
   const switcherId = useId();
+  // On a phone the switcher is in the drawer: a new branch is a new page to see.
+  const drawer = useShellDrawer();
   return (
     <div className="yc-place">
       <div className="yc-place-t">
@@ -315,8 +319,12 @@ function VenuePlace({ venueName, roleLabel, branches, current, onSwitch }: Venue
           <label htmlFor={switcherId}>{t('branchSwitcher.label')}</label>
           <select
             id={switcherId}
+            data-drawer-focus="branch"
             value={current?.id ?? ''}
-            onChange={(event) => onSwitch(event.target.value)}
+            onChange={(event) => {
+              drawer.close();
+              onSwitch(event.target.value);
+            }}
           >
             {branches.map((branch) => (
               <option key={branch.id} value={branch.id}>
