@@ -28,6 +28,8 @@ const LISTING: Listing = {
   freeTableCount: 4,
   reviewCount: 0,
   badges: ['new', 'someday-a-new-badge'],
+  // Reviews switched off here: the app hides the rating and the list.
+  features: [1, 2, 3, 4, 5, 6, 8, 9, 10],
   coverPhoto: {
     photoId: 'p1',
     thumbnailUrl: '/api/photos/p1/thumbnail',
@@ -66,6 +68,12 @@ describe('places over /api/public/branches', () => {
       reviewCount: 0,
       distanceKm: 0.3,
       badges: ['new'],
+      features: ['appBookings', 'webBookings', 'preOrders', 'takeaway', 'tableService'].concat([
+        'guestMessages',
+        'staffPhone',
+        'kitchenDisplay',
+        'reports',
+      ]),
     });
     expect(listing?.coverPhoto?.cardUrl).toBe(`${BASE_URL}/api/photos/p1/card`);
   });

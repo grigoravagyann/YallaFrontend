@@ -1,3 +1,4 @@
+import type { BranchFeature } from './branchFeatures';
 import type { ConversationSummary } from './messages';
 import type { SpecialDay } from './branchSettings';
 import type { VenueType } from './booking';
@@ -55,6 +56,14 @@ export interface BranchListing {
   readonly reviewCount: number;
   readonly badges: readonly BranchBadge[];
   readonly coverPhoto: Photo | null;
+  /**
+   * The features **on** here as a diner sees them (2026-10-27): allowed by the
+   * platform and switched on by the venue. The app hides what is not in it —
+   * the rating and reviews, booking, pre-orders, takeaway, messages. `null`
+   * from a source that does not say (an older server), where nothing is hidden
+   * on its account.
+   */
+  readonly features: readonly BranchFeature[] | null;
 }
 
 export interface BranchOpeningBlock {

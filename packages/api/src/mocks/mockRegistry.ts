@@ -1,5 +1,6 @@
 import { browserMockStorage } from './browserStorage';
 import { MOCK_JOURNAL_PREFIX, type MockJournalStorage } from './persistence';
+import type { BranchFeature } from '../contracts/branchFeatures';
 import type { StaffDeviceBrowser, StaffDevicePlatform } from '../contracts/staff';
 
 /**
@@ -92,6 +93,12 @@ export interface MockPhonePairing {
   readonly supersededAtUtc: string | null;
 }
 
+/** What the platform admin allowed at a branch, kept across reloads (see `branchFeaturesMock.ts`). */
+export interface MockBranchFeatures {
+  readonly branchId: string;
+  readonly features: readonly BranchFeature[];
+}
+
 export interface MockStaffHandle {
   readonly renewalToken: string;
   readonly deviceToken: string;
@@ -168,6 +175,7 @@ export interface MockRegistry {
   readonly devices: Drawer<MockEnrolledDevice>;
   readonly staffHandles: Drawer<MockStaffHandle>;
   readonly phonePairings: Drawer<MockPhonePairing>;
+  readonly branchFeatures: Drawer<MockBranchFeatures>;
   /** Empty every drawer. Tests call it between cases. */
   reset(): void;
 }
@@ -179,6 +187,7 @@ export function createMockRegistry(storage: () => MockJournalStorage | null): Mo
     devices: new Drawer<MockEnrolledDevice>('devices', storage),
     staffHandles: new Drawer<MockStaffHandle>('staff-handles', storage),
     phonePairings: new Drawer<MockPhonePairing>('phone-pairings', storage),
+    branchFeatures: new Drawer<MockBranchFeatures>('branch-features', storage),
   };
   return {
     ...drawers,

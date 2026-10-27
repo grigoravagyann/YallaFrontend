@@ -9,6 +9,7 @@ import {
   PairingCodeUnusableError,
   PinLockedError,
   PinRejectedError,
+  isFeatureNotEnabled,
 } from '../contracts/errors';
 import type {
   DeviceEnrolment,
@@ -25,6 +26,7 @@ import { ApiError, ForbiddenError, UnauthorizedError } from '../errors';
 import type { components } from '../generated/schema';
 import { staffRoleToUserRole } from './endpoints';
 import { staffDeviceBrowserCode, staffDevicePlatformCode } from '../http/staffAdminMapping';
+import { branchFeaturesFromWire } from '../http/branchFeatureMapping';
 import { ProblemCodes } from '../generated/problemCodes';
 
 type Schemas = components['schemas'];
@@ -120,6 +122,7 @@ export function createStaffAuth(client: ApiClient) {
                 role: staffRoleToUserRole(data.boundStaffMember.role),
               }
             : null,
+          features: branchFeaturesFromWire(data.features),
         };
       } catch (error) {
         throw asDeviceFailure(error);
@@ -305,6 +308,7 @@ function toSignIn(data: Schemas['Yalla.Application.Auth.StaffSessionResult']): S
       fullName: data.fullName,
       role: staffRoleToUserRole(data.role),
       branchId: data.branchId,
+      features: branchFeaturesFromWire(data.features),
     },
     tokens: {
       accessToken: data.accessToken,
@@ -328,6 +332,9 @@ function asDeviceFailure(error: unknown): unknown {
  */
 function asPairingFailure(error: unknown): unknown {
   if (!(error instanceof ApiError)) return error;
+  // Staff phones are off at the branch: not the code's fault, and the phone
+  // says so rather than "ask for a new code".
+  if (isFeatureNotEnabled(error)) return error;
   const options = { url: error.url, requestId: error.requestId };
   if (error.code === ProblemCodes.PairingCodeExpired) return new PairingCodeExpiredError(options);
   if (error.code === ProblemCodes.PairingCodeInvalid) return new PairingCodeInvalidError(options);

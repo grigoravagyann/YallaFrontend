@@ -33,3 +33,4 @@ export * from './errors/preOrder';
 export * from './errors/askOnMyWay';
 export * from './errors/takeaway';
 export * from './errors/messages';
+export * from './errors/features';

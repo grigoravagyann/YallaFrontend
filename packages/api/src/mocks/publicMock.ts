@@ -24,6 +24,8 @@ import { asksOnYourWay, type OnMyWayResult, type PreOrderResult } from '../contr
 import { venueIsAsking, type RunningLateResult } from '../contracts/onMyWay';
 import type { MockGateway } from './mockGateway';
 import { ProblemCodes } from '../generated/problemCodes';
+import { mockBranchFeatures } from './branchFeaturesMock';
+import { mockRegistry } from './mockRegistry';
 
 /**
  * The public page's data, without a backend.
@@ -364,6 +366,7 @@ export function createPublicMockGateway(options: PublicMockOptions): PublicGatew
         },
         bookingWindowDays: BOOKING_WINDOW_DAYS,
         acceptsWebBookings: fixture.acceptsWebBookings,
+        features: mockBranchFeatures(mockRegistry, branch.id),
         rooms: branch.rooms
           .filter((room) => room.photos.length > 0)
           .map((room) => ({

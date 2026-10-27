@@ -4,6 +4,8 @@ import type { ConsoleVenue } from '../contracts/console';
 import { BranchNotReadyError, VenueDeletionBlockedError } from '../contracts/errors';
 import { ConcurrencyConflictError } from '../errors';
 import { createConsoleMockGateway } from './consoleMock';
+import { BASIC_FEATURES, FULL_FEATURES } from '../contracts/branchFeatures';
+import { venueFeatures } from '../platformVenues';
 
 let n = 0;
 const cmd = () => `cmd_${(n += 1)}`;
@@ -64,21 +66,18 @@ describe('the console mock — the venues list demo world', () => {
     expect((await venueNamed(gateway, 'Garden Bistro')).status).toBe('suspended');
   });
 
-  it('carries the tier per branch: how many are paid, and each branch with its own', async () => {
-    const cascade = await venueNamed(gateway, 'Cascade Cafe');
-    expect(cascade.paidBranchCount).toBe(cascade.branchCount);
+  it('carries the features per branch: Full, Basic, one of its own, and mixed', async () => {
+    expect(venueFeatures(await venueNamed(gateway, 'Cascade Cafe')).kind).toBe('full');
+    expect(venueFeatures(await venueNamed(gateway, 'Sunset Lounge')).kind).toBe('basic');
+    expect(venueFeatures(await venueNamed(gateway, 'Garden Bistro')).kind).toBe('custom');
 
-    const sunset = await venueNamed(gateway, 'Sunset Lounge');
-    expect(sunset.paidBranchCount).toBe(0);
-
-    // The mixed one: "Mixed · 1/2" in the list.
+    // The mixed one: two branches on different sets.
     const demo = await venueNamed(gateway, 'Yalla Demo Cafe');
     expect(demo.branchCount).toBe(2);
-    expect(demo.paidBranchCount).toBe(1);
-    expect(demo.branchTiers?.map((branch) => branch.subscriptionTier).sort()).toEqual([
-      'free',
-      'paid',
-    ]);
+    expect(venueFeatures(demo).kind).toBe('mixed');
+    expect(
+      demo.branchFeatures?.map((branch) => branch.features.includes('tableService')).sort(),
+    ).toEqual([false, true]);
   });
 
   it("carries the list's newer columns: rating, open tabs, cuisine, district and cover", async () => {
@@ -117,7 +116,7 @@ describe('the console mock — the venues list demo world', () => {
     expect(mountain.readinessIssue?.branchName).toBeTruthy();
   });
 
-  it('refuses Mountain View going Paid, at the branch whose menu is unfinished', async () => {
+  it('refuses Mountain View table service, at the branch whose menu is unfinished', async () => {
     const mountain = await venueNamed(gateway, 'Mountain View');
     const detail = await gateway.getVenue(mountain.id);
     const unready = detail?.branches.find(
@@ -126,7 +125,11 @@ describe('the console mock — the venues list demo world', () => {
     expect(unready).toBeTruthy();
 
     const refusal = await caught(
-      gateway.setBranchTier({ branchId: unready!.id, tier: 'paid', commandId: cmd() }),
+      gateway.setBranchFeatures({
+        branchId: unready!.id,
+        features: FULL_FEATURES,
+        commandId: cmd(),
+      }),
     );
     expect(refusal).toBeInstanceOf(BranchNotReadyError);
     expect((refusal as BranchNotReadyError).incompleteMenuItemCount).toBe(4);
@@ -135,26 +138,30 @@ describe('the console mock — the venues list demo world', () => {
     expect(readiness.incompleteMenuItemCount).toBe(4);
   });
 
-  it('lets Sunset Lounge go Paid', async () => {
+  it('lets Sunset Lounge have table service', async () => {
     const sunset = await venueNamed(gateway, 'Sunset Lounge');
     const detail = await gateway.getVenue(sunset.id);
     const branch = detail!.branches[0]!;
     expect((await gateway.getBranchReadiness(branch.id)).incompleteMenuItemCount).toBe(0);
 
-    const after = await gateway.setBranchTier({
+    const after = await gateway.setBranchFeatures({
       branchId: branch.id,
-      tier: 'paid',
+      features: FULL_FEATURES,
       commandId: cmd(),
     });
-    expect(after.branches[0]?.subscriptionTier).toBe('paid');
-    expect((await venueNamed(gateway, 'Sunset Lounge')).paidBranchCount).toBe(1);
+    expect(after.branches[0]?.features).toContain('tableService');
+    expect(venueFeatures(await venueNamed(gateway, 'Sunset Lounge')).kind).toBe('full');
   });
 
-  it('refuses Cascade Cafe going Free while its tabs are open', async () => {
+  it('refuses Cascade Cafe table service off while its tabs are open', async () => {
     const cascade = await venueNamed(gateway, 'Cascade Cafe');
     const detail = await gateway.getVenue(cascade.id);
     const refusal = await caught(
-      gateway.setBranchTier({ branchId: detail!.branches[0]!.id, tier: 'free', commandId: cmd() }),
+      gateway.setBranchFeatures({
+        branchId: detail!.branches[0]!.id,
+        features: BASIC_FEATURES,
+        commandId: cmd(),
+      }),
     );
     expect(refusal).toBeInstanceOf(ConcurrencyConflictError);
   });

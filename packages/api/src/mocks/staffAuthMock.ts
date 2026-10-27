@@ -10,6 +10,7 @@ import {
   PairingCodeUnusableError,
   PinLockedError,
   PinRejectedError,
+  featureNotEnabled,
 } from '../contracts/errors';
 import type { StaffMember } from '../contracts/staff';
 import type {
@@ -25,6 +26,7 @@ import type {
 } from '../contracts/staffAuth';
 import { normalizeEnrolmentCode } from '../contracts/staffAuth';
 import { UnauthorizedError } from '../errors';
+import { mockBranchFeatures } from './branchFeaturesMock';
 import { mockRegistry, type MockRegistry } from './mockRegistry';
 import { MOCK_STAFF_PIN, fixtureStaffFor } from './staffFixture';
 import { mockRosterShiftsAround, mockStaffRoster } from './staffRosterMock';
@@ -179,8 +181,16 @@ export function createMockStaffAuth(options: StaffAuthMockOptions = {}): StaffAu
     return { code, pairing: found, member, ...located };
   }
 
+  /** Staff phones are a feature: off at the branch, a phone neither pairs nor signs in. */
+  function refusePhoneOff(branchId: string, url: string): void {
+    if (!mockBranchFeatures(registry, branchId).includes('staffPhone')) {
+      throw featureNotEnabled(url, 'staffPhone', branchId);
+    }
+  }
+
   function session(deviceToken: string, member: StaffMember): StaffSignInResult {
     sequence += 1;
+    const branchId = registry.devices.get(deviceToken)?.branchId ?? '';
     const renewalToken = `mockrenew_${member.id}_${sequence}`;
     registry.staffHandles.set(renewalToken, {
       renewalToken,
@@ -192,7 +202,9 @@ export function createMockStaffAuth(options: StaffAuthMockOptions = {}): StaffAu
         staffMemberId: member.id,
         fullName: member.fullName,
         role: staffRoleToUserRole(member.role),
-        branchId: registry.devices.get(deviceToken)?.branchId ?? '',
+        branchId,
+        // Read again on every renewal, as the server's is.
+        features: mockBranchFeatures(registry, branchId),
       },
       tokens: {
         accessToken: `mockstaff_${member.id}_${sequence}`,
@@ -249,6 +261,7 @@ export function createMockStaffAuth(options: StaffAuthMockOptions = {}): StaffAu
         lastSeenAtUtc: now().toISOString(),
         kind: found.kind ?? 'tablet',
         boundStaffMember: boundMember(found),
+        features: mockBranchFeatures(registry, found.branchId),
       };
     },
 
@@ -275,6 +288,7 @@ export function createMockStaffAuth(options: StaffAuthMockOptions = {}): StaffAu
       if (existing && existing.revokedAtUtc === null && (existing.kind ?? 'tablet') === 'tablet') {
         throw new PairingCodeUnusableError({ url });
       }
+      refusePhoneOff(pairing.branchId, url);
       // The PIN check is the PIN screen's, lockout included; a wrong one
       // leaves the code usable.
       checkPin(member, command.pin, url);
@@ -341,6 +355,7 @@ export function createMockStaffAuth(options: StaffAuthMockOptions = {}): StaffAu
         throw new PinRejectedError({ url });
       }
 
+      if (found.kind === 'phone') refusePhoneOff(found.branchId, url);
       checkPin(member, command.pin, url);
       seen(deviceToken);
       return session(deviceToken, member);

@@ -31,14 +31,11 @@ const WIRE_VENUE = {
     isActive: true,
     branchCount: 0,
     tableCount: 0,
-    paidBranchCount: 0,
-    subscriptionTier: 1,
     suspendedAtUtc: null,
     deletedAtUtc: null,
     isSuspended: false,
     isDeleted: false,
     status: 1,
-    tierMix: 1,
     branches: [],
     createdAtUtc: '2026-06-01T09:00:00Z',
     notReadyBranchCount: 0,
@@ -135,7 +132,7 @@ describe('adding a branch over HTTP', () => {
             longitude: 44.5,
             timeZoneId: 'Asia/Yerevan',
             isActive: true,
-            subscriptionTier: 1,
+            features: [1, 2, 3, 4, 6, 7, 8, 9, 10],
             tableCount: 0,
             openTabCount: 0,
           },
@@ -165,7 +162,6 @@ describe('adding a branch over HTTP', () => {
       latitude: 40.2,
       longitude: 44.5,
       timeZoneId: 'Asia/Yerevan',
-      subscriptionTier: 1,
     });
     expect(sent(fetchImpl, 1).url).toBe(`${BASE}/api/platform/venues/v-1`);
   });

@@ -35,15 +35,11 @@ const OVERVIEW = {
   generatedAtUtc: '2026-10-18T10:32:00Z',
   venues: {
     total: 8,
-    paid: 4,
-    mixed: 1,
-    free: 3,
     active: 6,
     suspended: 1,
     inactive: 1,
     deleted: 1,
     branches: 10,
-    paidBranches: 6,
   },
   bookings: {
     last7Days: 312,
@@ -73,9 +69,7 @@ const OVERVIEW = {
       slug: 'riverside-restaurant',
       type: 2,
       status: 1,
-      tierMix: 3,
       branchCount: 1,
-      paidBranchCount: 1,
       createdAtUtc: '2026-10-16T11:30:00Z',
     },
   ],
@@ -119,9 +113,7 @@ describe('Home over HTTP', () => {
       slug: 'riverside-restaurant',
       type: 'restaurant',
       status: 'active',
-      tierMix: 'paid',
       branchCount: 1,
-      paidBranchCount: 1,
       createdAtUtc: '2026-10-16T11:30:00Z',
     });
     expect(overview.outbox.deadLetteredLastDay).toBe(2);
@@ -175,7 +167,7 @@ describe('Home over HTTP', () => {
     ]);
   });
 
-  it('reads the activity feed with who, what, which venue, and the tier or role it names', async () => {
+  it('reads the activity feed with who, what, which venue, and the features, tier or role it names', async () => {
     const { gateway, backend } = gatewayOver({
       'GET /api/platform/activity': {
         body: {
@@ -197,6 +189,35 @@ describe('Home over HTTP', () => {
               target: { type: 'StaffMember', id: 's-3', displayName: 'Mariam Avetisyan' },
               venue: { venueId: 'v-2', name: 'Cascade Cafe' },
               detail: { role: 2, branchId: 'b-2', canSignIn: true },
+            },
+            {
+              id: 'a-4',
+              atUtc: '2026-10-27T09:00:00Z',
+              action: 'branch.features-change',
+              actor: { staffMemberId: 's-1', role: 5, displayName: 'Grigor Avagyan' },
+              target: { type: 'Branch', id: 'b-1', displayName: 'Kaskad' },
+              venue: { venueId: 'v-1', name: 'Luna Cafe' },
+              detail: {
+                venueId: 'v-1',
+                from: [1, 2, 3, 4, 6, 7, 8, 9, 10],
+                to: [1, 2, 3, 4, 5, 6, 8, 9, 10],
+                added: [5],
+                removed: [7],
+                viaVenue: true,
+              },
+            },
+            {
+              id: 'a-5',
+              atUtc: '2026-10-27T09:00:00Z',
+              action: 'venue.features-apply',
+              actor: { staffMemberId: 's-1', role: 5, displayName: 'Grigor Avagyan' },
+              target: { type: 'Venue', id: 'v-1', displayName: 'Luna Cafe' },
+              venue: { venueId: 'v-1', name: 'Luna Cafe' },
+              detail: {
+                features: [1, 2, 3, 4, 5, 6, 8, 9, 10],
+                branchCount: 3,
+                changedBranchIds: ['b-1', 'b-2'],
+              },
             },
             {
               id: 'a-3',
@@ -221,6 +242,8 @@ describe('Home over HTTP', () => {
       target: { type: 'Branch', id: 'b-1', name: 'Kaskad' },
       venue: { id: 'v-1', name: 'Luna Cafe' },
       tierTo: 'paid',
+      featuresChange: null,
+      featuresApply: null,
       staffRole: null,
     });
     expect(feed[1]).toMatchObject({
@@ -228,8 +251,23 @@ describe('Home over HTTP', () => {
       staffRole: 'manager',
       tierTo: null,
     });
+    expect(feed[2]).toMatchObject({
+      tierTo: null,
+      featuresChange: { added: ['tableService'], removed: ['reviews'], viaVenue: true },
+      featuresApply: null,
+    });
+    expect(feed[3]?.featuresApply).toEqual({
+      features: ['appBookings', 'webBookings', 'preOrders', 'takeaway', 'tableService'].concat([
+        'guestMessages',
+        'staffPhone',
+        'kitchenDisplay',
+        'reports',
+      ]),
+      branchCount: 3,
+      changedCount: 2,
+    });
     // The admin's own account concerns no venue.
-    expect(feed[2]?.venue).toBeNull();
+    expect(feed[4]?.venue).toBeNull();
   });
 });
 

@@ -197,12 +197,16 @@ describe('F11 — a deleted venue can no longer be changed', () => {
     return created;
   }
 
-  it('refuses a tier change with the server sentence', async () => {
-    // `PlatformService.UpdateBranchAsync`: a DomainStateException (409).
+  it('refuses a feature change with the server sentence', async () => {
+    // `PlatformService.SetBranchFeaturesAsync`: a DomainStateException (409).
     const gateway = createConsoleMockGateway();
     const venue = await deletedVenue(gateway);
     const error = await caught(
-      gateway.setBranchTier({ branchId: venue.branches[0]!.id, tier: 'paid', commandId: cmd() }),
+      gateway.setBranchFeatures({
+        branchId: venue.branches[0]!.id,
+        features: ['appBookings'],
+        commandId: cmd(),
+      }),
     );
     expect(error).toBeInstanceOf(ConcurrencyConflictError);
     expect((error as ConcurrencyConflictError).message).toBe(

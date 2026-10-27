@@ -16,6 +16,7 @@
  * offers the field teaches them there is another way in.
  */
 
+import type { BranchFeature } from './branchFeatures';
 import type { UserRole } from './console';
 import type { StaffDeviceBrowser, StaffDevicePlatform } from './staff';
 
@@ -54,6 +55,12 @@ export interface EnrolledDevice {
   readonly kind?: StaffDeviceKind | undefined;
   /** On a phone, the one person whose PIN opens it; null or absent on a tablet. */
   readonly boundStaffMember?: BoundStaffMember | null | undefined;
+  /**
+   * The features the platform allows at the branch, for the PIN screen: a
+   * phone whose branch has staff phones off says so before a PIN is typed.
+   * Absent from an older server, or a device read that could not be made.
+   */
+  readonly features?: readonly BranchFeature[] | undefined;
 }
 
 /**
@@ -123,6 +130,12 @@ export interface StaffSessionIdentity {
   readonly role: UserRole;
   /** The branch this session may act on, and only this one. */
   readonly branchId: string;
+  /**
+   * The features the platform allows at that branch, read again on every
+   * renewal: the floor hides takeaway, messages, tabs and the kitchen when
+   * they are off, and a phone whose branch loses staff phones is signed out.
+   */
+  readonly features: readonly BranchFeature[];
 }
 
 export interface StaffSessionTokens {
@@ -213,7 +226,12 @@ export type StaffSignOutReason =
   /** Thirty minutes with nobody touching it. */
   | 'idle'
   /** The renewal handle was refused: the shift cap ran out, or the tablet was revoked. */
-  | 'expired';
+  | 'expired'
+  /**
+   * A phone whose branch no longer has staff phones (2026-10-27): the platform
+   * switched them off. Not the person's doing, and a PIN will not fix it.
+   */
+  | 'phoneOff';
 
 /** Where the device token and the renewal handle live between launches. */
 export interface StaffCredentialStorage {

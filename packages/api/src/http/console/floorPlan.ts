@@ -1,5 +1,4 @@
 import type { ConsoleGateway } from '../../consoleGateway';
-import type { SubscriptionTier } from '../../contracts/console';
 import type {
   EditorFloorArea,
   EditorFloorPlan,
@@ -10,17 +9,13 @@ import type {
   TableDeletionResult,
 } from '../../contracts/floorPlan';
 import { absolutePhoto } from '../photoUrl';
-import {
-  BranchNotReadyError,
-  FloorPlanChangedError,
-  FloorPlanInvalidError,
-} from '../../contracts/errors';
+import { FloorPlanChangedError, FloorPlanInvalidError } from '../../contracts/errors';
 import { ApiError } from '../../errors';
 import type { components } from '../../generated/schema';
 import { readinessFromWire } from '../consoleMapping';
 import { photo } from '../venueSettingsMapping';
 import { ProblemCodes } from '../../generated/problemCodes';
-import { type ConsoleHttpContext, PLATFORM, BRANCHES } from './context';
+import { type ConsoleHttpContext, BRANCHES } from './context';
 
 type Schemas = components['schemas'];
 type WireArea = Schemas['Yalla.Application.BranchSettings.FloorAreaView'];
@@ -31,9 +26,6 @@ type WireSaveResult = Schemas['Yalla.Application.BranchSettings.FloorPlanReplace
 function stringList(value: unknown): readonly string[] {
   return Array.isArray(value) ? value.filter((v): v is string => typeof v === 'string') : [];
 }
-
-/** `Yalla.Domain.Enums.SubscriptionTier`: 1 Free, 2 Paid. */
-const TIER_TO_WIRE: Readonly<Record<SubscriptionTier, number>> = { free: 1, paid: 2 };
 
 /** `Yalla.Domain.Enums.TableStatus`: 1 Free, 2 Held, 4 Occupied, 5 OutOfService. */
 const TABLE_STATUS: Readonly<Record<number, EditorTableStatus>> = {
@@ -93,9 +85,8 @@ export function floorPlanMethods(
   | 'deleteFloorArea'
   | 'deleteTable'
   | 'regenerateTableQr'
-  | 'setBranchTier'
 > {
-  const { client, venueDetail } = ctx;
+  const { client } = ctx;
   return {
     // --- The rooms editor -------------------------------------------------
 
@@ -203,42 +194,6 @@ export function floorPlanMethods(
     async regenerateTableQr({ tableId }): Promise<{ qrToken: string }> {
       const { data } = await client.post<WireTable>(`/api/tables/${tableId}/regenerate-qr`);
       return { qrToken: data.qrToken };
-    },
-
-    /**
-     * The tier lives on a branch, and the backend changes it through the
-     * general branch patch rather than a tier-specific route.
-     */
-    async setBranchTier({ branchId, tier }) {
-      let venueId: string;
-      try {
-        const { data } = await client.patch<Schemas['Yalla.Application.Platform.BranchSummary']>(
-          `${PLATFORM}/branches/${branchId}`,
-          { subscriptionTier: TIER_TO_WIRE[tier] },
-        );
-        venueId = data.venueId;
-      } catch (error) {
-        // Going Paid with an unfinished menu is the one refusal with a number
-        // in it, so it gets a type. Going Free with open tabs is a plain 409
-        // whose sentence already names the tables; it is left as it arrives.
-        if (error instanceof ApiError && error.code === ProblemCodes.BranchNotReady) {
-          const context = error.problem?.context as
-            { branchId?: unknown; incompleteMenuItemCount?: unknown } | null | undefined;
-          throw new BranchNotReadyError({
-            url: error.url,
-            requestId: error.requestId,
-            branchId: typeof context?.branchId === 'string' ? context.branchId : branchId,
-            incompleteMenuItemCount:
-              typeof context?.incompleteMenuItemCount === 'number'
-                ? context.incompleteMenuItemCount
-                : 0,
-          });
-        }
-        throw error;
-      }
-      // The patch answers with the branch, not the venue the console caches.
-      // Re-read the venue so the screen replaces rather than patches.
-      return venueDetail(`${PLATFORM}/venues/${venueId}`);
     },
   };
 }

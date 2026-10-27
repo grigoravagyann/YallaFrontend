@@ -41,9 +41,6 @@ const CLAIM = {
   subject: 'sub',
 } as const;
 
-/** `SubscriptionTier.Free`. Every venue starts free; the platform upgrades it later. */
-const FREE_TIER = 1;
-
 export function venuesMethods(
   ctx: ConsoleHttpContext,
 ): Pick<
@@ -138,7 +135,7 @@ export function venuesMethods(
          * The backend takes no `commandId` on this route. It also does **not**
          * derive the branch slug from its name, which an earlier comment here
          * claimed: `CreateBranchCommand` requires all nine of name, slug,
-         * address, latitude, longitude, timeZoneId and subscriptionTier, and sending two of them answered
+         * address, latitude, longitude and timeZoneId, and sending two of them answered
          * `400 Value must not be null or blank. (Parameter 'slug')` on every
          * attempt. Venue creation had never worked against a real backend.
          */
@@ -152,8 +149,9 @@ export function venuesMethods(
             address: command.firstBranch.address,
             latitude: command.firstBranch.latitude,
             longitude: command.firstBranch.longitude,
+            // No `features`: a new branch starts on the Basic preset, and the
+            // platform switches table service on from the branch's page.
             timeZoneId: command.firstBranch.timeZoneId,
-            subscriptionTier: FREE_TIER,
           },
         });
         return venueDetailFromWire(data, photoLink);
@@ -189,15 +187,15 @@ export function venuesMethods(
             address: command.address,
             latitude: command.latitude,
             longitude: command.longitude,
+            // No `features`: the Basic preset, as for a venue's first branch.
             timeZoneId: command.timeZoneId,
-            subscriptionTier: FREE_TIER,
           },
         );
       } catch (error) {
         return translate(error, { slug: command.slug });
       }
       // The route answers with the branch; the console caches the venue.
-      // Re-read it, as the tier switch does, so the screen replaces its copy.
+      // Re-read it, as the feature switch does, so the screen replaces its copy.
       return venueDetail(`${PLATFORM}/venues/${command.venueId}`);
     },
 

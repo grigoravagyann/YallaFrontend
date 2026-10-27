@@ -1,10 +1,5 @@
-import type {
-  StaffRole,
-  SubscriptionTier,
-  UserRole,
-  VenueReadinessIssue,
-  VenueStatus,
-} from './console';
+import type { BranchFeature } from './branchFeatures';
+import type { StaffRole, UserRole, VenueReadinessIssue, VenueStatus } from './console';
 import type { VenueType } from './booking';
 
 /**
@@ -16,8 +11,12 @@ import type { VenueType } from './booking';
  * carries a guest's name, phone or booking code at any depth.
  */
 
-/** A venue's tier from its branches': none paid, some, or every one. */
-export type VenueTierMix = 'free' | 'mixed' | 'paid';
+/**
+ * The Free/Paid plan a `branch.tier-change` row moved a branch to. The plan is
+ * gone (2026-10-27, replaced by per-branch features); its audit rows stay in
+ * the feed and are still said.
+ */
+export type LegacyTier = 'free' | 'paid';
 
 /** One venue's share of a total: pending approvals, open tabs. */
 export interface VenueCount {
@@ -70,9 +69,7 @@ export interface RecentVenue {
   readonly slug: string;
   readonly type: VenueType;
   readonly status: VenueStatus;
-  readonly tierMix: VenueTierMix;
   readonly branchCount: number;
-  readonly paidBranchCount: number;
   readonly createdAtUtc: string;
 }
 
@@ -91,18 +88,14 @@ export interface OutboxCounts {
 export interface PlatformOverview {
   readonly generatedAtUtc: string;
   readonly venues: {
-    /** Venues not deleted: `paid + mixed + free`. */
+    /** Venues not deleted. */
     readonly total: number;
-    readonly paid: number;
-    readonly mixed: number;
-    readonly free: number;
     readonly active: number;
     readonly suspended: number;
     readonly inactive: number;
     /** Counted apart, and in no other number here. */
     readonly deleted: number;
     readonly branches: number;
-    readonly paidBranches: number;
   };
   readonly bookings: OverviewBookings;
   /** Requests still waiting for the venue, whose visit is ahead. */
@@ -144,7 +137,7 @@ export interface OutboxHealth extends OutboxCounts {
 export interface PlatformActivityEntry {
   readonly id: string;
   readonly atUtc: string;
-  /** `venue.create`, `branch.tier-change`, `staff.create`, `review.hide`, … */
+  /** `venue.create`, `branch.features-change`, `staff.create`, `review.hide`, … */
   readonly action: string;
   readonly actor: {
     readonly id: string;
@@ -161,8 +154,23 @@ export interface PlatformActivityEntry {
   };
   /** `null` for the admin's own account. */
   readonly venue: { readonly id: string; readonly name: string } | null;
-  /** `branch.tier-change`: the tier it moved to. */
-  readonly tierTo: SubscriptionTier | null;
+  /** `branch.tier-change` (rows before 2026-10-27): the plan it moved to. */
+  readonly tierTo: LegacyTier | null;
+  /**
+   * `branch.features-change`: what the platform switched on and off at the
+   * branch, and whether it came from "apply to every branch of the venue".
+   */
+  readonly featuresChange: {
+    readonly added: readonly BranchFeature[];
+    readonly removed: readonly BranchFeature[];
+    readonly viaVenue: boolean;
+  } | null;
+  /** `venue.features-apply`: the set given to every branch, and how many it changed. */
+  readonly featuresApply: {
+    readonly features: readonly BranchFeature[];
+    readonly branchCount: number;
+    readonly changedCount: number;
+  } | null;
   /** `staff.create`: the role given. */
   readonly staffRole: StaffRole | null;
 }

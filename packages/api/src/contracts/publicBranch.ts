@@ -1,3 +1,4 @@
+import type { BranchFeature } from './branchFeatures';
 import type { ApprovalTrigger, DeclineReason } from './approvals';
 import type { VenueType } from './booking';
 import type { SpecialDay, WeeklyHours } from './branchSettings';
@@ -193,11 +194,18 @@ export interface PublicBranch {
   /**
    * Whether this branch takes bookings from the web at all.
    *
-   * False for a venue on the free tier or one that has switched web booking
-   * off. The page still renders — the room, the menu and the hours are still
+   * False where the platform has not allowed web bookings, or the venue has
+   * switched them off. The page still renders — the room, the menu and the hours are still
    * worth someone's time — but nothing on it offers an action it cannot honour.
    */
   readonly acceptsWebBookings: boolean;
+
+  /**
+   * The features **on** here as a guest sees them (2026-10-27): allowed by the
+   * platform and switched on by the venue. What is not in it is not offered —
+   * reviews and the rating, pre-orders, takeaway.
+   */
+  readonly features: readonly BranchFeature[];
 
   /** The rooms with photos, lowest `displayOrder` first. */
   readonly rooms: readonly PublicRoom[];

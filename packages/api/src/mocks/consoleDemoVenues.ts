@@ -1,4 +1,5 @@
-import type { SubscriptionTier, VenueStatus, VenueType } from '../contracts/console';
+import { BASIC_FEATURES, FULL_FEATURES, type BranchFeature } from '../contracts/branchFeatures';
+import type { VenueStatus, VenueType } from '../contracts/console';
 
 /**
  * The platform venues list's demo world: the nine venues the approved Venues
@@ -7,8 +8,8 @@ import type { SubscriptionTier, VenueStatus, VenueType } from '../contracts/cons
  *
  * Console-only. The diner side keeps `mockVenues`; these exist so every state
  * of the redesigned list can be walked in mock mode — and the two the HANDOFF
- * names (section 3) are fixed points: **Mountain View** is refused Paid
- * because a branch's menu is unfinished, **Sunset Lounge** goes Paid. Cascade
+ * names (section 3) are fixed points: **Mountain View** is refused table
+ * service because a branch's menu is unfinished, **Sunset Lounge** may have it. Cascade
  * Cafe is the delete its fifteen open tabs block; Old Town Pub is the deleted
  * venue the "Deleted" filter shows.
  *
@@ -21,10 +22,11 @@ export interface DemoBranchSeed {
   readonly name: string;
   readonly slug: string;
   readonly tableCount: number;
-  readonly tier: SubscriptionTier;
-  /** Tabs open right now. Blocks a delete, and a move to Free. */
+  /** What the platform allows there: Full (was Paid) or Basic (was Free). */
+  readonly features: readonly BranchFeature[];
+  /** Tabs open right now. Blocks a delete, and turning table service off. */
   readonly openTabs: number;
-  /** Dishes missing a detail a diner needs. Anything above 0 refuses Paid. */
+  /** Dishes missing a detail a diner needs. Anything above 0 refuses table service. */
   readonly unfinishedDishes: number;
   /** False: no opening hours set yet. */
   readonly hours: boolean;
@@ -60,7 +62,7 @@ const branch = (
   slug: string,
   options: Partial<Omit<DemoBranchSeed, 'id' | 'name' | 'slug'>> & {
     readonly tableCount: number;
-    readonly tier: SubscriptionTier;
+    readonly features: readonly BranchFeature[];
     readonly district: string;
     readonly address: string;
   },
@@ -91,7 +93,7 @@ export const demoVenues: readonly DemoVenueSeed[] = [
       branch('b-cascade-center', 'Կենտրոն', 'center', {
         address: 'Թամանյան 10, Կենտրոն',
         tableCount: 22,
-        tier: 'paid',
+        features: FULL_FEATURES,
         openTabs: 15,
         district: 'Կենտրոն',
       }),
@@ -112,20 +114,20 @@ export const demoVenues: readonly DemoVenueSeed[] = [
       branch('b-yalla-demo-center', 'Կենտրոն', 'center', {
         address: 'Աբովյան 12, Կենտրոն',
         tableCount: 8,
-        tier: 'paid',
+        features: FULL_FEATURES,
         openTabs: 6,
         district: 'Կենտրոն',
       }),
       branch('b-yalla-demo-komitas', 'Կոմիտաս', 'komitas', {
         address: 'Կոմիտաս 32, Արաբկիր',
         tableCount: 6,
-        tier: 'free',
+        features: BASIC_FEATURES,
         district: 'Արաբկիր',
       }),
     ],
   },
   {
-    // The allowed path to Paid: a finished menu, no photo yet.
+    // The allowed path to table service: a finished menu, no photo yet.
     id: 'v-sunset',
     name: 'Sunset Lounge',
     slug: 'sunset-lounge',
@@ -140,7 +142,7 @@ export const demoVenues: readonly DemoVenueSeed[] = [
         address: 'Հյուսիսային պողոտա 5',
         bookingsPerWeek: 0,
         tableCount: 12,
-        tier: 'free',
+        features: BASIC_FEATURES,
         district: 'Հյուսիսային պողոտա',
       }),
     ],
@@ -159,7 +161,10 @@ export const demoVenues: readonly DemoVenueSeed[] = [
       branch('b-garden-arabkir', 'Արաբկիր', 'arabkir', {
         address: 'Բաղրամյան 44, Արաբկիր',
         tableCount: 10,
-        tier: 'free',
+        // A set of its own, neither preset: no reviews and no reports yet.
+        features: BASIC_FEATURES.filter(
+          (feature) => feature !== 'reviews' && feature !== 'reports',
+        ),
         hours: false,
         district: 'Արաբկիր',
       }),
@@ -179,14 +184,14 @@ export const demoVenues: readonly DemoVenueSeed[] = [
       branch('b-luna-arabkir', 'Արաբկիր', 'arabkir', {
         address: 'Կոմիտաս 8, Արաբկիր',
         tableCount: 14,
-        tier: 'paid',
+        features: FULL_FEATURES,
         openTabs: 11,
         district: 'Արաբկիր',
       }),
     ],
   },
   {
-    // The Paid refusal (HANDOFF section 3). Its first branch is ready, so a
+    // The table service refusal (HANDOFF section 3). Its first branch is ready, so a
     // switch that skipped the check would move it and then be refused at the
     // second: the list has to name the branch that refused.
     id: 'v-mountain',
@@ -202,13 +207,13 @@ export const demoVenues: readonly DemoVenueSeed[] = [
       branch('b-mountain-kanaker', 'Քանաքեռ', 'kanaker', {
         address: 'Ավան-Առինջ 3, Քանաքեռ',
         tableCount: 12,
-        tier: 'free',
+        features: BASIC_FEATURES,
         district: 'Քանաքեռ',
       }),
       branch('b-mountain-nornork', 'Նոր Նորք', 'nor-nork', {
         address: 'Գայի պողոտա 21, Նոր Նորք',
         tableCount: 6,
-        tier: 'free',
+        features: BASIC_FEATURES,
         unfinishedDishes: 4,
         district: 'Նոր Նորք',
       }),
@@ -228,13 +233,13 @@ export const demoVenues: readonly DemoVenueSeed[] = [
       branch('b-city-bites-center', 'Կենտրոն', 'center', {
         address: 'Պուշկին 15, Կենտրոն',
         tableCount: 10,
-        tier: 'paid',
+        features: FULL_FEATURES,
         district: 'Կենտրոն',
       }),
     ],
   },
   {
-    // Paid with an unfinished menu: dishes added after it went Paid.
+    // Table service with an unfinished menu: dishes added after it was turned on.
     id: 'v-riverside',
     name: 'Riverside Restaurant',
     slug: 'riverside-restaurant',
@@ -248,7 +253,7 @@ export const demoVenues: readonly DemoVenueSeed[] = [
       branch('b-riverside-hrazdan', 'Հրազդանի կիրճ', 'hrazdan-gorge', {
         address: 'Հրազդանի կիրճ 1',
         tableCount: 30,
-        tier: 'paid',
+        features: FULL_FEATURES,
         openTabs: 9,
         unfinishedDishes: 3,
         district: 'Հրազդանի կիրճ',
@@ -269,7 +274,7 @@ export const demoVenues: readonly DemoVenueSeed[] = [
       branch('b-old-town-center', 'Կենտրոն', 'center', {
         address: 'Սարյան 9, Կենտրոն',
         tableCount: 9,
-        tier: 'free',
+        features: BASIC_FEATURES,
         district: 'Կենտրոն',
       }),
     ],

@@ -2,13 +2,14 @@
  * Domain contracts for the web console — the screens the Yalla team, venue
  * owners and branch managers use.
  *
- * Deliberately a separate set from the diner contracts. A venue's subscription
- * tier and its suspension state are not things a diner's app should be able to
+ * Deliberately a separate set from the diner contracts. What the platform
+ * allows a branch and its suspension state are not things a diner's app should be able to
  * name, and `YallaGateway` describes what the diner app needs. Two interfaces
  * over one backend is cheaper than one interface nobody can read.
  */
 
 import type { VenueType } from './booking';
+import type { BranchFeature } from './branchFeatures';
 
 /**
  * The kind of place — one union for both surfaces. A cafe a diner browses and a
@@ -17,20 +18,6 @@ import type { VenueType } from './booking';
  * server had three.
  */
 export type { VenueType };
-
-/**
- * What a branch is paying for. Set per *branch*, not per venue: a chain
- * commonly pilots Yalla in one location before rolling it out.
- *
- * Two values, because that is what the backend has
- * (`Yalla.Domain.Enums.SubscriptionTier`: 1 Free, 2 Paid). The console
- * originally invented `trial | basic | pro` before the backend existed; the
- * server is the authority on what a venue is billed, so the vocabulary
- * follows it rather than the other way round.
- */
-export type SubscriptionTier = 'free' | 'paid';
-
-export const SUBSCRIPTION_TIERS: readonly SubscriptionTier[] = ['free', 'paid'];
 
 /**
  * `suspended` is reversible and mostly about billing; `deleted` is a soft
@@ -126,18 +113,19 @@ export interface VenueReadinessIssue {
   readonly branchName: string | null;
 }
 
-/** One branch's tier, as the venues list carries it. */
-export interface VenueBranchTier {
+/** One branch and the features the platform allows there, as the venues list carries it. */
+export interface VenueBranchFeatures {
   readonly id: string;
   readonly name: string;
-  readonly subscriptionTier: SubscriptionTier;
+  /** Allowed by the platform, in the server's order. */
+  readonly features: readonly BranchFeature[];
 }
 
 /**
  * A row in the platform venues list.
  *
  * The fields marked optional are the list's newer columns (rating, open tabs,
- * readiness, cover, each branch's tier, cuisine, district). **Absent means the
+ * readiness, cover, each branch's features, cuisine, district). **Absent means the
  * source did not report it**, which is what today's backend answers; `null`
  * means it reported "none" (no reviews yet, no cover yet). The screen hides a
  * column nobody reports rather than filling it with dashes that read as zeros.
@@ -151,17 +139,6 @@ export interface ConsoleVenue {
   readonly status: VenueStatus;
   readonly branchCount: number;
   readonly tableCount: number;
-  /**
-   * The server's older rollup: Paid only when **every** branch is; a mixed
-   * venue reads Free. Kept for the callers that read it — the tier is per
-   * branch, so read `paidBranchCount` and `branchTiers` instead.
-   */
-  readonly subscriptionTier: SubscriptionTier;
-  /**
-   * How many of `branchCount` are on Paid. The tier is per branch, so the list
-   * says "Paid", "Free" or "Mixed · 1/2" from this pair.
-   */
-  readonly paidBranchCount: number;
   /** `null` when the source does not report it: the screen omits the line rather than invent a date. */
   readonly createdAtUtc: string | null;
   readonly suspendedAtUtc: string | null;
@@ -175,8 +152,11 @@ export interface ConsoleVenue {
   readonly readinessIssue?: VenueReadinessIssue | null | undefined;
   /** Absolute URL of the first branch's cover thumbnail; `null` with no cover yet. */
   readonly coverThumbnailUrl?: string | null | undefined;
-  /** Every branch with its tier, in the server's order. */
-  readonly branchTiers?: readonly VenueBranchTier[] | undefined;
+  /**
+   * Every branch with the features the platform allows there, in the server's
+   * order: the list's feature summary (`venueFeatureSummary`).
+   */
+  readonly branchFeatures?: readonly VenueBranchFeatures[] | undefined;
   /** The first branch's cuisine line from its app listing. */
   readonly cuisine?: string | null | undefined;
   /** The first branch's district, for the line under the name. */
@@ -196,7 +176,12 @@ export interface ConsoleBranch {
   readonly address?: string | null | undefined;
   readonly timeZoneId: string;
   readonly tableCount: number;
-  readonly subscriptionTier: SubscriptionTier;
+  /**
+   * The features the platform allows at the branch, in the server's order
+   * (`PUT /api/platform/branches/{id}/features`). The venue console shows the
+   * others locked; the venue's own switches work only inside this set.
+   */
+  readonly features: readonly BranchFeature[];
   /**
    * Tabs open right now. Blocks deleting the venue — see
    * `VenueDeletionBlockedError`. `null` when the source does not report it: "we did
@@ -238,7 +223,7 @@ export interface ManagedBranch extends ConsoleBranch {
  * row covers**: every branch for an owner, for a manager with no branch and
  * for the platform admin; the home branch alone for a manager who has one.
  *
- * Separate from {@link ConsoleVenueDetail}, which is the platform tier's view
+ * Separate from {@link ConsoleVenueDetail}, which is the platform's view
  * and carries billing rollups a manager has no business seeing. The branches
  * arrive sorted active first, then by name, so the first one is the right
  * default.

@@ -46,7 +46,6 @@ export function describePlatformHomeContract(subject: ContractSubject): void {
       expect(bookings.previous7Days).toBe(sum(16, 23));
       if (bookings.previous7Days === 0) expect(bookings.changePercent).toBeNull();
 
-      expect(venues.paid + venues.mixed + venues.free).toBe(venues.total);
       expect(venues.active + venues.suspended + venues.inactive).toBe(venues.total);
       for (const counter of [pendingApprovals, openTabs]) {
         expect(counter.total).toBe(counter.venues.reduce((total, venue) => total + venue.count, 0));

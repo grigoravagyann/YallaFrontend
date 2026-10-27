@@ -6,12 +6,12 @@ import type {
 import { applyFloorPlan, sortAreas } from '../floorPlanMock';
 import type { BranchReadiness } from '../../contracts/readiness';
 import { NotFoundError, ConcurrencyConflictError } from '../../errors';
-import { OutOfScopeError, BranchNotReadyError } from '../../contracts/errors';
+import { OutOfScopeError } from '../../contracts/errors';
 import type { ConsoleGateway } from '../../consoleGateway';
 import { type ConsoleMockContext, URL_TAG } from './context';
 import { ProblemCodes } from '../../generated/problemCodes';
 
-/** The floor plan editor: the stored plan, its areas and tables, QR codes, readiness and the branch tier. */
+/** The floor plan editor: the stored plan, its areas and tables, QR codes and readiness. */
 export function floorPlanMethods(
   ctx: ConsoleMockContext,
 ): Pick<
@@ -24,25 +24,18 @@ export function floorPlanMethods(
   | 'deleteFloorArea'
   | 'deleteTable'
   | 'regenerateTableQr'
-  | 'setBranchTier'
 > {
   const {
     branchPhoto,
     bumped,
-    conflict,
     floorPlanFor,
     floorPlans,
     hasHistory,
-    isIncompleteItem,
-    log,
-    menuFor,
     nextId,
     readinessFor,
     requireBranchInVenue,
     requireManagerAtBranch,
     requireUnusedAreaName,
-    toDetail,
-    venues,
     wait,
   } = ctx;
   return {
@@ -200,58 +193,6 @@ export function floorPlanMethods(
           tables: plan.tables.map((t) => (t.id === tableId ? { ...t, qrToken } : t)),
         });
         return { qrToken };
-      }
-      throw new OutOfScopeError({ url: URL_TAG });
-    },
-
-    async setBranchTier({ branchId, tier }) {
-      await wait();
-      for (const record of venues.values()) {
-        const index = record.branches.findIndex((branch) => branch.id === branchId);
-        if (index === -1) continue;
-        const branch = record.branches[index];
-        if (!branch) break;
-
-        // `PlatformService.UpdateBranchAsync`: a deleted venue's branches can
-        // no longer be changed — a DomainStateException (409) before either
-        // tier rule. The mock let "Switch to Paid" through (QA F11).
-        if (record.status === 'deleted') {
-          throw conflict(
-            `Venue '${record.name}' has been deleted, so its branches can no longer be changed.`,
-          );
-        }
-
-        // The server's two rules, in its order. Going Free hides live bills
-        // from the people who owe them, so it waits for the tabs; going Paid
-        // is where an unfinished menu is finally refused, with the count.
-        if (tier === 'free' && branch.subscriptionTier === 'paid') {
-          const open = branch.openTabCount ?? 0;
-          if (open > 0) {
-            throw conflict(
-              `This branch has ${open} open tab(s). Moving it to Free would hide those bills from the people who owe them. Wait until they are settled.`,
-            );
-          }
-        }
-        if (tier === 'paid' && branch.subscriptionTier === 'free') {
-          const incomplete = menuFor(branchId)
-            .flatMap((category) => category.items)
-            .filter(isIncompleteItem).length;
-          if (incomplete > 0) {
-            throw new BranchNotReadyError({
-              url: URL_TAG,
-              branchId,
-              incompleteMenuItemCount: incomplete,
-            });
-          }
-        }
-
-        record.branches[index] = { ...branch, subscriptionTier: tier };
-        if (branch.subscriptionTier !== tier) {
-          log('branch.tier-change', { type: 'Branch', id: branch.id, name: branch.name }, record, {
-            tierTo: tier,
-          });
-        }
-        return toDetail(record);
       }
       throw new OutOfScopeError({ url: URL_TAG });
     },

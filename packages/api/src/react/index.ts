@@ -178,12 +178,11 @@ export {
   useManagedVenue,
   useRestoreVenue,
   useResumeVenue,
-  useSetBranchTier,
-  useSetVenueTier,
+  useSetBranchFeatures,
+  useApplyVenueFeatures,
   useSuspendVenue,
   useUpdateVenue,
   useVenueBookingsSummary,
-  useVenueTierCheck,
 } from './consoleVenues';
 export {
   useBookingBlocks,

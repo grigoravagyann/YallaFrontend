@@ -9,7 +9,7 @@ import type {
   StaffSessionIdentity,
   StaffSignOutReason,
 } from '../contracts/staffAuth';
-import { DeviceRevokedError } from '../contracts/errors';
+import { DeviceRevokedError, blockedFeature } from '../contracts/errors';
 import { newCommandId } from '../ids';
 import { jwtExpiresAtMs } from './jwt';
 import type { AuthSession, AuthState, TokenPair } from './session';
@@ -255,6 +255,13 @@ export function createStaffSession(config: StaffSessionConfig): StaffSession {
           await lock('expired');
           return null;
         }
+        // Staff phones switched off at the branch while this phone was in
+        // use: the renewal says so in its features. Locked with the reason,
+        // not unpaired — switched back on, the same phone signs in again.
+        if (snapshot.device?.kind === 'phone' && !result.identity.features.includes('staffPhone')) {
+          await lock('phoneOff');
+          return null;
+        }
         await adopt({
           identity: result.identity,
           accessToken: result.tokens.accessToken,
@@ -265,6 +272,11 @@ export function createStaffSession(config: StaffSessionConfig): StaffSession {
       } catch (error) {
         if (error instanceof DeviceRevokedError) {
           await unenrol();
+          return null;
+        }
+        // A server that refuses the renewal itself once staff phones are off.
+        if (blockedFeature(error) === 'staffPhone') {
+          await lock('phoneOff');
           return null;
         }
         // Could not reach the server, or it fell over: the handle may still be
@@ -404,6 +416,7 @@ export function createStaffSession(config: StaffSessionConfig): StaffSession {
             fullName: paired.session.identity.fullName,
             role: paired.session.identity.role,
           },
+          features: paired.session.identity.features,
         };
       }
       set({ device });

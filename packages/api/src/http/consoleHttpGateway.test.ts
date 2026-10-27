@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
+import { BASIC_FEATURES, FULL_FEATURES } from '../contracts/branchFeatures';
 import { createAuthSession } from '../auth/session';
 import { createMemoryTokenStorage } from '../auth/storage';
 import { createApiClient } from '../client';
@@ -154,7 +155,7 @@ describe('reading the managed venue over HTTP', () => {
         slug: 'northern-avenue',
         timeZoneId: 'Asia/Yerevan',
         isActive: true,
-        subscriptionTier: 2,
+        features: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
         tableCount: 12,
       },
       {
@@ -164,7 +165,7 @@ describe('reading the managed venue over HTTP', () => {
         slug: 'cascade',
         timeZoneId: 'Europe/Moscow',
         isActive: false,
-        subscriptionTier: 1,
+        features: [1, 2, 3, 4, 6, 7, 8, 9, 10],
         tableCount: 0,
       },
     ],
@@ -194,7 +195,7 @@ describe('reading the managed venue over HTTP', () => {
           slug: 'northern-avenue',
           timeZoneId: 'Asia/Yerevan',
           isActive: true,
-          subscriptionTier: 'paid',
+          features: FULL_FEATURES,
           tableCount: 12,
           openTabCount: null,
         },
@@ -205,7 +206,7 @@ describe('reading the managed venue over HTTP', () => {
           slug: 'cascade',
           timeZoneId: 'Europe/Moscow',
           isActive: false,
-          subscriptionTier: 'free',
+          features: BASIC_FEATURES,
           tableCount: 0,
           openTabCount: null,
         },

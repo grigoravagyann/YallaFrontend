@@ -19,6 +19,7 @@ import type {
 } from '../contracts/publicBranch';
 import type { BranchSummary, VenueSummary, VenueType } from '../contracts/booking';
 import type { components } from '../generated/schema';
+import { branchFeaturesFromWire } from './branchFeatureMapping';
 import { openStateFrom } from '../contracts/openState';
 import {
   approvalExpiry,
@@ -274,6 +275,7 @@ export function publicBranchFromWire(
      * reservation service will refuse.
      */
     acceptsWebBookings: wire.acceptsWebBookings ?? false,
+    features: branchFeaturesFromWire(wire.features),
 
     rooms: roomsFromWire(wire.floorPlan, baseUrl),
 
