@@ -24,13 +24,14 @@ const router = vi.hoisted(() => ({
 
 vi.mock('@expo/vector-icons', () => ({ Ionicons: () => null }));
 vi.mock('expo-linear-gradient', () => ({ LinearGradient: () => null }));
+vi.mock('expo-clipboard', () => ({ getStringAsync: vi.fn(async () => '') }));
 vi.mock('expo-router', () => ({
   Stack: { Screen: () => null },
   useRouter: () => router,
   useNavigation: () => ({
-    addListener: vi.fn(() => () => undefined),
     getState: vi.fn(() => ({ routes: [{}, {}] })),
   }),
+  usePreventRemove: () => () => undefined,
   useLocalSearchParams: () => ({}),
 }));
 vi.mock('react-native-safe-area-context', () => ({

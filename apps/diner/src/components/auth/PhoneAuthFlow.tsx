@@ -9,7 +9,7 @@ import {
 import { useLocale, useTranslation } from '@yalla/i18n';
 import { useQueryClient } from '@tanstack/react-query';
 import * as Clipboard from 'expo-clipboard';
-import { Stack, useNavigation, useRouter } from 'expo-router';
+import { Stack, usePreventRemove, useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
@@ -129,7 +129,6 @@ export function PhoneAuthFlow({ mode, params }: PhoneAuthFlowProps) {
   const { t } = useTranslation('diner');
   const { locale } = useLocale();
   const router = useRouter();
-  const navigation = useNavigation();
   const { forward, finish: leaveFlow, switchTo } = useAuthFinish(params);
   const queryClient = useQueryClient();
 
@@ -219,7 +218,13 @@ export function PhoneAuthFlow({ mode, params }: PhoneAuthFlowProps) {
   }, [step]);
 
   /** Set once the flow is leaving on purpose, so the back guard lets it go. */
-  const finishing = useRef(false);
+  const [leaving, setLeaving] = useState(false);
+  /**
+   * Lifts the back guard at once. Turning `leaving` on lifts it too, but only
+   * after the next commit — too late for the navigation `finish` starts in
+   * the same tick. Filled in once the guard exists, below.
+   */
+  const releaseBackGuard = useRef<() => void>(() => undefined);
 
   const phoneE164 = normalizePhone(prefix, localNumber);
   const tidyName = normalizeName(name);
@@ -273,7 +278,8 @@ export function PhoneAuthFlow({ mode, params }: PhoneAuthFlowProps) {
    * Where to go is the rule the password screens share — see `useAuthFinish`.
    */
   const finish = useCallback(() => {
-    finishing.current = true;
+    setLeaving(true);
+    releaseBackGuard.current();
     leaveFlow();
   }, [leaveFlow]);
 
@@ -396,16 +402,14 @@ export function PhoneAuthFlow({ mode, params }: PhoneAuthFlowProps) {
    */
   const guardsBack =
     step === 'code' || step === 'name' || step === 'telegram' || step === 'newPassword';
+  const disableBackGuard = usePreventRemove(guardsBack && !leaving, () => {
+    if (step === 'code') leaveCodeStep();
+    else if (step === 'telegram') leaveTelegramStep();
+    else finish();
+  });
   useEffect(() => {
-    if (!guardsBack) return;
-    return navigation.addListener('beforeRemove', (event) => {
-      if (finishing.current) return;
-      event.preventDefault();
-      if (step === 'code') leaveCodeStep();
-      else if (step === 'telegram') leaveTelegramStep();
-      else finish();
-    });
-  }, [navigation, guardsBack, step, leaveCodeStep, leaveTelegramStep, finish]);
+    releaseBackGuard.current = disableBackGuard;
+  }, [disableBackGuard]);
 
   const send = useCallback(async () => {
     if (!phoneE164) return;
@@ -619,7 +623,7 @@ export function PhoneAuthFlow({ mode, params }: PhoneAuthFlowProps) {
   return (
     <Screen edges={['top', 'left', 'right', 'bottom']}>
       {/* The iOS swipe back is a native removal: the native stack takes the
-          screen away before `beforeRemove` can stop it, and the JS state is
+          screen away before `usePreventRemove` can stop it, and the JS state is
           left holding a screen that is gone ("removed natively but didn't
           get removed from JS state", seen in Expo Go 2026-10-21). While the
           guard above is on, the swipe is off; the arrow on screen and

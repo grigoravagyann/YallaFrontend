@@ -1,7 +1,13 @@
 import { useTranslation } from '@yalla/i18n';
 import { Stack } from 'expo-router';
 import { useRef } from 'react';
-import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet } from 'react-native';
+import {
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  type ScrollViewInstance,
+} from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Screen } from '../components/Screen';
 import { Text } from '../components/Text';
@@ -30,7 +36,7 @@ export interface BookingFormProps extends BookingFormInput {
 export function BookingForm({ title, onBack, ...input }: BookingFormProps) {
   const { t } = useTranslation('diner');
   const insets = useSafeAreaInsets();
-  const scrollRef = useRef<ScrollView>(null);
+  const scrollRef = useRef<ScrollViewInstance>(null);
   // Where "Pick a table" starts in the scroll, so a table taken under the
   // diner's finger can bring them back to the photo.
   const pickTop = useRef(0);

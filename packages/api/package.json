@@ -26,10 +26,10 @@
   },
   "devDependencies": {
     "@tanstack/react-query": "^5.102.8",
-    "@types/react": "^19.2.18",
+    "@types/react": "~19.3.0",
     "@yalla/tsconfig": "workspace:*",
     "openapi-typescript": "^7.13.0",
-    "react": "19.2.3",
+    "react": "19.3.0",
     "typescript": "~6.0.3",
     "vitest": "^5.0.0"
   }

@@ -101,7 +101,7 @@ beforeEach(() => {
     guestName: 'Anahit',
     phoneProvedAtMs: null,
   });
-  vi.spyOn(Linking, 'openURL').mockResolvedValue(true);
+  vi.spyOn(Linking, 'openURL').mockResolvedValue(undefined);
 });
 
 afterEach(() => {

@@ -15,7 +15,7 @@ import {
   type MutableRefObject,
   type RefObject,
 } from 'react';
-import type { ScrollView } from 'react-native';
+import type { ScrollViewInstance } from 'react-native';
 import { isUnchanged, type BookingChange } from '../components/bookings/changeBooking';
 import { useToast } from '../components/motion/Toast';
 import { bookingRefusal, changeFailureLine, overlapsOwnLine } from '../data/bookingRefusals';
@@ -70,7 +70,7 @@ export interface BookingSubmitInput {
   readonly refreshNow: () => void;
   readonly wheelRows: readonly WheelSlot[];
   readonly setPickedMs: (at: number | null) => void;
-  readonly scrollRef: RefObject<ScrollView | null>;
+  readonly scrollRef: RefObject<ScrollViewInstance | null>;
   readonly pickTop: MutableRefObject<number>;
   readonly reducedMotion: boolean;
 }

@@ -6,7 +6,8 @@ import {
   StyleSheet,
   View,
   type AccessibilityActionEvent,
-  type ScrollView,
+  type KeyDownEvent,
+  type ScrollViewInstance,
   type StyleProp,
   type ViewStyle,
 } from 'react-native';
@@ -137,15 +138,17 @@ export function TimeWheel({
     Platform.OS === 'web'
       ? {
           tabIndex: 0 as const,
-          onKeyDown: (event: { key: string; preventDefault: () => void }) => {
+          onKeyDown: (event: KeyDownEvent) => {
+            // On the web the native event is the DOM KeyboardEvent itself.
+            const { key } = event.nativeEvent;
             const action =
-              event.key === 'ArrowUp' || event.key === 'ArrowRight'
+              key === 'ArrowUp' || key === 'ArrowRight'
                 ? () => step(1)
-                : event.key === 'ArrowDown' || event.key === 'ArrowLeft'
+                : key === 'ArrowDown' || key === 'ArrowLeft'
                   ? () => step(-1)
-                  : event.key === 'Home'
+                  : key === 'Home'
                     ? () => jump('first')
-                    : event.key === 'End'
+                    : key === 'End'
                       ? () => jump('last')
                       : null;
             if (!action) return;
@@ -250,7 +253,7 @@ function WheelColumn({
   readonly onSettle: (index: number) => void;
 }) {
   const reduced = useReducedMotion();
-  const scroller = useRef<ScrollView | null>(null);
+  const scroller = useRef<ScrollViewInstance | null>(null);
   const [scrollY] = useState(() => new Animated.Value(index * WHEEL_ROW));
   const offset = useRef(index * WHEEL_ROW);
   const crossed = useRef(index);

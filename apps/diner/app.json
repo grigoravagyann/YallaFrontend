@@ -9,7 +9,6 @@
     "orientation": "portrait",
     "userInterfaceStyle": "light",
     "backgroundColor": "#FFFFFF",
-    "newArchEnabled": true,
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "am.yalla.diner",
@@ -22,7 +21,6 @@
         "backgroundImage": "./assets/images/adaptive-background.png",
         "monochromeImage": "./assets/images/adaptive-monochrome.png"
       },
-      "edgeToEdgeEnabled": true,
       "intentFilters": [
         {
           "action": "VIEW",

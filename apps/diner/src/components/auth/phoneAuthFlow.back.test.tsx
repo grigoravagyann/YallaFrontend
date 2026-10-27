@@ -11,11 +11,11 @@ import type * as I18nModule from '@yalla/i18n';
  * The swipe back is off while the flow guards back (Expo Go, 2026-10-21).
  *
  * At the code, name, Telegram and new-password steps the system back returns
- * to the step before rather than leaving the flow, through a `beforeRemove`
- * listener. The iOS swipe is a native removal that listener cannot stop: the
- * screen went, and the stack was left with "auth/code was removed natively
+ * to the step before rather than leaving the flow, through expo-router's
+ * `usePreventRemove`. The iOS swipe is a native removal that guard cannot stop:
+ * the screen went, and the stack was left with "auth/code was removed natively
  * but didn't get removed from JS state". So the swipe is off exactly while the
- * listener is on, and on again at the first step, where leaving is fine.
+ * guard is on, and on again at the first step, where leaving is fine.
  */
 
 const router = vi.hoisted(() => ({
@@ -26,13 +26,16 @@ const router = vi.hoisted(() => ({
   canGoBack: vi.fn(() => true),
 }));
 const navigation = vi.hoisted(() => ({
-  addListener: vi.fn(() => () => undefined),
   getState: vi.fn(() => ({ routes: [{}, {}] })),
 }));
+const preventRemove = vi.hoisted(() =>
+  vi.fn((_prevent: boolean, _onPrevented?: () => void) => () => undefined),
+);
 const screenOptions = vi.hoisted(() => [] as { gestureEnabled?: boolean }[]);
 
 vi.mock('@expo/vector-icons', () => ({ Ionicons: () => null }));
 vi.mock('expo-linear-gradient', () => ({ LinearGradient: () => null }));
+vi.mock('expo-clipboard', () => ({ getStringAsync: vi.fn(async () => '') }));
 vi.mock('expo-router', () => ({
   Stack: {
     Screen: ({ options }: { options: { gestureEnabled?: boolean } }) => {
@@ -42,6 +45,7 @@ vi.mock('expo-router', () => ({
   },
   useRouter: () => router,
   useNavigation: () => navigation,
+  usePreventRemove: preventRemove,
   useLocalSearchParams: () => ({}),
 }));
 vi.mock('react-native-safe-area-context', () => ({
@@ -87,11 +91,12 @@ describe('the swipe back', () => {
       target: { value: '77123456' },
     });
     expect(latest()?.gestureEnabled).toBe(true);
+    expect(preventRemove.mock.lastCall?.[0]).toBe(false);
 
     fireEvent.click(screen.getByRole('button', { name: 'verify.sendCode' }));
 
     await waitFor(() => expect(latest()?.gestureEnabled).toBe(false));
-    // The listener that turns back into "the number again" is on with it.
-    expect(navigation.addListener).toHaveBeenCalledWith('beforeRemove', expect.any(Function));
+    // The guard that turns back into "the number again" is on with it.
+    expect(preventRemove.mock.lastCall?.[0]).toBe(true);
   });
 });

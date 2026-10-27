@@ -116,7 +116,7 @@ export default function PlaceReviewsScreen() {
         ListFooterComponent={
           pages.isFetchingNextPage ? (
             <ActivityIndicator color={colors.primary} style={styles.footer} />
-          ) : null
+          ) : undefined
         }
         ListEmptyComponent={<Text style={styles.stateText}>{t('reviews.empty')}</Text>}
       />

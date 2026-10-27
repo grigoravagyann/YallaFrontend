@@ -25,16 +25,17 @@ const router = vi.hoisted(() => ({
   canGoBack: vi.fn(() => true),
 }));
 const navigation = vi.hoisted(() => ({
-  addListener: vi.fn(() => () => undefined),
   getState: vi.fn(() => ({ routes: [{}, {}] })),
 }));
 
 vi.mock('@expo/vector-icons', () => ({ Ionicons: () => null }));
 vi.mock('expo-linear-gradient', () => ({ LinearGradient: () => null }));
+vi.mock('expo-clipboard', () => ({ getStringAsync: vi.fn(async () => '') }));
 vi.mock('expo-router', () => ({
   Stack: { Screen: () => null },
   useRouter: () => router,
   useNavigation: () => navigation,
+  usePreventRemove: () => () => undefined,
   useLocalSearchParams: () => ({}),
 }));
 vi.mock('react-native-safe-area-context', () => ({
@@ -88,7 +89,7 @@ afterEach(() => {
 describe('logging in through Telegram', () => {
   it('opens the bot, waits, and goes on to the name step once it confirms', async () => {
     const gateway = createMockGateway({ latencyMs: 0 });
-    const open = vi.spyOn(Linking, 'openURL').mockResolvedValue(true);
+    const open = vi.spyOn(Linking, 'openURL').mockResolvedValue(undefined);
     renderFlow(gateway);
 
     const challengeId = await startThroughTelegram(open);
@@ -115,7 +116,7 @@ describe('logging in through Telegram', () => {
 
   it('ignores a confirmation that lands after the screen is gone', async () => {
     const gateway = createMockGateway({ latencyMs: 0 });
-    const open = vi.spyOn(Linking, 'openURL').mockResolvedValue(true);
+    const open = vi.spyOn(Linking, 'openURL').mockResolvedValue(undefined);
     const { unmount } = renderFlow(gateway);
 
     const challengeId = await startThroughTelegram(open);
@@ -131,7 +132,7 @@ describe('logging in through Telegram', () => {
   it('asks the server again the moment the app comes back to the foreground', async () => {
     const gateway = createMockGateway({ latencyMs: 0 });
     const claim = vi.spyOn(gateway, 'claimTelegramVerification');
-    const open = vi.spyOn(Linking, 'openURL').mockResolvedValue(true);
+    const open = vi.spyOn(Linking, 'openURL').mockResolvedValue(undefined);
     let onAppState: ((status: string) => void) | null = null;
     const appState: AppStateSource = {
       addEventListener: (_type, listener) => {
@@ -155,7 +156,7 @@ describe('logging in through Telegram', () => {
   it('resumes polling a challenge the bot sent the app back with', async () => {
     const gateway = createMockGateway({ latencyMs: 0 });
     const issued = await gateway.startTelegramVerification();
-    const open = vi.spyOn(Linking, 'openURL').mockResolvedValue(true);
+    const open = vi.spyOn(Linking, 'openURL').mockResolvedValue(undefined);
     renderFlow(gateway, { tg: issued.challengeId });
 
     expect(await screen.findByText('verify.telegramWaitingTitle')).toBeTruthy();

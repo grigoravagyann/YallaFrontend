@@ -43,7 +43,8 @@ function props(titles: Record<string, string> = ARMENIAN, index = 0) {
     descriptors: Object.fromEntries(
       routes.map((route) => [route.key, { options: { title: titles[route.name] } }]),
     ),
-    navigation: { emit: () => ({ defaultPrevented: false }), navigate: vi.fn() },
+    emitter: { emit: () => ({ defaultPrevented: false }) },
+    navigateToTab: vi.fn(),
     insets: { top: 0, right: 0, bottom: 0, left: 0 },
   } as unknown as Parameters<typeof FloatingTabBar>[0];
 }
