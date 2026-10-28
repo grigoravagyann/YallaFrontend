@@ -1,8 +1,8 @@
 # Caddy, serving the built web console on :80 inside the image apps/web/Dockerfile
 # builds. No TLS here: the backend's compose puts its own Caddy in front and
 # proxies `web:80`. Anyone hosting the static files differently needs the same
-# three things this file does — the SPA fallback, the CSP header, no-cache on
-# the shell — see "Hosting the web app" in the README.
+# things this file does — the SPA fallback to each product's own shell, the CSP
+# header, no-cache on the shells — see "Hosting the web app" in the README.
 
 {
 	# The outer proxy's job, and a second automatic-HTTPS block would want :443.
@@ -49,15 +49,31 @@
 		header @immutable Cache-Control "public, max-age=31536000, immutable"
 		file_server @immutable
 
-		# A real file, or index.html for every route (apps/web/src/publicRoutes.ts
-		# and the console's routes are all client-side).
-		try_files {path} /index.html
+		# A real file, or the shell for every route (apps/web/src/publicRoutes.ts
+		# and the console's routes are all client-side). Three shells, the same
+		# page but for its <link rel="manifest">, because iOS Safari installs the
+		# manifest the HTML arrives with and ignores manifest-link.js changing it
+		# (apps/web/src/manifestShell.ts): staff.html on /staff, index.html on /
+		# and the console's reserved first segments, public.html (no manifest)
+		# on a venue page or a manage link. The console's list is
+		# RESERVED_FIRST_SEGMENTS less `staff` and `assets`, served above;
+		# src/manifestShell.test.ts fails when they part.
+		@staffShell path /staff /staff/*
+		rewrite @staffShell /staff.html
 
-		# The shell, the service worker and the manifest change with every
+		@consoleShell {
+			not file
+			path /dev /dev/* /fonts /fonts/* /platform /platform/* /reset-password /reset-password/* /sign-in /sign-in/* /venue /venue/*
+		}
+		rewrite @consoleShell /index.html
+
+		try_files {path} /public.html
+
+		# The shells, the service worker and the manifests change with every
 		# deploy under the same name. `no-cache` still allows ETag revalidation,
 		# so a tablet on the floor fetches the new shell on its next load rather
-		# than a week later.
-		@shell path /index.html /sw.js /manifest.webmanifest /manifest-console.webmanifest /manifest-link.js
+		# than a week later. `/` is index.html served as the directory's index.
+		@shell path / /index.html /staff.html /public.html /sw.js /manifest.webmanifest /manifest-console.webmanifest /manifest-link.js
 		header @shell Cache-Control "no-cache"
 
 		file_server

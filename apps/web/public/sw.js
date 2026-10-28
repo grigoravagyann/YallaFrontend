@@ -13,17 +13,15 @@
  * anything that looks like data goes to the network or fails loudly.
  */
 
-const VERSION = 'v3';
+const VERSION = 'v4';
 const SHELL_CACHE = `yalla-shell-${VERSION}`;
 
-/** The minimum needed to paint something without a network. */
-const SHELL_URLS = [
-  '/',
-  '/index.html',
-  '/manifest.webmanifest',
-  '/manifest-link.js',
-  '/favicon.svg',
-];
+/**
+ * The minimum needed to paint something without a network. The shell is the
+ * staff app's own, `staff.html`, which links the staff manifest; `index.html`
+ * is the console's (`src/manifestShell.ts`).
+ */
+const SHELL_URLS = ['/staff.html', '/manifest.webmanifest', '/manifest-link.js', '/favicon.svg'];
 
 /**
  * The script that picks the page's manifest (index.html loads it before the
@@ -86,7 +84,7 @@ self.addEventListener('fetch', (event) => {
     event.respondWith(
       fetch(request).catch(async () => {
         const cache = await caches.open(SHELL_CACHE);
-        return (await cache.match('/index.html')) ?? Response.error();
+        return (await cache.match('/staff.html')) ?? Response.error();
       }),
     );
     return;

@@ -1,8 +1,9 @@
-import { mkdirSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join, relative, resolve as resolvePath } from 'node:path';
 import react from '@vitejs/plugin-react';
 import { defineConfig, loadEnv, type Plugin } from 'vite';
 import { contentSecurityPolicy } from './src/csp';
+import { SHELL_FILE, SHELL_MANIFEST, shellFor, withManifest } from './src/manifestShell';
 
 /**
  * Write the built chunk graph beside the bundle, so a test can read it.
@@ -150,10 +151,65 @@ function contentSecurityPolicyMeta(apiUrl: string): Plugin {
   };
 }
 
+/**
+ * One shell per product, so the manifest link is right before any script runs.
+ *
+ * iOS Safari installs whatever `<link rel="manifest">` the served HTML names
+ * and ignores `public/manifest-link.js` changing it, so the link has to be
+ * right in the bytes the server sends (`src/manifestShell.ts`):
+ *
+ * - build: `dist/index.html` links the console's manifest, and `staff.html` and
+ *   `public.html` are written beside it, identical but for that one link.
+ *   `deploy/Caddyfile` routes each path to its file.
+ * - dev: each request's shell is pointed by its own URL, so a phone on the LAN
+ *   (`pnpm dev:stack --lan`) installs what production would.
+ * - preview: a navigation to a staff or diner path is answered with that file,
+ *   where the SPA fallback would answer `index.html`.
+ */
+function manifestPerShell(): Plugin {
+  return {
+    name: 'yalla:manifest-shells',
+    transformIndexHtml: {
+      order: 'post',
+      handler(html, ctx) {
+        // Dev: the URL asked for, before the SPA fallback made it /index.html.
+        // Build: the file is `index.html`, the console's.
+        const pathname = ctx.server
+          ? new URL(ctx.originalUrl ?? ctx.path, 'http://localhost').pathname
+          : '/';
+        return withManifest(html, SHELL_MANIFEST[shellFor(pathname)]);
+      },
+    },
+    writeBundle(options) {
+      const dir = options.dir;
+      if (!dir) return;
+      const shell = readFileSync(join(dir, SHELL_FILE.console), 'utf8');
+      for (const kind of ['staff', 'public'] as const) {
+        writeFileSync(join(dir, SHELL_FILE[kind]), withManifest(shell, SHELL_MANIFEST[kind]));
+      }
+    },
+    configurePreviewServer(server) {
+      server.middlewares.use((req, _res, next) => {
+        const accept = req.headers.accept ?? '';
+        if ((req.method === 'GET' || req.method === 'HEAD') && accept.includes('text/html')) {
+          const pathname = new URL(req.url ?? '/', 'http://localhost').pathname;
+          const last = pathname.split('/').pop() ?? '';
+          const kind = shellFor(pathname);
+          // A file (`/sw.js`, `/staff.html`) is itself; the console's paths
+          // already fall back to `index.html`.
+          if (!last.includes('.') && kind !== 'console') req.url = `/${SHELL_FILE[kind]}`;
+        }
+        next();
+      });
+    },
+  };
+}
+
 export default defineConfig(({ mode }) => ({
   plugins: [
     react(),
     emitChunkGraph(),
+    manifestPerShell(),
     brandCardMeta((process.env['VITE_PUBLIC_ORIGIN'] ?? '').trim()),
     // `loadEnv` so a value in `.env` counts, with the process environment
     // winning over it — which is how the bundle test pins the origin.
