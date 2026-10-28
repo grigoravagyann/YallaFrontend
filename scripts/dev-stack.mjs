@@ -962,8 +962,8 @@ async function printSummary({ options, lanIp, webHost, publicPath, allReady }) {
 
   const width = Math.max(...rows.map(([k]) => k.length));
   const title = allReady
-    ? `SHURJ dev stack ready in ${elapsed()}`
-    : `SHURJ dev stack started (${elapsed()}), not everything answered yet`;
+    ? `Time to Eat dev stack ready in ${elapsed()}`
+    : `Time to Eat dev stack started (${elapsed()}), not everything answered yet`;
   const line = '─'.repeat(64);
   const out = [
     '',

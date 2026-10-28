@@ -168,13 +168,13 @@ describe('the tab title on the tablet', () => {
     signIn('waiter');
     render(providers(createStaffMockGateway({ latencyMs: 0, branchId: BRANCH }), <StaffRoute />));
     await screen.findByRole('heading', { level: 1, name: 'Floor' });
-    await waitFor(() => expect(document.title).toBe('Floor · SHURJ'));
+    await waitFor(() => expect(document.title).toBe('Floor · Time to Eat'));
     cleanup();
 
     signIn('kitchen');
     render(providers(createStaffMockGateway({ latencyMs: 0, branchId: BRANCH }), <StaffRoute />));
     await screen.findByRole('heading', { level: 1, name: 'Kitchen' });
-    await waitFor(() => expect(document.title).toBe('Kitchen · SHURJ'));
+    await waitFor(() => expect(document.title).toBe('Kitchen · Time to Eat'));
   });
 });
 

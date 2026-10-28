@@ -1,7 +1,7 @@
 {
-  "name": "SHURJ Staff",
-  "short_name": "SHURJ",
-  "description": "The floor tablet and the staff phone for SHURJ venue staff.",
+  "name": "Time to Eat Staff",
+  "short_name": "Time to Eat",
+  "description": "The floor tablet and the staff phone for Time to Eat venue staff.",
   "id": "/staff",
   "start_url": "/staff",
   "scope": "/staff",

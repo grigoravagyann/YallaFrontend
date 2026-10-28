@@ -2,7 +2,7 @@ import type { FieldViolation } from '../errors';
 import type { StaffRole } from './console';
 
 /**
- * Guest messages (approved 2026-10-23, the "SHURJ Նամակներ" design): a venue
+ * Guest messages (approved 2026-10-23, the "Time to Eat Նամակներ" design): a venue
  * and a guest exchange short text messages inside **one** booking or **one**
  * takeaway order. There is no general chat and no thread without a subject.
  *

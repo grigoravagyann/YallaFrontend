@@ -36,7 +36,7 @@ export interface PhoneInstallProps {
 type Platform = 'ios' | 'android';
 
 /**
- * "Two things, and you're ready" (Install artboard): add SHURJ to the home
+ * "Two things, and you're ready" (Install artboard): add Time to Eat to the home
  * screen, then turn notifications on and choose which.
  *
  * 1. **Home screen.** iPhone gets the Share → Add to Home Screen steps (iOS

@@ -48,7 +48,7 @@ import { validationFailed } from './problems';
  * Today is the boards' own day, moved so its last entry is two minutes ago:
  * table 4's bill that Lilit seated, handed to Aram at the end of her shift,
  * with a dish the manager voided and paid in cash with a tip (the Check
- * board); a 10 % discount, a booking SHURJ declined because nobody answered
+ * board); a 10 % discount, a booking Time to Eat declined because nobody answered
  * in time, a price change from the console, takeaway T-482 accepted, guests'
  * messages answered and calls claimed. The thirty days before it are
  * generated: every waiter's tables, orders, payments, calls and replies, the

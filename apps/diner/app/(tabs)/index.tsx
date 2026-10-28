@@ -62,7 +62,7 @@ const CATEGORIES: readonly { readonly key: Category; readonly labelKey: string }
 /**
  * Explore — the first screen anyone sees.
  *
- * On white: the SHURJ wordmark from the logo, the Map pill and the bell. Below it a white sheet with a rounded top carries the
+ * On white: the Time to Eat wordmark from the logo, the Map pill and the bell. Below it a white sheet with a rounded top carries the
  * search field (its filter button opens Open now / Nearby), the category chips
  * — All, Cafés, Restaurants, Bars — and "Discover places", nearest first, as
  * full-width photo cards. The top stays put while the list scrolls under it,

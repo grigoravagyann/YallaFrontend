@@ -93,7 +93,7 @@ describe('the platform branch routes', () => {
     expect(
       (await screen.findByRole('link', { name: /^public page$/i })).getAttribute('aria-current'),
     ).toBe('page');
-    const form = await screen.findByRole('form', { name: /in the shurj app/i });
+    const form = await screen.findByRole('form', { name: /in the time to eat app/i });
     expect(
       (form.querySelector('input[autocomplete="street-address"]') as HTMLInputElement).readOnly,
     ).toBe(false);

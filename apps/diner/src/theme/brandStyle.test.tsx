@@ -10,7 +10,7 @@ import { badgeColors, bookingBadgeVariant, lineBadge } from './badges';
 import { colors } from './colors';
 
 /**
- * The SHURJ restyle's rules, held where a person would see them break: white
+ * The Time to Eat restyle's rules, held where a person would see them break: white
  * secondary buttons with the hairline and a charcoal label (never the soft
  * pink), burgundy for the one thing to press, the burgundy status pills,
  * and the warm skeleton block.

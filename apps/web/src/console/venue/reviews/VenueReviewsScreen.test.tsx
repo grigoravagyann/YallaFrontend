@@ -189,7 +189,7 @@ describe('hiding', () => {
     expect(await screen.findByText('No review matches the filter.')).toBeTruthy();
   });
 
-  it('shows a review the SHURJ team hid as locked, with no reply and no way back', async () => {
+  it('shows a review the Time to Eat team hid as locked, with no reply and no way back', async () => {
     const gateway = owner();
     const visibility = vi.spyOn(gateway, 'setVenueReviewVisibility');
     const user = userEvent.setup();
@@ -204,9 +204,9 @@ describe('hiding', () => {
 
     const row = reviewOf(/hidden by the platform\./i);
     expect(
-      within(row).getByText('Hidden by the SHURJ team. Only they can bring it back.'),
+      within(row).getByText('Hidden by the Time to Eat team. Only they can bring it back.'),
     ).toBeTruthy();
-    expect(within(row).getByText(/· SHURJ team, /u)).toBeTruthy();
+    expect(within(row).getByText(/· Time to Eat team, /u)).toBeTruthy();
     expect(within(row).queryByRole('button', { name: 'Show again' })).toBeNull();
     expect(within(row).queryByRole('button', { name: 'Reply' })).toBeNull();
     expect(visibility).not.toHaveBeenCalled();
@@ -234,7 +234,7 @@ describe('hiding', () => {
     );
 
     const row = reviewOf(/hidden by the platform\./i);
-    await within(row).findByText('Hidden by the SHURJ team. Only they can bring it back.');
+    await within(row).findByText('Hidden by the Time to Eat team. Only they can bring it back.');
     expect(within(row).queryByRole('button', { name: 'Show again' })).toBeNull();
     // Locked, not failed: no "try again" alert.
     expect(screen.queryByRole('alert')).toBeNull();

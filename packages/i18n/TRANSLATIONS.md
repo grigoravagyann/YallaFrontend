@@ -1388,7 +1388,7 @@ review every string in `src/locales/hy` and `src/locales/ru`.**
   (the feed entry does not know about the pre-order), and staff
   `floor.card.onTheWay` (the green flag on a table whose next guest said yes).
 
-- `diner` — the SHURJ Explore screen (2026-10-22), provisional and **not**
+- `diner` — the Time to Eat Explore screen (2026-10-22), provisional and **not**
   reviewed: `explore.discover` (the list's heading, "Discover places") and
   `explore.filterSheet.title` / `.done` (the sheet behind the search field's
   filter button, which now holds Open now and Nearby). `explore.sections.categories`
@@ -1396,8 +1396,8 @@ review every string in `src/locales/hy` and `src/locales/ru`.**
   `explore.searchPlaceholder` shortened in `en` (the design's "Search cafes &
   restaurants") and `ru` («Поиск кафе и ресторанов»), so it no longer runs
   under the filter button at 390 pt; `hy` is unchanged.
-  `explore.brandName` is the app's name, SHURJ, set as the wordmark in the
-  greeting when nobody is signed in; it is the same Latin "SHURJ" in all three
+  `explore.brandName` is the app's name, Time to Eat, set as the wordmark in the
+  greeting when nobody is signed in; it is the same Latin "Time to Eat" in all three
   languages, as a brand is, and is not translated.
   Removed: the user removed the Popular / New chips on 2026-10-22, so
   `explore.filter.popular` and `explore.filter.new` went with them; the list

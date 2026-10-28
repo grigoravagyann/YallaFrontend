@@ -378,7 +378,7 @@ export interface VenueOutletContext {
   readonly canRelocate: boolean;
   /**
    * What the platform allows at the branch (2026-10-27). A feature not in it
-   * is drawn locked, not hidden ("Not enabled for this branch. Contact SHURJ
+   * is drawn locked, not hidden ("Not enabled for this branch. Contact Time to Eat
    * to turn it on."), with its controls disabled; `null` (or absent, from a
    * host that does not say) locks nothing. See `featureLock.tsx`.
    */

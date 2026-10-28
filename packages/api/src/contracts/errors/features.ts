@@ -14,7 +14,7 @@ export const FEATURE_NOT_ENABLED_CODE = ProblemCodes.FeatureNotEnabled;
  * The branch may not use `feature`. Not the person's mistake and not a
  * conflict to refresh away: the platform switches it on, so every surface says
  * the same thing — the venue console "Not enabled for this branch. Contact
- * SHURJ", a diner a friendly "not available here".
+ * Time to Eat", a diner a friendly "not available here".
  *
  * A {@link ConcurrencyConflictError}, because it is a 409 and every screen that
  * already treats a 409 as "not now" keeps doing so; the class is what a screen

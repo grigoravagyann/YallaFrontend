@@ -1,7 +1,10 @@
-# SHURJ — design system
+# Time to Eat — design system
 
 Table reservation, ordering and the bill for restaurants and cafés in Yerevan,
-under the SHURJ brand (the code and packages are still named Yalla). Five
+under the Time to Eat brand (the code and packages are still named Yalla). The
+brand was SHURJ from 2026-10-22 and became Time to Eat on 2026-10-29: a new
+name and logo (the plate became a clock face), the same colours, so "SHURJ" in
+the palette's history below means that 2026-10-22 recolour. Five
 surfaces read two sets of tokens:
 
 | Surface                                                                 | Colours, sizes, radii, type                                  |
@@ -27,7 +30,7 @@ fills the one thing to press and marks where you are. Green, amber, red,
 burgundy and grey say what state a booking, a table, a ticket or a venue is
 in. Headings, metrics, a chart's resting bars and cards are neutral.
 
-There is **no blue in SHURJ**. Waiting and held are burgundy, confirmed is
+There is **no blue in Time to Eat**. Waiting and held are burgundy, confirmed is
 green. Only two blues exist, and each is a convention people already know:
 the map's "you are here" dot (`colors.location` `#4C8DFF`) and the "Confirm
 with Telegram" button (`consoleColor.publicTelegram` `#2A6FB0`).
@@ -63,9 +66,14 @@ Telegram blue.
 ### The wordmark
 
 The name is always the logo's own lettering as an image, never typed in a font.
+Every brand raster in both apps (launcher and install icons, favicons, the
+launch animation's layers, the welcome logo and both wordmarks) is rendered
+from `apps/diner/assets/images/source/logo.png` by `render-brand.cjs` beside
+it; the web's `og-card.png` is then drawn from the ivory wordmark by
+`apps/web/scripts/generate-og-card.mjs`.
 
 - **Web**: `apps/web/src/components/Wordmark.tsx` renders
-  `src/assets/shurj-wordmark.png` in ivory, with `t('appName')` as its `alt`.
+  `src/assets/wordmark.png` in ivory, with `t('appName')` as its `alt`.
   It always sits on a dark ground: the console sidebar (`sidebar`
   `#3A0912`), the floor tablet's and the staff phone's bar, the public page's
   bar, and the sign-in photo.
@@ -429,7 +437,7 @@ exactly as before: every phone rule sits under one of two queries
 - **Tab strips scroll** with a fade on the overflowing edge, the active tab in
   view. A messages screen shows the list or the thread, never both.
 - **Nothing is hover-only.** What a tooltip says is in the text or a tap away.
-- **Installing.** `manifest-console.webmanifest` ("SHURJ Console", scope
+- **Installing.** `manifest-console.webmanifest` ("Time to Eat Console", scope
   and start URL `/`, which sends each role home) on the console's paths, the
   staff manifest on `/staff`, and none on a diner's pages
   (`public/manifest-link.js`).
@@ -456,7 +464,7 @@ and nothing functional rotates.
 
 Before the SHURJ rebrand on 2026-10-22 the product went through an ink accent,
 a violet one, a beige fill and a dark-brown console; none of those colours is
-drawn on a SHURJ screen. The artboards under `docs/design/*` were made in the
+drawn on a Time to Eat screen. The artboards under `docs/design/*` were made in the
 brown era and recoloured afterwards, so where a `HANDOFF.md` names a colour,
 `console.ts` wins.
 

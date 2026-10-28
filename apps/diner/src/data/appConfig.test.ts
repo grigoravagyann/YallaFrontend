@@ -36,7 +36,7 @@ describe('app.config.js', () => {
 });
 
 /**
- * The SHURJ rename touches what a person reads — the name under the icon and
+ * The Time to Eat rename touches what a person reads — the name under the icon and
  * the permission prompts — and nothing a store, a link or a build is keyed on.
  */
 describe('app.json', () => {
@@ -49,11 +49,11 @@ describe('app.json', () => {
     expect(appJson.expo.extra.eas.projectId).toBe('cfd66f41-308a-47d0-991d-72f2538e7e9d');
   });
 
-  it('names SHURJ, never Yalla, in every permission prompt', () => {
+  it('names Time to Eat, never Yalla, in every permission prompt', () => {
     const plugins = JSON.stringify(appJson.expo.plugins);
     expect(plugins).not.toMatch(/Yalla uses/u);
-    expect(plugins).toMatch(/SHURJ uses your location/u);
-    expect(plugins).toMatch(/SHURJ uses the camera/u);
+    expect(plugins).toMatch(/Time to Eat uses your location/u);
+    expect(plugins).toMatch(/Time to Eat uses the camera/u);
   });
 });
 
@@ -117,8 +117,8 @@ describe('the splash screen', () => {
 });
 
 /**
- * The launcher icon is the SHURJ logo on the splash's white (2026-10-22), rendered by
- * assets/images/source/render-icons.cjs. A transparent pixel in the iOS icon is a store
+ * The launcher icon is the Time to Eat logo on the splash’s white (2026-10-29), rendered by
+ * assets/images/source/render-brand.cjs. A transparent pixel in the iOS icon is a store
  * rejection, and ink outside Android's 66 dp safe zone is cut off by some launchers' masks.
  */
 describe('the launcher icon', () => {

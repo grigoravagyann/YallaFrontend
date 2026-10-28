@@ -1,12 +1,12 @@
 # AGENTS.md — start here
 
-Repo map, rules and copyable recipes for the Yalla / SHURJ frontend monorepo. Read this
+Repo map, rules and copyable recipes for the Yalla / Time to Eat frontend monorepo. Read this
 before exploring; the README has the long-form reasons. Backend: `grigoravagyann/Yalla`
 (ASP.NET, default branch `master`), usually checked out beside this repo as `../Yalla`.
 
 ## Repo map
 
-- `apps/diner` — Expo + React Native SHURJ app (`@yalla/diner`). Routes are files in `app/`
+- `apps/diner` — Expo + React Native Time to Eat app (`@yalla/diner`). Routes are files in `app/`
   (expo-router; `app/_layout.tsx` lists them in its `Stack` and must import
   `src/intlPolyfills` first). Code in `src/`: `components/`, `theme/` (the app's own palette),
   `data/` (query hooks, keys, `gateway.ts`), `places/`, `tab/`, `takeaway/`, `messages/`,
@@ -55,15 +55,15 @@ before exploring; the README has the long-form reasons. Backend: `grigoravagyann
 - `scripts/` — `dev-stack.mjs` (+ `dev-stack/lib.mjs`), `e2e-local.sh`,
   `check-swagger-drift.mjs`, `check-architecture.mjs` (see Architecture checks). `verify.sh`
   runs CI's build gates locally (Git Bash).
-- Design sources: `DESIGN.md` (the SHURJ system: palettes, roles, contrast, type, touch
+- Design sources: `DESIGN.md` (the Time to Eat system: palettes, roles, contrast, type, touch
   targets) and `docs/design/{console,venue-console,floor-tablet,public-page}/HANDOFF.md`.
-  The handoffs predate SHURJ's colours; where any doc disagrees, `packages/tokens/src/console.ts`
+  The handoffs predate Time to Eat's colours; where any doc disagrees, `packages/tokens/src/console.ts`
   and `apps/diner/src/theme/colors.ts` win. `packages/tokens/src/designDoc.test.ts` fails on a
   hex in `DESIGN.md` that no token file assigns.
 
 ## Golden rules
 
-- **No blue in SHURJ UI.** Waiting/held are burgundy, confirmed is green. The only blues are
+- **No blue in Time to Eat UI.** Waiting/held are burgundy, confirmed is green. The only blues are
   the map's "you" dot and the Telegram button (`colors.location`, `consoleColor.publicTelegram`).
 - **Colours only via tokens.** Web CSS reads `var(--console-*)` / `var(--color-*)`;
   `staff/staffStyles.test.ts` fails on any hex/`rgb()`/`hsl()`/`oklch()` in listed staff

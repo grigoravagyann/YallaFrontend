@@ -4,7 +4,7 @@ import { addLocalDays, isLocalDate, localDaysBetween } from './messageHistory';
 import { ProblemCodes } from '../generated/problemCodes';
 
 /**
- * Activity history and staff results (2026-10-24, the "SHURJ Պատմություն և
+ * Activity history and staff results (2026-10-24, the "Time to Eat Պատմություն և
  * վիճակագրություն" boards Main, Team, Person and Check): who did what at a
  * branch, from which device, and what each person's work adds up to. Yalla
  * `docs/activity.md` is the backend's account of the same.
@@ -82,7 +82,7 @@ export const ACTIVITY_CATEGORIES: readonly ActivityCategory[] = [
 
 /**
  * Who acted — the wire's words (`actorKind`): a person on the staff, the
- * guest, SHURJ itself (a deadline passed), or the platform's support.
+ * guest, Time to Eat itself (a deadline passed), or the platform's support.
  */
 export type ActivityActorKind = 'staff' | 'guest' | 'system' | 'platform';
 
@@ -220,7 +220,7 @@ export interface ActivityDevice {
   /**
    * "Hall tablet", "Aram's phone", "Console" — a snapshot, and English for a
    * phone and the console: word those from {@link kind} and {@link ownerName}.
-   * Empty when no device acted (SHURJ itself, a guest).
+   * Empty when no device acted (Time to Eat itself, a guest).
    */
   readonly label: string;
   /** The console: a staff session with no enrolled device (`deviceLabel` `Console`). */
@@ -297,7 +297,7 @@ export interface ActivityEntry {
 export type ActivityCategoryFilter = 'all' | ActivityCategory;
 
 /**
- * Whose actions: everyone, one staff member, or SHURJ itself (the automatic
+ * Whose actions: everyone, one staff member, or Time to Eat itself (the automatic
  * declines; `actorKind=system`).
  */
 export type ActivityWho =

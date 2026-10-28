@@ -14,7 +14,7 @@ import { compositedFill, tableStatusLegendOrder, tableStatusStyle } from './tabl
  * A contrast ratio checked once in a design review is a ratio that breaks
  * silently the first time someone nudges a hex value. Since SHURJ every
  * neutral and the action colour in `color.ts` is a `console.ts` value; these
- * tests hold the pairs the older screens draw, and hold the palette to SHURJ.
+ * tests hold the pairs the older screens draw, and hold the palette to Time to Eat.
  */
 
 const round = (n: number) => Math.round(n * 100) / 100;
@@ -45,7 +45,7 @@ describe('text contrast', () => {
     for (const bg of subtleTextBackgrounds) passesBody(color.subtleForeground, bg);
   });
 
-  it('SHURJ has two text weights on the web: subtle is the muted grey', () => {
+  it('Time to Eat has two text weights on the web: subtle is the muted grey', () => {
     // The pre-SHURJ palette had a third, lighter grey that failed on a tint.
     // Both remaps (`staff.css`, `.yc-legacy`) already drew it muted.
     expect(color.subtleForeground).toBe(color.mutedForeground);
@@ -170,7 +170,7 @@ describe('the Black Cherry: one colour for the fill and the line', () => {
     expect(values.join(' ')).not.toContain('19, 26, 34');
   });
 
-  it('the ivory label is not white: SHURJ keeps pure white for the page', () => {
+  it('the ivory label is not white: Time to Eat keeps pure white for the page', () => {
     expect(color.primaryForeground).not.toBe('#FFFFFF');
     expect(color.paper).toBe('#FFFFFF');
   });

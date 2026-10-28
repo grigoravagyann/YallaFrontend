@@ -79,7 +79,9 @@ describe('the shared error states', () => {
   it('a server error carries its reference and a way Home', () => {
     renderState({ kind: 'error', reference: '7F3A-21C9', onRetry: () => {} });
     expect(screen.getByRole('alert')).toBeTruthy();
-    expect(screen.getByText('Error code: 7F3A-21C9 · send it to the SHURJ team')).toBeTruthy();
+    expect(
+      screen.getByText('Error code: 7F3A-21C9 · send it to the Time to Eat team'),
+    ).toBeTruthy();
     expect(screen.getByRole('link', { name: 'Home' })).toBeTruthy();
   });
 

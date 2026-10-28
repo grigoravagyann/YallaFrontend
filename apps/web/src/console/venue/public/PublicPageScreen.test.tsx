@@ -185,7 +185,7 @@ describe('the public page screen', () => {
     expect(within(preview).getByText('Booking is closed')).toBeTruthy();
 
     const listing = within(
-      await screen.findByRole('form', { name: 'In the SHURJ app' }, { timeout: 5000 }),
+      await screen.findByRole('form', { name: 'In the Time to Eat app' }, { timeout: 5000 }),
     );
     const cuisine = listing.getByLabelText(/cuisine/i);
     await user.clear(cuisine);

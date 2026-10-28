@@ -12,7 +12,7 @@ import { Wordmark } from '../components/Wordmark';
  *
  * Four routes and a catch-all, all unauthenticated, under one top bar: the
  * wordmark and the language switch, and nothing else (public-page HANDOFF:
- * own top bar, no sidebar, mobile first). No SHURJ navigation, no sign-in
+ * own top bar, no sidebar, mobile first). No Time to Eat navigation, no sign-in
  * link, no app badge — a visitor arrived here for one venue, from a link
  * somebody sent them, and every element that is not about that venue is an
  * element competing with it. The one honest mention of the app is on the

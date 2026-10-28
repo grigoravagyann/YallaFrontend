@@ -4,21 +4,21 @@ import { consoleColor } from './console';
  * The shared `--color-*` palette: the older web screens' colours, the table
  * states (`tableState.ts`) and the shadows (`elevation.ts`).
  *
- * ## SHURJ, and nothing from before it
+ * ## Time to Eat, and nothing from before it
  *
  * Before the SHURJ rebrand (2026-10-22) this file held its own palette: a cool
  * blue-grey paper, a blue-black ink, a beige accent, cool hairlines and a blue
- * "held". None of it is drawn on a SHURJ screen any more, so none of it is
+ * "held". None of it is drawn on a Time to Eat screen any more, so none of it is
  * kept. Every neutral and the action colour below now *is* a `console.ts`
  * value — the console, the floor tablet and the public page's source of truth
- * — so this palette cannot drift from SHURJ again, and nobody can pick up a
+ * — so this palette cannot drift from Time to Eat again, and nobody can pick up a
  * blue or an old cool grey from it. `noBlue.test.ts` fails on a blue in any
  * token file.
  *
  * The older screens read these through `index.css`. The staff surface
  * (`staff.css`) and the venue console's `.yc-legacy` wrapper (`console.css`)
  * point the same variables at `--console-*` directly; the values here are the
- * same ones, so a screen outside either wrapper wears SHURJ too.
+ * same ones, so a screen outside either wrapper wears Time to Eat too.
  *
  * ## The one rule
  *
@@ -56,7 +56,7 @@ const state = {
 export const color = {
   /** Cards, sheets, inputs. */
   surface: consoleColor.surface,
-  /** The page: white, as everywhere in SHURJ. */
+  /** The page: white, as everywhere in Time to Eat. */
   paper: consoleColor.canvas,
 
   /** Text: the charcoal. 14.40:1 on white. */
@@ -64,7 +64,7 @@ export const color = {
   /** Secondary text. 6.88:1 on white, 5.57:1 on `greenTint`. */
   mutedForeground: consoleColor.muted,
   /**
-   * Placeholders and disabled labels. SHURJ's web screens have two text
+   * Placeholders and disabled labels. Time to Eat's web screens have two text
    * weights, not three, so this is `mutedForeground` — the value both remaps
    * already gave it.
    */

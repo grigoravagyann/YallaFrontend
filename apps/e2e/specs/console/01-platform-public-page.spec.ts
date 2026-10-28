@@ -32,7 +32,7 @@ test('Platform admin edits the demo branch: listing, cover, address and a table 
   await page.waitForURL(`**/platform/venues/${demo.venueId}/branches/${demo.branchId}/public`);
 
   // --- Listing: cuisine and amenities survive a reload --------------------------------
-  const listing = page.getByRole('form', { name: 'In the SHURJ app' });
+  const listing = page.getByRole('form', { name: 'In the Time to Eat app' });
   const cuisine = `Armenian and grill ${tag}`;
   await listing.getByLabel('Cuisine').fill(cuisine);
   // Amenities are checkboxes worn as chips since the venue console redesign (phase 4).

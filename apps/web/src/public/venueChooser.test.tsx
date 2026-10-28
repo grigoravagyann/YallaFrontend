@@ -77,7 +77,7 @@ describe('the branch cards', () => {
     open('/lumen-coffee', harness);
     expect(
       await screen.findByText(
-        'This venue has not added a branch on SHURJ yet. Try again a little later.',
+        'This venue has not added a branch on Time to Eat yet. Try again a little later.',
       ),
     ).toBeTruthy();
   });

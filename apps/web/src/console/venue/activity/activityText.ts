@@ -85,7 +85,7 @@ export function kindTone(entry: Pick<ActivityEntry, 'category' | 'isMoney'>): st
   }
 }
 
-/** Who acted, as the feed's "Who" column says it: "Aram P.", "SHURJ", "Guest · Ani M.". */
+/** Who acted, as the feed's "Who" column says it: "Aram P.", "Time to Eat", "Guest · Ani M.". */
 export function whoLabel(t: TFunction, entry: ActivityEntry): string {
   switch (entry.actor.kind) {
     case 'system':
@@ -398,7 +398,7 @@ export function actionLabel(t: TFunction, entry: ActivityEntry, locale?: Locale)
     case 'device.enrolment-code-created':
       return t('activity.action.enrolmentCode');
     case 'device.enrolled':
-      // Nobody is signed in to a tablet being connected: SHURJ says it, by its name.
+      // Nobody is signed in to a tablet being connected: Time to Eat says it, by its name.
       return name
         ? t('activity.action.deviceEnrolledNamed', { name })
         : t('activity.action.deviceEnrolled');

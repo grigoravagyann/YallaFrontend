@@ -140,7 +140,7 @@ describe('devices and phone pairing over HTTP', () => {
         body: {
           code: 'K7Q2M-9XW4P',
           expiresAtUtc: '2026-10-24T10:10:00Z',
-          pairingUrl: 'https://shurj.am/staff/pair#code=K7Q2M-9XW4P',
+          pairingUrl: 'https://timetoeat.am/staff/pair#code=K7Q2M-9XW4P',
           staffMemberId: 'p-1',
           branchId: 'b-1',
         },
@@ -152,7 +152,7 @@ describe('devices and phone pairing over HTTP', () => {
     ).resolves.toEqual({
       code: 'K7Q2M-9XW4P',
       expiresAtUtc: '2026-10-24T10:10:00Z',
-      pairingUrl: 'https://shurj.am/staff/pair#code=K7Q2M-9XW4P',
+      pairingUrl: 'https://timetoeat.am/staff/pair#code=K7Q2M-9XW4P',
       staffMemberId: 'p-1',
       branchId: 'b-1',
     });

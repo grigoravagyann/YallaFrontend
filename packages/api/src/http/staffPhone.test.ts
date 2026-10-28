@@ -236,8 +236,8 @@ describe('pairing a phone', () => {
   });
 
   it('reads the code out of a pairing URL, a pasted code or nothing', () => {
-    expect(pairingCodeFrom('https://shurj.am/staff/pair#code=K7Q2M-9XW4P')).toBe('K7Q2M9XW4P');
-    expect(pairingCodeFrom('https://shurj.am/staff/pair?code=k7q2m9xw4p')).toBe('K7Q2M9XW4P');
+    expect(pairingCodeFrom('https://timetoeat.am/staff/pair#code=K7Q2M-9XW4P')).toBe('K7Q2M9XW4P');
+    expect(pairingCodeFrom('https://timetoeat.am/staff/pair?code=k7q2m9xw4p')).toBe('K7Q2M9XW4P');
     expect(pairingCodeFrom(' k7q2m-9xw4p ')).toBe('K7Q2M9XW4P');
     // Another site's QR, or a menu's: not a code.
     expect(pairingCodeFrom('https://example.com/menu')).toBeNull();
