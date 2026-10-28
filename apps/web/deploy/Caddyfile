@@ -55,15 +55,16 @@
 		# manifest the HTML arrives with and ignores manifest-link.js changing it
 		# (apps/web/src/manifestShell.ts): staff.html on /staff, index.html on /
 		# and the console's reserved first segments, public.html (no manifest)
-		# on a venue page or a manage link. The console's list is
-		# RESERVED_FIRST_SEGMENTS less `staff` and `assets`, served above;
-		# src/manifestShell.test.ts fails when they part.
+		# on a venue page or a manage link. The console's list is `/` (which
+		# try_files does not count as a file) and RESERVED_FIRST_SEGMENTS less
+		# `staff` and `assets`, served above; src/manifestShell.test.ts fails
+		# when they part.
 		@staffShell path /staff /staff/*
 		rewrite @staffShell /staff.html
 
 		@consoleShell {
 			not file
-			path /dev /dev/* /fonts /fonts/* /platform /platform/* /reset-password /reset-password/* /sign-in /sign-in/* /venue /venue/*
+			path / /dev /dev/* /fonts /fonts/* /platform /platform/* /reset-password /reset-password/* /sign-in /sign-in/* /venue /venue/*
 		}
 		rewrite @consoleShell /index.html
 
@@ -72,7 +73,7 @@
 		# The shells, the service worker and the manifests change with every
 		# deploy under the same name. `no-cache` still allows ETag revalidation,
 		# so a tablet on the floor fetches the new shell on its next load rather
-		# than a week later. `/` is index.html served as the directory's index.
+		# than a week later.
 		@shell path / /index.html /staff.html /public.html /sw.js /manifest.webmanifest /manifest-console.webmanifest /manifest-link.js
 		header @shell Cache-Control "no-cache"
 

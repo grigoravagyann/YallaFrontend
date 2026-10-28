@@ -97,11 +97,15 @@ describe('deploy/Caddyfile', () => {
   });
 
   it("sends the console's reserved segments to the console shell", () => {
-    // `/assets/*` is answered before this (a missing chunk is a 404), and `/`
-    // is index.html as the root's index.
-    const expected = RESERVED_FIRST_SEGMENTS.filter((s) => s !== 'staff' && s !== 'assets')
-      .flatMap((s) => [`/${s}`, `/${s}/*`])
-      .sort();
+    // `/assets/*` is answered before this (a missing chunk is a 404). `/` is
+    // listed because try_files does not count the root as a file.
+    const expected = [
+      '/',
+      ...RESERVED_FIRST_SEGMENTS.filter((s) => s !== 'staff' && s !== 'assets').flatMap((s) => [
+        `/${s}`,
+        `/${s}/*`,
+      ]),
+    ].sort();
     expect([...matcherPaths('@consoleShell')].sort()).toEqual(expected);
     expect(rewriteTarget('@consoleShell')).toBe(`/${SHELL_FILE.console}`);
     expect(SHELL_FILE.console).toBe('index.html');
