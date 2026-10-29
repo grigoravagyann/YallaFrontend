@@ -1,5 +1,5 @@
 import type { FloorPlanData } from '../../contracts/tableFloor';
-import type { DaySlots, VenueSummary } from '../../contracts/booking';
+import { bookingModeFromCode, type DaySlots, type VenueSummary } from '../../contracts/booking';
 import { NotFoundError } from '../../errors';
 import type { YallaGateway } from '../../gateway';
 import type { components } from '../../generated/schema';
@@ -101,6 +101,7 @@ export function venuesMethods(
           minLeadMinutes: data.policy.minLeadMinutes,
           // Absent only from a server that predates the K9 gate, which books.
           acceptsAppBookings: data.acceptsAppBookings ?? true,
+          bookingMode: bookingModeFromCode(data.policy.bookingMode),
         };
       } catch (error) {
         if (error instanceof NotFoundError) return null;

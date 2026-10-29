@@ -202,7 +202,7 @@ describe('moving a booking', () => {
     const smaller = await gateway.rescheduleBooking({
       bookingId: booking.id,
       commandId: crypto.randomUUID(),
-      tableId: booking.tableId,
+      tableId: booking.tableId!,
       slotUtc: booking.slotUtc,
       timeZoneId: 'Asia/Yerevan',
       partySize: 2,
@@ -221,7 +221,7 @@ describe('moving a booking', () => {
     const moved = await gateway.rescheduleBooking({
       bookingId: booking.id,
       commandId: crypto.randomUUID(),
-      tableId: booking.tableId,
+      tableId: booking.tableId!,
       slotUtc: at('2026-10-20', '20:00'),
       timeZoneId: 'Asia/Yerevan',
       partySize: 2,
@@ -239,7 +239,7 @@ function moveTo(
   gateway: YallaGateway,
   booking: Booking,
   slotUtc: string,
-  tableId: string = booking.tableId,
+  tableId: string = booking.tableId!,
 ): Promise<Booking> {
   return gateway.rescheduleBooking({
     bookingId: booking.id,

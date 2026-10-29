@@ -1,3 +1,4 @@
+import { bookingModeFromCode } from '../contracts/booking';
 import type { Photo } from '../contracts/menuAdmin';
 import type {
   BranchBadge,
@@ -239,6 +240,7 @@ export function branchDetailFromWire(wire: WireBranchDetail, baseUrl: string): B
     // K9 gate, which takes app bookings. Reading it as false would hide Book on
     // every place against that server.
     acceptsAppBookings: wire.acceptsAppBookings ?? true,
+    bookingMode: bookingModeFromCode(wire.bookingMode),
     recentReviews: (wire.recentReviews ?? []).map(branchReviewFromWire),
     ratingCounts: ratingCountsFromWire(wire.ratingCounts),
     rooms: roomsFrom(wire.rooms, baseUrl),

@@ -176,7 +176,7 @@ describe('the promise to free the table', () => {
 
     let refused: unknown;
     try {
-      await gateway.createBooking(command(later.tableId, at(TOMORROW, '17:30')));
+      await gateway.createBooking(command(later.tableId!, at(TOMORROW, '17:30')));
     } catch (error) {
       refused = error;
     }
@@ -186,12 +186,12 @@ describe('the promise to free the table', () => {
     // A different time is no promise either.
     await expect(
       gateway.createBooking(
-        command(later.tableId, at(TOMORROW, '17:30'), { acceptsFreeByUtc: at(TOMORROW, '18:50') }),
+        command(later.tableId!, at(TOMORROW, '17:30'), { acceptsFreeByUtc: at(TOMORROW, '18:50') }),
       ),
     ).rejects.toBeInstanceOf(FreeByRequiredError);
 
     const kept = await gateway.createBooking(
-      command(later.tableId, at(TOMORROW, '17:30'), { acceptsFreeByUtc: at(TOMORROW, '18:55') }),
+      command(later.tableId!, at(TOMORROW, '17:30'), { acceptsFreeByUtc: at(TOMORROW, '18:55') }),
     );
     expect(kept).toMatchObject({
       promisedFreeByUtc: at(TOMORROW, '18:55'),
@@ -206,13 +206,13 @@ describe('a change of party size alone', () => {
     await signedIn(gateway);
     const later = await bookedAtSeven(gateway);
     const kept = await gateway.createBooking(
-      command(later.tableId, at(TOMORROW, '17:30'), { acceptsFreeByUtc: at(TOMORROW, '18:55') }),
+      command(later.tableId!, at(TOMORROW, '17:30'), { acceptsFreeByUtc: at(TOMORROW, '18:55') }),
     );
 
     const moved = await gateway.rescheduleBooking({
       bookingId: kept.id,
       commandId: crypto.randomUUID(),
-      tableId: kept.tableId,
+      tableId: kept.tableId!,
       slotUtc: kept.slotUtc,
       timeZoneId: 'Asia/Yerevan',
       partySize: 1,
@@ -230,7 +230,7 @@ describe('a request to the guest before', () => {
     const gateway = world(time, options);
     await signedIn(gateway);
     const earlier = await bookedAtSeven(gateway);
-    const later = await gateway.createBooking(command(earlier.tableId, at(TOMORROW, '20:30')));
+    const later = await gateway.createBooking(command(earlier.tableId!, at(TOMORROW, '20:30')));
     return { gateway, earlier, later, time };
   }
 
@@ -319,7 +319,7 @@ describe('a request to the guest before', () => {
 
   it('asks one question at a time: the table is refused while the guest before is being asked', async () => {
     const { gateway, earlier } = await requested();
-    const table = tableOf(await floorAt(gateway, '21:00'), earlier.tableId);
+    const table = tableOf(await floorAt(gateway, '21:00'), earlier.tableId!);
     expect(table).toMatchObject({ isBookable: false, unavailableReason: 'alreadyBooked' });
   });
 
@@ -377,7 +377,7 @@ describe("the server's review rules (reservations.md §3e)", () => {
     const smaller = await gateway.rescheduleBooking({
       bookingId: kept.id,
       commandId: crypto.randomUUID(),
-      tableId: kept.tableId,
+      tableId: kept.tableId!,
       slotUtc: kept.slotUtc,
       timeZoneId: 'Asia/Yerevan',
       partySize: 1,
@@ -391,14 +391,14 @@ describe("the server's review rules (reservations.md §3e)", () => {
     const gateway = world(time);
     await signedIn(gateway);
     const earlier = await bookedAtSeven(gateway);
-    const later = await gateway.createBooking(command(earlier.tableId, at(TOMORROW, '20:30')));
+    const later = await gateway.createBooking(command(earlier.tableId!, at(TOMORROW, '20:30')));
     const asked = (await gateway.getBooking(earlier.id))!.incomingTableRequest!;
 
     time.advance(30 * MINUTE);
     const moved = await gateway.rescheduleBooking({
       bookingId: later.id,
       commandId: crypto.randomUUID(),
-      tableId: later.tableId,
+      tableId: later.tableId!,
       slotUtc: at(TOMORROW, '20:45'),
       timeZoneId: 'Asia/Yerevan',
       partySize: 2,

@@ -119,7 +119,7 @@ describe('one diner, two bookings at once', () => {
       gateway.rescheduleBooking({
         bookingId: late.id,
         commandId: crypto.randomUUID(),
-        tableId: late.tableId,
+        tableId: late.tableId!,
         slotUtc: at('20:00'),
         timeZoneId: 'Asia/Yerevan',
         partySize: 2,
