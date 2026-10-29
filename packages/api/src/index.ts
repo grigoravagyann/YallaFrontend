@@ -383,7 +383,7 @@ export { createPublicMockGateway, manageTokenFor } from './mocks/publicMock';
 export type { PublicMockOptions } from './mocks/publicMock';
 export { createPublicHttpGateway } from './http/publicHttpGateway';
 export { coversSitting, openStateFrom } from './contracts/openState';
-export { booksByTimeOnly, timeFullGuestsLeft } from './contracts/publicBranch';
+export { booksByTimeOnly } from './contracts/publicBranch';
 export type {
   ManagedBooking,
   RescheduleManagedBookingCommand,

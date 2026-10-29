@@ -1,8 +1,5 @@
 import type { BranchFeature } from './branchFeatures';
 import type { ApprovalTrigger, DeclineReason } from './approvals';
-import { ApiError } from '../errors';
-import { ProblemCodes } from '../generated/problemCodes';
-import { problemContext } from '../problem';
 import type { DaySlot, DaySlots, VenueType } from './booking';
 import type { PolicyBookingMode, SpecialDay, WeeklyHours } from './branchSettings';
 import type { CancellationCause } from './guestRecord';
@@ -108,16 +105,6 @@ export interface PublicTimeSlot extends DaySlot {
 /** A day of {@link PublicTimeSlot}s for one party size. */
 export interface PublicTimeSlots extends Omit<DaySlots, 'slots'> {
   readonly slots: readonly PublicTimeSlot[];
-}
-
-/**
- * A booking refused as `409 time-full`: no room for that many then. How many
- * the time could still take (0 or more), or `null` for any other error.
- */
-export function timeFullGuestsLeft(error: unknown): number | null {
-  if (!(error instanceof ApiError) || error.code !== ProblemCodes.TimeFull) return null;
-  const left = problemContext(error.problem, ProblemCodes.TimeFull).guestsLeft;
-  return typeof left === 'number' && left >= 0 ? left : 0;
 }
 
 /**

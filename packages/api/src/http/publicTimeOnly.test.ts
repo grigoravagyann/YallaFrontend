@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { booksByTimeOnly, timeFullGuestsLeft } from '../contracts/publicBranch';
+import { timeFullGuestsLeft } from '../contracts/booking';
+import { booksByTimeOnly } from '../contracts/publicBranch';
 import { ApiError } from '../errors';
 import type { ProblemDetails } from '../problem';
 import { fakeBackend } from './fakeBackend.testkit';
