@@ -463,6 +463,43 @@ describe("today's bookings", () => {
     expect(cancel.getAttribute('aria-disabled')).toBeNull();
   });
 
+  it('says a booking made by time only has no table yet, and leaves seating it to the floor tablet', async () => {
+    const base = mockGateway();
+    const upcoming = firstIn(await rowsOf(base), 'confirmed');
+    const act = vi.fn(base.actOnBooking);
+    const { user } = renderOverview({
+      ...base,
+      actOnBooking: act,
+      getBranchOverview: async (branchId) => {
+        const overview = await base.getBranchOverview(branchId);
+        return {
+          ...overview,
+          todayBookings: overview.todayBookings.map((row) =>
+            row.id === upcoming.id
+              ? { ...row, tableId: null, tableLabel: null, tableStatus: null }
+              : row,
+          ),
+        };
+      },
+    });
+    const card = await bookingsCard();
+    expect(within(rowOf(card, upcoming.guestName)).getByText('No table yet')).toBeTruthy();
+
+    const menu = await openMenu(user, card, upcoming.guestName);
+    const seat = within(menu).getByRole('menuitem', { name: /^Mark seated/u });
+    expect(seat.getAttribute('aria-disabled')).toBe('true');
+    expect(seat.textContent).toContain('seat them on the floor tablet');
+    await waitFor(() => expect(document.activeElement).toBe(seat));
+    await user.keyboard('{Enter}');
+    expect(act).not.toHaveBeenCalled();
+    // Cancelling needs no table.
+    expect(
+      within(screen.getByRole('menu'))
+        .getByRole('menuitem', { name: 'Cancel the booking' })
+        .getAttribute('aria-disabled'),
+    ).toBeNull();
+  });
+
   it('says the table is taken when the server refuses a seat as not possible for the table', async () => {
     const base = mockGateway();
     const { user } = renderOverview({
@@ -719,6 +756,7 @@ describe('worth a look and the setup card', () => {
     deviceEnrolled: true,
     deviceCount: 1,
     bookableTableCount: 10,
+    booksByTimeOnly: false,
     takingGuests: true,
     missingForGuests: [],
     acceptsWebBookings: true,

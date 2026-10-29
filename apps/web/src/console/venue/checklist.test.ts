@@ -30,6 +30,7 @@ const READY: BranchReadiness = {
   deviceEnrolled: true,
   deviceCount: 1,
   bookableTableCount: 10,
+  booksByTimeOnly: false,
   takingGuests: true,
   missingForGuests: [],
   acceptsWebBookings: false,
@@ -82,6 +83,22 @@ describe('the checklist lines', () => {
     // Tables exist, none bookable on a photo: the server's bookable count, not the table count.
     expect(step('floorPlan', { bookableTableCount: 0 }).done).toBe(false);
     expect(step('floorPlan').done).toBe(true);
+  });
+
+  it('counts booking by time only as the table line, with no table needed', () => {
+    // No table pinned on a photo, the rooms not ready: the branch still takes guests.
+    const line = checklistSteps(
+      { ...READY, bookableTableCount: 0, tableCount: 0, booksByTimeOnly: true },
+      false,
+    ).find((entry) => entry.id === 'floorPlan')!;
+    expect(line).toMatchObject({
+      done: true,
+      required: true,
+      labelKey: 'checklist.step.floorPlanTimeOnly',
+      // Set where the mode is chosen, not on the rooms.
+      to: '/venue/policy',
+    });
+    expect(line.detail).toBeUndefined();
   });
 
   it('reports the booking switch as optional', () => {

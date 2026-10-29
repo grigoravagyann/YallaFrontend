@@ -1,4 +1,4 @@
-import { defaultPolicyFor, type ReservationPolicy } from '@yalla/api';
+import { defaultPolicyFor, type PolicyBookingMode, type ReservationPolicy } from '@yalla/api';
 import {
   useBranchReadiness,
   useReservationPolicy,
@@ -34,6 +34,7 @@ import {
 import {
   EXAMPLE_START,
   POLICY_GROUPS,
+  appliesTo,
   changedFields,
   clock,
   differsFromDefaults,
@@ -324,9 +325,9 @@ function PolicyForm({
       <div className="yc-pol">
         <nav ref={tocRef} className="yc-card yc-toc" aria-label={t('policy.tocLabel')}>
           {POLICY_GROUPS.map((group) => {
-            const changed = fieldsInGroup(group, fields).filter((field) =>
-              fromDefault.includes(field.key),
-            ).length;
+            const changed =
+              fieldsInGroup(group, fields).filter((field) => fromDefault.includes(field.key))
+                .length + (group === 'mode' && fromDefault.includes('bookingMode') ? 1 : 0);
             return (
               <a key={group} href={`#${groupId(group)}`}>
                 <span>{t(`policy.group.${group}.title`)}</span>
@@ -370,22 +371,32 @@ function PolicyForm({
                   <p className="yc-cap">{t(`policy.group.${group}.body`)}</p>
                 </div>
               </div>
+              {group === 'mode' ? (
+                <BookingModeChoice
+                  value={draft.bookingMode ?? 'chooseTable'}
+                  shipped={defaults.bookingMode}
+                  disabled={save.isPending}
+                  onChange={(mode) => set('bookingMode', mode)}
+                />
+              ) : null}
               <FeatureLockedControls
                 feature="tableService"
                 locked={group === 'scanning' && tableServiceLocked}
               >
-                {fieldsInGroup(group, fields).map((field) => (
-                  <PolicyField
-                    key={field.key}
-                    spec={field}
-                    policy={draft}
-                    shipped={defaults[field.key]}
-                    invalid={invalid.includes(field.key)}
-                    refused={refused.has(field.key)}
-                    disabled={save.isPending}
-                    onChange={set}
-                  />
-                ))}
+                {fieldsInGroup(group, fields)
+                  .filter((field) => appliesTo(field.key, draft))
+                  .map((field) => (
+                    <PolicyField
+                      key={field.key}
+                      spec={field}
+                      policy={draft}
+                      shipped={defaults[field.key]}
+                      invalid={invalid.includes(field.key)}
+                      refused={refused.has(field.key)}
+                      disabled={save.isPending}
+                      onChange={set}
+                    />
+                  ))}
               </FeatureLockedControls>
               <p className="yc-pol-example">
                 <PhoneIcon />
@@ -439,6 +450,52 @@ function PolicyForm({
 const groupId = (group: PolicyGroup) => `pol-${group}`;
 const inputId = (key: keyof ReservationPolicy) => `pol-in-${key}`;
 
+const BOOKING_MODES: readonly PolicyBookingMode[] = ['chooseTable', 'timeOnly'];
+
+/**
+ * How guests book (2026-10-29): a table on the room photos, or only a time
+ * and how many — the venue then chooses the table when they arrive, and the
+ * guests-at-once number under it says how many it takes at the same moment.
+ * Two cards, each saying what a guest does, rather than a switch whose "off"
+ * means nothing to an owner.
+ */
+function BookingModeChoice({
+  value,
+  shipped,
+  disabled,
+  onChange,
+}: {
+  readonly value: PolicyBookingMode;
+  readonly shipped: PolicyBookingMode;
+  readonly disabled: boolean;
+  readonly onChange: (mode: PolicyBookingMode) => void;
+}) {
+  const { t } = useTranslation('admin');
+  const changed = value !== shipped;
+  return (
+    <div className={changed ? 'yc-pf yc-pol-mode is-changed' : 'yc-pf yc-pol-mode'}>
+      <fieldset className="yc-roles" disabled={disabled}>
+        {/* The group's title says it on screen; the legend names the choice for a screen reader. */}
+        <legend className="yc-sr">{t('policy.mode.legend')}</legend>
+        {BOOKING_MODES.map((mode) => (
+          <label key={mode} className={mode === value ? 'yc-rc is-on' : 'yc-rc'}>
+            <input
+              id={mode === value ? inputId('bookingMode') : undefined}
+              type="radio"
+              name="pol-booking-mode"
+              value={mode}
+              checked={mode === value}
+              onChange={() => onChange(mode)}
+            />
+            <b>{t(`policy.mode.${mode}.label`)}</b>
+            <span>{t(`policy.mode.${mode}.body`)}</span>
+          </label>
+        ))}
+      </fieldset>
+    </div>
+  );
+}
+
 /** One field: what it is, why it matters, its stepper or switch, and the default with a way back. */
 function PolicyField({
   spec,
@@ -462,7 +519,7 @@ function PolicyField({
   const { t } = useTranslation(['admin', 'common']);
   const key = spec.key;
   const value = policy[key];
-  const changed = value !== shipped;
+  const changed = value !== shipped && !(shipped === null && !spec.nullable);
   const label = t(`policy.field.${key}.label`);
   const labelId = `pol-l-${key}`;
   const whyId = `pol-w-${key}`;
@@ -493,6 +550,8 @@ function PolicyField({
     }`;
   }
 
+  // Nothing ships for a number only some branches are asked for (guests at once).
+  const noDefault = shipped === null && spec.kind !== 'toggle' && !spec.nullable;
   const shippedText =
     spec.kind === 'toggle'
       ? shipped
@@ -556,7 +615,7 @@ function PolicyField({
             {error}
           </span>
         ) : null}
-        <span className="yc-pf-d">
+        <span className="yc-pf-d" hidden={noDefault}>
           {t('policy.default', { value: shippedText })}
           {changed ? (
             <button
@@ -663,6 +722,10 @@ export function groupExample(
 ): string {
   const n = (value: number | null) => value ?? 0;
   switch (group) {
+    case 'mode':
+      return policy.bookingMode === 'timeOnly'
+        ? t('policy.example.timeOnly', { count: n(policy.guestsAtOnce) })
+        : t('policy.example.chooseTable');
     case 'booking': {
       const hours = Math.round((n(policy.cancellationDeadlineMinutes) / 60) * 10) / 10;
       const window = t('policy.example.window', { count: n(policy.bookingWindowDays) });

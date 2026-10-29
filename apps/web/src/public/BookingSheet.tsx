@@ -1,8 +1,10 @@
 import {
   MAX_BOOKING_NOTE,
+  approvalCopy,
   bookingFailure,
   newCommandId,
   tableCopy,
+  timeFullGuestsLeft,
   type Booking,
   type CopyLine,
   type PublicBranch,
@@ -46,6 +48,12 @@ import { SheetHead, SheetNote, SheetProgress } from './SheetParts';
  * else while confirming is a step of its own, listing what is free at the same
  * time.
  *
+ * At a branch that books by time only (2026-10-29) there is no table: the
+ * first step is the time and the party, with "the venue chooses your table
+ * when you arrive" where the table would be, and the note is a wish ("by the
+ * window"). A time that filled up meanwhile (`409 time-full`) says how many it
+ * could still take; the visitor picks another time or fewer guests on the card.
+ *
  * Every sentence about the table comes from the phone app's copy through
  * `tableCopy`, `verificationFailureCopy` and `bookingFailure`. The one rule
  * this sheet enforces itself is the ordering of the first step, and it is the
@@ -63,7 +71,14 @@ export interface SheetTable {
 
 export interface BookingSheetProps {
   readonly branch: PublicBranch;
-  readonly availability: TableAvailability;
+  /** The table's answer at the slot; `null` at a branch that books by time only. */
+  readonly availability: TableAvailability | null;
+  /**
+   * Booking by time only: the chosen time waits for the venue's answer (short
+   * notice, a large party, a venue that confirms every booking). The table's
+   * answer says so itself otherwise.
+   */
+  readonly requiresApproval?: boolean | undefined;
   /** The room the table is in, for the summary. */
   readonly roomName?: string | null | undefined;
   readonly slotUtc: string;
@@ -97,10 +112,13 @@ type Step = 'table' | 'taken' | 'verify' | 'name' | 'done';
 const NOTE_MAX = MAX_BOOKING_NOTE;
 /** How many free tables the taken step lists; the room shows them all. */
 const ALTERNATIVES_SHOWN = 6;
+/** What the visitor last went on from when there is no table: the time itself. */
+const TIME_ONLY = 'time';
 
 export default function BookingSheet({
   branch,
   availability,
+  requiresApproval = false,
   roomName = null,
   slotUtc,
   partySize,
@@ -154,7 +172,7 @@ export default function BookingSheet({
    * The server's own time replaces the room's when they disagree.
    */
   const [requiredFreeBy, setRequiredFreeBy] = useState<string | null>(
-    availability.mustFreeByUtc ?? null,
+    availability?.mustFreeByUtc ?? null,
   );
   const [agreedFreeBy, setAgreedFreeBy] = useState(false);
   const heading = useRef<HTMLHeadingElement>(null);
@@ -180,13 +198,14 @@ export default function BookingSheet({
    * state that follows a prop, so no frame shows the new table with the old
    * attempt's state.
    */
+  const tableId = availability?.tableId ?? null;
   const [attempt, setAttempt] = useState(() => ({
-    tableId: availability.tableId,
+    tableId,
     commandId: newCommandId(),
   }));
-  if (attempt.tableId !== availability.tableId) {
-    setAttempt({ tableId: availability.tableId, commandId: newCommandId() });
-    setRequiredFreeBy(availability.mustFreeByUtc ?? null);
+  if (attempt.tableId !== tableId) {
+    setAttempt({ tableId, commandId: newCommandId() });
+    setRequiredFreeBy(availability?.mustFreeByUtc ?? null);
     setAgreedFreeBy(false);
     setOutcomeUnknown(false);
     setErrorText(null);
@@ -199,9 +218,19 @@ export default function BookingSheet({
   }
   const commandId = attempt.commandId;
 
-  const copy = tableCopy(availability, { partySize, timeZoneId: branch.timeZoneId, locale });
+  // No table to describe when booking by time only: the time and the party are the booking.
+  const copy = availability
+    ? tableCopy(availability, { partySize, timeZoneId: branch.timeZoneId, locale })
+    : null;
   const line = (value: CopyLine): string => t(value.key, value.params);
-  const title = line(copy.title);
+  const title = copy ? line(copy.title) : tp('sheet.title.time');
+  const approval = copy ? copy.approval : approvalCopy(requiresApproval);
+  // By time only, the published deadline before the start stands in for the table's.
+  const freeCancellationUntilUtc = availability
+    ? availability.freeCancellationUntilUtc
+    : new Date(
+        Date.parse(slotUtc) - branch.policy.cancellationDeadlineMinutes * 60_000,
+      ).toISOString();
 
   /*
    * Each step opens on its title, so the keyboard and a screen reader start
@@ -224,7 +253,8 @@ export default function BookingSheet({
       gateway.createBooking({
         commandId,
         branchId: branch.id,
-        tableId: availability.tableId,
+        // None by time only: the venue chooses the table when the party arrives.
+        tableId,
         slotUtc,
         // The server takes the branch's wall-clock date and time.
         timeZoneId: branch.timeZoneId,
@@ -266,6 +296,21 @@ export default function BookingSheet({
       void queryClient.invalidateQueries({ queryKey: ['availability', branch.id] });
       void queryClient.invalidateQueries({ queryKey: ['public', 'branch'] });
     } catch (error) {
+      /*
+       * By time only, the time filled up between the card and this tap: how
+       * many it could still take, and the visitor changes the time or the
+       * party on the card. Nothing to retry with the same choices.
+       */
+      const guestsLeft = timeFullGuestsLeft(error);
+      if (guestsLeft !== null) {
+        void queryClient.invalidateQueries({ queryKey: ['availability', branch.id] });
+        setOutcomeUnknown(false);
+        setErrorText(
+          guestsLeft > 0 ? tp('sheet.time.full', { count: guestsLeft }) : tp('sheet.time.fullNone'),
+        );
+        return;
+      }
+
       // The place being booked: an overlap elsewhere names the other one.
       const here = { venueName: branch.venue.name, branchName: branch.name };
       const failure = bookingFailure(error, branch.timeZoneId, locale, { here });
@@ -367,16 +412,16 @@ export default function BookingSheet({
     (result: VerifiedPhone) => {
       setVerified(result);
       // Another table tapped while proving the phone: its window first.
-      setStep(readTable === availability.tableId ? 'name' : 'table');
+      setStep(readTable === (tableId ?? TIME_ONLY) ? 'name' : 'table');
     },
-    [readTable, availability.tableId],
+    [readTable, tableId],
   );
 
   const needsPromise = requiredFreeBy !== null && !agreedFreeBy;
   const goOn = () => {
     if (needsPromise) return;
     setErrorText(null);
-    setReadTable(availability.tableId);
+    setReadTable(tableId ?? TIME_ONLY);
     if (verified) {
       setStep('name');
     } else {
@@ -406,10 +451,12 @@ export default function BookingSheet({
           : tp('sheet.title.name');
 
   const guestsCount = String(partySize);
-  const seats = tp('booking.seats', { count: availability.seats });
-  const tableValue = roomName
-    ? tp('sheet.table.value', { label: availability.tableLabel, seats, room: roomName })
-    : tp('sheet.table.valueNoRoom', { label: availability.tableLabel, seats });
+  const seats = availability ? tp('booking.seats', { count: availability.seats }) : '';
+  const tableValue = !availability
+    ? tp('sheet.time.onArrival')
+    : roomName
+      ? tp('sheet.table.value', { label: availability.tableLabel, seats, room: roomName })
+      : tp('sheet.table.valueNoRoom', { label: availability.tableLabel, seats });
   const when = whenWords(slotUtc, branch.timeZoneId, locale, tp);
   const freeByTime = requiredFreeBy ? formatTime(requiredFreeBy, branch.timeZoneId, locale) : null;
 
@@ -426,7 +473,7 @@ export default function BookingSheet({
       ) : (
         <>
           <SheetHead title={headTitle} headingRef={heading} onBack={back} onClose={onClose} />
-          {progress === null ? null : <SheetProgress step={progress} />}
+          {progress === null ? null : <SheetProgress step={progress} timeOnly={!availability} />}
 
           {step === 'table' ? (
             <div className="pub-sheet-step">
@@ -446,24 +493,28 @@ export default function BookingSheet({
                   </div>
                 </dl>
 
-                {copy.unavailable ? (
+                {copy?.unavailable ? (
                   /* One line, no action. Explaining why beats a dead button. */
                   <SheetNote tone="amber">{line(copy.unavailable)}</SheetNote>
                 ) : (
                   <>
                     {/* The window, before the action. Always. */}
-                    {copy.window ? (
+                    {copy?.window ? (
                       <SheetNote tone="green">
                         <p>{line(copy.window.primary)}</p>
                         {copy.window.nextBooking ? <p>{line(copy.window.nextBooking)}</p> : null}
                       </SheetNote>
                     ) : null}
-                    {copy.window?.shortWindow ? (
+                    {copy?.window?.shortWindow ? (
                       <SheetNote tone="amber">{line(copy.window.shortWindow)}</SheetNote>
                     ) : null}
-                    {copy.approval ? (
-                      <SheetNote tone="amber">{line(copy.approval)}</SheetNote>
+                    {/* By time only: how long the sitting is, as a table's window would say. */}
+                    {!availability ? (
+                      <SheetNote tone="green">
+                        {tp('sheet.time.sitting', { count: branch.policy.turnTimeMinutes })}
+                      </SheetNote>
                     ) : null}
+                    {approval ? <SheetNote tone="amber">{line(approval)}</SheetNote> : null}
 
                     {errorText ? (
                       <p className="pub-field-error" role="alert">
@@ -483,11 +534,11 @@ export default function BookingSheet({
                       </label>
                     ) : null}
 
-                    {availability.freeCancellationUntilUtc ? (
+                    {freeCancellationUntilUtc ? (
                       <div className="pub-sheet-terms">
                         <p className="pub-muted">
                           {freeCancellationWords(
-                            availability.freeCancellationUntilUtc,
+                            freeCancellationUntilUtc,
                             branch.timeZoneId,
                             locale,
                             tp,
@@ -499,7 +550,7 @@ export default function BookingSheet({
                   </>
                 )}
               </div>
-              {copy.unavailable ? null : (
+              {copy?.unavailable ? null : (
                 <div className="pub-sheet-foot">
                   <button
                     type="button"
@@ -520,7 +571,7 @@ export default function BookingSheet({
             </div>
           ) : null}
 
-          {step === 'taken' && lostLabel ? (
+          {step === 'taken' && lostLabel && availability ? (
             <TakenStep
               lostLabel={lostLabel}
               lostTableId={availability.tableId}
@@ -590,7 +641,7 @@ export default function BookingSheet({
 
                 <div className="pub-sheet-field">
                   <label htmlFor={noteId}>
-                    {tp('sheet.name.note')}{' '}
+                    {tp(availability ? 'sheet.name.note' : 'sheet.name.wish')}{' '}
                     <span className="pub-field-optional">{tp('sheet.name.optional')}</span>
                   </label>
                   <textarea
@@ -599,7 +650,9 @@ export default function BookingSheet({
                     value={note}
                     onChange={(event) => setNote(event.target.value)}
                     maxLength={NOTE_MAX}
-                    placeholder={tp('sheet.name.notePlaceholder')}
+                    placeholder={tp(
+                      availability ? 'sheet.name.notePlaceholder' : 'sheet.name.wishPlaceholder',
+                    )}
                     aria-describedby={noteHintId}
                   />
                   <p className="pub-muted" id={noteHintId}>
@@ -627,7 +680,7 @@ export default function BookingSheet({
                     </div>
                   ) : null}
                 </dl>
-                {copy.approval ? <SheetNote tone="amber">{line(copy.approval)}</SheetNote> : null}
+                {approval ? <SheetNote tone="amber">{line(approval)}</SheetNote> : null}
 
                 {/* Said before the booking is sent: venues see the visitor's
                     record — counts over twelve months, never where (guest record). */}
@@ -659,7 +712,7 @@ export default function BookingSheet({
                     ? t('confirm.submitting')
                     : outcomeUnknown
                       ? t('confirm.checkAgain')
-                      : copy.approval
+                      : approval
                         ? t('confirm.requiresApproval')
                         : t('confirm.submit')}
                 </button>

@@ -1,6 +1,7 @@
 import {
   approvalCountdown,
   awaitsVenueAnswer,
+  booksByTimeOnly,
   declinedCopy,
   pendingReasonCopy,
   promisedFreeByCopy,
@@ -62,6 +63,10 @@ const ManageChange = lazy(() => import('./ManageChange'));
  * says so beside its status, is never offered "Change" (the server's
  * `canChange`; it would refuse the move) and says why instead: cancel and book
  * again, or call. It gets no reminders, so the page says to keep the link.
+ *
+ * A booking made by time only (2026-10-29) has no table until the party
+ * arrives: the page says the venue chooses it then, offers no change (cancel
+ * and book again) and no pre-order.
  */
 export function ManageBookingRoute() {
   const { venueSlug, branchSlug, token } = useParams<{
@@ -335,6 +340,12 @@ function ManagePage({
   const declinedBody = declinedCopy(booking.declinedBecause, 'body');
   const why = pendingReasonCopy(booking);
   const unproved = booking.phoneUnverified === true;
+  /**
+   * Booked by time and party alone (2026-10-29): the venue chooses the table
+   * when the party arrives. Such a booking is not moved — cancel it and book
+   * again — and takes no pre-order, whose ticket waits at a table.
+   */
+  const timeOnly = booking.bookedWithoutTable === true || !booking.tableLabel;
   const hasBranch = Boolean(booking.venueSlug && booking.branchSlug);
   const branchPath = langPath(`/${booking.venueSlug}/${booking.branchSlug}`);
 
@@ -348,7 +359,10 @@ function ManagePage({
     !locked &&
     // The server's own word: false for every (legacy) booking without a verified number.
     booking.canChange !== false &&
+    !timeOnly &&
     branch !== null &&
+    // A branch now booking by time only moves nothing: its card has no tables.
+    !booksByTimeOnly(branch.policy) &&
     branch.acceptsWebBookings &&
     Boolean(booking.reservationId && booking.tableId) &&
     now.getTime() + branch.policy.minLeadMinutes * MINUTE_MS <= start.getTime();
@@ -367,7 +381,9 @@ function ManagePage({
   const addToCalendar = () => {
     if (!endUtc) return;
     const manageUrl = new URL(langPath(`/booking/${token}`), window.location.origin).toString();
-    const table = td('table.title', { label: booking.tableLabel });
+    const what = booking.tableLabel
+      ? `${td('table.title', { label: booking.tableLabel })} · ${booking.venueName}`
+      : booking.venueName;
     downloadIcs(
       bookingIcs({
         booking: {
@@ -380,7 +396,7 @@ function ManagePage({
         addressLine: booking.addressLine,
         manageUrl,
         locale,
-        summary: `${table} · ${booking.venueName}`,
+        summary: what,
         descriptionLines: icsDescription({
           booking,
           locale,
@@ -490,8 +506,10 @@ function ManagePage({
               the digit says nothing. The room follows when the table is in
               one, so "Table 1 · Hall" says which door to walk through. */}
           <dd>
-            {td('table.title', { label: booking.tableLabel })}
-            {booking.floorAreaName ? ` · ${booking.floorAreaName}` : ''}
+            {booking.tableLabel
+              ? td('table.title', { label: booking.tableLabel })
+              : t('manage.tableOnArrival')}
+            {booking.tableLabel && booking.floorAreaName ? ` · ${booking.floorAreaName}` : ''}
           </dd>
         </div>
       </dl>
@@ -541,7 +559,7 @@ function ManagePage({
       ) : null}
 
       {/* The dishes chosen ahead, or the offer to choose them; and what became of them. */}
-      {!confirming && !changing && (live || booking.preOrder) ? (
+      {!confirming && !changing && (booking.preOrder || (live && !timeOnly)) ? (
         <ManagePreOrder
           token={token}
           booking={booking}
@@ -557,7 +575,9 @@ function ManagePage({
         </p>
       ) : null}
       {/* No "Change" for this booking, and why — said rather than a button gone missing. */}
-      {live && !locked && booking.canChange === false ? (
+      {live && !locked && timeOnly ? (
+        <p className="pub-muted">{t('manage.changeTimeOnly')}</p>
+      ) : live && !locked && booking.canChange === false ? (
         <p className="pub-muted">
           {unproved ? t('manage.changeUnverified') : t('manage.changing.error.account')}
         </p>

@@ -73,7 +73,10 @@ export function icsDescription(input: {
   const { booking, locale, codeLabel, cancellationLine, manageLabel, manageUrl } = input;
   return [
     `${codeLabel}: ${booking.code}`,
-    `${booking.tableLabel} · ${formatTime(booking.slotUtc, booking.timeZoneId, locale)}`,
+    // No table yet for a booking made by time only: the venue chooses it on arrival.
+    booking.tableLabel
+      ? `${booking.tableLabel} · ${formatTime(booking.slotUtc, booking.timeZoneId, locale)}`
+      : formatTime(booking.slotUtc, booking.timeZoneId, locale),
     cancellationLine,
     `${manageLabel}: ${manageUrl}`,
   ];
