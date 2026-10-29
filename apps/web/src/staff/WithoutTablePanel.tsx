@@ -1,9 +1,10 @@
-import type { BookingWithoutTable, FloorTable } from '@yalla/api';
+import type { BookingWithoutTable, FloorTable, ReleaseOutcome } from '@yalla/api';
 import { useTranslation } from '@yalla/i18n';
 import type { TFunction } from 'i18next';
 import { useEffect, useId, useRef, useState } from 'react';
 import { GuestRecordLine } from '../console/venue/overview/GuestRecordLine';
 import { ICONS, RailSection } from './FloorRail';
+import { ReleaseChoice } from './tablePanel/ReleaseChoice';
 import { useBranchFormat } from './useBranchFormat';
 import { tableChoices, type TableChoice } from './withoutTable';
 
@@ -22,6 +23,10 @@ import { tableChoices, type TableChoice } from './withoutTable';
  * table's booking and the floor shows it as any other. Smaller tables are
  * offered after, for a waiter who pushes two together.
  *
+ * **Release the booking** asks why, as the table panel does — "they didn't
+ * come" goes on the guest's record, "they let us know" does not — and lets
+ * it go with no table to free. Online only, as every release is.
+ *
  * Only there while a booking waits: a branch that books tables never sees it.
  */
 export interface WithoutTableSectionProps {
@@ -32,6 +37,10 @@ export interface WithoutTableSectionProps {
   readonly timeZoneId: string;
   readonly now: Date;
   readonly onSeat: (booking: BookingWithoutTable, tableId: string) => void;
+  readonly onRelease: (booking: BookingWithoutTable, outcome: ReleaseOutcome) => void;
+  /** A release is on its way: no second one meanwhile. */
+  readonly releasing: boolean;
+  readonly online: boolean;
 }
 
 export function WithoutTableSection(props: WithoutTableSectionProps) {
@@ -63,6 +72,9 @@ export function WithoutTableSection(props: WithoutTableSectionProps) {
               setPicking(null);
               props.onSeat(booking, tableId);
             }}
+            onRelease={(outcome) => props.onRelease(booking, outcome)}
+            releasing={props.releasing}
+            online={props.online}
           />
         ))}
       </ul>
@@ -93,6 +105,9 @@ interface WithoutTableCardProps {
   readonly picking: boolean;
   readonly onPick: (open: boolean) => void;
   readonly onSeat: (tableId: string) => void;
+  readonly onRelease: (outcome: ReleaseOutcome) => void;
+  readonly releasing: boolean;
+  readonly online: boolean;
 }
 
 function WithoutTableCard({
@@ -103,6 +118,9 @@ function WithoutTableCard({
   picking,
   onPick,
   onSeat,
+  onRelease,
+  releasing,
+  online,
 }: WithoutTableCardProps) {
   const { t } = useTranslation(['staff', 'common']);
   const format = useBranchFormat(timeZoneId);
@@ -113,12 +131,14 @@ function WithoutTableCard({
    * card's picker has the focus.
    */
   const refocus = useRef(false);
+  /** "Why is it being released?" is open in place of the buttons. */
+  const [asking, setAsking] = useState(false);
   useEffect(() => {
-    if (refocus.current && !picking) {
+    if (refocus.current && !picking && !asking) {
       refocus.current = false;
       seatRef.current?.focus({ preventScroll: true });
     }
-  }, [picking]);
+  }, [picking, asking]);
 
   const arrival = arrivalText(t, booking, now);
   const party = t('floor.card.party', { count: booking.partySize });
@@ -171,21 +191,48 @@ function WithoutTableCard({
             onPick(false);
           }}
         />
+      ) : asking ? (
+        <ReleaseChoice
+          disabled={releasing || !online}
+          onRelease={(outcome) => {
+            setAsking(false);
+            onRelease(outcome);
+          }}
+          onCancel={() => {
+            refocus.current = true;
+            setAsking(false);
+          }}
+        />
       ) : (
-        <div className="ft-item-actions">
-          <button
-            ref={seatRef}
-            type="button"
-            className="ft-btn ft-btn-primary"
-            aria-label={t('withoutTable.seatLabel', {
-              name: booking.guestName,
-              count: booking.partySize,
-            })}
-            onClick={() => onPick(true)}
-          >
-            {t('withoutTable.seat')}
-          </button>
-        </div>
+        <>
+          <div className="ft-item-actions">
+            <button
+              ref={seatRef}
+              type="button"
+              className="ft-btn ft-btn-primary"
+              aria-label={t('withoutTable.seatLabel', {
+                name: booking.guestName,
+                count: booking.partySize,
+              })}
+              onClick={() => onPick(true)}
+            >
+              {t('withoutTable.seat')}
+            </button>
+            <button
+              type="button"
+              className="ft-btn ft-btn-danger"
+              disabled={releasing || !online}
+              aria-label={t('withoutTable.releaseLabel', { name: booking.guestName })}
+              onClick={() => {
+                onPick(false);
+                setAsking(true);
+              }}
+            >
+              {t('table.release.ask')}
+            </button>
+          </div>
+          {!online ? <p>{t('table.release.needsOnline')}</p> : null}
+        </>
       )}
     </li>
   );

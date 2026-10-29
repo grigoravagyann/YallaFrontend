@@ -199,8 +199,8 @@ export interface StaffMockOptions {
   /** Bookings by time only, for tests: exactly these, confirmed and on no table. */
   readonly bookingsWithoutTable?: readonly StaffWithoutTableSeed[];
   /**
-   * The session may not list them, as a waiter's is refused the manager's
-   * read the HTTP gateway uses: `listBookingsWithoutTable` answers `null`.
+   * The floor's read refuses this session — a cook, another branch:
+   * `listBookingsWithoutTable` throws the server's 403.
    */
   readonly bookingsWithoutTableRefused?: boolean;
   /**
@@ -1715,6 +1715,7 @@ export function createStaffMockContext(options: StaffMockOptions = {}) {
         guestConfirmedOnWayAtUtc: null,
         guestRunningLateMinutes: null,
         tableId: null,
+        releasedAs: null,
       });
     } else if (approve && request.tableId !== null) {
       const tableId = request.tableId;

@@ -238,12 +238,24 @@ export function useTableActions({
     [setMarkedNoShows, setNotice],
   );
 
+  /**
+   * Let a booking go. `unseated` is a booking made by time only that nobody
+   * seated (2026-10-29): it has no table, so it is said by its guest's name,
+   * and its start comes from the door's list rather than the floor.
+   */
   const release = useCallback(
-    (reservationId: string, outcome: ReleaseOutcome) => {
+    (
+      reservationId: string,
+      outcome: ReleaseOutcome,
+      unseated?: Pick<BookingWithoutTable, 'startUtc' | 'guestName'>,
+    ) => {
       // When the booking was due, read before the release takes it off the floor.
       const startUtc =
+        unseated?.startUtc ??
         floor?.details.find((detail) => detail.nextReservationId === reservationId)
-          ?.nextReservationStartUtc ?? null;
+          ?.nextReservationStartUtc ??
+        null;
+      const guestName = unseated?.guestName;
       releaseReservation.mutate(
         { reservationId, outcome, clientCommandId: newCommandId() },
         {
@@ -262,6 +274,7 @@ export function useTableActions({
               const marked: MarkedNoShow = {
                 reservationId: result.reservationId,
                 tableLabel: result.tableLabel,
+                guestName,
                 undoableUntilUtc: undoableUntil.toISOString(),
               };
               setMarkedNoShows((current) => [
@@ -274,9 +287,14 @@ export function useTableActions({
               // The server says whether it counted, rather than the button
               // being trusted to remember which one it was.
               text: [
-                result.countsTowardNoShowThreshold
-                  ? t('notice.releasedNoShow', { label: result.tableLabel })
-                  : t('notice.releasedCancelled', { label: result.tableLabel }),
+                // No table to name on one made by time only: its guest instead.
+                result.tableLabel === null
+                  ? result.countsTowardNoShowThreshold
+                    ? t('notice.releasedNoShowGuest', { name: guestName ?? '' })
+                    : t('notice.releasedCancelledGuest', { name: guestName ?? '' })
+                  : result.countsTowardNoShowThreshold
+                    ? t('notice.releasedNoShow', { label: result.tableLabel })
+                    : t('notice.releasedCancelled', { label: result.tableLabel }),
                 // This no-show was the guest's third in three days (wire §0a).
                 ...(result.guestBlockedUntilUtc
                   ? [
@@ -288,7 +306,13 @@ export function useTableActions({
                   : []),
               ].join(' '),
               ...(undoable
-                ? { undo: { reservationId: result.reservationId, tableLabel: result.tableLabel } }
+                ? {
+                    undo: {
+                      reservationId: result.reservationId,
+                      tableLabel: result.tableLabel,
+                      guestName,
+                    },
+                  }
                 : {}),
             });
             setAffected((current) => {
@@ -309,6 +333,14 @@ export function useTableActions({
             if (error instanceof ReservationNotStartedError) {
               // Only a booking whose time has come can be a no-show; the hold
               // stays. Said with the time it is due (FT2 wire).
+              const due = error.startUtc ? format.time(error.startUtc) : '—';
+              if (guestName !== undefined) {
+                setNotice({
+                  kind: 'warning',
+                  text: t('notice.releaseNotDueGuest', { name: guestName, time: due }),
+                });
+                return;
+              }
               const label =
                 floor?.plan.tables.find(
                   (table) => tableDetail(floor, table.id)?.nextReservationId === reservationId,
@@ -317,7 +349,7 @@ export function useTableActions({
                 kind: 'warning',
                 text: t('notice.releaseNotDue', {
                   label,
-                  time: error.startUtc ? format.time(error.startUtc) : '—',
+                  time: due,
                 }),
               });
               return;

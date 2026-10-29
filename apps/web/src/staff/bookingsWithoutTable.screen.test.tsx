@@ -29,7 +29,8 @@ import type * as CurrentUserModule from '../auth/useCurrentUser';
  * table. Such a booking is on no table's tile, so the rail lists it — time,
  * party, name and the wish first — until a waiter taps Seat, chooses one of
  * the free tables (those that fit first, with their seats) and the booking is
- * seated there through the queue, as any seat is. One made that way and still
+ * seated there through the queue, as any seat is — or lets it go, a no-show
+ * or a cancellation, with no table to free. One made that way and still
  * waiting for the floor's yes says it has no table yet.
  */
 
@@ -238,7 +239,54 @@ describe('the door', () => {
     expect(seat).not.toHaveBeenCalled();
   });
 
-  it('shows nothing where the session may not list them', async () => {
+  it('lets one go as a no-show, with no table to free, and offers the undo', async () => {
+    const user = setupUser();
+    const gateway = gatewayWith({
+      bookingsWithoutTable: [
+        ...SEEDS,
+        { id: 'res-t0', guestName: 'Ani H.', partySize: 3, startsInMinutes: -25 },
+      ],
+    });
+    const release = vi.spyOn(gateway, 'releaseReservation');
+    signIn();
+    renderFloor(gateway);
+
+    const door = await section();
+    const ani = cardOf(door, 'Ani H\\.');
+    expect(within(ani).getByText('Not here yet')).toBeTruthy();
+    await user.click(within(ani).getByRole('button', { name: "Release Ani H.'s booking" }));
+    await user.click(within(ani).getByRole('button', { name: /They didn't come/u }));
+    await user.click(within(ani).getByRole('button', { name: 'Release' }));
+
+    await waitFor(() => expect(release).toHaveBeenCalledTimes(1));
+    expect(release.mock.calls[0]![0]).toMatchObject({ reservationId: 'res-t0', outcome: 'noShow' });
+    expect(await screen.findByText("Ani H.'s booking was released as a no-show.")).toBeTruthy();
+    await waitFor(() => expect(within(door).queryByText(/Ani H\./u)).toBeNull());
+    // Undoable from the notice and the rail, by the guest's name: there is no table.
+    expect(screen.getAllByRole('button', { name: "Undo Ani H.'s no-show" }).length).toBeGreaterThan(
+      0,
+    );
+    expect(await screen.findByText(/^Ani H\. · can be undone until /u)).toBeTruthy();
+  });
+
+  it('lets one go that phoned to cancel, which is not held against them', async () => {
+    const user = setupUser();
+    signIn();
+    renderFloor(gatewayWith());
+
+    const door = await section();
+    const narek = cardOf(door, 'Narek G\\.');
+    await user.click(within(narek).getByRole('button', { name: "Release Narek G.'s booking" }));
+    await user.click(within(narek).getByRole('button', { name: /They let us know/u }));
+    await user.click(within(narek).getByRole('button', { name: 'Release' }));
+
+    expect(
+      await screen.findByText("Narek G.'s booking was released. It does not count against them."),
+    ).toBeTruthy();
+    await waitFor(() => expect(within(door).queryByText(/Narek G\./u)).toBeNull());
+  });
+
+  it('shows nothing where the list cannot be read', async () => {
     signIn();
     const gateway = gatewayWith({ bookingsWithoutTableRefused: true });
     const list = vi.spyOn(gateway, 'listBookingsWithoutTable');

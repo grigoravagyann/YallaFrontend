@@ -47,8 +47,8 @@ export function useFloorQueries(
   const awaiting = useRequestArrivals(awaitingQuery.data, timeZoneId);
   /**
    * Bookings made by time only that nobody has seated (2026-10-29): the
-   * door's list. `null` data for a session that may not read it (a waiter,
-   * on the manager's read the server answers it from): nothing is listed.
+   * door's list, the floor's own read (waiter or above). Not read yet, or
+   * refused: nothing is listed.
    */
   const withoutTableQuery = useBookingsWithoutTable(branchId, active);
   /** Tables that scanned with no verified number, waiting to be let in. */

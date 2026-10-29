@@ -76,11 +76,11 @@ describe('the bookings the rail lists', () => {
     expect(listed.map((entry) => entry.id)).toEqual(['started', 'due', 'soon']);
   });
 
-  it('leaves out one being seated from this tablet, and lists nothing for a refused read', () => {
+  it('leaves out one being seated from this tablet, and lists nothing before the first read', () => {
     expect(arrivingBookings([booking('a', 5), booking('b', 10)], NOW, new Set(['a']))).toEqual([
       booking('b', 10),
     ]);
-    expect(arrivingBookings(null, NOW, new Set())).toEqual([]);
+    expect(arrivingBookings(undefined, NOW, new Set())).toEqual([]);
   });
 
   it('counts those due now for the Now tab: started, or within a quarter of an hour', () => {

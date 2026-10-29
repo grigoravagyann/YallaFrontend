@@ -1,13 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import type { components } from '../generated/schema';
-import { fakeBackend, problemReply, type FakeRoute } from './fakeBackend.testkit';
+import { ForbiddenError } from '../errors';
+import { fakeBackend, offSchema, problemReply, type FakeRoute } from './fakeBackend.testkit';
 import { createStaffHttpGateway } from './staffHttpGateway';
 
 /**
  * Booking by time only on the floor, over HTTP (2026-10-29): the door's list
- * read off the branch's confirmed bookings, a waiter's refusal of that read
- * said as "may not list" rather than "none", and the seat at the table the
- * waiter chose.
+ * from the floor's own read, the seat at the table the waiter chose, and a
+ * no-show on one nobody seated, with no table on the answer.
  */
 
 type Schemas = components['schemas'];
@@ -69,16 +69,17 @@ function gatewayOver(routes: Readonly<Record<string, FakeRoute>>) {
 }
 
 describe('bookings without a table', () => {
-  it("reads the branch's confirmed bookings and keeps those still on no table", async () => {
+  it("reads the floor's own list and keeps those still on no table", async () => {
     const { gateway, backend } = gatewayOver({
-      [`GET /api/branches/${BRANCH}/reservations`]: {
-        body: [TIME_ONLY, AT_A_TABLE, SEATED_SINCE],
-      },
+      [`GET /api/branches/${BRANCH}/reservations/without-table`]: offSchema(
+        { body: [TIME_ONLY, AT_A_TABLE, SEATED_SINCE] },
+        'the route is ahead of generated/swagger.json (backend 601c00b)',
+      ),
     });
 
     const listed = await gateway.listBookingsWithoutTable(BRANCH);
 
-    expect(backend.requests[0]?.query.get('status')).toBe('2');
+    expect(backend.requests[0]?.path).toBe(`/api/branches/${BRANCH}/reservations/without-table`);
     expect(listed).toEqual([
       {
         id: TIME_ONLY.id,
@@ -100,17 +101,23 @@ describe('bookings without a table', () => {
     ]);
   });
 
-  it("answers null for a waiter's session, which may not read the list", async () => {
+  it('lets a refusal surface like any staff read: a cook, another branch', async () => {
     const { gateway } = gatewayOver({
-      [`GET /api/branches/${BRANCH}/reservations`]: problemReply(403, 'forbidden'),
+      [`GET /api/branches/${BRANCH}/reservations/without-table`]: offSchema(
+        problemReply(403, 'forbidden'),
+        'the route is ahead of generated/swagger.json (backend 601c00b)',
+      ),
     });
 
-    await expect(gateway.listBookingsWithoutTable(BRANCH)).resolves.toBeNull();
+    await expect(gateway.listBookingsWithoutTable(BRANCH)).rejects.toBeInstanceOf(ForbiddenError);
   });
 
   it('passes any other failure on: "could not read" is not "none"', async () => {
     const { gateway } = gatewayOver({
-      [`GET /api/branches/${BRANCH}/reservations`]: problemReply(500, 'internal-error'),
+      [`GET /api/branches/${BRANCH}/reservations/without-table`]: offSchema(
+        problemReply(500, 'internal-error'),
+        'the route is ahead of generated/swagger.json (backend 601c00b)',
+      ),
     });
 
     await expect(gateway.listBookingsWithoutTable(BRANCH)).rejects.toBeDefined();
@@ -156,6 +163,42 @@ describe('bookings without a table', () => {
     });
     expect(result.tableLabel).toBe('9');
     expect(result.reservationId).toBe(TIME_ONLY.id);
+  });
+});
+
+describe('letting one go that nobody seated', () => {
+  it('reads the answer with no table, none freed', async () => {
+    const { gateway } = gatewayOver({
+      [`POST /api/reservations/${TIME_ONLY.id}/release`]: offSchema(
+        {
+          body: {
+            reservation: { ...TIME_ONLY, status: 6 },
+            outcome: 1,
+            tableFreed: false,
+            countsTowardNoShowThreshold: true,
+            wasReplay: false,
+          },
+        },
+        'no table on the answer: ahead of generated/swagger.json (backend 601c00b)',
+      ),
+    });
+
+    const result = await gateway.releaseReservation({
+      reservationId: TIME_ONLY.id,
+      outcome: 'noShow',
+      clientCommandId: '8b2e1b3c-0000-4000-8000-0000000000dd',
+    });
+
+    expect(result).toEqual({
+      reservationId: TIME_ONLY.id,
+      outcome: 'noShow',
+      countsTowardNoShowThreshold: true,
+      tableId: null,
+      tableLabel: null,
+      tableFreed: false,
+      wasReplay: false,
+      guestBlockedUntilUtc: null,
+    });
   });
 });
 

@@ -181,12 +181,12 @@ export interface StaffGateway {
    * (`seatReservation`, the booking's id, on the free table they choose) and
    * the server gives the booking that table.
    *
-   * `GET /api/branches/{branchId}/reservations?status=2`, keeping the
-   * `bookedWithoutTable` rows that have no table. That read is manager or
-   * above: `null` means this session may not list them (a waiter's 403), not
-   * that there are none. Pending ones are on {@link StaffGateway.listAwaitingApproval}.
+   * `GET /api/branches/{branchId}/reservations/without-table`, waiter or above
+   * at this branch: those not yet ended, soonest first. Pending ones are on
+   * {@link StaffGateway.listAwaitingApproval}. Released like any booking
+   * ({@link StaffGateway.releaseReservation}): there is no table to free.
    */
-  listBookingsWithoutTable(branchId: string): Promise<readonly BookingWithoutTable[] | null>;
+  listBookingsWithoutTable(branchId: string): Promise<readonly BookingWithoutTable[]>;
 
   // --- Tables waiting to be let in (2026-10-20) ---------------------------
 
@@ -555,8 +555,9 @@ export interface ReservationReleaseResult {
   readonly outcome: ReleaseOutcome;
   /** Whether this one goes on the diner's record. Stated by the server, not inferred. */
   readonly countsTowardNoShowThreshold: boolean;
-  readonly tableId: string;
-  readonly tableLabel: string;
+  /** `null`, with the label, for a booking made by time only that nobody seated: no table to free. */
+  readonly tableId: string | null;
+  readonly tableLabel: string | null;
   /**
    * True when the table was held for this booking and has been freed. False
    * when somebody else is sitting there — the release still stands, and the

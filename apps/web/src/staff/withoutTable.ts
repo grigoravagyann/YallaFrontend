@@ -25,7 +25,7 @@ export const DUE_NOW_MS = 15 * 60_000;
  * this tablet right now — soonest first.
  */
 export function arrivingBookings(
-  bookings: readonly BookingWithoutTable[] | null | undefined,
+  bookings: readonly BookingWithoutTable[] | undefined,
   now: Date,
   seating: ReadonlySet<string>,
 ): readonly BookingWithoutTable[] {

@@ -332,14 +332,19 @@
       "tooLatePlain": "Эту неявку уже нельзя отменить.",
       "notNoShow": "Отменять нечего: эта бронь больше не отмечена как неявка.",
       "failed": "Неявку не удалось отменить. Попробуйте ещё раз.",
-      "needsOnline": "Для отмены нужна связь."
+      "needsOnline": "Для отмены нужна связь.",
+      "actionLabelGuest": "Отменить неявку · {{name}}",
+      "doneGuest": "{{name}}: неявка отменена. Бронь снова в силе."
     },
     "bookingCancelledByBlock": "Стол {{label}}: бронь на {{time}} отменена — гость заблокирован за неявки.",
     "bookingsCancelledByBlock_one": "Отменена {{count}} ближайшая бронь — гость заблокирован за неявки (стол {{labels}}).",
     "bookingsCancelledByBlock_few": "Отменены {{count}} ближайшие брони — гости заблокированы за неявки (столы {{labels}}).",
     "bookingsCancelledByBlock_many": "Отменено {{count}} ближайших броней — гости заблокированы за неявки (столы {{labels}}).",
     "bookingsCancelledByBlock_other": "Отменено {{count}} ближайших броней — гости заблокированы за неявки (столы {{labels}}).",
-    "guestBlocked": "Третья неявка за три дня: гость не может бронировать до {{date}}, {{time}}."
+    "guestBlocked": "Третья неявка за три дня: гость не может бронировать до {{date}}, {{time}}.",
+    "releasedNoShowGuest": "{{name}} · бронь отпущена как «не пришли».",
+    "releasedCancelledGuest": "{{name}} · бронь отпущена. В историю гостя не попадает.",
+    "releaseNotDueGuest": "{{name}} · бронь только в {{time}}. Ничего не отпущено."
   },
   "unresolved": {
     "title": "Требует решения",
@@ -1152,7 +1157,8 @@
   },
   "noShows": {
     "title": "Неявки, отмеченные здесь",
-    "row": "Стол {{label}} · можно отменить до {{time}}"
+    "row": "Стол {{label}} · можно отменить до {{time}}",
+    "rowGuest": "{{name}} · можно отменить до {{time}}"
   },
   "preOrders": {
     "error": {
@@ -1774,6 +1780,7 @@
     "smaller": "Столы поменьше",
     "bookedAt": "бронь на {{time}}",
     "noneFree": "Сейчас свободных столов нет.",
-    "cancel": "Не сейчас"
+    "cancel": "Не сейчас",
+    "releaseLabel": "Отпустить бронь · {{name}}"
   }
 }

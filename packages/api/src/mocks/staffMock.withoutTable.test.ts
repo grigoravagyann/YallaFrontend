@@ -1,12 +1,15 @@
 import { describe, expect, it } from 'vitest';
+import { ReservationNotStartedError } from '../contracts/errors';
+import { ForbiddenError } from '../errors';
 import { newCommandId } from '../ids';
 import { createStaffMockGateway } from './staffMock';
 
 /**
  * Booking by time only on the tablet's mock (2026-10-29): the door's list of
  * confirmed bookings on no table, seating one at the table the waiter chose —
- * which becomes its table, and leaves the table's own next booking alone — and
- * one made that way waiting for the floor's yes.
+ * which becomes its table, and leaves the table's own next booking alone —
+ * letting one go with no table to free, and one made that way waiting for the
+ * floor's yes.
  */
 
 const START = new Date('2026-10-29T15:00:00Z');
@@ -49,14 +52,68 @@ describe('bookings without a table', () => {
     expect(listed?.[0]?.note).toBeNull();
   });
 
-  it("answers null for a session that may not read them, as a waiter's", async () => {
+  it("refuses a session the floor's read refuses, as the server's 403", async () => {
     const staff = createStaffMockGateway({
       now,
       bookingsWithoutTable: SEEDS,
       bookingsWithoutTableRefused: true,
     });
 
-    await expect(staff.listBookingsWithoutTable('b1')).resolves.toBeNull();
+    await expect(staff.listBookingsWithoutTable('b1')).rejects.toBeInstanceOf(ForbiddenError);
+  });
+
+  it('lets one go with no table to free, and undoes a no-show back onto the list', async () => {
+    const staff = createStaffMockGateway({
+      now,
+      bookingsWithoutTable: [
+        ...SEEDS,
+        { id: 'res-t-gone', guestName: 'Gor', partySize: 3, startsInMinutes: -20 },
+      ],
+    });
+
+    // No no-show before the start, as the server says.
+    await expect(
+      staff.releaseReservation({
+        reservationId: 'res-t-late',
+        outcome: 'noShow',
+        clientCommandId: newCommandId(),
+      }),
+    ).rejects.toBeInstanceOf(ReservationNotStartedError);
+
+    const released = await staff.releaseReservation({
+      reservationId: 'res-t-gone',
+      outcome: 'noShow',
+      clientCommandId: newCommandId(),
+    });
+    expect(released).toMatchObject({
+      outcome: 'noShow',
+      countsTowardNoShowThreshold: true,
+      tableId: null,
+      tableLabel: null,
+      tableFreed: false,
+    });
+    const after = await staff.listBookingsWithoutTable('b1');
+    expect(after?.map((booking) => booking.id)).not.toContain('res-t-gone');
+
+    const undone = await staff.undoNoShow({
+      reservationId: 'res-t-gone',
+      clientCommandId: newCommandId(),
+    });
+    expect(undone).toEqual({
+      reservationId: 'res-t-gone',
+      status: 'confirmed',
+      tableId: null,
+      tableLabel: null,
+    });
+    const again = await staff.listBookingsWithoutTable('b1');
+    expect(again?.map((booking) => booking.id)).toContain('res-t-gone');
+
+    const cancelled = await staff.releaseReservation({
+      reservationId: 'res-t-late',
+      outcome: 'guestCancelled',
+      clientCommandId: newCommandId(),
+    });
+    expect(cancelled.countsTowardNoShowThreshold).toBe(false);
   });
 
   it('seats one at the chosen table, which keeps its own next booking', async () => {

@@ -22,6 +22,10 @@ export interface MockBookingWithoutTable {
   readonly guestRunningLateMinutes: number | null;
   /** The table a waiter seated it at; `null` until then. */
   tableId: string | null;
+  /** How it was let go, once it was: a no-show, or the guest cancelled. */
+  releasedAs: 'noShow' | 'guestCancelled' | null;
+  /** How many no-shows the guest already has in the last 72 hours. */
+  readonly recentNoShows?: number;
 }
 
 /** A booking by time only, for tests: relative to the mock's start. */
@@ -97,6 +101,7 @@ export function createWithoutTableBook(start: Date) {
         input.onMyWayMinutesAgo === undefined ? null : at(-input.onMyWayMinutesAgo),
       guestRunningLateMinutes: input.runningLateMinutes ?? null,
       tableId: null,
+      releasedAs: null,
     });
   }
 

@@ -784,6 +784,9 @@ export function FloorRoute({ identity, device = null, paused, onUnpair }: FloorR
         timeZoneId={timeZoneId}
         now={minute}
         onSeat={seatBooking}
+        onRelease={(booking, outcome) => release(booking.id, outcome, booking)}
+        releasing={releaseReservation.isPending}
+        online={queue.online}
       />
     ) : null,
     noShows: branchId ? (

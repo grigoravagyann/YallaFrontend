@@ -155,7 +155,7 @@ export function useFloorCommands({
       // holds it to hide it — and the list read again.
       if (command.body.kind === 'seatReservation' && command.body.command.reservationId) {
         const seated = command.body.command.reservationId;
-        queryClient.setQueryData<readonly BookingWithoutTable[] | null>(
+        queryClient.setQueryData<readonly BookingWithoutTable[]>(
           queryKeys.bookingsWithoutTable(branchId),
           (list) => (list ? list.filter((booking) => booking.id !== seated) : list),
         );

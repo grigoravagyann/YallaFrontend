@@ -140,8 +140,7 @@ const WITHOUT_TABLE_POLL_MS = 30_000;
  * Bookings made by time only that nobody has seated (2026-10-29): on no
  * table's tile, so the floor lists them for the door. Polled every thirty
  * seconds while the floor is open, and read again on the change stream's
- * booking signal and when a seat lands. `null` data: this session may not
- * list them (a waiter, on the manager's read the server answers it from).
+ * booking signal, when a seat lands and when one is let go.
  */
 export function useBookingsWithoutTable(branchId: string | undefined, enabled = true) {
   const gateway = useStaffGateway();
@@ -475,6 +474,10 @@ export function useUndoNoShow(branchId: string | undefined) {
     onSettled: () => {
       void queryClient.invalidateQueries({ queryKey: queryKeys.staffFloor(branchId ?? '') });
       void queryClient.invalidateQueries({ queryKey: queryKeys.awaitingApproval(branchId ?? '') });
+      // An undone no-show on a booking made by time only: back at the door.
+      void queryClient.invalidateQueries({
+        queryKey: queryKeys.bookingsWithoutTable(branchId ?? ''),
+      });
     },
   });
 }
@@ -487,6 +490,10 @@ export function useReleaseReservation(branchId: string | undefined) {
     retry: false,
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: queryKeys.staffFloor(branchId ?? '') });
+      // One made by time only that nobody seated leaves the door's list.
+      void queryClient.invalidateQueries({
+        queryKey: queryKeys.bookingsWithoutTable(branchId ?? ''),
+      });
     },
   });
 }
