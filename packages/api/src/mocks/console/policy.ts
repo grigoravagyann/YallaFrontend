@@ -2,6 +2,7 @@ import {
   type ReservationPolicy,
   type ReservationPolicyDefaults,
   defaultPolicyFor,
+  GUESTS_AT_ONCE_BOUNDS,
   POLICY_BOUNDS,
   type PolicyChangeResult,
 } from '../../contracts/branchSettings';
@@ -46,6 +47,7 @@ export function policyMethods(
           })),
           { field: 'maxSeatOverhang', min: 0, max: null },
           { field: 'approvalRequiredAbovePartySize', min: 1, max: null },
+          { field: 'guestsAtOnce', ...GUESTS_AT_ONCE_BOUNDS },
         ],
       };
     },
@@ -67,8 +69,27 @@ export function policyMethods(
         }
       }
 
+      // `ReservationPolicyLimits.ValidateBookingMode`: a 422 naming the field.
+      const { guestsAtOnce } = policy;
+      if (
+        policy.bookingMode === 'timeOnly' &&
+        (guestsAtOnce === null ||
+          !Number.isInteger(guestsAtOnce) ||
+          guestsAtOnce < GUESTS_AT_ONCE_BOUNDS.min ||
+          guestsAtOnce > GUESTS_AT_ONCE_BOUNDS.max)
+      ) {
+        throw new PolicyBoundsError({
+          url: `${URL_TAG}/reservation-policy`,
+          field: 'guestsAtOnce',
+          detail: `Booking by time only needs how many guests the branch takes at once, ${GUESTS_AT_ONCE_BOUNDS.min} to ${GUESTS_AT_ONCE_BOUNDS.max}.`,
+        });
+      }
+
       const previous = policyFor(branchId);
-      policies.set(branchId, policy);
+      // The server keeps no capacity for a branch whose diners choose a table.
+      const saved: ReservationPolicy =
+        policy.bookingMode === 'timeOnly' ? policy : { ...policy, guestsAtOnce: null };
+      policies.set(branchId, saved);
       // Saving the form is what marks the policy reviewed, defaults or not.
       policyReviewed.add(branchId);
 
@@ -82,7 +103,7 @@ export function policyMethods(
           : [];
 
       return {
-        policy,
+        policy: saved,
         affectedExistingReservations: affected.length,
         affectedReservationIds: affected,
       };

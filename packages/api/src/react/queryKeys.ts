@@ -42,6 +42,9 @@ export const queryKeys = {
     partySize: number,
     excludeBookingId?: string | undefined,
   ) => ['availability', branchId, 'daySlots', date, partySize, excludeBookingId ?? null] as const,
+  /** The public page's day at a branch that books by time only, counting guests. */
+  publicTimeSlots: (branchId: string, date: string, partySize: number) =>
+    ['availability', branchId, 'publicTimeSlots', date, partySize] as const,
   /*
    * The diner's own bookings. The diner app spreads these in under the same
    * names from `apps/diner/src/data/bookingKeys.ts`, so a booking mutation here

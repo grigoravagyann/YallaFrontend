@@ -273,7 +273,13 @@ export interface ConsoleBookingActionCommand {
   readonly kind: ConsoleBookingActionKind;
   readonly branchId: string;
   readonly reservationId: string;
-  readonly tableId: string;
+  /**
+   * The booking's table — what a seat and a finish are addressed by. `null`
+   * for a booking made by time only that nobody has seated: such a booking is
+   * seated from the floor tablet, where the waiter chooses its table, so only
+   * the releases (no-show, cancel, undo) are sent without one.
+   */
+  readonly tableId: string | null;
   /** One per click, reused on a retry: a repeat is replayed, not applied twice. */
   readonly clientCommandId: string;
 }

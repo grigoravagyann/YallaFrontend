@@ -6,6 +6,7 @@ import type {
   PublicBranchCard,
   PublicBranchPolicy,
   PublicPageMeta,
+  PublicTimeSlots,
   PublicVenue,
   PublicVenueHeader,
 } from '../contracts/publicBranch';
@@ -216,6 +217,7 @@ export function createPublicMockGateway(options: PublicMockOptions): PublicGatew
       timeZoneId: booking.timeZoneId,
       tableId: booking.tableId,
       tableLabel: booking.tableLabel,
+      bookedWithoutTable: booking.tableId === null,
       // The booking's own room, as `PublicBookingView.roomName` carries it; the
       // floor's for a booking made before bookings knew their room.
       floorAreaName:
@@ -382,6 +384,15 @@ export function createPublicMockGateway(options: PublicMockOptions): PublicGatew
             .length,
         ),
       };
+    },
+
+    /*
+     * The diner gateway's day, as the server reuses the app's read: this world
+     * has no branch that books by time only, so no time counts guests.
+     */
+    async getTimeOnlySlots({ branchId, date, partySize }): Promise<PublicTimeSlots | null> {
+      const day = await gateway.getDaySlots({ branchId, date, partySize });
+      return day && { ...day, slots: day.slots.map((slot) => ({ ...slot, guestsLeft: null })) };
     },
 
     async getBranchMeta({

@@ -26,6 +26,8 @@ function gatewayOver(routes: Record<string, FakeRoute>) {
 }
 
 const POLICY = { ...defaultPolicyFor('restaurant'), bufferMinutes: 5, minLeadMinutes: 10 };
+/** The same policy as the server writes it: the booking mode is its integer. */
+const WIRE_POLICY = { ...POLICY, bookingMode: 1, guestsAtOnce: null };
 
 async function caught(promise: Promise<unknown>): Promise<unknown> {
   try {
@@ -41,7 +43,7 @@ describe('the policy defaults', () => {
     const { gateway, backend } = gatewayOver({
       'GET /api/branches/b-1/reservation-policy/defaults': {
         body: {
-          defaults: POLICY,
+          defaults: WIRE_POLICY,
           bounds: [
             { field: 'turnTimeMinutes', min: 15, max: 360 },
             { field: 'maxSeatOverhang', min: 0, max: null },
@@ -99,5 +101,65 @@ describe('a policy refusal', () => {
 
     expect((refusal as PolicyBoundsError).field).toBe('turnTimeMinutes');
     expect((refusal as PolicyBoundsError).fields).toEqual(['turnTimeMinutes']);
+  });
+});
+
+describe('booking by time only', () => {
+  const TIME_ONLY = { ...POLICY, bookingMode: 'timeOnly' as const, guestsAtOnce: 40 };
+
+  it('sends the mode as its integer with its capacity, and reads both back', async () => {
+    const { gateway, backend } = gatewayOver({
+      'PUT /api/branches/b-1/reservation-policy': {
+        body: {
+          policy: { ...WIRE_POLICY, bookingMode: 2, guestsAtOnce: 40 },
+          affectedExistingReservations: 0,
+          affectedReservationIds: [],
+        },
+      },
+    });
+
+    const saved = await gateway.replaceReservationPolicy({ branchId: 'b-1', policy: TIME_ONLY });
+
+    expect(backend.requests[0]?.body).toMatchObject({ bookingMode: 2, guestsAtOnce: 40 });
+    expect(saved.policy).toMatchObject({ bookingMode: 'timeOnly', guestsAtOnce: 40 });
+  });
+
+  it('sends no capacity while diners choose a table, whatever the form held', async () => {
+    const { gateway, backend } = gatewayOver({
+      'PUT /api/branches/b-1/reservation-policy': {
+        body: { policy: WIRE_POLICY, affectedExistingReservations: 0, affectedReservationIds: [] },
+      },
+    });
+
+    const saved = await gateway.replaceReservationPolicy({
+      branchId: 'b-1',
+      policy: { ...POLICY, guestsAtOnce: 40 },
+    });
+
+    expect(backend.requests[0]?.body).toMatchObject({ bookingMode: 1, guestsAtOnce: null });
+    expect(saved.policy).toMatchObject({ bookingMode: 'chooseTable', guestsAtOnce: null });
+  });
+
+  it('puts a missing capacity under its own field', async () => {
+    const { gateway } = gatewayOver({
+      'PUT /api/branches/b-1/reservation-policy': problemReply(422, 'validation-failed', {
+        fields: [
+          {
+            field: 'guestsAtOnce',
+            message:
+              'Booking by time only needs how many guests the branch takes at once, 1 to 2000.',
+          },
+        ],
+      }),
+    });
+
+    const refusal = await caught(
+      gateway.replaceReservationPolicy({
+        branchId: 'b-1',
+        policy: { ...TIME_ONLY, guestsAtOnce: null },
+      }),
+    );
+
+    expect((refusal as PolicyBoundsError).field).toBe('guestsAtOnce');
   });
 });

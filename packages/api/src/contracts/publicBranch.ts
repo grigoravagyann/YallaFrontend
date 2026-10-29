@@ -1,7 +1,10 @@
 import type { BranchFeature } from './branchFeatures';
 import type { ApprovalTrigger, DeclineReason } from './approvals';
-import type { VenueType } from './booking';
-import type { SpecialDay, WeeklyHours } from './branchSettings';
+import { ApiError } from '../errors';
+import { ProblemCodes } from '../generated/problemCodes';
+import { problemContext } from '../problem';
+import type { DaySlot, DaySlots, VenueType } from './booking';
+import type { PolicyBookingMode, SpecialDay, WeeklyHours } from './branchSettings';
 import type { CancellationCause } from './guestRecord';
 import type { BookingPreOrderFields } from './preOrder';
 
@@ -76,6 +79,45 @@ export interface PublicBranchPolicy {
    * `preOrderEditableUntilUtc` is the answer for that booking. Absent: false.
    */
   readonly acceptsPreOrders?: boolean | undefined;
+  /**
+   * How a visitor books here (2026-10-29): a table on the room photos, or only
+   * a time and how many, the venue choosing the table on arrival. Absent from
+   * an older server: `'chooseTable'`. Read it through {@link booksByTimeOnly}.
+   */
+  readonly bookingMode?: PolicyBookingMode | undefined;
+}
+
+/** The branch takes bookings by time and party size alone: no room photos, no table. */
+export function booksByTimeOnly(policy: Pick<PublicBranchPolicy, 'bookingMode'>): boolean {
+  return policy.bookingMode === 'timeOnly';
+}
+
+/**
+ * One time on a day at a branch that books by time only, as the public page
+ * reads it (`GET /api/public/branches/{id}/availability/slots`): the app's
+ * slot with how many more guests fit.
+ */
+export interface PublicTimeSlot extends DaySlot {
+  /**
+   * How many more guests fit at the busiest moment of this time's sitting.
+   * `null` at a branch where diners choose a table, which answers in tables.
+   */
+  readonly guestsLeft: number | null;
+}
+
+/** A day of {@link PublicTimeSlot}s for one party size. */
+export interface PublicTimeSlots extends Omit<DaySlots, 'slots'> {
+  readonly slots: readonly PublicTimeSlot[];
+}
+
+/**
+ * A booking refused as `409 time-full`: no room for that many then. How many
+ * the time could still take (0 or more), or `null` for any other error.
+ */
+export function timeFullGuestsLeft(error: unknown): number | null {
+  if (!(error instanceof ApiError) || error.code !== ProblemCodes.TimeFull) return null;
+  const left = problemContext(error.problem, ProblemCodes.TimeFull).guestsLeft;
+  return typeof left === 'number' && left >= 0 ? left : 0;
 }
 
 /**
@@ -277,9 +319,19 @@ export interface ManagedBooking extends BookingPreOrderFields {
   readonly addressLine: string;
   readonly timeZoneId: string;
 
-  /** The booked table: the change screen starts on it, and sends it back when only the time or party moves. */
+  /**
+   * The booked table: the change screen starts on it, and sends it back when
+   * only the time or party moves. `null` for a booking made by time only that
+   * nobody has seated: the venue chooses the table on arrival.
+   */
   readonly tableId: string | null;
   readonly tableLabel: string | null;
+  /**
+   * Made at a branch that books by time only, with no table yet: the page
+   * says the venue chooses it on arrival, and offers no change — such a
+   * booking is moved by cancelling it and booking again. Absent: false.
+   */
+  readonly bookedWithoutTable?: boolean | undefined;
   readonly floorAreaName: string | null;
   readonly partySize: number;
   readonly slotUtc: string;

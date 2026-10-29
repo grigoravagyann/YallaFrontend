@@ -47,13 +47,21 @@ export function SheetHead({
 }
 
 const STEPS = ['table', 'phone', 'name'] as const;
+/** Booking by time only: the first step is the time, there being no table. */
+const TIME_STEPS = ['time', 'phone', 'name'] as const;
 
-/** Table · Phone · Name, with the step the visitor is on. */
-export function SheetProgress({ step }: { readonly step: 0 | 1 | 2 }) {
+/** Table · Phone · Name (Time · Phone · Name by time only), with the step the visitor is on. */
+export function SheetProgress({
+  step,
+  timeOnly = false,
+}: {
+  readonly step: 0 | 1 | 2;
+  readonly timeOnly?: boolean | undefined;
+}) {
   const { t } = useTranslation('public');
   return (
     <ol className="pub-progress" aria-label={t('sheet.progress.label', { step: step + 1 })}>
-      {STEPS.map((name, index) => (
+      {(timeOnly ? TIME_STEPS : STEPS).map((name, index) => (
         <li
           key={name}
           className={index < step ? 'is-done' : index === step ? 'is-current' : undefined}

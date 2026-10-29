@@ -171,6 +171,34 @@ export function usePublicBranch(input: {
 }
 
 /**
+ * A day of times at a branch that books by time only, for one party: which
+ * times take them, and how many more guests each could still take. Live, like
+ * the day of slots it stands in for, and under `['availability', branchId]` so
+ * a booking just made reads it again. The caller settles the party size.
+ */
+export function usePublicTimeSlots(input: {
+  readonly branchId: string | undefined;
+  /** `YYYY-MM-DD` in the branch's calendar. */
+  readonly date: string | undefined;
+  readonly partySize: number;
+  readonly enabled?: boolean;
+}) {
+  const gateway = usePublicGateway();
+  const { branchId, date, partySize } = input;
+  return useQuery({
+    queryKey: queryKeys.publicTimeSlots(branchId ?? '', date ?? '', partySize),
+    queryFn: () => gateway.getTimeOnlySlots({ branchId: branchId!, date: date!, partySize }),
+    enabled: Boolean(branchId) && Boolean(date) && (input.enabled ?? true),
+    staleTime: staleTime.live,
+    // The day's last answer stays on screen while the party's loads.
+    placeholderData: (previous, previousQuery) =>
+      previousQuery?.queryKey[1] === (branchId ?? '') && previousQuery.queryKey[3] === (date ?? '')
+        ? previous
+        : undefined,
+  });
+}
+
+/**
  * The menu, with photos.
  *
  * Cached hard and never refetched on focus: a menu is reference data, the

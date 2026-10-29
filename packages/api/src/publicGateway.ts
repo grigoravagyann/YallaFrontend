@@ -9,6 +9,7 @@ import type {
   ManagedBooking,
   PublicBranch,
   PublicPageMeta,
+  PublicTimeSlots,
   PublicVenue,
   RescheduleManagedBookingCommand,
 } from './contracts/publicBranch';
@@ -57,6 +58,21 @@ export interface PublicGateway {
     readonly venueSlug: string;
     readonly branchSlug: string;
   }): Promise<PublicBranch | null>;
+
+  /**
+   * A day of times at a branch that books by time only
+   * (`GET /api/public/branches/{id}/availability/slots`), for one party size:
+   * each time available when the party fits, and how many more guests it can
+   * take (`guestsLeft`). The page's booking card reads this instead of the
+   * app's day of slots there, since it is the one that counts guests. Null
+   * for a branch the public gate does not show.
+   */
+  getTimeOnlySlots(input: {
+    readonly branchId: string;
+    /** `YYYY-MM-DD`, the branch's calendar. */
+    readonly date: string;
+    readonly partySize: number;
+  }): Promise<PublicTimeSlots | null>;
 
   /**
    * The link-preview card for one branch.
