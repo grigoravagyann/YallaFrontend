@@ -1341,13 +1341,14 @@ body:has(.yc-savebar) .yc-toast-region {
     flex-basis: 100%;
     min-height: 168px;
     gap: var(--space-lg);
-    padding: calc(var(--space-xl) + env(safe-area-inset-top, 0px)) 20px var(--space-xl);
+    padding: calc(80px + env(safe-area-inset-top, 0px)) 20px var(--space-xl);
   }
 
-  /* The photo fades up into that strip instead of meeting it at an edge. */
+  /* The photo fades up into that strip instead of meeting it at an edge, and
+     the 80px above the wordmark is that fade: dark headroom the bar runs into. */
   .yc-auth-shade {
     background:
-      linear-gradient(var(--console-photo-ground), transparent 72px), var(--console-photo-shade);
+      linear-gradient(var(--console-photo-ground), transparent 128px), var(--console-photo-shade);
   }
 
   .yc-auth-claim {
