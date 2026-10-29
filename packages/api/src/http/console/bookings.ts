@@ -101,7 +101,7 @@ export function bookingsMethods(
         reservationId,
         status: reservationStatus(data.reservation.status),
         wasReplay: data.wasReplay,
-        tableLabel: data.tableLabel,
+        tableLabel: data.tableLabel ?? null,
         tableFreed: data.tableFreed,
         outstandingDram: null,
         // Wire §0a: only when this no-show blocked its guest.

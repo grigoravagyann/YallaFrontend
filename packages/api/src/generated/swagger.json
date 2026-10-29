@@ -25952,6 +25952,92 @@
         }
       }
     },
+    "/api/branches/{branchId}/reservations/without-table": {
+      "get": {
+        "tags": [
+          "staff"
+        ],
+        "summary": "The bookings made by time only that nobody has seated yet",
+        "description": "What the staff tablet polls at a branch that books by time only (`bookingMode` 2): its confirmed bookings with no table yet that have not ended, soonest first, each with the guest's wish in `note`. At most 200; no paging. Seat one with `POST /tables/{tableId}/seat-reservation` on the table the waiter chooses - the booking has that table from then on. Waiter or above at the branch.",
+        "operationId": "listBookingsWithoutTable",
+        "parameters": [
+          {
+            "name": "branchId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Yalla.Application.Reservations.ReservationView"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request violated a domain rule or arrived malformed.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No usable token was presented, or the one presented was rejected.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a waiter or above at this branch - a cook, a diner, another branch's staff.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests in the window, or a one-time credential is out of attempts.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected failure. Quote the traceId from the body.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/reservations/{reservationId}/pre-order/send": {
       "post": {
         "tags": [
@@ -43661,9 +43747,6 @@
           "outcome",
           "reservation",
           "tableFreed",
-          "tableId",
-          "tableLabel",
-          "tableStatus",
           "wasReplay"
         ],
         "type": "object",
@@ -43690,12 +43773,14 @@
           },
           "tableId": {
             "type": "string",
-            "description": "The table this booking was for.",
-            "format": "uuid"
+            "description": "The table this booking was for. Absent, with the label and status, for a booking made by time only that nobody\nseated: there was no table to free.",
+            "format": "uuid",
+            "nullable": true
           },
           "tableLabel": {
             "type": "string",
-            "description": "Its label, for the confirmation the waiter sees."
+            "description": "Its label, for the confirmation the waiter sees.",
+            "nullable": true
           },
           "tableStatus": {
             "allOf": [
@@ -43703,7 +43788,8 @@
                 "$ref": "#/components/schemas/Yalla.Domain.Enums.TableStatus"
               }
             ],
-            "description": "The <b>physical</b> state of a table: what somebody did to it."
+            "description": "What the table is now.",
+            "nullable": true
           },
           "countsTowardNoShowThreshold": {
             "type": "boolean",

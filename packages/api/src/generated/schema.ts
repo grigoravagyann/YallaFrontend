@@ -1564,6 +1564,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/branches/{branchId}/reservations/without-table": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The bookings made by time only that nobody has seated yet
+         * @description What the staff tablet polls at a branch that books by time only (`bookingMode` 2): its confirmed bookings with no table yet that have not ended, soonest first, each with the guest's wish in `note`. At most 200; no paging. Seat one with `POST /tables/{tableId}/seat-reservation` on the table the waiter chooses - the booking has that table from then on. Waiter or above at the branch.
+         */
+        get: operations["listBookingsWithoutTable"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/branches/{branchId}/reviews": {
         parameters: {
             query?: never;
@@ -14045,13 +14065,14 @@ export interface components {
             tableFreed: boolean;
             /**
              * Format: uuid
-             * @description The table this booking was for.
+             * @description The table this booking was for. Absent, with the label and status, for a booking made by time only that nobody
+             *     seated: there was no table to free.
              */
-            tableId: string;
+            tableId?: string | null;
             /** @description Its label, for the confirmation the waiter sees. */
-            tableLabel: string;
-            /** @description The <b>physical</b> state of a table: what somebody did to it. */
-            tableStatus: components["schemas"]["Yalla.Domain.Enums.TableStatus"];
+            tableLabel?: string | null;
+            /** @description What the table is now. */
+            tableStatus?: components["schemas"]["Yalla.Domain.Enums.TableStatus"] | null;
             /** @description True when the booking had already been released and this is that answer. */
             wasReplay: boolean;
         };
@@ -22058,6 +22079,73 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Yalla.Application.Reservations.AwaitingApproval"][];
+                };
+            };
+            /** @description The request violated a domain rule or arrived malformed. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description No usable token was presented, or the one presented was rejected. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description Not a waiter or above at this branch - a cook, a diner, another branch's staff. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description Too many requests in the window, or a one-time credential is out of attempts. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description Unexpected failure. Quote the traceId from the body. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+        };
+    };
+    listBookingsWithoutTable: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                branchId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Yalla.Application.Reservations.ReservationView"][];
                 };
             };
             /** @description The request violated a domain rule or arrived malformed. */

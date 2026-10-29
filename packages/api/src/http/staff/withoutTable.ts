@@ -19,7 +19,6 @@ export function withoutTableMethods(
       // made by time only that have no table and have not ended, soonest first
       // (at most 200). Filtered again, so one that has its table by now is on
       // that table's tile and not on the door's list.
-      // gateway-schema: awaiting-route — backend feat/time-only-booking 601c00b; schema.ts is regenerated once the branches merge
       const { data } = await client.get<WireReservationView[]>(
         `/api/branches/${branchId}/reservations/without-table`,
       );
