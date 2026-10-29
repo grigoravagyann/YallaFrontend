@@ -187,6 +187,8 @@ export const consoleColor = {
   scrim: 'rgba(45, 41, 39, 0.45)',
   /** What the photo panel shows before the photo loads, and what its text is checked on. */
   photoGround: '#1A0508',
+  /** The photo's own top edge under the shade: the strip above it on a phone, so the two read as one. */
+  photoTop: '#0A0203',
   /** Laid over the photo so the claim reads on any part of it. */
   photoShade: 'rgba(26, 5, 8, 0.38)',
   photoText: '#FFF7EA',
