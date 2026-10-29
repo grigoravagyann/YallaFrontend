@@ -390,7 +390,16 @@
     "askBefore": "Ask {{name}} whether the table will be free by {{time}}",
     "leavesBy": "leaves by {{time}}",
     "awaitingEarlierGuest": "The guest before is answering this in the app. It is decided when they do, or declined if they do not.",
-    "cancelledByBlock": "Cancelled automatically: the guest missed three bookings in three days."
+    "cancelledByBlock": "Cancelled automatically: the guest missed three bookings in three days.",
+    "noTable": "No table yet · you choose on arrival",
+    "approvedNoticeNoTable": "Approved: {{time}}, no table yet. The guest has been told.",
+    "approvedNoticeNoTableOn": "Approved: {{date}} at {{time}}, no table yet. The guest has been told.",
+    "declinedNoticeNoTable": "Declined: {{time}}, no table. The guest has been told.",
+    "declinedNoticeNoTableOn": "Declined: {{date}} at {{time}}, no table. The guest has been told.",
+    "arrivedNoTable_one": "New booking request at {{time}}, {{count}} guest, no table yet.",
+    "arrivedNoTable_other": "New booking request at {{time}}, {{count}} guests, no table yet.",
+    "arrivedOnNoTable_one": "New booking request on {{date}} at {{time}}, {{count}} guest, no table yet.",
+    "arrivedOnNoTable_other": "New booking request on {{date}} at {{time}}, {{count}} guests, no table yet."
   },
   "conflicts": {
     "title": "Needs a decision",
@@ -1220,7 +1229,9 @@
       "ago_one": "{{count}} min ago",
       "ago_other": "{{count}} min ago",
       "more_one": "{{count}} more in Messages",
-      "more_other": "{{count}} more in Messages"
+      "more_other": "{{count}} more in Messages",
+      "titleBookingNoTable": "No table yet · {{name}} · {{time}}",
+      "titleBookingNoTablePlain": "No table yet · {{name}}"
     },
     "inbox": {
       "label": "Conversations",
@@ -1563,5 +1574,20 @@
     "stillOff": "Still off. Try again once your manager says it is back.",
     "tryAgain": "Try again",
     "forgetPhone": "Forget this phone here"
+  },
+  "withoutTable": {
+    "title": "Arriving · no table yet",
+    "noTable": "No table yet",
+    "wish": "Wish",
+    "wishQuote": "“{{text}}”",
+    "seat": "Seat",
+    "seatLabel_one": "Seat {{name}}, {{count}} guest",
+    "seatLabel_other": "Seat {{name}}, {{count}} guests",
+    "chooseTitle_one": "Choose a table for {{count}}",
+    "chooseTitle_other": "Choose a table for {{count}}",
+    "smaller": "Smaller tables",
+    "bookedAt": "booked at {{time}}",
+    "noneFree": "No table is free right now.",
+    "cancel": "Not now"
   }
 }

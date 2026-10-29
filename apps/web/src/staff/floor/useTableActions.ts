@@ -5,6 +5,7 @@ import {
   tableDetail,
   TableNotSeatedError,
   type AffectedReservation,
+  type BookingWithoutTable,
   type OrderQueueEntry,
   type OrderStatus,
   type ReleaseOutcome,
@@ -174,6 +175,54 @@ export function useTableActions({
       }
     },
     [branchId, floor, plan, queue, selection, selectedTabId, t, setNotice, setSelection],
+  );
+
+  /**
+   * A booking made by time only, seated at the table the waiter chose
+   * (2026-10-29): `seat-reservation` on that table with the booking's id,
+   * through the queue like any seat, and the server gives the booking that
+   * table. The precondition is the chosen table's, as for a tap on its panel.
+   */
+  const seatBooking = useCallback(
+    (booking: BookingWithoutTable, tableId: string) => {
+      if (!branchId) return;
+      const detail = tableDetail(floor, tableId);
+      const table = plan?.tables.find((candidate) => candidate.id === tableId);
+      const clientCommandId = newCommandId();
+      const expected = queue.projected(tableId) ?? detail?.physicalStatus ?? 'free';
+      const chained = queue.projected(tableId) !== (detail?.physicalStatus ?? null);
+      const rowVersion = chained ? null : (detail?.rowVersion ?? null);
+
+      queue.enqueue({
+        id: clientCommandId,
+        scope: tableId,
+        precondition: { expectedFromStatus: expected, rowVersion },
+        subject: { tableId, tableLabel: table?.label ?? null, tabId: null },
+        body: {
+          kind: 'seatReservation',
+          command: {
+            kind: 'seatReservation',
+            branchId,
+            tableId,
+            clientCommandId,
+            reservationId: booking.id,
+            partySize: booking.partySize,
+          },
+        },
+      });
+      queue.sync();
+
+      const done = t('notice.acted.seated', {
+        label: table?.label ?? '',
+        count: booking.partySize,
+      });
+      setNotice({
+        kind: 'info',
+        text: queue.online ? done : t('notice.acted.queued', { text: done }),
+        acted: true,
+      });
+    },
+    [branchId, floor, plan, queue, t, setNotice],
   );
 
   /** An undo answered: said in the notice, and off the rail once nothing is left to undo. */
@@ -360,6 +409,7 @@ export function useTableActions({
     openTabForStaff,
     settleUnresolved,
     act,
+    seatBooking,
     undoSettled,
     release,
     startTab,

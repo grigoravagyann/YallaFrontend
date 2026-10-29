@@ -141,7 +141,10 @@ export function MessageThread({
   const title = item ? rowTitle(t, item) : shortName(guestName);
   const sub = thread ? subjectLine(t, thread, format) : null;
   const badge =
-    subject.kind === 'takeaway' ? 'T' : (thread?.subject.tableLabel ?? item?.subject.label ?? '');
+    subject.kind === 'takeaway'
+      ? 'T'
+      : // A booking made by time only that nobody has seated has no table yet.
+        thread?.subject.tableLabel || item?.subject.label.trim() || '—';
   const localTime = thread?.subject.localTime ?? item?.subject.localTime ?? null;
 
   const open = thread?.open ?? item?.open ?? true;
@@ -395,7 +398,7 @@ export function messageKey(message: Pick<ConversationMessage, 'id' | 'clientComm
   return message.clientCommandId ? `cmd:${message.clientCommandId}` : message.id;
 }
 
-/** "Table 6 · today 19:30 · 4 guests", "Takeaway · ready 19:25". */
+/** "Table 6 · today 19:30 · 4 guests", "No table yet · today 19:30 · 4 guests", "Takeaway · ready 19:25". */
 function subjectLine(t: TFunction, thread: StaffConversation, format: BranchFormat): string {
   const subject = thread.subject;
   if (subject.kind === 'takeaway') {
@@ -421,7 +424,10 @@ function subjectLine(t: TFunction, thread: StaffConversation, format: BranchForm
     when = subject.localTime.slice(0, 5);
   }
   return [
-    subject.tableLabel ? t('table.title', { label: subject.tableLabel }) : null,
+    // A booking made by time only that nobody has seated: said, not left out.
+    subject.tableLabel
+      ? t('table.title', { label: subject.tableLabel })
+      : t('withoutTable.noTable'),
     when,
     subject.partySize ? t('messages.thread.party', { count: subject.partySize }) : null,
   ]

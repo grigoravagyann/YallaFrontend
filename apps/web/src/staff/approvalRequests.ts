@@ -14,8 +14,12 @@ import type { TFunction } from 'i18next';
  * for the booking, then one line each for what the table is doing around it.
  */
 
-/** "Table 7 · Windows" — the room when the table is in one. */
+/**
+ * "Table 7 · Windows" — the room when the table is in one; "No table yet ·
+ * chosen on arrival" for a booking made by time only (2026-10-29).
+ */
 export function requestTable(request: AwaitingApproval, t: TFunction): string {
+  if (!request.tableLabel) return t('approvals.noTable');
   return request.roomName
     ? t('approvals.tableInRoom', { label: request.tableLabel, room: request.roomName })
     : t('table.title', { label: request.tableLabel });
@@ -53,6 +57,15 @@ export function decidedNotice(
 ): string {
   const date = otherDay(request.startUtc, days);
   const params = { label: request.tableLabel, time: time(request.startUtc) };
+  if (!request.tableLabel) {
+    // Made by time only: there is no table to name yet.
+    return date
+      ? t(approved ? 'approvals.approvedNoticeNoTableOn' : 'approvals.declinedNoticeNoTableOn', {
+          ...params,
+          date,
+        })
+      : t(approved ? 'approvals.approvedNoticeNoTable' : 'approvals.declinedNoticeNoTable', params);
+  }
   return date
     ? t(approved ? 'approvals.approvedNoticeOn' : 'approvals.declinedNoticeOn', {
         ...params,
@@ -276,6 +289,11 @@ export function arrivalAnnouncement(
         time: time(request.startUtc),
         count: request.partySize,
       };
+      if (!request.tableLabel) {
+        return date
+          ? t('approvals.arrivedOnNoTable', { ...params, date })
+          : t('approvals.arrivedNoTable', params);
+      }
       return date ? t('approvals.arrivedOn', { ...params, date }) : t('approvals.arrived', params);
     })
     .join(' ');

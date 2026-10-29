@@ -390,7 +390,16 @@
     "askBefore": "Հարցրեք հյուրին ({{name}})՝ արդյոք սեղանը կազատվի մինչև {{time}}",
     "leavesBy": "կազատի մինչև {{time}}",
     "awaitingEarlierGuest": "Նախորդ հյուրը պատասխանում է հավելվածով։ Ամրագրումը կորոշվի նրա պատասխանով, իսկ պատասխանի բացակայության դեպքում՝ կմերժվի։",
-    "cancelledByBlock": "Ինքնաբերաբար չեղարկվել է․ հյուրը երեք օրում երեք անգամ չի եկել ամրագրմանը։"
+    "cancelledByBlock": "Ինքնաբերաբար չեղարկվել է․ հյուրը երեք օրում երեք անգամ չի եկել ամրագրմանը։",
+    "noTable": "Առանց սեղանի · կընտրեք, երբ գան",
+    "approvedNoticeNoTable": "Հաստատված է՝ ժամը {{time}}, առանց սեղանի։ Հյուրը տեղեկացված է։",
+    "approvedNoticeNoTableOn": "Հաստատված է՝ {{date}}, ժամը {{time}}, առանց սեղանի։ Հյուրը տեղեկացված է։",
+    "declinedNoticeNoTable": "Մերժված է՝ ժամը {{time}}, առանց սեղանի։ Հյուրը տեղեկացված է։",
+    "declinedNoticeNoTableOn": "Մերժված է՝ {{date}}, ժամը {{time}}, առանց սեղանի։ Հյուրը տեղեկացված է։",
+    "arrivedNoTable_one": "Նոր ամրագրման հայտ՝ ժամը {{time}}, {{count}} հյուր, առանց սեղանի։",
+    "arrivedNoTable_other": "Նոր ամրագրման հայտ՝ ժամը {{time}}, {{count}} հյուր, առանց սեղանի։",
+    "arrivedOnNoTable_one": "Նոր ամրագրման հայտ՝ {{date}}, ժամը {{time}}, {{count}} հյուր, առանց սեղանի։",
+    "arrivedOnNoTable_other": "Նոր ամրագրման հայտ՝ {{date}}, ժամը {{time}}, {{count}} հյուր, առանց սեղանի։"
   },
   "conflicts": {
     "title": "Պետք է որոշում",
@@ -1220,7 +1229,9 @@
       "ago_one": "{{count}} ր առաջ",
       "ago_other": "{{count}} ր առաջ",
       "more_one": "ևս {{count}}՝ «Նամակներ»-ում",
-      "more_other": "ևս {{count}}՝ «Նամակներ»-ում"
+      "more_other": "ևս {{count}}՝ «Նամակներ»-ում",
+      "titleBookingNoTable": "Առանց սեղանի · {{name}} · {{time}}",
+      "titleBookingNoTablePlain": "Առանց սեղանի · {{name}}"
     },
     "inbox": {
       "label": "Զրույցներ",
@@ -1563,5 +1574,20 @@
     "stillOff": "Դեռ անջատված է։ Փորձիր նորից, երբ կառավարիչն ասի, որ միացված է։",
     "tryAgain": "Փորձել նորից",
     "forgetPhone": "Մոռանալ այս հեռախոսը"
+  },
+  "withoutTable": {
+    "title": "Կգան · սեղանը դեռ ընտրված չէ",
+    "noTable": "Սեղան դեռ չկա",
+    "wish": "Ցանկություն",
+    "wishQuote": "«{{text}}»",
+    "seat": "Նստեցնել",
+    "seatLabel_one": "Նստեցնել՝ {{name}}, {{count}} հոգի",
+    "seatLabel_other": "Նստեցնել՝ {{name}}, {{count}} հոգի",
+    "chooseTitle_one": "Ընտրեք սեղան {{count}} հոգու համար",
+    "chooseTitle_other": "Ընտրեք սեղան {{count}} հոգու համար",
+    "smaller": "Ավելի փոքր սեղաններ",
+    "bookedAt": "ամրագրված է {{time}}-ին",
+    "noneFree": "Հիմա ազատ սեղան չկա։",
+    "cancel": "Ոչ հիմա"
   }
 }

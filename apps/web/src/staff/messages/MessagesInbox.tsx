@@ -270,7 +270,11 @@ function InboxRow({
   // Said in the order it is read, with the pauses the layout gives the eye.
   const name = [
     item.subject.kind === 'reservation'
-      ? `${t('table.title', { label: item.subject.label })}, ${title}`
+      ? `${
+          item.subject.label.trim()
+            ? t('table.title', { label: item.subject.label })
+            : t('withoutTable.noTable')
+        }, ${title}`
       : title,
     time,
     last,
@@ -290,7 +294,7 @@ function InboxRow({
         onClick={onPick}
       >
         <span className="msg-badge" data-kind={item.subject.kind} aria-hidden="true">
-          {item.subject.kind === 'takeaway' ? 'T' : item.subject.label}
+          {item.subject.kind === 'takeaway' ? 'T' : item.subject.label.trim() || '—'}
         </span>
         <span className="msg-row-text">
           <span className="msg-row-top">

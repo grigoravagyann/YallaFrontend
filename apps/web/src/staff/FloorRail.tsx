@@ -20,6 +20,12 @@ export interface FloorRailProps {
   /** The bookings waiting for an answer: `ApprovalPanel`, first in the rail. */
   readonly approvals: ReactNode;
   /**
+   * Bookings made by time only that nobody has seated (2026-10-29):
+   * `WithoutTableSection`, right after the bookings waiting for an answer —
+   * the party at the door needs a table.
+   */
+  readonly withoutTable?: ReactNode;
+  /**
    * Takeaway orders waiting for an answer (2026-10-22): `TakeawayRailSection`,
    * right after the bookings — an order nobody answers is declined in five
    * minutes.
@@ -201,6 +207,7 @@ export function FloorRail(props: FloorRailProps) {
           <>
             {calls}
             {props.approvals}
+            {props.withoutTable}
             {props.messages}
             {props.takeaway}
           </>
@@ -209,6 +216,8 @@ export function FloorRail(props: FloorRailProps) {
             {props.messagesFirst ? props.messages : null}
 
             {props.approvals}
+
+            {props.withoutTable}
 
             {props.takeaway}
 

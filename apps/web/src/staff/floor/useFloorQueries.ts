@@ -1,5 +1,6 @@
 import {
   useAwaitingApproval,
+  useBookingsWithoutTable,
   useBranchConversations,
   useDuePreOrders,
   useNow,
@@ -17,8 +18,8 @@ import type { FloorFeatures } from './floorFeatures';
 
 /**
  * Everything the floor reads beside the floor itself: the menu, the kitchen's
- * queue, the calls, the bookings waiting for an answer, the tables waiting to
- * be let in, the pre-orders, the takeaway counter and the guest messages.
+ * queue, the calls, the bookings waiting for an answer, the bookings made by
+ * time only waiting for a table, the tables waiting to be let in, the pre-orders, the takeaway counter and the guest messages.
  * Each paused while the tablet is locked, and each not asked where the
  * platform has not allowed its feature (`floorFeatures`).
  */
@@ -44,6 +45,12 @@ export function useFloorQueries(
   /** Bookings waiting for somebody here to say yes or no. Polled, chimed. */
   const awaitingQuery = useAwaitingApproval(branchId, active);
   const awaiting = useRequestArrivals(awaitingQuery.data, timeZoneId);
+  /**
+   * Bookings made by time only that nobody has seated (2026-10-29): the
+   * door's list. `null` data for a session that may not read it (a waiter,
+   * on the manager's read the server answers it from): nothing is listed.
+   */
+  const withoutTableQuery = useBookingsWithoutTable(branchId, active);
   /** Tables that scanned with no verified number, waiting to be let in. */
   const admissionQuery = useTabsAwaitingAdmission(branchId, active && features.tableService);
   const waitingTables = useMemo(() => admissionQuery.data ?? [], [admissionQuery.data]);
@@ -96,6 +103,7 @@ export function useFloorQueries(
     requestsQuery,
     awaitingQuery,
     awaiting,
+    withoutTableQuery,
     admissionQuery,
     waitingTables,
     preOrdersQuery,

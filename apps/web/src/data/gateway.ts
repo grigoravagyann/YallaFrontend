@@ -108,6 +108,9 @@ export const staffDataGateway: StaffGateway = resolveStaffGateway({
   // Mock only: pre-orders on the rail (one on the way, one to call, one sent
   // and held in the kitchen) and one still to come.
   mockPreOrders: import.meta.env.MODE !== 'test',
+  // Mock only: bookings made by time only, on no table until somebody seats
+  // them, each with the guest's wish — and one more waiting for a yes.
+  mockBookingsWithoutTable: import.meta.env.MODE !== 'test',
   // Mock only: takeaway at the counter — one to answer, one being prepared,
   // two ready (one long enough for "No-show"), one handed over.
   mockTakeaway: import.meta.env.MODE !== 'test',
