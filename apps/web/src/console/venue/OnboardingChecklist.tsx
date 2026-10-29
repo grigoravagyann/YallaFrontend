@@ -13,9 +13,15 @@ import { CheckIcon } from '../ui/icons';
 import { useVenueOutlet } from './VenueLayout';
 
 /**
- * What this branch still needs before it can take diners: the Main artboard's
- * `setup` card, at the top of Overview while anything is left, and gone once
- * nothing is.
+ * What this branch still needs: the Main artboard's `setup` card, at the top
+ * of Overview while anything is left, and gone once nothing is.
+ *
+ * **Two kinds of line.** The required ones — a table diners can book, opening
+ * hours, staff, a tablet or staff phone — decide whether diners see the branch
+ * at all: until every one is done it is hidden from the diner app and the
+ * public page and takes no booking (the server's `takingGuests`). The card's
+ * title says which side of that the branch is on. The rest is advice and hides
+ * nothing.
  *
  * **A checklist, not a wizard.** Onboarding happens out of order, in a cafe,
  * interrupted — the floor plan gets drawn while the owner is on the phone, the
@@ -64,15 +70,20 @@ export function OnboardingChecklist() {
   const steps = checklistSteps(data, rooms).filter((step) => !step.optional);
   const done = steps.filter((step) => step.done).length;
   if (done === steps.length) return null;
+  const hidden = !data.takingGuests;
+  const groups = [
+    { key: 'required', steps: steps.filter((step) => step.required) },
+    { key: 'recommended', steps: steps.filter((step) => !step.required) },
+  ] as const;
 
   return (
     <section className="yc-card yc-setup" aria-labelledby={titleId}>
       <div className="yc-setup-h">
         <div>
           <h2 className="yc-h2" id={titleId}>
-            {t('checklist.title')}
+            {hidden ? t('checklist.titleHidden') : t('checklist.title')}
           </h2>
-          <p className="yc-cap">{t('checklist.body')}</p>
+          <p className="yc-cap">{hidden ? t('checklist.bodyHidden') : t('checklist.body')}</p>
         </div>
         <b className="yc-setup-n">{t('checklist.progress', { done, total: steps.length })}</b>
       </div>
@@ -86,25 +97,37 @@ export function OnboardingChecklist() {
       >
         <span style={{ width: `${Math.round((done / steps.length) * 100)}%` }} />
       </div>
-      <ul className="yc-sgrid">
-        {steps.map((step) => (
-          <li key={step.id} className={step.done ? 'is-done' : 'is-todo'} data-step={step.id}>
-            <Link to={step.to}>
-              {step.done ? (
-                <span className="yc-sck is-done" aria-label={t('checklist.done')}>
-                  <CheckIcon />
-                </span>
-              ) : (
-                <span className="yc-sck is-todo" aria-label={t('checklist.todo')} />
-              )}
-              <span className="yc-sgrid-t">{t(step.labelKey)}</span>
-              {/* The server's count with the line: tables, dishes left, staff. */}
-              {step.detail ? <span className="yc-sgrid-v">{step.detail}</span> : null}
-            </Link>
-          </li>
-        ))}
-      </ul>
+      {groups.map((group) => (
+        <div key={group.key} className="yc-setup-group">
+          <h3 className="yc-setup-g">{t(`checklist.${group.key}`)}</h3>
+          <StepList steps={group.steps} />
+        </div>
+      ))}
     </section>
+  );
+}
+
+function StepList({ steps }: { readonly steps: readonly ChecklistStep[] }) {
+  const { t } = useTranslation(['admin', 'common']);
+  return (
+    <ul className="yc-sgrid">
+      {steps.map((step) => (
+        <li key={step.id} className={step.done ? 'is-done' : 'is-todo'} data-step={step.id}>
+          <Link to={step.to}>
+            {step.done ? (
+              <span className="yc-sck is-done" aria-label={t('checklist.done')}>
+                <CheckIcon />
+              </span>
+            ) : (
+              <span className="yc-sck is-todo" aria-label={t('checklist.todo')} />
+            )}
+            <span className="yc-sgrid-t">{t(step.labelKey)}</span>
+            {/* The server's count with the line: tables, dishes left, staff. */}
+            {step.detail ? <span className="yc-sgrid-v">{step.detail}</span> : null}
+          </Link>
+        </li>
+      ))}
+    </ul>
   );
 }
 
@@ -118,6 +141,8 @@ export interface ChecklistStep {
   readonly to: string;
   /** Reported, not counted toward "ready" — the booking switch is a choice, not a gap. */
   readonly optional: boolean;
+  /** Without it diners do not see the branch (the server's `missingForGuests`). */
+  readonly required: boolean;
 }
 
 /**
@@ -136,10 +161,12 @@ export function checklistSteps(
     {
       id: 'floorPlan',
       labelKey: 'checklist.step.floorPlan',
-      done: readiness.floorPlanDrawn && rooms !== false,
+      // A table a diner can book, on a room photo: tables alone do not count.
+      done: readiness.bookableTableCount > 0 && rooms !== false,
       detail: count(readiness.tableCount),
       to: '/venue/floorplan',
       optional: false,
+      required: true,
     },
     {
       id: 'tableLabels',
@@ -147,6 +174,7 @@ export function checklistSteps(
       done: readiness.tablesLabelled,
       to: '/venue/floorplan',
       optional: false,
+      required: false,
     },
     {
       id: 'menuCategories',
@@ -155,6 +183,7 @@ export function checklistSteps(
       detail: count(readiness.menuCategoryCount),
       to: '/venue/menu',
       optional: false,
+      required: false,
     },
     {
       id: 'menuItems',
@@ -167,6 +196,7 @@ export function checklistSteps(
           : count(readiness.menuItemCount),
       to: '/venue/menu',
       optional: false,
+      required: false,
     },
     {
       id: 'hours',
@@ -175,6 +205,7 @@ export function checklistSteps(
       detail: count(readiness.openingHoursDayCount),
       to: '/venue/hours',
       optional: false,
+      required: true,
     },
     {
       id: 'policy',
@@ -182,6 +213,7 @@ export function checklistSteps(
       done: readiness.reservationPolicyReviewed,
       to: '/venue/policy',
       optional: false,
+      required: false,
     },
     {
       id: 'staff',
@@ -190,6 +222,7 @@ export function checklistSteps(
       detail: count(readiness.staffCount),
       to: '/venue/staff',
       optional: false,
+      required: true,
     },
     {
       id: 'devices',
@@ -198,6 +231,7 @@ export function checklistSteps(
       detail: count(readiness.deviceCount),
       to: '/venue/staff',
       optional: false,
+      required: true,
     },
     {
       id: 'acceptsWebBookings',
@@ -205,6 +239,7 @@ export function checklistSteps(
       done: readiness.acceptsWebBookings,
       to: '/venue/public',
       optional: true,
+      required: false,
     },
   ];
 }

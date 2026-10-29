@@ -29,6 +29,9 @@ const READY: BranchReadiness = {
   staffCount: 4,
   deviceEnrolled: true,
   deviceCount: 1,
+  bookableTableCount: 10,
+  takingGuests: true,
+  missingForGuests: [],
   acceptsWebBookings: false,
   blockers: [],
 };
@@ -66,6 +69,19 @@ describe('the checklist lines', () => {
       devices: '/venue/staff',
       acceptsWebBookings: '/venue/public',
     });
+  });
+
+  it('marks the four lines without which diners do not see the branch as required', () => {
+    const required = checklistSteps(READY)
+      .filter((entry) => entry.required)
+      .map((entry) => entry.id);
+    expect(required).toEqual(['floorPlan', 'hours', 'staff', 'devices']);
+  });
+
+  it('counts a table only when a diner can book it', () => {
+    // Tables exist, none bookable on a photo: the server's bookable count, not the table count.
+    expect(step('floorPlan', { bookableTableCount: 0 }).done).toBe(false);
+    expect(step('floorPlan').done).toBe(true);
   });
 
   it('reports the booking switch as optional', () => {

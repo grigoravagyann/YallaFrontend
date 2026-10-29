@@ -2717,8 +2717,10 @@ export function createConsoleMockContext(options: ConsoleMockOptions = {}) {
             (member) =>
               member.isActive && (member.branchId === null || member.branchId === branchId),
           ).length;
-    const deviceCount = devicesFor(branchId).filter(
-      (device) => !device.isRevoked && device.kind !== 'phone',
+    // A tablet or a paired staff phone: either sees a booking arrive.
+    const deviceCount = devicesFor(branchId).filter((device) => !device.isRevoked).length;
+    const bookableTableCount = active.filter(
+      (table) => table.isBookable && table.pin !== null,
     ).length;
 
     const floorPlanDrawn = active.length > 0;
@@ -2741,7 +2743,15 @@ export function createConsoleMockContext(options: ConsoleMockOptions = {}) {
       blockers.push('Nobody has reviewed the reservation policy; it is still on the defaults.');
     }
     if (staffCount === 0) blockers.push('No staff work at this branch yet.');
-    if (deviceCount === 0) blockers.push('No tablet has been enrolled at this branch.');
+    if (deviceCount === 0) blockers.push('No tablet or staff phone is connected at this branch.');
+
+    // The required lines (DinerVisibility on the server): diners see nothing until all four.
+    const missingForGuests: string[] = [];
+    if (!floorPlanDrawn) missingForGuests.push('no-tables');
+    else if (bookableTableCount === 0) missingForGuests.push('no-bookable-table');
+    if (!openingHoursSet) missingForGuests.push('no-hours');
+    if (staffCount === 0) missingForGuests.push('no-staff');
+    if (deviceCount === 0) missingForGuests.push('no-device');
 
     return {
       branchId,
@@ -2762,6 +2772,9 @@ export function createConsoleMockContext(options: ConsoleMockOptions = {}) {
       staffCount,
       deviceEnrolled: deviceCount > 0,
       deviceCount,
+      bookableTableCount,
+      takingGuests: missingForGuests.length === 0,
+      missingForGuests,
       acceptsWebBookings: profileFor(branchId).acceptsWebBookings,
       blockers,
     };
