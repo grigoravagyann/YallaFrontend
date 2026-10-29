@@ -129,7 +129,7 @@ describe('turning notifications on', () => {
     await userEvent
       .setup({ delay: null })
       .click(await screen.findByRole('button', { name: 'Turn on notifications' }));
-    expect(await screen.findByText(/^Notifications are blocked for SHURJ\./u)).toBeTruthy();
+    expect(await screen.findByText(/^Notifications are blocked for Time to Eat\./u)).toBeTruthy();
     expect(store).not.toHaveBeenCalled();
   });
 
@@ -144,7 +144,7 @@ describe('turning notifications on', () => {
 
     const again = await screen.findByRole('button', { name: 'Turn on notifications' });
     await waitFor(() => expect(again.hasAttribute('disabled')).toBe(false));
-    expect(screen.queryByText(/^Notifications are blocked for SHURJ\./u)).toBeNull();
+    expect(screen.queryByText(/^Notifications are blocked for Time to Eat\./u)).toBeNull();
     expect(store).not.toHaveBeenCalled();
   });
 
@@ -157,11 +157,11 @@ describe('turning notifications on', () => {
     expect(screen.queryByRole('button', { name: 'Turn on notifications' })).toBeNull();
   });
 
-  it('tells an iPhone in Safari to add SHURJ to the home screen first', async () => {
+  it('tells an iPhone in Safari to add Time to Eat to the home screen first', async () => {
     renderInstall(createStaffMockGateway({ latencyMs: 0 }), { support: 'needsInstall' });
     expect(
       await screen.findByText(
-        /^On an iPhone, notifications work only in SHURJ opened from the Home Screen/u,
+        /^On an iPhone, notifications work only in Time to Eat opened from the Home Screen/u,
       ),
     ).toBeTruthy();
   });
@@ -181,7 +181,7 @@ describe('the home screen', () => {
     await user.click(screen.getByRole('tab', { name: 'iPhone' }));
     expect(screen.getByText('Choose “Add to Home Screen”')).toBeTruthy();
     await user.click(screen.getByRole('tab', { name: 'Android' }));
-    await user.click(screen.getByRole('button', { name: 'Install SHURJ' }));
+    await user.click(screen.getByRole('button', { name: 'Install Time to Eat' }));
     expect(prompt).toHaveBeenCalledTimes(1);
     expect(await screen.findByText('Done')).toBeTruthy();
   });

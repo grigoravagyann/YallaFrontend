@@ -52,7 +52,7 @@
     "saved": "Saved",
     "failed": "That did not save. Nothing changed — try again.",
     "listing": {
-      "title": "In the SHURJ app",
+      "title": "In the Time to Eat app",
       "intro": "What guests read on your card and your page. It has its own save button.",
       "cuisine": {
         "label": "Cuisine",
@@ -165,7 +165,7 @@
       "savedToast": "The app listing is saved",
       "checkFields": "Check the fields marked in red"
     },
-    "sub": "{{branch}} · What anyone with your link sees, and what guests read in the SHURJ app.",
+    "sub": "{{branch}} · What anyone with your link sees, and what guests read in the Time to Eat app.",
     "page": {
       "title": "Page and booking",
       "cap": "Your picture, your number, and whether people can book",
@@ -425,7 +425,7 @@
     "showPassword": "Show password",
     "hidePassword": "Hide password",
     "forgot": "Forgot your password?",
-    "noAccount": "No account? Staff get their sign-in from the venue's owner or manager, and owners get theirs from SHURJ.",
+    "noAccount": "No account? Staff get their sign-in from the venue's owner or manager, and owners get theirs from Time to Eat.",
     "welcomeTitle": "Welcome",
     "welcomeBody": "Opening the console…",
     "welcomeGo": "Go to the console",
@@ -1399,7 +1399,7 @@
     },
     "wizard": {
       "branchLabel": "Which branch?",
-      "coOwnerNote": "A co-owner is added with a PIN. Their console sign-in is issued by the SHURJ team."
+      "coOwnerNote": "A co-owner is added with a PIN. Their console sign-in is issued by the Time to Eat team."
     },
     "staffId": {
       "label": "Staff ID",
@@ -1530,7 +1530,7 @@
     },
     "dialog": {
       "title": "Pair a phone: {{name}}",
-      "lead": "Let {{name}} open SHURJ on their phone ({{site}}) and scan the code.",
+      "lead": "Let {{name}} open Time to Eat on their phone ({{site}}) and scan the code.",
       "qr": "QR code that pairs {{name}}’s phone",
       "orType": "Or type the code",
       "left": "Works for {{time}} more, and only once.",
@@ -1599,12 +1599,12 @@
   "reviews": {
     "title": "Reviews",
     "reason": "Reason",
-    "platformHidden": "Hidden by the SHURJ team. Only they can bring it back.",
+    "platformHidden": "Hidden by the Time to Eat team. Only they can bring it back.",
     "empty": "No review matches the filter.",
     "failed": "That did not go through. Nothing changed — try again.",
     "sub": "{{branch}} · What guests write. Hide only what breaks the rules, never just a bad rating.",
-    "reasonHelp": "The guest will not see the reason. The SHURJ team sees every hidden review.",
-    "hiddenByYalla": "SHURJ team, {{date}}",
+    "reasonHelp": "The guest will not see the reason. The Time to Eat team sees every hidden review.",
+    "hiddenByYalla": "Time to Eat team, {{date}}",
     "hiddenByName": "Hidden by {{name}}, {{date}}",
     "hiddenByVenue": "Hidden by the venue, {{date}}",
     "reply": {
@@ -1628,7 +1628,7 @@
       "down": "↓ {{change}} in the last 30 days"
     },
     "rules": {
-      "lowRating": "A bad rating alone is not a reason. The SHURJ team can bring back hides that have none."
+      "lowRating": "A bad rating alone is not a reason. The Time to Eat team can bring back hides that have none."
     }
   },
   "unsavedChanges": {
@@ -1677,7 +1677,7 @@
       "title": "Something went wrong",
       "body": "This is on our side, not yours. Nothing was changed: try again in a few seconds.",
       "home": "Home",
-      "reference": "Error code: {{reference}} · send it to the SHURJ team"
+      "reference": "Error code: {{reference}} · send it to the Time to Eat team"
     },
     "retry": "Try again",
     "checking": "Checking…",
@@ -2116,7 +2116,7 @@
       "pendingTitle": "Bookings awaiting approval, by venue",
       "pendingCap": "The restaurant approves them from its own console",
       "tabsTitle": "Open tabs by venue",
-      "tabsCap": "Tables eating with SHURJ right now",
+      "tabsCap": "Tables eating with Time to Eat right now",
       "close": "Close"
     },
     "chart": {
@@ -2230,7 +2230,7 @@
       "confirm": "Sign out"
     },
     "profile": {
-      "emailByTeam": "The SHURJ team changes the email",
+      "emailByTeam": "The Time to Eat team changes the email",
       "emailByOwner": "The owner changes the email, with a new sign-in link"
     },
     "password": {
@@ -2251,7 +2251,7 @@
     },
     "sessions": {
       "title": "Where you're signed in",
-      "cap": "SHURJ doesn't record devices or places, only when each sign-in started and was last used",
+      "cap": "Time to Eat doesn't record devices or places, only when each sign-in started and was last used",
       "signOutOthers": "Sign out everywhere else",
       "signingOut": "Signing out…",
       "thisDevice": "This device",
@@ -2673,7 +2673,7 @@
       "everyone": "Everyone",
       "person": "{{name}} · {{role}}",
       "someone": "The person in the link",
-      "system": "SHURJ (automatic)",
+      "system": "Time to Eat (automatic)",
       "search": "Table, guest, T-code or dish",
       "searchPlaceholder": "E.g. 6, Ani, T-482",
       "kind": "Kind",
@@ -2740,8 +2740,8 @@
       "person": "Open their page"
     },
     "who": {
-      "system": "SHURJ",
-      "platformAdmin": "SHURJ support",
+      "system": "Time to Eat",
+      "platformAdmin": "Time to Eat support",
       "guest": "Guest · {{name}}",
       "theGuest": "the guest",
       "unknown": "Someone"
@@ -3084,7 +3084,7 @@
       "reports": "Reports"
     },
     "hint": {
-      "appBookings": "Diners book and move bookings in the SHURJ app.",
+      "appBookings": "Diners book and move bookings in the Time to Eat app.",
       "webBookings": "Booking from the branch's public page, and moving a booking from its link.",
       "preOrders": "Dishes chosen ahead with a booking. Needs app or web bookings.",
       "takeaway": "Orders from the app, paid at pickup.",
@@ -3098,7 +3098,7 @@
   },
   "featureLocked": {
     "title": "Not enabled for this branch",
-    "body": "Contact SHURJ to turn it on.",
+    "body": "Contact Time to Eat to turn it on.",
     "nav": "not enabled for this branch",
     "named": "{{feature}} is not enabled for this branch."
   }

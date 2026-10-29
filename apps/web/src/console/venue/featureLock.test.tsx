@@ -91,7 +91,7 @@ describe('a page that is one feature', () => {
     );
     expect(screen.getByRole('heading', { level: 1, name: 'Reports' })).toBeTruthy();
     expect(screen.getByRole('note').textContent).toContain(LOCK);
-    expect(screen.getByRole('note').textContent).toContain('Contact SHURJ to turn it on.');
+    expect(screen.getByRole('note').textContent).toContain('Contact Time to Eat to turn it on.');
     expect(screen.queryByText('the reports')).toBeNull();
   });
 

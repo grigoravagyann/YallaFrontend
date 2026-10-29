@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "SHURJ",
+    "name": "Time to Eat",
     "slug": "yalla-diner",
     "owner": "grigoravagyan",
     "version": "0.1.0",
@@ -66,15 +66,15 @@
       [
         "expo-location",
         {
-          "locationWhenInUsePermission": "SHURJ uses your location to show cafés and restaurants near you.",
-          "locationAlwaysAndWhenInUsePermission": "SHURJ uses your location to show cafés and restaurants near you.",
+          "locationWhenInUsePermission": "Time to Eat uses your location to show cafés and restaurants near you.",
+          "locationAlwaysAndWhenInUsePermission": "Time to Eat uses your location to show cafés and restaurants near you.",
           "isAndroidBackgroundLocationEnabled": false
         }
       ],
       [
         "expo-camera",
         {
-          "cameraPermission": "SHURJ uses the camera to read the code on your table.",
+          "cameraPermission": "Time to Eat uses the camera to read the code on your table.",
           "recordAudioAndroid": false
         }
       ]

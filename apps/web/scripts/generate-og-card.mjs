@@ -19,10 +19,10 @@
  *
  * There is no rasteriser in this workspace — no `sharp`, no `canvas`, no
  * headless browser — and adding one for an asset that changes once a year
- * would be a dependency with a build step. The product is SHURJ now, and its
+ * would be a dependency with a build step. The product is Time to Eat now, and its
  * lettering is the logo's own, with curves no polygon set draws well; so the
  * card lays the very image the web app's top bars show
- * (`src/assets/shurj-wordmark.png`, ivory on transparent) onto the cherry,
+ * (`src/assets/wordmark.png`, ivory on transparent) onto the cherry,
  * read with `pngjs`, which this script already uses to write. The tables are
  * straight-sided and stay polygons, filled by the scanline routine below at
  * 4x supersampling.
@@ -46,7 +46,7 @@ import { PNG } from 'pngjs';
 // `@yalla/tokens` is TypeScript. The contrast test in that package is what
 // keeps these honest; a mismatch here is a wrong-coloured card, not a wrong
 // product.
-const CHERRY = [0x3a, 0x09, 0x12]; // consoleColor.sidebar — the deep cherry of every SHURJ bar
+const CHERRY = [0x3a, 0x09, 0x12]; // consoleColor.sidebar — the deep cherry of every Time to Eat bar
 const FREE = [0x35, 0xb3, 0x7e]; // consoleColor.floorFreeEdge — the free-table green
 const PAPER = [0xff, 0xff, 0xff]; // consoleColor.canvas — the white page
 
@@ -227,13 +227,11 @@ const BAND_TOP = 372;
 paint(rect(0, BAND_TOP, WIDTH, HEIGHT - BAND_TOP), PAPER);
 
 // The wordmark, optically centred in the cherry field above the band. Its
-// capitals sit high in the image (the R and the J hang below them), so the
+// capitals sit high in the image (the e's swash hangs below them), so the
 // image is set a little low for the capitals to look centred.
 const here = dirname(fileURLToPath(import.meta.url));
-const lettering = PNG.sync.read(
-  readFileSync(join(here, '..', 'src', 'assets', 'shurj-wordmark.png')),
-);
-const MARK_W = 640;
+const lettering = PNG.sync.read(readFileSync(join(here, '..', 'src', 'assets', 'wordmark.png')));
+const MARK_W = 720;
 const markH = (MARK_W * lettering.height) / lettering.width;
 drawImage(lettering, (WIDTH - MARK_W) / 2, (BAND_TOP - markH) / 2 + 12, MARK_W);
 

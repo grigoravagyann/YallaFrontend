@@ -1,7 +1,7 @@
 {
-  "name": "SHURJ Console",
-  "short_name": "SHURJ",
-  "description": "The SHURJ console for venue owners, managers and the platform team.",
+  "name": "Time to Eat Console",
+  "short_name": "Time to Eat",
+  "description": "The Time to Eat console for venue owners, managers and the platform team.",
   "id": "/console",
   "start_url": "/",
   "scope": "/",

@@ -3,7 +3,7 @@ import { join, relative } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 /**
- * No blue in SHURJ.
+ * No blue in Time to Eat.
  *
  * The brand rule is that waiting and held are burgundy and confirmed is green;
  * the pre-SHURJ palette (a blue held, a cool blue-grey paper and ink) lived on
@@ -14,7 +14,7 @@ import { describe, expect, it } from 'vitest';
  * A blue is a hue of 190° to 260° at more than 25% HSL saturation. HSL rather
  * than chroma on purpose: it calls a faintly blue near-white or near-black a
  * blue too (the old paper `#F4F6FA` is 37%, the old ink `#131A22` 28%), which
- * is exactly the cool cast SHURJ dropped. The warm greys and the floor's
+ * is exactly the cool cast Time to Eat dropped. The warm greys and the floor's
  * out-of-service grey (`#8B95A1`, 10%) pass.
  */
 
@@ -29,8 +29,8 @@ const HUE_MAX = 260;
 const SATURATION_MAX = 0.25;
 
 /**
- * The blues SHURJ keeps, each a convention people already know (DESIGN.md,
- * "There is no blue in SHURJ"). Keyed `file:token`; each must still match a
+ * The blues Time to Eat keeps, each a convention people already know (DESIGN.md,
+ * "There is no blue in Time to Eat"). Keyed `file:token`; each must still match a
  * blue, so a stale entry fails too.
  */
 const ALLOWED: Readonly<Record<string, string>> = {
@@ -111,11 +111,11 @@ function tokenFiles(): { file: string; source: string }[] {
 
 const describeFound = (f: Found) =>
   `${f.key} (line ${f.line}) is ${f.literal}: a blue, hue ${Math.round(f.hue)}° at ` +
-  `${Math.round(f.saturation * 100)}% saturation. SHURJ has no blue — waiting and held ` +
+  `${Math.round(f.saturation * 100)}% saturation. Time to Eat has no blue — waiting and held ` +
   `are burgundy (consoleColor.waiting), confirmed is green. Use a console.ts or diner ` +
   `theme value, or, for a blue people must recognise, add it to ALLOWED with its reason.`;
 
-describe('no blue in SHURJ', () => {
+describe('no blue in Time to Eat', () => {
   const files = tokenFiles();
 
   it('reads the token files of both palettes', () => {
@@ -146,7 +146,7 @@ describe('no blue in SHURJ', () => {
     }
   });
 
-  it('calls the retired pre-SHURJ colours blue, and the SHURJ ones not', () => {
+  it('calls the retired pre-SHURJ colours blue, and the Time to Eat ones not', () => {
     const blue = (hex: string) => bluesIn(`x: '${hex}',`, 'probe').length > 0;
     // The old held, paper, ink and hairline, and the shadow triplet.
     for (const hex of ['#3B6FD4', '#F4F6FA', '#131A22', '#E2E8F0']) expect(blue(hex)).toBe(true);

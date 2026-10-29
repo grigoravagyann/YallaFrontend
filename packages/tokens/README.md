@@ -6,7 +6,7 @@ framework imports. React Native imports them directly; the web app consumes them
 as CSS custom properties written by `scripts/generate-css.mjs` from the same
 source, so the two cannot drift.
 
-The colours are **SHURJ** (`DESIGN.md` at the repo root is the full system):
+The colours are **Time to Eat** (`DESIGN.md` at the repo root is the full system):
 a white page, charcoal text, the Black Cherry for the one thing to press, and
 the state hues that carry meaning. Nothing else is coloured, and there is no
 blue: `noBlue.test.ts` fails on a blue in any token file here or in the diner
@@ -18,7 +18,7 @@ theme, except the Telegram button and the map's "you" dot.
   the console, the venue console, the floor tablet and the public page.
 - **`color.ts`** (`color`, `--color-*`) is what the older web screens read. Its
   neutrals and its action colour are `console.ts` values, so it cannot drift
-  from SHURJ: `paper` is `canvas`, `foreground` is `ink`, `primary` and
+  from Time to Eat: `paper` is `canvas`, `foreground` is `ink`, `primary` and
   `primaryInk` are `brand`, `primaryForeground` is the ivory, `greenTint` is
   `brandTint`, `info` is the waiting burgundy.
 

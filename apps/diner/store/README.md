@@ -1,7 +1,7 @@
 # Store listing assets
 
 What the App Store and Google Play need besides the build. The icon and splash live with the app
-(`../assets/images/`, the SHURJ logo on cream since 2026-10-22); this folder holds the
+(`../assets/images/`, the Time to Eat logo on white since 2026-10-29); this folder holds the
 screenshots.
 
 | Folder                       | Size        | For                                                                          |
@@ -38,4 +38,4 @@ node store/source/compose.cjs ../.. /tmp/yalla-raw store/screenshots
 ```
 
 `serve.cjs` exists because `expo serve` does not map `/place/<id>` onto the export's
-`place/[placeId].html`. The icon set is regenerated from the logo raster with `node assets/images/source/render-icons.cjs ../.. <logo.png>`.
+`place/[placeId].html`. Every brand raster (icons, splash layers, wordmarks, both apps) is regenerated from `assets/images/source/logo.png` with `node assets/images/source/render-brand.cjs ../..`.

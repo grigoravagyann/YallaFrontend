@@ -66,7 +66,7 @@ describe('My account', () => {
     const email = (await screen.findByLabelText('Email')) as HTMLInputElement;
     expect(email.readOnly).toBe(true);
     expect(email.value).toMatch(/@/u);
-    expect(screen.getByText('The SHURJ team changes the email')).toBeTruthy();
+    expect(screen.getByText('The Time to Eat team changes the email')).toBeTruthy();
     cleanup();
     await renderAccount('manager');
     expect(

@@ -41,7 +41,7 @@ describe('a suspended branch', () => {
   it('renders a plain not-available page, not an error', async () => {
     open('/dolmama/dalma-garden');
 
-    expect(await screen.findByText('Not on SHURJ right now')).toBeDefined();
+    expect(await screen.findByText('Not on Time to Eat right now')).toBeDefined();
     expect(
       screen.getByText(/page is closed for now/u),
       'the page should say what happened, in a sentence',
@@ -54,7 +54,7 @@ describe('a suspended branch', () => {
 
   it('advertises nothing: no free-table count, no way to book', async () => {
     open('/dolmama/dalma-garden');
-    await screen.findByText('Not on SHURJ right now');
+    await screen.findByText('Not on Time to Eat right now');
 
     expect(screen.queryByText(/tables? free right now/u)).toBeNull();
     expect(screen.queryByText('Book a table')).toBeNull();
@@ -215,12 +215,12 @@ describe('the tab title of a page that is not a venue', () => {
   it('names a link that does not resolve', async () => {
     open('/no-such-venue/no-such-branch');
     await screen.findByText('We could not find that place');
-    await waitFor(() => expect(document.title).toBe('We could not find that place · SHURJ'));
+    await waitFor(() => expect(document.title).toBe('We could not find that place · Time to Eat'));
   });
 
   it('names a suspended branch', async () => {
     open('/dolmama/dalma-garden');
-    await screen.findByText('Not on SHURJ right now');
-    await waitFor(() => expect(document.title).toBe('Not on SHURJ right now · SHURJ'));
+    await screen.findByText('Not on Time to Eat right now');
+    await waitFor(() => expect(document.title).toBe('Not on Time to Eat right now · Time to Eat'));
   });
 });

@@ -15,7 +15,7 @@ import { describe, expect, it, vi } from 'vitest';
  */
 
 const SW_SOURCE = readFileSync(resolve(__dirname, '..', '..', 'public', 'sw.js'), 'utf8');
-const ORIGIN = 'https://shurj.example';
+const ORIGIN = 'https://timetoeat.example';
 
 type Handler = (event: unknown) => void;
 

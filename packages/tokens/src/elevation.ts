@@ -25,7 +25,7 @@ import { parseHex } from './contrast';
  */
 // The text colour, never the brand: a cherry shadow under a white card is a
 // glow, and this system has no glows — an object casts the colour of the text
-// beside it. Read from the token, so it is the SHURJ charcoal (45, 41, 39), the
+// beside it. Read from the token, so it is the Time to Eat charcoal (45, 41, 39), the
 // same ink `consoleShadow` uses, and cannot fall back to an old cool ink.
 const SHADOW_RGB = ((ink) => `${ink.r}, ${ink.g}, ${ink.b}`)(parseHex(color.foreground));
 

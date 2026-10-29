@@ -78,7 +78,7 @@ export const consoleColor = {
   controlHover: '#4B0C18',
   /**
    * A secondary button's edge: the same logo burgundy as an input's, since
-   * SHURJ draws every control's edge in it.
+   * Time to Eat draws every control's edge in it.
    */
   buttonEdge: '#6B1121',
   buttonEdgeHover: '#4B0C18',
@@ -158,7 +158,7 @@ export const consoleColor = {
   /** Booked and confirmed, still to come: a booking's state, not a warning (Main artboard). */
   /**
    * Waiting on someone: a booking awaiting the venue, a pending code. The logo
-   * burgundy, never blue (this token was named `blue` before SHURJ). 9.85:1 on
+   * burgundy, never blue (this token was named `blue` before Time to Eat). 9.85:1 on
    * its tint, 12.16:1 on white.
    */
   waiting: '#6B1121',

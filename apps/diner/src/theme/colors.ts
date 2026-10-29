@@ -1,5 +1,5 @@
 /**
- * The diner app's palette. Light only: SHURJ, a white page.
+ * The diner app's palette. Light only: Time to Eat, a white page.
  *
  * Every screen is white (`Screen` draws a flat fill, no glow), the Explore
  * header included. Cards, rows, inputs
@@ -33,7 +33,7 @@ export const colors = {
    * search field: a thin line, clearly visible, at full opacity.
    */
   controlBorder: '#CFC6C1',
-  /** The logo's own burgundy: the SHURJ wordmark and, on Explore, the map, the bell, the search's glyphs, and the edges of the search, the chips and the cards. */
+  /** The logo's own burgundy: the Time to Eat wordmark and, on Explore, the map, the bell, the search's glyphs, and the edges of the search, the chips and the cards. */
   logoInk: '#6B1121',
   /** `logoInk` at nothing: where the line under the Explore header fades out. */
   logoInkClear: 'rgba(107, 17, 33, 0)',
@@ -197,7 +197,7 @@ export const colors = {
   onErrorStrong: '#FFFFFF',
   /**
    * Waiting · pending · a note to read: the brand's burgundy, not a blue, so a
-   * request waiting on the venue looks like SHURJ. The fill (a pending mark's
+   * request waiting on the venue looks like Time to Eat. The fill (a pending mark's
    * light end and its glow).
    */
   info: '#8A2335',

@@ -26,7 +26,7 @@ function visit(path: string): string | null {
 
 beforeAll(() => {
   window.history.replaceState(null, '', '/');
-  document.head.innerHTML = `<link rel="manifest" href="${STAFF}" /><title>SHURJ</title>`;
+  document.head.innerHTML = `<link rel="manifest" href="${STAFF}" /><title>Time to Eat</title>`;
   new Function(SOURCE)();
 });
 

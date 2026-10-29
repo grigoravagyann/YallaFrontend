@@ -66,7 +66,7 @@ describe('the History feed', () => {
     expect(times.every((time) => time <= NOW.getTime())).toBe(true);
   });
 
-  it('carries the discount, the void with its reason, SHURJ’s decline and the price change', async () => {
+  it('carries the discount, the void with its reason, Time to Eat’s decline and the price change', async () => {
     const day = await wholeDay();
     const discount = day.find((entry) => entry.action === 'payment.discount')!;
     expect(discount).toMatchObject({
@@ -107,7 +107,7 @@ describe('the History feed', () => {
     expect(order.lines.length).toBeGreaterThan(0);
   });
 
-  it('filters by person, by SHURJ, by kind and by table, guest, code or dish', async () => {
+  it('filters by person, by Time to Eat, by kind and by table, guest, code or dish', async () => {
     const lilit = await wholeDay({ who: { kind: 'staff', staffMemberId: LILIT } });
     expect(lilit.length).toBeGreaterThan(0);
     expect(lilit.every((entry) => entry.actor.staffMemberId === LILIT)).toBe(true);

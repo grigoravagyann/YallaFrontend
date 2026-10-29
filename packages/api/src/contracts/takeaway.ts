@@ -3,7 +3,7 @@ import type { FloorChangeSignal } from './admission';
 import type { MenuItemDetail } from './ordering';
 
 /**
- * Takeaway (approved 2026-10-22, the "SHURJ Takeaway" design): a guest orders
+ * Takeaway (approved 2026-10-22, the "Time to Eat Takeaway" design): a guest orders
  * from a place's menu in the app, says when they will come, and picks the food
  * up at the counter — paying there, cash or card at the venue's own terminal.
  * **Nothing is charged in the app.**

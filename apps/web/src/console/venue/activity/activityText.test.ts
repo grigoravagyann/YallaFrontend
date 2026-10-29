@@ -8,7 +8,7 @@ import { actionLabel, detailParts, deviceLabel, durationLabel, phoneOwnerOf } fr
 
 /**
  * The History's device wording (2026-10-25): phones paired and unpaired, a
- * tablet connected by SHURJ, and the server's English device labels said in
+ * tablet connected by Time to Eat, and the server's English device labels said in
  * the reader's language.
  */
 
@@ -159,7 +159,7 @@ describe('phone and device entries', () => {
     expect(actionLabel(hy, unpaired('console'))).toBe('Անջատեց հեռախոսը՝ Gor M.');
   });
 
-  it('says a tablet SHURJ connected by its name, and whose code it was where it knows', () => {
+  it('says a tablet Time to Eat connected by its name, and whose code it was where it knows', () => {
     const enrolled = entry({
       action: 'device.enrolled',
       actor: { kind: 'system', staffMemberId: null, name: '' },

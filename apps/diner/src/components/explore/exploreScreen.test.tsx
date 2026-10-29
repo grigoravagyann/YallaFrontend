@@ -7,7 +7,7 @@ import { useSession } from '../../stores/session';
 import type * as I18nModule from '@yalla/i18n';
 
 /**
- * Explore as the SHURJ design draws it: All / Cafés / Restaurants / Bars and
+ * Explore as the Time to Eat design draws it: All / Cafés / Restaurants / Bars and
  * nothing else in the chip row (the user removed Popular and New on
  * 2026-10-22), "Discover places" over full-width cards, nearest first.
  */
@@ -264,15 +264,15 @@ describe('an empty result', () => {
 });
 
 describe('the header', () => {
-  it('opens with the SHURJ wordmark, signed in or not, and greets nobody by name', () => {
+  it('opens with the Time to Eat wordmark, signed in or not, and greets nobody by name', () => {
     held.places = placesOf(['Lumen Coffee']);
     const { unmount } = render(<ExploreScreen />);
-    expect(screen.getByRole('heading', { name: 'SHURJ' })).toBeTruthy();
+    expect(screen.getByRole('heading', { name: 'Time to Eat' })).toBeTruthy();
     unmount();
 
     useSession.setState({ signedIn: true, guestName: 'Ani' });
     render(<ExploreScreen />);
-    expect(screen.getByRole('heading', { name: 'SHURJ' })).toBeTruthy();
+    expect(screen.getByRole('heading', { name: 'Time to Eat' })).toBeTruthy();
     expect(screen.queryByText('Ani')).toBeNull();
     expect(screen.queryByText(/^Good (morning|afternoon|evening),$/u)).toBeNull();
   });

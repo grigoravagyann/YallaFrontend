@@ -4,11 +4,14 @@ import WORDMARK from '../../../assets/images/explore-wordmark.png';
 import { actionIcon, colors, layout, radius, space } from '../../theme';
 import { usePressScale } from '../motion/usePressScale';
 
-/** The logo's SHURJ wordmark, 844 × 188 trimmed to its ink. */
+/** The logo's Time to Eat wordmark, 1082 × 206 trimmed to its ink. */
 const WORDMARK_HEIGHT = 28;
-/** The capitals fill rows 2–154 of the 188: their middle sits this share above the image's. */
-const CAPS_LIFT = (94 - 78) / 188;
-const WORDMARK_WIDTH = Math.round((WORDMARK_HEIGHT * 844) / 188);
+/**
+ * The capitals fill rows 3–166 of the 206 (the e's swash hangs below them): their middle sits this
+ * share above the image's.
+ */
+const CAPS_LIFT = (103 - 84.5) / 206;
+const WORDMARK_WIDTH = Math.round((WORDMARK_HEIGHT * 1082) / 206);
 /** The unread dot on the bell, and the white ring round it. */
 const DOT = 9;
 const DOT_RING = 2;
@@ -24,7 +27,7 @@ export interface ExploreHeaderProps {
 }
 
 /**
- * The top of Explore, on white: the map in the left corner, the SHURJ wordmark
+ * The top of Explore, on white: the map in the left corner, the Time to Eat wordmark
  * from the logo in the middle, and the bell with its burgundy unread dot in
  * the right corner, both in the logo's burgundy. The two corners are the same round buttons, so the
  * wordmark sits truly centred.

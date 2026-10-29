@@ -46799,7 +46799,7 @@
             "items": {
               "$ref": "#/components/schemas/Yalla.Domain.Enums.BranchFeature"
             },
-            "description": "The features the platform allows at the branch, in numeric order. The console shows the others <b>locked</b>\n(\"contact SHURJ\"), never hidden; the owner's own switches work only inside this set."
+            "description": "The features the platform allows at the branch, in numeric order. The console shows the others <b>locked</b>\n(\"contact Time to Eat\"), never hidden; the owner's own switches work only inside this set."
           },
           "tableCount": {
             "type": "integer",

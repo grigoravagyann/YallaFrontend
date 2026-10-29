@@ -10,7 +10,7 @@ import { useVenueOutlet, type VenueOutletContext } from './VenueLayout';
  * Whether the platform has blocked `feature` at the branch on screen
  * (2026-10-27). The venue console shows such a feature **locked, not hidden**:
  * its nav item, card or page carries a lock and "Not enabled for this branch.
- * Contact SHURJ to turn it on.", and its controls are disabled. Unknown (no
+ * Contact Time to Eat to turn it on.", and its controls are disabled. Unknown (no
  * branch yet, or a host that does not say) is not locked.
  */
 export function useFeatureLocked(feature: BranchFeature): boolean {

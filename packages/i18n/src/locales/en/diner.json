@@ -32,7 +32,7 @@
       "title": "Filters",
       "done": "Done"
     },
-    "brandName": "SHURJ"
+    "brandName": "Time to Eat"
   },
   "venue": {
     "type": {
@@ -1211,8 +1211,8 @@
     "cancel": "Cancel",
     "uploading": "Uploading photo",
     "permission": {
-      "library": "SHURJ can't open your photos. Allow photo access in Settings to choose one.",
-      "camera": "SHURJ can't use the camera. Allow camera access in Settings to take a photo."
+      "library": "Time to Eat can't open your photos. Allow photo access in Settings to choose one.",
+      "camera": "Time to Eat can't use the camera. Allow camera access in Settings to take a photo."
     },
     "photoError": {
       "format": "That file isn't a photo we can use. Choose a JPEG, PNG or WebP.",
@@ -1369,7 +1369,7 @@
         "body": "The pause on your bookings has been lifted. Bookings it cancelled stay cancelled."
       },
       "bookingsUnblockedLifted": {
-        "body": "SHURJ lifted the pause on your bookings. Bookings it cancelled stay cancelled."
+        "body": "Time to Eat lifted the pause on your bookings. Bookings it cancelled stay cancelled."
       },
       "bookingsUnblockedUndone": {
         "body": "A venue undid a no-show, so the pause on your bookings is lifted. Bookings it cancelled stay cancelled."
@@ -1461,7 +1461,7 @@
     "terms": "Terms of use",
     "privacy": "Privacy policy",
     "licences": "Open-source licences",
-    "licencesBody": "SHURJ is built with open-source software. Each package is used under its own licence.",
+    "licencesBody": "Time to Eat is built with open-source software. Each package is used under its own licence.",
     "venuesSee": "What venues see"
   },
   "privacy": {
