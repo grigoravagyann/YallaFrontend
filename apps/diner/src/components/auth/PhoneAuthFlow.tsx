@@ -57,7 +57,13 @@ import { accountKeys, useSetDinerPassword } from '../../data/accountQueries';
 import { AuthHeader } from './AuthHeader';
 import { BookingSummary } from './BookingSummary';
 import { Field, FieldInput, PasswordInput } from './Field';
-import { FROM_START, FROM_WELCOME, useAuthFinish, type AuthRouteParams } from './useAuthFinish';
+import {
+  FROM_START,
+  FROM_WELCOME,
+  carriesBooking,
+  useAuthFinish,
+  type AuthRouteParams,
+} from './useAuthFinish';
 
 const DEFAULT_PREFIX = '+374';
 const CODE_LENGTH = 6;
@@ -584,7 +590,7 @@ export function PhoneAuthFlow({ mode, params }: PhoneAuthFlowProps) {
   );
 
   const firstStep = step === 'phone' || step === 'details';
-  const forBooking = Boolean(forward['tableId']);
+  const forBooking = carriesBooking(forward);
 
   /** Fill the code from the clipboard: what Telegram or a message left there, digits only. */
   const pasteCode = useCallback(async () => {

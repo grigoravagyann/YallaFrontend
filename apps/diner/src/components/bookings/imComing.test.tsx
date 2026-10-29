@@ -78,6 +78,7 @@ function bookingAt(startMs: number, extra: Partial<Booking> = {}): Booking {
     timeZoneId: 'Asia/Yerevan',
     tableId: 't6',
     tableLabel: '6',
+    bookedWithoutTable: false,
     roomId: null,
     roomName: null,
     partySize: 4,

@@ -41,6 +41,9 @@ export function AtMyTableAction({
   // to explain and no tap that could ever work.
   const offer = atTableOffer(booking, now);
   if (offer === null) return null;
+  // Booked by time only and not seated yet: no table to open a tab at — the
+  // venue chooses it on arrival, and the server refuses until then.
+  if (booking.tableId === null) return null;
   // Made without a proved number: the server will not open the tab from the
   // booking, so the button would only be refused. The code on the table works.
   if (offer === 'scanInstead') {

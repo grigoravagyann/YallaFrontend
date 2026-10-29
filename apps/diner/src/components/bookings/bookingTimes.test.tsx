@@ -92,6 +92,7 @@ const EARLIER: Booking = {
   timeZoneId: YEREVAN,
   tableId: 't1',
   tableLabel: '1',
+  bookedWithoutTable: false,
   roomId: null,
   roomName: null,
   partySize: 2,

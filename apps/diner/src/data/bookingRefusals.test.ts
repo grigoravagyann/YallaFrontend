@@ -1,4 +1,5 @@
 import {
+  ApiError,
   BookingNotChangeableError,
   BookingOverlapsOwnError,
   ConcurrencyConflictError,
@@ -59,6 +60,26 @@ describe('bookingRefusal', () => {
       key: 'book.changeError.approvalExpired',
       params: {},
     });
+  });
+
+  it('says a time with no room left, or how many places it still has (time-full)', () => {
+    const full = (guestsLeft: number) =>
+      new ApiError('time-full', {
+        status: 409,
+        url: '/api/reservations',
+        problem: {
+          type: 'https://yalla.am/problems/time-full',
+          title: 'Problem',
+          status: 409,
+          detail: 'There is no room for that many guests at that time.',
+          code: 'time-full',
+          traceId: 'trace-test',
+          context: { guestsLeft },
+        },
+      });
+
+    expect(bookingRefusal(full(0))).toEqual({ key: 'book.byTime.full', params: {} });
+    expect(bookingRefusal(full(2))).toEqual({ key: 'book.byTime.onlyLeft', params: { count: 2 } });
   });
 
   it('leaves every other failure to bookingFailure', () => {

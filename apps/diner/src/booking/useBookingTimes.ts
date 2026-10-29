@@ -25,6 +25,7 @@ export function useBookingTimes({
   leadMinutes,
   partySize,
   excludeBookingId,
+  byTime,
 }: {
   readonly place: Place;
   readonly days: readonly DayOption[];
@@ -33,6 +34,8 @@ export function useBookingTimes({
   readonly leadMinutes: number;
   readonly partySize: number;
   readonly excludeBookingId: string | undefined;
+  /** The branch books by time only: no room at a minute to judge "In 10 min" by. */
+  readonly byTime: boolean;
 }) {
   // The quarter hours the place is open, from the lead time on.
   const gridSlots = useMemo(
@@ -82,9 +85,11 @@ export function useBookingTimes({
   const soonMs = useMemo(() => soonInstant(now, leadMinutes), [now, leadMinutes]);
   // Not on a day the server refused outright: shut, or nothing left today.
   const dayRefused = dayAnswer?.unavailableReason != null;
+  // Not at a branch that books by time only: its room is counted in guests by
+  // the day's slots, and a table read at one minute says nothing of it.
   const soonCandidate = useMemo(
-    () => soonCandidateFor({ isToday, activeDateKey, dayRefused, place, soonMs }),
-    [isToday, activeDateKey, dayRefused, place, soonMs],
+    () => (byTime ? null : soonCandidateFor({ isToday, activeDateKey, dayRefused, place, soonMs })),
+    [byTime, isToday, activeDateKey, dayRefused, place, soonMs],
   );
   const soonQuery = useSlotFloor({
     branchId: soonCandidate ? place.id : undefined,
@@ -123,6 +128,8 @@ export function useBookingTimes({
 
   return {
     daySlotsQuery,
+    // The answers themselves, for what a time says beyond free or not: guests left.
+    dayAnswers: [dayAnswer, nextDayAnswer] as const,
     nextDateKey,
     nextDaySlotsQuery,
     soonMs,

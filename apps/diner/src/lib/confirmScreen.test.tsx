@@ -168,6 +168,47 @@ describe('the confirm screen, a booking following on the table', () => {
 });
 
 /*
+ * Booked by time only (2026-10-29), after the SMS detour: no table is read,
+ * the venue chooses one on arrival, and the wish goes as the note.
+ */
+describe('the confirm screen, a booking by time only', () => {
+  it('reads no table, says the venue chooses it, and books with none', async () => {
+    const floor = vi.spyOn(mock, 'getSlotFloor');
+    const create = vi
+      .spyOn(mock, 'createBooking')
+      .mockResolvedValue({ id: 'r-time', status: 'confirmed' } as Booking);
+    params.current = {
+      branchId: BRANCH,
+      venueId: 'v-lumen',
+      byTime: '1',
+      slotUtc: at('19:00'),
+      partySize: '4',
+      requests: 'By the window',
+    };
+    renderScreen();
+
+    expect(await screen.findByText('The venue chooses your table when you arrive')).toBeTruthy();
+    expect(screen.getByText('Your wish')).toBeTruthy();
+    const submit = await screen.findByRole('button', { name: 'Confirm booking' });
+    await waitFor(() => expect(submit.getAttribute('aria-disabled')).not.toBe('true'));
+    fireEvent.click(submit);
+    await waitFor(() => expect(create).toHaveBeenCalledTimes(1));
+    expect(create.mock.calls[0]![0]).toMatchObject({
+      tableId: null,
+      partySize: 4,
+      note: 'By the window',
+    });
+    expect(floor).not.toHaveBeenCalled();
+    await waitFor(() =>
+      expect(router.replace).toHaveBeenCalledWith({
+        pathname: '/reserve/success',
+        params: { bookingId: 'r-time' },
+      }),
+    );
+  });
+});
+
+/*
  * One diner, two overlapping bookings at the same branch: the server refuses
  * the second (QA round 2), and the screen names the one already held.
  */

@@ -45,6 +45,18 @@ describe('the booking carried through sign-in', () => {
   });
 });
 
+describe('a booking by time only carried through sign-in', () => {
+  it('has no table, and still hands the booking on to the confirm screen', () => {
+    router.replace.mockClear();
+    const { tableId: _, acceptsFreeByUtc: __, ...rest } = BOOKING;
+    const byTime = { ...rest, byTime: '1', requests: 'By the window' };
+    const { result } = renderHook(() => useAuthFinish({ ...byTime, from: 'welcome' }));
+    expect(result.current.forward).toEqual(byTime);
+    result.current.finish();
+    expect(router.replace).toHaveBeenCalledWith({ pathname: '/reserve/confirm', params: byTime });
+  });
+});
+
 describe('signing in from the first screen of the app', () => {
   it('opens the app itself, leaving no welcome underneath', () => {
     router.replace.mockClear();
