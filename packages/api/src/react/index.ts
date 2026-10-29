@@ -316,6 +316,7 @@ export {
   usePublicBranchDetail,
   usePublicMenu,
   usePublicReviews,
+  usePublicTimeSlots,
   usePublicVenue,
   usePublicVenueListings,
   useRescheduleManagedBooking,

@@ -434,6 +434,7 @@ describe('branch readiness over HTTP', () => {
       tableCount: 12,
       tablesLabelled: true,
       bookableTableCount: 10,
+      booksByTimeOnly: false,
       takingGuests: true,
       missingForGuests: [],
     };
@@ -444,6 +445,46 @@ describe('branch readiness over HTTP', () => {
     expect(sent(fetchImpl)).toBe(`GET ${BASE}/api/branches/b-1/readiness`);
     // The issue codes are for the platform's rollups; the checklist screen reads the sentences.
     expect(readiness).toEqual({ ...wire, issues: undefined });
+  });
+
+  it('says when the table line is met by booking by time only', async () => {
+    const wire: components['schemas']['Yalla.Application.BranchSettings.BranchReadinessView'] = {
+      acceptsWebBookings: true,
+      blockers: [],
+      issues: [],
+      branchId: 'b-1',
+      deviceCount: 1,
+      deviceEnrolled: true,
+      floorPlanDrawn: true,
+      incompleteMenuItemCount: 0,
+      incompleteMenuItemIds: [],
+      isReadyForDiners: true,
+      menuCategoriesPresent: true,
+      menuCategoryCount: 2,
+      menuComplete: true,
+      menuItemCount: 9,
+      openingHoursDayCount: 6,
+      openingHoursSet: true,
+      reservationPolicyReviewed: true,
+      staffCount: 3,
+      staffEnrolled: true,
+      tableCount: 4,
+      tablesLabelled: true,
+      // No table pinned on a photo, and the branch still takes guests.
+      bookableTableCount: 0,
+      booksByTimeOnly: true,
+      takingGuests: true,
+      missingForGuests: [],
+    };
+    const fetchImpl = vi.fn().mockResolvedValue(json(200, wire));
+
+    const readiness = await gatewayOver(fetchImpl).getBranchReadiness('b-1');
+
+    expect(readiness).toMatchObject({
+      bookableTableCount: 0,
+      booksByTimeOnly: true,
+      takingGuests: true,
+    });
   });
 });
 

@@ -143,6 +143,7 @@ const WIRE_RESERVATION = {
   clientCommandId: 'c-booked',
   wasReplay: false,
   awaitsEarlierGuestAnswer: false,
+  bookedWithoutTable: false,
   onMyWayOpensAtUtc: '2026-10-18T13:30:00Z',
 };
 

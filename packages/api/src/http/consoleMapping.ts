@@ -318,6 +318,7 @@ export function readinessFromWire(view: WireReadiness): BranchReadiness {
     deviceEnrolled: view.deviceEnrolled,
     deviceCount: view.deviceCount,
     bookableTableCount: view.bookableTableCount,
+    booksByTimeOnly: view.booksByTimeOnly,
     takingGuests: view.takingGuests,
     missingForGuests: view.missingForGuests ?? [],
     acceptsWebBookings: view.acceptsWebBookings,

@@ -377,16 +377,20 @@ export { createPublicMockGateway, manageTokenFor } from './mocks/publicMock';
 export type { PublicMockOptions } from './mocks/publicMock';
 export { createPublicHttpGateway } from './http/publicHttpGateway';
 export { coversSitting, openStateFrom } from './contracts/openState';
+export { booksByTimeOnly, timeFullGuestsLeft } from './contracts/publicBranch';
 export type {
   ManagedBooking,
   RescheduleManagedBookingCommand,
   OpenState,
   PublicBranch,
   PublicBranchCard,
+  PublicBranchPolicy,
   PublicBranchStatus,
   PublicPageMeta,
   PublicPhoto,
   PublicRoom,
+  PublicTimeSlot,
+  PublicTimeSlots,
   PublicVenue,
   PublicVenueHeader,
 } from './contracts/publicBranch';
@@ -638,6 +642,7 @@ export type {
 } from './contracts/menuAdmin';
 
 export {
+  GUESTS_AT_ONCE_BOUNDS,
   POLICY_BOUNDS,
   SPECIAL_DAY_HORIZON_DAYS,
   SPECIAL_DAY_NOTE_MAX,
@@ -654,6 +659,7 @@ export type {
   BoundedPolicyField,
   HoursBlock,
   HoursDay,
+  PolicyBookingMode,
   PolicyChangeResult,
   PolicyFieldBound,
   ReservationPolicy,

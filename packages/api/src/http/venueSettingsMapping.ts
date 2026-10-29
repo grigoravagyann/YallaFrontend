@@ -311,6 +311,9 @@ export function reservationPolicy(view: WirePolicy): ReservationPolicy {
     autoConfirmGuestsWithGoodRecord: view.autoConfirmGuestsWithGoodRecord ?? false,
     // Absent from an older server: the default, on.
     unverifiedScansNeedAdmission: view.unverifiedScansNeedAdmission ?? true,
+    // Absent from a server before booking by time only: diners choose a table.
+    bookingMode: view.bookingMode === 2 ? 'timeOnly' : 'chooseTable',
+    guestsAtOnce: view.bookingMode === 2 ? (view.guestsAtOnce ?? null) : null,
   };
 }
 
@@ -349,6 +352,10 @@ export function policyCommand(
     pricesIncludeVat: policy.pricesIncludeVat,
     autoConfirmGuestsWithGoodRecord: policy.autoConfirmGuestsWithGoodRecord,
     unverifiedScansNeedAdmission: policy.unverifiedScansNeedAdmission,
+    // Always both: a PUT naming the mode carries its capacity with it, and one
+    // naming neither would keep whatever the branch had.
+    bookingMode: policy.bookingMode === 'timeOnly' ? 2 : 1,
+    guestsAtOnce: policy.bookingMode === 'timeOnly' ? policy.guestsAtOnce : null,
   };
 }
 

@@ -270,6 +270,7 @@ describe('deciding a pending booking over HTTP', () => {
     phoneUnverified: false,
     cancellationDeadlineUtc: '2026-09-12T13:00:00Z',
     awaitsEarlierGuestAnswer: false,
+    bookedWithoutTable: false,
     onMyWayOpensAtUtc: '2026-09-12T14:30:00Z',
   };
 
@@ -358,6 +359,7 @@ describe('deciding a pending booking over HTTP', () => {
           status: 1,
           awaitingApprovalBecause: 2,
           awaitsEarlierGuestAnswer: false,
+          bookedWithoutTable: false,
           cancelledAfterDeadline: false,
           cancellationDeadlineUtc: '2026-09-18T13:30:00Z',
           onMyWayOpensAtUtc: '2026-09-18T15:00:00Z',

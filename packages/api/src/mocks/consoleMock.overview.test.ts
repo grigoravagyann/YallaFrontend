@@ -112,7 +112,7 @@ describe('the console mock — a branch overview', () => {
 });
 
 describe('the console mock — the row menu', () => {
-  const command = (row: { id: string; tableId: string }) => ({
+  const command = (row: { id: string; tableId: string | null }) => ({
     branchId: BRANCH,
     reservationId: row.id,
     tableId: row.tableId,

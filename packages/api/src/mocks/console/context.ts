@@ -1881,6 +1881,10 @@ export function createConsoleMockContext(options: ConsoleMockOptions = {}) {
     }
 
     requireManagerForBranch(command.branchId, ACTION_OPERATION[command.kind]);
+    if (command.tableId === null && (command.kind === 'seat' || command.kind === 'finish')) {
+      // As the HTTP gateway: a booking made by time only is seated from the floor tablet.
+      throw new Error(`A ${command.kind} needs the booking's table; ${row.code} has none yet.`);
+    }
 
     const live = all.filter((entry) => !isCancelled(entry));
     const sitting = live.find(
@@ -2729,6 +2733,9 @@ export function createConsoleMockContext(options: ConsoleMockOptions = {}) {
     const menuComplete = menuCategoriesPresent && items.length > 0 && incomplete.length === 0;
     const openingHoursSet = openDays > 0;
     const reservationPolicyReviewed = policyReviewed.has(branchId);
+    const policy = policyFor(branchId);
+    const booksByTimeOnly =
+      policy.bookingMode === 'timeOnly' && policy.guestsAtOnce !== null && policy.guestsAtOnce > 0;
 
     const blockers: string[] = [];
     if (!floorPlanDrawn) blockers.push('The floor plan has no tables on it yet.');
@@ -2746,9 +2753,13 @@ export function createConsoleMockContext(options: ConsoleMockOptions = {}) {
     if (deviceCount === 0) blockers.push('No tablet or staff phone is connected at this branch.');
 
     // The required lines (DinerVisibility on the server): diners see nothing until all four.
+    // A branch that books by time only needs no table a diner can tap: its
+    // guests at once stand in for the table line.
     const missingForGuests: string[] = [];
-    if (!floorPlanDrawn) missingForGuests.push('no-tables');
-    else if (bookableTableCount === 0) missingForGuests.push('no-bookable-table');
+    if (!booksByTimeOnly) {
+      if (!floorPlanDrawn) missingForGuests.push('no-tables');
+      else if (bookableTableCount === 0) missingForGuests.push('no-bookable-table');
+    }
     if (!openingHoursSet) missingForGuests.push('no-hours');
     if (staffCount === 0) missingForGuests.push('no-staff');
     if (deviceCount === 0) missingForGuests.push('no-device');
@@ -2773,6 +2784,7 @@ export function createConsoleMockContext(options: ConsoleMockOptions = {}) {
       deviceEnrolled: deviceCount > 0,
       deviceCount,
       bookableTableCount,
+      booksByTimeOnly,
       takingGuests: missingForGuests.length === 0,
       missingForGuests,
       acceptsWebBookings: profileFor(branchId).acceptsWebBookings,
