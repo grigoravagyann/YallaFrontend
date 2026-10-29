@@ -1337,18 +1337,22 @@ body:has(.yc-savebar) .yc-toast-region {
     pointer-events: none;
   }
 
-  /* Taller than the photo's content needs, and the wordmark lower, so the
-     dark of the photo's top sits over the glass and its garnish shows whole:
-     the crop takes the table instead. */
+  /* Taller than the photo's content needs, and the wordmark lower. The photo
+     starts 24px down, its top uncut, so the garnish has dark air above it;
+     the crop takes the table instead, and the gap is the photo's own black
+     under the same shade. */
   .yc-auth-room {
     flex-basis: 100%;
     min-height: 200px;
+    background: var(--console-photo-behind);
     gap: var(--space-lg);
     padding: calc(68px + env(safe-area-inset-top, 0px)) 20px var(--space-xl);
   }
 
   .yc-auth-photo {
-    object-position: 50% 30%;
+    top: 24px;
+    height: calc(100% - 24px);
+    object-position: 50% 0%;
   }
 
   .yc-auth-claim {

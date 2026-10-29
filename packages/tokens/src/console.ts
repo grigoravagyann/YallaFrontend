@@ -189,6 +189,8 @@ export const consoleColor = {
   photoGround: '#1A0508',
   /** The photo's own top edge under the shade: the strip above it on a phone, so the two read as one. */
   photoTop: '#0A0203',
+  /** Behind the photo where it stops short of the panel's top: under the shade it reads as photoTop. */
+  photoBehind: '#000000',
   /** Laid over the photo so the claim reads on any part of it. */
   photoShade: 'rgba(26, 5, 8, 0.38)',
   photoText: '#FFF7EA',
