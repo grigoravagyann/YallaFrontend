@@ -1136,8 +1136,8 @@
     }
   },
   "checklist": {
-    "title": "What is still needed before guests can come",
-    "body": "The branch takes guests once all of this is done. The order does not matter.",
+    "title": "What is still left to set up",
+    "body": "This list does not hold the branch back: guests can already reach it. It shows what is still missing for everything to work well. The order does not matter.",
     "progress": "{{done}} of {{total}} done",
     "step": {
       "floorPlan": "Rooms set up, with a table diners can book on a photo",

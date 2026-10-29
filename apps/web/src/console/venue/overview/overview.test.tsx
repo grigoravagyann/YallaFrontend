@@ -769,7 +769,7 @@ describe('worth a look and the setup card', () => {
     renderOverview(gateway);
 
     const setup = await screen.findByRole('region', {
-      name: 'What is still needed before guests can come',
+      name: 'What is still left to set up',
     });
     expect(within(setup).getByText('7 of 8 done')).toBeTruthy();
     expect(within(setup).getByRole('progressbar').getAttribute('aria-valuenow')).toBe('7');
