@@ -1338,7 +1338,7 @@ body:has(.yc-savebar) .yc-toast-region {
   }
 
   /* Taller than the photo's content needs, and the wordmark lower. The photo
-     starts 14px down, its top uncut, so the garnish has dark air above it;
+     starts 12px down, its top uncut, so the garnish has dark air above it;
      the crop takes the table instead, and the gap is the photo's own black
      under the same shade. */
   .yc-auth-room {
@@ -1350,8 +1350,8 @@ body:has(.yc-savebar) .yc-toast-region {
   }
 
   .yc-auth-photo {
-    top: 14px;
-    height: calc(100% - 14px);
+    top: 12px;
+    height: calc(100% - 12px);
     object-position: 50% 0%;
   }
 
