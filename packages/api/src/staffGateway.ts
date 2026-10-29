@@ -8,6 +8,7 @@ import type {
   RejectTabCommand,
   TabAwaitingAdmission,
 } from './contracts/admission';
+import type { BookingWithoutTable } from './contracts/bookingsWithoutTable';
 import type { DuePreOrder, DuePreOrders, PreOrderStaffCommand } from './contracts/preOrder';
 import type { AskOnMyWayResult } from './contracts/onMyWay';
 import type {
@@ -170,6 +171,22 @@ export interface StaffGateway {
    * the booking and never shown to the diner. Same guards as approve.
    */
   rejectReservation(command: DecideReservationCommand): Promise<ConsoleBooking>;
+
+  // --- Bookings by time only, waiting for a table (2026-10-29) -------------
+
+  /**
+   * The branch's confirmed bookings made by time only that nobody has seated
+   * — on no table's tile, so the floor lists them itself — soonest first. The
+   * waiter seats one with {@link StaffGateway.applyTableAction}
+   * (`seatReservation`, the booking's id, on the free table they choose) and
+   * the server gives the booking that table.
+   *
+   * `GET /api/branches/{branchId}/reservations?status=2`, keeping the
+   * `bookedWithoutTable` rows that have no table. That read is manager or
+   * above: `null` means this session may not list them (a waiter's 403), not
+   * that there are none. Pending ones are on {@link StaffGateway.listAwaitingApproval}.
+   */
+  listBookingsWithoutTable(branchId: string): Promise<readonly BookingWithoutTable[] | null>;
 
   // --- Tables waiting to be let in (2026-10-20) ---------------------------
 

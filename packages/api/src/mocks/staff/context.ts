@@ -82,6 +82,12 @@ import { fixtureStaffFor } from '../staffFixture';
 import { createMockActivity } from '../activity';
 import { mockVenues } from '../venues';
 import { ProblemCodes } from '../../generated/problemCodes';
+import {
+  createWithoutTableBook,
+  WITHOUT_TABLE_SHOWCASE,
+  WITHOUT_TABLE_TURN_MINUTES,
+  type StaffWithoutTableSeed,
+} from './withoutTableBook';
 
 /**
  * A whole service, in memory.
@@ -183,6 +189,20 @@ export interface StaffMockOptions {
   readonly preOrderSeeds?: readonly StaffPreOrderSeed[];
   /** The branch's `minutesBefore`: when a card appears. 30 when absent. */
   readonly preOrderMinutesBefore?: number;
+  /**
+   * Booking by time only (2026-10-29), for mock mode: three confirmed
+   * bookings on no table — the door's list, each with the guest's wish — and
+   * one more waiting for the floor's yes. Off in tests, which seed their own
+   * with {@link bookingsWithoutTable}.
+   */
+  readonly seedBookingsWithoutTable?: boolean;
+  /** Bookings by time only, for tests: exactly these, confirmed and on no table. */
+  readonly bookingsWithoutTable?: readonly StaffWithoutTableSeed[];
+  /**
+   * The session may not list them, as a waiter's is refused the manager's
+   * read the HTTP gateway uses: `listBookingsWithoutTable` answers `null`.
+   */
+  readonly bookingsWithoutTableRefused?: boolean;
   /**
    * Takeaway at the counter (2026-10-22), for mock mode: one waiting for an
    * answer (the rail's card and its countdown), one being prepared (a kitchen
@@ -402,7 +422,8 @@ interface MockReservation {
 interface MockAwaiting {
   readonly id: string;
   readonly code: string;
-  readonly tableId: string;
+  /** `null` for a booking made by time only: the venue chooses its table on arrival. */
+  readonly tableId: string | null;
   readonly guestName: string;
   readonly guestPhone: string;
   readonly partySize: number;
@@ -735,6 +756,40 @@ export function createStaffMockContext(options: StaffMockOptions = {}) {
    * after every request that has one, as the server lists it.
    */
   const awaiting = new Map<string, MockAwaiting>();
+
+  /** Bookings by time only, confirmed and on no table until a waiter seats them (2026-10-29). */
+  const withoutTable = createWithoutTableBook(start);
+  for (const seed of [
+    ...(options.bookingsWithoutTable ?? []),
+    ...(options.seedBookingsWithoutTable ? WITHOUT_TABLE_SHOWCASE : []),
+  ]) {
+    withoutTable.seed(seed);
+  }
+  if (options.seedBookingsWithoutTable) {
+    // And one made by time only that waits for the floor's yes: a party of
+    // five at short notice, with a wish the door will need once it is approved.
+    const madeAt = new Date(start.getTime() - 60_000);
+    const startUtc = minutesFrom(start, 70);
+    awaiting.set('res-time-await', {
+      id: 'res-time-await',
+      code: 'Y3161',
+      tableId: null,
+      guestName: 'Տաթևիկ Հովսեփյան',
+      guestPhone: '+37498112244',
+      partySize: 5,
+      startUtc,
+      arrivesAtUtc: iso(madeAt),
+      approvalExpiresAtUtc: approvalExpiryFor(madeAt, startUtc),
+      because: 'shortNotice',
+      note: 'Ծխողների սրահում',
+      guestRecord: seededRecord(2, 0, 0),
+      previousBooking: null,
+      nextBooking: null,
+      status: 'pendingApproval',
+      declinedBecause: null,
+      reason: null,
+    });
+  }
 
   const sitting = tables.get('t7');
 
@@ -1586,7 +1641,7 @@ export function createStaffMockContext(options: StaffMockOptions = {}) {
       guestName: request.guestName,
       guestPhone: request.guestPhone,
       partySize: request.partySize,
-      tableLabel: label(request.tableId),
+      tableLabel: request.tableId ? label(request.tableId) : null,
       ...localDateAndTime(request.startUtc, plan.timeZoneId),
       status: request.status,
       awaitingApprovalBecause: pending ? request.because : null,
@@ -1641,12 +1696,33 @@ export function createStaffMockContext(options: StaffMockOptions = {}) {
       );
     }
 
-    if (approve) {
+    if (approve && request.tableId === null) {
+      request.status = 'confirmed';
+      // Made by time only: confirmed on no table, on the door's list until a
+      // waiter seats it at the table they choose.
+      const startMs = Date.parse(request.startUtc);
+      withoutTable.bookings.set(request.id, {
+        id: request.id,
+        code: request.code,
+        guestName: request.guestName,
+        guestPhone: request.guestPhone,
+        partySize: request.partySize,
+        startUtc: request.startUtc,
+        endUtc: iso(new Date(startMs + WITHOUT_TABLE_TURN_MINUTES * 60_000)),
+        note: request.note,
+        guestRecord: request.guestRecord ?? null,
+        phoneUnverified: request.phoneUnverified === true,
+        guestConfirmedOnWayAtUtc: null,
+        guestRunningLateMinutes: null,
+        tableId: null,
+      });
+    } else if (approve && request.tableId !== null) {
+      const tableId = request.tableId;
       request.status = 'confirmed';
       // The booking now holds its table: the floor shows it like any other.
       reservations.set(request.id, {
         id: request.id,
-        tableId: request.tableId,
+        tableId,
         code: request.code,
         guestName: request.guestName,
         guestPhone: request.guestPhone,
@@ -1655,7 +1731,7 @@ export function createStaffMockContext(options: StaffMockOptions = {}) {
         released: false,
         guestRecord: request.guestRecord ?? null,
       });
-      const state = tables.get(request.tableId);
+      const state = tables.get(tableId);
       const current = state?.nextReservationStartUtc ?? null;
       if (
         state &&
@@ -2707,6 +2783,7 @@ export function createStaffMockContext(options: StaffMockOptions = {}) {
     unreadOnTable,
     viewTab,
     wireLines,
+    withoutTable,
   };
 }
 

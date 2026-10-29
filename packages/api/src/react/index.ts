@@ -219,6 +219,7 @@ export {
   useAdmitTab,
   useAwaitingApproval,
   useBeginClosing,
+  useBookingsWithoutTable,
   useCompLine,
   useFloorApproveReservation,
   useFloorRejectReservation,

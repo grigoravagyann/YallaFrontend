@@ -64,6 +64,7 @@ export function floorMethods(
     tabs,
     totalsFor,
     unreadOnTable,
+    withoutTable,
   } = ctx;
   return {
     async getFloor(requested): Promise<StaffFloor | null> {
@@ -336,11 +337,21 @@ export function floorMethods(
           ? (command.reservationId ??
             (command.kind === 'seatReservation' ? state.nextReservationId : null))
           : null;
+      /**
+       * A booking made by time only, seated at the table the waiter chose: it
+       * is this table's booking from now on (`Reservation.AssignTable`). The
+       * table's own next booking is somebody else's and stays.
+       */
+      const assigned =
+        command.kind === 'seatReservation' && seating
+          ? withoutTable.bookings.get(seating)
+          : undefined;
+      if (assigned && assigned.tableId === null) assigned.tableId = command.tableId;
       if (transition.to === 'occupied') {
         state.sessionId = id('session');
         state.seatedAtUtc = iso(at);
-        state.partySize = command.partySize ?? null;
-        if (command.kind === 'seatReservation' || command.reservationId) {
+        state.partySize = command.partySize ?? assigned?.partySize ?? null;
+        if ((command.kind === 'seatReservation' || command.reservationId) && !assigned) {
           state.nextReservationId = null;
           state.nextReservationStartUtc = null;
         }

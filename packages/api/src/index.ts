@@ -574,6 +574,8 @@ export {
   isShortNotice,
   waitsOnEarlierGuestInApp,
 } from './contracts/approvals';
+export type { BookingWithoutTable } from './contracts/bookingsWithoutTable';
+export { stillToSeat } from './contracts/bookingsWithoutTable';
 export type {
   BranchOverview,
   ConsoleBookingActionCommand,
@@ -1065,7 +1067,11 @@ export {
 } from './contracts/errors';
 export { MOCK_PRE_ORDER_BRANCHES, createMockPreOrderBook } from './mocks/preOrders';
 export type { MockPreOrderBranch } from './mocks/preOrders';
-export type { StaffPreOrderSeed, StaffTakeawaySeed } from './mocks/staffMock';
+export type {
+  StaffPreOrderSeed,
+  StaffTakeawaySeed,
+  StaffWithoutTableSeed,
+} from './mocks/staffMock';
 
 // "I'm coming" on a booking (2026-10-22): running late, the venue's ask, and
 // the rules the booking screen and the tablet decide their buttons by.
