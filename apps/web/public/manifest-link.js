@@ -11,9 +11,12 @@
  *   a diner opens: no manifest, so a diner's "Add to Home Screen" bookmarks the
  *   page instead of installing the console.
  *
- * `index.html` keeps one `<link rel="manifest">`; this points it, or takes it
- * out, before anything else runs, and again on every client-side navigation
- * (a branch manager's Floor link goes from /venue to /staff without a load).
+ * The server already sends each path a shell with the right link, or none
+ * (`src/manifestShell.ts`, 2026-10-29): iOS Safari installs from the link as
+ * parsed and ignores this script changing it. This keeps the one link right
+ * on every client-side navigation after that (a branch manager's Floor link
+ * goes from /venue to /staff without a load), for the browsers that follow a
+ * changed link, and adds it when the page was first served without one.
  *
  * A file rather than an inline script: the Content-Security-Policy is
  * `script-src 'self'` with no inline script (`src/csp.ts`). The reserved words
@@ -35,9 +38,19 @@
   var CONSOLE = '/manifest-console.webmanifest';
 
   var link = document.querySelector('link[rel="manifest"]');
-  if (!link) return;
-  var parent = link.parentNode;
-  var next = link.nextSibling;
+  var parent;
+  var next;
+  if (link) {
+    parent = link.parentNode;
+    next = link.nextSibling;
+  } else {
+    // A diner's page is served with no link: one goes where it would have been.
+    var self = document.currentScript;
+    link = document.createElement('link');
+    link.setAttribute('rel', 'manifest');
+    parent = (self && self.parentNode) || document.head;
+    next = self && self.parentNode ? self : null;
+  }
 
   function manifestFor(pathname) {
     var first = (pathname.split('/').filter(Boolean)[0] || '').toLowerCase();

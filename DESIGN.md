@@ -439,8 +439,11 @@ exactly as before: every phone rule sits under one of two queries
 - **Nothing is hover-only.** What a tooltip says is in the text or a tap away.
 - **Installing.** `manifest-console.webmanifest` ("Time to Eat Console", scope
   and start URL `/`, which sends each role home) on the console's paths, the
-  staff manifest on `/staff`, and none on a diner's pages
-  (`public/manifest-link.js`).
+  staff manifest on `/staff`, and none on a diner's pages. The link is in the
+  HTML the server sends — `index.html`, `staff.html` and `public.html`, routed
+  per path (`src/manifestShell.ts`) — because iOS Safari installs from the
+  link as parsed and ignores a script changing it; `public/manifest-link.js`
+  only follows client-side navigations.
 
 ## Motion
 

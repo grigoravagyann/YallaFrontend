@@ -61,6 +61,33 @@ case "$(header_of /venue/floorplan X-Robots-Tag)" in
   *) fail "X-Robots-Tag leaked onto /venue/floorplan" ;;
 esac
 
+# 2c. Each product's shell names its own manifest in the HTML as sent: iOS
+# Safari installs from that and ignores manifest-link.js changing it.
+manifest_of() {
+  # No link at all is an answer (a diner's page), not a failed grep.
+  curl -s "$BASE$1" | { grep -o '<link rel="manifest" href="[^"]*"' || true; } | sed 's/.*href="//; s/"$//'
+}
+expect_manifest() {
+  local got
+  got="$(manifest_of "$1")"
+  [ "$got" = "$2" ] || fail "$1 links manifest '${got}', expected '$2'"
+  curl -s "$BASE$1" | grep -q '<div id="root">' || fail "$1 is not the app shell"
+  case "$(header_of "$1" Cache-Control)" in
+    *no-cache*) ;;
+    *) fail "$1 lacks Cache-Control: no-cache" ;;
+  esac
+  ok "$1 links '${2:-no manifest}', no-cache"
+}
+expect_manifest / /manifest-console.webmanifest
+expect_manifest /sign-in /manifest-console.webmanifest
+expect_manifest /venue/floorplan /manifest-console.webmanifest
+expect_manifest /platform/venues /manifest-console.webmanifest
+expect_manifest /staff /manifest.webmanifest
+expect_manifest /staff/kitchen /manifest.webmanifest
+expect_manifest /STAFF /manifest.webmanifest
+expect_manifest /smoke-venue/main ''
+expect_manifest /booking/smoke-token ''
+
 # 3. A real hashed asset, long-cached.
 ASSET="$(curl -s "$BASE/" | grep -o '/assets/[^"]*\.js' | head -1)"
 [ -n "$ASSET" ] || fail "index.html references no /assets/*.js"
@@ -75,7 +102,7 @@ esac
 ok "missing /assets file is 404"
 
 # 5. The manifest and the service worker exist and are not long-cached.
-for p in /manifest.webmanifest /sw.js; do
+for p in /manifest.webmanifest /manifest-console.webmanifest /manifest-link.js /sw.js /staff.html; do
   [ "$(status_of "$p")" = 200 ] || fail "$p is not 200"
   case "$(header_of "$p" Cache-Control)" in
     *no-cache*) ok "$p is no-cache" ;;

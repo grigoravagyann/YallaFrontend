@@ -1150,11 +1150,15 @@ most of the value gone.
 
 Production serves the console from a container: `apps/web/Dockerfile` builds
 `apps/web/dist` with pnpm and hands it to Caddy, configured by
-`apps/web/deploy/Caddyfile` — `/srv` as the root, `index.html` for every route
-that is not a file, a year's `immutable` cache on the hashed `/assets/*`,
-`no-cache` on `index.html`, `sw.js` and `manifest.webmanifest`, and the headers
-below. It listens on `:80` and knows nothing about TLS: the backend's compose
-puts its own Caddy in front, terminates HTTPS there and proxies `web:80`.
+`apps/web/deploy/Caddyfile` — `/srv` as the root, a shell for every route
+that is not a file (`staff.html` on `/staff…`, `index.html` on `/` and the
+console's reserved paths, `public.html` with no manifest link on everything
+else: iOS Safari installs the manifest the HTML arrives with, see
+`apps/web/src/manifestShell.ts`), a year's `immutable` cache on the hashed
+`/assets/*`, `no-cache` on the shells, `sw.js`, the manifests and
+`manifest-link.js`, and the headers below. It listens on `:80` and knows
+nothing about TLS: the backend's compose puts its own Caddy in front,
+terminates HTTPS there and proxies `web:80`.
 
 `.github/workflows/publish.yml` builds it on every push to `main` and every
 `v*` tag, runs `apps/web/deploy/smoke.sh` against it, and pushes
@@ -1813,14 +1817,14 @@ minification preserves.
 stub of the worker global and dispatches the requests a running tablet makes, so
 this table is an assertion rather than a reading of the file:
 
-| Request                                       | Worker                        |
-| --------------------------------------------- | ----------------------------- |
-| `/api/**`, same-origin or not                 | passthrough                   |
-| any `POST`/`PUT`/`PATCH`/`DELETE`             | passthrough                   |
-| navigations (`/staff`, `/`)                   | network first, shell fallback |
-| `/assets/**`, `.js`, `.css`, `.woff2`, `.svg` | cache first                   |
-| `/manifest.webmanifest`                       | passthrough                   |
-| anything unrecognised                         | passthrough                   |
+| Request                                       | Worker                      |
+| --------------------------------------------- | --------------------------- |
+| `/api/**`, same-origin or not                 | passthrough                 |
+| any `POST`/`PUT`/`PATCH`/`DELETE`             | passthrough                 |
+| navigations (`/staff`, `/`)                   | network first, `staff.html` |
+| `/assets/**`, `.js`, `.css`, `.woff2`, `.svg` | cache first                 |
+| `/manifest.webmanifest`                       | passthrough                 |
+| anything unrecognised                         | passthrough                 |
 
 The manifest is cached at install and passed through afterwards, which is a
 small inconsistency and a safe one: the browser reads it at install time and

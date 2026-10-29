@@ -18,9 +18,14 @@
          the console's paths the console's (`manifest-console.webmanifest`,
          scope /, and / sends each role to its home). On the public venue page
          and a booking's manage link none, so a diner never installs the
-         console. `manifest-link.js` picks, before anything else runs: a file,
+         console. The link below is set per path in the HTML the server sends,
+         because iOS Safari installs from the link as parsed and ignores a
+         script changing it: the build writes index.html (console), staff.html
+         and public.html (no link), and the host and dev server route each path
+         to its own (`src/manifestShell.ts`, `deploy/Caddyfile`). Keep it one
+         line. `manifest-link.js` follows client-side navigations: a file,
          because the CSP allows no inline script. -->
-    <link rel="manifest" href="/manifest.webmanifest" />
+    <link rel="manifest" href="/manifest-console.webmanifest" />
     <script src="/manifest-link.js"></script>
     <!-- consoleColor.sidebar (#3A0912), the floor tablet bar, from @yalla/tokens; the manifest carries the same value. -->
     <meta name="theme-color" content="#3A0912" />

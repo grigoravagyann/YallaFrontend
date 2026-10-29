@@ -53,15 +53,18 @@ type Treatment =
   /** The handler returned without responding: straight to the network. */
   | 'passthrough';
 
-function loadWorker(): {
+function loadWorker(network: () => Promise<Response> = async () => new Response('')): {
   dispatch: (request: FakeRequest) => Treatment;
+  respond: (request: FakeRequest) => Promise<unknown>;
   cacheMatches: ReturnType<typeof vi.fn>;
+  installed: () => Promise<readonly string[]>;
 } {
   const handlers = new Map<string, FetchHandler>();
-  const cacheMatches = vi.fn(async () => undefined);
+  const cacheMatches = vi.fn(async (_request: unknown) => undefined as unknown);
+  const addAll = vi.fn(async (_requests: readonly { url: string }[]) => undefined);
 
   const cache = {
-    addAll: vi.fn(async () => undefined),
+    addAll,
     put: vi.fn(async () => undefined),
     match: cacheMatches,
   };
@@ -81,22 +84,42 @@ function loadWorker(): {
   };
 
   // The real file, evaluated. Nothing here reimplements its rules.
-  const run = new Function('self', 'caches', 'fetch', SW_SOURCE) as (
+  const run = new Function('self', 'caches', 'fetch', 'Request', SW_SOURCE) as (
     s: unknown,
     c: unknown,
     f: unknown,
+    r: unknown,
   ) => void;
-  run(
-    self,
-    caches,
-    vi.fn(async () => new Response('')),
-  );
+  // A worker resolves a relative URL against its own origin; Node's Request
+  // cannot, so the precache list is recorded as written.
+  class WorkerRequest {
+    constructor(readonly url: string) {}
+  }
+  run(self, caches, vi.fn(network), WorkerRequest);
 
   const fetchHandler = handlers.get('fetch');
   if (!fetchHandler) throw new Error('sw.js registered no fetch handler');
 
   return {
     cacheMatches,
+    async installed() {
+      const install = handlers.get('install') as unknown as
+        ((event: { waitUntil(p: Promise<unknown>): void }) => void) | undefined;
+      let done: Promise<unknown> = Promise.resolve();
+      install?.({ waitUntil: (p) => (done = p) });
+      await done;
+      return (addAll.mock.calls[0]?.[0] ?? []).map((r) => r.url);
+    },
+    respond(request: FakeRequest): Promise<unknown> {
+      let answer: Promise<unknown> = Promise.resolve(undefined);
+      fetchHandler({
+        request,
+        respondWith: (response) => {
+          answer = Promise.resolve(response);
+        },
+      });
+      return answer;
+    },
     dispatch(request: FakeRequest): Treatment {
       let treatment: Treatment = 'passthrough';
       fetchHandler({
@@ -148,6 +171,20 @@ describe('the service worker', () => {
     // what makes the icon on the home screen work with no signal.
     expect(worker.dispatch(get(`${ORIGIN}/staff`, { mode: 'navigate' }))).toBe('handled');
     expect(worker.dispatch(get(`${ORIGIN}/`, { mode: 'navigate' }))).toBe('handled');
+  });
+
+  it("falls back to the staff app's own shell, with the staff manifest in it", async () => {
+    // The worker answers /staff only, and iOS installs the manifest the HTML
+    // arrives with: index.html is the console's (src/manifestShell.ts).
+    const offline = loadWorker(async () => {
+      throw new TypeError('offline');
+    });
+    await offline.respond(get(`${ORIGIN}/staff/kitchen`, { mode: 'navigate' }));
+    expect(offline.cacheMatches).toHaveBeenCalledWith('/staff.html');
+    const precached = await offline.installed();
+    expect(precached).toContain('/staff.html');
+    expect(precached).not.toContain('/index.html');
+    expect(precached).not.toContain('/');
   });
 
   it('serves hashed build assets from cache', () => {

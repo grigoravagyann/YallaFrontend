@@ -2,6 +2,7 @@ import { execSync } from 'node:child_process';
 import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { beforeAll, describe, expect, it } from 'vitest';
+import { SHELL_FILE, SHELL_MANIFEST, type ShellKind, withManifest } from './manifestShell';
 
 /**
  * What is actually in the file a venue installs.
@@ -149,6 +150,34 @@ describe("the shell's Content-Security-Policy", () => {
     expect(policyAt).toBeGreaterThan(-1);
     expect(policyAt).toBeLessThan(html.indexOf('<script'));
     expect(policyAt).toBeLessThan(html.indexOf('<link'));
+  });
+});
+
+describe('one shell per product', () => {
+  /*
+   * iOS Safari installs the manifest the HTML arrives with and ignores
+   * manifest-link.js changing it, so each product's file has to carry its own
+   * (src/manifestShell.ts). Read off the build, as the host serves them.
+   */
+  function shell(kind: ShellKind): string {
+    return readFileSync(join(DIST, SHELL_FILE[kind]), 'utf8');
+  }
+
+  function manifestHref(html: string): string | null {
+    return /<link rel="manifest" href="([^"]*)"/u.exec(html)?.[1] ?? null;
+  }
+
+  it('links each product its own manifest, and a diner none', () => {
+    expect(manifestHref(shell('console'))).toBe(SHELL_MANIFEST.console);
+    expect(manifestHref(shell('staff'))).toBe(SHELL_MANIFEST.staff);
+    expect(manifestHref(shell('public'))).toBeNull();
+  });
+
+  it('differs in nothing else: the same bundle, policy and card', () => {
+    const consoleHtml = shell('console');
+    expect(withManifest(shell('staff'), SHELL_MANIFEST.console)).toBe(consoleHtml);
+    expect(shell('public')).toBe(withManifest(consoleHtml, null));
+    expect(shell('public')).toContain('Content-Security-Policy');
   });
 });
 
