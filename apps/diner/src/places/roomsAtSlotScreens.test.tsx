@@ -1,4 +1,5 @@
 import {
+  ApiError,
   BookingBlockedNoShowsError,
   BookingOverlapsOwnError,
   FreeByRequiredError,
@@ -1008,5 +1009,113 @@ describe('the Book screen, who may book', () => {
 
     expect(await screen.findByText(paused)).toBeTruthy();
     await waitFor(() => expect(list.mock.calls.length).toBeGreaterThan(reads));
+  });
+});
+
+describe('the Book screen at a branch that books by time only', () => {
+  const at = (time: string) => new Date(`2026-10-16T${time}:00+04:00`).toISOString();
+  const confirmButton = () => screen.getByRole('button', { name: /^Confirm Booking/u });
+  const confirmEnabled = () =>
+    waitFor(() => expect(confirmButton().getAttribute('aria-disabled')).not.toBe('true'));
+
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2026-10-16T08:00:00Z'));
+    useSession.setState({ signedIn: true, phoneE164: '+37499000000', guestName: 'Ani' });
+    held.place = { ...(held.place as Place), bookingMode: 'timeOnly' } satisfies Place;
+    const rules = mock.getBookingRules.bind(mock);
+    vi.spyOn(mock, 'getBookingRules').mockImplementation(async (input) => {
+      const found = await rules(input);
+      return found ? { ...found, bookingMode: 'timeOnly' } : found;
+    });
+    // Counted in guests: 19:00 is full, 19:15 has three places left.
+    const day = mock.getDaySlots.bind(mock);
+    vi.spyOn(mock, 'getDaySlots').mockImplementation(async (input) => {
+      const found = await day(input);
+      if (!found) return found;
+      return {
+        ...found,
+        slots: found.slots.map((slot) =>
+          slot.time === '19:00'
+            ? { ...slot, isAvailable: false, unavailableReason: 'alreadyBooked', guestsLeft: 0 }
+            : { ...slot, guestsLeft: slot.time === '19:15' ? 3 : 40 },
+        ),
+      } satisfies DaySlots;
+    });
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.restoreAllMocks();
+    useSession.setState({ signedIn: false, phoneE164: null, guestName: null });
+    router.replace.mockReset();
+    const { bookingMode: _, ...place } = held.place as Place;
+    held.place = place;
+  });
+
+  it('asks for a time, how many and a wish — no rooms — and books with no table', async () => {
+    const create = vi
+      .spyOn(mock, 'createBooking')
+      .mockResolvedValue({ id: 'r-time', status: 'confirmed' } as Booking);
+    params.current = { placeId: BRANCH };
+    renderScreen(<BookingScreen />);
+
+    expect(await screen.findByText('Struck-out times are fully booked')).toBeTruthy();
+    // No room photo, no pin, no table to pick.
+    expect(screen.queryAllByRole('button', { name: firstFree })).toHaveLength(0);
+    expect(screen.queryByText('Choose a table')).toBeNull();
+    // A full time is stepped over; a nearly full one says how many places it has.
+    expect(skips('18:45', '19:00')).toBe(true);
+    expect(chosenTime()).toBe('19:15');
+    expect(await screen.findByText('3 places left at this time')).toBeTruthy();
+
+    const wish = screen.getByLabelText('Your wish');
+    expect(wish.getAttribute('placeholder')).toBe('By the window, smoking room…');
+    fireEvent.change(wish, { target: { value: '  By the window  ' } });
+
+    await confirmEnabled();
+    expect(confirmButton().getAttribute('aria-label')).toMatch(/· 2 guests$/u);
+    fireEvent.click(confirmButton());
+    await waitFor(() => expect(create).toHaveBeenCalledTimes(1));
+    expect(create.mock.calls[0]![0]).toMatchObject({
+      tableId: null,
+      slotUtc: at('19:15'),
+      note: 'By the window',
+    });
+    await waitFor(() =>
+      expect(router.replace).toHaveBeenCalledWith({
+        pathname: '/reserve/success',
+        params: { bookingId: 'r-time' },
+      }),
+    );
+  });
+
+  it('says how many places are left when the time filled up meanwhile', async () => {
+    vi.spyOn(mock, 'createBooking').mockRejectedValue(
+      new ApiError('time-full', {
+        status: 409,
+        url: '/api/reservations',
+        problem: {
+          type: 'https://yalla.am/problems/time-full',
+          title: 'Problem',
+          status: 409,
+          detail: 'There is no room for that many guests at that time.',
+          code: 'time-full',
+          traceId: 'trace-test',
+          context: { guestsLeft: 1 },
+        },
+      }),
+    );
+    params.current = { placeId: BRANCH };
+    renderScreen(<BookingScreen />);
+    await screen.findByText('Struck-out times are fully booked');
+    stepTo('19:30');
+
+    await confirmEnabled();
+    fireEvent.click(confirmButton());
+    expect(
+      await screen.findByText(
+        'Only 1 place left at that time. Choose fewer guests or another time.',
+      ),
+    ).toBeTruthy();
   });
 });

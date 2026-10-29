@@ -67,6 +67,7 @@ const DETAIL = {
   tableCount: 0,
   acceptsWebBookings: true,
   acceptsAppBookings: true,
+  bookingMode: 1,
   specialDays: [],
   recentReviews: [],
   ratingCounts: [0, 0, 0, 0, 0],
@@ -101,6 +102,7 @@ const PAGE: Schemas['Yalla.Application.Public.PublicBranchPage'] = {
     minLeadMinutes: 30,
     cancellationDeadlineMinutes: 120,
     acceptsPreOrders: false,
+    bookingMode: 1,
   },
   asOfUtc: '2026-09-14T10:00:00Z',
   acceptsAppBookings: true,
@@ -115,6 +117,7 @@ const VIEW = {
   branchName: 'Cascade',
   tableId: 'tbl-7',
   tableLabel: '7',
+  bookedWithoutTable: false,
   partySize: 2,
   startUtc: '2026-09-20T15:30:00Z',
   endUtc: '2026-09-20T17:00:00Z',
@@ -183,6 +186,26 @@ describe('the position the phone sends', () => {
   });
 });
 
+describe('booking by time only (2026-10-29)', () => {
+  it('reads the booking mode from the detail and the page, 1 as tables and 2 as time only', async () => {
+    const { gateway } = gatewayOver({
+      [`GET /api/public/branches/${BRANCH}`]: { body: { ...DETAIL, bookingMode: 2 } },
+      'GET /api/public/branches/lumen/cascade': {
+        body: { ...PAGE, policy: { ...PAGE.policy, bookingMode: 2 } },
+      },
+      'GET /api/public/branches/lumen/tables': { body: PAGE },
+    });
+
+    expect((await gateway.getBranchDetail(BRANCH))?.bookingMode).toBe('timeOnly');
+    expect(
+      (await gateway.getBookingRules({ venueSlug: 'lumen', branchSlug: 'cascade' }))?.bookingMode,
+    ).toBe('timeOnly');
+    expect(
+      (await gateway.getBookingRules({ venueSlug: 'lumen', branchSlug: 'tables' }))?.bookingMode,
+    ).toBe('chooseTable');
+  });
+});
+
 describe('the app booking gate and the booking note (K9)', () => {
   it('reads acceptsAppBookings from the detail and the page, and a server without it as booking', async () => {
     const { gateway } = gatewayOver({
@@ -199,6 +222,7 @@ describe('the app booking gate and the booking note (K9)', () => {
       bookingWindowDays: 14,
       minLeadMinutes: 30,
       acceptsAppBookings: false,
+      bookingMode: 'chooseTable',
     });
     expect(
       (await gateway.getBookingRules({ venueSlug: 'lumen', branchSlug: 'older' }))

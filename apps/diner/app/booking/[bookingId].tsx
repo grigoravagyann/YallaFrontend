@@ -11,7 +11,8 @@ import { BookingBadge, NoShowBlockReason } from '../../src/components/bookings/B
 import {
   bookingShareLine,
   sittingEndLines,
-  tableWithRoom,
+  bookedByTime,
+  tableLine,
 } from '../../src/components/bookings/bookingText';
 import { anotherTimeRoute, changeBookingRoute } from '../../src/components/bookings/changeBooking';
 import { ImComingCard, inComingWindow } from '../../src/components/bookings/ImComingCard';
@@ -212,6 +213,10 @@ function BookingDetail({
     .map((line) => t(line.key, line.params))
     .join(' · ');
 
+  const table = tableLine(booking);
+  // Made by time only: moved by cancelling and booking again, with no pre-order.
+  const byTime = bookedByTime(booking);
+
   const share = () => {
     const line = bookingShareLine(booking, where, when);
     void Share.share({ message: t(line.key, line.params) }).catch(() => undefined);
@@ -288,10 +293,8 @@ function BookingDetail({
           {/* The guest's own yes to the guest after them, for as long as it binds. */}
           <PromiseNote booking={booking} style={styles.answer} />
           <View style={styles.facts}>
-            <Fact
-              icon={actionIcon.table}
-              text={t('tables.table', { label: tableWithRoom(booking) })}
-            />
+            {/* Booked by time only and not seated yet: the venue chooses the table on arrival. */}
+            <Fact icon={actionIcon.table} text={t(table.key, table.params)} />
             <Fact icon={actionIcon.calendar} text={when} />
             <Fact
               icon={actionIcon.people}
@@ -370,12 +373,16 @@ function BookingDetail({
           </Text>
         </Card>
 
-        {/* The dishes chosen ahead, or the offer to choose them (2026-10-21). */}
-        <PreOrderCard booking={booking} now={now} onEdit={editPreOrder} />
+        {/* The dishes chosen ahead, or the offer to choose them (2026-10-21) —
+            never by time only, whose booking has no table for the ticket. */}
+        {byTime ? null : <PreOrderCard booking={booking} now={now} onEdit={editPreOrder} />}
 
         {note ? (
           <Card style={styles.noteCard}>
-            <SectionHeader label={t('booking.note.title')} icon={actionIcon.note} />
+            <SectionHeader
+              label={t(byTime ? 'book.byTime.wishTitle' : 'booking.note.title')}
+              icon={actionIcon.note}
+            />
             <Text style={styles.note}>{note}</Text>
           </Card>
         ) : null}
@@ -392,6 +399,10 @@ function BookingDetail({
           </Text>
         ) : canCancel(booking.status) ? (
           <Text style={styles.cancellation}>{t(cancellation.key, cancellation.params)}</Text>
+        ) : null}
+        {/* No Change by time only: the booking holds no table to move. */}
+        {byTime && cancellable ? (
+          <Text style={styles.cancellation}>{t('booking.byTime.noChange')}</Text>
         ) : null}
 
         <View style={styles.actions}>

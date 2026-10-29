@@ -2686,6 +2686,8 @@ export function createDinerMockContext(options: MockGatewayOptions = {}) {
         requestable,
         requestableTableCount: bookable.length - plain.length,
         mustFreeByUtc,
+        // Counted in tables: the mock's branches all choose them.
+        guestsLeft: null,
       });
     }
 

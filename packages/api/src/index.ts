@@ -108,6 +108,7 @@ export type {
   BranchPolicy,
   BranchSummary,
   BookingChannel,
+  BookingMode,
   BookingRules,
   CreateBookingCommand,
   DaySlot,
@@ -218,7 +219,12 @@ export type {
   StoredReview,
 } from './mocks/reviewStore';
 
-export { isKnownUnavailableReason, KNOWN_UNAVAILABLE_REASONS } from './contracts/booking';
+export {
+  bookingModeFromCode,
+  isKnownUnavailableReason,
+  KNOWN_UNAVAILABLE_REASONS,
+  timeFullGuestsLeft,
+} from './contracts/booking';
 
 export { OPEN_ENDED_BUCKET, REPORT_MAX_DAYS, REPORT_SECTIONS } from './contracts/reports';
 

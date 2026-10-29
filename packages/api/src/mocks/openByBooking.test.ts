@@ -221,7 +221,7 @@ describe('opening the tab from a booking', () => {
 
     // Somebody scanned the booked table and is sitting there on their own tab.
     await gateway.scanTableCode({
-      tableCode: mockTableCode(booking.tableId),
+      tableCode: mockTableCode(booking.tableId!),
       commandId: '0c7d0a55-8b8f-4a5e-9a51-1d5b0f2f6a10',
     });
 

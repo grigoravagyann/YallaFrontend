@@ -78,6 +78,7 @@ const CONFIRMED: Booking = {
   timeZoneId: 'Asia/Yerevan',
   tableId: 't1',
   tableLabel: '1',
+  bookedWithoutTable: false,
   roomId: null,
   roomName: null,
   partySize: 3,
@@ -290,5 +291,72 @@ describe('the bookings list row, to a screen reader', () => {
       withQueries(<BookingRow booking={CONFIRMED} now={new Date()} onOpen={() => undefined} />),
     );
     expect(screen.queryByRole('button', { name: /booking\.tableRequest\.title/u })).toBeNull();
+  });
+});
+
+describe('a booking made by time only (2026-10-29)', () => {
+  // Pre-orders open for it, as the server might still say: it never offers one.
+  const byTime: Booking = {
+    ...CONFIRMED,
+    tableId: null,
+    tableLabel: null,
+    bookedWithoutTable: true,
+    note: 'By the window',
+    preOrderEditableUntilUtc: new Date(Date.parse(slot) - 2 * HOUR_MS).toISOString(),
+  };
+
+  it('says the venue chooses the table, offers no change or pre-order, and keeps cancel', async () => {
+    gateway.getBooking.mockResolvedValue(byTime);
+    render(withQueries(<BookingDetailScreen />));
+
+    expect(await screen.findByText('booking.byTime.table')).toBeTruthy();
+    expect(screen.queryByText(/^tables\.table/u)).toBeNull();
+    expect(screen.getByText('booking.byTime.noChange')).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'bookings.change' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'preOrder.add' })).toBeNull();
+    expect(screen.getByRole('button', { name: 'bookings.detail.cancel' })).toBeTruthy();
+    // The wish went to the venue as the note, and is shown as the wish.
+    expect(screen.getByText('book.byTime.wishTitle')).toBeTruthy();
+    expect(screen.getByText('By the window')).toBeTruthy();
+  });
+
+  it('on the hero card: "On arrival" for the table, no pre-order, cancel kept', () => {
+    render(
+      withQueries(
+        <BookingHeroCard
+          booking={byTime}
+          now={new Date()}
+          onOpen={() => undefined}
+          onCancel={() => undefined}
+          onPreOrder={() => undefined}
+        />,
+      ),
+    );
+    expect(screen.getByText('booking.byTime.tableShort')).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'preOrder.add' })).toBeNull();
+    expect(screen.getByRole('button', { name: 'booking.cancel' })).toBeTruthy();
+  });
+
+  it('a table booking still offers its pre-order', () => {
+    render(
+      withQueries(
+        <BookingHeroCard
+          booking={{ ...byTime, tableId: 't1', tableLabel: '1', bookedWithoutTable: false }}
+          now={new Date()}
+          onOpen={() => undefined}
+          onCancel={() => undefined}
+          onPreOrder={() => undefined}
+        />,
+      ),
+    );
+    expect(screen.getByRole('button', { name: 'preOrder.add' })).toBeTruthy();
+  });
+
+  it('on the success screen, the table is left to the venue', async () => {
+    gateway.getBooking.mockResolvedValue(byTime);
+    render(withQueries(<SuccessScreen />));
+
+    expect(await screen.findByText('booking.byTime.table')).toBeTruthy();
+    expect(screen.queryByText('preOrder.add')).toBeNull();
   });
 });

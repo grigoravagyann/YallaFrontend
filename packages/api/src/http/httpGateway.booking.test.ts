@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { CreateBookingCommand } from '../contracts/booking';
+import { timeFullGuestsLeft, type CreateBookingCommand } from '../contracts/booking';
 import type { components } from '../generated/schema';
 import { fakeBackend, problemReply, type FakeRoute } from './fakeBackend.testkit';
 import { createHttpGateway } from './httpGateway';
@@ -29,6 +29,7 @@ const VIEW: ReservationViewWire = {
   branchName: 'Northern Avenue',
   tableId: 'tbl-7',
   tableLabel: '7',
+  bookedWithoutTable: false,
   partySize: 2,
   startUtc: '2026-09-20T15:30:00Z',
   onMyWayOpensAtUtc: '2026-09-20T13:30:00Z',
@@ -160,6 +161,7 @@ describe('creating a booking', () => {
       timeZoneId: 'Asia/Yerevan',
       tableId: 'tbl-7',
       tableLabel: '7',
+      bookedWithoutTable: false,
       // A server that does not name the room yet: unknown, not invented.
       roomId: null,
       roomName: null,
@@ -181,6 +183,38 @@ describe('creating a booking', () => {
       promisedFreeByUtc: null,
       incomingTableRequest: null,
     });
+  });
+
+  it('books by time only with no table, and reads the booking back without one', async () => {
+    const { gateway, backend } = gatewayOver({
+      'POST /api/reservations': {
+        status: 201,
+        body: { ...VIEW, tableId: null, tableLabel: null, bookedWithoutTable: true },
+      },
+    });
+
+    const booking = await gateway.createBooking({
+      ...COMMAND,
+      tableId: null,
+      note: 'By the window',
+    });
+
+    const body = backend.requests[0]?.body as Record<string, unknown>;
+    expect(body['tableId']).toBeNull();
+    expect(body['note']).toBe('By the window');
+    expect(booking).toMatchObject({ tableId: null, tableLabel: null, bookedWithoutTable: true });
+  });
+
+  it('reads a time with no room left as how many guests it could still take', async () => {
+    const { gateway } = gatewayOver({
+      'POST /api/reservations': problemReply(409, 'time-full', { guestsLeft: 3 }),
+    });
+
+    const error = await caught(gateway.createBooking({ ...COMMAND, tableId: null, partySize: 4 }));
+
+    expect(timeFullGuestsLeft(error)).toBe(3);
+    // Any other refusal is not this one.
+    expect(timeFullGuestsLeft(new Error('x'))).toBeNull();
   });
 
   it('books from the public page on its own route, the branch in the path and no channel', async () => {

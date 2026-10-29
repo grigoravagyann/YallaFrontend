@@ -112,10 +112,10 @@ describe('the console mock — a branch overview', () => {
 });
 
 describe('the console mock — the row menu', () => {
-  const command = (row: { id: string; tableId: string }) => ({
+  const command = (row: { id: string; tableId: string | null }) => ({
     branchId: BRANCH,
     reservationId: row.id,
-    tableId: row.tableId,
+    tableId: row.tableId!,
     clientCommandId: newCommandId(),
   });
 
@@ -220,7 +220,7 @@ describe('the console mock — the row menu', () => {
     await gateway.actOnBooking({ ...command(seated), kind: 'finish' });
     await gateway.actOnBooking({
       ...command(upcoming),
-      tableId: seated.tableId,
+      tableId: seated.tableId!,
       kind: 'seat',
     });
 
@@ -239,7 +239,7 @@ describe('the console mock — the row menu', () => {
     const late = rowIn(before, 'late');
 
     const refusal = await gateway
-      .actOnBooking({ ...command(late), tableId: seated.tableId, kind: 'seat' })
+      .actOnBooking({ ...command(late), tableId: seated.tableId!, kind: 'seat' })
       .catch((error: unknown) => error);
     expect((refusal as ConcurrencyConflictError).code).toBe('table-state-conflict');
   });

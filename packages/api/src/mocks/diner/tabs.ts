@@ -157,7 +157,10 @@ export function tabsMethods(
       // Never a stranger's tab: another party still seated there is refused,
       // and a member of staff frees the table. A replay is the booker's own.
       if (world.occupiedByAnotherParty(booking.tableId, booking.id)) {
-        throw new BookingTableOccupiedError({ ...facts, tableLabel: booking.tableLabel });
+        throw new BookingTableOccupiedError({
+          ...facts,
+          tableLabel: booking.tableLabel ?? undefined,
+        });
       }
 
       const result = world.openAtTable({

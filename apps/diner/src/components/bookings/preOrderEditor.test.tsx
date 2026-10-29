@@ -77,6 +77,7 @@ const BOOKING: Booking = {
   timeZoneId: 'Asia/Yerevan',
   tableId: 't1',
   tableLabel: '1',
+  bookedWithoutTable: false,
   roomId: null,
   roomName: null,
   partySize: 2,
