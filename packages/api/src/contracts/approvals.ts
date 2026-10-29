@@ -38,7 +38,7 @@ export interface ConsoleBooking extends Pick<
   readonly guestName: string;
   readonly guestPhone: string;
   readonly partySize: number;
-  readonly tableLabel: string;
+  readonly tableLabel: string | null;
   /** The branch's own day, `YYYY-MM-DD`. */
   readonly localDate: string;
   /** Wall clock at the branch, `HH:mm:ss` as the server writes it. */
@@ -295,8 +295,8 @@ export interface AwaitingApproval extends Pick<
   /** E.164, for a `tel:` link. Staff of the branch may see it; nobody else does. */
   readonly guestPhone: string;
   readonly partySize: number;
-  readonly tableId: string;
-  readonly tableLabel: string;
+  readonly tableId: string | null;
+  readonly tableLabel: string | null;
   /** "Hall", "Terrace" — `null` for a table in no room. */
   readonly roomName: string | null;
   readonly startUtc: string;

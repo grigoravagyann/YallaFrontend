@@ -86,7 +86,7 @@ export function rethrowBookingRefusal(
   error: unknown,
   command: {
     readonly branchId: string | null;
-    readonly tableId: string;
+    readonly tableId: string | null;
     readonly partySize: number;
   },
 ): never {
@@ -127,7 +127,7 @@ export function rethrowBookingRefusal(
         Schemas['Yalla.Application.Reservations.BranchAvailability'] | undefined;
       throw new TableTakenError({
         ...base,
-        tableId: String(context['tableId'] ?? command.tableId),
+        tableId: String(context['tableId'] ?? command.tableId ?? ''),
         tableLabel: String(context['tableLabel'] ?? ''),
         reason: code === ProblemCodes.TableCurrentlyOccupied ? 'occupied' : 'alreadyBooked',
         floor: room && Array.isArray(room.tables) ? floorFromAvailability(room) : null,

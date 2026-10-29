@@ -160,7 +160,7 @@ export function bookingsMethods(
             reservationId,
             status: reservationStatus(data.status),
             wasReplay: false,
-            tableLabel: data.tableLabel,
+            tableLabel: data.tableLabel ?? null,
             tableFreed: false,
             outstandingDram: null,
           };

@@ -571,6 +571,7 @@ export interface UndoNoShowCommand {
 export interface UndoNoShowResult {
   readonly reservationId: string;
   readonly status: ReservationStatusCode;
-  readonly tableId: string;
-  readonly tableLabel: string;
+  /** None for a booking made by time only that nobody has seated. */
+  readonly tableId: string | null;
+  readonly tableLabel: string | null;
 }

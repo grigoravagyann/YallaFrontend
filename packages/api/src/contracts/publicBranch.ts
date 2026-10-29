@@ -278,8 +278,8 @@ export interface ManagedBooking extends BookingPreOrderFields {
   readonly timeZoneId: string;
 
   /** The booked table: the change screen starts on it, and sends it back when only the time or party moves. */
-  readonly tableId: string;
-  readonly tableLabel: string;
+  readonly tableId: string | null;
+  readonly tableLabel: string | null;
   readonly floorAreaName: string | null;
   readonly partySize: number;
   readonly slotUtc: string;

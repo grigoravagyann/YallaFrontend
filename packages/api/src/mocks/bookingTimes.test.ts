@@ -123,7 +123,7 @@ describe('one table, with the diner booked at 19:00 tomorrow', () => {
     const booking = await bookedAtSeven(gateway);
 
     for (const time of ['19:00', '19:30', '20:15', '18:20', '18:45']) {
-      const table = tableOf(await floorAt(gateway, time), booking.tableId);
+      const table = tableOf(await floorAt(gateway, time), booking.tableId!);
       expect(table.isBookable, time).toBe(false);
       expect(table.unavailableReason, time).toBe('alreadyBooked');
     }
@@ -134,13 +134,13 @@ describe('one table, with the diner booked at 19:00 tomorrow', () => {
     await signedIn(gateway);
     const booking = await bookedAtSeven(gateway);
 
-    const requested = tableOf(await floorAt(gateway, '20:30'), booking.tableId);
+    const requested = tableOf(await floorAt(gateway, '20:30'), booking.tableId!);
     expect(requested).toMatchObject({
       isBookable: true,
       requiresApproval: true,
       requiresEarlierGuestConsent: true,
     });
-    const free = tableOf(await floorAt(gateway, '22:00'), booking.tableId);
+    const free = tableOf(await floorAt(gateway, '22:00'), booking.tableId!);
     expect(free).toMatchObject({ isBookable: true, requiresEarlierGuestConsent: false });
   });
 
@@ -149,12 +149,12 @@ describe('one table, with the diner booked at 19:00 tomorrow', () => {
     await signedIn(gateway);
     const booking = await bookedAtSeven(gateway);
 
-    expect(tableOf(await floorAt(gateway, '17:30'), booking.tableId)).toMatchObject({
+    expect(tableOf(await floorAt(gateway, '17:30'), booking.tableId!)).toMatchObject({
       isBookable: true,
       mustFreeByUtc: at(TOMORROW, '18:55'),
     });
     // 17:25 + 90 + 5 = 19:00: the whole sitting fits.
-    expect(tableOf(await floorAt(gateway, '17:15'), booking.tableId).mustFreeByUtc).toBeNull();
+    expect(tableOf(await floorAt(gateway, '17:15'), booking.tableId!).mustFreeByUtc).toBeNull();
   });
 
   it('agrees with the day: a requestable time and a cut-short one', async () => {

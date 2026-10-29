@@ -3480,6 +3480,7 @@ export function createDinerMockContext(options: MockGatewayOptions = {}) {
       timeZoneId: found.branch.timeZoneId,
       tableId: table.id,
       tableLabel: table.label,
+      bookedWithoutTable: false,
       roomId: table.floorAreaId,
       roomName: table.floorAreaName,
       partySize: 2,

@@ -239,6 +239,8 @@ export const ProblemCodes = {
   TakeawayStatusConflict: 'takeaway-status-conflict',
   /** 410 Telegram verification no longer available — A Telegram verification challenge that can no longer be claimed; start again. */
   TelegramVerificationExpired: 'telegram-verification-expired',
+  /** 409 Time full — There is no room for that many guests at that time. */
+  TimeFull: 'time-full',
   /** 429 Too many attempts — A one-time credential is out of attempts, or a per-identity limit is spent; ask for a new code. */
   TooManyAttempts: 'too-many-attempts',
   /** 422 Cannot take this table — The waiter named cannot take the table. */
@@ -377,6 +379,7 @@ export const PROBLEM_CODE_STATUS = {
   'takeaway-slot-unavailable': 409,
   'takeaway-status-conflict': 409,
   'telegram-verification-expired': 410,
+  'time-full': 409,
   'too-many-attempts': 429,
   'transfer-target-ineligible': 422,
   'unauthenticated': 401,
@@ -756,8 +759,8 @@ export interface ReservationFreeByRequiredProblemContext {
 
 /** `reservation-lead-time-too-short` (422): The slot starts sooner than the branch's minimum lead time. */
 export interface ReservationLeadTimeTooShortProblemContext {
-  /** `ReservationRejectionReason`: 1 LeadTimeTooShort, 2 OutsideBookingWindow, 3 OutsideOpeningHours, 4 PartyExceedsCapacity, 5 SeatOverhangExceeded, 6 TableNotBookable, 7 TableOutOfService, 8 TableAlreadyBooked, 9 LocalTimeDoesNotExist, 10 TableCurrentlyOccupied, 11 TableJustBooked, 12 NextBookingTooSoon, 13 EarlierGuestBeingAsked. */
-  readonly reason: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13;
+  /** `ReservationRejectionReason`: 1 LeadTimeTooShort, 2 OutsideBookingWindow, 3 OutsideOpeningHours, 4 PartyExceedsCapacity, 5 SeatOverhangExceeded, 6 TableNotBookable, 7 TableOutOfService, 8 TableAlreadyBooked, 9 LocalTimeDoesNotExist, 10 TableCurrentlyOccupied, 11 TableJustBooked, 12 NextBookingTooSoon, 13 EarlierGuestBeingAsked, 16 TimeFull. */
+  readonly reason: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 16;
   readonly requestedStartUtc: string;
   readonly earliestStartUtc: string;
   readonly minLeadMinutes: number;
@@ -765,8 +768,8 @@ export interface ReservationLeadTimeTooShortProblemContext {
 
 /** `reservation-local-time-does-not-exist` (422): The wall-clock time picked does not exist in the branch's zone (a clock change skips it). */
 export interface ReservationLocalTimeDoesNotExistProblemContext {
-  /** `ReservationRejectionReason`: 1 LeadTimeTooShort, 2 OutsideBookingWindow, 3 OutsideOpeningHours, 4 PartyExceedsCapacity, 5 SeatOverhangExceeded, 6 TableNotBookable, 7 TableOutOfService, 8 TableAlreadyBooked, 9 LocalTimeDoesNotExist, 10 TableCurrentlyOccupied, 11 TableJustBooked, 12 NextBookingTooSoon, 13 EarlierGuestBeingAsked. */
-  readonly reason: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13;
+  /** `ReservationRejectionReason`: 1 LeadTimeTooShort, 2 OutsideBookingWindow, 3 OutsideOpeningHours, 4 PartyExceedsCapacity, 5 SeatOverhangExceeded, 6 TableNotBookable, 7 TableOutOfService, 8 TableAlreadyBooked, 9 LocalTimeDoesNotExist, 10 TableCurrentlyOccupied, 11 TableJustBooked, 12 NextBookingTooSoon, 13 EarlierGuestBeingAsked, 16 TimeFull. */
+  readonly reason: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 16;
   readonly localDate: string;
   readonly localTime: string;
   readonly timeZoneId: string;
@@ -796,8 +799,8 @@ export interface ReservationNotStartedProblemContext {
 
 /** `reservation-outside-booking-window` (422): The date is further ahead than the branch takes bookings. */
 export interface ReservationOutsideBookingWindowProblemContext {
-  /** `ReservationRejectionReason`: 1 LeadTimeTooShort, 2 OutsideBookingWindow, 3 OutsideOpeningHours, 4 PartyExceedsCapacity, 5 SeatOverhangExceeded, 6 TableNotBookable, 7 TableOutOfService, 8 TableAlreadyBooked, 9 LocalTimeDoesNotExist, 10 TableCurrentlyOccupied, 11 TableJustBooked, 12 NextBookingTooSoon, 13 EarlierGuestBeingAsked. */
-  readonly reason: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13;
+  /** `ReservationRejectionReason`: 1 LeadTimeTooShort, 2 OutsideBookingWindow, 3 OutsideOpeningHours, 4 PartyExceedsCapacity, 5 SeatOverhangExceeded, 6 TableNotBookable, 7 TableOutOfService, 8 TableAlreadyBooked, 9 LocalTimeDoesNotExist, 10 TableCurrentlyOccupied, 11 TableJustBooked, 12 NextBookingTooSoon, 13 EarlierGuestBeingAsked, 16 TimeFull. */
+  readonly reason: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 16;
   readonly requestedDate: string;
   readonly lastBookableDate: string;
   readonly bookingWindowDays: number;
@@ -805,8 +808,8 @@ export interface ReservationOutsideBookingWindowProblemContext {
 
 /** `reservation-outside-opening-hours` (422): The sitting does not fit inside one opening block of the branch's day. */
 export interface ReservationOutsideOpeningHoursProblemContext {
-  /** `ReservationRejectionReason`: 1 LeadTimeTooShort, 2 OutsideBookingWindow, 3 OutsideOpeningHours, 4 PartyExceedsCapacity, 5 SeatOverhangExceeded, 6 TableNotBookable, 7 TableOutOfService, 8 TableAlreadyBooked, 9 LocalTimeDoesNotExist, 10 TableCurrentlyOccupied, 11 TableJustBooked, 12 NextBookingTooSoon, 13 EarlierGuestBeingAsked. */
-  readonly reason: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13;
+  /** `ReservationRejectionReason`: 1 LeadTimeTooShort, 2 OutsideBookingWindow, 3 OutsideOpeningHours, 4 PartyExceedsCapacity, 5 SeatOverhangExceeded, 6 TableNotBookable, 7 TableOutOfService, 8 TableAlreadyBooked, 9 LocalTimeDoesNotExist, 10 TableCurrentlyOccupied, 11 TableJustBooked, 12 NextBookingTooSoon, 13 EarlierGuestBeingAsked, 16 TimeFull. */
+  readonly reason: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 16;
   readonly localDate: string;
   readonly localStartTime: string;
   readonly localEndTime: string;
@@ -825,8 +828,8 @@ export interface ReservationOverlapsOwnProblemContext {
 
 /** `reservation-party-exceeds-capacity` (422): More guests than the table has seats. */
 export interface ReservationPartyExceedsCapacityProblemContext {
-  /** `ReservationRejectionReason`: 1 LeadTimeTooShort, 2 OutsideBookingWindow, 3 OutsideOpeningHours, 4 PartyExceedsCapacity, 5 SeatOverhangExceeded, 6 TableNotBookable, 7 TableOutOfService, 8 TableAlreadyBooked, 9 LocalTimeDoesNotExist, 10 TableCurrentlyOccupied, 11 TableJustBooked, 12 NextBookingTooSoon, 13 EarlierGuestBeingAsked. */
-  readonly reason: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13;
+  /** `ReservationRejectionReason`: 1 LeadTimeTooShort, 2 OutsideBookingWindow, 3 OutsideOpeningHours, 4 PartyExceedsCapacity, 5 SeatOverhangExceeded, 6 TableNotBookable, 7 TableOutOfService, 8 TableAlreadyBooked, 9 LocalTimeDoesNotExist, 10 TableCurrentlyOccupied, 11 TableJustBooked, 12 NextBookingTooSoon, 13 EarlierGuestBeingAsked, 16 TimeFull. */
+  readonly reason: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 16;
   readonly tableId: string;
   readonly tableLabel: string;
   readonly partySize: number;
@@ -835,8 +838,8 @@ export interface ReservationPartyExceedsCapacityProblemContext {
 
 /** `reservation-seat-overhang-exceeded` (422): The party would leave more seats empty than the branch allows. */
 export interface ReservationSeatOverhangExceededProblemContext {
-  /** `ReservationRejectionReason`: 1 LeadTimeTooShort, 2 OutsideBookingWindow, 3 OutsideOpeningHours, 4 PartyExceedsCapacity, 5 SeatOverhangExceeded, 6 TableNotBookable, 7 TableOutOfService, 8 TableAlreadyBooked, 9 LocalTimeDoesNotExist, 10 TableCurrentlyOccupied, 11 TableJustBooked, 12 NextBookingTooSoon, 13 EarlierGuestBeingAsked. */
-  readonly reason: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13;
+  /** `ReservationRejectionReason`: 1 LeadTimeTooShort, 2 OutsideBookingWindow, 3 OutsideOpeningHours, 4 PartyExceedsCapacity, 5 SeatOverhangExceeded, 6 TableNotBookable, 7 TableOutOfService, 8 TableAlreadyBooked, 9 LocalTimeDoesNotExist, 10 TableCurrentlyOccupied, 11 TableJustBooked, 12 NextBookingTooSoon, 13 EarlierGuestBeingAsked, 16 TimeFull. */
+  readonly reason: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 16;
   readonly tableId: string;
   readonly tableLabel: string;
   readonly partySize: number;
@@ -847,16 +850,16 @@ export interface ReservationSeatOverhangExceededProblemContext {
 
 /** `reservation-table-not-bookable` (422): The table never takes bookings: a bar stool, a counter seat. */
 export interface ReservationTableNotBookableProblemContext {
-  /** `ReservationRejectionReason`: 1 LeadTimeTooShort, 2 OutsideBookingWindow, 3 OutsideOpeningHours, 4 PartyExceedsCapacity, 5 SeatOverhangExceeded, 6 TableNotBookable, 7 TableOutOfService, 8 TableAlreadyBooked, 9 LocalTimeDoesNotExist, 10 TableCurrentlyOccupied, 11 TableJustBooked, 12 NextBookingTooSoon, 13 EarlierGuestBeingAsked. */
-  readonly reason: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13;
+  /** `ReservationRejectionReason`: 1 LeadTimeTooShort, 2 OutsideBookingWindow, 3 OutsideOpeningHours, 4 PartyExceedsCapacity, 5 SeatOverhangExceeded, 6 TableNotBookable, 7 TableOutOfService, 8 TableAlreadyBooked, 9 LocalTimeDoesNotExist, 10 TableCurrentlyOccupied, 11 TableJustBooked, 12 NextBookingTooSoon, 13 EarlierGuestBeingAsked, 16 TimeFull. */
+  readonly reason: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 16;
   readonly tableId: string;
   readonly tableLabel: string;
 }
 
 /** `reservation-table-out-of-service` (422): The table is withdrawn from service. */
 export interface ReservationTableOutOfServiceProblemContext {
-  /** `ReservationRejectionReason`: 1 LeadTimeTooShort, 2 OutsideBookingWindow, 3 OutsideOpeningHours, 4 PartyExceedsCapacity, 5 SeatOverhangExceeded, 6 TableNotBookable, 7 TableOutOfService, 8 TableAlreadyBooked, 9 LocalTimeDoesNotExist, 10 TableCurrentlyOccupied, 11 TableJustBooked, 12 NextBookingTooSoon, 13 EarlierGuestBeingAsked. */
-  readonly reason: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13;
+  /** `ReservationRejectionReason`: 1 LeadTimeTooShort, 2 OutsideBookingWindow, 3 OutsideOpeningHours, 4 PartyExceedsCapacity, 5 SeatOverhangExceeded, 6 TableNotBookable, 7 TableOutOfService, 8 TableAlreadyBooked, 9 LocalTimeDoesNotExist, 10 TableCurrentlyOccupied, 11 TableJustBooked, 12 NextBookingTooSoon, 13 EarlierGuestBeingAsked, 16 TimeFull. */
+  readonly reason: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 16;
   readonly tableId: string;
   readonly tableLabel: string;
 }
@@ -907,8 +910,8 @@ export interface TabNotTransferableProblemContext {
 
 /** `table-already-booked` (409): The table was booked by somebody else between seeing it free and confirming. */
 export interface TableAlreadyBookedProblemContext {
-  /** `ReservationRejectionReason`: 1 LeadTimeTooShort, 2 OutsideBookingWindow, 3 OutsideOpeningHours, 4 PartyExceedsCapacity, 5 SeatOverhangExceeded, 6 TableNotBookable, 7 TableOutOfService, 8 TableAlreadyBooked, 9 LocalTimeDoesNotExist, 10 TableCurrentlyOccupied, 11 TableJustBooked, 12 NextBookingTooSoon, 13 EarlierGuestBeingAsked. */
-  readonly reason: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13;
+  /** `ReservationRejectionReason`: 1 LeadTimeTooShort, 2 OutsideBookingWindow, 3 OutsideOpeningHours, 4 PartyExceedsCapacity, 5 SeatOverhangExceeded, 6 TableNotBookable, 7 TableOutOfService, 8 TableAlreadyBooked, 9 LocalTimeDoesNotExist, 10 TableCurrentlyOccupied, 11 TableJustBooked, 12 NextBookingTooSoon, 13 EarlierGuestBeingAsked, 16 TimeFull. */
+  readonly reason: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 16;
   readonly tableId: string;
   readonly tableLabel: string;
   readonly requestedStartUtc: string;
@@ -921,8 +924,8 @@ export interface TableAlreadyBookedProblemContext {
 
 /** `table-currently-occupied` (409): A party seated at the table now runs into the requested slot; it may free up early. */
 export interface TableCurrentlyOccupiedProblemContext {
-  /** `ReservationRejectionReason`: 1 LeadTimeTooShort, 2 OutsideBookingWindow, 3 OutsideOpeningHours, 4 PartyExceedsCapacity, 5 SeatOverhangExceeded, 6 TableNotBookable, 7 TableOutOfService, 8 TableAlreadyBooked, 9 LocalTimeDoesNotExist, 10 TableCurrentlyOccupied, 11 TableJustBooked, 12 NextBookingTooSoon, 13 EarlierGuestBeingAsked. */
-  readonly reason: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13;
+  /** `ReservationRejectionReason`: 1 LeadTimeTooShort, 2 OutsideBookingWindow, 3 OutsideOpeningHours, 4 PartyExceedsCapacity, 5 SeatOverhangExceeded, 6 TableNotBookable, 7 TableOutOfService, 8 TableAlreadyBooked, 9 LocalTimeDoesNotExist, 10 TableCurrentlyOccupied, 11 TableJustBooked, 12 NextBookingTooSoon, 13 EarlierGuestBeingAsked, 16 TimeFull. */
+  readonly reason: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 16;
   readonly tableId: string;
   readonly tableLabel: string;
   readonly requestedStartUtc: string;
@@ -1030,6 +1033,13 @@ export interface TakeawayStatusConflictProblemContext {
   readonly orderId: string;
   /** `TakeawayStatus`: 1 Sent, 2 Accepted, 3 Ready, 4 Collected, 5 Declined, 6 Cancelled, 7 NoShow. */
   readonly status: 1 | 2 | 3 | 4 | 5 | 6 | 7;
+}
+
+/** `time-full` (409): There is no room for that many guests at that time. */
+export interface TimeFullProblemContext {
+  readonly branchId: string;
+  readonly partySize: number;
+  readonly guestsLeft: number;
 }
 
 /** `too-many-attempts` (429): A one-time credential is out of attempts, or a per-identity limit is spent; ask for a new code. */
@@ -1191,6 +1201,7 @@ export interface ProblemContexts {
   readonly 'takeaway-slot-unavailable': TakeawaySlotUnavailableProblemContext;
   readonly 'takeaway-status-conflict': TakeawayStatusConflictProblemContext;
   readonly 'telegram-verification-expired': undefined;
+  readonly 'time-full': TimeFullProblemContext;
   readonly 'too-many-attempts': TooManyAttemptsProblemContext;
   readonly 'transfer-target-ineligible': TransferTargetIneligibleProblemContext;
   readonly 'unauthenticated': undefined;

@@ -41,9 +41,10 @@ function bookingFromWire(wire: WireOverviewBooking): OverviewBooking {
     localStartTime: wire.localStartTime,
     partySize: wire.partySize,
     guestName: wire.guestName,
-    tableId: wire.tableId,
-    tableLabel: wire.tableLabel,
-    tableStatus: TABLE_STATUS[wire.tableStatus] ?? null,
+    // None, with the status, for a booking made by time only that nobody has seated.
+    tableId: wire.tableId ?? null,
+    tableLabel: wire.tableLabel ?? null,
+    tableStatus: wire.tableStatus == null ? null : (TABLE_STATUS[wire.tableStatus] ?? null),
     roomName: wire.roomName ?? null,
     channel: CHANNEL[wire.channel] ?? 'unknown',
     changeRequested: wire.changeRequested,

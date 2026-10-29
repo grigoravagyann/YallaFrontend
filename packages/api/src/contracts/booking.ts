@@ -376,8 +376,15 @@ export interface Booking extends BookingPreOrderFields {
   /** IANA zone of the branch. Every time on this booking renders in it. */
   readonly timeZoneId: string;
 
-  readonly tableId: string;
-  readonly tableLabel: string;
+  /** None for a booking made by time only that nobody has seated: the venue chooses the table on arrival. */
+  readonly tableId: string | null;
+  readonly tableLabel: string | null;
+  /**
+   * Made at a branch that books by time only: the diner chose a time and how
+   * many, not a table. It is moved by cancelling and booking again, and takes
+   * no pre-order.
+   */
+  readonly bookedWithoutTable: boolean;
   /**
    * The room the table is in — "Hall", "Terrace" — from the table's floor area.
    * `null` when the table is in none, or the server did not say.
@@ -556,7 +563,11 @@ export interface CreateBookingCommand {
    */
   readonly commandId: string;
   readonly branchId: string;
-  readonly tableId: string;
+  /**
+   * The table picked on the room photos; `null` at a branch that books by time
+   * only (`BranchPolicy.bookingMode` `'timeOnly'`), where the venue chooses it.
+   */
+  readonly tableId: string | null;
   readonly slotUtc: string;
   /**
    * The branch's zone. The server takes the booking in **wall-clock** date and

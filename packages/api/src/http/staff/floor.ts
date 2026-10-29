@@ -174,8 +174,8 @@ export function floorMethods(
       return {
         reservationId: data.id,
         status: reservationStatus(data.status),
-        tableId: data.tableId,
-        tableLabel: data.tableLabel,
+        tableId: data.tableId ?? null,
+        tableLabel: data.tableLabel ?? null,
       };
     },
   };

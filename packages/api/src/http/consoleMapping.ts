@@ -274,7 +274,7 @@ export function consoleBookingFromWire(
     guestName: view.guestName,
     guestPhone: view.guestPhone,
     partySize: view.partySize,
-    tableLabel: view.tableLabel,
+    tableLabel: view.tableLabel ?? null,
     localDate: view.localDate,
     localStartTime: view.localStartTime,
     status: RESERVATION_STATUS[view.status] ?? 'unknown',

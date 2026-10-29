@@ -164,8 +164,8 @@ export interface OverviewBooking {
   readonly localStartTime: string;
   readonly partySize: number;
   readonly guestName: string;
-  readonly tableId: string;
-  readonly tableLabel: string;
+  readonly tableId: string | null;
+  readonly tableLabel: string | null;
   /** The table's physical status now; `null` for a value this build does not know. */
   readonly tableStatus: TableStatus | null;
   readonly roomName: string | null;
@@ -289,7 +289,8 @@ export interface ConsoleBookingActionResult {
   readonly status: ReservationStatusCode;
   /** The command had already been applied; this is the first answer again. */
   readonly wasReplay: boolean;
-  readonly tableLabel: string;
+  /** None for an undone no-show on a booking made by time only that nobody has seated. */
+  readonly tableLabel: string | null;
   /**
    * Whether the table is free now. A no-show or a cancellation frees it only
    * when it was held for this booking; one somebody else sits at is left alone.
