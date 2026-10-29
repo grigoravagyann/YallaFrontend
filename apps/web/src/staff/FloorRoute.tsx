@@ -36,6 +36,8 @@ import { TakeawayCounter } from './takeaway/TakeawayCounter';
 import { useTakeawayReady } from './takeaway/useTakeawayReady';
 import { floorFeatures } from './floor/floorFeatures';
 import { NoShowSection, type MarkedNoShow } from './UndoNoShowNotice';
+import { arrivingBookings, dueNowCount, seatingReservationIds } from './withoutTable';
+import { WithoutTableSection } from './WithoutTablePanel';
 import { useBranchFormat } from './useBranchFormat';
 import { useConnectionState } from './useConnectionState';
 import { billRequestsForTab } from './floor/billRequests';
@@ -256,6 +258,7 @@ export function FloorRoute({ identity, device = null, paused, onUnpair }: FloorR
     requestsQuery,
     awaitingQuery,
     awaiting,
+    withoutTableQuery,
     admissionQuery,
     waitingTables,
     preOrdersQuery,
@@ -380,6 +383,7 @@ export function FloorRoute({ identity, device = null, paused, onUnpair }: FloorR
     openTabForStaff,
     settleUnresolved,
     act,
+    seatBooking,
     undoSettled,
     release,
     startTab,
@@ -524,9 +528,20 @@ export function FloorRoute({ identity, device = null, paused, onUnpair }: FloorR
   const ordersLoading = ordersQuery.isLoading && !isOfflinePaused(ordersQuery);
   const ordersFailed = ordersQuery.isError || (isOfflinePaused(ordersQuery) && !ordersQuery.data);
   const now = new Date();
+  /**
+   * Bookings made by time only at the door (2026-10-29): soon or started, and
+   * not being seated from here this moment — a seat in the queue takes its
+   * booking off the list at once, and a refused one brings it back.
+   */
+  const seating = useMemo(() => seatingReservationIds(queue.state), [queue.state]);
+  const arriving = useMemo(
+    () => arrivingBookings(withoutTableQuery.data, minute, seating),
+    [withoutTableQuery.data, minute, seating],
+  );
   /** What waits on Now (the phone) or the floor's rail (the tablet): its tab's count. */
   const nowWaiting =
     (awaitingQuery.data?.length ?? 0) +
+    dueNowCount(arriving, minute) +
     waitingTables.length +
     duePreOrders.filter(preOrderNeedsAction).length +
     (requestsQuery.data?.length ?? 0);
@@ -762,6 +777,18 @@ export function FloorRoute({ identity, device = null, paused, onUnpair }: FloorR
     claiming,
     selfStaffMemberId: identity.staffMemberId,
     onAdvance: advanceOrder,
+    withoutTable: branchId ? (
+      <WithoutTableSection
+        bookings={arriving}
+        tables={plan?.tables ?? []}
+        timeZoneId={timeZoneId}
+        now={minute}
+        onSeat={seatBooking}
+        onRelease={(booking, outcome) => release(booking.id, outcome, booking)}
+        releasing={releaseReservation.isPending}
+        online={queue.online}
+      />
+    ) : null,
     noShows: branchId ? (
       <NoShowSection
         branchId={branchId}

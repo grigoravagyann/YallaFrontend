@@ -263,7 +263,17 @@ export function ApprovalCard({
         timeZoneId={timeZoneId}
         now={now}
       />
-      {request.note ? <p className="order-line-note">{request.note}</p> : null}
+      {request.note && !request.tableLabel ? (
+        // Made by time only: the wish is what the table will be chosen by.
+        <p className="wt-wish">
+          <span className="wt-wish-label">{t('withoutTable.wish')}</span>{' '}
+          <span className="wt-wish-text">
+            {t('withoutTable.wishQuote', { text: request.note })}
+          </span>
+        </p>
+      ) : request.note ? (
+        <p className="order-line-note">{request.note}</p>
+      ) : null}
 
       {lines.length > 0 ? (
         <ul className="approval-context">

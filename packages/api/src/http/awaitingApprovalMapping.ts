@@ -69,6 +69,7 @@ export function awaitingApprovalFromWire(wire: WireAwaitingApproval): AwaitingAp
     partySize: view.partySize,
     tableId: view.tableId ?? null,
     tableLabel: view.tableLabel ?? null,
+    bookedWithoutTable: view.bookedWithoutTable === true,
     roomName: blank(view.roomName),
     startUtc: view.startUtc,
     localDate: view.localDate,

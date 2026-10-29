@@ -44,6 +44,12 @@ export interface ResolveStaffGatewayOptions {
    */
   readonly mockPreOrders?: boolean | undefined;
   /**
+   * Mock only: bookings made by time only on no table, for the door's list,
+   * and one waiting for the floor's yes (2026-10-29). See
+   * `StaffMockOptions.seedBookingsWithoutTable`.
+   */
+  readonly mockBookingsWithoutTable?: boolean | undefined;
+  /**
    * Mock only: takeaway orders at the counter — one to answer, one being
    * prepared, two ready, one handed over (2026-10-22). See
    * `StaffMockOptions.seedTakeaway`.
@@ -78,6 +84,7 @@ export function resolveStaffGateway(options: ResolveStaffGatewayOptions): StaffG
       ...(options.mockKitchen ? { seedKitchen: true } : {}),
       ...(options.mockUnverifiedGuests ? { seedUnverifiedGuests: true } : {}),
       ...(options.mockPreOrders ? { seedPreOrders: true } : {}),
+      ...(options.mockBookingsWithoutTable ? { seedBookingsWithoutTable: true } : {}),
       ...(options.mockTakeaway ? { seedTakeaway: true } : {}),
       ...((options.mockMessages ?? options.mockTakeaway) ? { seedMessages: true } : {}),
     };

@@ -80,6 +80,11 @@ export const queryKeys = {
   serviceRequests: (branchId: string) => ['staff', 'serviceRequests', branchId] as const,
   /** Bookings waiting for the floor's yes or no. */
   awaitingApproval: (branchId: string) => ['staff', 'awaitingApproval', branchId] as const,
+  /**
+   * Bookings made by time only that nobody has seated (2026-10-29). Invalidate
+   * on the change stream's `bookingChanged`, a floor decision and a seat.
+   */
+  bookingsWithoutTable: (branchId: string) => ['staff', 'withoutTable', branchId] as const,
   /** A manager's Today board; `''` for the session's own branch. */
   staffToday: (branchId: string) => ['staff', 'today', branchId] as const,
   /** My results: the signed-in person's own page, by range and recent list. */

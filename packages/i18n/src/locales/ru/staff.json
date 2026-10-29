@@ -332,14 +332,19 @@
       "tooLatePlain": "Эту неявку уже нельзя отменить.",
       "notNoShow": "Отменять нечего: эта бронь больше не отмечена как неявка.",
       "failed": "Неявку не удалось отменить. Попробуйте ещё раз.",
-      "needsOnline": "Для отмены нужна связь."
+      "needsOnline": "Для отмены нужна связь.",
+      "actionLabelGuest": "Отменить неявку · {{name}}",
+      "doneGuest": "{{name}}: неявка отменена. Бронь снова в силе."
     },
     "bookingCancelledByBlock": "Стол {{label}}: бронь на {{time}} отменена — гость заблокирован за неявки.",
     "bookingsCancelledByBlock_one": "Отменена {{count}} ближайшая бронь — гость заблокирован за неявки (стол {{labels}}).",
     "bookingsCancelledByBlock_few": "Отменены {{count}} ближайшие брони — гости заблокированы за неявки (столы {{labels}}).",
     "bookingsCancelledByBlock_many": "Отменено {{count}} ближайших броней — гости заблокированы за неявки (столы {{labels}}).",
     "bookingsCancelledByBlock_other": "Отменено {{count}} ближайших броней — гости заблокированы за неявки (столы {{labels}}).",
-    "guestBlocked": "Третья неявка за три дня: гость не может бронировать до {{date}}, {{time}}."
+    "guestBlocked": "Третья неявка за три дня: гость не может бронировать до {{date}}, {{time}}.",
+    "releasedNoShowGuest": "{{name}} · бронь отпущена как «не пришли».",
+    "releasedCancelledGuest": "{{name}} · бронь отпущена. В историю гостя не попадает.",
+    "releaseNotDueGuest": "{{name}} · бронь только в {{time}}. Ничего не отпущено."
   },
   "unresolved": {
     "title": "Требует решения",
@@ -454,7 +459,20 @@
     "askBefore": "Спросите {{name}}, освободится ли стол до {{time}}",
     "leavesBy": "освободит до {{time}}",
     "awaitingEarlierGuest": "Предыдущий гость отвечает в приложении. Бронь решится по его ответу, а без ответа будет отклонена.",
-    "cancelledByBlock": "Отменено автоматически: гость трижды не пришёл за три дня."
+    "cancelledByBlock": "Отменено автоматически: гость трижды не пришёл за три дня.",
+    "noTable": "Без стола · выберете, когда придут",
+    "approvedNoticeNoTable": "Подтверждено: {{time}}, без стола. Гостю сообщили.",
+    "approvedNoticeNoTableOn": "Подтверждено: {{date}}, {{time}}, без стола. Гостю сообщили.",
+    "declinedNoticeNoTable": "Отклонено: {{time}}, без стола. Гостю сообщили.",
+    "declinedNoticeNoTableOn": "Отклонено: {{date}}, {{time}}, без стола. Гостю сообщили.",
+    "arrivedNoTable_one": "Новый запрос на бронь: {{time}}, {{count}} гость, без стола.",
+    "arrivedNoTable_few": "Новый запрос на бронь: {{time}}, {{count}} гостя, без стола.",
+    "arrivedNoTable_many": "Новый запрос на бронь: {{time}}, {{count}} гостей, без стола.",
+    "arrivedNoTable_other": "Новый запрос на бронь: {{time}}, {{count}} гостя, без стола.",
+    "arrivedOnNoTable_one": "Новый запрос на бронь: {{date}}, {{time}}, {{count}} гость, без стола.",
+    "arrivedOnNoTable_few": "Новый запрос на бронь: {{date}}, {{time}}, {{count}} гостя, без стола.",
+    "arrivedOnNoTable_many": "Новый запрос на бронь: {{date}}, {{time}}, {{count}} гостей, без стола.",
+    "arrivedOnNoTable_other": "Новый запрос на бронь: {{date}}, {{time}}, {{count}} гостя, без стола."
   },
   "conflicts": {
     "title": "Требует решения",
@@ -1139,7 +1157,8 @@
   },
   "noShows": {
     "title": "Неявки, отмеченные здесь",
-    "row": "Стол {{label}} · можно отменить до {{time}}"
+    "row": "Стол {{label}} · можно отменить до {{time}}",
+    "rowGuest": "{{name}} · можно отменить до {{time}}"
   },
   "preOrders": {
     "error": {
@@ -1378,7 +1397,9 @@
       "more_one": "ещё {{count}} в «Сообщениях»",
       "more_few": "ещё {{count}} в «Сообщениях»",
       "more_many": "ещё {{count}} в «Сообщениях»",
-      "more_other": "ещё {{count}} в «Сообщениях»"
+      "more_other": "ещё {{count}} в «Сообщениях»",
+      "titleBookingNoTable": "Без стола · {{name}} · {{time}}",
+      "titleBookingNoTablePlain": "Без стола · {{name}}"
     },
     "inbox": {
       "label": "Разговоры",
@@ -1741,5 +1762,25 @@
     "stillOff": "Всё ещё выключено. Попробуйте снова, когда менеджер скажет, что включено.",
     "tryAgain": "Попробовать снова",
     "forgetPhone": "Забыть этот телефон"
+  },
+  "withoutTable": {
+    "title": "Придут · стол ещё не выбран",
+    "noTable": "Стола пока нет",
+    "wish": "Пожелание",
+    "wishQuote": "«{{text}}»",
+    "seat": "Посадить",
+    "seatLabel_one": "Посадить: {{name}}, {{count}} гость",
+    "seatLabel_few": "Посадить: {{name}}, {{count}} гостя",
+    "seatLabel_many": "Посадить: {{name}}, {{count}} гостей",
+    "seatLabel_other": "Посадить: {{name}}, {{count}} гостя",
+    "chooseTitle_one": "Выберите стол на {{count}} гостя",
+    "chooseTitle_few": "Выберите стол на {{count}} гостей",
+    "chooseTitle_many": "Выберите стол на {{count}} гостей",
+    "chooseTitle_other": "Выберите стол на {{count}} гостя",
+    "smaller": "Столы поменьше",
+    "bookedAt": "бронь на {{time}}",
+    "noneFree": "Сейчас свободных столов нет.",
+    "cancel": "Не сейчас",
+    "releaseLabel": "Отпустить бронь · {{name}}"
   }
 }

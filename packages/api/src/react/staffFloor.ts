@@ -133,11 +133,33 @@ export function useAwaitingApproval(branchId: string | undefined, enabled = true
   });
 }
 
+/** How often the door's list is read while nothing on the change stream says so. */
+const WITHOUT_TABLE_POLL_MS = 30_000;
+
+/**
+ * Bookings made by time only that nobody has seated (2026-10-29): on no
+ * table's tile, so the floor lists them for the door. Polled every thirty
+ * seconds while the floor is open, and read again on the change stream's
+ * booking signal, when a seat lands and when one is let go.
+ */
+export function useBookingsWithoutTable(branchId: string | undefined, enabled = true) {
+  const gateway = useStaffGateway();
+  return useQuery({
+    queryKey: queryKeys.bookingsWithoutTable(branchId ?? ''),
+    queryFn: () => gateway.listBookingsWithoutTable(branchId!),
+    enabled: Boolean(branchId) && enabled,
+    staleTime: staleTime.live,
+    refetchInterval: WITHOUT_TABLE_POLL_MS,
+    refetchIntervalInBackground: false,
+  });
+}
+
 /**
  * The floor's two answers. Never retried, and the list and the floor are read
  * again on *settle*: a 409 means somebody else answered first or the window
  * closed, and the list on screen is what is stale. The floor because an
- * approved booking now holds its table.
+ * approved booking now holds its table — or, made by time only, joins the
+ * door's list of bookings without one.
  */
 function useFloorDecision(
   branchId: string | undefined,
@@ -151,6 +173,9 @@ function useFloorDecision(
     onSettled: () => {
       void queryClient.invalidateQueries({ queryKey: queryKeys.awaitingApproval(branchId ?? '') });
       void queryClient.invalidateQueries({ queryKey: queryKeys.staffFloor(branchId ?? '') });
+      void queryClient.invalidateQueries({
+        queryKey: queryKeys.bookingsWithoutTable(branchId ?? ''),
+      });
     },
   });
 }
@@ -449,6 +474,10 @@ export function useUndoNoShow(branchId: string | undefined) {
     onSettled: () => {
       void queryClient.invalidateQueries({ queryKey: queryKeys.staffFloor(branchId ?? '') });
       void queryClient.invalidateQueries({ queryKey: queryKeys.awaitingApproval(branchId ?? '') });
+      // An undone no-show on a booking made by time only: back at the door.
+      void queryClient.invalidateQueries({
+        queryKey: queryKeys.bookingsWithoutTable(branchId ?? ''),
+      });
     },
   });
 }
@@ -461,6 +490,10 @@ export function useReleaseReservation(branchId: string | undefined) {
     retry: false,
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: queryKeys.staffFloor(branchId ?? '') });
+      // One made by time only that nobody seated leaves the door's list.
+      void queryClient.invalidateQueries({
+        queryKey: queryKeys.bookingsWithoutTable(branchId ?? ''),
+      });
     },
   });
 }
