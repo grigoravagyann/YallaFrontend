@@ -1344,6 +1344,12 @@ body:has(.yc-savebar) .yc-toast-region {
     padding: calc(var(--space-xl) + env(safe-area-inset-top, 0px)) 20px var(--space-xl);
   }
 
+  /* The photo fades up into that strip instead of meeting it at an edge. */
+  .yc-auth-shade {
+    background:
+      linear-gradient(var(--console-photo-ground), transparent 72px), var(--console-photo-shade);
+  }
+
   .yc-auth-claim {
     font-size: var(--console-text-claim-narrow);
   }
