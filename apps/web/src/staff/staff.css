@@ -2026,6 +2026,28 @@
   font-size: var(--console-text-body);
 }
 
+.ft-enrol-back {
+  display: inline-flex;
+  align-self: flex-start;
+  align-items: center;
+  gap: var(--space-xs);
+  min-height: var(--touch-minimum);
+  margin: -10px 0 0 -6px;
+  padding: 0 var(--space-sm) 0 var(--space-xs);
+  border: 0;
+  border-radius: var(--console-radius-floor-button);
+  background: none;
+  color: var(--console-sidebar-focus);
+  font: inherit;
+  font-size: var(--console-text-nav);
+  font-weight: var(--font-weight-semibold);
+  cursor: pointer;
+}
+
+.ft-enrol-back:hover {
+  background: var(--console-sidebar-panel);
+}
+
 /* The rule sits at the foot of the dark side, where the PIN screen keeps its
    note. */
 .ft-enrol-rule {
@@ -5439,14 +5461,26 @@ a.ft-btn {
     overflow-y: auto;
   }
 
+  /* `start`, not the gate's stretch: a stretched card is exactly the screen's
+     height, and its two rows then split that height between them however
+     long the steps run, the light half painting over the dark one's foot. */
   .ft-pin {
     grid-template-columns: minmax(0, 1fr);
+    align-self: start;
     width: 100%;
     height: auto;
     min-height: 100%;
     overflow: visible;
     border-radius: 0;
     box-shadow: none;
+  }
+
+  /* The tablet's `min-height: 0` lets each half scroll inside a fixed card;
+     here the page scrolls, so each half is as tall as what it holds. */
+  .ft-pin-left,
+  .ft-pin-right,
+  .ft-enrol-right {
+    min-height: auto;
   }
 
   .ft-pin-left {

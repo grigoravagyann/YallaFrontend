@@ -804,6 +804,7 @@
   },
   "enrol": {
     "title": "Connect this tablet to your venue",
+    "back": "Back to pairing my phone",
     "titleRevoked": "This tablet is no longer connected",
     "revoked": "A manager disconnected this tablet from the console — if it was lost, for instance. Connecting it again needs a new code.",
     "steps": {
