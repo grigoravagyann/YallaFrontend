@@ -1,13 +1,37 @@
 import * as SplashScreen from 'expo-splash-screen';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type Ref } from 'react';
 import { AccessibilityInfo, Animated, Easing, Image, StyleSheet } from 'react-native';
-import Svg, { Circle, Path } from 'react-native-svg';
+import Svg, { Circle, Path, type CircleProps, type PathProps } from 'react-native-svg';
 import MARK from '../../../assets/images/splash-mark.png';
 import WORDMARK from '../../../assets/images/splash-wordmark.png';
 import { LAUNCH_GROUND, LAUNCH_INK, LAUNCH_LOGO_SIZE, MARK_DROP, MARK_STROKES } from './mark';
 
-const AnimatedPath = Animated.createAnimatedComponent(Path);
-const AnimatedCircle = Animated.createAnimatedComponent(Circle);
+/**
+ * `Animated.createAnimatedComponent` forces `collapsable={false}` on whatever it
+ * wraps, so that a native view is never flattened away from under the native
+ * driver. An SVG shape has no view to flatten, and react-native-svg's web
+ * shapes spread every prop onto the DOM node, where React DOM warns about the
+ * boolean on every launch: Expo shows that as the dev error toast over every
+ * screen. So the prop is dropped before it reaches the shape. The ref still
+ * reaches it, and Animated keeps driving the shape's attributes through it.
+ */
+interface AnimatedShapeExtras {
+  readonly collapsable?: boolean;
+}
+function PlainPath({
+  collapsable: _collapsable,
+  ...props
+}: PathProps & AnimatedShapeExtras & { ref?: Ref<Path> }) {
+  return <Path {...props} />;
+}
+function PlainCircle({
+  collapsable: _collapsable,
+  ...props
+}: CircleProps & AnimatedShapeExtras & { ref?: Ref<Circle> }) {
+  return <Circle {...props} />;
+}
+const AnimatedPath = Animated.createAnimatedComponent(PlainPath);
+const AnimatedCircle = Animated.createAnimatedComponent(PlainCircle);
 
 // The native splash is bare white, so nothing jumps when this takes over.
 void SplashScreen.preventAutoHideAsync().catch(() => undefined);
