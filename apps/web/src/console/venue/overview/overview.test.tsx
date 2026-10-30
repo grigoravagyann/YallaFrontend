@@ -95,7 +95,7 @@ describe('the overview', () => {
     expect(
       await screen.findByRole('heading', { level: 1, name: /^Good evening, \S+$/u }),
     ).toBeTruthy();
-    expect(screen.getByText(/^Sunday, October 18 · North · updated \d\d:\d\d$/u)).toBeTruthy();
+    expect(screen.getByText(/^Sunday, 18 October · North · updated \d\d:\d\d$/u)).toBeTruthy();
     expect(screen.getByText(/^(Open until \d\d:\d\d|Closed)/u)).toBeTruthy();
   });
 
@@ -210,7 +210,7 @@ describe('the overview', () => {
     const chart = await screen.findByRole('img', { name: /^Booked people by hour/u });
 
     // The service day is still the evening's.
-    expect(screen.getByText(/^Sunday, October 18 · North/u)).toBeTruthy();
+    expect(screen.getByText(/^Sunday, 18 October · North/u)).toBeTruthy();
     expect(chart.getAttribute('aria-label')).toContain(
       '23:00: 12, 00:00 (next day): 8, 01:00 (next day): 2',
     );
