@@ -36,6 +36,7 @@ const VIEW: Schemas['Yalla.Application.Reservations.ReservationView'] = {
   tableId: 'tbl-7',
   tableLabel: '7',
   bookedWithoutTable: false,
+  channel: 1,
   partySize: 2,
   startUtc: '2026-10-20T14:00:00Z',
   onMyWayOpensAtUtc: '2026-10-20T12:00:00Z',

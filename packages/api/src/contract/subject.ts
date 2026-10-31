@@ -145,7 +145,9 @@ export type ContractCapability =
   | 'photoBytes'
   | 'photoMarkers'
   /** The floor admitting or rejecting a phone's tab: both in one world. */
-  | 'admission';
+  | 'admission'
+  /** A waiter taking a booking by hand and following it up (2026-10-31). */
+  | 'staffBookings';
 
 /**
  * The ids a suite needs to ask a real question.

@@ -45,6 +45,9 @@ type ColumnKey =
   | 'replyMedianSeconds'
   | 'approvals'
   | 'declines'
+  | 'bookingsTaken'
+  | 'bookingsCame'
+  | 'bookingsNoShow'
   | 'cashAmd'
   | 'discountsAndComps';
 
@@ -83,6 +86,25 @@ export const RESULT_COLUMNS: readonly Column[] = [
     labelKey: 'staffResults.col.declines',
     kind: 'count',
     value: (f) => f.declines,
+  },
+  // Bookings taken by hand (2026-10-31), and how they ended: beside the decisions.
+  {
+    key: 'bookingsTaken',
+    labelKey: 'staffResults.col.bookingsTaken',
+    kind: 'count',
+    value: (f) => f.bookingsTaken,
+  },
+  {
+    key: 'bookingsCame',
+    labelKey: 'staffResults.col.bookingsCame',
+    kind: 'count',
+    value: (f) => f.bookingsCame,
+  },
+  {
+    key: 'bookingsNoShow',
+    labelKey: 'staffResults.col.bookingsNoShow',
+    kind: 'count',
+    value: (f) => f.bookingsNoShow,
   },
   { key: 'cashAmd', labelKey: 'staffResults.col.cash', kind: 'money', value: (f) => f.cashAmd },
   {

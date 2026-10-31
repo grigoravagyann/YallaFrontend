@@ -175,6 +175,8 @@ export function seedTodayBookings(input: {
       tableStatus: row.status === 'seated' ? 'occupied' : late ? 'held' : 'free',
       roomName: null,
       channel: row.channel,
+      // A staff booking names its taker (2026-10-31); the mock's rows are the guests' own.
+      takenByName: row.channel === 'staff' ? 'Ani Hakobyan' : null,
       changeRequested: row.changeRequested ?? false,
       holdExpiresAtUtc: late
         ? new Date(start.getTime() + HOLD_MINUTES * 60_000).toISOString()

@@ -10,6 +10,7 @@ import type { TFunction } from 'i18next';
 import { branchToday, requestLine, requestTable } from '../approvalRequests';
 import { ICONS, RailSection } from '../FloorRail';
 import { answerCountdown } from '../takeaway/takeawayText';
+import { ToCallSection, type ToCallSectionProps } from '../ToCallPanel';
 import { useBranchFormat } from '../useBranchFormat';
 import type { ArrivalState, UpcomingBooking } from './nextHour';
 import { PhoneIcon } from './PhoneShell';
@@ -180,6 +181,15 @@ export function PhoneTakeawayList(props: PhoneTakeawayListProps) {
       )}
     </RailSection>
   );
+}
+
+/**
+ * "Call the guest" on the phone's Now (2026-10-31): the tablet's section in
+ * the phone's frame — the number is a `tel:` link, one tap to dial, and the
+ * two answers sit under it.
+ */
+export function PhoneToCallList(props: Omit<ToCallSectionProps, 'variant'>) {
+  return <ToCallSection {...props} variant="phone" />;
 }
 
 export interface PhoneNextHourProps {

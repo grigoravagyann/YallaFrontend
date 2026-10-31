@@ -17,6 +17,13 @@ import {
   type DecideReservationCommand,
 } from '../contracts/approvals';
 import type { AdmitTabCommand, RejectTabCommand } from '../contracts/admission';
+import {
+  TO_CALL_POLL_MS,
+  type CreateStaffBookingCommand,
+  type MarkGuestComingCommand,
+  type StaffBooking,
+  type StaffDaySlotsQuery,
+} from '../contracts/staffBookings';
 import type { ReleaseReservationCommand, UndoNoShowCommand } from '../staffGateway';
 import type { StaffGateway } from '../staffGateway';
 import { staleTime } from '../queryClient';
@@ -151,6 +158,94 @@ export function useBookingsWithoutTable(branchId: string | undefined, enabled = 
     staleTime: staleTime.live,
     refetchInterval: WITHOUT_TABLE_POLL_MS,
     refetchIntervalInBackground: false,
+  });
+}
+
+// --- Bookings taken by staff (2026-10-31) -------------------------------------
+
+/**
+ * Whom to call now: the staff-taken bookings in their call window, mine
+ * first. Polled every thirty seconds while the floor is open, and read again
+ * on the change stream's booking signal, after a seat, a release, a booking
+ * taken here and a "coming" recorded — the same mechanism as the door's list.
+ */
+export function useBookingsToCall(branchId: string | undefined, enabled = true) {
+  const gateway = useStaffGateway();
+  return useQuery({
+    queryKey: queryKeys.bookingsToCall(branchId ?? ''),
+    queryFn: () => gateway.listBookingsToCall(branchId!),
+    enabled: Boolean(branchId) && enabled,
+    staleTime: staleTime.live,
+    refetchInterval: TO_CALL_POLL_MS,
+    refetchIntervalInBackground: false,
+  });
+}
+
+/**
+ * The New booking sheet's day of times for one party. Read while the sheet
+ * is open on that day; `enabled: false` while nothing is chosen yet. Kept
+ * fresh on each open (`staleTime.live`): a table booked a minute ago is gone.
+ */
+export function useStaffDaySlots(query: StaffDaySlotsQuery | null, enabled = true) {
+  const gateway = useStaffGateway();
+  return useQuery({
+    queryKey: queryKeys.staffDaySlots(
+      query?.branchId ?? '',
+      query?.date ?? '',
+      query?.partySize ?? 0,
+    ),
+    queryFn: () => gateway.getStaffDaySlots(query!),
+    enabled: query !== null && enabled,
+    staleTime: staleTime.live,
+  });
+}
+
+/** What a staff-taken booking changes on the floor: every list it may land on. */
+function afterStaffBooking(queryClient: QueryClient, branchId: string): void {
+  void queryClient.invalidateQueries({ queryKey: queryKeys.staffFloor(branchId) });
+  void queryClient.invalidateQueries({ queryKey: queryKeys.bookingsWithoutTable(branchId) });
+  void queryClient.invalidateQueries({ queryKey: queryKeys.bookingsToCall(branchId) });
+  void queryClient.invalidateQueries({ queryKey: queryKeys.duePreOrders(branchId) });
+}
+
+/**
+ * Taking a booking by hand. Online only (`networkMode: 'always'`: a sheet
+ * left open offline fails at once rather than pausing) and never retried
+ * automatically — a second tap reuses the command id, and the server answers
+ * the same booking. On success the floor, the door's list and the call list
+ * are read again: the booking is on one of them now, and its day's times are
+ * stale.
+ */
+export function useCreateStaffBooking(branchId: string | undefined) {
+  const gateway = useStaffGateway();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (command: CreateStaffBookingCommand) => gateway.createStaffBooking(command),
+    retry: false,
+    networkMode: 'always',
+    onSuccess: (booking: StaffBooking, command) => {
+      afterStaffBooking(queryClient, branchId ?? command.branchId);
+      void queryClient.invalidateQueries({
+        queryKey: ['staff', 'daySlots', branchId ?? command.branchId],
+      });
+      return booking;
+    },
+  });
+}
+
+/**
+ * "The guest says they are coming", recorded by the taker. Online only, never
+ * retried; the call list, the floor and the door's list are read again on
+ * settle — the row leaves the list, and the table's card says "on the way".
+ */
+export function useMarkGuestComing(branchId: string | undefined) {
+  const gateway = useStaffGateway();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (command: MarkGuestComingCommand) => gateway.markGuestComing(command),
+    retry: false,
+    networkMode: 'always',
+    onSettled: () => afterStaffBooking(queryClient, branchId ?? ''),
   });
 }
 
@@ -494,6 +589,8 @@ export function useReleaseReservation(branchId: string | undefined) {
       void queryClient.invalidateQueries({
         queryKey: queryKeys.bookingsWithoutTable(branchId ?? ''),
       });
+      // A staff-taken booking whose guest said "not coming" leaves the call list.
+      void queryClient.invalidateQueries({ queryKey: queryKeys.bookingsToCall(branchId ?? '') });
     },
   });
 }

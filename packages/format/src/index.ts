@@ -11,6 +11,7 @@ export {
   formatTime,
   formatTimeRange,
   formatDate,
+  armenianWeekday,
   formatDayAndTime,
   branchDayKey,
   instantFromZonedClock,

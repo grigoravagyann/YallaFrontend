@@ -9,6 +9,7 @@ import { PageHeader } from '../ui/PageHeader';
 import { OnboardingChecklist } from './OnboardingChecklist';
 import { ApprovalsCard } from './overview/ApprovalsCard';
 import { LoadChart } from './overview/LoadChart';
+import { serviceDayLine } from './overview/serviceDayLine';
 import { TodayBookings } from './overview/TodayBookings';
 import { WorthALook } from './overview/WorthALook';
 import { useVenueOutlet } from './VenueLayout';
@@ -59,7 +60,7 @@ export function VenueOverviewScreen() {
         sub={
           overview
             ? t('overview.sub', {
-                date: dayLine(overview, locale),
+                date: serviceDayLine(overview.serviceDate, t),
                 branch: branchName ?? '',
                 time: formatTime(overview.asOfUtc, overview.timeZoneId as TimeZone, locale),
               })
@@ -114,20 +115,6 @@ function greeting(t: Translate, overview: BranchOverview | undefined, fullName: 
   return first
     ? t(`overview.greeting.${part}`, { name: first })
     : t(`overview.greeting.${part}Plain`);
-}
-
-/**
- * "Saturday, 18 October": the service day — still the evening's after midnight
- * at a branch open late — as a calendar date with no zone to move it.
- */
-function dayLine(overview: BranchOverview, locale: Locale): string {
-  const text = new Intl.DateTimeFormat(locale, {
-    weekday: 'long',
-    day: 'numeric',
-    month: 'long',
-    timeZone: 'UTC',
-  }).format(new Date(`${overview.serviceDate}T12:00:00Z`));
-  return text.charAt(0).toLocaleUpperCase(locale) + text.slice(1);
 }
 
 /**
