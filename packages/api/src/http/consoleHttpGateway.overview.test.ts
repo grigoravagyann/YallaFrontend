@@ -208,6 +208,7 @@ describe('the overview over HTTP', () => {
         tableStatus: 'held',
         roomName: null,
         channel: 'app',
+        takenByName: null,
         changeRequested: false,
         holdExpiresAtUtc: '2026-10-18T14:45:00Z',
         lateNudgeAtUtc: '2026-10-18T14:40:00Z',
@@ -220,6 +221,8 @@ describe('the overview over HTTP', () => {
         changeRequested: true,
         roomName: 'Սրահ',
         channel: 'staff',
+        // Ahead of the schema: a server from before the branch names no taker.
+        takenByName: null,
         holdExpiresAtUtc: null,
         lateNudgeAtUtc: null,
         lateNudgeSent: null,

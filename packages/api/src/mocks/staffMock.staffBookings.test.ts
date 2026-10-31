@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-  BookingRejectedError,
+  type BookingRejectedError,
   LeadTimeExceededError,
   OnMyWayNotOpenError,
   TableTakenError,
@@ -69,9 +69,9 @@ describe("the day's times for the sheet", () => {
 
     const gone = day.slots.filter((slot) => Date.parse(slot.slotUtc) <= START.getTime());
     expect(gone.length).toBeGreaterThan(0);
-    expect(gone.every((slot) => !slot.isAvailable && slot.unavailableReason === 'pastLeadTime')).toBe(
-      true,
-    );
+    expect(
+      gone.every((slot) => !slot.isAvailable && slot.unavailableReason === 'pastLeadTime'),
+    ).toBe(true);
     const soon = day.slots.find((slot) => slot.time === '15:15')!;
     expect(soon.isAvailable).toBe(true);
     expect(soon.tables.some((table) => table.tableId === 't6')).toBe(false);
@@ -205,11 +205,17 @@ describe('taking a booking by hand', () => {
     expect(timeFullGuestsLeft(full)).toBe(0);
   });
 
-  it("refuses what the room refuses: the past, closed, no table, a taken table, too small", async () => {
+  it('refuses what the room refuses: the past, closed, no table, a taken table, too small', async () => {
     const staff = createStaffMockGateway({ now, branchId: BRANCH });
     const day = await staff.getStaffDaySlots({ branchId: BRANCH, date: TOMORROW, partySize: 4 });
     const table = day.slots.find((slot) => slot.time === '20:00')!.tables[0]!;
-    const base = { branchId: BRANCH, ...guest, date: TOMORROW, time: '20:00', tableId: table.tableId };
+    const base = {
+      branchId: BRANCH,
+      ...guest,
+      date: TOMORROW,
+      time: '20:00',
+      tableId: table.tableId,
+    };
     const refusal = (command: Parameters<typeof staff.createStaffBooking>[0]) =>
       staff.createStaffBooking(command).catch((error: unknown) => error);
 
@@ -218,9 +224,9 @@ describe('taking a booking by hand', () => {
     ).toBeInstanceOf(LeadTimeExceededError);
     const closed = await refusal({ ...base, time: '23:30', clientCommandId: newCommandId() });
     expect((closed as BookingRejectedError).reason).toBe('closed');
-    expect(await refusal({ ...base, tableId: null, clientCommandId: newCommandId() })).toBeInstanceOf(
-      ValidationError,
-    );
+    expect(
+      await refusal({ ...base, tableId: null, clientCommandId: newCommandId() }),
+    ).toBeInstanceOf(ValidationError);
     expect(
       await refusal({ ...base, guestPhone: '  ', clientCommandId: newCommandId() }),
     ).toBeInstanceOf(ValidationError);
@@ -245,7 +251,14 @@ describe('taking a booking by hand', () => {
 describe('whom to call, and the guest coming', () => {
   const seeds = [
     // Mine, in twenty minutes: on the list, first.
-    { id: 'sb-mine', guestName: 'Armine', guestPhone: '+37491778899', partySize: 4, startsInMinutes: 20, tableId: 't3' },
+    {
+      id: 'sb-mine',
+      guestName: 'Armine',
+      guestPhone: '+37491778899',
+      partySize: 4,
+      startsInMinutes: 20,
+      tableId: 't3',
+    },
     // The manager's, in ten: on the list, after mine.
     {
       id: 'sb-theirs',
@@ -257,9 +270,24 @@ describe('whom to call, and the guest coming', () => {
       takenBy: { id: 'b1-manager', name: 'Nare Petrosyan' },
     },
     // Too far ahead for the list.
-    { id: 'sb-later', guestName: 'Gor', guestPhone: '+37477000000', partySize: 2, startsInMinutes: 90, tableId: 't4' },
+    {
+      id: 'sb-later',
+      guestName: 'Gor',
+      guestPhone: '+37477000000',
+      partySize: 2,
+      startsInMinutes: 90,
+      tableId: 't4',
+    },
     // Already said coming: nothing to call about.
-    { id: 'sb-coming', guestName: 'Lilit', guestPhone: '+37493000000', partySize: 2, startsInMinutes: 15, tableId: 't5', comingMinutesAgo: 2 },
+    {
+      id: 'sb-coming',
+      guestName: 'Lilit',
+      guestPhone: '+37493000000',
+      partySize: 2,
+      startsInMinutes: 15,
+      tableId: 't5',
+      comingMinutesAgo: 2,
+    },
   ];
 
   it('lists the staff bookings in their window, nobody has recorded as coming, mine first', async () => {
@@ -321,7 +349,14 @@ describe('whom to call, and the guest coming', () => {
       branchId: BRANCH,
       staffBookingSeeds: [
         ...seeds,
-        { id: 'sb-far', guestName: 'Far', guestPhone: '+37477111111', partySize: 2, startsInMinutes: 180, tableId: 't6' },
+        {
+          id: 'sb-far',
+          guestName: 'Far',
+          guestPhone: '+37477111111',
+          partySize: 2,
+          startsInMinutes: 180,
+          tableId: 't6',
+        },
       ],
     });
 

@@ -843,7 +843,9 @@ export function createStaffMockContext(options: StaffMockOptions = {}) {
         startUtc,
         note,
         takenBy: taker,
-        ...(seed.comingMinutesAgo !== undefined ? { onMyWayMinutesAgo: seed.comingMinutesAgo } : {}),
+        ...(seed.comingMinutesAgo !== undefined
+          ? { onMyWayMinutesAgo: seed.comingMinutesAgo }
+          : {}),
       });
     } else {
       reservations.set(seed.id, {

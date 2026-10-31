@@ -186,11 +186,7 @@ export const TO_CALL_POLL_MS = 30_000;
  * minutes before the start until `graceMinutes` after it (the branch's hold
  * when that is later — the server decides; this is the screen's mirror).
  */
-export function inToCallWindow(
-  startUtc: string,
-  now: Date,
-  graceMinutes: number,
-): boolean {
+export function inToCallWindow(startUtc: string, now: Date, graceMinutes: number): boolean {
   const start = Date.parse(startUtc);
   if (Number.isNaN(start)) return false;
   const t = now.getTime();

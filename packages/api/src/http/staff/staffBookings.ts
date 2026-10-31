@@ -1,8 +1,4 @@
-import type {
-  BookingToCall,
-  StaffBooking,
-  StaffDaySlots,
-} from '../../contracts/staffBookings';
+import type { BookingToCall, StaffBooking, StaffDaySlots } from '../../contracts/staffBookings';
 import type { StaffGateway } from '../../staffGateway';
 import { rethrowBookingRefusal } from '../bookingRefusal';
 import { rethrowPreOrderRefusal } from '../preOrderMapping';

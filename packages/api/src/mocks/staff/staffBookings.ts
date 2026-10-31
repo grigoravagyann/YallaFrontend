@@ -276,7 +276,9 @@ export function staffBookingsMethods(
           slotUtc: instant.toISOString(),
           isAvailable: available,
           // A time gone is "too soon" as the server words it; a full one is booked out.
-          unavailableReason: available ? null : (refused ?? (past ? 'pastLeadTime' : 'alreadyBooked')),
+          unavailableReason: available
+            ? null
+            : (refused ?? (past ? 'pastLeadTime' : 'alreadyBooked')),
           tables: tablesFree,
           guestsLeft,
         });
@@ -315,15 +317,29 @@ export function staffBookingsMethods(
           { field: 'guestPhone', message: 'The guest’s phone is required.', bound: 'required' },
         ]);
       }
-      if (!Number.isInteger(command.partySize) || command.partySize < 1 || command.partySize > 100) {
+      if (
+        !Number.isInteger(command.partySize) ||
+        command.partySize < 1 ||
+        command.partySize > 100
+      ) {
         throw validationFailed(url, [
-          { field: 'partySize', message: 'partySize must be 1 to 100.', bound: 'range', min: 1, max: 100 },
+          {
+            field: 'partySize',
+            message: 'partySize must be 1 to 100.',
+            bound: 'range',
+            min: 1,
+            max: 100,
+          },
         ]);
       }
       const instant = instantOf(command.date, command.time);
       if (!instant) {
         throw validationFailed(url, [
-          { field: 'time', message: 'date and time must name a moment on the branch’s clock.', bound: 'range' },
+          {
+            field: 'time',
+            message: 'date and time must name a moment on the branch’s clock.',
+            bound: 'range',
+          },
         ]);
       }
       const at = now();
@@ -338,7 +354,11 @@ export function staffBookingsMethods(
       }
       const dayReason = dayRefusal(command.date, at);
       if (dayReason === 'tooFarAhead') {
-        throw new BookingRejectedError({ url, reason: 'tooFarAhead', partySize: command.partySize });
+        throw new BookingRejectedError({
+          url,
+          reason: 'tooFarAhead',
+          partySize: command.partySize,
+        });
       }
       const clock = timeParts(command.time)!;
       const minutes = clock[0] * 60 + clock[1];
@@ -383,14 +403,22 @@ export function staffBookingsMethods(
       } else {
         if (!command.tableId) {
           throw validationFailed(url, [
-            { field: 'tableId', message: 'This branch books tables: choose one.', bound: 'required' },
+            {
+              field: 'tableId',
+              message: 'This branch books tables: choose one.',
+              bound: 'required',
+            },
           ]);
         }
         const table = plan.tables.find((candidate) => candidate.id === command.tableId);
         const state = tables.get(command.tableId);
         if (!table || !state) throw new NotFoundError({ url });
         if (state.physicalStatus === 'outOfService') {
-          throw new BookingRejectedError({ url, reason: 'outOfService', partySize: command.partySize });
+          throw new BookingRejectedError({
+            url,
+            reason: 'outOfService',
+            partySize: command.partySize,
+          });
         }
         if (table.seats < command.partySize) {
           throw new BookingRejectedError({ url, reason: 'tooSmall', partySize: command.partySize });
@@ -425,10 +453,7 @@ export function staffBookingsMethods(
           released: false,
         });
         // The table's next booking, when this is sooner than what it had.
-        if (
-          !state.nextReservationStartUtc ||
-          startMs < Date.parse(state.nextReservationStartUtc)
-        ) {
+        if (!state.nextReservationStartUtc || startMs < Date.parse(state.nextReservationStartUtc)) {
           state.nextReservationId = bookingId;
           state.nextReservationStartUtc = startUtc;
           state.nextReservationPartySize = command.partySize;
@@ -437,7 +462,11 @@ export function staffBookingsMethods(
         const from = state.physicalStatus;
         state.version += 1;
         state.derived = derive(state, at);
-        record(state, from, at, { tabId: state.tabId, signal: 'bookingChanged', reservationId: bookingId });
+        record(state, from, at, {
+          tabId: state.tabId,
+          signal: 'bookingChanged',
+          reservationId: bookingId,
+        });
       }
 
       const booking: MockStaffBooking = {

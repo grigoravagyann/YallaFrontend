@@ -1,9 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import {
-  BookingRejectedError,
-  OnMyWayNotOpenError,
-  TableTakenError,
-} from '../contracts/errors';
+import { BookingRejectedError, OnMyWayNotOpenError, TableTakenError } from '../contracts/errors';
 import { ValidationError } from '../errors';
 import type { components } from '../generated/schema';
 import { fakeBackend, offSchema, problemReply, type FakeRoute } from './fakeBackend.testkit';
@@ -118,7 +114,11 @@ describe("the day's times for the sheet", () => {
       [`GET /api/branches/${BRANCH}/reservations/slots`]: offSchema({ body: DAY }, AHEAD),
     });
 
-    const day = await gateway.getStaffDaySlots({ branchId: BRANCH, date: '2026-10-31', partySize: 4 });
+    const day = await gateway.getStaffDaySlots({
+      branchId: BRANCH,
+      date: '2026-10-31',
+      partySize: 4,
+    });
 
     expect(backend.requests[0]?.query.get('date')).toBe('2026-10-31');
     expect(backend.requests[0]?.query.get('party')).toBe('4');
@@ -159,7 +159,11 @@ describe("the day's times for the sheet", () => {
         AHEAD,
       ),
     });
-    const day = await gateway.getStaffDaySlots({ branchId: BRANCH, date: '2026-10-31', partySize: 4 });
+    const day = await gateway.getStaffDaySlots({
+      branchId: BRANCH,
+      date: '2026-10-31',
+      partySize: 4,
+    });
     expect(day.bookingMode).toBe('timeOnly');
     expect(day.slots[0]).toMatchObject({ isAvailable: true, tables: [], guestsLeft: 12 });
 
@@ -169,7 +173,11 @@ describe("the day's times for the sheet", () => {
         AHEAD,
       ),
     });
-    const closed = await shut.getStaffDaySlots({ branchId: BRANCH, date: '2026-10-31', partySize: 4 });
+    const closed = await shut.getStaffDaySlots({
+      branchId: BRANCH,
+      date: '2026-10-31',
+      partySize: 4,
+    });
     expect(closed.unavailableReason).toBe('closed');
     expect(closed.slots).toEqual([]);
   });
@@ -236,7 +244,14 @@ describe('taking a booking by hand', () => {
       [`POST /api/branches/${BRANCH}/reservations/staff`]: offSchema(
         {
           status: 200,
-          body: { ...TAKEN, tableId: undefined, tableLabel: undefined, bookedWithoutTable: true, note: null, wasReplay: true },
+          body: {
+            ...TAKEN,
+            tableId: undefined,
+            tableLabel: undefined,
+            bookedWithoutTable: true,
+            note: null,
+            wasReplay: true,
+          },
         },
         AHEAD,
       ),
@@ -261,7 +276,9 @@ describe('taking a booking by hand', () => {
         AHEAD,
       ),
     });
-    const refusal = await taken.gateway.createStaffBooking(command).catch((error: unknown) => error);
+    const refusal = await taken.gateway
+      .createStaffBooking(command)
+      .catch((error: unknown) => error);
     expect(refusal).toBeInstanceOf(TableTakenError);
     expect((refusal as TableTakenError).reason).toBe('alreadyBooked');
     expect((refusal as TableTakenError).tableLabel).toBe('7');
@@ -282,7 +299,9 @@ describe('taking a booking by hand', () => {
         AHEAD,
       ),
     });
-    const tooSmall = await small.gateway.createStaffBooking(command).catch((error: unknown) => error);
+    const tooSmall = await small.gateway
+      .createStaffBooking(command)
+      .catch((error: unknown) => error);
     expect((tooSmall as BookingRejectedError).reason).toBe('tooSmall');
 
     const blank = gatewayOver({
@@ -291,7 +310,9 @@ describe('taking a booking by hand', () => {
         AHEAD,
       ),
     });
-    const missing = await blank.gateway.createStaffBooking(command).catch((error: unknown) => error);
+    const missing = await blank.gateway
+      .createStaffBooking(command)
+      .catch((error: unknown) => error);
     expect(missing).toBeInstanceOf(ValidationError);
     expect((missing as ValidationError).field).toBe('guestPhone');
   });
@@ -301,7 +322,18 @@ describe('whom to call, and the guest coming', () => {
   it("reads the call list as the floor's own route answers it", async () => {
     const { gateway, backend } = gatewayOver({
       [`GET /api/branches/${BRANCH}/reservations/to-call`]: offSchema(
-        { body: [TO_CALL, { ...TO_CALL, reservationId: 'other', isMine: false, takenByName: 'Nare Petrosyan', note: ' quiet corner ' }] },
+        {
+          body: [
+            TO_CALL,
+            {
+              ...TO_CALL,
+              reservationId: 'other',
+              isMine: false,
+              takenByName: 'Nare Petrosyan',
+              note: ' quiet corner ',
+            },
+          ],
+        },
         AHEAD,
       ),
     });
@@ -325,7 +357,11 @@ describe('whom to call, and the guest coming', () => {
       takenByName: 'Ani Hakobyan',
       isMine: true,
     });
-    expect(rows[1]).toMatchObject({ isMine: false, takenByName: 'Nare Petrosyan', note: 'quiet corner' });
+    expect(rows[1]).toMatchObject({
+      isMine: false,
+      takenByName: 'Nare Petrosyan',
+      note: 'quiet corner',
+    });
   });
 
   it('records the guest coming under the command id and reads the booking back with the time', async () => {

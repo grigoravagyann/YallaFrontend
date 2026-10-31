@@ -1099,6 +1099,7 @@ export {
 export { MOCK_PRE_ORDER_BRANCHES, createMockPreOrderBook } from './mocks/preOrders';
 export type { MockPreOrderBranch } from './mocks/preOrders';
 export type {
+  StaffBookingSeed,
   StaffPreOrderSeed,
   StaffTakeawaySeed,
   StaffWithoutTableSeed,

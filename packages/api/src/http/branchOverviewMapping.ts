@@ -50,7 +50,10 @@ function bookingFromWire(wire: WireOverviewBooking): OverviewBooking {
     tableStatus: wire.tableStatus == null ? null : (TABLE_STATUS[wire.tableStatus] ?? null),
     roomName: wire.roomName ?? null,
     channel: CHANNEL[wire.channel] ?? 'unknown',
-    takenByName: typeof wire.takenByName === 'string' && wire.takenByName.trim() ? wire.takenByName.trim() : null,
+    takenByName:
+      typeof wire.takenByName === 'string' && wire.takenByName.trim()
+        ? wire.takenByName.trim()
+        : null,
     changeRequested: wire.changeRequested,
     holdExpiresAtUtc: wire.holdExpiresAtUtc ?? null,
     lateNudgeAtUtc: nudgeAt,
