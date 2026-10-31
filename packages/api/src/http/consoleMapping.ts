@@ -317,6 +317,9 @@ export function readinessFromWire(view: WireReadiness): BranchReadiness {
     staffCount: view.staffCount,
     deviceEnrolled: view.deviceEnrolled,
     deviceCount: view.deviceCount,
+    bookableTableCount: view.bookableTableCount,
+    takingGuests: view.takingGuests,
+    missingForGuests: view.missingForGuests ?? [],
     acceptsWebBookings: view.acceptsWebBookings,
     blockers: view.blockers ?? [],
   };

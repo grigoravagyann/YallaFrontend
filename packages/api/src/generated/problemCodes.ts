@@ -1,7 +1,7 @@
 /**
  * GENERATED FILE — do not edit.
  *
- * Source: http://localhost:5347/swagger.json (the `x-problem-codes` extension)
+ * Source: http://127.0.0.1:5391/swagger/v1/swagger.json (the `x-problem-codes` extension)
  * Regenerate with: pnpm api:generate
  *
  * Every problem code the backend answers with. Each is declared once, on its

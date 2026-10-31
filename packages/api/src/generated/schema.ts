@@ -1,7 +1,7 @@
 /**
  * GENERATED FILE — do not edit.
  *
- * Source: http://localhost:5347/swagger.json
+ * Source: http://127.0.0.1:5391/swagger/v1/swagger.json
  * Regenerate with: pnpm api:generate
  */
 
@@ -8789,6 +8789,12 @@ export interface components {
              */
             blockers: string[];
             /**
+             * Format: int32
+             * @description Active tables a diner can book: bookable and pinned on a room photo, which is what the booking
+             *     rules offer.
+             */
+            bookableTableCount: number;
+            /**
              * Format: uuid
              * @description The branch this is about.
              */
@@ -8811,9 +8817,9 @@ export interface components {
             /** @description Which ones, so the console can link straight to them. */
             incompleteMenuItemIds: string[];
             /**
-             * @description Every line below satisfied. This is exactly what going Paid requires on the menu side, plus the
-             *     rest of the checklist - the tier switch itself only enforces the menu, because a venue may want
-             *     its tabs enabled before it has finished enrolling tablets.
+             * @description Every line of the checklist satisfied. Advice: it hides nothing. Whether diners see the branch is
+             *     TakingGuests, the required lines only; table service separately waits for the
+             *     menu's dishes to be finished.
              */
             isReadyForDiners: boolean;
             /**
@@ -8836,6 +8842,12 @@ export interface components {
              * @description How many items there are, complete or not.
              */
             menuItemCount: number;
+            /**
+             * @description The required lines still missing, as Yalla.Application.BranchSettings.ReadinessIssueCodes, in checklist order:
+             *     `no-tables` or `no-bookable-table`, `no-hours`, `no-staff`, `no-device`.
+             *     Empty exactly when TakingGuests.
+             */
+            missingForGuests: string[];
             /**
              * Format: int32
              * @description How many days of the week have any opening block.
@@ -8866,6 +8878,13 @@ export interface components {
              *     line for it and a silently-absent line reads as a failure.
              */
             tablesLabelled: boolean;
+            /**
+             * @description Every <b>required</b> line satisfied - a bookable table, opening hours, staff and a device - so
+             *     diners see the branch. Without it the branch is not listed, searched, shown or bookable
+             *     (`DinerVisibility`). IsReadyForDiners is the whole checklist and blocks
+             *     nothing on its own.
+             */
+            takingGuests: boolean;
         };
         "Yalla.Application.BranchSettings.FloorAreaCommand": {
             /** Format: int32 */

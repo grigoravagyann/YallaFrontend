@@ -187,11 +187,16 @@ describe('readiness in the mock', () => {
       openingHoursDayCount: 6,
       staffEnrolled: true,
       deviceEnrolled: true,
-      deviceCount: 1,
       // Seeded from the public fixture, where Cascade takes bookings (QA F5).
       acceptsWebBookings: true,
       isReadyForDiners: false,
+      // The mock's rooms have no photos, so no table is pinned where a diner
+      // could book it: the one required line missing, as the server would say.
+      takingGuests: false,
+      missingForGuests: ['no-bookable-table'],
     });
+    // A tablet or a paired staff phone: both see a booking arrive, as on the server.
+    expect(readiness.deviceCount).toBeGreaterThanOrEqual(1);
     // The fixture seeds one dish without a photo, which is what the to-do list is for.
     expect(readiness.incompleteMenuItemCount).toBeGreaterThan(0);
     expect(readiness.menuComplete).toBe(false);

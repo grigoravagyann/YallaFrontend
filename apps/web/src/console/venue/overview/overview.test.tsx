@@ -718,6 +718,9 @@ describe('worth a look and the setup card', () => {
     staffCount: 4,
     deviceEnrolled: true,
     deviceCount: 1,
+    bookableTableCount: 10,
+    takingGuests: true,
+    missingForGuests: [],
     acceptsWebBookings: true,
     blockers: [],
   };
@@ -765,11 +768,14 @@ describe('worth a look and the setup card', () => {
       deviceEnrolled: false,
       deviceCount: 0,
       isReadyForDiners: false,
+      takingGuests: false,
+      missingForGuests: ['no-device'],
     });
     renderOverview(gateway);
 
+    // A required line is missing, so the card says diners do not see the branch.
     const setup = await screen.findByRole('region', {
-      name: 'What is still needed before guests can come',
+      name: 'Guests do not see this branch yet',
     });
     expect(within(setup).getByText('7 of 8 done')).toBeTruthy();
     expect(within(setup).getByRole('progressbar').getAttribute('aria-valuenow')).toBe('7');
@@ -780,7 +786,7 @@ describe('worth a look and the setup card', () => {
     renderOverview(gateway);
     await bookingsCard();
     await waitFor(() => expect(readiness).toHaveBeenCalledTimes(2));
-    expect(screen.queryByRole('region', { name: /what is still needed/i })).toBeNull();
+    expect(screen.queryByRole('region', { name: /left to set up|do not see/i })).toBeNull();
   });
 });
 

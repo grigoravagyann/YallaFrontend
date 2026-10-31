@@ -433,6 +433,9 @@ describe('branch readiness over HTTP', () => {
       staffEnrolled: true,
       tableCount: 12,
       tablesLabelled: true,
+      bookableTableCount: 10,
+      takingGuests: true,
+      missingForGuests: [],
     };
     const fetchImpl = vi.fn().mockResolvedValue(json(200, wire));
 

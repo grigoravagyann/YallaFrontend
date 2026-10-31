@@ -34138,6 +34138,7 @@
         "required": [
           "acceptsWebBookings",
           "blockers",
+          "bookableTableCount",
           "branchId",
           "deviceCount",
           "deviceEnrolled",
@@ -34150,13 +34151,15 @@
           "menuCategoryCount",
           "menuComplete",
           "menuItemCount",
+          "missingForGuests",
           "openingHoursDayCount",
           "openingHoursSet",
           "reservationPolicyReviewed",
           "staffCount",
           "staffEnrolled",
           "tableCount",
-          "tablesLabelled"
+          "tablesLabelled",
+          "takingGuests"
         ],
         "type": "object",
         "properties": {
@@ -34167,7 +34170,7 @@
           },
           "isReadyForDiners": {
             "type": "boolean",
-            "description": "Every line below satisfied. This is exactly what going Paid requires on the menu side, plus the\nrest of the checklist - the tier switch itself only enforces the menu, because a venue may want\nits tabs enabled before it has finished enrolling tablets."
+            "description": "Every line of the checklist satisfied. Advice: it hides nothing. Whether diners see the branch is\nTakingGuests, the required lines only; table service separately waits for the\nmenu's dishes to be finished."
           },
           "floorPlanDrawn": {
             "type": "boolean",
@@ -34243,6 +34246,22 @@
             "type": "integer",
             "description": "How many.",
             "format": "int32"
+          },
+          "bookableTableCount": {
+            "type": "integer",
+            "description": "Active tables a diner can book: bookable and pinned on a room photo, which is what the booking\nrules offer.",
+            "format": "int32"
+          },
+          "takingGuests": {
+            "type": "boolean",
+            "description": "Every <b>required</b> line satisfied - a bookable table, opening hours, staff and a device - so\ndiners see the branch. Without it the branch is not listed, searched, shown or bookable\n(`DinerVisibility`). IsReadyForDiners is the whole checklist and blocks\nnothing on its own."
+          },
+          "missingForGuests": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "The required lines still missing, as Yalla.Application.BranchSettings.ReadinessIssueCodes, in checklist order:\n`no-tables` or `no-bookable-table`, `no-hours`, `no-staff`, `no-device`.\nEmpty exactly when TakingGuests."
           },
           "acceptsWebBookings": {
             "type": "boolean",
