@@ -2360,6 +2360,7 @@
         "staff": "Զանգ",
         "unknown": "—"
       },
+      "channelTaken": "Զանգ · {{name}}",
       "status": {
         "pending": "Սպասում է",
         "confirmed": "Հաստատված",
@@ -2814,6 +2815,8 @@
     },
     "action": {
       "bookingRequested": "Ամրագրեց սեղան",
+      "bookingTaken": "Ընդունեց ամրագրում",
+      "bookingGuestComing": "Նշեց՝ հյուրը գալիս է",
       "bookingApproved": "Հաստատեց ամրագրումը",
       "bookingDeclined": "Մերժեց ամրագրումը",
       "bookingMoved": "Տեղափոխեց ամրագրումը",
@@ -2975,6 +2978,9 @@
       "replies": "Նամակին",
       "approvals": "Հաստատեց",
       "declines": "Մերժեց",
+      "bookingsTaken": "Ամրագրում ընդունեց",
+      "bookingsCame": "Եկան",
+      "bookingsNoShow": "Չեկան",
       "cash": "Կանխիկ",
       "discounts": "Զեղչ/անվճար"
     },
@@ -3010,6 +3016,8 @@
       "repliesSub_other": "մեդիան · {{count}} նամակ",
       "approvals": "Հաստատած ամրագրումներ",
       "declinedSub": "մերժված՝ {{count}}",
+      "bookingsTaken": "Ընդունած ամրագրումներ",
+      "bookingsTakenSub": "եկան՝ {{came}} · չեկան՝ {{noShow}}",
       "cash": "Ընդունած կանխիկ",
       "cashSub_one": "{{count}} վճարում",
       "cashSub_other": "{{count}} վճարում"

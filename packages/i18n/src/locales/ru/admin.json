@@ -2536,6 +2536,7 @@
         "staff": "Звонок",
         "unknown": "—"
       },
+      "channelTaken": "Звонок · {{name}}",
       "status": {
         "pending": "Ждёт",
         "confirmed": "Подтверждена",
@@ -3032,6 +3033,8 @@
     },
     "action": {
       "bookingRequested": "Забронировал(а) стол",
+      "bookingTaken": "Принял(а) бронь",
+      "bookingGuestComing": "Отметил(а): гость придёт",
       "bookingApproved": "Подтвердил(а) бронь",
       "bookingDeclined": "Отклонил(а) бронь",
       "bookingMoved": "Перенёс(ла) бронь",
@@ -3199,6 +3202,9 @@
       "replies": "На сообщение",
       "approvals": "Подтвердил(а)",
       "declines": "Отклонил(а)",
+      "bookingsTaken": "Принял(а) броней",
+      "bookingsCame": "Пришли",
+      "bookingsNoShow": "Не пришли",
       "cash": "Наличные",
       "discounts": "Скидка/за счёт"
     },
@@ -3240,6 +3246,8 @@
       "repliesSub_other": "медиана · {{count}} сообщения",
       "approvals": "Подтверждено броней",
       "declinedSub": "отклонено: {{count}}",
+      "bookingsTaken": "Принятые брони",
+      "bookingsTakenSub": "пришли: {{came}} · не пришли: {{noShow}}",
       "cash": "Принято наличными",
       "cashSub_one": "{{count}} платёж",
       "cashSub_few": "{{count}} платежа",

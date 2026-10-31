@@ -2360,6 +2360,7 @@
         "staff": "Phone",
         "unknown": "—"
       },
+      "channelTaken": "Phone · {{name}}",
       "status": {
         "pending": "Waiting",
         "confirmed": "Confirmed",
@@ -2814,6 +2815,8 @@
     },
     "action": {
       "bookingRequested": "Booked a table",
+      "bookingTaken": "Took a booking",
+      "bookingGuestComing": "Noted the guest is coming",
       "bookingApproved": "Approved the booking",
       "bookingDeclined": "Declined the booking",
       "bookingMoved": "Moved the booking",
@@ -2975,6 +2978,9 @@
       "replies": "To a message",
       "approvals": "Approved",
       "declines": "Declined",
+      "bookingsTaken": "Bookings taken",
+      "bookingsCame": "Came",
+      "bookingsNoShow": "No-show",
       "cash": "Cash",
       "discounts": "Discount / comp"
     },
@@ -3010,6 +3016,8 @@
       "repliesSub_other": "median · {{count}} messages",
       "approvals": "Bookings approved",
       "declinedSub": "declined: {{count}}",
+      "bookingsTaken": "Bookings taken",
+      "bookingsTakenSub": "came {{came}} · no-show {{noShow}}",
       "cash": "Cash taken",
       "cashSub_one": "{{count}} payment",
       "cashSub_other": "{{count}} payments"
