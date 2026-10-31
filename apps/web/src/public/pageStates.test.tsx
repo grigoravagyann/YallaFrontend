@@ -33,6 +33,14 @@ afterEach(() => {
 
 const OPEN_HOURS = () => new Date('2026-10-16T16:00:00Z');
 
+// The mocks' booking window reads the real clock too: without this the suite expires with the calendar.
+beforeEach(() => {
+  vi.useFakeTimers({ toFake: ['Date'], now: OPEN_HOURS() });
+});
+afterEach(() => {
+  vi.useRealTimers();
+});
+
 function open(path: string, harness = createHarness({ now: OPEN_HOURS })) {
   const view = render(harness.wrap(<PublicApp />, path));
   return { ...harness, ...view };
@@ -235,7 +243,7 @@ describe('a page already on screen', () => {
     const harness = createHarness({ now: OPEN_HOURS });
     const token = await pendingBooking(harness);
     open(`/lumen-coffee/northern-avenue/booking/${token}`, harness);
-    await screen.findByRole('heading', { level: 1, name: 'Your booking' });
+    await screen.findByRole('heading', { level: 1, name: 'Your request' });
 
     act(() => onlineManager.setOnline(false));
     await act(() => harness.queryClient.refetchQueries({ type: 'active' }).catch(() => {}));
