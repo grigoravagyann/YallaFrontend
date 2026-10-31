@@ -1,4 +1,9 @@
-import type { BookingWithoutTable, FloorTable, ReleaseOutcome } from '@yalla/api';
+import {
+  isStaffTaken,
+  type BookingWithoutTable,
+  type FloorTable,
+  type ReleaseOutcome,
+} from '@yalla/api';
 import { useTranslation } from '@yalla/i18n';
 import type { TFunction } from 'i18next';
 import { useEffect, useId, useRef, useState } from 'react';
@@ -152,6 +157,11 @@ function WithoutTableCard({
         </span>
         <span className="badge badge-warn">{t('withoutTable.noTable')}</span>
       </div>
+
+      {/* Taken by hand (2026-10-31): whose booking it is, so the right person calls. */}
+      {isStaffTaken(booking) && booking.takenByName ? (
+        <p className="wt-taker">{t('toCall.takenBy', { name: booking.takenByName })}</p>
+      ) : null}
 
       {/* The wish first: it is what decides the table. */}
       {booking.note ? (

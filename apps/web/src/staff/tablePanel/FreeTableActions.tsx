@@ -34,6 +34,8 @@ export interface FreeTableActionsProps {
   /** The booking's confirmed pre-order, whose guest is named on "Seat the booking". */
   readonly preOrderParty: DuePreOrder | null;
   readonly onAct: (kind: TableActionKind, input?: { partySize?: number }) => void;
+  /** "Book this table" (2026-10-31): a booking by hand with this table chosen. Absent: not offered. */
+  readonly onBookTable?: (() => void) | undefined;
 }
 
 /** A free table: its facts, then a late booking's choices, the walk-in stepper, or its actions. */
@@ -58,6 +60,7 @@ export function FreeTableActions({
   offerSeatBooking,
   preOrderParty,
   onAct,
+  onBookTable,
 }: FreeTableActionsProps) {
   const { t } = useTranslation(['staff', 'common']);
   const format = useBranchFormat(timeZoneId);
@@ -140,6 +143,13 @@ export function FreeTableActions({
             <button type="button" className="tp-btn tp-sec" onClick={() => onAct('hold')}>
               {t('table.action.holdLate')}
             </button>
+            {/* A booking by hand for this table (2026-10-31): the guest is on the
+                phone, or wants to come back later tonight. */}
+            {onBookTable ? (
+              <button type="button" className="tp-btn tp-sec" onClick={onBookTable}>
+                {t('newBooking.bookThisTable')}
+              </button>
+            ) : null}
             <button type="button" className="tp-btn tp-ghost" onClick={() => onAct('outOfService')}>
               {t('table.action.outOfService')}
             </button>

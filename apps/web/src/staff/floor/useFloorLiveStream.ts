@@ -143,6 +143,8 @@ export function useFloorLiveStream({
               void queryClient.invalidateQueries({
                 queryKey: queryKeys.bookingsWithoutTable(branchId),
               });
+              // And whom to call: a staff-taken booking seated, let go or taken.
+              void queryClient.invalidateQueries({ queryKey: queryKeys.bookingsToCall(branchId) });
             }
             // A pre-order changed anywhere (signal 6) — the branch's pre-order
             // settings included — or a booking did (5), or a block cancelled
@@ -221,6 +223,7 @@ export function useFloorLiveStream({
           void queryClient.invalidateQueries({
             queryKey: queryKeys.bookingsWithoutTable(branchId),
           });
+          void queryClient.invalidateQueries({ queryKey: queryKeys.bookingsToCall(branchId) });
         },
         onError: () => {
           // Reported through the header's chip, which is the one place a

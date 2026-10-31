@@ -60,6 +60,11 @@ export interface StaffHeaderProps {
   readonly onSelectView?: ((view: StaffView) => void) | undefined;
   /** Hands the tablet over. Signing out by default: the PIN gate comes up over the screen. */
   readonly onSwitchPerson?: (() => void) | undefined;
+  /**
+   * "+ Booking" (2026-10-31): a booking taken by hand, from the floor view.
+   * Left out where the screen is not the floor's, and the button goes with it.
+   */
+  readonly onNewBooking?: (() => void) | undefined;
 }
 
 /**
@@ -102,6 +107,7 @@ export function StaffHeader({
   messagesWaiting,
   onSelectView,
   onSwitchPerson,
+  onNewBooking,
 }: StaffHeaderProps) {
   const { t } = useTranslation(['staff', 'common']);
   const { locale } = useLocale();
@@ -239,6 +245,18 @@ export function StaffHeader({
           </span>
         )}
       </nav>
+
+      {/* A booking by hand, from the floor: the guest is on the phone or at
+          the door, and the sheet opens over the room (2026-10-31). */}
+      {onNewBooking && view === 'floor' ? (
+        <button
+          type="button"
+          className="ft-btn ft-btn-primary ft-new-booking"
+          onClick={onNewBooking}
+        >
+          {t('newBooking.open')}
+        </button>
+      ) : null}
 
       <span className="ft-top-gap" />
 
