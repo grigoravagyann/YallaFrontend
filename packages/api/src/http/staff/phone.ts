@@ -99,6 +99,7 @@ export function phoneMethods(
           tableCalls: settings.tableCalls,
           takeaway: settings.takeaway,
           kitchenReady: settings.kitchenReady,
+          bookingToCall: settings.bookingToCall,
           onlyDuringShift: settings.onlyDuringShift,
           ...(settings.locale ? { locale: settings.locale } : {}),
         } satisfies Schemas['Yalla.Api.Endpoints.SaveStaffNotificationPreferencesRequest'],

@@ -2820,6 +2820,7 @@ export function createStaffMockContext(options: StaffMockOptions = {}) {
       tableCalls: true,
       takeaway: true,
       kitchenReady: false,
+      bookingToCall: true,
       onlyDuringShift: true,
     },
     locale: null,

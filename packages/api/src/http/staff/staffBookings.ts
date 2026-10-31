@@ -17,9 +17,7 @@ import type { StaffHttpContext } from './context';
  * Bookings taken by hand on the floor (2026-10-31): the day's times for the
  * sheet, taking one, the call list, and "the guest is coming".
  *
- * The routes are on the backend's `feat/staff-bookings` and not yet in
- * `generated/schema.ts`; each call carries the awaiting marker until
- * `api:generate` has run against that branch.
+ * The routes are in `generated/schema.ts`.
  */
 export function staffBookingsMethods(
   ctx: StaffHttpContext,
@@ -32,7 +30,6 @@ export function staffBookingsMethods(
     // --- Bookings taken by staff (2026-10-31) --------------------------------
 
     async getStaffDaySlots({ branchId, date, partySize }): Promise<StaffDaySlots> {
-      // gateway-schema: awaiting-route — staff bookings (Yalla feat/staff-bookings)
       const { data } = await client.get<WireStaffDaySlots>(
         `/api/branches/${branchId}/reservations/slots`,
         { query: { date, party: partySize } },
@@ -43,7 +40,6 @@ export function staffBookingsMethods(
     async createStaffBooking(command): Promise<StaffBooking> {
       try {
         // 201, or 200 with `wasReplay` for a second send of the same command.
-        // gateway-schema: awaiting-route — staff bookings (Yalla feat/staff-bookings)
         const { data } = await client.post<WireStaffReservationView>(
           `/api/branches/${command.branchId}/reservations/staff`,
           staffBookingRequest(command),
@@ -61,7 +57,6 @@ export function staffBookingsMethods(
     },
 
     async listBookingsToCall(branchId): Promise<readonly BookingToCall[]> {
-      // gateway-schema: awaiting-route — staff bookings (Yalla feat/staff-bookings)
       const { data } = await client.get<WireBookingToCall[]>(
         `/api/branches/${branchId}/reservations/to-call`,
       );
@@ -70,7 +65,6 @@ export function staffBookingsMethods(
 
     async markGuestComing({ reservationId, clientCommandId }): Promise<StaffBooking> {
       try {
-        // gateway-schema: awaiting-route — staff bookings (Yalla feat/staff-bookings)
         const { data } = await client.post<WireStaffReservationView>(
           `/api/reservations/${reservationId}/guest-coming`,
           { clientCommandId },

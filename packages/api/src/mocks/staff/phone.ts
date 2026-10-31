@@ -214,6 +214,7 @@ export function phoneMethods(
         tableCalls: settings.tableCalls,
         takeaway: settings.takeaway,
         kitchenReady: settings.kitchenReady,
+        bookingToCall: settings.bookingToCall,
         onlyDuringShift: settings.onlyDuringShift,
       };
       if (settings.locale) phonePush.locale = settings.locale;

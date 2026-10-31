@@ -1516,6 +1516,10 @@
         "kitchenReady": {
           "label": "Kitchen is ready",
           "help": "Dishes for your tables"
+        },
+        "bookingToCall": {
+          "label": "Call the guest",
+          "help": "A booking you took starts in 30 minutes"
         }
       },
       "onlyShift": "Only during my shift",
