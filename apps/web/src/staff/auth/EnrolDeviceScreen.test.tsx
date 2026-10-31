@@ -216,3 +216,19 @@ describe('a revoked tablet, and a connected one', () => {
     expect(onContinue).toHaveBeenCalledTimes(1);
   });
 });
+
+describe('a phone that chose a floor tablet', () => {
+  it('can go back to pairing the phone', async () => {
+    const onBack = vi.fn();
+    const user = userEvent.setup();
+    renderEnrol({ onBack });
+
+    await user.click(screen.getByRole('button', { name: 'Back to pairing my phone' }));
+    expect(onBack).toHaveBeenCalledTimes(1);
+  });
+
+  it('offers no way back on a tablet', () => {
+    renderEnrol();
+    expect(screen.queryByRole('button', { name: 'Back to pairing my phone' })).toBeNull();
+  });
+});

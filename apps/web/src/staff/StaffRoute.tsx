@@ -268,6 +268,7 @@ export function StaffRoute() {
         reason={snapshot.lastSignOut === 'expired' ? 'revoked' : 'never'}
         enrolled={justEnrolled ? snapshot.device : null}
         onContinue={() => setJustEnrolled(false)}
+        onBack={phone && tabletSetup ? () => setTabletSetup(false) : undefined}
       />
     );
   }
