@@ -61,10 +61,64 @@ export function formatTimeRange(
   return timeFormatter(locale, timeZone).formatRange(toDate(start), toDate(end));
 }
 
+/**
+ * Armenian names by hand. A Chromium that ships no Armenian locale data answers
+ * `hy-AM` with ICU's root pattern ("M11 2, Mon"), on the screens people read most
+ * (the floor's day chips, the header). Node's full ICU hides it from tests.
+ */
+const HY_MONTHS = [
+  'Հնվ',
+  'Փտվ',
+  'Մրտ',
+  'Ապր',
+  'Մյս',
+  'Հնս',
+  'Հլս',
+  'Օգս',
+  'Սեպ',
+  'Հոկ',
+  'Նոյ',
+  'Դեկ',
+] as const;
+const HY_WEEKDAYS_SHORT = ['Կիր', 'Երկ', 'Երք', 'Չրք', 'Հնգ', 'Ուրբ', 'Շբթ'] as const;
+const HY_WEEKDAYS_LONG = [
+  'Կիրակի',
+  'Երկուշաբթի',
+  'Երեքշաբթի',
+  'Չորեքշաբթի',
+  'Հինգշաբթի',
+  'Ուրբաթ',
+  'Շաբաթ',
+] as const;
+
+/** The branch's calendar day of an instant, as numbers. */
+function branchDayParts(value: Instant, timeZone: TimeZone) {
+  const [year, month, day] = branchDayKey(value, timeZone).split('-').map(Number) as [
+    number,
+    number,
+    number,
+  ];
+  return { year, month, day, weekday: new Date(Date.UTC(year, month - 1, day)).getUTCDay() };
+}
+
+/** The weekday's Armenian name, in the branch's timezone. */
+export function armenianWeekday(
+  value: Instant,
+  timeZone: TimeZone,
+  style: 'short' | 'long',
+): string {
+  const { weekday } = branchDayParts(value, timeZone);
+  return (style === 'short' ? HY_WEEKDAYS_SHORT : HY_WEEKDAYS_LONG)[weekday]!;
+}
+
 const dateFormatterCache = new Map<string, Intl.DateTimeFormat>();
 
 /** Format a calendar date in the branch's timezone, e.g. `4 Sept 2026`. */
 export function formatDate(value: Instant, timeZone: TimeZone, locale: Locale): string {
+  if (locale === 'hy') {
+    const { year, month, day } = branchDayParts(value, timeZone);
+    return `${day} ${HY_MONTHS[month - 1]!} ${year}`;
+  }
   const key = `${locale}|${timeZone}`;
   let formatter = dateFormatterCache.get(key);
   if (!formatter) {
@@ -117,12 +171,17 @@ export function formatDayAndTime(
   }
   const target = branchDayKey(value, timeZone);
   const today = branchDayKey(now, timeZone);
+  const parts = branchDayParts(value, timeZone);
+  const hyDate =
+    locale === 'hy'
+      ? `${HY_WEEKDAYS_SHORT[parts.weekday]!}, ${parts.day} ${HY_MONTHS[parts.month - 1]!}`
+      : null;
   const [year, month, day] = today.split('-').map(Number) as [number, number, number];
   const tomorrow = new Date(Date.UTC(year, month - 1, day + 1)).toISOString().slice(0, 10);
   return {
     day: target === today ? 'today' : target === tomorrow ? 'tomorrow' : 'other',
     time: formatTime(value, timeZone, locale),
-    date: formatter.format(toDate(value)),
+    date: hyDate ?? formatter.format(toDate(value)),
   };
 }
 

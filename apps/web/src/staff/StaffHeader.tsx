@@ -1,4 +1,4 @@
-import { intlTag } from '@yalla/format';
+import { armenianWeekday, intlTag } from '@yalla/format';
 import { useLocale, useTranslation } from '@yalla/i18n';
 import { isStale, type ConnectionState } from '@yalla/realtime';
 import type { TFunction } from 'i18next';
@@ -115,10 +115,13 @@ export function StaffHeader({
   // The clock in the corner, and how old the data is, both move by the minute.
   const now = useMinuteClock();
 
-  const day = new Intl.DateTimeFormat(intlTag(locale), {
-    weekday: 'long',
-    timeZone: timeZoneId,
-  }).format(now);
+  const day =
+    locale === 'hy'
+      ? armenianWeekday(now, timeZoneId, 'long')
+      : new Intl.DateTimeFormat(intlTag(locale), {
+          weekday: 'long',
+          timeZone: timeZoneId,
+        }).format(now);
   const today = `${day.charAt(0).toLocaleUpperCase(locale)}${day.slice(1)}, ${format.time(now)}`;
 
   const chip = connectionChip({
