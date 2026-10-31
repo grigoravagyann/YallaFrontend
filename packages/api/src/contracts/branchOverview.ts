@@ -170,6 +170,8 @@ export interface OverviewBooking {
   readonly tableStatus: TableStatus | null;
   readonly roomName: string | null;
   readonly channel: ReservationChannel;
+  /** Who took a `staff` booking by hand (2026-10-31): "Զանգ · Ani". `null` for any other. */
+  readonly takenByName: string | null;
   /**
    * A confirmed booking whose guest asked to move it, at short notice: until
    * the venue answers in the approvals card it is listed at the slot it keeps,

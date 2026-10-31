@@ -587,6 +587,25 @@ export {
 export type { BookingWithoutTable } from './contracts/bookingsWithoutTable';
 export { stillToSeat } from './contracts/bookingsWithoutTable';
 export type {
+  BookingToCall,
+  CreateStaffBookingCommand,
+  MarkGuestComingCommand,
+  StaffBooking,
+  StaffBookingMode,
+  StaffDaySlot,
+  StaffDaySlotTable,
+  StaffDaySlots,
+  StaffDaySlotsQuery,
+} from './contracts/staffBookings';
+export {
+  STAFF_BOOKING_MAX_PARTY,
+  TO_CALL_MINUTES_BEFORE,
+  TO_CALL_POLL_MS,
+  inToCallWindow,
+  isStaffTaken,
+  toCallOrder,
+} from './contracts/staffBookings';
+export type {
   BranchOverview,
   ConsoleBookingActionCommand,
   ConsoleBookingActionKind,

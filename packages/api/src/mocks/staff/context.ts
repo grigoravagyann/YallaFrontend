@@ -237,6 +237,60 @@ export interface StaffMockOptions {
    * a test can see a request that went out under the PIN gate (FT4 review S6).
    */
   readonly signedIn?: () => boolean;
+  /**
+   * How this branch books (2026-10-31): a table on the room's photos, or a
+   * time and a party only. Tables when absent. The New booking sheet reads it
+   * off the day's times.
+   */
+  readonly bookingMode?: 'chooseTable' | 'timeOnly';
+  /**
+   * Bookings taken by hand (2026-10-31), for mock mode: two in their call
+   * window — one the signed-in person took, one the manager did — so the
+   * "call the guest" section has cards. Off in tests, which seed their own
+   * with {@link staffBookingSeeds}.
+   */
+  readonly seedStaffBookings?: boolean;
+  /** Bookings taken by hand, for tests: exactly these, confirmed. */
+  readonly staffBookingSeeds?: readonly StaffBookingSeed[];
+  /** The branch's grace after a start, for the call list's window: fifteen minutes when absent. */
+  readonly graceMinutes?: number;
+}
+
+/** A booking a member of staff took by hand, relative to the mock's start (2026-10-31). */
+export interface StaffBookingSeed {
+  readonly id: string;
+  readonly code?: string;
+  readonly guestName: string;
+  readonly guestPhone: string;
+  readonly partySize: number;
+  /** Minutes from the mock's first clock reading; negative for one already started. */
+  readonly startsInMinutes: number;
+  /** The table, or `null` for one made at a time-only branch, without one. */
+  readonly tableId: string | null;
+  readonly note?: string | null;
+  /** Who took it: the signed-in person when absent. */
+  readonly takenBy?: { readonly id: string; readonly name: string } | undefined;
+  /** The guest already said (or was recorded as) coming, this many minutes before the mock's start. */
+  readonly comingMinutesAgo?: number;
+}
+
+/** A booking taken by hand, as the mock keeps it beside the floor's own records. */
+export interface MockStaffBooking {
+  readonly id: string;
+  readonly code: string;
+  readonly guestName: string;
+  readonly guestPhone: string;
+  readonly partySize: number;
+  readonly startUtc: string;
+  readonly endUtc: string;
+  readonly tableId: string | null;
+  readonly note: string | null;
+  readonly takenByStaffId: string;
+  readonly takenByName: string;
+  /** The command that made it: a second send answers it again. */
+  readonly clientCommandId: string | null;
+  /** Who recorded "coming", when staff did. */
+  onWayRecordedByStaffId: string | null;
 }
 
 /** A booking with a pre-order on the floor's mock, relative to the mock's start. */
@@ -765,6 +819,75 @@ export function createStaffMockContext(options: StaffMockOptions = {}) {
   ]) {
     withoutTable.seed(seed);
   }
+  /**
+   * Bookings taken by hand (2026-10-31), beside the floor's own records: at a
+   * table they are the table's next booking (`reservations`); without one
+   * they are on the door's list (`withoutTable`). This map says who took
+   * each and is what the call list is read from.
+   */
+  const staffBookings = new Map<string, MockStaffBooking>();
+
+  function seedStaffBooking(seed: StaffBookingSeed): void {
+    const taker = seed.takenBy ?? me();
+    const startUtc = minutesFrom(start, seed.startsInMinutes);
+    const endUtc = minutesFrom(start, seed.startsInMinutes + WITHOUT_TABLE_TURN_MINUTES);
+    const code = seed.code ?? `Y${4100 + staffBookings.size}`;
+    const note = seed.note?.trim() ? seed.note.trim() : null;
+    if (seed.tableId === null) {
+      withoutTable.seed({
+        id: seed.id,
+        code,
+        guestName: seed.guestName,
+        guestPhone: seed.guestPhone,
+        partySize: seed.partySize,
+        startUtc,
+        note,
+        takenBy: taker,
+        ...(seed.comingMinutesAgo !== undefined ? { onMyWayMinutesAgo: seed.comingMinutesAgo } : {}),
+      });
+    } else {
+      reservations.set(seed.id, {
+        id: seed.id,
+        tableId: seed.tableId,
+        code,
+        guestName: seed.guestName,
+        guestPhone: seed.guestPhone,
+        partySize: seed.partySize,
+        startUtc,
+        released: false,
+      });
+      const state = tables.get(seed.tableId);
+      if (
+        state &&
+        (!state.nextReservationStartUtc ||
+          Date.parse(startUtc) < Date.parse(state.nextReservationStartUtc))
+      ) {
+        state.nextReservationId = seed.id;
+        state.nextReservationStartUtc = startUtc;
+        state.nextReservationPartySize = seed.partySize;
+        state.freeUntilUtc = startUtc;
+      }
+      if (seed.comingMinutesAgo !== undefined) {
+        preOrderBook.seedOnMyWay(seed.id, minutesFrom(start, -seed.comingMinutesAgo));
+      }
+    }
+    staffBookings.set(seed.id, {
+      id: seed.id,
+      code,
+      guestName: seed.guestName,
+      guestPhone: seed.guestPhone,
+      partySize: seed.partySize,
+      startUtc,
+      endUtc,
+      tableId: seed.tableId,
+      note,
+      takenByStaffId: taker.id,
+      takenByName: taker.name,
+      clientCommandId: null,
+      onWayRecordedByStaffId: null,
+    });
+  }
+
   if (options.seedBookingsWithoutTable) {
     // And one made by time only that waits for the floor's yes: a party of
     // five at short notice, with a wish the door will need once it is approved.
@@ -1712,6 +1835,10 @@ export function createStaffMockContext(options: StaffMockOptions = {}) {
         note: request.note,
         guestRecord: request.guestRecord ?? null,
         phoneUnverified: request.phoneUnverified === true,
+        // The guest's own request, approved: nobody on staff took it.
+        channel: 'app',
+        takenByStaffId: null,
+        takenByName: null,
         guestConfirmedOnWayAtUtc: null,
         guestRunningLateMinutes: null,
         tableId: null,
@@ -2704,6 +2831,42 @@ export function createStaffMockContext(options: StaffMockOptions = {}) {
     return value;
   }
 
+  // Bookings taken by hand, once the room, its people and the pre-order book
+  // are all there: a seed is the table's next booking, or the door's.
+  for (const seed of options.staffBookingSeeds ?? []) seedStaffBooking(seed);
+  if (options.seedStaffBookings) {
+    const free = [...tables.values()].filter(
+      (state) => state.physicalStatus === 'free' && !state.nextReservationStartUtc,
+    );
+    const mine = free[0];
+    const theirs = free[1];
+    const manager = branchPeople().find((member) => member.role === 'manager');
+    if (mine) {
+      seedStaffBooking({
+        id: 'res-staff-1',
+        code: 'Y4101',
+        guestName: 'Արմինե Սարգսյան',
+        guestPhone: '+37491778899',
+        partySize: 4,
+        startsInMinutes: 20,
+        tableId: options.bookingMode === 'timeOnly' ? null : mine.tableId,
+        note: 'Ծննդյան տորթ կբերեն',
+      });
+    }
+    if (theirs && manager) {
+      seedStaffBooking({
+        id: 'res-staff-2',
+        code: 'Y4102',
+        guestName: 'Հովհաննես Մ.',
+        guestPhone: '+37494112233',
+        partySize: 2,
+        startsInMinutes: 25,
+        tableId: options.bookingMode === 'timeOnly' ? null : theirs.tableId,
+        takenBy: { id: manager.id, name: manager.fullName },
+      });
+    }
+  }
+
   return {
     activity,
     admissionCommand,
@@ -2772,8 +2935,10 @@ export function createStaffMockContext(options: StaffMockOptions = {}) {
     serverOf,
     serviceRequests,
     settle,
+    staffBookings,
     staffName,
     staffRole,
+    start,
     sweepAwaiting,
     tables,
     tabs,

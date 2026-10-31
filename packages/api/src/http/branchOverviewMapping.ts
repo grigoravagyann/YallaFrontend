@@ -12,7 +12,10 @@ import { guestRecordFromWire } from './guestRecordMapping';
 /** `GET /api/branches/{branchId}/overview`, as the generated schema has it. */
 type Schemas = components['schemas'];
 export type WireBranchOverview = Schemas['Yalla.Application.Overview.BranchOverview'];
-type WireOverviewBooking = Schemas['Yalla.Application.Overview.OverviewBooking'];
+/** With the taker the staff-bookings branch adds, read leniently until the schema carries it. */
+type WireOverviewBooking = Schemas['Yalla.Application.Overview.OverviewBooking'] & {
+  readonly takenByName?: string | null | undefined;
+};
 
 /** `ReservationChannel`: 0 Unknown, 1 App, 2 Web, 3 Staff (a phone call, the door). */
 const CHANNEL: Readonly<Record<number, ReservationChannel>> = { 1: 'app', 2: 'web', 3: 'staff' };
@@ -47,6 +50,7 @@ function bookingFromWire(wire: WireOverviewBooking): OverviewBooking {
     tableStatus: wire.tableStatus == null ? null : (TABLE_STATUS[wire.tableStatus] ?? null),
     roomName: wire.roomName ?? null,
     channel: CHANNEL[wire.channel] ?? 'unknown',
+    takenByName: typeof wire.takenByName === 'string' && wire.takenByName.trim() ? wire.takenByName.trim() : null,
     changeRequested: wire.changeRequested,
     holdExpiresAtUtc: wire.holdExpiresAtUtc ?? null,
     lateNudgeAtUtc: nudgeAt,

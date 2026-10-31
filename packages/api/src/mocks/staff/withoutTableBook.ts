@@ -18,7 +18,8 @@ export interface MockBookingWithoutTable {
   readonly note: string | null;
   readonly guestRecord: GuestRecord | null;
   readonly phoneUnverified: boolean;
-  readonly guestConfirmedOnWayAtUtc: string | null;
+  /** "On my way": the guest's own answer, or the taker's "they are coming" (2026-10-31). */
+  guestConfirmedOnWayAtUtc: string | null;
   readonly guestRunningLateMinutes: number | null;
   /** The table a waiter seated it at; `null` until then. */
   tableId: string | null;
@@ -26,6 +27,11 @@ export interface MockBookingWithoutTable {
   releasedAs: 'noShow' | 'guestCancelled' | null;
   /** How many no-shows the guest already has in the last 72 hours. */
   readonly recentNoShows?: number;
+  /** Where it came from: `staff` for one a member of staff took by hand (2026-10-31). */
+  readonly channel: 'app' | 'web' | 'staff';
+  /** Who took it, when staff did. */
+  readonly takenByStaffId: string | null;
+  readonly takenByName: string | null;
 }
 
 /** A booking by time only, for tests: relative to the mock's start. */
@@ -36,11 +42,15 @@ export interface StaffWithoutTableSeed {
   readonly guestPhone?: string;
   readonly partySize: number;
   /** Minutes from the mock's first clock reading; negative for one already started. */
-  readonly startsInMinutes: number;
+  readonly startsInMinutes?: number;
+  /** Or the start itself, as the sheet books one (2026-10-31): wins over the minutes. */
+  readonly startUtc?: string;
   readonly note?: string | null;
   /** The guest said "on my way" this many minutes before the mock's start. */
   readonly onMyWayMinutesAgo?: number;
   readonly runningLateMinutes?: number;
+  /** Taken by hand by this member of staff (2026-10-31); the guest's own booking when absent. */
+  readonly takenBy?: { readonly id: string; readonly name: string } | undefined;
 }
 
 /** A sitting at such a branch: the mock's turn time. */
@@ -86,14 +96,17 @@ export function createWithoutTableBook(start: Date) {
   const at = (minutes: number) => new Date(start.getTime() + minutes * 60_000).toISOString();
 
   function seed(input: StaffWithoutTableSeed): void {
+    const startMs = input.startUtc
+      ? Date.parse(input.startUtc)
+      : start.getTime() + (input.startsInMinutes ?? 0) * 60_000;
     bookings.set(input.id, {
       id: input.id,
       code: input.code ?? input.id.toUpperCase().slice(-5),
       guestName: input.guestName,
       guestPhone: input.guestPhone ?? '',
       partySize: input.partySize,
-      startUtc: at(input.startsInMinutes),
-      endUtc: at(input.startsInMinutes + WITHOUT_TABLE_TURN_MINUTES),
+      startUtc: new Date(startMs).toISOString(),
+      endUtc: new Date(startMs + WITHOUT_TABLE_TURN_MINUTES * 60_000).toISOString(),
       note: input.note?.trim() ? input.note.trim() : null,
       guestRecord: null,
       phoneUnverified: false,
@@ -102,6 +115,9 @@ export function createWithoutTableBook(start: Date) {
       guestRunningLateMinutes: input.runningLateMinutes ?? null,
       tableId: null,
       releasedAs: null,
+      channel: input.takenBy ? 'staff' : 'app',
+      takenByStaffId: input.takenBy?.id ?? null,
+      takenByName: input.takenBy?.name ?? null,
     });
   }
 
