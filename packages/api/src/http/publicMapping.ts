@@ -14,6 +14,7 @@ import type {
   PublicPageMeta,
   PublicPhoto,
   PublicRoom,
+  PublicTimeSlots,
   PublicVenue,
   PublicVenueHeader,
 } from '../contracts/publicBranch';
@@ -28,6 +29,7 @@ import {
   type WireApprovalFields,
 } from './approvalMapping';
 import { instantOrNull, type WirePublicBookingTimes } from './bookingTimesWire';
+import { daySlotsFromWire, type WireDaySlots } from './mapping';
 import { absolutePhotoUrl } from './photoUrl';
 import { specialDaysFromWire } from './venueSettingsMapping';
 import { venueTypeFromCode } from './venueTypeMapping';
@@ -207,6 +209,8 @@ function policyFromWire(wire: WirePublicBranch['policy']): PublicBranchPolicy {
     // Pre-orders (2026-10-21), ahead of the generated schema: absent is no.
     acceptsPreOrders:
       (wire as WirePolicyPreOrderFields | null | undefined)?.acceptsPreOrders === true,
+    // Booking by time only (2026-10-29): absent from an older server, a table.
+    bookingMode: wire?.bookingMode === 2 ? 'timeOnly' : 'chooseTable',
   };
 }
 
@@ -484,8 +488,11 @@ export function managedBookingFromWire(
     addressLine: wire.branchAddress ?? '',
     timeZoneId,
 
-    tableId: wire.tableId ?? '',
-    tableLabel: wire.tableLabel ?? '',
+    // None for a booking made by time only that nobody has seated: the venue
+    // chooses the table when the party arrives. The view says so by leaving it out.
+    tableId: wire.tableId || null,
+    tableLabel: wire.tableLabel || null,
+    bookedWithoutTable: !wire.tableId,
     // The room the table is in, from the booking's own table. Absent when the
     // table is in none — or from a server that predates it.
     floorAreaName: wire.roomName?.trim() || null,
@@ -525,6 +532,26 @@ export function managedBookingFromWire(
     // answer, and whether to ask. No branch id: the menu is found by slugs.
     ...bookingPreOrderFields(wire),
     onYourWayAsked: wire.onYourWayAsked === true,
+  };
+}
+
+/**
+ * A day of slots as the public page reads it at a branch that books by time
+ * only: the app's reading of each slot, with `guestsLeft` beside it. Matched by
+ * the slot's start, since the app's reading sorts them.
+ */
+export function publicTimeSlotsFromWire(wire: WireDaySlots): PublicTimeSlots {
+  const day = daySlotsFromWire(wire);
+  const left = new Map(
+    (wire.slots ?? []).map((slot) => [Date.parse(slot.startUtc), slot.guestsLeft ?? null]),
+  );
+  return {
+    ...day,
+    slots: day.slots.map((slot) => ({
+      ...slot,
+      // A time the day refused takes nobody, whatever the slot said.
+      guestsLeft: day.unavailableReason ? 0 : (left.get(Date.parse(slot.slotUtc)) ?? null),
+    })),
   };
 }
 

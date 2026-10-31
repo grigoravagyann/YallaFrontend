@@ -3,6 +3,7 @@ import type { StaffGateway } from '../staffGateway';
 import { createStaffHttpContext } from './staff/context';
 import { floorMethods } from './staff/floor';
 import { approvalsMethods } from './staff/approvals';
+import { withoutTableMethods } from './staff/withoutTable';
 import { preOrdersMethods } from './staff/preOrders';
 import { takeawayMethods } from './staff/takeaway';
 import { messagesMethods } from './staff/messages';
@@ -34,6 +35,7 @@ export function createStaffHttpGateway(client: ApiClient): StaffGateway {
   return {
     ...floorMethods(ctx),
     ...approvalsMethods(ctx),
+    ...withoutTableMethods(ctx),
     ...preOrdersMethods(ctx),
     ...takeawayMethods(ctx),
     ...messagesMethods(ctx),

@@ -12,13 +12,22 @@ export type ConfirmState = 'offline' | 'loading' | 'error' | 'missing' | 'unavai
  * Confirm used to render an empty window and an enabled button while the table
  * was still loading, after the read failed, and when the table had become
  * unbookable — so the diner could press it on a table that could not be had.
+ *
+ * A booking by time only (`byTime`, 2026-10-29) has no table to wait for: it
+ * is ready once the branch's zone is known, and the server judges the time.
  */
 export function confirmState(input: {
   readonly offline: boolean;
   readonly isLoading: boolean;
   readonly isError: boolean;
   readonly table: TableAvailability | null;
+  readonly byTime?: boolean;
 }): ConfirmState {
+  if (input.byTime) {
+    if (input.offline) return 'offline';
+    if (input.isLoading) return 'loading';
+    return input.isError ? 'error' : 'ready';
+  }
   if (input.table) return input.table.isBookable ? 'ready' : 'unavailable';
   if (input.offline) return 'offline';
   if (input.isLoading) return 'loading';

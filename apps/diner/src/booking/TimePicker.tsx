@@ -30,6 +30,8 @@ export interface TimePickerProps {
   readonly snapNote: string | null;
   readonly requestNote: string | null;
   readonly freeByNote: string | null;
+  /** By time only, a nearly full time: "3 places left". */
+  readonly placesNote?: string | null;
   /** This time's tables could not be read. */
   readonly slotFailed: boolean;
   readonly onRetrySlot: () => void;
@@ -53,6 +55,7 @@ export function TimePicker({
   snapNote,
   requestNote,
   freeByNote,
+  placesNote = null,
   slotFailed,
   onRetrySlot,
   struckHint,
@@ -115,6 +118,7 @@ export function TimePicker({
       ) : null}
       {requestNote ? <Text style={bookingStyles.slotNote}>{requestNote}</Text> : null}
       {freeByNote ? <Text style={bookingStyles.slotNote}>{freeByNote}</Text> : null}
+      {placesNote ? <Text style={bookingStyles.slotNote}>{placesNote}</Text> : null}
       {/* This time's tables could not be read: Confirm waits, and says why. */}
       {slotFailed ? (
         <View accessibilityRole="alert" style={styles.slotError}>

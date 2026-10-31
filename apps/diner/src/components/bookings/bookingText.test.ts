@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { bookingShareLine, sittingEndLines, tableWithRoom } from './bookingText';
+import {
+  bookedByTime,
+  bookingShareLine,
+  sittingEndLines,
+  tableLine,
+  tableWithRoom,
+} from './bookingText';
 
 const BOOKING = {
   tableLabel: '4',
@@ -16,6 +22,35 @@ describe('tableWithRoom', () => {
   it('is the table alone when there is no room, or only a blank one', () => {
     expect(tableWithRoom({ ...BOOKING, roomName: null })).toBe('4');
     expect(tableWithRoom({ ...BOOKING, roomName: '  ' })).toBe('4');
+  });
+});
+
+describe('a booking with no table yet (booked by time only)', () => {
+  const NO_TABLE = { ...BOOKING, tableLabel: null, bookedWithoutTable: true };
+
+  it('names no table: the venue chooses it on arrival', () => {
+    expect(tableWithRoom(NO_TABLE)).toBeNull();
+    expect(tableLine(NO_TABLE)).toEqual({ key: 'booking.byTime.table', params: {} });
+    expect(tableLine(BOOKING)).toEqual({ key: 'tables.table', params: { label: '4 · Hall' } });
+  });
+
+  it('is by time only until seated and after: the flag, or no table at all', () => {
+    expect(bookedByTime(NO_TABLE)).toBe(true);
+    // Seated at the table the waiter chose: still made by time only.
+    expect(bookedByTime({ ...NO_TABLE, tableLabel: '7' })).toBe(true);
+    expect(bookedByTime({ ...BOOKING, bookedWithoutTable: false })).toBe(false);
+  });
+
+  it('shares the place, the time and the code, and no table', () => {
+    expect(bookingShareLine(NO_TABLE, 'Lumen Coffee', '18 Oct · 19:30')).toEqual({
+      key: 'booking.byTime.shareMessage',
+      params: {
+        venue: 'Lumen Coffee',
+        branch: 'Northern Avenue',
+        time: '18 Oct · 19:30',
+        code: 'K7M2QX',
+      },
+    });
   });
 });
 

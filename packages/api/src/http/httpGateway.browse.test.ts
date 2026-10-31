@@ -174,6 +174,7 @@ describe('browse over /api/public/venues', () => {
         minLeadMinutes: 45,
         cancellationDeadlineMinutes: 120,
         acceptsPreOrders: false,
+        bookingMode: 1,
       },
       asOfUtc: '2026-10-22T12:00:00Z',
       acceptsAppBookings: true,
@@ -190,7 +191,12 @@ describe('browse over /api/public/venues', () => {
 
     await expect(
       gateway.getBookingRules({ venueSlug: 'lumen-coffee', branchSlug: 'northern-avenue' }),
-    ).resolves.toEqual({ bookingWindowDays: 30, minLeadMinutes: 45, acceptsAppBookings: true });
+    ).resolves.toEqual({
+      bookingWindowDays: 30,
+      minLeadMinutes: 45,
+      acceptsAppBookings: true,
+      bookingMode: 'chooseTable',
+    });
     await expect(
       gateway.getBookingRules({ venueSlug: 'lumen-coffee', branchSlug: 'gone' }),
     ).resolves.toBeNull();

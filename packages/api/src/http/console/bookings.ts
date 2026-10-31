@@ -75,6 +75,10 @@ export function bookingsMethods(
       // section 2): two table transitions and two releases. Each takes only its
       // own fields. A click is never `queued`, and carries no precondition:
       // the console reads no table version to send back.
+      if (tableId === null && (kind === 'seat' || kind === 'finish')) {
+        // A booking made by time only gets its table from the floor tablet.
+        throw new Error(`A ${kind} needs the booking's table; ${reservationId} has none yet.`);
+      }
       const table = `${BRANCHES}/${branchId}/tables/${tableId}`;
       type TableChange = Schemas['Yalla.Application.Tables.TableStateChangeResult'];
       type Release = Schemas['Yalla.Application.Reservations.ReservationReleaseResult'];
@@ -97,7 +101,7 @@ export function bookingsMethods(
         reservationId,
         status: reservationStatus(data.reservation.status),
         wasReplay: data.wasReplay,
-        tableLabel: data.tableLabel,
+        tableLabel: data.tableLabel ?? null,
         tableFreed: data.tableFreed,
         outstandingDram: null,
         // Wire §0a: only when this no-show blocked its guest.
@@ -160,7 +164,7 @@ export function bookingsMethods(
             reservationId,
             status: reservationStatus(data.status),
             wasReplay: false,
-            tableLabel: data.tableLabel,
+            tableLabel: data.tableLabel ?? null,
             tableFreed: false,
             outstandingDram: null,
           };

@@ -1,6 +1,7 @@
 import {
   LeadTimeExceededError,
   bookingFailure,
+  timeFullGuestsLeft,
   type CopyLine,
   type TableAvailability,
 } from '@yalla/api';
@@ -38,6 +39,8 @@ interface Refetchable {
 
 export interface BookingSubmitInput {
   readonly place: Place;
+  /** The branch books by time only: no table is sent, and none is waited for. */
+  readonly byTime: boolean;
   readonly change: BookingChange | null;
   readonly activeSlot: TimeSlot | null;
   readonly slotUtc: string;
@@ -82,6 +85,7 @@ export interface BookingSubmitInput {
  */
 export function useBookingSubmit({
   place,
+  byTime,
   change,
   activeSlot,
   slotUtc,
@@ -128,7 +132,8 @@ export function useBookingSubmit({
   const reschedule = useRescheduleBooking();
   const pending = createBooking.isPending || reschedule.isPending;
 
-  const targetTableId = chosenTable?.tableId ?? autoTableId;
+  // None by time only: the venue chooses the table when the party arrives.
+  const targetTableId = byTime ? null : (chosenTable?.tableId ?? autoTableId);
   // The booking-times answer for the table that one press books.
   const targetAtSlot = useMemo(
     () => slotTables?.find((table) => table.tableId === targetTableId) ?? null,
@@ -167,9 +172,9 @@ export function useBookingSubmit({
 
   const canConfirm =
     activeSlot !== null &&
-    // Never on the last time's answer, kept on screen while this one's loads.
-    slotAnswer !== undefined &&
-    targetTableId !== null &&
+    // Never on the last time's answer, kept on screen while this one's loads —
+    // by time only there is none to wait for: the day's slots said the time.
+    (byTime || (slotAnswer !== undefined && targetTableId !== null)) &&
     chosenRefusal === null &&
     !pending &&
     !unchanged &&
@@ -188,6 +193,12 @@ export function useBookingSubmit({
       if (refusal) {
         setOutcomeUnknown(false);
         setErrorText(t(refusal.key, refusal.params));
+        // No room left for that many then (by time only): the day's times are
+        // read again, so the full ones are struck.
+        if (timeFullGuestsLeft(error) !== null) {
+          void daySlotsQuery.refetch();
+          if (nextDateKey) void nextDaySlotsQuery.refetch();
+        }
         if (change) {
           // Whatever the booking became, its own screen should say it.
           void queryClient.invalidateQueries({ queryKey: keys.booking(change.bookingId) });
@@ -304,7 +315,7 @@ export function useBookingSubmit({
 
   const confirm = useCallback(
     async (acceptsFreeByUtc: string | null = null) => {
-      if (!activeSlot || !targetTableId || pending || chosenRefusal) return;
+      if (!activeSlot || (!byTime && !targetTableId) || pending || chosenRefusal) return;
       clearErrors();
       setFreeByDeclined(false);
 
@@ -324,7 +335,8 @@ export function useBookingSubmit({
 
       // Change mode: move the booking, then back to it with a word of what happened.
       if (change) {
-        if (unchanged) return;
+        // A booking by time only is never moved: cancelled and booked again.
+        if (unchanged || !targetTableId) return;
         try {
           const moved = await reschedule.mutateAsync({
             bookingId: change.bookingId,
@@ -356,7 +368,8 @@ export function useBookingSubmit({
       const forward = {
         branchId: place.id,
         venueId: place.venueId,
-        tableId: targetTableId,
+        // The table, or that there is none to send: by time only.
+        ...(targetTableId ? { tableId: targetTableId } : { byTime: '1' }),
         slotUtc,
         partySize: String(partySize),
         ...(note ? { requests: note } : {}),
@@ -431,6 +444,7 @@ export function useBookingSubmit({
       queryClient,
       t,
       clearErrors,
+      byTime,
       neededFreeBy,
       targetAtSlot,
       setFreeByAsk,

@@ -16,8 +16,9 @@ import { useVenueOutlet } from './VenueLayout';
  * What this branch still needs: the Main artboard's `setup` card, at the top
  * of Overview while anything is left, and gone once nothing is.
  *
- * **Two kinds of line.** The required ones — a table diners can book, opening
- * hours, staff, a tablet or staff phone — decide whether diners see the branch
+ * **Two kinds of line.** The required ones — a table diners can book (or
+ * booking by time only, which needs none), opening hours, staff, a tablet or
+ * staff phone — decide whether diners see the branch
  * at all: until every one is done it is hidden from the diner app and the
  * public page and takes no booking (the server's `takingGuests`). The card's
  * title says which side of that the branch is on. The rest is advice and hides
@@ -158,16 +159,27 @@ export function checklistSteps(
   const count = (value: number) => (value > 0 ? String(value) : undefined);
 
   return [
-    {
-      id: 'floorPlan',
-      labelKey: 'checklist.step.floorPlan',
-      // A table a diner can book, on a room photo: tables alone do not count.
-      done: readiness.bookableTableCount > 0 && rooms !== false,
-      detail: count(readiness.tableCount),
-      to: '/venue/floorplan',
-      optional: false,
-      required: true,
-    },
+    // A branch that books by time only (2026-10-29) needs no table a diner
+    // can tap: its guests at once stand in for the line, set on the policy.
+    readiness.booksByTimeOnly
+      ? {
+          id: 'floorPlan',
+          labelKey: 'checklist.step.floorPlanTimeOnly',
+          done: true,
+          to: '/venue/policy',
+          optional: false,
+          required: true,
+        }
+      : {
+          id: 'floorPlan',
+          labelKey: 'checklist.step.floorPlan',
+          // A table a diner can book, on a room photo: tables alone do not count.
+          done: readiness.bookableTableCount > 0 && rooms !== false,
+          detail: count(readiness.tableCount),
+          to: '/venue/floorplan',
+          optional: false,
+          required: true,
+        },
     {
       id: 'tableLabels',
       labelKey: 'checklist.step.tableLabels',

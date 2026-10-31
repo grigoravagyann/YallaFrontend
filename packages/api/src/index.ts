@@ -108,6 +108,7 @@ export type {
   BranchPolicy,
   BranchSummary,
   BookingChannel,
+  BookingMode,
   BookingRules,
   CreateBookingCommand,
   DaySlot,
@@ -218,7 +219,12 @@ export type {
   StoredReview,
 } from './mocks/reviewStore';
 
-export { isKnownUnavailableReason, KNOWN_UNAVAILABLE_REASONS } from './contracts/booking';
+export {
+  bookingModeFromCode,
+  isKnownUnavailableReason,
+  KNOWN_UNAVAILABLE_REASONS,
+  timeFullGuestsLeft,
+} from './contracts/booking';
 
 export { OPEN_ENDED_BUCKET, REPORT_MAX_DAYS, REPORT_SECTIONS } from './contracts/reports';
 
@@ -377,16 +383,20 @@ export { createPublicMockGateway, manageTokenFor } from './mocks/publicMock';
 export type { PublicMockOptions } from './mocks/publicMock';
 export { createPublicHttpGateway } from './http/publicHttpGateway';
 export { coversSitting, openStateFrom } from './contracts/openState';
+export { booksByTimeOnly } from './contracts/publicBranch';
 export type {
   ManagedBooking,
   RescheduleManagedBookingCommand,
   OpenState,
   PublicBranch,
   PublicBranchCard,
+  PublicBranchPolicy,
   PublicBranchStatus,
   PublicPageMeta,
   PublicPhoto,
   PublicRoom,
+  PublicTimeSlot,
+  PublicTimeSlots,
   PublicVenue,
   PublicVenueHeader,
 } from './contracts/publicBranch';
@@ -574,6 +584,8 @@ export {
   isShortNotice,
   waitsOnEarlierGuestInApp,
 } from './contracts/approvals';
+export type { BookingWithoutTable } from './contracts/bookingsWithoutTable';
+export { stillToSeat } from './contracts/bookingsWithoutTable';
 export type {
   BranchOverview,
   ConsoleBookingActionCommand,
@@ -638,6 +650,7 @@ export type {
 } from './contracts/menuAdmin';
 
 export {
+  GUESTS_AT_ONCE_BOUNDS,
   POLICY_BOUNDS,
   SPECIAL_DAY_HORIZON_DAYS,
   SPECIAL_DAY_NOTE_MAX,
@@ -654,6 +667,7 @@ export type {
   BoundedPolicyField,
   HoursBlock,
   HoursDay,
+  PolicyBookingMode,
   PolicyChangeResult,
   PolicyFieldBound,
   ReservationPolicy,
@@ -1065,7 +1079,11 @@ export {
 } from './contracts/errors';
 export { MOCK_PRE_ORDER_BRANCHES, createMockPreOrderBook } from './mocks/preOrders';
 export type { MockPreOrderBranch } from './mocks/preOrders';
-export type { StaffPreOrderSeed, StaffTakeawaySeed } from './mocks/staffMock';
+export type {
+  StaffPreOrderSeed,
+  StaffTakeawaySeed,
+  StaffWithoutTableSeed,
+} from './mocks/staffMock';
 
 // "I'm coming" on a booking (2026-10-22): running late, the venue's ask, and
 // the rules the booking screen and the tablet decide their buttons by.

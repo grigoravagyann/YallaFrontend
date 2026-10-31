@@ -18,6 +18,8 @@ export type AuthRouteParams = {
   requests?: string;
   /** The promise to free the table by a time, agreed before the SMS detour (booking times). */
   acceptsFreeByUtc?: string;
+  /** `'1'`: a booking by time only, which has no `tableId` (2026-10-29). */
+  byTime?: string;
   from?: string;
   /**
    * A Telegram verification challenge to pick up polling, from the bot's
@@ -47,6 +49,7 @@ const BOOKING_KEYS = [
   'partySize',
   'requests',
   'acceptsFreeByUtc',
+  'byTime',
 ] as const;
 
 type BookingKey = (typeof BOOKING_KEYS)[number];
@@ -61,6 +64,14 @@ export function bookingParams(params: {
     if (typeof value === 'string' && value.length > 0) out[key] = value;
   }
   return out;
+}
+
+/**
+ * Whether the auth routes carry a booking to finish: a table, or a booking by
+ * time only, which has none.
+ */
+export function carriesBooking(forward: Readonly<Record<string, string>> | undefined): boolean {
+  return Boolean(forward?.['tableId'] || forward?.['byTime'] === '1');
 }
 
 export type AuthRoute = '/auth/login' | '/auth/signup' | '/auth/code';
@@ -78,8 +89,17 @@ export type AuthRoute = '/auth/login' | '/auth/signup' | '/auth/code';
 export function useAuthFinish(params: AuthRouteParams) {
   const router = useRouter();
   const navigation = useNavigation();
-  const { branchId, venueId, tableId, slotUtc, partySize, requests, acceptsFreeByUtc, from } =
-    params;
+  const {
+    branchId,
+    venueId,
+    tableId,
+    slotUtc,
+    partySize,
+    requests,
+    acceptsFreeByUtc,
+    byTime,
+    from,
+  } = params;
   const forward = useMemo(
     () =>
       bookingParams({
@@ -90,12 +110,13 @@ export function useAuthFinish(params: AuthRouteParams) {
         partySize,
         requests,
         acceptsFreeByUtc,
+        byTime,
       }),
-    [branchId, venueId, tableId, slotUtc, partySize, requests, acceptsFreeByUtc],
+    [branchId, venueId, tableId, slotUtc, partySize, requests, acceptsFreeByUtc, byTime],
   );
 
   const finish = useCallback(() => {
-    if (forward['tableId']) {
+    if (carriesBooking(forward)) {
       router.replace({ pathname: '/reserve/confirm', params: forward });
       return;
     }

@@ -52,6 +52,7 @@ import {
   placeOffers,
 } from '../../src/places/model';
 import { floorPlanParams } from '../../src/places/navigation';
+import { roomsWithoutPins } from '../../src/booking/byTime';
 import { PlaceMenu } from '../../src/places/PlaceMenu';
 import { ReviewList } from '../../src/places/ReviewList';
 import { useFavorites, useIsFavorite } from '../../src/stores/favorites';
@@ -513,6 +514,10 @@ function PlaceDetails({
   // Known from the place's own page (K9). Book is not offered where the app
   // cannot book, and the page says why instead.
   const bookingsOff = place.acceptsAppBookings === false;
+  // Booked by time only (2026-10-29): the rooms are photos to look at, with no
+  // table to pick and no time to see them at — the venue chooses on arrival.
+  const byTime = place.bookingMode === 'timeOnly';
+  const shownRooms = useMemo(() => (byTime ? roomsWithoutPins(rooms) : rooms), [byTime, rooms]);
   // Paused after three no-shows in three days (guest record, 2026-10-20):
   // Book stays in its place, off, with until when above it.
   const pausedUntil = useBookingBlock();
@@ -709,21 +714,24 @@ function PlaceDetails({
                 numberOfLines={1}
                 style={styles.sectionTitle}
               >
-                {t('tables.title')}
+                {t(byTime ? 'tables.rooms' : 'tables.title')}
               </Text>
-              <Button
-                label={t('tables.pickTime')}
-                variant="text"
-                fullWidth={false}
-                onPress={openRoomsAtTime}
-                style={styles.pickTime}
-              />
+              {byTime ? null : (
+                <Button
+                  label={t('tables.pickTime')}
+                  variant="text"
+                  fullWidth={false}
+                  onPress={openRoomsAtTime}
+                  style={styles.pickTime}
+                />
+              )}
             </View>
-            {rooms.length > 0 ? (
+            {byTime ? <Text style={styles.subtitle}>{t('place.byTime.rooms')}</Text> : null}
+            {shownRooms.length > 0 ? (
               <>
-                <Text style={styles.subtitle}>{t('tables.subtitle')}</Text>
+                {byTime ? null : <Text style={styles.subtitle}>{t('tables.subtitle')}</Text>}
                 <RoomPhotosView
-                  rooms={rooms}
+                  rooms={shownRooms}
                   selectedTableId={selectedTableId}
                   onSelect={setSelectedTableId}
                   onBook={onBook}
@@ -732,9 +740,9 @@ function PlaceDetails({
                   photoStyle={styles.roomPhoto}
                   style={styles.roomPhotos}
                 />
-                <TableLegend style={styles.legend} />
+                {byTime ? null : <TableLegend style={styles.legend} />}
               </>
-            ) : (
+            ) : byTime ? null : (
               // No room photographed yet: say so, rather than draw an empty
               // frame the diner is told to tap tables on. Book below still works.
               <Text style={styles.subtitle}>{t('tables.notOnPhoto')}</Text>

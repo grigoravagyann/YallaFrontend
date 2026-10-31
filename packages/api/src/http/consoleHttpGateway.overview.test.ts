@@ -128,6 +128,7 @@ const WIRE_RESERVATION = {
   timeZoneId: 'Asia/Yerevan',
   tableId: 't-5',
   tableLabel: '5',
+  bookedWithoutTable: false,
   partySize: 2,
   startUtc: '2026-10-18T14:00:00Z',
   endUtc: '2026-10-18T16:00:00Z',

@@ -248,6 +248,7 @@ export function placeFromDetail(detail: BranchDetail, context: PlaceMappingConte
     amenities: detail.amenities,
     about: detail.about ?? '',
     acceptsAppBookings: detail.acceptsAppBookings,
+    bookingMode: detail.bookingMode ?? 'chooseTable',
     takeaway: detail.takeaway ?? NO_TAKEAWAY,
     reviews: detail.recentReviews.map((review) => reviewFromApi(review, base.timeZoneId)),
     rooms: roomsFromApi(detail.rooms),

@@ -1,5 +1,11 @@
-import { isShortNotice, unavailableCopy, type PublicBranch, type SlotFloor } from '@yalla/api';
-import { useDaySlots, useNow } from '@yalla/api/react';
+import {
+  booksByTimeOnly,
+  isShortNotice,
+  unavailableCopy,
+  type PublicBranch,
+  type SlotFloor,
+} from '@yalla/api';
+import { PARTY_SIZE_DEBOUNCE_MS, useDaySlots, useNow, usePublicTimeSlots } from '@yalla/api/react';
 import { formatTime } from '@yalla/format';
 import { useLocale, useTranslation } from '@yalla/i18n';
 import { useEffect, useId, useMemo, useRef, useState } from 'react';
@@ -21,7 +27,7 @@ import {
   type SlotSelection,
 } from './slots';
 import { BookingDayChips } from './BookingDayChips';
-import { TablePart, type ChosenTable } from './BookingTable';
+import { TablePart, TimePart, type ChosenTable } from './BookingTable';
 import { PartyStepper } from './PartyStepper';
 import { largestOfferedTable } from './tablePick';
 import { TimeChips } from './TimeChips';
@@ -43,6 +49,10 @@ import { useSettled } from './useSettled';
  *   (`defaultChoice`), and a time the visitor picks is kept.
  * - **The table** is chosen in the room; the card says which, books it, or
  *   chooses one for the visitor.
+ * - **Booking by time only** (2026-10-29): no table and no room. The times
+ *   come from the public day of slots, which counts guests: a time that cannot
+ *   take the party is struck, the chosen one says how many places it has left,
+ *   and the card books the time itself (`TimePart`).
  *
  * When the venue takes no web bookings the card says so in the same place, and
  * offers its phone.
@@ -79,6 +89,11 @@ export interface BookingCardProps {
   readonly table?: ChosenTable | null | undefined;
   /** Opens the booking panel for the chosen table. Absent: no table part. */
   readonly onBook?: (() => void) | undefined;
+  /**
+   * At a branch that books by time only: opens the booking panel for the
+   * chosen time, saying whether the venue answers it first.
+   */
+  readonly onBookTime?: ((slot: { readonly requiresApproval: boolean }) => void) | undefined;
   /** "Choose for me". */
   readonly onPickForMe?: (() => void) | undefined;
   /** Whether the room has answered for this slot, so "Choose for me" can act. */
@@ -161,6 +176,7 @@ function SlotControls({
   floor,
   table = null,
   onBook,
+  onBookTime,
   onPickForMe,
   roomReady = true,
   tableNote = null,
@@ -229,19 +245,42 @@ function SlotControls({
     () => needsNextDay(readDay, weeklyHours, timeZoneId, turnTimeMinutes),
     [readDay, weeklyHours, timeZoneId, turnTimeMinutes],
   );
-  const dayQuery = useDaySlots({
+  /*
+   * By time only the day is read on the public route, which counts guests
+   * (`guestsLeft`); otherwise on the app's, which counts tables. One of each
+   * pair is switched off, so the day is asked once.
+   */
+  const timeOnly = booksByTimeOnly(branch.policy);
+  const tableDay = useDaySlots({
     branchId: branch.id,
     date: readDay,
     partySize: selection.partySize,
     excludeBookingId: excludeReservationId,
+    enabled: !timeOnly,
   });
-  const nextQuery = useDaySlots({
+  const tableNext = useDaySlots({
     branchId: branch.id,
     date: readNext,
     partySize: selection.partySize,
     excludeBookingId: excludeReservationId,
-    enabled: readNeedsNext,
+    enabled: readNeedsNext && !timeOnly,
   });
+  // Settled as `useDaySlots` settles it, so a run on the stepper asks once.
+  const timeParty = useSettled(selection.partySize, PARTY_SIZE_DEBOUNCE_MS);
+  const timeDay = usePublicTimeSlots({
+    branchId: branch.id,
+    date: readDay,
+    partySize: timeParty,
+    enabled: timeOnly,
+  });
+  const timeNext = usePublicTimeSlots({
+    branchId: branch.id,
+    date: readNext,
+    partySize: timeParty,
+    enabled: readNeedsNext && timeOnly,
+  });
+  const dayQuery = timeOnly ? timeDay : tableDay;
+  const nextQuery = timeOnly ? timeNext : tableNext;
   const shownNeedsNext = useMemo(
     () => needsNextDay(shownDay, weeklyHours, timeZoneId, turnTimeMinutes),
     [shownDay, weeklyHours, timeZoneId, turnTimeMinutes],
@@ -397,6 +436,15 @@ function SlotControls({
   const day = dayWords(selection.date, today, t);
   const guests = t('booking.guests', { ns: 'diner', count: selection.partySize });
 
+  /** By time only: how many more guests the chosen time takes, from its day's answer. */
+  const chosenAnswer = timeOnly
+    ? [timeDay.data, timeNext.data].find(
+        (answer) => answer?.date === selection.date && answer.partySize === selection.partySize,
+      )
+    : undefined;
+  const guestsLeft =
+    chosenAnswer?.slots.find((slot) => slot.time === selection.time)?.guestsLeft ?? null;
+
   if (panelOpen && panelInColumn && !unfolded) {
     return (
       <div className="pub-card pub-book is-folded">
@@ -508,7 +556,18 @@ function SlotControls({
         </p>
       ) : null}
 
-      {onBook ? (
+      {timeOnly && onBookTime ? (
+        <TimePart
+          branch={branch}
+          selection={selection}
+          slotUtc={slotUtc}
+          today={today}
+          guestsLeft={guestsLeft}
+          canBook={answered && chosen !== null && chosen.state !== 'busy'}
+          panelOpen={panelOpen}
+          onBook={() => onBookTime({ requiresApproval: chosen?.confirmsAtOnce === false })}
+        />
+      ) : onBook ? (
         <TablePart
           branch={branch}
           selection={selection}

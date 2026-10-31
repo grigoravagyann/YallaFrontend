@@ -259,7 +259,10 @@ function ApprovalRow({
         <span className="yc-ap-meta">
           {t('approvals.party', { count: booking.partySize })}
           {' · '}
-          {t('approvals.table', { label: booking.tableLabel })}
+          {/* Booked by time only: the venue chooses the table when they arrive. */}
+          {booking.tableLabel
+            ? t('approvals.table', { label: booking.tableLabel })
+            : t('approvals.noTable')}
           {' · '}
           <span className="yc-mono">{booking.code}</span>
           {booking.guestPhone ? (

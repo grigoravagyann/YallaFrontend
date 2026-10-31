@@ -3,6 +3,8 @@ import { describe, expect, it } from 'vitest';
 import {
   POLICY_FIELDS,
   POLICY_GROUPS,
+  appliesTo,
+  changedFields,
   clock,
   differsFromDefaults,
   fieldsInGroup,
@@ -142,8 +144,46 @@ describe('the form layout', () => {
     // inserting a row by hand, which is the state this whole prompt exists to
     // get out of.
     const shipped = Object.keys(defaultPolicyFor('cafe')).sort();
-    const editable = POLICY_FIELDS.map((field) => field.key as string).sort();
+    // The booking mode is the choice above the fields, not a stepper or a switch.
+    const editable = [...POLICY_FIELDS.map((field) => field.key as string), 'bookingMode'].sort();
     expect(editable).toEqual(shipped);
+  });
+});
+
+describe('guests at once (booking by time only)', () => {
+  const cafe = defaultPolicyFor('cafe');
+  const timeOnly = { ...cafe, bookingMode: 'timeOnly' as const, guestsAtOnce: 40 };
+
+  it('is asked only of a branch that books by time only', () => {
+    expect(appliesTo('guestsAtOnce', cafe)).toBe(false);
+    expect(appliesTo('guestsAtOnce', timeOnly)).toBe(true);
+    expect(appliesTo('turnTimeMinutes', cafe)).toBe(true);
+  });
+
+  it('is required then, within 1 to 2000, and never marked while diners choose a table', () => {
+    expect(outOfBounds(cafe)).toEqual([]);
+    expect(outOfBounds({ ...timeOnly, guestsAtOnce: null })).toEqual(['guestsAtOnce']);
+    expect(outOfBounds({ ...timeOnly, guestsAtOnce: 0 })).toEqual(['guestsAtOnce']);
+    expect(outOfBounds({ ...timeOnly, guestsAtOnce: 2001 })).toEqual(['guestsAtOnce']);
+    expect(outOfBounds(timeOnly)).toEqual([]);
+  });
+
+  it('counts the mode and the number as changes, and a number left behind as none', () => {
+    expect(changedFields(timeOnly, cafe)).toEqual(['bookingMode', 'guestsAtOnce']);
+    expect(differsFromDefaults(timeOnly, cafe)).toEqual(['bookingMode', 'guestsAtOnce']);
+    // Switched back to tables with a number still typed: the server keeps none.
+    expect(changedFields({ ...cafe, guestsAtOnce: 40 }, cafe)).toEqual([]);
+  });
+
+  it('puts a refusal naming it under its field', () => {
+    const refusal = refusalFor(
+      new PolicyBoundsError({
+        url: 'https://api.test/api/branches/b-1/reservation-policy',
+        field: 'guestsAtOnce',
+        detail: 'Booking by time only needs how many guests the branch takes at once, 1 to 2000.',
+      }),
+    );
+    expect(refusal?.fields).toEqual(['guestsAtOnce']);
   });
 });
 

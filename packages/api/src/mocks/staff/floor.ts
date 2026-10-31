@@ -64,6 +64,7 @@ export function floorMethods(
     tabs,
     totalsFor,
     unreadOnTable,
+    withoutTable,
   } = ctx;
   return {
     async getFloor(requested): Promise<StaffFloor | null> {
@@ -336,11 +337,21 @@ export function floorMethods(
           ? (command.reservationId ??
             (command.kind === 'seatReservation' ? state.nextReservationId : null))
           : null;
+      /**
+       * A booking made by time only, seated at the table the waiter chose: it
+       * is this table's booking from now on (`Reservation.AssignTable`). The
+       * table's own next booking is somebody else's and stays.
+       */
+      const assigned =
+        command.kind === 'seatReservation' && seating
+          ? withoutTable.bookings.get(seating)
+          : undefined;
+      if (assigned && assigned.tableId === null) assigned.tableId = command.tableId;
       if (transition.to === 'occupied') {
         state.sessionId = id('session');
         state.seatedAtUtc = iso(at);
-        state.partySize = command.partySize ?? null;
-        if (command.kind === 'seatReservation' || command.reservationId) {
+        state.partySize = command.partySize ?? assigned?.partySize ?? null;
+        if ((command.kind === 'seatReservation' || command.reservationId) && !assigned) {
           state.nextReservationId = null;
           state.nextReservationStartUtc = null;
         }
@@ -398,6 +409,40 @@ export function floorMethods(
     ): Promise<ReservationReleaseResult> {
       const replay = releasedCommands.get(command.clientCommandId);
       if (replay) return settle({ ...replay, wasReplay: true });
+
+      // Made by time only and seated by nobody (backend 601c00b): let go with
+      // no table to free, and none named on the answer.
+      const unseated = withoutTable.bookings.get(command.reservationId);
+      if (unseated && unseated.tableId === null) {
+        if (unseated.releasedAs !== null) {
+          throw new NotFoundError({ url: `/api/reservations/${unseated.id}/release` });
+        }
+        if (command.outcome === 'noShow' && Date.parse(unseated.startUtc) > now().getTime()) {
+          throw new ReservationNotStartedError({
+            url: `/api/reservations/${unseated.id}/release`,
+            reservationId: unseated.id,
+            startUtc: unseated.startUtc,
+          });
+        }
+        unseated.releasedAs = command.outcome;
+        const released: ReservationReleaseResult = {
+          reservationId: unseated.id,
+          outcome: command.outcome,
+          countsTowardNoShowThreshold: command.outcome === 'noShow',
+          tableId: null,
+          tableLabel: null,
+          tableFreed: false,
+          wasReplay: false,
+          guestBlockedUntilUtc:
+            command.outcome === 'noShow' &&
+            unseated.guestRecord &&
+            (unseated.recentNoShows ?? 0) + 1 >= NO_SHOW_BLOCK.threshold
+              ? new Date(now().getTime() + NO_SHOW_BLOCK.blockDays * 24 * 3_600_000).toISOString()
+              : null,
+        };
+        releasedCommands.set(command.clientCommandId, released);
+        return settle(released);
+      }
 
       const reservation = reservations.get(command.reservationId);
       if (!reservation) {
@@ -465,6 +510,36 @@ export function floorMethods(
      */
     async undoNoShow(command: UndoNoShowCommand): Promise<UndoNoShowResult> {
       const url = `/api/reservations/${command.reservationId}/undo-no-show`;
+      // A no-show on a booking made by time only: back on the door's list.
+      const unseated = withoutTable.bookings.get(command.reservationId);
+      if (unseated && unseated.tableId === null) {
+        const answer: UndoNoShowResult = {
+          reservationId: unseated.id,
+          status: 'confirmed',
+          tableId: null,
+          tableLabel: null,
+        };
+        if (unseated.releasedAs === null) return settle(answer);
+        if (unseated.releasedAs !== 'noShow') {
+          throw new ConcurrencyConflictError({
+            url,
+            problem: {
+              type: '',
+              title: 'Conflict',
+              status: 409,
+              detail: `${unseated.code} is not a no-show.`,
+              code: ProblemCodes.ConflictingState,
+              traceId: 'mock',
+            },
+          });
+        }
+        const until = noShowUndoableUntil(unseated.startUtc, plan.timeZoneId);
+        if (now().getTime() > until.getTime()) {
+          throw new NoShowUndoWindowClosedError({ url, undoableUntilUtc: until.toISOString() });
+        }
+        unseated.releasedAs = null;
+        return settle(answer);
+      }
       const reservation = reservations.get(command.reservationId);
       if (!reservation) throw new NotFoundError({ url });
       const answer = (status: UndoNoShowResult['status']): UndoNoShowResult => ({

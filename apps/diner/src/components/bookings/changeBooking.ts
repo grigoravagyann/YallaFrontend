@@ -19,15 +19,19 @@ const MINUTE_MS = 60_000;
  * stand-in while that is not known.
  *
  * Never for a booking made without a proved number (legacy rows from
- * 2026-10-20) — the server refuses to move it until the number is proved.
+ * 2026-10-20) — the server refuses to move it until the number is proved —
+ * nor for one made by time only (2026-10-29), which is cancelled and booked
+ * again instead: it has no table to move.
  */
 export function canChangeBooking(
-  booking: Pick<Booking, 'status' | 'slotUtc' | 'phoneUnverified'>,
+  booking: Pick<Booking, 'status' | 'slotUtc' | 'phoneUnverified'> &
+    Partial<Pick<Booking, 'bookedWithoutTable' | 'tableLabel'>>,
   now: Date,
   leadMinutes = 0,
 ): boolean {
   const start = Date.parse(booking.slotUtc);
   if (booking.phoneUnverified === true) return false;
+  if (booking.bookedWithoutTable === true || booking.tableLabel === null) return false;
   return (
     (booking.status === 'confirmed' || booking.status === 'pendingApproval') &&
     now.getTime() < start &&
@@ -49,8 +53,9 @@ export function changeBookingRoute(booking: Booking) {
       bookingId: booking.id,
       slotUtc: booking.slotUtc,
       party: String(booking.partySize),
-      tableId: booking.tableId,
-      tableLabel: booking.tableLabel,
+      // Always a table here: a booking by time only is never changed.
+      ...(booking.tableId !== null ? { tableId: booking.tableId } : {}),
+      ...(booking.tableLabel !== null ? { tableLabel: booking.tableLabel } : {}),
     },
   };
 }

@@ -112,6 +112,12 @@
       "answeredNo": "Thank you. They have been told the table is not free.",
       "closed": "That request has closed.",
       "failed": "That did not go through. Try again."
+    },
+    "byTime": {
+      "table": "The venue chooses your table when you arrive",
+      "tableShort": "On arrival",
+      "shareMessage": "I booked at {{venue}} ({{branch}}) for {{time}}. Code {{code}}.",
+      "noChange": "To change the time, cancel this booking and book again."
     }
   },
   "floorPlan": {
@@ -1022,7 +1028,10 @@
     "ratingReviews_one": "{{rating}} · {{countLabel}} review",
     "ratingReviews_other": "{{rating}} · {{countLabel}} reviews",
     "until": "until {{time}}",
-    "featureOff": "That isn't available at this place right now."
+    "featureOff": "That isn't available at this place right now.",
+    "byTime": {
+      "rooms": "No need to pick a table here: choose a time, and the venue seats you when you arrive."
+    }
   },
   "tables": {
     "title": "Tables right now",
@@ -1136,6 +1145,19 @@
       "agree": "I'll free the table by {{time}}",
       "other": "Choose another table or time. These times have no limit:",
       "otherNoTimes": "Choose another table or another time."
+    },
+    "byTime": {
+      "wishTitle": "Your wish",
+      "wishPlaceholder": "By the window, smoking room…",
+      "wishHint": "The venue chooses your table when you arrive, and sees your wish.",
+      "struckHint": "Struck-out times are fully booked",
+      "snapped": "{{busy}} is fully booked — {{time}} suggested",
+      "summary": "{{day}} {{time}} · {{guests}}",
+      "placesLeft_one": "{{count}} place left at this time",
+      "placesLeft_other": "{{count}} places left at this time",
+      "onlyLeft_one": "Only {{count}} place left at that time. Choose fewer guests or another time.",
+      "onlyLeft_other": "Only {{count}} places left at that time. Choose fewer guests or another time.",
+      "full": "No room left at that time. Choose another time."
     }
   },
   "orders": {

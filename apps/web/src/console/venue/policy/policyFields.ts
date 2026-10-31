@@ -1,4 +1,5 @@
 import {
+  GUESTS_AT_ONCE_BOUNDS,
   POLICY_BOUNDS,
   isPolicyBounds,
   type PolicyFieldBound,
@@ -17,14 +18,19 @@ import {
  * rather than what the column stores.
  *
  * The groups are the questions an owner is actually asking, in the order they
- * ask them: how far ahead can people book, how long do we hold a table, what
- * happens when they are late, what needs a human, what a table that scans
- * without a verified number may do, and what goes on the bill.
+ * ask them: do guests choose a table or only a time, how far ahead can people
+ * book, how long do we hold a table, what happens when they are late, what
+ * needs a human, what a table that scans without a verified number may do,
+ * and what goes on the bill.
  */
 
-export type PolicyGroup = 'booking' | 'holding' | 'lateness' | 'approval' | 'scanning' | 'money';
+export type PolicyGroup =
+  'mode' | 'booking' | 'holding' | 'lateness' | 'approval' | 'scanning' | 'money';
 
 export const POLICY_GROUPS: readonly PolicyGroup[] = [
+  // How guests book (2026-10-29): a table on the room photos, or only a time
+  // and how many. First, because it changes what the rest of the page means.
+  'mode',
   'booking',
   'holding',
   'lateness',
@@ -61,6 +67,16 @@ function minutes(
 }
 
 export const POLICY_FIELDS: readonly PolicyFieldSpec[] = [
+  // Only while guests book by time only (see `appliesTo`): required then.
+  {
+    key: 'guestsAtOnce',
+    group: 'mode',
+    kind: 'people',
+    bounds: GUESTS_AT_ONCE_BOUNDS,
+    step: 1,
+    nullable: false,
+  },
+
   {
     key: 'bookingWindowDays',
     group: 'booking',
@@ -167,6 +183,16 @@ export function inactiveBecause(
 }
 
 /**
+ * Whether a field means anything as the policy stands. How many guests the
+ * branch takes at once is asked only of a branch that books by time only: it
+ * is not shown, checked or counted as a change otherwise, and the server keeps
+ * none for a branch whose diners choose a table.
+ */
+export function appliesTo(key: keyof ReservationPolicy, policy: PolicyDraft): boolean {
+  return key !== 'guestsAtOnce' || policy.bookingMode === 'timeOnly';
+}
+
+/**
  * The fields with the server's own bounds where it sent them
  * (`…/reservation-policy/defaults`), so the form is never stricter than the
  * server even if the two copies drift; the mirrored ones stand in otherwise.
@@ -212,11 +238,17 @@ export function isDefault(
   return policy[key] === defaults[key];
 }
 
+/** Every key the form edits: the fields, and the booking mode chosen above them. */
+const EDITED_KEYS: readonly (keyof ReservationPolicy)[] = [
+  'bookingMode',
+  ...POLICY_FIELDS.map((field) => field.key),
+];
+
 export function differsFromDefaults(
   policy: PolicyDraft,
   defaults: ReservationPolicy,
 ): readonly (keyof ReservationPolicy)[] {
-  return POLICY_FIELDS.map((field) => field.key).filter((key) => !isDefault(policy, key, defaults));
+  return EDITED_KEYS.filter((key) => appliesTo(key, policy) && !isDefault(policy, key, defaults));
 }
 
 /** The fields whose value differs between two drafts: the unsaved changes. */
@@ -224,7 +256,9 @@ export function changedFields(
   draft: PolicyDraft,
   saved: PolicyDraft,
 ): readonly (keyof ReservationPolicy)[] {
-  return POLICY_FIELDS.map((field) => field.key).filter((key) => draft[key] !== saved[key]);
+  return EDITED_KEYS.filter(
+    (key) => (appliesTo(key, draft) || appliesTo(key, saved)) && draft[key] !== saved[key],
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -251,7 +285,7 @@ export interface FieldRefusal {
  */
 export function refusalFor(error: unknown): FieldRefusal | null {
   if (!isPolicyBounds(error)) return null;
-  const known = new Set<string>(POLICY_FIELDS.map((field) => field.key));
+  const known = new Set<string>(EDITED_KEYS);
   return {
     fields: error.fields.filter((field): field is keyof ReservationPolicy => known.has(field)),
     message: error.detail,
@@ -274,7 +308,9 @@ export function outOfBounds(
   policy: PolicyDraft,
   fields: readonly PolicyFieldSpec[] = POLICY_FIELDS,
 ): readonly (keyof ReservationPolicy)[] {
-  return fields.filter((field) => fieldOutOfBounds(policy, field)).map((field) => field.key);
+  return fields
+    .filter((field) => appliesTo(field.key, policy) && fieldOutOfBounds(policy, field))
+    .map((field) => field.key);
 }
 
 function fieldOutOfBounds(policy: PolicyDraft, field: PolicyFieldSpec): boolean {

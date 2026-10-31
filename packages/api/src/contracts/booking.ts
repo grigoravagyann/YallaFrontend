@@ -1,3 +1,5 @@
+import { ApiError } from '../errors';
+import { ProblemCodes } from '../generated/problemCodes';
 import type { ConversationSummary } from './messages';
 import type { FloorPlanData } from './tableFloor';
 import type { ApprovalTrigger, DeclineReason } from './approvals';
@@ -22,6 +24,36 @@ export type VenueType = 'cafe' | 'restaurant' | 'bar';
  * select or a chip row that iterates it cannot forget the newest kind.
  */
 export const VENUE_TYPES: readonly VenueType[] = ['cafe', 'restaurant', 'bar'];
+
+/**
+ * How a diner books at a branch — the reservation policy's `BookingMode`
+ * (wire 1 ChooseTable, 2 TimeOnly).
+ *
+ * - `chooseTable`: a table, picked on the room photos (every branch before
+ *   2026-10-29, and the default).
+ * - `timeOnly`: a time and how many, and a wish in the note; the venue chooses
+ *   the table when the party arrives, and caps the guests it takes at once.
+ */
+export type BookingMode = 'chooseTable' | 'timeOnly';
+
+/** The wire's `BookingMode`: 2 is TimeOnly, and anything else — absent included — a table branch. */
+export function bookingModeFromCode(code: number | null | undefined): BookingMode {
+  return code === 2 ? 'timeOnly' : 'chooseTable';
+}
+
+/**
+ * The `409 time-full` refusal of a booking by time only — no room for that
+ * many guests then — as how many the branch could still take at that time
+ * (`0` when none). `null` for any other error.
+ *
+ * Read off the problem as the client mapped it: the refusal has no error type
+ * of its own, and its one fact is the number.
+ */
+export function timeFullGuestsLeft(error: unknown): number | null {
+  if (!(error instanceof ApiError) || error.code !== ProblemCodes.TimeFull) return null;
+  const left = error.problem?.context?.['guestsLeft'];
+  return typeof left === 'number' && Number.isFinite(left) ? Math.max(0, Math.floor(left)) : 0;
+}
 
 /**
  * Booking policy for a branch. These four numbers drive most of the copy in the
@@ -308,6 +340,12 @@ export interface DaySlot {
    * and this is the latest of them. `null` or absent when one is not cut short.
    */
   readonly mustFreeByUtc?: string | null | undefined;
+  /**
+   * At a branch that books by time only: how many more guests it takes then —
+   * a party fits when this is at least its size. `null` at a table branch, and
+   * on a time the whole day refused. Absent from an older answer.
+   */
+  readonly guestsLeft?: number | null | undefined;
 }
 
 /**
@@ -376,8 +414,15 @@ export interface Booking extends BookingPreOrderFields {
   /** IANA zone of the branch. Every time on this booking renders in it. */
   readonly timeZoneId: string;
 
-  readonly tableId: string;
-  readonly tableLabel: string;
+  /** None for a booking made by time only that nobody has seated: the venue chooses the table on arrival. */
+  readonly tableId: string | null;
+  readonly tableLabel: string | null;
+  /**
+   * Made at a branch that books by time only: the diner chose a time and how
+   * many, not a table. It is moved by cancelling and booking again, and takes
+   * no pre-order.
+   */
+  readonly bookedWithoutTable: boolean;
   /**
    * The room the table is in — "Hall", "Terrace" — from the table's floor area.
    * `null` when the table is in none, or the server did not say.
@@ -540,6 +585,8 @@ export interface BookingRules {
   readonly minLeadMinutes: number;
   /** The K9 gate, from the same page: false means the app cannot book here. */
   readonly acceptsAppBookings: boolean;
+  /** A table on the room photos, or a time and how many alone. */
+  readonly bookingMode: BookingMode;
 }
 
 /** The longest booking note the server keeps, after trimming (K9). */
@@ -556,7 +603,11 @@ export interface CreateBookingCommand {
    */
   readonly commandId: string;
   readonly branchId: string;
-  readonly tableId: string;
+  /**
+   * The table picked on the room photos; `null` at a branch that books by time
+   * only (`BookingRules.bookingMode` `'timeOnly'`), where the venue chooses it.
+   */
+  readonly tableId: string | null;
   readonly slotUtc: string;
   /**
    * The branch's zone. The server takes the booking in **wall-clock** date and

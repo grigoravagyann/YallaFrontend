@@ -1,5 +1,6 @@
 import type {
   AffectedReservation,
+  BookingWithoutTable,
   StaffFloor,
   StaffGateway,
   StaffSessionIdentity,
@@ -148,6 +149,17 @@ export function useFloorCommands({
       }
       if (command.kind === 'acknowledgeServiceRequest') {
         void queryClient.invalidateQueries({ queryKey: queryKeys.serviceRequests(branchId) });
+      }
+      // A booking made by time only seated at the table the waiter chose: it
+      // has that table now. Off the door's list at once — the queue no longer
+      // holds it to hide it — and the list read again.
+      if (command.body.kind === 'seatReservation' && command.body.command.reservationId) {
+        const seated = command.body.command.reservationId;
+        queryClient.setQueryData<readonly BookingWithoutTable[]>(
+          queryKeys.bookingsWithoutTable(branchId),
+          (list) => (list ? list.filter((booking) => booking.id !== seated) : list),
+        );
+        void queryClient.invalidateQueries({ queryKey: queryKeys.bookingsWithoutTable(branchId) });
       }
     },
     [branchId, queryClient],

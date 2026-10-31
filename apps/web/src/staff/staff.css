@@ -932,6 +932,117 @@
   font-size: var(--console-text-label);
 }
 
+/* --- A booking made by time only, waiting for a table (2026-10-29) ---------- */
+
+.wt-card .ft-item-top .wt-time {
+  font-feature-settings: var(--font-feature-tabular);
+}
+
+/* The guest's wish decides the table: the ink, a size up, an amber edge —
+   read before anything else on the card. */
+.ft-item .wt-wish,
+.wt-wish {
+  margin: 0;
+  padding: var(--space-xs) 0 var(--space-xs) var(--space-sm);
+  border-left: 3px solid var(--console-amber);
+  color: var(--console-ink);
+  font-size: var(--font-size-sm);
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
+.wt-wish-label {
+  font-weight: var(--font-weight-bold);
+}
+
+.ft-item .wt-arrival {
+  font-weight: var(--font-weight-semibold);
+}
+
+.ft-item .wt-arrival[data-tone='ok'] {
+  color: var(--console-green);
+}
+
+.ft-item .wt-arrival[data-tone='waiting'] {
+  color: var(--console-amber);
+}
+
+/* The free tables, in place of Seat: named by its title, focused when it opens. */
+.wt-picker {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  padding: var(--space-md);
+  border: 1.5px solid var(--console-line);
+  border-radius: var(--console-radius-floor-button);
+  background: var(--console-canvas);
+}
+
+.wt-picker:focus-visible {
+  outline: 2px solid var(--console-brand);
+  outline-offset: 2px;
+}
+
+.wt-picker h4 {
+  margin: 0;
+  font-size: var(--console-text-nav);
+  font-weight: var(--font-weight-bold);
+}
+
+.ft-item .wt-picker-sub,
+.ft-item .wt-picker-empty {
+  margin: 0;
+  font-size: var(--console-text-label);
+  color: var(--console-muted);
+}
+
+.wt-tables {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(96px, 1fr));
+  gap: var(--space-sm);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* A table as a big target: its label, its seats and room, its booking later. */
+.wt-table {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  width: 100%;
+  min-height: var(--touch-staff);
+  padding: var(--space-sm) 10px;
+  border: 2px solid var(--console-button-edge);
+  border-radius: var(--console-radius-floor-button);
+  background: var(--console-surface);
+  color: var(--console-ink);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.wt-table:focus-visible {
+  outline: 2px solid var(--console-brand);
+  outline-offset: 2px;
+}
+
+.wt-table b {
+  font-size: var(--font-size-md);
+  font-weight: var(--font-weight-bold);
+}
+
+.wt-table span {
+  font-size: var(--console-text-label);
+  color: var(--console-muted);
+}
+
+.wt-table .wt-table-booked {
+  color: var(--console-amber);
+  font-weight: var(--font-weight-semibold);
+}
+
 /* --- A booking waiting for the floor's answer -------------------------------- */
 
 .approval-countdown {

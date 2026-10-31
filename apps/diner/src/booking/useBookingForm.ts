@@ -13,6 +13,7 @@ import { bookingRulesInput } from '../places/navigation';
 import { dayRefusalLine, pickSlot } from '../places/slotAvailability';
 import { LEAD_MINUTES, WINDOW_DAYS, largerPartySizes } from '../places/slots';
 import type { WheelSlot } from '../places/wheelTimes';
+import { guestsLeftAt, isBookedByTime, placesLeftLine } from './byTime';
 import { PARTY_MAX, PARTY_MORE_FROM, initialPartySize } from './formRules';
 import type { BookingParams } from './params';
 import { useBooker } from './useBooker';
@@ -61,9 +62,6 @@ export function useBookingForm({
   // own table reads free at its own time and at the times around it.
   const excludeBookingId = change?.bookingId;
 
-  const { tables, pickedTableId, setPickedTableId, chosenTable, capacityMin, capacityMax, fits } =
-    useChosenTable(rooms, params);
-
   /*
    * How far ahead and how soon this branch takes bookings, read from its public
    * page by slug. The defaults stand in only while that loads (or for a place
@@ -71,6 +69,18 @@ export function useBookingForm({
    * so a diner is never offered a day or a time the server will refuse.
    */
   const rulesQuery = useBookingRules(bookingRulesInput(place));
+  /*
+   * A branch that books by time only: a day, how many and a time, and a wish
+   * in the note — no rooms, no table. The venue chooses it on arrival, so a
+   * table the route carried is not offered, and no party is held to its seats.
+   */
+  const byTime = isBookedByTime(place, rulesQuery.data);
+  const tableChoice = useChosenTable(rooms, params);
+  const { tables, pickedTableId, setPickedTableId } = tableChoice;
+  const chosenTable = byTime ? null : tableChoice.chosenTable;
+  const capacityMin = byTime ? null : tableChoice.capacityMin;
+  const capacityMax = byTime ? null : tableChoice.capacityMax;
+  const fits = byTime ? () => true : tableChoice.fits;
   const windowDays = rulesQuery.data?.bookingWindowDays ?? WINDOW_DAYS;
   const leadMinutes = rulesQuery.data?.minLeadMinutes ?? LEAD_MINUTES;
   // Known from the place's page, or from the rules: the app cannot book here (K9).
@@ -122,6 +132,7 @@ export function useBookingForm({
   const activeDateKey = dateKey ?? days[0]?.dateKey ?? null;
   const {
     daySlotsQuery,
+    dayAnswers,
     nextDateKey,
     nextDaySlotsQuery,
     soonMs,
@@ -138,6 +149,7 @@ export function useBookingForm({
     leadMinutes,
     partySize,
     excludeBookingId,
+    byTime,
   });
 
   /*
@@ -170,7 +182,8 @@ export function useBookingForm({
     place,
     rooms,
     tables,
-    activeSlot,
+    // By time only, no room at the slot is read: the day's slots decide.
+    activeSlot: byTime ? null : activeSlot,
     slotUtc,
     partySize,
     excludeBookingId,
@@ -182,6 +195,7 @@ export function useBookingForm({
 
   const submit = useBookingSubmit({
     place,
+    byTime,
     change,
     activeSlot,
     slotUtc,
@@ -261,9 +275,12 @@ export function useBookingForm({
   const freeByNote = slotFreeBy
     ? t('table.mustFreeBy', { time: formatTime(slotFreeBy, place.timeZoneId, locale) })
     : null;
+  // By time only, a nearly full time says how many places it has left.
+  const placesLine = byTime ? placesLeftLine(guestsLeftAt(dayAnswers, activeMs)) : null;
+  const placesNote = placesLine ? t(placesLine.key, placesLine.params) : null;
   const spokenTime =
     activeMs !== null
-      ? [timeLabel(activeMs), requestNote, freeByNote].filter(Boolean).join(', ')
+      ? [timeLabel(activeMs), requestNote, freeByNote, placesNote].filter(Boolean).join(', ')
       : // Nothing chosen: none can be had that day, or (a change) its own is gone.
         t(wheelRows.some((row) => row.state !== 'busy') ? 'book.wheel.none' : 'book.wheel.nothing');
 
@@ -285,7 +302,10 @@ export function useBookingForm({
     setFreeByDeclined(false);
     setSnapNote(
       snappedFrom
-        ? t('book.wheel.snapped', { busy: snappedFrom.label, time: timeLabel(at) })
+        ? t(byTime ? 'book.byTime.snapped' : 'book.wheel.snapped', {
+            busy: snappedFrom.label,
+            time: timeLabel(at),
+          })
         : null,
     );
   };
@@ -297,21 +317,27 @@ export function useBookingForm({
       ? null
       : availability.dayReason
         ? lineText(dayRefusalLine(availability.dayReason, partySize))
-        : t('book.struckHint');
+        : t(byTime ? 'book.byTime.struckHint' : 'book.struckHint');
 
   // "Table 4 · Tomorrow 19:00 · 2 guests": what one press of Book books.
   const activeDay = days.find((day) => day.dateKey === activeDateKey) ?? null;
   const summary =
-    activeSlot && activeDay
-      ? t('book.summary', {
-          table: chosenTable?.label
-            ? t('tables.table', { label: chosenTable.label })
-            : t('book.anyTable'),
+    activeSlot && activeDay && byTime
+      ? t('book.byTime.summary', {
           day: dayLabel(activeDay),
           time: formatTime(activeSlot.at, place.timeZoneId, locale),
           guests: t('booking.guests', { count: partySize }),
         })
-      : undefined;
+      : activeSlot && activeDay
+        ? t('book.summary', {
+            table: chosenTable?.label
+              ? t('tables.table', { label: chosenTable.label })
+              : t('book.anyTable'),
+            day: dayLabel(activeDay),
+            time: formatTime(activeSlot.at, place.timeZoneId, locale),
+            guests: t('booking.guests', { count: partySize }),
+          })
+        : undefined;
   // What one press does: book, or move the booking being changed.
   const ctaAction = change ? t('book.saveChanges') : t('book.confirm');
   // The button's state, when it is anything but "book it".
@@ -354,6 +380,7 @@ export function useBookingForm({
   };
 
   return {
+    byTime,
     days,
     activeDateKey,
     dayLabel,
@@ -371,6 +398,7 @@ export function useBookingForm({
     snapNote,
     requestNote,
     freeByNote,
+    placesNote,
     slotFailed: activeSlot !== null && !slotAnswer && slotQuery.isError,
     retrySlot: () => void slotQuery.refetch(),
     struckHint,

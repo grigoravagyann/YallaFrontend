@@ -41,6 +41,11 @@ export interface BranchReadiness {
   /** Active tables a diner can book: bookable and pinned on a room photo. */
   readonly bookableTableCount: number;
   /**
+   * The branch books by time only with its guests at once set: diners pick a
+   * time and how many, so the table line is satisfied without a bookable table.
+   */
+  readonly booksByTimeOnly: boolean;
+  /**
    * Every required line done — a bookable table, opening hours, staff, a
    * tablet or staff phone — so diners see the branch and can book it. Without
    * it the branch is hidden from the diner app and the public page.
@@ -48,7 +53,8 @@ export interface BranchReadiness {
   readonly takingGuests: boolean;
   /**
    * The required lines still missing, in checklist order: `no-tables` or
-   * `no-bookable-table`, `no-hours`, `no-staff`, `no-device`.
+   * `no-bookable-table` (neither when `booksByTimeOnly`), `no-hours`,
+   * `no-staff`, `no-device`.
    */
   readonly missingForGuests: readonly string[];
 

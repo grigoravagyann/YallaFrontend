@@ -7,6 +7,7 @@ import {
   PreOrderAlreadySentError,
   ValidationError,
   isApprovalExpired,
+  timeFullGuestsLeft,
   overlapIsElsewhere,
   overlapPlace,
   type BookingFailure,
@@ -30,7 +31,9 @@ import {
  * - a booking being changed can no longer move: only one waiting for the
  *   venue, or confirmed and not yet started, can;
  * - a booking waiting on a short-notice answer cannot be moved once its
- *   answer window has closed — too late to change, not a table rule.
+ *   answer window has closed — too late to change, not a table rule;
+ * - at a branch that books by time only, no room for that many then: none
+ *   left, or only so many places (`409 time-full`, 2026-10-29).
  *
  * `null` for anything else: `bookingFailure` decides those.
  */
@@ -40,6 +43,12 @@ export function bookingRefusal(error: unknown): CopyLine | null {
   if (error instanceof BookingNotChangeableError)
     return { key: 'book.changeError.notChangeable', params: {} };
   if (isApprovalExpired(error)) return { key: 'book.changeError.approvalExpired', params: {} };
+  const guestsLeft = timeFullGuestsLeft(error);
+  if (guestsLeft !== null) {
+    return guestsLeft > 0
+      ? { key: 'book.byTime.onlyLeft', params: { count: guestsLeft } }
+      : { key: 'book.byTime.full', params: {} };
+  }
   if (
     error instanceof ValidationError &&
     (error.field?.toLowerCase() === 'note' ||

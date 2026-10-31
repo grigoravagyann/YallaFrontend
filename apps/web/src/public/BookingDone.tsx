@@ -135,8 +135,11 @@ export function BookingDone({ booking, branch, onClose, onChooseAnotherTime }: B
   const editorPreOrder = linked ? (linked.preOrder ?? null) : preOrder;
   // The booking's own window, which the server sends only while the branch
   // takes pre-orders; and a link to save it through.
+  // A booking by time only takes no pre-order: a pre-order's ticket waits at a table.
   const canPreOrder =
-    Boolean(booking.manageToken) && canEditPreOrder({ ...booking, preOrder }, now);
+    Boolean(booking.manageToken) &&
+    !booking.bookedWithoutTable &&
+    canEditPreOrder({ ...booking, preOrder }, now);
   const answer = venueAnswerCopy(answerState, now, locale);
   const countdown = approvalCountdown(answerState.approvalExpiresAtUtc, now, locale);
   const declinedTitle = declinedCopy(answerState.declinedBecause, 'title');
@@ -180,7 +183,10 @@ export function BookingDone({ booking, branch, onClose, onChooseAnotherTime }: B
   );
 
   const addToCalendar = () => {
-    const summary = td('table.title', { label: booking.tableLabel });
+    // A booking by time only has no table to name: the event is the venue's.
+    const summary = booking.tableLabel
+      ? `${td('table.title', { label: booking.tableLabel })} · ${venueName}`
+      : venueName;
     downloadIcs(
       bookingIcs({
         booking,
@@ -188,7 +194,7 @@ export function BookingDone({ booking, branch, onClose, onChooseAnotherTime }: B
         addressLine: branch.addressLine,
         manageUrl: manageUrl ?? '',
         locale,
-        summary: `${summary} · ${venueName}`,
+        summary,
         descriptionLines: icsDescription({
           booking,
           locale,
@@ -234,7 +240,11 @@ export function BookingDone({ booking, branch, onClose, onChooseAnotherTime }: B
       </div>
       <div>
         <dt>{td('confirm.tableRow')}</dt>
-        <dd>{t('sheet.done.table', { label: booking.tableLabel, guests })}</dd>
+        <dd>
+          {booking.tableLabel
+            ? t('sheet.done.table', { label: booking.tableLabel, guests })
+            : t('sheet.done.noTable', { guests })}
+        </dd>
       </div>
     </dl>
   );
@@ -267,7 +277,10 @@ export function BookingDone({ booking, branch, onClose, onChooseAnotherTime }: B
             ? td(declinedTitle.key, declinedTitle.params)
             : kind === 'pending'
               ? td('success.pendingTitle')
-              : td('success.confirmedTitle')}
+              : booking.tableLabel
+                ? td('success.confirmedTitle')
+                : // By time only: booked, and no table to say so of.
+                  t('sheet.done.timeBooked')}
         </h3>
 
         {kind === 'declined' ? (

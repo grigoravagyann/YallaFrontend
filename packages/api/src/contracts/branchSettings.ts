@@ -237,7 +237,26 @@ export interface ReservationPolicy {
    * Off: such scans order at once, as before admission existed. On by default.
    */
   readonly unverifiedScansNeedAdmission: boolean;
+  /**
+   * How a diner books: a table on the room photos (every branch before
+   * 2026-10-29, and the default), or only a time and how many, the venue
+   * choosing the table on arrival.
+   */
+  readonly bookingMode: PolicyBookingMode;
+  /**
+   * With `'timeOnly'`: the most booked guests the branch takes at the same
+   * moment, each booking counted over its whole sitting (start plus turn
+   * time). Required then, {@link GUESTS_AT_ONCE_BOUNDS}; `null` while diners
+   * choose a table, and the server drops it then.
+   */
+  readonly guestsAtOnce: number | null;
 }
+
+/** `BookingMode` on the wire: 1 ChooseTable, 2 TimeOnly. */
+export type PolicyBookingMode = 'chooseTable' | 'timeOnly';
+
+/** `ReservationPolicyLimits.MinGuestsAtOnce` / `MaxGuestsAtOnce`. */
+export const GUESTS_AT_ONCE_BOUNDS = { min: 1, max: 2000 } as const;
 
 /**
  * What saving a policy did.
@@ -330,5 +349,7 @@ export function defaultPolicyFor(venueType: VenueType): ReservationPolicy {
     pricesIncludeVat: true,
     autoConfirmGuestsWithGoodRecord: false,
     unverifiedScansNeedAdmission: true,
+    bookingMode: 'chooseTable',
+    guestsAtOnce: null,
   };
 }

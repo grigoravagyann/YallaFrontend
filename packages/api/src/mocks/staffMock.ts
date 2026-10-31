@@ -2,6 +2,7 @@ import type { StaffGateway } from '../staffGateway';
 import { createStaffMockContext, type StaffMockOptions } from './staff/context';
 import { floorMethods } from './staff/floor';
 import { approvalsMethods } from './staff/approvals';
+import { withoutTableMethods } from './staff/withoutTable';
 import { preOrdersMethods } from './staff/preOrders';
 import { messagesMethods } from './staff/messages';
 import { takeawayMethods } from './staff/takeaway';
@@ -14,6 +15,7 @@ import { phoneMethods } from './staff/phone';
 import { billMethods } from './staff/bill';
 
 export type { StaffMockOptions, StaffPreOrderSeed, StaffTakeawaySeed } from './staff/context';
+export type { StaffWithoutTableSeed } from './staff/withoutTableBook';
 
 export function createStaffMockGateway(options: StaffMockOptions = {}): StaffGateway {
   const ctx = createStaffMockContext(options);
@@ -21,6 +23,7 @@ export function createStaffMockGateway(options: StaffMockOptions = {}): StaffGat
   return {
     ...floorMethods(ctx),
     ...approvalsMethods(ctx),
+    ...withoutTableMethods(ctx),
     ...preOrdersMethods(ctx),
     ...messagesMethods(ctx),
     ...takeawayMethods(ctx),

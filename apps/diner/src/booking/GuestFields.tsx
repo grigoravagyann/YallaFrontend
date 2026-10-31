@@ -34,35 +34,38 @@ export function GuestNameField({
   );
 }
 
-/** The note that goes to the venue with the booking. */
+/**
+ * The note that goes to the venue with the booking. By time only it is the
+ * diner's wish for the table — by the window, the smoking room — which the
+ * venue reads when it chooses one on arrival.
+ */
 export function BookingNoteField({
   value,
   onChange,
+  byTime = false,
 }: {
   readonly value: string;
   readonly onChange: (value: string) => void;
+  readonly byTime?: boolean;
 }) {
   const { t } = useTranslation('diner');
+  const title = t(byTime ? 'book.byTime.wishTitle' : 'booking.note.title');
   return (
     <View style={styles.field}>
-      <SectionHeader
-        label={t('booking.note.title')}
-        icon={actionIcon.note}
-        hint={t('book.optional')}
-      />
+      <SectionHeader label={title} icon={actionIcon.note} hint={t('book.optional')} />
       <TextInput
         style={[styles.input, styles.requests]}
         value={value}
         onChangeText={onChange}
-        placeholder={t('booking.note.placeholder')}
+        placeholder={t(byTime ? 'book.byTime.wishPlaceholder' : 'booking.note.placeholder')}
         placeholderTextColor={colors.textSubtle}
         multiline
         maxLength={MAX_BOOKING_NOTE}
         textAlignVertical="top"
-        accessibilityLabel={t('booking.note.title')}
+        accessibilityLabel={title}
       />
       {/* Honest about where the words go: to the venue, with the booking. */}
-      <Text style={styles.hint}>{t('booking.note.hint')}</Text>
+      <Text style={styles.hint}>{t(byTime ? 'book.byTime.wishHint' : 'booking.note.hint')}</Text>
     </View>
   );
 }

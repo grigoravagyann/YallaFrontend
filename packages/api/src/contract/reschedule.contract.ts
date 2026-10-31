@@ -62,7 +62,8 @@ export function describeRescheduleContract(subject: ContractSubject): void {
       return {
         bookingId: booking.id,
         commandId: randomUuid(),
-        tableId: booking.tableId,
+        // The contract's branch chooses tables, so its bookings always have one.
+        tableId: booking.tableId ?? '',
         slotUtc,
         timeZoneId: fixtures.timeZoneId,
         partySize: booking.partySize,

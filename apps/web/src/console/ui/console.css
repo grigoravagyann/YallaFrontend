@@ -6577,6 +6577,11 @@ body:has(.yc-savebar) .yc-toast-region {
   background: var(--console-surface-muted);
 }
 
+/* How guests book: the two cards across the field's whole width. */
+.yc-pf.yc-pol-mode {
+  grid-template-columns: minmax(0, 1fr);
+}
+
 .yc-pf-t {
   display: flex;
   flex-direction: column;

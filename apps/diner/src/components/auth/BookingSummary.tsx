@@ -40,7 +40,9 @@ export function BookingSummary({ booking }: BookingSummaryProps) {
   const { locale } = useLocale();
   const queryClient = useQueryClient();
   const { branchId, tableId, slotUtc, partySize } = booking;
-  if (!branchId || !tableId) return null;
+  // A booking by time only has no table, and says so.
+  const byTime = booking['byTime'] === '1';
+  if (!branchId || (!tableId && !byTime)) return null;
 
   const place =
     queryClient

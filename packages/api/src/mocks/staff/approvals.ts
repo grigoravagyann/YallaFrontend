@@ -39,8 +39,11 @@ export function approvalsMethods(
           return a.startUtc.localeCompare(b.startUtc);
         })
         .map((request): AwaitingApproval => {
-          const table = plan.tables.find((candidate) => candidate.id === request.tableId);
-          const state = tables.get(request.tableId);
+          // Made by time only: no table, no room, nobody sitting there.
+          const table = request.tableId
+            ? plan.tables.find((candidate) => candidate.id === request.tableId)
+            : undefined;
+          const state = request.tableId ? tables.get(request.tableId) : undefined;
           return {
             id: request.id,
             code: request.code,
@@ -49,7 +52,8 @@ export function approvalsMethods(
             guestPhone: request.guestPhone,
             partySize: request.partySize,
             tableId: request.tableId,
-            tableLabel: label(request.tableId),
+            tableLabel: request.tableId ? label(request.tableId) : null,
+            bookedWithoutTable: request.tableId === null,
             roomName: table?.floorAreaName ?? null,
             startUtc: request.startUtc,
             ...localDateAndTime(request.startUtc, plan.timeZoneId),

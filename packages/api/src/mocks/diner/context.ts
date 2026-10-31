@@ -2686,6 +2686,8 @@ export function createDinerMockContext(options: MockGatewayOptions = {}) {
         requestable,
         requestableTableCount: bookable.length - plain.length,
         mustFreeByUtc,
+        // Counted in tables: the mock's branches all choose them.
+        guestsLeft: null,
       });
     }
 
@@ -3480,6 +3482,7 @@ export function createDinerMockContext(options: MockGatewayOptions = {}) {
       timeZoneId: found.branch.timeZoneId,
       tableId: table.id,
       tableLabel: table.label,
+      bookedWithoutTable: false,
       roomId: table.floorAreaId,
       roomName: table.floorAreaName,
       partySize: 2,

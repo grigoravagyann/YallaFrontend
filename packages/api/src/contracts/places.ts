@@ -1,7 +1,7 @@
 import type { BranchFeature } from './branchFeatures';
 import type { ConversationSummary } from './messages';
 import type { SpecialDay } from './branchSettings';
-import type { VenueType } from './booking';
+import type { BookingMode, VenueType } from './booking';
 import type { Photo } from './menuAdmin';
 import type { PublicReviewReply } from './reviews';
 import type { DinerTakeawaySummary, PublicTakeawayInfo } from './takeaway';
@@ -149,6 +149,13 @@ export interface BranchDetail {
    * place page explains instead of offering Book.
    */
   readonly acceptsAppBookings: boolean;
+  /**
+   * A table on the room photos, or a time and how many alone (2026-10-29): at
+   * `timeOnly` the venue chooses the table on arrival, so the booking flow
+   * skips the room photos. The mapper always fills it (`chooseTable` from a
+   * server before it); optional for fixtures written before it.
+   */
+  readonly bookingMode?: BookingMode | undefined;
   /** Newest three, hidden reviews left out. */
   readonly recentReviews: readonly BranchReview[];
   /**
