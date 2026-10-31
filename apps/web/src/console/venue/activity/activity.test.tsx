@@ -4,7 +4,7 @@ import { cleanup, render, screen, waitFor, within } from '@testing-library/react
 import userEvent from '@testing-library/user-event';
 import { useEffect } from 'react';
 import { Outlet, Route, Routes, useLocation } from 'react-router-dom';
-import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ToastProvider } from '../../ui/toast';
 import { createConsoleHarness, initConsoleTestI18n } from '../reports/testHarness';
 import { PersonScreen } from '../staff/PersonScreen';
@@ -27,7 +27,17 @@ beforeAll(async () => {
   URL.revokeObjectURL = vi.fn();
 });
 
-afterEach(cleanup);
+// The boards' day ends two minutes before the mock's clock, so in the small
+// hours most of it falls on yesterday and today's feed runs short. Hold the
+// clock at an evening in Yerevan: only Date, the timers stay real for waitFor.
+beforeEach(() => {
+  vi.useFakeTimers({ toFake: ['Date'], now: new Date('2026-10-25T20:30:00+04:00') });
+});
+
+afterEach(() => {
+  cleanup();
+  vi.useRealTimers();
+});
 
 const NORTH = 'b-lumen-north';
 const ARAM = `${NORTH}-act-aram`;
