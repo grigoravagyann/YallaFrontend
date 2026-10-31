@@ -1,7 +1,7 @@
 /**
  * GENERATED FILE — do not edit.
  *
- * Source: http://localhost:5347/swagger.json
+ * Source: http://127.0.0.1:5391/swagger/v1/swagger.json
  * Regenerate with: pnpm api:generate
  */
 
@@ -1556,6 +1556,26 @@ export interface paths {
          *     One query however many are waiting. A waiter or above at this branch; an owner or general manager at any branch of their venue. A platform admin reads the list with every guest number blank (`guestPhone` empty, `previousBooking.guestPhone` absent).
          */
         get: operations["listAwaitingApproval"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/branches/{branchId}/reservations/without-table": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The bookings made by time only that nobody has seated yet
+         * @description What the staff tablet polls at a branch that books by time only (`bookingMode` 2): its confirmed bookings with no table yet that have not ended, soonest first, each with the guest's wish in `note`. At most 200; no paging. Seat one with `POST /tables/{tableId}/seat-reservation` on the table the waiter chooses - the booking has that table from then on. Waiter or above at the branch.
+         */
+        get: operations["listBookingsWithoutTable"];
         put?: never;
         post?: never;
         delete?: never;
@@ -5575,9 +5595,10 @@ export interface components {
             stayHint?: components["schemas"]["Yalla.Domain.Enums.StayHint"] | null;
             /**
              * Format: uuid
-             * @description The table the diner picked off the room photos.
+             * @description The table the diner picked off the room photos; left out at a branch that books by time only - exactly as on
+             *     Yalla.Api.Endpoints.CreateReservationRequest.
              */
-            tableId: string;
+            tableId?: string | null;
             /**
              * Format: time
              * @description Local wall-clock start at the branch, e.g. `19:30`.
@@ -5634,9 +5655,12 @@ export interface components {
             stayHint?: components["schemas"]["Yalla.Domain.Enums.StayHint"] | null;
             /**
              * Format: uuid
-             * @description The table the diner picked off the floor plan.
+             * @description The table the diner picked off the room photos. Required at a branch where diners choose a table, refused as
+             *     `validation-failed` naming `tableId` without one; left out at a branch that books by time only
+             *     (`bookingMode` 2), where the venue chooses the table when the party arrives and naming one is refused the
+             *     same way.
              */
-            tableId: string;
+            tableId?: string | null;
             /**
              * Format: time
              * @description Local wall-clock start at the branch, e.g. `19:30`.
@@ -8789,6 +8813,17 @@ export interface components {
              */
             blockers: string[];
             /**
+             * Format: int32
+             * @description Active tables a diner can book: bookable and pinned on a room photo, which is what the booking
+             *     rules offer.
+             */
+            bookableTableCount: number;
+            /**
+             * @description The branch books by time only, with how many guests it takes at once set: its table line is satisfied without a
+             *     table a diner can book, because diners pick only a time.
+             */
+            booksByTimeOnly: boolean;
+            /**
              * Format: uuid
              * @description The branch this is about.
              */
@@ -8811,9 +8846,9 @@ export interface components {
             /** @description Which ones, so the console can link straight to them. */
             incompleteMenuItemIds: string[];
             /**
-             * @description Every line below satisfied. This is exactly what going Paid requires on the menu side, plus the
-             *     rest of the checklist - the tier switch itself only enforces the menu, because a venue may want
-             *     its tabs enabled before it has finished enrolling tablets.
+             * @description Every line of the checklist satisfied. Advice: it hides nothing. Whether diners see the branch is
+             *     TakingGuests, the required lines only; table service separately waits for the
+             *     menu's dishes to be finished.
              */
             isReadyForDiners: boolean;
             /**
@@ -8836,6 +8871,12 @@ export interface components {
              * @description How many items there are, complete or not.
              */
             menuItemCount: number;
+            /**
+             * @description The required lines still missing, as Yalla.Application.BranchSettings.ReadinessIssueCodes, in checklist order:
+             *     `no-tables` or `no-bookable-table`, `no-hours`, `no-staff`, `no-device`.
+             *     Empty exactly when TakingGuests.
+             */
+            missingForGuests: string[];
             /**
              * Format: int32
              * @description How many days of the week have any opening block.
@@ -8866,6 +8907,13 @@ export interface components {
              *     line for it and a silently-absent line reads as a failure.
              */
             tablesLabelled: boolean;
+            /**
+             * @description Every <b>required</b> line satisfied - a bookable table, opening hours, staff and a device - so
+             *     diners see the branch. Without it the branch is not listed, searched, shown or bookable
+             *     (`DinerVisibility`). IsReadyForDiners is the whole checklist and blocks
+             *     nothing on its own.
+             */
+            takingGuests: boolean;
         };
         "Yalla.Application.BranchSettings.FloorAreaCommand": {
             /** Format: int32 */
@@ -9175,6 +9223,7 @@ export interface components {
             approvalRequiredAbovePartySize?: number | null;
             autoConfirm: boolean;
             autoConfirmGuestsWithGoodRecord?: boolean | null;
+            bookingMode?: components["schemas"]["Yalla.Domain.Enums.BookingMode"] | null;
             /** Format: int32 */
             bookingWindowDays: number;
             /** Format: int32 */
@@ -9185,6 +9234,8 @@ export interface components {
             graceExtensionMinutes: number;
             /** Format: int32 */
             graceMinutes: number;
+            /** Format: int32 */
+            guestsAtOnce?: number | null;
             /** Format: int32 */
             lateNudgeAfterMinutes: number;
             /** Format: int32 */
@@ -9216,6 +9267,8 @@ export interface components {
             approvalRequiredAbovePartySize?: number | null;
             autoConfirm: boolean;
             autoConfirmGuestsWithGoodRecord: boolean;
+            /** @description How a diner books at a branch (2026-10-29). On the wire as the integer; never renumber. */
+            bookingMode: components["schemas"]["Yalla.Domain.Enums.BookingMode"];
             /** Format: int32 */
             bookingWindowDays: number;
             /** Format: int32 */
@@ -9226,6 +9279,8 @@ export interface components {
             graceExtensionMinutes: number;
             /** Format: int32 */
             graceMinutes: number;
+            /** Format: int32 */
+            guestsAtOnce?: number | null;
             /** Format: int32 */
             lateNudgeAfterMinutes: number;
             /** Format: int32 */
@@ -11359,13 +11414,14 @@ export interface components {
             status: components["schemas"]["Yalla.Domain.Enums.ReservationStatus"];
             /**
              * Format: uuid
-             * @description The table - what `seat-reservation` and `free` are addressed by.
+             * @description The table - what `seat-reservation` and `free` are addressed by. Absent, with the label and
+             *     status, for a booking made by time only that nobody has seated yet: staff choose its table then.
              */
-            tableId: string;
+            tableId?: string | null;
             /** @description The table's label. */
-            tableLabel: string;
-            /** @description The <b>physical</b> state of a table: what somebody did to it. */
-            tableStatus: components["schemas"]["Yalla.Domain.Enums.TableStatus"];
+            tableLabel?: string | null;
+            /** @description The table's state now. */
+            tableStatus?: components["schemas"]["Yalla.Domain.Enums.TableStatus"] | null;
         };
         /** @description The service day's bookings by status. */
         "Yalla.Application.Overview.OverviewBookingCounts": {
@@ -12339,9 +12395,12 @@ export interface components {
              *     named even if it has since been unpinned or taken out, which those reads do not list; a move to it is
              *     then refused as for any table that cannot be booked.
              */
-            tableId: string;
-            /** @description The table, as printed on the floor. */
-            tableLabel: string;
+            tableId?: string | null;
+            /**
+             * @description The table, as printed on the floor. Absent, with TableId, for a booking made by time only
+             *     that nobody has seated: the venue chooses its table when the party arrives.
+             */
+            tableLabel?: string | null;
             /**
              * @description The branch's IANA zone. Every time here is wall-clock in it, and a diner reading this on a
              *     phone set to another zone must not be shown a converted time.
@@ -12406,6 +12465,8 @@ export interface components {
              * @description When the live half was read.
              */
             asOfUtc: string;
+            /** @description How a diner books at a branch (2026-10-29). On the wire as the integer; never renumber. */
+            bookingMode: components["schemas"]["Yalla.Domain.Enums.BookingMode"];
             /** @description Pictures beyond the cover, in the venue's order. */
             gallery: components["schemas"]["Yalla.Application.Media.PhotoView"][];
             /** @description The card, exactly as the list serves it. */
@@ -12734,6 +12795,8 @@ export interface components {
              *     it is an offer to the diner, like the turn time.
              */
             acceptsPreOrders: boolean;
+            /** @description How a diner books at a branch (2026-10-29). On the wire as the integer; never renumber. */
+            bookingMode: components["schemas"]["Yalla.Domain.Enums.BookingMode"];
             /**
              * Format: int32
              * @description How long before the start a diner may still cancel freely. On the page because a deadline
@@ -13559,6 +13622,12 @@ export interface components {
              */
             freeTableCount: number;
             /**
+             * Format: int32
+             * @description At a branch that books by time only: how many more guests fit at the busiest moment of this time's
+             *     sitting. Absent at a branch where diners choose a table, which answers in tables instead.
+             */
+            guestsLeft?: number | null;
+            /**
              * @description Whether at least one table can be booked for this party at this time: a bookable table pinned
              *     on a photo of its room that seats them, within the branch's seat-overhang limit, that the
              *     table's evening allows - free outright (Yalla.Application.Reservations.DaySlot.FreeTableCount), or once the guest before
@@ -13996,13 +14065,14 @@ export interface components {
             tableFreed: boolean;
             /**
              * Format: uuid
-             * @description The table this booking was for.
+             * @description The table this booking was for. Absent, with the label and status, for a booking made by time only that nobody
+             *     seated: there was no table to free.
              */
-            tableId: string;
+            tableId?: string | null;
             /** @description Its label, for the confirmation the waiter sees. */
-            tableLabel: string;
-            /** @description The <b>physical</b> state of a table: what somebody did to it. */
-            tableStatus: components["schemas"]["Yalla.Domain.Enums.TableStatus"];
+            tableLabel?: string | null;
+            /** @description What the table is now. */
+            tableStatus?: components["schemas"]["Yalla.Domain.Enums.TableStatus"] | null;
             /** @description True when the booking had already been released and this is that answer. */
             wasReplay: boolean;
         };
@@ -14021,6 +14091,11 @@ export interface components {
              *     have left by 19:40?" - and false otherwise, the floor's own questions included.
              */
             awaitsEarlierGuestAnswer: boolean;
+            /**
+             * @description Made at a branch that books by time only: the diner chose a time and how many, not a table. Such a
+             *     booking is moved by cancelling it and booking again, and takes no pre-order.
+             */
+            bookedWithoutTable: boolean;
             /** Format: uuid */
             branchId: string;
             branchName: string;
@@ -14165,9 +14240,14 @@ export interface components {
             startUtc: string;
             /** @description Lifecycle of a booking. Every member is the result of somebody doing something. */
             status: components["schemas"]["Yalla.Domain.Enums.ReservationStatus"];
-            /** Format: uuid */
-            tableId: string;
-            tableLabel: string;
+            /**
+             * Format: uuid
+             * @description The table. Absent, with Yalla.Application.Reservations.ReservationView.TableLabel, for a booking made by time only that nobody has
+             *     seated yet (Yalla.Application.Reservations.ReservationView.BookedWithoutTable): the venue chooses its table when the party arrives.
+             */
+            tableId?: string | null;
+            /** @description The table's label, as printed on the floor; absent with Yalla.Application.Reservations.ReservationView.TableId. */
+            tableLabel?: string | null;
             timeZoneId: string;
             /** @description True when this booking already existed and was returned rather than created. */
             wasReplay: boolean;
@@ -15854,6 +15934,14 @@ export interface components {
         "Yalla.Domain.Enums.BillScope": 1 | 2;
         /**
          * Format: int32
+         * @description How a diner books at a branch (2026-10-29). On the wire as the integer; never renumber.
+         *
+         *     Values: 1 ChooseTable, 2 TimeOnly.
+         * @enum {integer}
+         */
+        "Yalla.Domain.Enums.BookingMode": 1 | 2;
+        /**
+         * Format: int32
          * @description One feature the platform admin allows or blocks <b>per branch</b>. Replaced the Free/Paid
          *     `SubscriptionTier` on 2026-10-27.
          *
@@ -16098,10 +16186,10 @@ export interface components {
          * Format: int32
          * @description Why a table cannot be booked for a particular slot.
          *
-         *     Values: 1 LeadTimeTooShort, 2 OutsideBookingWindow, 3 OutsideOpeningHours, 4 PartyExceedsCapacity, 5 SeatOverhangExceeded, 6 TableNotBookable, 7 TableOutOfService, 8 TableAlreadyBooked, 9 LocalTimeDoesNotExist, 10 TableCurrentlyOccupied, 11 TableJustBooked, 12 NextBookingTooSoon, 13 EarlierGuestBeingAsked.
+         *     Values: 1 LeadTimeTooShort, 2 OutsideBookingWindow, 3 OutsideOpeningHours, 4 PartyExceedsCapacity, 5 SeatOverhangExceeded, 6 TableNotBookable, 7 TableOutOfService, 8 TableAlreadyBooked, 9 LocalTimeDoesNotExist, 10 TableCurrentlyOccupied, 11 TableJustBooked, 12 NextBookingTooSoon, 13 EarlierGuestBeingAsked, 16 TimeFull.
          * @enum {integer}
          */
-        "Yalla.Domain.Occupancy.ReservationRejectionReason": 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13;
+        "Yalla.Domain.Occupancy.ReservationRejectionReason": 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 16;
         /**
          * Format: int32
          * @description Why a takeaway order was declined.
@@ -21991,6 +22079,73 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Yalla.Application.Reservations.AwaitingApproval"][];
+                };
+            };
+            /** @description The request violated a domain rule or arrived malformed. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description No usable token was presented, or the one presented was rejected. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description Not a waiter or above at this branch - a cook, a diner, another branch's staff. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description Too many requests in the window, or a one-time credential is out of attempts. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description Unexpected failure. Quote the traceId from the body. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+        };
+    };
+    listBookingsWithoutTable: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                branchId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Yalla.Application.Reservations.ReservationView"][];
                 };
             };
             /** @description The request violated a domain rule or arrived malformed. */
@@ -30931,7 +31086,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
                 };
             };
-            /** @description `table-already-booked` / `table-currently-occupied`: Someone else took that table between the diner seeing it free and confirming. The body's `context` carries the clashing window and a fresh availability snapshot, so the app can redraw the floor and show what changed rather than only saying no. Never retried automatically: this answer will not change on a repeat. `reservation-overlaps-own`: the diner already has a booking then, here or too close to it at another venue - `context.reservationId`, `code`, `localDate`, `localStartTime`, `tableLabel`, `venueName`, `branchName` name it. `phone-has-active-booking`: three active bookings already. */
+            /** @description `table-already-booked` / `table-currently-occupied`: Someone else took that table between the diner seeing it free and confirming. The body's `context` carries the clashing window and a fresh availability snapshot, so the app can redraw the floor and show what changed rather than only saying no. Never retried automatically: this answer will not change on a repeat. `reservation-overlaps-own`: the diner already has a booking then, here or too close to it at another venue - `context.reservationId`, `code`, `localDate`, `localStartTime`, `tableLabel`, `venueName`, `branchName` name it. `phone-has-active-booking`: three active bookings already. `time-full`: at a branch that books by time only (`bookingMode` 2, no `tableId`), no room for that many then - `context.guestsLeft` says how many it could still take. */
             409: {
                 headers: {
                     [name: string]: unknown;

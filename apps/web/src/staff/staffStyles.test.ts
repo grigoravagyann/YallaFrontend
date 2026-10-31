@@ -21,6 +21,8 @@ const REDESIGNED = [
   'TableList.tsx',
   'tableCard.ts',
   'FloorRail.tsx',
+  'WithoutTablePanel.tsx',
+  'withoutTable.ts',
   'ApprovalPanel.tsx',
   'FloorRoute.tsx',
   'floor/FloorNotice.tsx',

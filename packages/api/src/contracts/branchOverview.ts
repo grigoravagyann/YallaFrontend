@@ -164,8 +164,8 @@ export interface OverviewBooking {
   readonly localStartTime: string;
   readonly partySize: number;
   readonly guestName: string;
-  readonly tableId: string;
-  readonly tableLabel: string;
+  readonly tableId: string | null;
+  readonly tableLabel: string | null;
   /** The table's physical status now; `null` for a value this build does not know. */
   readonly tableStatus: TableStatus | null;
   readonly roomName: string | null;
@@ -273,7 +273,13 @@ export interface ConsoleBookingActionCommand {
   readonly kind: ConsoleBookingActionKind;
   readonly branchId: string;
   readonly reservationId: string;
-  readonly tableId: string;
+  /**
+   * The booking's table — what a seat and a finish are addressed by. `null`
+   * for a booking made by time only that nobody has seated: such a booking is
+   * seated from the floor tablet, where the waiter chooses its table, so only
+   * the releases (no-show, cancel, undo) are sent without one.
+   */
+  readonly tableId: string | null;
   /** One per click, reused on a retry: a repeat is replayed, not applied twice. */
   readonly clientCommandId: string;
 }
@@ -289,7 +295,8 @@ export interface ConsoleBookingActionResult {
   readonly status: ReservationStatusCode;
   /** The command had already been applied; this is the first answer again. */
   readonly wasReplay: boolean;
-  readonly tableLabel: string;
+  /** None for an undone no-show on a booking made by time only that nobody has seated. */
+  readonly tableLabel: string | null;
   /**
    * Whether the table is free now. A no-show or a cancellation frees it only
    * when it was held for this booking; one somebody else sits at is left alone.

@@ -43,7 +43,7 @@ export interface ReservationState {
   readonly status: ReservationStatusCode;
   readonly branchId: string;
   readonly branchName: string;
-  readonly tableLabel: string;
+  readonly tableLabel: string | null;
   readonly partySize: number;
   readonly startUtc: string;
   readonly endUtc: string;

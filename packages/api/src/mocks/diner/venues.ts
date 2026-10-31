@@ -53,6 +53,8 @@ export function venuesMethods(
             bookingWindowDays: BOOKING_WINDOW_DAYS,
             minLeadMinutes: DEFAULT_POLICY.leadTimeMinutes,
             acceptsAppBookings: acceptsAppBookings(branch.id),
+            // The mock's branches all choose tables.
+            bookingMode: 'chooseTable' as const,
           }
         : null;
     },

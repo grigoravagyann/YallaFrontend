@@ -9,6 +9,7 @@ import { Screen } from '../Screen';
 import { Text } from '../Text';
 import { AuthHeader } from './AuthHeader';
 import { BookingSummary } from './BookingSummary';
+import { carriesBooking } from './useAuthFinish';
 
 export interface AuthScaffoldProps {
   readonly title: string;
@@ -43,7 +44,7 @@ export function AuthScaffold({
   footer,
 }: AuthScaffoldProps) {
   const { t } = useTranslation('diner');
-  const forBooking = Boolean(booking?.['tableId']);
+  const forBooking = carriesBooking(booking);
   return (
     <Screen edges={['top', 'left', 'right', 'bottom']}>
       <Stack.Screen options={{ headerShown: false }} />

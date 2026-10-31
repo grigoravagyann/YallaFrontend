@@ -1,6 +1,7 @@
 import { ConcurrencyConflictError, isNoShowUndoWindowClosed, newCommandId } from '@yalla/api';
 import { useUndoNoShow } from '@yalla/api/react';
 import { useTranslation } from '@yalla/i18n';
+import type { TFunction } from 'i18next';
 import { useRef } from 'react';
 import { ICONS, RailSection } from './FloorRail';
 import { useBranchFormat } from './useBranchFormat';
@@ -8,7 +9,17 @@ import { useBranchFormat } from './useBranchFormat';
 /** A no-show just marked, which the floor offers to take back. */
 export interface UndoableNoShow {
   readonly reservationId: string;
-  readonly tableLabel: string;
+  /** `null` for a booking made by time only that nobody seated: said by {@link guestName}. */
+  readonly tableLabel: string | null;
+  /** The guest, for a booking with no table to name. */
+  readonly guestName?: string | undefined;
+}
+
+/** "Undo the no-show at table 4" — or "Undo Narek's no-show" for one with no table. */
+function undoLabel(t: TFunction, noShow: UndoableNoShow): string {
+  return noShow.tableLabel === null
+    ? t('notice.undoNoShow.actionLabelGuest', { name: noShow.guestName ?? '' })
+    : t('notice.undoNoShow.actionLabel', { label: noShow.tableLabel });
 }
 
 /** A no-show this tablet marked, undoable until its window closes. */
@@ -46,7 +57,14 @@ function useUndoRun(branchId: string, timeZoneId: string, online: boolean) {
       {
         onSuccess: () => {
           sending.current = false;
-          onSettled({ kind: 'info', text: t('notice.undoNoShow.done', { label }), settled: true });
+          onSettled({
+            kind: 'info',
+            text:
+              label === null
+                ? t('notice.undoNoShow.doneGuest', { name: noShow.guestName ?? '' })
+                : t('notice.undoNoShow.done', { label }),
+            settled: true,
+          });
         },
         onError: (error) => {
           sending.current = false;
@@ -103,7 +121,6 @@ export function UndoNoShowNotice({
 }) {
   const { t } = useTranslation(['staff', 'common']);
   const undo = useUndoRun(branchId, timeZoneId, online);
-  const label = noShow.tableLabel;
 
   return (
     <div className={`floor-notice notice-info has-action${wide ? ' is-wide' : ''}`}>
@@ -113,7 +130,7 @@ export function UndoNoShowNotice({
         <button
           type="button"
           className="ft-btn ft-btn-secondary"
-          aria-label={t('notice.undoNoShow.actionLabel', { label })}
+          aria-label={undoLabel(t, noShow)}
           disabled={!online || undo.pending}
           onClick={() => undo.run(noShow, onSettled)}
         >
@@ -155,15 +172,20 @@ export function NoShowSection({
         {marked.map((noShow) => (
           <li key={noShow.reservationId} className="ft-noshow">
             <span>
-              {t('noShows.row', {
-                label: noShow.tableLabel,
-                time: format.time(noShow.undoableUntilUtc),
-              })}
+              {noShow.tableLabel === null
+                ? t('noShows.rowGuest', {
+                    name: noShow.guestName ?? '',
+                    time: format.time(noShow.undoableUntilUtc),
+                  })
+                : t('noShows.row', {
+                    label: noShow.tableLabel,
+                    time: format.time(noShow.undoableUntilUtc),
+                  })}
             </span>
             <button
               type="button"
               className="ft-btn ft-btn-secondary"
-              aria-label={t('notice.undoNoShow.actionLabel', { label: noShow.tableLabel })}
+              aria-label={undoLabel(t, noShow)}
               disabled={!online || undo.pending}
               onClick={() => undo.run(noShow, (outcome) => onSettled(noShow, outcome))}
             >

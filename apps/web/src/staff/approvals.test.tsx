@@ -744,7 +744,7 @@ function withRecords(
     ...base,
     listAwaitingApproval: async (branchId) =>
       (await base.listAwaitingApproval(branchId)).map((request) =>
-        request.tableLabel in records
+        request.tableLabel !== null && request.tableLabel in records
           ? { ...request, guestRecord: records[request.tableLabel] }
           : request,
       ),

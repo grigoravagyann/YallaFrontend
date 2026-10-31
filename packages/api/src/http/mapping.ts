@@ -112,10 +112,15 @@ export function unavailableReason(
      * guest before already being asked about it by somebody else. To a diner
      * all three say the same thing with the same next step: booked then —
      * another time, or another table.
+     *
+     * 16 TimeFull: at a branch that books by time only, the guests already
+     * booked then leave no room for the party. The same next step — another
+     * time — and the slot's `guestsLeft` says how many it could still take.
      */
     case 11:
     case 12:
     case 13:
+    case 16:
       return 'alreadyBooked';
     default:
       /*
@@ -362,6 +367,10 @@ export function daySlotsFromWire(wire: WireDaySlots): DaySlots {
           requestable,
           requestableTableCount: dayReason === null ? (slot.requestableTableCount ?? 0) : 0,
           mustFreeByUtc: available ? instantOrNull(slot.mustFreeByUtc) : null,
+          // Guests, not tables, at a branch that books by time only; a refused
+          // day has room for nobody, whatever a slot says.
+          guestsLeft:
+            dayReason === null && typeof slot.guestsLeft === 'number' ? slot.guestsLeft : null,
         };
       }),
   };

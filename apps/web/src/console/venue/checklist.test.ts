@@ -29,6 +29,10 @@ const READY: BranchReadiness = {
   staffCount: 4,
   deviceEnrolled: true,
   deviceCount: 1,
+  bookableTableCount: 10,
+  booksByTimeOnly: false,
+  takingGuests: true,
+  missingForGuests: [],
   acceptsWebBookings: false,
   blockers: [],
 };
@@ -66,6 +70,35 @@ describe('the checklist lines', () => {
       devices: '/venue/staff',
       acceptsWebBookings: '/venue/public',
     });
+  });
+
+  it('marks the four lines without which diners do not see the branch as required', () => {
+    const required = checklistSteps(READY)
+      .filter((entry) => entry.required)
+      .map((entry) => entry.id);
+    expect(required).toEqual(['floorPlan', 'hours', 'staff', 'devices']);
+  });
+
+  it('counts a table only when a diner can book it', () => {
+    // Tables exist, none bookable on a photo: the server's bookable count, not the table count.
+    expect(step('floorPlan', { bookableTableCount: 0 }).done).toBe(false);
+    expect(step('floorPlan').done).toBe(true);
+  });
+
+  it('counts booking by time only as the table line, with no table needed', () => {
+    // No table pinned on a photo, the rooms not ready: the branch still takes guests.
+    const line = checklistSteps(
+      { ...READY, bookableTableCount: 0, tableCount: 0, booksByTimeOnly: true },
+      false,
+    ).find((entry) => entry.id === 'floorPlan')!;
+    expect(line).toMatchObject({
+      done: true,
+      required: true,
+      labelKey: 'checklist.step.floorPlanTimeOnly',
+      // Set where the mode is chosen, not on the rooms.
+      to: '/venue/policy',
+    });
+    expect(line.detail).toBeUndefined();
   });
 
   it('reports the booking switch as optional', () => {

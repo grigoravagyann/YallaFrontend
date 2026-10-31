@@ -15,15 +15,17 @@ import type {
   ManagedBooking,
   PublicBranch,
   PublicPageMeta,
+  PublicTimeSlots,
   PublicVenue,
 } from '../contracts/publicBranch';
 import type { components } from '../generated/schema';
 import { rethrowBookingRefusal } from './bookingRefusal';
-import { localDateTime } from './mapping';
+import { localDateTime, type WireDaySlots } from './mapping';
 import {
   managedBookingFromWire,
   publicBranchFromWire,
   publicPageMetaFromWire,
+  publicTimeSlotsFromWire,
   publicVenueFromCards,
   type WirePublicBooking,
   type WirePublicBranch,
@@ -129,6 +131,24 @@ export function createPublicHttpGateway(client: ApiClient): PublicGateway {
         return publicBranchFromWire(data, client.baseUrl);
       } catch (error) {
         return readMiss('resolveBranch', error);
+      }
+    },
+
+    /*
+     * The public twin of the app's day of slots, behind the public gate and its
+     * tighter rate limit: at a branch that books by time only each time says
+     * how many more guests fit (`guestsLeft`), and `isAvailable` whether this
+     * party does (reason 16 `TimeFull` when not).
+     */
+    async getTimeOnlySlots({ branchId, date, partySize }): Promise<PublicTimeSlots | null> {
+      try {
+        const { data } = await client.get<WireDaySlots>(
+          `/api/public/branches/${encodeURIComponent(branchId)}/availability/slots`,
+          { ...anonymous, query: { date, partySize } },
+        );
+        return publicTimeSlotsFromWire(data);
+      } catch (error) {
+        return readMiss('getTimeOnlySlots', error);
       }
     },
 

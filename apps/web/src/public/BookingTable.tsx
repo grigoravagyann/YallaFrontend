@@ -154,3 +154,70 @@ export function TakenNotice({ label }: { readonly label: string }) {
     </p>
   );
 }
+
+/**
+ * The booking part of the card at a branch that books by time only
+ * (2026-10-29): no table to choose — the venue chooses it when the party
+ * arrives — so the time and the party are the booking. How many more guests
+ * the chosen time takes, when the server says, and Book.
+ */
+export function TimePart({
+  branch,
+  selection,
+  slotUtc,
+  today,
+  guestsLeft,
+  canBook,
+  panelOpen,
+  onBook,
+}: {
+  readonly branch: PublicBranch;
+  readonly selection: SlotSelection;
+  /** The chosen slot as an instant, for the free-cancellation line. */
+  readonly slotUtc: string;
+  readonly today: string;
+  /** How many more guests the chosen time takes; `null` while unknown. */
+  readonly guestsLeft: number | null;
+  /** The chosen time takes this party, as the server's day says. */
+  readonly canBook: boolean;
+  readonly panelOpen: boolean;
+  readonly onBook: () => void;
+}) {
+  const { t } = useTranslation('public');
+  const { locale } = useLocale();
+  const day = dayWords(selection.date, today, t);
+  const guests = t('booking.guests', { ns: 'diner', count: selection.partySize });
+  // The published deadline before the start: there is no table's answer to carry one.
+  const until = new Date(
+    Date.parse(slotUtc) - branch.policy.cancellationDeadlineMinutes * 60_000,
+  ).toISOString();
+
+  return (
+    <div className="pub-pick">
+      <div className="pub-pick-what">
+        <span className="pub-pick-badge is-on" aria-hidden="true">
+          {selection.partySize}
+        </span>
+        <div>
+          <b>{t('booking.time.what', { date: day.short, time: selection.time, guests })}</b>
+          <span>{t('booking.time.onArrival')}</span>
+        </div>
+      </div>
+      {canBook && guestsLeft !== null ? (
+        <p className="pub-muted">{t('booking.time.placesLeft', { count: guestsLeft })}</p>
+      ) : null}
+      <button
+        type="button"
+        className="pub-button pub-button-primary"
+        hidden={panelOpen}
+        disabled={!canBook}
+        onClick={onBook}
+      >
+        {t('booking.time.book', { time: selection.time })}
+      </button>
+      {canBook ? (
+        <p className="pub-muted">{freeCancellationWords(until, branch.timeZoneId, locale, t)}</p>
+      ) : null}
+    </div>
+  );
+}

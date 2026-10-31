@@ -463,6 +463,43 @@ describe("today's bookings", () => {
     expect(cancel.getAttribute('aria-disabled')).toBeNull();
   });
 
+  it('says a booking made by time only has no table yet, and leaves seating it to the floor tablet', async () => {
+    const base = mockGateway();
+    const upcoming = firstIn(await rowsOf(base), 'confirmed');
+    const act = vi.fn(base.actOnBooking);
+    const { user } = renderOverview({
+      ...base,
+      actOnBooking: act,
+      getBranchOverview: async (branchId) => {
+        const overview = await base.getBranchOverview(branchId);
+        return {
+          ...overview,
+          todayBookings: overview.todayBookings.map((row) =>
+            row.id === upcoming.id
+              ? { ...row, tableId: null, tableLabel: null, tableStatus: null }
+              : row,
+          ),
+        };
+      },
+    });
+    const card = await bookingsCard();
+    expect(within(rowOf(card, upcoming.guestName)).getByText('No table yet')).toBeTruthy();
+
+    const menu = await openMenu(user, card, upcoming.guestName);
+    const seat = within(menu).getByRole('menuitem', { name: /^Mark seated/u });
+    expect(seat.getAttribute('aria-disabled')).toBe('true');
+    expect(seat.textContent).toContain('seat them on the floor tablet');
+    await waitFor(() => expect(document.activeElement).toBe(seat));
+    await user.keyboard('{Enter}');
+    expect(act).not.toHaveBeenCalled();
+    // Cancelling needs no table.
+    expect(
+      within(screen.getByRole('menu'))
+        .getByRole('menuitem', { name: 'Cancel the booking' })
+        .getAttribute('aria-disabled'),
+    ).toBeNull();
+  });
+
   it('says the table is taken when the server refuses a seat as not possible for the table', async () => {
     const base = mockGateway();
     const { user } = renderOverview({
@@ -718,6 +755,10 @@ describe('worth a look and the setup card', () => {
     staffCount: 4,
     deviceEnrolled: true,
     deviceCount: 1,
+    bookableTableCount: 10,
+    booksByTimeOnly: false,
+    takingGuests: true,
+    missingForGuests: [],
     acceptsWebBookings: true,
     blockers: [],
   };
@@ -765,11 +806,14 @@ describe('worth a look and the setup card', () => {
       deviceEnrolled: false,
       deviceCount: 0,
       isReadyForDiners: false,
+      takingGuests: false,
+      missingForGuests: ['no-device'],
     });
     renderOverview(gateway);
 
+    // A required line is missing, so the card says diners do not see the branch.
     const setup = await screen.findByRole('region', {
-      name: 'What is still left to set up',
+      name: 'Guests do not see this branch yet',
     });
     expect(within(setup).getByText('7 of 8 done')).toBeTruthy();
     expect(within(setup).getByRole('progressbar').getAttribute('aria-valuenow')).toBe('7');
@@ -780,7 +824,7 @@ describe('worth a look and the setup card', () => {
     renderOverview(gateway);
     await bookingsCard();
     await waitFor(() => expect(readiness).toHaveBeenCalledTimes(2));
-    expect(screen.queryByRole('region', { name: /what is still needed/i })).toBeNull();
+    expect(screen.queryByRole('region', { name: /left to set up|do not see/i })).toBeNull();
   });
 });
 

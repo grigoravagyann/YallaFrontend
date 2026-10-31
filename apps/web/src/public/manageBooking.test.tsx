@@ -40,7 +40,7 @@ afterEach(() => {
  */
 async function bookedLink(
   harness: Harness,
-): Promise<{ url: string; code: string; tableLabel: string; roomName: string | null }> {
+): Promise<{ url: string; code: string; tableLabel: string | null; roomName: string | null }> {
   const branch = (await harness.publicGateway.resolveBranch({
     venueSlug: 'lumen-coffee',
     branchSlug: 'northern-avenue',

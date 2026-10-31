@@ -252,6 +252,8 @@ export function bookingsMethods(
         timeZoneId: found.branch.timeZoneId,
         tableId: table.id,
         tableLabel: table.label,
+        // The mock's branches all choose tables.
+        bookedWithoutTable: false,
         roomId: table.floorAreaId,
         roomName: table.floorAreaName,
         partySize: command.partySize,
@@ -639,6 +641,7 @@ export function bookingsMethods(
         ...decision,
         tableId: table.id,
         tableLabel: table.label,
+        bookedWithoutTable: false,
         roomId: table.floorAreaId,
         roomName: table.floorAreaName,
         partySize: command.partySize,

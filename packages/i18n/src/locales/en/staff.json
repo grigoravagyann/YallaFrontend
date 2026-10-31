@@ -284,12 +284,17 @@
       "tooLatePlain": "Too late to undo this no-show.",
       "notNoShow": "Nothing to undo: this booking is no longer a no-show.",
       "failed": "The no-show was not undone. Try again.",
-      "needsOnline": "Undoing needs a connection."
+      "needsOnline": "Undoing needs a connection.",
+      "actionLabelGuest": "Undo {{name}}'s no-show",
+      "doneGuest": "{{name}}: the no-show is undone. The booking stands again."
     },
     "bookingCancelledByBlock": "Table {{label}}: the {{time}} booking was cancelled — its guest is blocked for no-shows.",
     "bookingsCancelledByBlock_one": "{{count}} booking due soon was cancelled — its guest is blocked for no-shows (table {{labels}}).",
     "bookingsCancelledByBlock_other": "{{count}} bookings due soon were cancelled — their guests are blocked for no-shows (tables {{labels}}).",
-    "guestBlocked": "Third no-show in three days: the guest can't book until {{date}}, {{time}}."
+    "guestBlocked": "Third no-show in three days: the guest can't book until {{date}}, {{time}}.",
+    "releasedNoShowGuest": "{{name}}'s booking was released as a no-show.",
+    "releasedCancelledGuest": "{{name}}'s booking was released. It does not count against them.",
+    "releaseNotDueGuest": "{{name}} · not due until {{time}}. Nothing was released."
   },
   "unresolved": {
     "title": "Needs resolving",
@@ -390,7 +395,16 @@
     "askBefore": "Ask {{name}} whether the table will be free by {{time}}",
     "leavesBy": "leaves by {{time}}",
     "awaitingEarlierGuest": "The guest before is answering this in the app. It is decided when they do, or declined if they do not.",
-    "cancelledByBlock": "Cancelled automatically: the guest missed three bookings in three days."
+    "cancelledByBlock": "Cancelled automatically: the guest missed three bookings in three days.",
+    "noTable": "No table yet · you choose on arrival",
+    "approvedNoticeNoTable": "Approved: {{time}}, no table yet. The guest has been told.",
+    "approvedNoticeNoTableOn": "Approved: {{date}} at {{time}}, no table yet. The guest has been told.",
+    "declinedNoticeNoTable": "Declined: {{time}}, no table. The guest has been told.",
+    "declinedNoticeNoTableOn": "Declined: {{date}} at {{time}}, no table. The guest has been told.",
+    "arrivedNoTable_one": "New booking request at {{time}}, {{count}} guest, no table yet.",
+    "arrivedNoTable_other": "New booking request at {{time}}, {{count}} guests, no table yet.",
+    "arrivedOnNoTable_one": "New booking request on {{date}} at {{time}}, {{count}} guest, no table yet.",
+    "arrivedOnNoTable_other": "New booking request on {{date}} at {{time}}, {{count}} guests, no table yet."
   },
   "conflicts": {
     "title": "Needs a decision",
@@ -1004,7 +1018,8 @@
   },
   "noShows": {
     "title": "No-shows marked here",
-    "row": "Table {{label}} · can be undone until {{time}}"
+    "row": "Table {{label}} · can be undone until {{time}}",
+    "rowGuest": "{{name}} · can be undone until {{time}}"
   },
   "preOrders": {
     "error": {
@@ -1221,7 +1236,9 @@
       "ago_one": "{{count}} min ago",
       "ago_other": "{{count}} min ago",
       "more_one": "{{count}} more in Messages",
-      "more_other": "{{count}} more in Messages"
+      "more_other": "{{count}} more in Messages",
+      "titleBookingNoTable": "No table yet · {{name}} · {{time}}",
+      "titleBookingNoTablePlain": "No table yet · {{name}}"
     },
     "inbox": {
       "label": "Conversations",
@@ -1564,5 +1581,21 @@
     "stillOff": "Still off. Try again once your manager says it is back.",
     "tryAgain": "Try again",
     "forgetPhone": "Forget this phone here"
+  },
+  "withoutTable": {
+    "title": "Arriving · no table yet",
+    "noTable": "No table yet",
+    "wish": "Wish",
+    "wishQuote": "“{{text}}”",
+    "seat": "Seat",
+    "seatLabel_one": "Seat {{name}}, {{count}} guest",
+    "seatLabel_other": "Seat {{name}}, {{count}} guests",
+    "chooseTitle_one": "Choose a table for {{count}}",
+    "chooseTitle_other": "Choose a table for {{count}}",
+    "smaller": "Smaller tables",
+    "bookedAt": "booked at {{time}}",
+    "noneFree": "No table is free right now.",
+    "cancel": "Not now",
+    "releaseLabel": "Release {{name}}'s booking"
   }
 }

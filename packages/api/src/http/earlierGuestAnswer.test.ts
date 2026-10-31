@@ -27,6 +27,7 @@ const VIEW: ReservationView = {
   branchName: 'Northern Avenue',
   tableId: 'tbl-7',
   tableLabel: '7',
+  bookedWithoutTable: false,
   partySize: 2,
   startUtc: '2026-10-20T15:45:00Z',
   onMyWayOpensAtUtc: '2026-10-20T13:45:00Z',

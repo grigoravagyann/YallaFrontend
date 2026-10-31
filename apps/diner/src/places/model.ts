@@ -1,4 +1,9 @@
-import type { BranchFeature, PublicTakeawayInfo, TableUnavailableReason } from '@yalla/api';
+import type {
+  BookingMode,
+  BranchFeature,
+  PublicTakeawayInfo,
+  TableUnavailableReason,
+} from '@yalla/api';
 import { branchDayKey, instantFromZonedClock, intlTag, type Locale } from '@yalla/format';
 
 /**
@@ -235,6 +240,13 @@ export interface Place {
    * does not carry it; known once the place's own page has been read.
    */
   readonly acceptsAppBookings: boolean | null;
+  /**
+   * How a diner books here (2026-10-29): a table on the room photos, or a time
+   * and how many alone — the venue then chooses the table on arrival, and the
+   * booking screen shows no rooms. Absent on a list card, which does not carry
+   * it; the booking rules say it too (`isBookedByTime`).
+   */
+  readonly bookingMode?: BookingMode;
   /**
    * Whether the place takes takeaway orders from the app, and how long they
    * take (2026-10-22): the "Order to take away" button and its info card.

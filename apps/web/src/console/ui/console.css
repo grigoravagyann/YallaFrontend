@@ -4509,6 +4509,20 @@ body:has(.yc-savebar) .yc-toast-region {
   background: var(--console-green);
 }
 
+/* Required, then recommended: the first decides whether diners see the branch. */
+.yc-setup-group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+}
+
+.yc-setup-g {
+  margin: 0;
+  font-size: var(--console-text-body);
+  font-weight: var(--font-weight-semibold);
+  color: var(--console-muted);
+}
+
 .yc-sgrid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -6594,6 +6608,11 @@ body:has(.yc-savebar) .yc-toast-region {
 
 .yc-pf.is-changed {
   background: var(--console-surface-muted);
+}
+
+/* How guests book: the two cards across the field's whole width. */
+.yc-pf.yc-pol-mode {
+  grid-template-columns: minmax(0, 1fr);
 }
 
 .yc-pf-t {

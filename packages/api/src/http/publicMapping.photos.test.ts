@@ -33,6 +33,7 @@ const PAGE: Page = {
     minLeadMinutes: 30,
     cancellationDeadlineMinutes: 120,
     acceptsPreOrders: false,
+    bookingMode: 1,
   },
   asOfUtc: '2026-09-13T00:00:00Z',
   venueBranchCount: 1,

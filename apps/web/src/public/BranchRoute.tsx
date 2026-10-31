@@ -1,4 +1,4 @@
-import type { PublicBranch, TableAvailability } from '@yalla/api';
+import { booksByTimeOnly, type PublicBranch, type TableAvailability } from '@yalla/api';
 import { usePublicBranch, usePublicGateway, usePublicMenu, useSlotFloor } from '@yalla/api/react';
 import { useLocale, useTranslation } from '@yalla/i18n';
 import {
@@ -56,7 +56,9 @@ import { useSettled } from './useSettled';
  *    with **how many tables are free**, the one fact on this page no other
  *    website can tell them; then call, the address and share;
  * 3. the booking column (beside everything from 960px);
- * 4. the room;
+ * 4. the room — not at a branch that books by time only (2026-10-29), where a
+ *    visitor picks a time and how many and the venue chooses the table on
+ *    arrival: no room, no table, and the card books the time itself;
  * 5. the menu, about, and reviews with the venue's replies;
  * 6. the week's hours and how to find the place.
  *
@@ -140,6 +142,8 @@ function BranchPage({
     defaultSelection(branch.timeZoneId, new Date(), slotRules),
   );
   const { t } = useTranslation('public');
+  /** Booking by time only: no room to read and no table to choose. */
+  const timeOnly = booksByTimeOnly(branch.policy);
   /**
    * The table chosen in the room — tapped, or chosen for the visitor. Kept
    * when the day, time or party changes, for as long as the room's answer for
@@ -157,7 +161,10 @@ function BranchPage({
    * phone and the attempt's command id.
    */
   const [panel, setPanel] = useState<{
-    readonly availability: TableAvailability;
+    /** `null` when booking by time only: there is no table. */
+    readonly availability: TableAvailability | null;
+    /** By time only: the chosen time waits for the venue's answer. */
+    readonly requiresApproval?: boolean;
     readonly inAside: boolean;
   } | null>(null);
   /**
@@ -261,7 +268,8 @@ function BranchPage({
    * the previous slot's answer stays on screen while the next one loads.
    */
   const floorQuery = useSlotFloor({
-    branchId: timeSettled ? branch.id : undefined,
+    // Never by time only: there is no room to draw, and no table to choose.
+    branchId: timeSettled && !timeOnly ? branch.id : undefined,
     // Settled as the room settles it, so the two read one key (review S5).
     slotUtc: useSettled(slotUtc, undefined, !timeSettled),
     partySize: selection.partySize,
@@ -323,8 +331,8 @@ function BranchPage({
       },
     );
   }, [panel, current, branch.rooms, selection.partySize]);
-  const panelTable = panel
-    ? floor?.plan.tables.find((table) => table.id === panel.availability.tableId)
+  const panelTable = panel?.availability
+    ? floor?.plan.tables.find((table) => table.id === panel.availability?.tableId)
     : undefined;
   const panelRoom = (panelTable && roomOf(panelTable, branch.rooms)?.name) ?? null;
 
@@ -387,6 +395,19 @@ function BranchPage({
     opener.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     setTaken(null);
     setPanel((open) => open ?? { availability, inAside: isBookingColumnSticky() });
+  };
+
+  /** By time only: the panel for the chosen time, with no table. */
+  const openTimePanel = (slot: { readonly requiresApproval: boolean }) => {
+    opener.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    setPanel(
+      (open) =>
+        open ?? {
+          availability: null,
+          requiresApproval: slot.requiresApproval,
+          inAside: isBookingColumnSticky(),
+        },
+    );
   };
 
   const closePanel = () => {
@@ -472,6 +493,7 @@ function BranchPage({
         <BookingSheet
           branch={branch}
           availability={panel.availability}
+          requiresApproval={panel.requiresApproval}
           roomName={panelRoom}
           slotUtc={slotUtc}
           partySize={selection.partySize}
@@ -481,7 +503,7 @@ function BranchPage({
             // The sheet stays on its taken step. Closed, the page says it where
             // the sheet was, and that takes the focus — not the Book button,
             // which is no longer the next thing to press.
-            setTaken({ label, tableId: panel.availability.tableId, inAside: panel.inAside });
+            setTaken({ label, tableId: panel.availability?.tableId ?? '', inAside: panel.inAside });
             setPicked(null);
             setTableNote(null);
             opener.current = null;
@@ -561,8 +583,9 @@ function BranchPage({
           headingId={bookingHeadingId}
           floor={floor}
           table={chosenTable}
-          onBook={openPanel}
-          onPickForMe={pickForMe}
+          onBook={timeOnly ? undefined : openPanel}
+          onBookTime={timeOnly ? openTimePanel : undefined}
+          onPickForMe={timeOnly ? undefined : pickForMe}
           roomReady={current !== undefined}
           tableNote={tableNote}
           takenTableLabel={!panel && taken?.inAside ? taken.label : null}
@@ -575,35 +598,37 @@ function BranchPage({
       </section>
 
       <div className="pub-col pub-col-rest">
-        <RoomSection
-          branch={branch}
-          selection={selection}
-          slotUtc={slotUtc}
-          readRoom={timeSettled}
-          selectedTableId={picked?.id ?? null}
-          onTableTap={(availability) => {
-            // The table just lost, still drawn free until the room answers
-            // again: not a new attempt, and not the visitor's (review N5).
-            if (panel && taken?.tableId === availability.tableId) return;
-            choose(availability.tableId, availability.tableLabel);
-            // An open panel follows the table tapped — a new attempt (see
-            // `BookingSheet`) — and stays in the column it opened in.
-            setPanel((open) => (open ? { ...open, availability } : open));
-          }}
-          takenTableLabel={!panel && taken && !taken.inAside ? taken.label : null}
-          onRoomShown={setRoomShown}
-          footer={
-            chosenTable ? (
-              <PhoneBookingBar
-                table={chosenTable}
-                selection={selection}
-                today={branchToday(branch.timeZoneId)}
-                hidden={panel !== null}
-                onBook={openPanel}
-              />
-            ) : null
-          }
-        />
+        {timeOnly ? null : (
+          <RoomSection
+            branch={branch}
+            selection={selection}
+            slotUtc={slotUtc}
+            readRoom={timeSettled}
+            selectedTableId={picked?.id ?? null}
+            onTableTap={(availability) => {
+              // The table just lost, still drawn free until the room answers
+              // again: not a new attempt, and not the visitor's (review N5).
+              if (panel && taken?.tableId === availability.tableId) return;
+              choose(availability.tableId, availability.tableLabel);
+              // An open panel follows the table tapped — a new attempt (see
+              // `BookingSheet`) — and stays in the column it opened in.
+              setPanel((open) => (open ? { ...open, availability } : open));
+            }}
+            takenTableLabel={!panel && taken && !taken.inAside ? taken.label : null}
+            onRoomShown={setRoomShown}
+            footer={
+              chosenTable ? (
+                <PhoneBookingBar
+                  table={chosenTable}
+                  selection={selection}
+                  today={branchToday(branch.timeZoneId)}
+                  hidden={panel !== null}
+                  onBook={openPanel}
+                />
+              ) : null
+            }
+          />
+        )}
         {panel && !panel.inAside ? sheet : null}
 
         <MenuSection menu={menuQuery.data} />

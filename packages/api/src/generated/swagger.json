@@ -12796,7 +12796,7 @@
             }
           },
           "409": {
-            "description": "`table-already-booked` / `table-currently-occupied`: Someone else took that table between the diner seeing it free and confirming. The body's `context` carries the clashing window and a fresh availability snapshot, so the app can redraw the floor and show what changed rather than only saying no. Never retried automatically: this answer will not change on a repeat. `reservation-overlaps-own`: the diner already has a booking then, here or too close to it at another venue - `context.reservationId`, `code`, `localDate`, `localStartTime`, `tableLabel`, `venueName`, `branchName` name it. `phone-has-active-booking`: three active bookings already.",
+            "description": "`table-already-booked` / `table-currently-occupied`: Someone else took that table between the diner seeing it free and confirming. The body's `context` carries the clashing window and a fresh availability snapshot, so the app can redraw the floor and show what changed rather than only saying no. Never retried automatically: this answer will not change on a repeat. `reservation-overlaps-own`: the diner already has a booking then, here or too close to it at another venue - `context.reservationId`, `code`, `localDate`, `localStartTime`, `tableLabel`, `venueName`, `branchName` name it. `phone-has-active-booking`: three active bookings already. `time-full`: at a branch that books by time only (`bookingMode` 2, no `tableId`), no room for that many then - `context.guestsLeft` says how many it could still take.",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -25952,6 +25952,92 @@
         }
       }
     },
+    "/api/branches/{branchId}/reservations/without-table": {
+      "get": {
+        "tags": [
+          "staff"
+        ],
+        "summary": "The bookings made by time only that nobody has seated yet",
+        "description": "What the staff tablet polls at a branch that books by time only (`bookingMode` 2): its confirmed bookings with no table yet that have not ended, soonest first, each with the guest's wish in `note`. At most 200; no paging. Seat one with `POST /tables/{tableId}/seat-reservation` on the table the waiter chooses - the booking has that table from then on. Waiter or above at the branch.",
+        "operationId": "listBookingsWithoutTable",
+        "parameters": [
+          {
+            "name": "branchId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Yalla.Application.Reservations.ReservationView"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request violated a domain rule or arrived malformed.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No usable token was presented, or the one presented was rejected.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a waiter or above at this branch - a cook, a diner, another branch's staff.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests in the window, or a one-time credential is out of attempts.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected failure. Quote the traceId from the body.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/reservations/{reservationId}/pre-order/send": {
       "post": {
         "tags": [
@@ -28009,15 +28095,15 @@
           "guestName",
           "guestPhone",
           "partySize",
-          "tableId",
           "time"
         ],
         "type": "object",
         "properties": {
           "tableId": {
             "type": "string",
-            "description": "The table the diner picked off the room photos.",
-            "format": "uuid"
+            "description": "The table the diner picked off the room photos; left out at a branch that books by time only - exactly as on\nYalla.Api.Endpoints.CreateReservationRequest.",
+            "format": "uuid",
+            "nullable": true
           },
           "date": {
             "type": "string",
@@ -28080,7 +28166,6 @@
           "guestName",
           "guestPhone",
           "partySize",
-          "tableId",
           "time"
         ],
         "type": "object",
@@ -28092,8 +28177,9 @@
           },
           "tableId": {
             "type": "string",
-            "description": "The table the diner picked off the floor plan.",
-            "format": "uuid"
+            "description": "The table the diner picked off the room photos. Required at a branch where diners choose a table, refused as\n`validation-failed` naming `tableId` without one; left out at a branch that books by time only\n(`bookingMode` 2), where the venue chooses the table when the party arrives and naming one is refused the\nsame way.",
+            "format": "uuid",
+            "nullable": true
           },
           "date": {
             "type": "string",
@@ -34138,6 +34224,8 @@
         "required": [
           "acceptsWebBookings",
           "blockers",
+          "bookableTableCount",
+          "booksByTimeOnly",
           "branchId",
           "deviceCount",
           "deviceEnrolled",
@@ -34150,13 +34238,15 @@
           "menuCategoryCount",
           "menuComplete",
           "menuItemCount",
+          "missingForGuests",
           "openingHoursDayCount",
           "openingHoursSet",
           "reservationPolicyReviewed",
           "staffCount",
           "staffEnrolled",
           "tableCount",
-          "tablesLabelled"
+          "tablesLabelled",
+          "takingGuests"
         ],
         "type": "object",
         "properties": {
@@ -34167,7 +34257,7 @@
           },
           "isReadyForDiners": {
             "type": "boolean",
-            "description": "Every line below satisfied. This is exactly what going Paid requires on the menu side, plus the\nrest of the checklist - the tier switch itself only enforces the menu, because a venue may want\nits tabs enabled before it has finished enrolling tablets."
+            "description": "Every line of the checklist satisfied. Advice: it hides nothing. Whether diners see the branch is\nTakingGuests, the required lines only; table service separately waits for the\nmenu's dishes to be finished."
           },
           "floorPlanDrawn": {
             "type": "boolean",
@@ -34243,6 +34333,26 @@
             "type": "integer",
             "description": "How many.",
             "format": "int32"
+          },
+          "bookableTableCount": {
+            "type": "integer",
+            "description": "Active tables a diner can book: bookable and pinned on a room photo, which is what the booking\nrules offer.",
+            "format": "int32"
+          },
+          "booksByTimeOnly": {
+            "type": "boolean",
+            "description": "The branch books by time only, with how many guests it takes at once set: its table line is satisfied without a\ntable a diner can book, because diners pick only a time."
+          },
+          "takingGuests": {
+            "type": "boolean",
+            "description": "Every <b>required</b> line satisfied - a bookable table, opening hours, staff and a device - so\ndiners see the branch. Without it the branch is not listed, searched, shown or bookable\n(`DinerVisibility`). IsReadyForDiners is the whole checklist and blocks\nnothing on its own."
+          },
+          "missingForGuests": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "The required lines still missing, as Yalla.Application.BranchSettings.ReadinessIssueCodes, in checklist order:\n`no-tables` or `no-bookable-table`, `no-hours`, `no-staff`, `no-device`.\nEmpty exactly when TakingGuests."
           },
           "acceptsWebBookings": {
             "type": "boolean",
@@ -34929,6 +35039,19 @@
           "autoConfirmGuestsWithGoodRecord": {
             "type": "boolean",
             "nullable": true
+          },
+          "bookingMode": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Yalla.Domain.Enums.BookingMode"
+              }
+            ],
+            "nullable": true
+          },
+          "guestsAtOnce": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
           }
         },
         "additionalProperties": false,
@@ -34964,6 +35087,7 @@
         "required": [
           "autoConfirm",
           "autoConfirmGuestsWithGoodRecord",
+          "bookingMode",
           "bookingWindowDays",
           "bufferMinutes",
           "cancellationDeadlineMinutes",
@@ -35040,6 +35164,19 @@
           },
           "autoConfirmGuestsWithGoodRecord": {
             "type": "boolean"
+          },
+          "bookingMode": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Yalla.Domain.Enums.BookingMode"
+              }
+            ],
+            "description": "How a diner books at a branch (2026-10-29). On the wire as the integer; never renumber."
+          },
+          "guestsAtOnce": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
           }
         },
         "additionalProperties": false,
@@ -38842,10 +38979,7 @@
           "localStartTime",
           "partySize",
           "startUtc",
-          "status",
-          "tableId",
-          "tableLabel",
-          "tableStatus"
+          "status"
         ],
         "type": "object",
         "properties": {
@@ -38897,12 +39031,14 @@
           },
           "tableId": {
             "type": "string",
-            "description": "The table - what `seat-reservation` and `free` are addressed by.",
-            "format": "uuid"
+            "description": "The table - what `seat-reservation` and `free` are addressed by. Absent, with the label and\nstatus, for a booking made by time only that nobody has seated yet: staff choose its table then.",
+            "format": "uuid",
+            "nullable": true
           },
           "tableLabel": {
             "type": "string",
-            "description": "The table's label."
+            "description": "The table's label.",
+            "nullable": true
           },
           "tableStatus": {
             "allOf": [
@@ -38910,7 +39046,8 @@
                 "$ref": "#/components/schemas/Yalla.Domain.Enums.TableStatus"
               }
             ],
-            "description": "The <b>physical</b> state of a table: what somebody did to it."
+            "description": "The table's state now.",
+            "nullable": true
           },
           "roomName": {
             "type": "string",
@@ -40487,8 +40624,6 @@
           "phoneUnverified",
           "reservationId",
           "status",
-          "tableId",
-          "tableLabel",
           "timeZoneId",
           "venueName",
           "venueSlug"
@@ -40521,7 +40656,8 @@
           },
           "tableLabel": {
             "type": "string",
-            "description": "The table, as printed on the floor."
+            "description": "The table, as printed on the floor. Absent, with TableId, for a booking made by time only\nthat nobody has seated: the venue chooses its table when the party arrives.",
+            "nullable": true
           },
           "localDate": {
             "type": "string",
@@ -40558,7 +40694,8 @@
           "tableId": {
             "type": "string",
             "description": "The booked table's id - so the change screen can start from the table the booking holds, and send it\nback as `diningTableId` when only the time or the party changes. Table ids are no secret: the\nbranch's public availability and room photos publish them for every pinned table. The booked one is\nnamed even if it has since been unpinned or taken out, which those reads do not list; a move to it is\nthen refused as for any table that cannot be booked.",
-            "format": "uuid"
+            "format": "uuid",
+            "nullable": true
           },
           "cancellationDeadlineUtc": {
             "type": "string",
@@ -40718,6 +40855,7 @@
           "acceptsWebBookings",
           "amenities",
           "asOfUtc",
+          "bookingMode",
           "gallery",
           "listing",
           "openingHours",
@@ -40828,6 +40966,14 @@
             "type": "string",
             "description": "When the live half was read.",
             "format": "date-time"
+          },
+          "bookingMode": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Yalla.Domain.Enums.BookingMode"
+              }
+            ],
+            "description": "How a diner books at a branch (2026-10-29). On the wire as the integer; never renumber."
           }
         },
         "additionalProperties": false,
@@ -41286,6 +41432,7 @@
       "Yalla.Application.Public.PublicReservationPolicy": {
         "required": [
           "acceptsPreOrders",
+          "bookingMode",
           "cancellationDeadlineMinutes",
           "minLeadMinutes",
           "turnTimeMinutes"
@@ -41310,6 +41457,14 @@
           "acceptsPreOrders": {
             "type": "boolean",
             "description": "Whether a booking here can carry a pre-order - dishes chosen ahead, editable until two hours before. Published:\nit is an offer to the diner, like the turn time."
+          },
+          "bookingMode": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Yalla.Domain.Enums.BookingMode"
+              }
+            ],
+            "description": "How a diner books at a branch (2026-10-29). On the wire as the integer; never renumber."
           }
         },
         "additionalProperties": false,
@@ -42951,6 +43106,12 @@
             "description": "How many tables the single-slot read offers at this time with nobody to ask first. Zero when\nstruck, and when the only tables are requestable ones.",
             "format": "int32"
           },
+          "guestsLeft": {
+            "type": "integer",
+            "description": "At a branch that books by time only: how many more guests fit at the busiest moment of this time's\nsitting. Absent at a branch where diners choose a table, which answers in tables instead.",
+            "format": "int32",
+            "nullable": true
+          },
           "unavailableReason": {
             "allOf": [
               {
@@ -43586,9 +43747,6 @@
           "outcome",
           "reservation",
           "tableFreed",
-          "tableId",
-          "tableLabel",
-          "tableStatus",
           "wasReplay"
         ],
         "type": "object",
@@ -43615,12 +43773,14 @@
           },
           "tableId": {
             "type": "string",
-            "description": "The table this booking was for.",
-            "format": "uuid"
+            "description": "The table this booking was for. Absent, with the label and status, for a booking made by time only that nobody\nseated: there was no table to free.",
+            "format": "uuid",
+            "nullable": true
           },
           "tableLabel": {
             "type": "string",
-            "description": "Its label, for the confirmation the waiter sees."
+            "description": "Its label, for the confirmation the waiter sees.",
+            "nullable": true
           },
           "tableStatus": {
             "allOf": [
@@ -43628,7 +43788,8 @@
                 "$ref": "#/components/schemas/Yalla.Domain.Enums.TableStatus"
               }
             ],
-            "description": "The <b>physical</b> state of a table: what somebody did to it."
+            "description": "What the table is now.",
+            "nullable": true
           },
           "countsTowardNoShowThreshold": {
             "type": "boolean",
@@ -43651,6 +43812,7 @@
       "Yalla.Application.Reservations.ReservationView": {
         "required": [
           "awaitsEarlierGuestAnswer",
+          "bookedWithoutTable",
           "branchId",
           "branchName",
           "cancellationDeadlineUtc",
@@ -43669,8 +43831,6 @@
           "phoneUnverified",
           "startUtc",
           "status",
-          "tableId",
-          "tableLabel",
           "timeZoneId",
           "wasReplay"
         ],
@@ -43696,10 +43856,18 @@
           },
           "tableId": {
             "type": "string",
-            "format": "uuid"
+            "description": "The table. Absent, with Yalla.Application.Reservations.ReservationView.TableLabel, for a booking made by time only that nobody has\nseated yet (Yalla.Application.Reservations.ReservationView.BookedWithoutTable): the venue chooses its table when the party arrives.",
+            "format": "uuid",
+            "nullable": true
           },
           "tableLabel": {
-            "type": "string"
+            "type": "string",
+            "description": "The table's label, as printed on the floor; absent with Yalla.Application.Reservations.ReservationView.TableId.",
+            "nullable": true
+          },
+          "bookedWithoutTable": {
+            "type": "boolean",
+            "description": "Made at a branch that books by time only: the diner chose a time and how many, not a table. Such a\nbooking is moved by cancelling it and booking again, and takes no pre-order."
           },
           "roomId": {
             "type": "string",
@@ -46924,6 +47092,19 @@
           "MyShare"
         ]
       },
+      "Yalla.Domain.Enums.BookingMode": {
+        "enum": [
+          1,
+          2
+        ],
+        "type": "integer",
+        "description": "How a diner books at a branch (2026-10-29). On the wire as the integer; never renumber.\n\nValues: 1 ChooseTable, 2 TimeOnly.",
+        "format": "int32",
+        "x-enum-varnames": [
+          "ChooseTable",
+          "TimeOnly"
+        ]
+      },
       "Yalla.Domain.Enums.BranchFeature": {
         "enum": [
           1,
@@ -47485,10 +47666,11 @@
           10,
           11,
           12,
-          13
+          13,
+          16
         ],
         "type": "integer",
-        "description": "Why a table cannot be booked for a particular slot.\n\nValues: 1 LeadTimeTooShort, 2 OutsideBookingWindow, 3 OutsideOpeningHours, 4 PartyExceedsCapacity, 5 SeatOverhangExceeded, 6 TableNotBookable, 7 TableOutOfService, 8 TableAlreadyBooked, 9 LocalTimeDoesNotExist, 10 TableCurrentlyOccupied, 11 TableJustBooked, 12 NextBookingTooSoon, 13 EarlierGuestBeingAsked.",
+        "description": "Why a table cannot be booked for a particular slot.\n\nValues: 1 LeadTimeTooShort, 2 OutsideBookingWindow, 3 OutsideOpeningHours, 4 PartyExceedsCapacity, 5 SeatOverhangExceeded, 6 TableNotBookable, 7 TableOutOfService, 8 TableAlreadyBooked, 9 LocalTimeDoesNotExist, 10 TableCurrentlyOccupied, 11 TableJustBooked, 12 NextBookingTooSoon, 13 EarlierGuestBeingAsked, 16 TimeFull.",
         "format": "int32",
         "x-enum-varnames": [
           "LeadTimeTooShort",
@@ -47503,7 +47685,8 @@
           "TableCurrentlyOccupied",
           "TableJustBooked",
           "NextBookingTooSoon",
-          "EarlierGuestBeingAsked"
+          "EarlierGuestBeingAsked",
+          "TimeFull"
         ]
       },
       "Yalla.Domain.Takeaway.TakeawayDeclineCause": {
@@ -49380,7 +49563,8 @@
               10,
               11,
               12,
-              13
+              13,
+              16
             ],
             "x-enum-varnames": [
               "LeadTimeTooShort",
@@ -49395,7 +49579,8 @@
               "TableCurrentlyOccupied",
               "TableJustBooked",
               "NextBookingTooSoon",
-              "EarlierGuestBeingAsked"
+              "EarlierGuestBeingAsked",
+              "TimeFull"
             ],
             "x-enum-name": "ReservationRejectionReason"
           },
@@ -49445,7 +49630,8 @@
               10,
               11,
               12,
-              13
+              13,
+              16
             ],
             "x-enum-varnames": [
               "LeadTimeTooShort",
@@ -49460,7 +49646,8 @@
               "TableCurrentlyOccupied",
               "TableJustBooked",
               "NextBookingTooSoon",
-              "EarlierGuestBeingAsked"
+              "EarlierGuestBeingAsked",
+              "TimeFull"
             ],
             "x-enum-name": "ReservationRejectionReason"
           },
@@ -49612,7 +49799,8 @@
               10,
               11,
               12,
-              13
+              13,
+              16
             ],
             "x-enum-varnames": [
               "LeadTimeTooShort",
@@ -49627,7 +49815,8 @@
               "TableCurrentlyOccupied",
               "TableJustBooked",
               "NextBookingTooSoon",
-              "EarlierGuestBeingAsked"
+              "EarlierGuestBeingAsked",
+              "TimeFull"
             ],
             "x-enum-name": "ReservationRejectionReason"
           },
@@ -49677,7 +49866,8 @@
               10,
               11,
               12,
-              13
+              13,
+              16
             ],
             "x-enum-varnames": [
               "LeadTimeTooShort",
@@ -49692,7 +49882,8 @@
               "TableCurrentlyOccupied",
               "TableJustBooked",
               "NextBookingTooSoon",
-              "EarlierGuestBeingAsked"
+              "EarlierGuestBeingAsked",
+              "TimeFull"
             ],
             "x-enum-name": "ReservationRejectionReason"
           },
@@ -49787,7 +49978,8 @@
               10,
               11,
               12,
-              13
+              13,
+              16
             ],
             "x-enum-varnames": [
               "LeadTimeTooShort",
@@ -49802,7 +49994,8 @@
               "TableCurrentlyOccupied",
               "TableJustBooked",
               "NextBookingTooSoon",
-              "EarlierGuestBeingAsked"
+              "EarlierGuestBeingAsked",
+              "TimeFull"
             ],
             "x-enum-name": "ReservationRejectionReason"
           },
@@ -49856,7 +50049,8 @@
               10,
               11,
               12,
-              13
+              13,
+              16
             ],
             "x-enum-varnames": [
               "LeadTimeTooShort",
@@ -49871,7 +50065,8 @@
               "TableCurrentlyOccupied",
               "TableJustBooked",
               "NextBookingTooSoon",
-              "EarlierGuestBeingAsked"
+              "EarlierGuestBeingAsked",
+              "TimeFull"
             ],
             "x-enum-name": "ReservationRejectionReason"
           },
@@ -49935,7 +50130,8 @@
               10,
               11,
               12,
-              13
+              13,
+              16
             ],
             "x-enum-varnames": [
               "LeadTimeTooShort",
@@ -49950,7 +50146,8 @@
               "TableCurrentlyOccupied",
               "TableJustBooked",
               "NextBookingTooSoon",
-              "EarlierGuestBeingAsked"
+              "EarlierGuestBeingAsked",
+              "TimeFull"
             ],
             "x-enum-name": "ReservationRejectionReason"
           },
@@ -49994,7 +50191,8 @@
               10,
               11,
               12,
-              13
+              13,
+              16
             ],
             "x-enum-varnames": [
               "LeadTimeTooShort",
@@ -50009,7 +50207,8 @@
               "TableCurrentlyOccupied",
               "TableJustBooked",
               "NextBookingTooSoon",
-              "EarlierGuestBeingAsked"
+              "EarlierGuestBeingAsked",
+              "TimeFull"
             ],
             "x-enum-name": "ReservationRejectionReason"
           },
@@ -50289,7 +50488,8 @@
               10,
               11,
               12,
-              13
+              13,
+              16
             ],
             "x-enum-varnames": [
               "LeadTimeTooShort",
@@ -50304,7 +50504,8 @@
               "TableCurrentlyOccupied",
               "TableJustBooked",
               "NextBookingTooSoon",
-              "EarlierGuestBeingAsked"
+              "EarlierGuestBeingAsked",
+              "TimeFull"
             ],
             "x-enum-name": "ReservationRejectionReason"
           },
@@ -50376,7 +50577,8 @@
               10,
               11,
               12,
-              13
+              13,
+              16
             ],
             "x-enum-varnames": [
               "LeadTimeTooShort",
@@ -50391,7 +50593,8 @@
               "TableCurrentlyOccupied",
               "TableJustBooked",
               "NextBookingTooSoon",
-              "EarlierGuestBeingAsked"
+              "EarlierGuestBeingAsked",
+              "TimeFull"
             ],
             "x-enum-name": "ReservationRejectionReason"
           },
@@ -50926,6 +51129,35 @@
       "status": 410,
       "title": "Telegram verification no longer available",
       "description": "A Telegram verification challenge that can no longer be claimed; start again."
+    },
+    "time-full": {
+      "name": "TimeFull",
+      "status": 409,
+      "title": "Time full",
+      "description": "There is no room for that many guests at that time.",
+      "context": {
+        "type": "object",
+        "properties": {
+          "branchId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "partySize": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "guestsLeft": {
+            "type": "integer",
+            "format": "int32"
+          }
+        },
+        "required": [
+          "branchId",
+          "partySize",
+          "guestsLeft"
+        ],
+        "additionalProperties": false
+      }
     },
     "too-many-attempts": {
       "name": "TooManyAttempts",

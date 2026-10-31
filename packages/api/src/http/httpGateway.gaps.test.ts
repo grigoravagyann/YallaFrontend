@@ -39,6 +39,7 @@ const VIEW: ReservationViewWire = {
   branchName: 'Northern Avenue',
   tableId: 'tbl-7',
   tableLabel: '7',
+  bookedWithoutTable: false,
   partySize: 2,
   startUtc: '2026-09-20T15:30:00Z',
   onMyWayOpensAtUtc: '2026-09-20T13:30:00Z',
@@ -202,6 +203,7 @@ describe('a day of slots', () => {
           requestable: false,
           requestableTableCount: 0,
           mustFreeByUtc: null,
+          guestsLeft: null,
         },
         {
           time: '19:30',
@@ -213,6 +215,7 @@ describe('a day of slots', () => {
           requestable: false,
           requestableTableCount: 0,
           mustFreeByUtc: null,
+          guestsLeft: null,
         },
         {
           time: '20:00',
@@ -225,9 +228,37 @@ describe('a day of slots', () => {
           requestable: false,
           requestableTableCount: 0,
           mustFreeByUtc: null,
+          guestsLeft: null,
         },
       ],
     });
+  });
+
+  it('reads guests left at a branch that books by time only, and none on a refused day', async () => {
+    const timeOnly = {
+      ...DAY,
+      slots: [
+        { ...DAY.slots[1]!, freeTableCount: 0, guestsLeft: 4 },
+        { ...DAY.slots[0]!, unavailableReason: 16, guestsLeft: 1 },
+      ],
+    };
+    const { gateway } = gatewayOver({ [route]: { body: timeOnly } });
+
+    const day = await gateway.getDaySlots({ branchId: BRANCH, date: '2026-09-20', partySize: 2 });
+    expect(day?.slots.map((slot) => [slot.time, slot.isAvailable, slot.guestsLeft])).toEqual([
+      ['19:30', true, 4],
+      ['20:00', false, 1],
+    ]);
+    // Full then: booked, as a time with no table is — another time is the way on.
+    expect(day?.slots[1]?.unavailableReason).toBe('alreadyBooked');
+
+    const refused = gatewayOver({ [route]: { body: { ...timeOnly, unavailableReason: 2 } } });
+    const shut = await refused.gateway.getDaySlots({
+      branchId: BRANCH,
+      date: '2026-09-20',
+      partySize: 2,
+    });
+    expect(shut?.slots.every((slot) => slot.guestsLeft === null)).toBe(true);
   });
 
   it('lets a whole-day refusal outrank every slot, and carries its reason to each', async () => {

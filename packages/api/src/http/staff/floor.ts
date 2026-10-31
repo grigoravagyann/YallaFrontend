@@ -149,8 +149,10 @@ export function floorMethods(
         reservationId: data.reservation.id,
         outcome: data.outcome === 1 ? 'noShow' : 'guestCancelled',
         countsTowardNoShowThreshold: data.countsTowardNoShowThreshold,
-        tableId: data.tableId,
-        tableLabel: data.tableLabel,
+        // Absent for a booking made by time only that nobody seated (backend
+        // 601c00b), ahead of the generated schema, which still says string.
+        tableId: (data.tableId as string | null | undefined) ?? null,
+        tableLabel: (data.tableLabel as string | null | undefined) ?? null,
         tableFreed: data.tableFreed,
         wasReplay: data.wasReplay,
         // Wire §0a: only when this no-show blocked its guest.
@@ -174,8 +176,8 @@ export function floorMethods(
       return {
         reservationId: data.id,
         status: reservationStatus(data.status),
-        tableId: data.tableId,
-        tableLabel: data.tableLabel,
+        tableId: data.tableId ?? null,
+        tableLabel: data.tableLabel ?? null,
       };
     },
   };

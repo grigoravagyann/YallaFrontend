@@ -79,6 +79,8 @@ export function branchesMethods(
         tableCount: floors.get(branchId)?.tables.length ?? 0,
         acceptsWebBookings: fixture.acceptsWebBookings,
         acceptsAppBookings: acceptsAppBookings(branchId),
+        // The mock's branches all choose tables.
+        bookingMode: 'chooseTable',
         // Newest first written, hidden reviews left out (K8).
         recentReviews: reviewStore.visible(branchId).slice(0, 3).map(toPublicReview),
         ratingCounts: starCounts(reviewStore.visible(branchId)),
