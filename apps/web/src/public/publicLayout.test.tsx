@@ -39,6 +39,14 @@ afterEach(async () => {
 
 const OPEN_HOURS = () => new Date('2026-10-16T16:00:00Z');
 
+// The mocks' booking window reads the real clock too: without this the suite expires with the calendar.
+beforeEach(() => {
+  vi.useFakeTimers({ toFake: ['Date'], now: OPEN_HOURS() });
+});
+afterEach(() => {
+  vi.useRealTimers();
+});
+
 /** Where the router is, written into the page so a test can read it. */
 function Where() {
   const location = useLocation();
