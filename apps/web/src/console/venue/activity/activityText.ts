@@ -221,7 +221,12 @@ export function actionLabel(t: TFunction, entry: ActivityEntry, locale?: Locale)
   switch (entry.action) {
     // Bookings.
     case 'booking.created':
-      return t('activity.action.bookingRequested');
+      // Taken by hand by a member of staff (2026-10-31), or the guest's own request.
+      return entry.actor.kind === 'staff'
+        ? t('activity.action.bookingTaken')
+        : t('activity.action.bookingRequested');
+    case 'booking.guest-coming':
+      return t('activity.action.bookingGuestComing');
     case 'booking.moved':
       return t('activity.action.bookingMoved');
     case 'booking.cancelled':
@@ -482,6 +487,10 @@ export function detailParts(
       parts.push(
         entry.actor.kind === 'guest' ? null : guest,
         table,
+        // A booking taken by hand names its day too: it is often not today's.
+        entry.action === 'booking.created' && entry.actor.kind === 'staff'
+          ? str(p, 'localDate')
+          : null,
         str(p, 'localTime'),
         party ? t('activity.part.party', { count: party }) : null,
       );

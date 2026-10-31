@@ -1784,6 +1784,7 @@ export function createConsoleMockContext(options: ConsoleMockOptions = {}) {
           tableStatus: booking.status === 'seated' ? 'occupied' : 'free',
           roomName: null,
           channel: 'app',
+          takenByName: null,
           changeRequested: false,
           holdExpiresAtUtc: null,
           lateNudgeAtUtc: null,

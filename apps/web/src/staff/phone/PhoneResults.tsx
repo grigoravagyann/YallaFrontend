@@ -161,6 +161,15 @@ export function PhoneResults(props: PhoneResultsProps) {
               value={dram(figures.cashAmd, locale)}
               sub={t('phone.results.sub.bills', { count: figures.cashPayments })}
             />
+            {/* Bookings taken by hand (2026-10-31), and whether the guests came. */}
+            <Tile
+              label={t('phone.results.kpi.bookingsTaken')}
+              value={new Intl.NumberFormat(intlTag(locale)).format(figures.bookingsTaken)}
+              sub={t('phone.results.sub.bookingsOutcome', {
+                came: figures.bookingsCame,
+                noShow: figures.bookingsNoShow,
+              })}
+            />
           </dl>
 
           {week.length > 0 ? (

@@ -32,6 +32,7 @@ export function staffNotificationSettingsFromWire(
     tableCalls: wire.tableCalls,
     takeaway: wire.takeaway,
     kitchenReady: wire.kitchenReady,
+    bookingToCall: wire.bookingToCall,
     onlyDuringShift: wire.onlyDuringShift,
     locale: wire.locale ?? null,
     subscribed: wire.subscribed,

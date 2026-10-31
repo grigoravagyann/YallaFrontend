@@ -118,6 +118,7 @@ const VIEW = {
   tableId: 'tbl-7',
   tableLabel: '7',
   bookedWithoutTable: false,
+  channel: 1,
   partySize: 2,
   startUtc: '2026-09-20T15:30:00Z',
   endUtc: '2026-09-20T17:00:00Z',

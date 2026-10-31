@@ -85,6 +85,15 @@ export const queryKeys = {
    * on the change stream's `bookingChanged`, a floor decision and a seat.
    */
   bookingsWithoutTable: (branchId: string) => ['staff', 'withoutTable', branchId] as const,
+  /**
+   * Staff-taken bookings to call now (2026-10-31). Invalidate with the door's
+   * list: on the change stream's `bookingChanged`, a seat, a release, and
+   * after taking a booking or recording "coming".
+   */
+  bookingsToCall: (branchId: string) => ['staff', 'toCall', branchId] as const,
+  /** The New booking sheet's day of times, by day and party; under `staff`, read while the sheet is open. */
+  staffDaySlots: (branchId: string, date: string, partySize: number) =>
+    ['staff', 'daySlots', branchId, date, partySize] as const,
   /** A manager's Today board; `''` for the session's own branch. */
   staffToday: (branchId: string) => ['staff', 'today', branchId] as const,
   /** My results: the signed-in person's own page, by range and recent list. */

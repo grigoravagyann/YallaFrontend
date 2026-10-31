@@ -41,6 +41,13 @@ export interface BookingWithoutTable {
   readonly guestConfirmedOnWayAtUtc: string | null;
   /** "I'm running late": 10, 15 or 30 minutes, the guest's latest answer. */
   readonly guestRunningLateMinutes: number | null;
+  /**
+   * Where the booking came from (2026-10-31): `staff` for one a member of
+   * staff took by hand, whose taker is then named. Absent from an older server.
+   */
+  readonly channel?: 'app' | 'web' | 'staff' | 'unknown' | undefined;
+  /** Who took it, for a staff-taken booking: "Ընդունեց՝ {name}". */
+  readonly takenByName?: string | null | undefined;
 }
 
 /**

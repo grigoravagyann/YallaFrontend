@@ -156,7 +156,14 @@ const RECENT: Readonly<Record<StaffRecentList, readonly string[]>> = {
     'payment.comp',
   ],
   messages: ['message.sent', 'message.asked-on-my-way'],
-  bookings: ['booking.approved', 'booking.declined', 'booking.seated', 'booking.no-show'],
+  bookings: [
+    'booking.created',
+    'booking.guest-coming',
+    'booking.approved',
+    'booking.declined',
+    'booking.seated',
+    'booking.no-show',
+  ],
   cash: ['payment.cash', 'takeaway.collected'],
   calls: ['table.call-claimed'],
 };
@@ -1541,6 +1548,9 @@ export function createMockActivity(options: MockActivityOptions) {
     replies: number[];
     approvals: number;
     declines: number;
+    bookingsTaken: number;
+    bookingsCame: number;
+    bookingsNoShow: number;
     cash: number;
     cashPayments: number;
     discounts: number;
@@ -1558,6 +1568,9 @@ export function createMockActivity(options: MockActivityOptions) {
     replies: [],
     approvals: 0,
     declines: 0,
+    bookingsTaken: 0,
+    bookingsCame: 0,
+    bookingsNoShow: 0,
     cash: 0,
     cashPayments: 0,
     discounts: 0,
@@ -1579,6 +1592,9 @@ export function createMockActivity(options: MockActivityOptions) {
       messagesAnswered: tally.replies.length,
       approvals: tally.approvals,
       declines: tally.declines,
+      bookingsTaken: tally.bookingsTaken,
+      bookingsCame: tally.bookingsCame,
+      bookingsNoShow: tally.bookingsNoShow,
       cashAmd: tally.cash,
       cashPayments: tally.cashPayments,
       discounts: tally.discounts,
@@ -1682,6 +1698,11 @@ export function createMockActivity(options: MockActivityOptions) {
           break;
         case 'booking.declined':
           both((one) => (one.declines += 1));
+          break;
+        // A booking a member of staff took by hand (2026-10-31): the guest's
+        // own request is written by the guest and counts for nobody.
+        case 'booking.created':
+          both((one) => (one.bookingsTaken += 1));
           break;
         case 'payment.discount':
           both((one) => {

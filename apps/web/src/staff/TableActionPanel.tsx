@@ -1,6 +1,7 @@
 import {
   onYourWayFromUtc,
   type AffectedReservation,
+  type BookingToCall,
   type DuePreOrder,
   type FloorTable,
   type GuestRecord,
@@ -11,6 +12,7 @@ import {
   type TableActionKind,
   type TableStatus,
 } from '@yalla/api';
+import { formatPhone } from '@yalla/format';
 import { useTranslation } from '@yalla/i18n';
 import { useEffect, useId, useRef, useState } from 'react';
 import type { AdmissionOutcome, AdmissionSubject } from './AdmissionPanel';
@@ -26,6 +28,7 @@ import { BookingFlags, NextBookingValue } from './tablePanel/NextBooking';
 import { OccupiedTableActions } from './tablePanel/OccupiedTableActions';
 import { Fact, Facts } from './tablePanel/panelParts';
 import { ReleaseChoice } from './tablePanel/ReleaseChoice';
+import { GuestComingActions } from './ToCallPanel';
 import {
   askWindowOpen,
   clampParty,
@@ -139,6 +142,20 @@ export interface TableActionPanelProps {
    * out where the Messages screen is a tab away anyway (the tablet's rail).
    */
   readonly onMessageGuest?: ((reservationId: string) => void) | undefined;
+  /**
+   * "Book this table" (2026-10-31): the New booking sheet with this table
+   * chosen, for a free table. Absent, the action is not offered.
+   */
+  readonly onBookTable?: (() => void) | undefined;
+  /**
+   * The table's next booking, when a member of staff took it and it is time
+   * to call the guest (it is on the call list): "Coming" and "Not coming"
+   * replace "Ask: are you coming?", which cannot reach a guest with no app,
+   * and the taker is named beside the booking.
+   */
+  readonly nextBookingToCall?: BookingToCall | null | undefined;
+  /** "Not coming", confirmed: let the booking go as the guest having told us. */
+  readonly onGuestNotComing?: ((booking: BookingToCall) => void) | undefined;
   /**
    * Transfer the table (2026-10-24): who could take it — the branch's people
    * who serve, its waiter left out — or `null` while that is being read.
@@ -256,8 +273,14 @@ export function TableActionPanel(props: TableActionPanelProps) {
       detail={detail}
       record={props.nextBookingRecord}
       timeZoneId={timeZoneId}
+      takenByName={props.nextBookingToCall?.takenByName ?? null}
     />
   );
+  /** The next booking is staff-taken and in its call window: the two answers, not the ask. */
+  const toCall =
+    props.nextBookingToCall && props.nextBookingToCall.reservationId === reservationId
+      ? props.nextBookingToCall
+      : null;
 
   const startSeating = (kind: 'walkIn' | 'heldParty', size: number) => {
     setPartySize(clampParty(size));
@@ -383,9 +406,39 @@ export function TableActionPanel(props: TableActionPanelProps) {
               </section>
             ) : null}
 
+            {/* A booking a member of staff took, in its call window (2026-10-31):
+            the guest has no app, so the taker calls and records the answer. */}
+            {toCall && props.branchId && bookingStart && status !== 'occupied' ? (
+              <section className="tp-ask tp-to-call" aria-labelledby={`${headingId}-call`}>
+                <h3 id={`${headingId}-call`}>
+                  {t('toCall.panelTitle', { time: format.time(bookingStart) })}
+                </h3>
+                <p className="tp-hint">{t('toCall.panelHint')}</p>
+                {toCall.guestPhone ? (
+                  <a
+                    className="tp-btn tp-sec ask-call"
+                    href={`tel:${toCall.guestPhone.replace(/\s+/gu, '')}`}
+                    aria-label={t('toCall.callLabel', {
+                      name: toCall.guestName,
+                      phone: formatPhone(toCall.guestPhone),
+                    })}
+                  >
+                    {t('onMyWay.call', { phone: formatPhone(toCall.guestPhone) })}
+                  </a>
+                ) : null}
+                <GuestComingActions
+                  branchId={props.branchId}
+                  booking={toCall}
+                  online={online}
+                  variant="panel"
+                  onNotComing={() => props.onGuestNotComing?.(toCall)}
+                />
+              </section>
+            ) : null}
+
             {/* Whether the next booking's guest is coming, and "Ask now", for a
             booking with no pre-order card here (the Ask artboard). */}
-            {askOpen && props.branchId && reservationId && bookingStart ? (
+            {!toCall && askOpen && props.branchId && reservationId && bookingStart ? (
               <section className="tp-ask" aria-labelledby={`${headingId}-ask`}>
                 <h3 id={`${headingId}-ask`}>
                   {t('onMyWay.panelTitle', { time: format.time(bookingStart) })}
@@ -444,6 +497,7 @@ export function TableActionPanel(props: TableActionPanelProps) {
                 offerSeatBooking={offerSeatBooking}
                 preOrderParty={preOrderParty}
                 onAct={onAct}
+                onBookTable={props.onBookTable}
               />
             ) : null}
 

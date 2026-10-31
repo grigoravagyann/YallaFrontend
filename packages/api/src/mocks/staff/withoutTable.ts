@@ -43,6 +43,8 @@ export function withoutTableMethods(
           guestRecord: booking.guestRecord,
           guestConfirmedOnWayAtUtc: booking.guestConfirmedOnWayAtUtc,
           guestRunningLateMinutes: booking.guestRunningLateMinutes,
+          channel: booking.channel,
+          takenByName: booking.takenByName,
         }));
       return calm(listed);
     },

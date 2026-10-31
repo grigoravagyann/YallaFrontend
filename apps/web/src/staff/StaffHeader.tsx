@@ -1,4 +1,4 @@
-import { intlTag } from '@yalla/format';
+import { armenianWeekday, intlTag } from '@yalla/format';
 import { useLocale, useTranslation } from '@yalla/i18n';
 import { isStale, type ConnectionState } from '@yalla/realtime';
 import type { TFunction } from 'i18next';
@@ -60,6 +60,11 @@ export interface StaffHeaderProps {
   readonly onSelectView?: ((view: StaffView) => void) | undefined;
   /** Hands the tablet over. Signing out by default: the PIN gate comes up over the screen. */
   readonly onSwitchPerson?: (() => void) | undefined;
+  /**
+   * "+ Booking" (2026-10-31): a booking taken by hand, from the floor view.
+   * Left out where the screen is not the floor's, and the button goes with it.
+   */
+  readonly onNewBooking?: (() => void) | undefined;
 }
 
 /**
@@ -102,6 +107,7 @@ export function StaffHeader({
   messagesWaiting,
   onSelectView,
   onSwitchPerson,
+  onNewBooking,
 }: StaffHeaderProps) {
   const { t } = useTranslation(['staff', 'common']);
   const { locale } = useLocale();
@@ -109,10 +115,13 @@ export function StaffHeader({
   // The clock in the corner, and how old the data is, both move by the minute.
   const now = useMinuteClock();
 
-  const day = new Intl.DateTimeFormat(intlTag(locale), {
-    weekday: 'long',
-    timeZone: timeZoneId,
-  }).format(now);
+  const day =
+    locale === 'hy'
+      ? armenianWeekday(now, timeZoneId, 'long')
+      : new Intl.DateTimeFormat(intlTag(locale), {
+          weekday: 'long',
+          timeZone: timeZoneId,
+        }).format(now);
   const today = `${day.charAt(0).toLocaleUpperCase(locale)}${day.slice(1)}, ${format.time(now)}`;
 
   const chip = connectionChip({
@@ -239,6 +248,18 @@ export function StaffHeader({
           </span>
         )}
       </nav>
+
+      {/* A booking by hand, from the floor: the guest is on the phone or at
+          the door, and the sheet opens over the room (2026-10-31). */}
+      {onNewBooking && view === 'floor' ? (
+        <button
+          type="button"
+          className="ft-btn ft-btn-primary ft-new-booking"
+          onClick={onNewBooking}
+        >
+          {t('newBooking.open')}
+        </button>
+      ) : null}
 
       <span className="ft-top-gap" />
 
