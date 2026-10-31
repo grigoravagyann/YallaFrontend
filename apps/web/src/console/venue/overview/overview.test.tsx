@@ -82,12 +82,20 @@ const rowOf = (card: HTMLElement, name: string) =>
   within(card).getByText(name).closest('tr') as HTMLElement;
 
 describe('the overview', () => {
+  it('names who took a booking by hand in its channel cell (2026-10-31)', async () => {
+    renderOverview();
+    const card = await bookingsCard();
+    // The mock's phoned-in booking tonight, taken by Ani; an app booking says only the app.
+    expect(within(rowOf(card, 'Gor A.')).getByText('Phone · Ani Hakobyan')).toBeTruthy();
+    expect(within(rowOf(card, 'Narine T.')).getByText('App')).toBeTruthy();
+  });
+
   it("greets by the branch's clock and says the day, the branch and the hours", async () => {
     renderOverview();
     expect(
       await screen.findByRole('heading', { level: 1, name: /^Good evening, \S+$/u }),
     ).toBeTruthy();
-    expect(screen.getByText(/^Sunday, October 18 · North · updated \d\d:\d\d$/u)).toBeTruthy();
+    expect(screen.getByText(/^Sunday, 18 October · North · updated \d\d:\d\d$/u)).toBeTruthy();
     expect(screen.getByText(/^(Open until \d\d:\d\d|Closed)/u)).toBeTruthy();
   });
 
@@ -202,7 +210,7 @@ describe('the overview', () => {
     const chart = await screen.findByRole('img', { name: /^Booked people by hour/u });
 
     // The service day is still the evening's.
-    expect(screen.getByText(/^Sunday, October 18 · North/u)).toBeTruthy();
+    expect(screen.getByText(/^Sunday, 18 October · North/u)).toBeTruthy();
     expect(chart.getAttribute('aria-label')).toContain(
       '23:00: 12, 00:00 (next day): 8, 01:00 (next day): 2',
     );

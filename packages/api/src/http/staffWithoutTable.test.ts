@@ -22,6 +22,7 @@ const TIME_ONLY: Schemas['Yalla.Application.Reservations.ReservationView'] = {
   branchId: BRANCH,
   branchName: 'Northern Avenue',
   bookedWithoutTable: true,
+  channel: 1,
   partySize: 4,
   startUtc: '2026-10-29T15:30:00Z',
   onMyWayOpensAtUtc: '2026-10-29T13:30:00Z',
@@ -48,6 +49,7 @@ const AT_A_TABLE: Schemas['Yalla.Application.Reservations.ReservationView'] = {
   id: '6f1d0a2e-0000-4000-8000-00000000000b',
   code: 'Y3151',
   bookedWithoutTable: false,
+  channel: 1,
   tableId: '9c3d2e4f-0000-4000-8000-000000000007',
   tableLabel: '7',
   note: null,
@@ -97,6 +99,8 @@ describe('bookings without a table', () => {
         guestRecord: null,
         guestConfirmedOnWayAtUtc: '2026-10-29T15:10:00Z',
         guestRunningLateMinutes: null,
+        channel: 'app',
+        takenByName: null,
       },
     ]);
   });

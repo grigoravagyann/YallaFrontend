@@ -52,6 +52,7 @@ export function usePushUpkeep(active: boolean): void {
       tableCalls: current.tableCalls,
       takeaway: current.takeaway,
       kitchenReady: current.kitchenReady,
+      bookingToCall: current.bookingToCall,
       onlyDuringShift: current.onlyDuringShift,
       locale,
     });

@@ -27,9 +27,9 @@ export interface StaffPushSubscriptionInput {
   readonly keys: { readonly p256dh: string; readonly auth: string };
 }
 
-/** The five things a staff device can be pushed about: the switch names. */
+/** The six things a staff device can be pushed about: the switch names. */
 export type StaffNotificationKind =
-  'approvals' | 'guestMessages' | 'tableCalls' | 'takeaway' | 'kitchenReady';
+  'approvals' | 'guestMessages' | 'tableCalls' | 'takeaway' | 'kitchenReady' | 'bookingToCall';
 
 /** In the order the switches are listed (the Install artboard). */
 export const STAFF_NOTIFICATION_KINDS: readonly StaffNotificationKind[] = [
@@ -38,15 +38,18 @@ export const STAFF_NOTIFICATION_KINDS: readonly StaffNotificationKind[] = [
   'tableCalls',
   'takeaway',
   'kitchenReady',
+  'bookingToCall',
 ];
 
-/** The six switches, every one every time. */
+/** The seven switches, every one every time. */
 export interface StaffNotificationSwitches {
   readonly approvals: boolean;
   readonly guestMessages: boolean;
   readonly tableCalls: boolean;
   readonly takeaway: boolean;
   readonly kitchenReady: boolean;
+  /** A booking this person took by hand starts in thirty minutes: call the guest. */
+  readonly bookingToCall: boolean;
   /** A phone's pushes wait for its person's shift. Ignored on a tablet. */
   readonly onlyDuringShift: boolean;
 }

@@ -288,6 +288,7 @@ describe('the phone itself', () => {
       tableCalls: true,
       takeaway: true,
       kitchenReady: false,
+      bookingToCall: true,
       onlyDuringShift: true,
       locale: 'ru',
       subscribed: true,
@@ -305,6 +306,7 @@ describe('the phone itself', () => {
       tableCalls: true,
       takeaway: true,
       kitchenReady: false,
+      bookingToCall: true,
       onlyDuringShift: true,
       locale: 'ru',
     });
@@ -314,6 +316,7 @@ describe('the phone itself', () => {
       tableCalls: true,
       takeaway: true,
       kitchenReady: false,
+      bookingToCall: true,
       onlyDuringShift: true,
       locale: 'ru',
     });

@@ -34,7 +34,7 @@ const VENUE_WIDE_ROLES: ReadonlySet<string> = new Set(['generalManager', 'owner'
 /** What the rail shows on both shells: everything but its frame and its approvals. */
 export type FloorRailShared = Omit<
   FloorRailProps,
-  'approvals' | 'takeaway' | 'after' | 'phone' | 'hidden' | 'messagesFirst'
+  'approvals' | 'takeaway' | 'toCall' | 'after' | 'phone' | 'hidden' | 'messagesFirst'
 >;
 
 export interface FloorPhoneProps {
@@ -65,6 +65,10 @@ export interface FloorPhoneProps {
   readonly takeawayFailed: boolean;
   readonly takeawayToAnswer: readonly StaffTakeawayOrder[];
   readonly rail: FloorRailShared;
+  /** Staff-taken bookings to call now (2026-10-31): `PhoneToCallList`, after the door's list. */
+  readonly toCall: ReactNode;
+  /** "+ New booking" at the top of Now: the New booking sheet, from no table. */
+  readonly onNewBooking: () => void;
   readonly onApprovalDecided: (decision: {
     readonly approved: boolean;
     readonly request: AwaitingApproval;
@@ -110,6 +114,8 @@ export function FloorPhone({
   takeawayFailed,
   takeawayToAnswer,
   rail,
+  toCall,
+  onNewBooking,
   onApprovalDecided,
   onApprovalRefused,
   roster,
@@ -256,9 +262,16 @@ export function FloorPhone({
           tablet's floor does under its kitchen: a half-typed answer and the
           countdowns are still there on the way back. */}
       <div className="ph-screen ph-now" hidden={approving !== null || phoneTab !== 'now'}>
+        {/* A booking by hand, first on Now: the guest is on the phone (2026-10-31). */}
+        <div className="ph-new-booking">
+          <button type="button" className="ft-btn ft-btn-primary" onClick={onNewBooking}>
+            {t('newBooking.openPhone')}
+          </button>
+        </div>
         <FloorRail
           phone
           {...rail}
+          toCall={toCall}
           takeaway={
             <PhoneTakeawayList
               orders={takeawayToAnswer}

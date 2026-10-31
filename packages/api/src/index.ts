@@ -587,6 +587,25 @@ export {
 export type { BookingWithoutTable } from './contracts/bookingsWithoutTable';
 export { stillToSeat } from './contracts/bookingsWithoutTable';
 export type {
+  BookingToCall,
+  CreateStaffBookingCommand,
+  MarkGuestComingCommand,
+  StaffBooking,
+  StaffBookingMode,
+  StaffDaySlot,
+  StaffDaySlotTable,
+  StaffDaySlots,
+  StaffDaySlotsQuery,
+} from './contracts/staffBookings';
+export {
+  STAFF_BOOKING_MAX_PARTY,
+  TO_CALL_MINUTES_BEFORE,
+  TO_CALL_POLL_MS,
+  inToCallWindow,
+  isStaffTaken,
+  toCallOrder,
+} from './contracts/staffBookings';
+export type {
   BranchOverview,
   ConsoleBookingActionCommand,
   ConsoleBookingActionKind,
@@ -1080,6 +1099,7 @@ export {
 export { MOCK_PRE_ORDER_BRANCHES, createMockPreOrderBook } from './mocks/preOrders';
 export type { MockPreOrderBranch } from './mocks/preOrders';
 export type {
+  StaffBookingSeed,
   StaffPreOrderSeed,
   StaffTakeawaySeed,
   StaffWithoutTableSeed,

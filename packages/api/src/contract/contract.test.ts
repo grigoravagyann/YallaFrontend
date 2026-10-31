@@ -12,6 +12,7 @@ import { describePlacesContract } from './places.contract';
 import { describePlatformHomeContract } from './platformHome.contract';
 import { describeReservationContract } from './reservation.contract';
 import { describeRescheduleContract } from './reschedule.contract';
+import { describeStaffBookingsContract } from './staffBookings.contract';
 import type { ContractSubject } from './subject';
 import { contractBackendUrl, mockSubject } from './subjects';
 import { describeTabContract } from './tab.contract';
@@ -79,6 +80,9 @@ function describeEveryContract(subject: ContractSubject): void {
   describeAdmissionContract(subject);
   // My results in one read: the waiter's own numbers, after everything above.
   describeMyResultsContract(subject);
+  // A booking taken by hand on the floor (2026-10-31): tomorrow evening, so it
+  // waits for nothing and lands on nobody's call list tonight.
+  describeStaffBookingsContract(subject);
 }
 
 describeEveryContract(mockSubject());

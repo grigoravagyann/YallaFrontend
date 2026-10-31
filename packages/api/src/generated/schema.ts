@@ -1,7 +1,7 @@
 /**
  * GENERATED FILE — do not edit.
  *
- * Source: http://127.0.0.1:5391/swagger/v1/swagger.json
+ * Source: http://localhost:5941/swagger.json
  * Regenerate with: pnpm api:generate
  */
 
@@ -1556,6 +1556,76 @@ export interface paths {
          *     One query however many are waiting. A waiter or above at this branch; an owner or general manager at any branch of their venue. A platform admin reads the list with every guest number blank (`guestPhone` empty, `previousBooking.guestPhone` absent).
          */
         get: operations["listAwaitingApproval"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/branches/{branchId}/reservations/slots": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Which start times on one day have a table for this party - by staff rules
+         * @description The staff booking sheet's time and table chips. Every quarter of an hour on `date` whose whole sitting fits one opening block, earliest first; for each, `tables` - the **in-service tables that seat the party** (within the seat-overhang limit) and whose evening allows the start, pinned on a photo or not, bookable from the app or not - with each table's `mustFreeByUtc`/`mustFreeByLocal` when its next booking cuts a full sitting short, and `earlierGuestMayStillBeThere` when the booking before it may still be at the table (the diner's read would ask that guest; the floor judges it). At a branch that books by time only (`bookingMode` 2) `tables` is empty and `guestsLeft` says how many more fit.
+         *
+         *     **Staff rules**: no lead time - a time still ahead is offered - and no diner-visibility gate; the booking window and the opening hours hold. A time already past is struck `LeadTimeTooShort` (1); beyond the window `OutsideBookingWindow` (2); by time only with no room `TimeFull`. The top-level `unavailableReason` refuses the whole day as `getBranchDaySlots` does. `party` defaults to 2. A table listed here is one `createStaffReservation` accepts at that time.
+         */
+        get: operations["getStaffDaySlots"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/branches/{branchId}/reservations/staff": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Book a table for a guest by hand - over the phone, or at the door
+         * @description **The floor's booking route.** A waiter or above at the branch books for a guest with a name and the number to call; the booking is `Confirmed` at once on the `Staff` channel, with `takenByStaffId` and `takenByName` the acting staff member - who follows whether the guest comes. Idempotent on `clientCommandId`: a retry answers the booking it made, 200 rather than 201.
+         *
+         *     **Not a diner's booking**, so none of a diner's rules: no account, no approval - not at short notice, not for a large party, not for a branch that approves every booking - no lead time ("in twenty minutes" is fine), no channel gate (neither the platform's booking switches nor the venue's online bookings), no limit on bookings per number, any in-service table whether pinned or bookable from the app. No reminders are scheduled - there is no app to push to - and no manage link is issued.
+         *
+         *     **What holds**: the venue open for business (`409 branch-unavailable`), the booking window and the opening hours (422), a start already past (`422 reservation-lead-time-too-short`), the table's seats and overhang (422), the table out of service (422), and the table's evening - another booking, one just booked, the next one too soon, a party sitting there (`409 table-already-booked` / `table-currently-occupied`, with the fresh floor): pick another time or table. When a full sitting would run into the table's next booking, the booking takes that time to leave by (`promisedFreeByUtc`) without asking. At a branch that books by time only (`bookingMode` 2) `tableId` is left out and the branch's guests at once hold (`409 time-full`, `context.guestsLeft`); the waiter picks the table at seating with `seat-reservation`.
+         *
+         *     Thirty minutes before the start the taker is pushed to call the guest (`bookingToCall`) and the booking appears on `GET .../reservations/to-call`; the guest's answer is recorded with `POST /api/reservations/{id}/guest-coming`, "not coming" with `release` (`outcome` 2), came with `seat-reservation`, nobody came with `no-show` - which never counts toward a block.
+         */
+        post: operations["createStaffReservation"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/branches/{branchId}/reservations/to-call": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The staff-taken bookings whose guest should be called now
+         * @description The floor's "call the guest" cards. The branch's confirmed `Staff`-channel bookings from **thirty minutes before the start** until the start plus the branch's grace (or the extended hold, when later), whose guest has not said they are coming (`guestConfirmedOnWayAtUtc` null) and that nobody released. The caller's own first (`isMine`), then by start; at most 200.
+         *
+         *     Each: `reservationId`, `code`, `guestName`, `guestPhone` (to call - empty for a platform admin), `partySize`, `startUtc`, `localDate`, `localStartTime`, `tableId`/`tableLabel` (null for a booking by time only not yet seated), `note`, `takenByStaffId`, `takenByName`, `isMine`. "Coming" is `POST /api/reservations/{id}/guest-coming`; "not coming" is `release` with `outcome` 2. Waiter or above at the branch.
+         */
+        get: operations["listBookingsToCall"];
         put?: never;
         post?: never;
         delete?: never;
@@ -3855,6 +3925,28 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/reservations/{id}/guest-coming": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * The guest told the staff member they are coming
+         * @description The taker of a staff booking called the guest - or the guest called back - and they are coming: the booking's "on my way" is recorded as the acting staff member's (`guestConfirmedOnWayAtUtc` set), the automatic "are you on your way?" question, where there was one, is withdrawn, and the History says `booking.guest-coming` by this person. The booking leaves `GET .../reservations/to-call` and the floor shows the usual "on their way" state.
+         *
+         *     **From two hours before the start**, while the booking is confirmed or seated and not over, like the guest's own answer; otherwise `409 on-my-way-not-open` (`context.reservationId`, `status`, `opensAtUtc`). Any booking at the branch, not only a staff-taken one. Idempotent on `clientCommandId`, and a second answer is answered with the booking as it stands (`wasReplay` true). "Not coming" is `release` with `outcome` 2 - told by the guest, never a no-show. Waiter or above at the booking's branch, from the stored row.
+         */
+        post: operations["markGuestComing"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/reservations/{id}/no-show": {
         parameters: {
             query?: never;
@@ -5720,6 +5812,14 @@ export interface components {
              */
             reservationId?: string | null;
         };
+        /** @description Body of `POST /api/reservations/{id}/guest-coming`: the guest told the staff member they are coming. */
+        "Yalla.Api.Endpoints.GuestComingRequest": {
+            /**
+             * Format: uuid
+             * @description The device's own id for this answer. <b>Required.</b> A retry answers the booking as it stands.
+             */
+            clientCommandId: string;
+        };
         /** @description Body of `POST /api/tabs/join`. */
         "Yalla.Api.Endpoints.JoinTabRequest": {
             /** @description See Yalla.Api.Endpoints.OpenTabRequest.DeviceId. */
@@ -6224,6 +6324,11 @@ export interface components {
         "Yalla.Api.Endpoints.SaveStaffNotificationPreferencesRequest": {
             /** @description A booking waits for the floor's yes or no. */
             approvals: boolean;
+            /**
+             * @description A booking the person took by hand starts in thirty minutes: call the guest (2026-10-31). Optional, unlike the six
+             *     switches before it, so a client from before the switch keeps saving; absent means on, its default.
+             */
+            bookingToCall?: boolean | null;
             /** @description A guest wrote, or answered "are you coming?". */
             guestMessages: boolean;
             /** @description The kitchen marked an order ready for the person's table. */
@@ -6402,6 +6507,45 @@ export interface components {
         "Yalla.Api.Endpoints.SetSettlementModeRequest": {
             /** @description How the people on a tab agreed to split the bill. */
             settlementMode: components["schemas"]["Yalla.Domain.Enums.SettlementMode"];
+        };
+        /** @description Body of `POST /api/branches/{branchId}/reservations/staff`: a member of staff books for a guest by hand. */
+        "Yalla.Api.Endpoints.StaffCreateReservationRequest": {
+            /**
+             * Format: uuid
+             * @description The device's own id for this booking. <b>Required.</b> A retry answers the booking it made.
+             */
+            clientCommandId: string;
+            /**
+             * Format: date
+             * @description Local calendar date at the branch, e.g. `2026-09-12`.
+             */
+            date: string;
+            /** @description Who to ask for at the door. */
+            guestName: string;
+            /** @description The number the taker calls before the booking. Required. */
+            guestPhone: string;
+            /**
+             * @description What the guest asked for - "window table", "a high chair". Optional; trimmed, blank means none, at most 500
+             *     characters, refused as `validation-failed` naming `note` with bound `max`.
+             */
+            note?: string | null;
+            /**
+             * Format: int32
+             * @description How many are coming.
+             */
+            partySize: number;
+            /**
+             * Format: uuid
+             * @description The table, at a branch where tables are chosen - any in-service table, pinned on a photo or not, bookable from the app
+             *     or not; required there, refused as `validation-failed` naming `tableId` without one. Left out at a branch
+             *     that books by time only (`bookingMode` 2), where the waiter chooses the table when the party arrives.
+             */
+            tableId?: string | null;
+            /**
+             * Format: time
+             * @description Local wall-clock start at the branch, e.g. `19:30`.
+             */
+            time: string;
         };
         /** @description Body of `POST /api/auth/staff/pin`. */
         "Yalla.Api.Endpoints.StaffPinRequest": {
@@ -7772,7 +7916,7 @@ export interface components {
          *     `/api/staff/me/performance?list=…` answers, cursor included, so "more" continues there.
          */
         "Yalla.Application.Activity.RecentLists": {
-            /** @description Approved, declined, seated, no-show. */
+            /** @description Approved, declined, seated, no-show, taken by hand. */
             bookings: components["schemas"]["Yalla.Application.Activity.RecentPage"];
             /** @description Calls claimed. */
             calls: components["schemas"]["Yalla.Application.Activity.RecentPage"];
@@ -7835,6 +7979,22 @@ export interface components {
              * @description Sales over tables, rounded; 0 with no tables.
              */
             averageCheckAmd: number;
+            /**
+             * Format: int32
+             * @description Of those, the parties that sat down (seated or completed).
+             */
+            bookingsCame: number;
+            /**
+             * Format: int32
+             * @description Of those, the parties that never came (a no-show that stands; one withdrawn does not count).
+             */
+            bookingsNoShow: number;
+            /**
+             * Format: int32
+             * @description Bookings they took by hand (2026-10-31) whose start falls in the window - whatever became of them: came, missed,
+             *     cancelled, still to come.
+             */
+            bookingsTaken: number;
             /**
              * Format: int32
              * @description The median seconds from the call to their claim; absent with none.
@@ -7937,6 +8097,21 @@ export interface components {
              * @description The revenue report's `averageTabAmd`.
              */
             averageCheckAmd: number;
+            /**
+             * Format: int32
+             * @description Of those, the parties that sat down.
+             */
+            bookingsCame: number;
+            /**
+             * Format: int32
+             * @description Of those, the parties that never came.
+             */
+            bookingsNoShow: number;
+            /**
+             * Format: int32
+             * @description Bookings staff took by hand whose start falls in the window.
+             */
+            bookingsTaken: number;
             /**
              * Format: int32
              * @description The median over every claim.
@@ -10733,10 +10908,12 @@ export interface components {
              */
             sentLastDay: number;
         };
-        /** @description A device's notification settings as the staff app's switches show them: the six switches, flat. */
+        /** @description A device's notification settings as the staff app's switches show them: the seven switches, flat. */
         "Yalla.Application.Notifications.StaffNotificationSettings": {
             /** @description See Yalla.Application.Notifications.StaffNotificationPreferences. */
             approvals: boolean;
+            /** @description See Yalla.Application.Notifications.StaffNotificationPreferences. */
+            bookingToCall: boolean;
             /** @description See Yalla.Application.Notifications.StaffNotificationPreferences. */
             guestMessages: boolean;
             /** @description Nothing was chosen yet: these are the defaults for the device and its person's role. */
@@ -11422,6 +11599,11 @@ export interface components {
             tableLabel?: string | null;
             /** @description The table's state now. */
             tableStatus?: components["schemas"]["Yalla.Domain.Enums.TableStatus"] | null;
+            /**
+             * @description For a booking staff took by hand (Yalla.Domain.Enums.ReservationChannel.Staff, 2026-10-31): the taker's name now -
+             *     "Զանգ · {name}" in the channel cell. Absent for every other booking.
+             */
+            takenByName?: string | null;
         };
         /** @description The service day's bookings by status. */
         "Yalla.Application.Overview.OverviewBookingCounts": {
@@ -13515,6 +13697,61 @@ export interface components {
             /** @description The proved number the block also holds, while it holds one. */
             phoneE164?: string | null;
         };
+        /**
+         * @description A staff-taken booking whose guest should be called now: from thirty minutes before its start until its grace runs
+         *     out, while the guest has not said they are coming. The floor's "call the guest" card.
+         */
+        "Yalla.Application.Reservations.BookingToCall": {
+            /** @description Its door code. */
+            code: string;
+            /** @description Who booked. */
+            guestName: string;
+            /** @description The number to call. Empty for a platform admin. */
+            guestPhone: string;
+            /** @description The caller took it. */
+            isMine: boolean;
+            /**
+             * Format: date
+             * @description The branch's calendar date.
+             */
+            localDate: string;
+            /**
+             * Format: time
+             * @description The branch's wall-clock start.
+             */
+            localStartTime: string;
+            /** @description What the guest asked for, or null. */
+            note?: string | null;
+            /**
+             * Format: int32
+             * @description How many.
+             */
+            partySize: number;
+            /**
+             * Format: uuid
+             * @description The booking.
+             */
+            reservationId: string;
+            /**
+             * Format: date-time
+             * @description When it starts.
+             */
+            startUtc: string;
+            /**
+             * Format: uuid
+             * @description The table, or null for a booking by time only not yet seated.
+             */
+            tableId?: string | null;
+            /** @description Its label, or null. */
+            tableLabel?: string | null;
+            /** @description Their name now. */
+            takenByName: string;
+            /**
+             * Format: uuid
+             * @description Who took the booking.
+             */
+            takenByStaffId: string;
+        };
         /** @description Every table in a branch, answered for one requested slot, in one round trip. */
         "Yalla.Application.Reservations.BranchAvailability": {
             /**
@@ -14120,6 +14357,8 @@ export interface components {
              *     three no-shows in three days. Absent on every other booking. The status is then CancelledByVenue.
              */
             cancelledBecause?: components["schemas"]["Yalla.Domain.Occupancy.CancellationCause"] | null;
+            /** @description Where a booking was made from. */
+            channel: components["schemas"]["Yalla.Domain.Enums.ReservationChannel"];
             /** Format: uuid */
             clientCommandId: string;
             /** @description The short code the diner quotes at the door. */
@@ -14248,6 +14487,14 @@ export interface components {
             tableId?: string | null;
             /** @description The table's label, as printed on the floor; absent with Yalla.Application.Reservations.ReservationView.TableId. */
             tableLabel?: string | null;
+            /** @description The taker's name now - "Ընդունեց՝ {name}" on the floor's cards; absent with Yalla.Application.Reservations.ReservationView.TakenByStaffId. */
+            takenByName?: string | null;
+            /**
+             * Format: uuid
+             * @description The member of staff who took the booking by hand, for a Yalla.Domain.Enums.ReservationChannel.Staff booking made from the
+             *     floor (2026-10-31); absent for every other booking. They follow whether the guest comes.
+             */
+            takenByStaffId?: string | null;
             timeZoneId: string;
             /** @description True when this booking already existed and was returned rather than created. */
             wasReplay: boolean;
@@ -14274,6 +14521,99 @@ export interface components {
              * @description The booking.
              */
             reservationId: string;
+        };
+        /** @description One start time on the day for the staff sheet: the tables free for the party then, or how many guests fit. */
+        "Yalla.Application.Reservations.StaffDaySlot": {
+            /**
+             * Format: int32
+             * @description At a branch that books by time only: how many more guests fit at the busiest moment of the sitting. Absent otherwise.
+             */
+            guestsLeft?: number | null;
+            /** @description At least one table takes the party then - or, by time only, the party fits. */
+            isAvailable: boolean;
+            /**
+             * Format: date-time
+             * @description The same start as an instant.
+             */
+            startUtc: string;
+            /**
+             * @description The in-service tables that seat the party and whose evening allows this start - what the sheet offers as table
+             *     chips. Empty when none, and always empty at a branch that books by time only.
+             */
+            tables: components["schemas"]["Yalla.Application.Reservations.StaffSlotTable"][];
+            /** @description The local wall-clock start, `HH:mm` - what the chip says. */
+            time: string;
+            /**
+             * @description Why nothing is free, when nothing is: `LeadTimeTooShort` for a time already past, `OutsideBookingWindow`,
+             *     `TimeFull` at a branch that books by time only, else the commonest reason across the tables. Null when available.
+             */
+            unavailableReason?: components["schemas"]["Yalla.Domain.Occupancy.ReservationRejectionReason"] | null;
+        };
+        /**
+         * @description One day at a branch for the staff booking sheet: every quarter of an hour, and for each the in-service tables that
+         *     seat the party and are free then - or, at a branch that books by time only, how many guests still fit.
+         */
+        "Yalla.Application.Reservations.StaffDaySlots": {
+            /** @description How a diner books at a branch (2026-10-29). On the wire as the integer; never renumber. */
+            bookingMode: components["schemas"]["Yalla.Domain.Enums.BookingMode"];
+            /** Format: uuid */
+            branchId: string;
+            /**
+             * Format: date
+             * @description The local date asked about, as `YYYY-MM-DD`.
+             */
+            date: string;
+            /** Format: int32 */
+            partySize: number;
+            /** @description Every start time whose whole sitting fits one opening block, earliest first. */
+            slots: components["schemas"]["Yalla.Application.Reservations.StaffDaySlot"][];
+            /** @description The date's special opening day, when it is one; absent on an ordinary day. */
+            specialDay?: components["schemas"]["Yalla.Application.BranchSettings.SpecialOpeningDayView"] | null;
+            /**
+             * Format: int32
+             * @description Minutes between listed start times - fifteen.
+             */
+            stepMinutes: number;
+            /**
+             * @description Why the whole day is refused, when it is: shut all day (`OutsideOpeningHours`, no slots), already over
+             *     (`LeadTimeTooShort`: every time on it has passed), or beyond the branch's booking window
+             *     (`OutsideBookingWindow`). Null when at least one time could be judged.
+             */
+            unavailableReason?: components["schemas"]["Yalla.Domain.Occupancy.ReservationRejectionReason"] | null;
+        };
+        /** @description A table the staff sheet offers at one start. */
+        "Yalla.Application.Reservations.StaffSlotTable": {
+            /**
+             * @description The booking before it on the table may still be at the table at this start (the diner's read would ask that guest
+             *     first); the floor judges it. False when the table is free outright.
+             */
+            earlierGuestMayStillBeThere: boolean;
+            /** @description Its label, as printed on the floor. */
+            label: string;
+            /** @description MustFreeByUtc on the branch's wall clock, `HH:mm`. */
+            mustFreeByLocal?: string | null;
+            /**
+             * Format: date-time
+             * @description When a full sitting would run into the table's next booking: the time the party must have left by. Null otherwise.
+             */
+            mustFreeByUtc?: string | null;
+            /**
+             * Format: uuid
+             * @description The room it is in, or null.
+             */
+            roomId?: string | null;
+            /** @description The room's name, or null. */
+            roomName?: string | null;
+            /**
+             * Format: int32
+             * @description How many it seats.
+             */
+            seats: number;
+            /**
+             * Format: uuid
+             * @description The table.
+             */
+            tableId: string;
         };
         "Yalla.Application.Reservations.TableAvailability": {
             /** Format: int32 */
@@ -22079,6 +22419,277 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Yalla.Application.Reservations.AwaitingApproval"][];
+                };
+            };
+            /** @description The request violated a domain rule or arrived malformed. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description No usable token was presented, or the one presented was rejected. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description Not a waiter or above at this branch - a cook, a diner, another branch's staff. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description Too many requests in the window, or a one-time credential is out of attempts. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description Unexpected failure. Quote the traceId from the body. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+        };
+    };
+    getStaffDaySlots: {
+        parameters: {
+            query?: {
+                Date?: string;
+                Party?: number;
+            };
+            header?: never;
+            path: {
+                branchId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Yalla.Application.Reservations.StaffDaySlots"];
+                };
+            };
+            /** @description The request violated a domain rule or arrived malformed. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description No usable token was presented, or the one presented was rejected. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description Not a waiter or above at this branch - a cook, a diner, another branch's staff. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description No such branch. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description `date` is missing, or `party` is out of range. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description Too many requests in the window, or a one-time credential is out of attempts. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description Unexpected failure. Quote the traceId from the body. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+        };
+    };
+    createStaffReservation: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                branchId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["Yalla.Api.Endpoints.StaffCreateReservationRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Yalla.Application.Reservations.ReservationView"];
+                };
+            };
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Yalla.Application.Reservations.ReservationView"];
+                };
+            };
+            /** @description The request violated a domain rule or arrived malformed. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description No usable token was presented, or the one presented was rejected. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description Not a waiter or above at this branch - a cook, a diner, another branch's staff. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description No such branch or table. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description `table-already-booked` / `table-currently-occupied`: Someone else took that table between the diner seeing it free and confirming. The body's `context` carries the clashing window and a fresh availability snapshot, so the app can redraw the floor and show what changed rather than only saying no. Never retried automatically: this answer will not change on a repeat. `time-full`: by time only, no room for that many then - `context.guestsLeft`. `branch-unavailable`: the venue is not open for business. `client-command-id-in-use`: the id belongs to another booking. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description A branch rule refused the booking. Each rule has its own `code` - `reservation-party-exceeds-capacity`, `reservation-outside-opening-hours` and so on - with the numbers behind it in `context`, so the app can say which table to pick instead rather than showing a generic failure. `validation-failed` naming `tableId` (required where tables are chosen, refused by time only) or `note`. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.ValidationFailedProblem"];
+                };
+            };
+            /** @description Too many requests in the window, or a one-time credential is out of attempts. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description Unexpected failure. Quote the traceId from the body. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description The table's booking lock could not be had in time. `context.retryable` is true: unlike the 409, this one is worth retrying - with the same `clientCommandId`, so a retry that crosses with a late-committing original is recognised as a replay. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.LockTimeoutProblem"];
+                };
+            };
+        };
+    };
+    listBookingsToCall: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                branchId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Yalla.Application.Reservations.BookingToCall"][];
                 };
             };
             /** @description The request violated a domain rule or arrived malformed. */
@@ -31630,6 +32241,95 @@ export interface operations {
                 };
                 content: {
                     "application/problem+json": components["schemas"]["Yalla.Api.Errors.HoldExtensionRefusedProblem"];
+                };
+            };
+            /** @description Too many requests in the window, or a one-time credential is out of attempts. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description Unexpected failure. Quote the traceId from the body. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+        };
+    };
+    markGuestComing: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["Yalla.Api.Endpoints.GuestComingRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Yalla.Application.Reservations.ReservationView"];
+                };
+            };
+            /** @description The request violated a domain rule or arrived malformed. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description No usable token was presented, or the one presented was rejected. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description Not floor staff at this booking's branch. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description No such booking. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description `on-my-way-not-open`: the booking is not confirmed or seated, it is more than two hours before its start, or it is over. `client-command-id-in-use`: the id belongs to another command. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
                 };
             };
             /** @description Too many requests in the window, or a one-time credential is out of attempts. */

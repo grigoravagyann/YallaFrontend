@@ -160,6 +160,8 @@ export function useFloorCommands({
           (list) => (list ? list.filter((booking) => booking.id !== seated) : list),
         );
         void queryClient.invalidateQueries({ queryKey: queryKeys.bookingsWithoutTable(branchId) });
+        // Seated: a staff-taken booking is nobody's to call any more.
+        void queryClient.invalidateQueries({ queryKey: queryKeys.bookingsToCall(branchId) });
       }
     },
     [branchId, queryClient],

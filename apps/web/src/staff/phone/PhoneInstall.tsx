@@ -270,6 +270,7 @@ function switchesOf(settings: StaffNotificationSettings): StaffNotificationSwitc
     tableCalls: settings.tableCalls,
     takeaway: settings.takeaway,
     kitchenReady: settings.kitchenReady,
+    bookingToCall: settings.bookingToCall,
     onlyDuringShift: settings.onlyDuringShift,
   };
 }

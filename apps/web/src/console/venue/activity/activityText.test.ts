@@ -48,6 +48,44 @@ function entry(overrides: Partial<ActivityEntry> = {}): ActivityEntry {
   };
 }
 
+describe('bookings taken by hand (2026-10-31)', () => {
+  const taken = entry({
+    category: 'booking',
+    action: 'booking.created',
+    subject: { type: 'reservation', id: 'r-1', code: 'Y4101' },
+    tableLabel: '7',
+    guestName: 'Armine Sargsyan',
+    params: { partySize: 4, localDate: '2026-10-31', localTime: '20:00' },
+  });
+
+  it('says staff took the booking, and the guest requested their own', () => {
+    expect(actionLabel(en, taken)).toBe('Took a booking');
+    expect(actionLabel(hy, taken)).toBe('Ընդունեց ամրագրում');
+    expect(actionLabel(ru, taken)).toBe('Принял(а) бронь');
+    const own = entry({
+      ...taken,
+      actor: { kind: 'guest', staffMemberId: null, name: 'Armine Sargsyan' },
+    });
+    expect(actionLabel(en, own)).toBe('Booked a table');
+  });
+
+  it('details a staff booking with the guest, the table, the day, the time and the party', () => {
+    expect(detailParts(en, taken, 'en')).toEqual([
+      'Armine S.',
+      'table 7',
+      '2026-10-31',
+      '20:00',
+      '4 people',
+    ]);
+  });
+
+  it('words "the guest is coming", recorded by the taker', () => {
+    const coming = entry({ ...taken, action: 'booking.guest-coming' });
+    expect(actionLabel(en, coming)).toBe('Noted the guest is coming');
+    expect(actionLabel(hy, coming)).toBe('Նշեց՝ հյուրը գալիս է');
+  });
+});
+
 describe('device labels', () => {
   it('words a phone, a tablet and the console from the parts the server keeps', () => {
     const phone = entry({

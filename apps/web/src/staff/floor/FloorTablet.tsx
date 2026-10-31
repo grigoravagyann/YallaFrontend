@@ -68,6 +68,10 @@ export interface FloorTabletProps {
   readonly awaitingQuery: UseQueryResult<readonly AwaitingApproval[]>;
   readonly freshRequests: ReadonlySet<string>;
   readonly rail: FloorRailShared;
+  /** Staff-taken bookings to call now (2026-10-31): `ToCallSection`, after the door's list. */
+  readonly toCall: ReactNode;
+  /** "+ Booking" in the top bar: the New booking sheet, from no table. */
+  readonly onNewBooking: () => void;
   readonly onApprovalDecided: ComponentProps<typeof ApprovalPanel>['onDecided'];
   readonly onApprovalRefused: ComponentProps<typeof ApprovalPanel>['onRefused'];
   readonly notice: ReactNode;
@@ -114,6 +118,8 @@ export function FloorTablet({
   awaitingQuery,
   freshRequests,
   rail,
+  toCall,
+  onNewBooking,
   onApprovalDecided,
   onApprovalRefused,
   notice,
@@ -165,6 +171,7 @@ export function FloorTablet({
         }
         messagesWaiting={messagesWaiting}
         floorWaiting={floorWaiting}
+        onNewBooking={onNewBooking}
         onSelectView={(next) => {
           setSelection(null);
           setView(next);
@@ -223,6 +230,7 @@ export function FloorTablet({
         <FloorRail
           hidden={panelOpen}
           {...rail}
+          toCall={toCall}
           messagesFirst={messagesFirst}
           takeaway={
             branchId && (features.takeaway || takeawayInUse) ? (

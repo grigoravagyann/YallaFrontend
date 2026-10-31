@@ -192,6 +192,12 @@ function Kpis({
       value: new Intl.NumberFormat(locale).format(f.approvals),
       sub: t('person.kpi.declinedSub', { count: f.declines }),
     },
+    // Bookings taken by hand (2026-10-31), and whether the guests came.
+    {
+      label: t('person.kpi.bookingsTaken'),
+      value: new Intl.NumberFormat(locale).format(f.bookingsTaken),
+      sub: t('person.kpi.bookingsTakenSub', { came: f.bookingsCame, noShow: f.bookingsNoShow }),
+    },
     {
       label: t('person.kpi.cash'),
       value: dram(f.cashAmd, locale),

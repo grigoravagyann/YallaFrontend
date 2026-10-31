@@ -5622,3 +5622,241 @@ a.ft-btn {
     font-size: 22px;
   }
 }
+
+/* --------------------------------------------------------------------------
+ * Bookings taken by hand (2026-10-31): the top bar's "+ Booking", the New
+ * booking sheet over the floor, and the rail's "Call the guest" cards.
+ * -------------------------------------------------------------------------- */
+.ft-new-booking {
+  flex: none;
+  min-height: var(--touch-regular);
+  margin-left: var(--space-md);
+  padding: 0 var(--space-lg);
+  font-size: var(--font-size-sm);
+}
+
+.ft-book .nb-body {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr);
+  grid-template-areas:
+    'who when'
+    'foot foot';
+  gap: var(--space-xl);
+  align-content: start;
+}
+
+.nb-who {
+  grid-area: who;
+}
+
+.nb-when {
+  grid-area: when;
+}
+
+.nb-foot {
+  grid-area: foot;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-md);
+  padding-top: var(--space-md);
+  border-top: 1px solid var(--console-line-soft);
+}
+
+.nb-col {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-lg);
+  min-width: 0;
+}
+
+.nb-field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+}
+
+.nb-field .ft-field {
+  font-size: var(--font-size-md);
+}
+
+.nb-stepper {
+  align-self: flex-start;
+  background: var(--console-surface);
+}
+
+.nb-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+}
+
+/* A day or a time as a big target, 16px+ words, pressed in the brand's ink. */
+.nb-chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: var(--touch-staff);
+  padding: 0 var(--space-md);
+  border: 2px solid var(--console-button-edge);
+  border-radius: var(--console-radius-floor-button);
+  background: var(--console-surface);
+  color: var(--console-ink);
+  font: inherit;
+  font-size: var(--font-size-md);
+  font-weight: var(--font-weight-semibold);
+  font-variant-numeric: var(--font-feature-tabular);
+  cursor: pointer;
+}
+
+.nb-chip[aria-pressed='true'] {
+  border-color: var(--console-brand);
+  background: var(--console-brand);
+  color: var(--console-brand-foreground);
+}
+
+.nb-chip.is-full {
+  border-color: var(--console-line);
+  background: var(--console-canvas);
+  color: var(--console-muted);
+  text-decoration: line-through;
+  cursor: not-allowed;
+}
+
+.nb-chip:focus-visible,
+.nb-table:focus-visible {
+  outline: 2px solid var(--console-brand);
+  outline-offset: 2px;
+}
+
+.nb-times .nb-chip {
+  min-width: 84px;
+}
+
+.nb-table[aria-pressed='true'] {
+  border-color: var(--console-brand);
+  background: var(--console-floor-held);
+  color: var(--console-floor-held-ink);
+}
+
+.nb-table[aria-pressed='true'] span {
+  color: inherit;
+}
+
+.nb-left {
+  margin: 0;
+  font-size: var(--font-size-md);
+  font-weight: var(--font-weight-semibold);
+  color: var(--console-green);
+}
+
+.nb-other-day .ft-field {
+  max-width: 280px;
+}
+
+.nb-submit {
+  min-width: 220px;
+}
+
+.nb-done-body {
+  display: grid;
+  place-items: start center;
+}
+
+.nb-done {
+  width: min(var(--console-size-floor-done-card), 100%);
+  box-shadow: none;
+  border: 1.5px solid var(--console-line);
+}
+
+.nb-done .nb-done-when,
+.nb-done .nb-done-code {
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-bold);
+  color: var(--console-ink);
+}
+
+.nb-done .nb-done-reminder {
+  color: var(--console-ink);
+}
+
+/* The sheet on a phone: one column, the button across the bottom. */
+.nb-phone .nb-body {
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-areas:
+    'who'
+    'when'
+    'foot';
+  gap: var(--space-lg);
+  padding: var(--space-lg);
+}
+
+.nb-phone .nb-foot {
+  justify-content: stretch;
+}
+
+.nb-phone .nb-submit {
+  flex: 1 1 auto;
+}
+
+/* "Call the guest": the taker's card, its number a tap away. */
+.tc-card.is-mine {
+  background: var(--console-floor-held);
+}
+
+.ft-item .tc-meta {
+  color: var(--console-ink);
+}
+
+.ft-item .wt-taker {
+  margin: 0;
+  font-size: var(--console-text-nav);
+  font-weight: var(--font-weight-semibold);
+  color: var(--console-ink);
+}
+
+.tc-phone {
+  align-self: flex-start;
+  min-height: var(--touch-staff);
+  font-size: var(--font-size-md);
+}
+
+.ft-item .tc-note {
+  color: var(--console-green);
+  font-weight: var(--font-weight-semibold);
+}
+
+.tc-confirm {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  padding: var(--space-md);
+  border: 1.5px solid var(--console-line);
+  border-radius: var(--console-radius-floor-button);
+  background: var(--console-canvas);
+}
+
+.tc-confirm b {
+  font-size: var(--console-text-nav);
+}
+
+.tp-taker {
+  display: block;
+  font-weight: var(--font-weight-semibold);
+  color: var(--console-ink);
+}
+
+.tp-to-call .ask-call {
+  align-self: flex-start;
+}
+
+/* "+ New booking" at the top of the phone's Now. */
+.ph-new-booking {
+  padding: var(--space-md) var(--ph-safe-right, 16px) 0 var(--ph-safe-left, 16px);
+}
+
+.ph-new-booking .ft-btn {
+  width: 100%;
+  min-height: 52px;
+}

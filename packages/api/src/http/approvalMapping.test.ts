@@ -32,6 +32,7 @@ const VIEW: WireReservationWithApproval = {
   tableId: 'tbl-7',
   tableLabel: '7',
   bookedWithoutTable: false,
+  channel: 1,
   roomName: 'Windows',
   partySize: 2,
   startUtc: '2026-10-18T15:45:00Z',
