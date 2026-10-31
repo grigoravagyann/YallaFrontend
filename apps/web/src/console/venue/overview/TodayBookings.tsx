@@ -507,7 +507,12 @@ export function TodayBookings({
                   <td className={booking.tableLabel ? undefined : 'yc-muted'}>
                     {tableWords(booking.tableLabel)}
                   </td>
-                  <td className="yc-muted">{t(`overview.bookings.channel.${booking.channel}`)}</td>
+                  <td className="yc-muted">
+                    {/* A booking staff took by hand names its taker (2026-10-31). */}
+                    {booking.channel === 'staff' && booking.takenByName
+                      ? t('overview.bookings.channelTaken', { name: booking.takenByName })
+                      : t(`overview.bookings.channel.${booking.channel}`)}
+                  </td>
                   <td>
                     <span className={PILL[state]}>
                       <span className="yc-dot" aria-hidden="true" />

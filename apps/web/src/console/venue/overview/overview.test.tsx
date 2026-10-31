@@ -82,6 +82,14 @@ const rowOf = (card: HTMLElement, name: string) =>
   within(card).getByText(name).closest('tr') as HTMLElement;
 
 describe('the overview', () => {
+  it('names who took a booking by hand in its channel cell (2026-10-31)', async () => {
+    renderOverview();
+    const card = await bookingsCard();
+    // The mock's phoned-in booking tonight, taken by Ani; an app booking says only the app.
+    expect(within(rowOf(card, 'Gor A.')).getByText('Phone · Ani Hakobyan')).toBeTruthy();
+    expect(within(rowOf(card, 'Narine T.')).getByText('App')).toBeTruthy();
+  });
+
   it("greets by the branch's clock and says the day, the branch and the hours", async () => {
     renderOverview();
     expect(
