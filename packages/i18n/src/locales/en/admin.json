@@ -1000,6 +1000,10 @@
       "scanning": {
         "title": "Scanning without a verified number",
         "body": "A table that scans the QR code without a verified phone number. Bookings always need a verified number."
+      },
+      "mode": {
+        "title": "How guests book",
+        "body": "Whether guests choose their table on the room photos, or only a time and how many people."
       }
     },
     "field": {
@@ -1066,6 +1070,10 @@
       "autoConfirmGuestsWithGoodRecord": {
         "label": "Auto-confirm guests with a good record",
         "why": "Confirmed at once when the guest came at least 3 times in the last 12 months with no no-shows and no late cancellations (counted across all venues). Short notice, a large party, a no-show history or the previous guest's answer still wait for you."
+      },
+      "guestsAtOnce": {
+        "label": "Guests at once",
+        "why": "The most booked guests you take at the same moment. Each booking counts for its whole sitting."
       }
     },
     "sub": "{{branch}} · How bookings fit onto tables, and when your decision is needed. Changes apply to future bookings only.",
@@ -1104,7 +1112,10 @@
       "noServiceCharge": "No service charge is added",
       "unverifiedScanWaits": "A table that scans without a verified number orders once a waiter lets it.",
       "unverifiedScanOrders": "A table that scans without a verified number orders at once.",
-      "approvalGoodRecord": "Guests with a good record are confirmed at once; every other booking waits for your decision"
+      "approvalGoodRecord": "Guests with a good record are confirmed at once; every other booking waits for your decision",
+      "chooseTable": "Guests tap a free table on the room photo, then book it.",
+      "timeOnly_one": "Guests pick a time and how many people; up to {{count}} booked guest at once. You choose their table when they arrive.",
+      "timeOnly_other": "Guests pick a time and how many people; up to {{count}} booked guests at once. You choose their table when they arrive."
     },
     "result": {
       "affectedTitle_one": "{{count}} existing booking no longer fits the new rules.",
@@ -1133,11 +1144,26 @@
     "noChanges": "No changes",
     "inactive": {
       "autoConfirmOn": "Nothing to skip while bookings are confirmed automatically: it only skips approving every booking, which is off. Large parties, short notice, a no-show history and the previous guest's answer wait either way."
+    },
+    "mode": {
+      "legend": "How guests book",
+      "chooseTable": {
+        "label": "They choose a table on the room photos",
+        "body": "Guests see your rooms and tap the table they want."
+      },
+      "timeOnly": {
+        "label": "They choose only a time and how many people",
+        "body": "No table when booking: you seat them where it suits you when they arrive. They can add a wish, like a window table."
+      }
     }
   },
   "checklist": {
-    "title": "What is still needed before guests can come",
-    "body": "The branch takes guests once all of this is done. The order does not matter.",
+    "title": "What is still left to set up",
+    "body": "Guests can already see and book this branch. The rest makes it work better. The order does not matter.",
+    "titleHidden": "Guests do not see this branch yet",
+    "bodyHidden": "It shows in the app and on its public page, and takes bookings, once the required lines are done. The rest is advice.",
+    "required": "Required",
+    "recommended": "Recommended",
     "progress": "{{done}} of {{total}} done",
     "step": {
       "floorPlan": "Rooms set up, with a table diners can book on a photo",
@@ -1147,7 +1173,8 @@
       "hours": "Opening hours set",
       "policy": "Reservation policy reviewed",
       "staff": "Staff added",
-      "devices": "At least one tablet enrolled"
+      "devices": "A tablet or staff phone connected",
+      "floorPlanTimeOnly": "Guests book by time, no table needed"
     },
     "progressLabel": "Readiness",
     "done": "done",
@@ -1580,7 +1607,8 @@
     "declined": "{{name}}'s booking was declined",
     "unverified": "number not verified",
     "cancelledByBlock": "Cancelled: guest blocked for no-shows. {{name}}'s booking was not confirmed.",
-    "refusedCancelledByBlock": "Cancelled automatically: the guest missed three bookings in three days."
+    "refusedCancelledByBlock": "Cancelled automatically: the guest missed three bookings in three days.",
+    "noTable": "No table yet"
   },
   "onboarding": {
     "steps": {
@@ -2281,6 +2309,30 @@
       "eveningPlain": "Good evening"
     },
     "sub": "{{date}} · {{branch}} · updated {{time}}",
+    "date": "{{weekday}}, {{day}} {{month}}",
+    "weekday": {
+      "0": "Sunday",
+      "1": "Monday",
+      "2": "Tuesday",
+      "3": "Wednesday",
+      "4": "Thursday",
+      "5": "Friday",
+      "6": "Saturday"
+    },
+    "month": {
+      "1": "January",
+      "2": "February",
+      "3": "March",
+      "4": "April",
+      "5": "May",
+      "6": "June",
+      "7": "July",
+      "8": "August",
+      "9": "September",
+      "10": "October",
+      "11": "November",
+      "12": "December"
+    },
     "hours": {
       "open": "Open until {{time}}",
       "openNextDay": "Open until {{time}} (next day)",
@@ -2332,6 +2384,7 @@
         "staff": "Phone",
         "unknown": "—"
       },
+      "channelTaken": "Phone · {{name}}",
       "status": {
         "pending": "Waiting",
         "confirmed": "Confirmed",
@@ -2393,7 +2446,8 @@
       },
       "tableTaken": "{{table}} is taken right now",
       "tableOutOfService": "{{table}} is out of service right now",
-      "undoNote": "Marked by mistake? It can be undone until {{time}}"
+      "undoNote": "Marked by mistake? It can be undone until {{time}}",
+      "seatOnTablet": "Booked by time only: seat them on the floor tablet, where you choose the table."
     },
     "load": {
       "title": "Load today",
@@ -2785,6 +2839,8 @@
     },
     "action": {
       "bookingRequested": "Booked a table",
+      "bookingTaken": "Took a booking",
+      "bookingGuestComing": "Noted the guest is coming",
       "bookingApproved": "Approved the booking",
       "bookingDeclined": "Declined the booking",
       "bookingMoved": "Moved the booking",
@@ -2946,6 +3002,9 @@
       "replies": "To a message",
       "approvals": "Approved",
       "declines": "Declined",
+      "bookingsTaken": "Bookings taken",
+      "bookingsCame": "Came",
+      "bookingsNoShow": "No-show",
       "cash": "Cash",
       "discounts": "Discount / comp"
     },
@@ -2981,6 +3040,8 @@
       "repliesSub_other": "median · {{count}} messages",
       "approvals": "Bookings approved",
       "declinedSub": "declined: {{count}}",
+      "bookingsTaken": "Bookings taken",
+      "bookingsTakenSub": "came {{came}} · no-show {{noShow}}",
       "cash": "Cash taken",
       "cashSub_one": "{{count}} payment",
       "cashSub_other": "{{count}} payments"

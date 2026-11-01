@@ -96,11 +96,24 @@ export function heldAfter(item: StaffConversationListItem): string | null {
   return heldUntil(item.subject.localTime, last.answer.lateMinutes);
 }
 
-/** The subject as a rail card's title: "Table 6 · Ani M. · 19:30", "Takeaway T-485 · Karen S.". */
+/**
+ * The subject as a rail card's title: "Table 6 · Ani M. · 19:30", "Takeaway
+ * T-485 · Karen S.", "No table yet · Ani M. · 19:30" for a booking made by
+ * time only that nobody has seated.
+ */
 export function railTitle(t: TFunction, item: StaffConversationListItem): string {
   const name = shortName(item.subject.guestName);
   if (item.subject.kind === 'takeaway') {
     return t('messages.rail.titleTakeaway', { code: item.subject.label, name });
+  }
+  // A booking made by time only that nobody has seated: no table to name yet.
+  if (!item.subject.label.trim()) {
+    return item.subject.localTime
+      ? t('messages.rail.titleBookingNoTable', {
+          name,
+          time: item.subject.localTime.slice(0, 5),
+        })
+      : t('messages.rail.titleBookingNoTablePlain', { name });
   }
   return item.subject.localTime
     ? t('messages.rail.titleBooking', {

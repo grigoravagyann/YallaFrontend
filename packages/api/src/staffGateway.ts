@@ -8,6 +8,15 @@ import type {
   RejectTabCommand,
   TabAwaitingAdmission,
 } from './contracts/admission';
+import type { BookingWithoutTable } from './contracts/bookingsWithoutTable';
+import type {
+  BookingToCall,
+  CreateStaffBookingCommand,
+  MarkGuestComingCommand,
+  StaffBooking,
+  StaffDaySlots,
+  StaffDaySlotsQuery,
+} from './contracts/staffBookings';
 import type { DuePreOrder, DuePreOrders, PreOrderStaffCommand } from './contracts/preOrder';
 import type { AskOnMyWayResult } from './contracts/onMyWay';
 import type {
@@ -170,6 +179,75 @@ export interface StaffGateway {
    * the booking and never shown to the diner. Same guards as approve.
    */
   rejectReservation(command: DecideReservationCommand): Promise<ConsoleBooking>;
+
+  // --- Bookings by time only, waiting for a table (2026-10-29) -------------
+
+  /**
+   * The branch's confirmed bookings made by time only that nobody has seated
+   * — on no table's tile, so the floor lists them itself — soonest first. The
+   * waiter seats one with {@link StaffGateway.applyTableAction}
+   * (`seatReservation`, the booking's id, on the free table they choose) and
+   * the server gives the booking that table.
+   *
+   * `GET /api/branches/{branchId}/reservations/without-table`, waiter or above
+   * at this branch: those not yet ended, soonest first. Pending ones are on
+   * {@link StaffGateway.listAwaitingApproval}. Released like any booking
+   * ({@link StaffGateway.releaseReservation}): there is no table to free.
+   */
+  listBookingsWithoutTable(branchId: string): Promise<readonly BookingWithoutTable[]>;
+
+  // --- Bookings taken by staff (2026-10-31) --------------------------------
+
+  /**
+   * The day's times for the New booking sheet —
+   * `GET /api/branches/{branchId}/reservations/slots?date&party`, waiter or
+   * above at this branch: per time, the in-service tables free for the whole
+   * sitting that seat the party (any table, pinned or not, no lead time), or
+   * at a time-only branch how many more guests fit. The hours, the booking
+   * window and the tables' evenings still hold.
+   *
+   * @throws {ForbiddenError} the kitchen, or another branch.
+   * @throws {ValidationError} a bad date or party.
+   */
+  getStaffDaySlots(query: StaffDaySlotsQuery): Promise<StaffDaySlots>;
+
+  /**
+   * Take a booking by hand — `POST /api/branches/{branchId}/reservations/staff`,
+   * waiter or above at this branch. Confirmed at once, `channel: staff`,
+   * linked to the caller (`takenByStaffId`), who is reminded thirty minutes
+   * before to call the guest. No approval, no lead time, no channel gate; the
+   * table may be any in service. Online only, never queued. A second send
+   * with the same `clientCommandId` answers the same booking (`wasReplay`).
+   *
+   * @throws {TableTakenError} the table's evening refuses: occupied, or booked then.
+   * @throws {BookingRejectedError} closed, past, beyond the window, too small a table.
+   * @throws {BookingBusyError} the table was locked by another booking: tap again.
+   * @throws {ValidationError} a blank name or number, a party out of 1–100, no table where one is needed.
+   * @throws {ApiError} `time-full` (409) at a time-only branch: `timeFullGuestsLeft` says how many fit.
+   */
+  createStaffBooking(command: CreateStaffBookingCommand): Promise<StaffBooking>;
+
+  /**
+   * Whom to call now — `GET /api/branches/{branchId}/reservations/to-call`,
+   * waiter or above at this branch: the confirmed staff-taken bookings from
+   * thirty minutes before their start until the branch's grace after it,
+   * whose guest nobody has recorded as coming, and that nobody let go. Polled
+   * while the floor is open, and read again on the change stream's booking
+   * signal, as the door's list is.
+   */
+  listBookingsToCall(branchId: string): Promise<readonly BookingToCall[]>;
+
+  /**
+   * "The guest says they are coming" — `POST /api/reservations/{id}/guest-coming`,
+   * floor staff at the booking's branch. Recorded as the guest's own "on my
+   * way" would be, attributed to the caller; the automatic question is
+   * withdrawn. From two hours before the start, while confirmed. Online only.
+   * "Not coming" is {@link StaffGateway.releaseReservation} with
+   * `guestCancelled`.
+   *
+   * @throws {OnMyWayNotOpenError} before the start less two hours, or not confirmed any more.
+   */
+  markGuestComing(command: MarkGuestComingCommand): Promise<StaffBooking>;
 
   // --- Tables waiting to be let in (2026-10-20) ---------------------------
 
@@ -538,8 +616,9 @@ export interface ReservationReleaseResult {
   readonly outcome: ReleaseOutcome;
   /** Whether this one goes on the diner's record. Stated by the server, not inferred. */
   readonly countsTowardNoShowThreshold: boolean;
-  readonly tableId: string;
-  readonly tableLabel: string;
+  /** `null`, with the label, for a booking made by time only that nobody seated: no table to free. */
+  readonly tableId: string | null;
+  readonly tableLabel: string | null;
   /**
    * True when the table was held for this booking and has been freed. False
    * when somebody else is sitting there — the release still stands, and the
@@ -571,6 +650,7 @@ export interface UndoNoShowCommand {
 export interface UndoNoShowResult {
   readonly reservationId: string;
   readonly status: ReservationStatusCode;
-  readonly tableId: string;
-  readonly tableLabel: string;
+  /** None for a booking made by time only that nobody has seated. */
+  readonly tableId: string | null;
+  readonly tableLabel: string | null;
 }

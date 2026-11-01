@@ -20,6 +20,17 @@ export interface FloorRailProps {
   /** The bookings waiting for an answer: `ApprovalPanel`, first in the rail. */
   readonly approvals: ReactNode;
   /**
+   * Bookings made by time only that nobody has seated (2026-10-29):
+   * `WithoutTableSection`, right after the bookings waiting for an answer —
+   * the party at the door needs a table.
+   */
+  readonly withoutTable?: ReactNode;
+  /**
+   * Staff-taken bookings to call now (2026-10-31): `ToCallSection`, right
+   * after the door's list — the taker rings the guest thirty minutes before.
+   */
+  readonly toCall?: ReactNode;
+  /**
    * Takeaway orders waiting for an answer (2026-10-22): `TakeawayRailSection`,
    * right after the bookings — an order nobody answers is declined in five
    * minutes.
@@ -201,6 +212,8 @@ export function FloorRail(props: FloorRailProps) {
           <>
             {calls}
             {props.approvals}
+            {props.withoutTable}
+            {props.toCall}
             {props.messages}
             {props.takeaway}
           </>
@@ -209,6 +222,10 @@ export function FloorRail(props: FloorRailProps) {
             {props.messagesFirst ? props.messages : null}
 
             {props.approvals}
+
+            {props.withoutTable}
+
+            {props.toCall}
 
             {props.takeaway}
 
@@ -447,6 +464,11 @@ export const ICONS = {
   scan: (
     <Icon>
       <path d="M3 7V5a2 2 0 0 1 2-2h2M17 3h2a2 2 0 0 1 2 2v2M21 17v2a2 2 0 0 1-2 2h-2M7 21H5a2 2 0 0 1-2-2v-2M7 12h10" />
+    </Icon>
+  ),
+  phone: (
+    <Icon>
+      <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6A19.79 19.79 0 0 1 2.12 4.18 2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.13.96.36 1.9.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.91.34 1.85.57 2.81.7A2 2 0 0 1 22 16.92z" />
     </Icon>
   ),
 } as const;

@@ -235,6 +235,8 @@
   --console-toast-action-fill: rgba(255, 247, 234, 0.1);
   --console-scrim: rgba(45, 41, 39, 0.45);
   --console-photo-ground: #1A0508;
+  --console-photo-top: #0A0203;
+  --console-photo-behind: #000000;
   --console-photo-shade: rgba(26, 5, 8, 0.38);
   --console-photo-text: #FFF7EA;
   --console-photo-text-muted: #F3E8E9;

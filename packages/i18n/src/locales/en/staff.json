@@ -284,12 +284,17 @@
       "tooLatePlain": "Too late to undo this no-show.",
       "notNoShow": "Nothing to undo: this booking is no longer a no-show.",
       "failed": "The no-show was not undone. Try again.",
-      "needsOnline": "Undoing needs a connection."
+      "needsOnline": "Undoing needs a connection.",
+      "actionLabelGuest": "Undo {{name}}'s no-show",
+      "doneGuest": "{{name}}: the no-show is undone. The booking stands again."
     },
     "bookingCancelledByBlock": "Table {{label}}: the {{time}} booking was cancelled — its guest is blocked for no-shows.",
     "bookingsCancelledByBlock_one": "{{count}} booking due soon was cancelled — its guest is blocked for no-shows (table {{labels}}).",
     "bookingsCancelledByBlock_other": "{{count}} bookings due soon were cancelled — their guests are blocked for no-shows (tables {{labels}}).",
-    "guestBlocked": "Third no-show in three days: the guest can't book until {{date}}, {{time}}."
+    "guestBlocked": "Third no-show in three days: the guest can't book until {{date}}, {{time}}.",
+    "releasedNoShowGuest": "{{name}}'s booking was released as a no-show.",
+    "releasedCancelledGuest": "{{name}}'s booking was released. It does not count against them.",
+    "releaseNotDueGuest": "{{name}} · not due until {{time}}. Nothing was released."
   },
   "unresolved": {
     "title": "Needs resolving",
@@ -390,7 +395,16 @@
     "askBefore": "Ask {{name}} whether the table will be free by {{time}}",
     "leavesBy": "leaves by {{time}}",
     "awaitingEarlierGuest": "The guest before is answering this in the app. It is decided when they do, or declined if they do not.",
-    "cancelledByBlock": "Cancelled automatically: the guest missed three bookings in three days."
+    "cancelledByBlock": "Cancelled automatically: the guest missed three bookings in three days.",
+    "noTable": "No table yet · you choose on arrival",
+    "approvedNoticeNoTable": "Approved: {{time}}, no table yet. The guest has been told.",
+    "approvedNoticeNoTableOn": "Approved: {{date}} at {{time}}, no table yet. The guest has been told.",
+    "declinedNoticeNoTable": "Declined: {{time}}, no table. The guest has been told.",
+    "declinedNoticeNoTableOn": "Declined: {{date}} at {{time}}, no table. The guest has been told.",
+    "arrivedNoTable_one": "New booking request at {{time}}, {{count}} guest, no table yet.",
+    "arrivedNoTable_other": "New booking request at {{time}}, {{count}} guests, no table yet.",
+    "arrivedOnNoTable_one": "New booking request on {{date}} at {{time}}, {{count}} guest, no table yet.",
+    "arrivedOnNoTable_other": "New booking request on {{date}} at {{time}}, {{count}} guests, no table yet."
   },
   "conflicts": {
     "title": "Needs a decision",
@@ -804,6 +818,7 @@
   },
   "enrol": {
     "title": "Connect this tablet to your venue",
+    "back": "Back to pairing my phone",
     "titleRevoked": "This tablet is no longer connected",
     "revoked": "A manager disconnected this tablet from the console — if it was lost, for instance. Connecting it again needs a new code.",
     "steps": {
@@ -1003,7 +1018,8 @@
   },
   "noShows": {
     "title": "No-shows marked here",
-    "row": "Table {{label}} · can be undone until {{time}}"
+    "row": "Table {{label}} · can be undone until {{time}}",
+    "rowGuest": "{{name}} · can be undone until {{time}}"
   },
   "preOrders": {
     "error": {
@@ -1220,7 +1236,9 @@
       "ago_one": "{{count}} min ago",
       "ago_other": "{{count}} min ago",
       "more_one": "{{count}} more in Messages",
-      "more_other": "{{count}} more in Messages"
+      "more_other": "{{count}} more in Messages",
+      "titleBookingNoTable": "No table yet · {{name}} · {{time}}",
+      "titleBookingNoTablePlain": "No table yet · {{name}}"
     },
     "inbox": {
       "label": "Conversations",
@@ -1499,6 +1517,10 @@
         "kitchenReady": {
           "label": "Kitchen is ready",
           "help": "Dishes for your tables"
+        },
+        "bookingToCall": {
+          "label": "Call the guest",
+          "help": "A booking you took starts in 30 minutes"
         }
       },
       "onlyShift": "Only during my shift",
@@ -1520,9 +1542,11 @@
         "guests": "Guests",
         "call": "To a call",
         "reply": "To a message",
-        "cash": "Cash"
+        "cash": "Cash",
+        "bookingsTaken": "Bookings taken"
       },
       "sub": {
+        "bookingsOutcome": "came {{came}} · no-show {{noShow}}",
         "tables_one": "{{count}} table",
         "tables_other": "{{count}} tables",
         "tipShare": "{{share}} of sales",
@@ -1563,5 +1587,124 @@
     "stillOff": "Still off. Try again once your manager says it is back.",
     "tryAgain": "Try again",
     "forgetPhone": "Forget this phone here"
+  },
+  "withoutTable": {
+    "title": "Arriving · no table yet",
+    "noTable": "No table yet",
+    "wish": "Wish",
+    "wishQuote": "“{{text}}”",
+    "seat": "Seat",
+    "seatLabel_one": "Seat {{name}}, {{count}} guest",
+    "seatLabel_other": "Seat {{name}}, {{count}} guests",
+    "chooseTitle_one": "Choose a table for {{count}}",
+    "chooseTitle_other": "Choose a table for {{count}}",
+    "smaller": "Smaller tables",
+    "bookedAt": "booked at {{time}}",
+    "noneFree": "No table is free right now.",
+    "cancel": "Not now",
+    "releaseLabel": "Release {{name}}'s booking"
+  },
+  "newBooking": {
+    "open": "+ Booking",
+    "openPhone": "+ New booking",
+    "bookThisTable": "Book this table",
+    "title": "New booking",
+    "titleTable": "New booking · table {{label}}",
+    "sub": "The guest phoned or is at the door. The booking is confirmed at once and linked to you.",
+    "back": "Floor",
+    "backName": "Back to the floor",
+    "offline": "Offline",
+    "needsOnline": "Booking needs a connection.",
+    "guestName": "Guest's name",
+    "guestPhone": "Phone",
+    "phoneHint": "You will call this number 30 minutes before the booking.",
+    "party": "Guests",
+    "fewer": "Fewer",
+    "more": "More",
+    "day": "Day",
+    "today": "Today",
+    "tomorrow": "Tomorrow",
+    "otherDay": "Other day…",
+    "otherDate": "Choose the day",
+    "time": "Time",
+    "timesLoading": "Loading the times…",
+    "timesFailed": "The times could not be read. Try again.",
+    "noTimes": "No free time that day.",
+    "dayClosed": "Closed that day.",
+    "timeFullLabel": "{{time}}, full",
+    "table": "Table",
+    "tableHint_one": "Free tables for {{count}} guest",
+    "tableHint_other": "Free tables for {{count}} guests",
+    "tableLabel": "Table {{label}}, {{seats}}",
+    "tableLabelRoom": "Table {{label}}, {{seats}}, {{room}}",
+    "noTables": "No table is free at that time. Choose another time.",
+    "pickTime": "Choose the time first.",
+    "guestsLeft_one": "Room for {{count}} more guest",
+    "guestsLeft_other": "Room for {{count}} more guests",
+    "noTable": "The waiter chooses the table when the guests arrive.",
+    "note": "Note",
+    "noteHint": "Optional: by the window, a cake, a high chair…",
+    "submit": "Book",
+    "submitting": "Booking…",
+    "missing": {
+      "name": "Enter the guest's name.",
+      "phone": "Enter the phone number.",
+      "time": "Choose the time.",
+      "table": "Choose the table."
+    },
+    "done": {
+      "title": "Booked",
+      "when": "{{day}} · {{time}}",
+      "table": "Table {{label}}",
+      "noTable": "No table · you choose on arrival",
+      "party_one": "{{count}} guest",
+      "party_other": "{{count}} guests",
+      "code": "Code {{code}}",
+      "takenBy": "Taken by {{name}}",
+      "reminder": "We will remind you to call the guest 30 minutes before.",
+      "replay": "This booking had already been made.",
+      "another": "New booking",
+      "close": "Close"
+    },
+    "failed": {
+      "generic": "Could not book. Try again.",
+      "tableTaken": "The table is taken at that time. Choose another time or table.",
+      "tableOccupied": "Somebody is sitting at the table now. Choose another table.",
+      "closed": "We are closed at that time.",
+      "past": "That time has passed. Choose a later one.",
+      "tooFarAhead": "We do not book that far ahead.",
+      "tooSmall": "The table is too small for that many.",
+      "outOfService": "The table is out of service.",
+      "timeFull_one": "Room for {{count}} more guest at that time.",
+      "timeFull_other": "Room for {{count}} more guests at that time.",
+      "timeFullNone": "No room at that time.",
+      "busy": "The table is busy with another booking. Try again.",
+      "notTaking": "The venue is not taking bookings right now.",
+      "invalid": "Check the details.",
+      "offline": "No connection. Try again once it is back."
+    }
+  },
+  "toCall": {
+    "title": "Call the guest",
+    "mine": "Yours",
+    "takenBy": "Taken by {{name}}",
+    "noTable": "No table",
+    "note": "“{{text}}”",
+    "coming": "Coming",
+    "comingLabel": "Coming · {{name}}",
+    "notComing": "Not coming",
+    "notComingLabel": "Not coming · {{name}}",
+    "callLabel": "Call {{name}}, {{phone}}",
+    "marking": "Noting…",
+    "comingDone": "Noted: they are coming.",
+    "failed": "That did not work. Try again.",
+    "notOpen": "This booking can no longer be marked.",
+    "needsOnline": "Marking needs a connection.",
+    "confirmTitle": "The guest said they are not coming",
+    "confirmBody": "The booking will be released. It does not count against the guest.",
+    "confirm": "Release",
+    "unreachable": "The call list could not be read.",
+    "panelTitle": "Booking at {{time}}: call the guest",
+    "panelHint": "The guest has no app, so no automatic question goes out. Call and note the answer."
   }
 }

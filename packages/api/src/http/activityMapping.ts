@@ -434,6 +434,13 @@ export function activityTimelineFromWire(
   };
 }
 
+/** What `StaffPerformanceRow` gains on the staff-bookings branch (Yalla feat/staff-bookings). */
+interface StaffBookingFigures {
+  readonly bookingsTaken?: unknown;
+  readonly bookingsCame?: unknown;
+  readonly bookingsNoShow?: unknown;
+}
+
 function figuresFromWire(
   wire: Partial<WireStaffPerformanceRow | WireStaffPerformanceTotals> | null | undefined,
 ): PerformanceFigures {
@@ -451,6 +458,10 @@ function figuresFromWire(
     messagesAnswered: count(wire?.messagesAnswered),
     approvals: count(wire?.approvals),
     declines: count(wire?.declines),
+    // Staff-taken bookings (2026-10-31): ahead of the generated schema, so read off the row leniently.
+    bookingsTaken: count((wire as StaffBookingFigures | null | undefined)?.bookingsTaken),
+    bookingsCame: count((wire as StaffBookingFigures | null | undefined)?.bookingsCame),
+    bookingsNoShow: count((wire as StaffBookingFigures | null | undefined)?.bookingsNoShow),
     cashAmd: dram(wire?.cashAmd),
     cashPayments: count(wire?.cashPayments),
     discounts: count(wire?.discounts),

@@ -1315,11 +1315,44 @@ body:has(.yc-savebar) .yc-toast-region {
 }
 
 @media (max-width: 959px) {
+  /* On a phone the room photo is the top of the page, so the strip under the
+     status bar carries the photo's own top edge rather than white paper.
+     Safari colours that strip from the page itself: from a fixed element touching the top edge,
+     and failing that from the root's background, which is also what a pull
+     past the top shows. Installed full screen the photo runs under the clock
+     instead, and the room's padding keeps the wordmark clear of it. */
+  html:has(.yc-auth) {
+    background: var(--console-photo-top);
+  }
+
+  .yc-auth::before {
+    content: '';
+    position: fixed;
+    top: 0;
+    right: 0;
+    left: 0;
+    z-index: 1;
+    height: max(env(safe-area-inset-top, 0px), 1px);
+    background: var(--console-photo-top);
+    pointer-events: none;
+  }
+
+  /* Taller than the photo's content needs, and the wordmark lower. The photo
+     starts 10px down, its top uncut, so the garnish has dark air above it;
+     the crop takes the table instead, and the gap is the photo's own black
+     under the same shade. */
   .yc-auth-room {
     flex-basis: 100%;
-    min-height: 168px;
+    min-height: 200px;
+    background: var(--console-photo-behind);
     gap: var(--space-lg);
-    padding: var(--space-xl) 20px;
+    padding: calc(68px + env(safe-area-inset-top, 0px)) 20px var(--space-xl);
+  }
+
+  .yc-auth-photo {
+    top: 10px;
+    height: calc(100% - 10px);
+    object-position: 50% 0%;
   }
 
   .yc-auth-claim {
@@ -4476,6 +4509,20 @@ body:has(.yc-savebar) .yc-toast-region {
   background: var(--console-green);
 }
 
+/* Required, then recommended: the first decides whether diners see the branch. */
+.yc-setup-group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+}
+
+.yc-setup-g {
+  margin: 0;
+  font-size: var(--console-text-body);
+  font-weight: var(--font-weight-semibold);
+  color: var(--console-muted);
+}
+
 .yc-sgrid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -6561,6 +6608,11 @@ body:has(.yc-savebar) .yc-toast-region {
 
 .yc-pf.is-changed {
   background: var(--console-surface-muted);
+}
+
+/* How guests book: the two cards across the field's whole width. */
+.yc-pf.yc-pol-mode {
+  grid-template-columns: minmax(0, 1fr);
 }
 
 .yc-pf-t {

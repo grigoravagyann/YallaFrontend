@@ -36,6 +36,11 @@ describe('canChangeBooking', () => {
     }
   });
 
+  it('never offers to move a booking made by time only — cancel and book again', () => {
+    expect(canChangeBooking({ ...BOOKING, bookedWithoutTable: true }, before)).toBe(false);
+    expect(canChangeBooking({ ...BOOKING, tableLabel: null }, before)).toBe(false);
+  });
+
   it('closes once the booking is inside the branch’s lead time', () => {
     // 45 minutes before the 19:30 start.
     const soon = new Date('2026-10-18T14:45:00Z');

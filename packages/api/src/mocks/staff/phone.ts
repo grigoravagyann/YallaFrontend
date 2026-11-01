@@ -48,6 +48,9 @@ const EMPTY_FIGURES: PerformanceFigures = {
   messagesAnswered: 0,
   approvals: 0,
   declines: 0,
+  bookingsTaken: 0,
+  bookingsCame: 0,
+  bookingsNoShow: 0,
   cashAmd: 0,
   cashPayments: 0,
   discounts: 0,
@@ -211,6 +214,7 @@ export function phoneMethods(
         tableCalls: settings.tableCalls,
         takeaway: settings.takeaway,
         kitchenReady: settings.kitchenReady,
+        bookingToCall: settings.bookingToCall,
         onlyDuringShift: settings.onlyDuringShift,
       };
       if (settings.locale) phonePush.locale = settings.locale;

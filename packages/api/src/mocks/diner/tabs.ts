@@ -151,10 +151,16 @@ export function tabsMethods(
         if (t >= Date.parse(booking.endUtc)) throw new BookingEndedError(facts);
       }
 
+      // The mock's branches all choose tables, so its bookings always have one.
+      if (booking.tableId === null) throw new Error('A mock booking always has a table.');
+
       // Never a stranger's tab: another party still seated there is refused,
       // and a member of staff frees the table. A replay is the booker's own.
       if (world.occupiedByAnotherParty(booking.tableId, booking.id)) {
-        throw new BookingTableOccupiedError({ ...facts, tableLabel: booking.tableLabel });
+        throw new BookingTableOccupiedError({
+          ...facts,
+          tableLabel: booking.tableLabel ?? undefined,
+        });
       }
 
       const result = world.openAtTable({

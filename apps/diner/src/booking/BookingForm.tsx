@@ -32,6 +32,9 @@ export interface BookingFormProps extends BookingFormInput {
 /**
  * The form itself, once the place is here: the day strip, the times, the
  * party, the room photos at the slot, who books — and Book (or Save changes).
+ *
+ * At a branch that books by time only: the day, how many, then the time —
+ * the times depend on the party — and a wish, with no rooms at all.
  */
 export function BookingForm({ title, onBack, ...input }: BookingFormProps) {
   const { t } = useTranslation('diner');
@@ -43,6 +46,17 @@ export function BookingForm({ title, onBack, ...input }: BookingFormProps) {
   const form = useBookingForm({ ...input, scrollRef, pickTop });
   const { place, change } = input;
   const freeByAsk = form.freeByAsk;
+  // How many: before the time when booking by time only, after it otherwise.
+  const party = (
+    <PartyPicker
+      partySize={form.partySize}
+      moreOpen={form.moreOpen}
+      moreSizes={form.moreSizes}
+      fits={form.fits}
+      onMoreOpenChange={form.setMoreOpen}
+      onSelectParty={form.selectParty}
+    />
+  );
 
   return (
     <Screen edges={['top', 'left', 'right']}>
@@ -67,6 +81,8 @@ export function BookingForm({ title, onBack, ...input }: BookingFormProps) {
             onSelect={form.selectDay}
           />
 
+          {form.byTime ? party : null}
+
           <TimePicker
             hasSlots={form.shownSlots.length > 0}
             soonSlot={form.soonSlot}
@@ -80,6 +96,7 @@ export function BookingForm({ title, onBack, ...input }: BookingFormProps) {
             snapNote={form.snapNote}
             requestNote={form.requestNote}
             freeByNote={form.freeByNote}
+            placesNote={form.placesNote}
             slotFailed={form.slotFailed}
             onRetrySlot={form.retrySlot}
             struckHint={form.struckHint}
@@ -87,35 +104,32 @@ export function BookingForm({ title, onBack, ...input }: BookingFormProps) {
           {/* A change whose time is gone: nothing is chosen for it, and why. */}
           {form.changeTimeGone ? <ChangeTimeGoneNote /> : null}
 
-          <PartyPicker
-            partySize={form.partySize}
-            moreOpen={form.moreOpen}
-            moreSizes={form.moreSizes}
-            fits={form.fits}
-            onMoreOpenChange={form.setMoreOpen}
-            onSelectParty={form.selectParty}
-          />
+          {form.byTime ? null : (
+            <>
+              {party}
 
-          <TablePhotos
-            rooms={form.slotRooms}
-            selectedTableId={form.pickedTableId}
-            partySize={form.partySize}
-            anyRequest={form.anyRequest}
-            conflictText={form.conflictText}
-            onTop={(y) => {
-              pickTop.current = y;
-            }}
-            onSelect={form.selectTable}
-          />
+              <TablePhotos
+                rooms={form.slotRooms}
+                selectedTableId={form.pickedTableId}
+                partySize={form.partySize}
+                anyRequest={form.anyRequest}
+                conflictText={form.conflictText}
+                onTop={(y) => {
+                  pickTop.current = y;
+                }}
+                onSelect={form.selectTable}
+              />
 
-          <ChosenTableNote
-            chosenTable={form.chosenTable}
-            chosenRefusal={form.chosenRefusal}
-            chosenAtSlot={form.chosenAtSlot}
-            noTableFits={form.noTableFits}
-            noTableText={form.noTableText}
-            timeZoneId={place.timeZoneId}
-          />
+              <ChosenTableNote
+                chosenTable={form.chosenTable}
+                chosenRefusal={form.chosenRefusal}
+                chosenAtSlot={form.chosenAtSlot}
+                noTableFits={form.noTableFits}
+                noTableText={form.noTableText}
+                timeZoneId={place.timeZoneId}
+              />
+            </>
+          )}
 
           {form.needsName ? (
             <GuestNameField value={form.guestName} onChange={form.setGuestName} />
@@ -124,7 +138,11 @@ export function BookingForm({ title, onBack, ...input }: BookingFormProps) {
           {/* The note went to the venue with the booking; a change moves the
               booking and leaves the note as it was. */}
           {change ? null : (
-            <BookingNoteField value={form.requests} onChange={form.changeRequests} />
+            <BookingNoteField
+              value={form.requests}
+              onChange={form.changeRequests}
+              byTime={form.byTime}
+            />
           )}
 
           {form.mustVerify ? (

@@ -15,7 +15,11 @@ import { Rise } from '../../src/components/motion/Rise';
 import { SuccessMark } from '../../src/components/motion/SuccessMark';
 import { usePressScale } from '../../src/components/motion/usePressScale';
 import { PhotoImage } from '../../src/components/PhotoImage';
-import { bookingShareLine, tableWithRoom } from '../../src/components/bookings/bookingText';
+import {
+  bookedByTime,
+  bookingShareLine,
+  tableWithRoom,
+} from '../../src/components/bookings/bookingText';
 import { anotherTimeRoute } from '../../src/components/bookings/changeBooking';
 import { PreOrderCard } from '../../src/components/bookings/PreOrderCard';
 import { VenueAnswerNote } from '../../src/components/bookings/VenueAnswer';
@@ -209,14 +213,20 @@ export default function SuccessScreen() {
                 label={t('booking.partySize')}
                 value={t('booking.guests', { count: booking.partySize })}
               />
-              {/* "4 · Hall": the room, when the server named one. */}
-              <Fact label={t('success.table')} value={tableWithRoom(booking)} />
+              {/* "4 · Hall": the room, when the server named one — or, booked by
+                  time only, that the venue chooses the table on arrival. */}
+              <Fact
+                label={t('success.table')}
+                value={tableWithRoom(booking) ?? t('booking.byTime.table')}
+              />
               <Fact label={t('success.address')} value={address} />
             </View>
 
             {note ? (
               <View style={styles.noteBlock}>
-                <Text style={styles.factLabel}>{t('booking.note.title')}</Text>
+                <Text style={styles.factLabel}>
+                  {t(bookedByTime(booking) ? 'book.byTime.wishTitle' : 'booking.note.title')}
+                </Text>
                 <Text style={styles.note}>{note}</Text>
               </View>
             ) : null}
@@ -267,8 +277,9 @@ export default function SuccessScreen() {
         )}
 
         {/* The dishes, chosen ahead (2026-10-21): offered while the branch
-            takes pre-orders and the booking is more than two hours away. */}
-        {declinedTitle ? null : (
+            takes pre-orders and the booking is more than two hours away —
+            never by time only, whose booking has no table for the ticket. */}
+        {declinedTitle || bookedByTime(booking) ? null : (
           <View style={styles.stretch}>
             <PreOrderCard
               booking={booking}

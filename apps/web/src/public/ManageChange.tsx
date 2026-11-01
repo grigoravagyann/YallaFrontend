@@ -111,7 +111,7 @@ export default function ManageChange({
     };
   });
   const [picked, setPicked] = useState<{ readonly id: string; readonly label: string } | null>(
-    () => (booking.tableId ? { id: booking.tableId, label: booking.tableLabel } : null),
+    () => (booking.tableId ? { id: booking.tableId, label: booking.tableLabel ?? '' } : null),
   );
   /** What happened to the table: chosen for the visitor, none fits, no longer free. */
   const [tableNote, setTableNote] = useState<string | null>(null);

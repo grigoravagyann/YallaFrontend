@@ -38,6 +38,7 @@ export function NextBookingValue({
   detail,
   record,
   timeZoneId,
+  takenByName,
 }: {
   readonly bookingStart: string | null | undefined;
   /** The start, dated when it is not today. */
@@ -45,6 +46,8 @@ export function NextBookingValue({
   readonly detail: StaffTableDetail | undefined;
   readonly record: GuestRecord | null | undefined;
   readonly timeZoneId: string;
+  /** Who took the booking by hand (2026-10-31), when staff did: "Taken by …". */
+  readonly takenByName?: string | null | undefined;
 }) {
   const { t } = useTranslation(['staff', 'common']);
   const format = useBranchFormat(timeZoneId);
@@ -53,6 +56,9 @@ export function NextBookingValue({
     <>
       {bookingWhen}
       <BookingFlags detail={detail} />
+      {takenByName ? (
+        <small className="tp-taker">{t('toCall.takenBy', { name: takenByName })}</small>
+      ) : null}
       <GuestRecordLine
         record={record}
         surface="staff"

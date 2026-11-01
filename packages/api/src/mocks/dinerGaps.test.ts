@@ -97,7 +97,7 @@ function move(
   return {
     bookingId: booking.id,
     commandId: change.commandId ?? crypto.randomUUID(),
-    tableId: change.tableId ?? booking.tableId,
+    tableId: change.tableId ?? booking.tableId!,
     slotUtc: change.slotUtc ?? booking.slotUtc,
     timeZoneId: booking.timeZoneId,
     partySize: change.partySize ?? booking.partySize,
@@ -320,7 +320,7 @@ describe('changing a booking', () => {
     }))!.tables.find((table) => table.isBookable)!;
 
     const grown = await gateway.rescheduleBooking(
-      move(booking, { partySize: 8, tableId: big.tableId }),
+      move(booking, { partySize: 8, tableId: big.tableId! }),
     );
     expect(grown).toMatchObject({ status: 'pendingApproval', partySize: 8, tableId: big.tableId });
 
@@ -371,7 +371,9 @@ describe('changing a booking', () => {
 
     expect(
       await caught(
-        gateway.rescheduleBooking(move(mine, { slotUtc: theirs.slotUtc, tableId: theirs.tableId })),
+        gateway.rescheduleBooking(
+          move(mine, { slotUtc: theirs.slotUtc, tableId: theirs.tableId! }),
+        ),
       ),
     ).toBeInstanceOf(TableTakenError);
     expect(

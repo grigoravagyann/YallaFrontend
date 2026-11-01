@@ -39,7 +39,7 @@ import { directionsUrl } from '../place/PlaceActions';
 import { PhotoImage } from '../PhotoImage';
 import { Skeleton } from '../Skeleton';
 import { Text } from '../Text';
-import { tableWithRoom } from './bookingText';
+import { bookedByTime, tableLine, tableWithRoom } from './bookingText';
 import { PRE_ORDER_ICON, PreOrderSummaryLine } from './PreOrderCard';
 import { PromiseNote, promiseCopy } from './PromiseNote';
 import { TableRequestCard } from './TableRequestCard';
@@ -123,8 +123,14 @@ function useBookingFacts(booking: Booking, now: Date) {
         ? t('booking.tomorrow')
         : moment.date;
   // "4 · Hall": the room, when the server named one, goes everywhere the table does.
-  const tableValue = tableWithRoom(booking);
-  const tableLine = t('orders.tableAndParty', { table: tableValue, count: booking.partySize });
+  const tableLabel = tableWithRoom(booking);
+  // No table yet (booked by time only): the venue chooses it on arrival.
+  const tableValue = tableLabel ?? t('booking.byTime.tableShort');
+  const table = tableLine(booking);
+  const tableAndParty =
+    tableLabel === null
+      ? `${t(table.key, table.params)}, ${t('booking.guests', { count: booking.partySize })}`
+      : t('orders.tableAndParty', { table: tableLabel, count: booking.partySize });
   const when = `${formatDate(booking.slotUtc, booking.timeZoneId, locale)} · ${moment.time}`;
   return {
     place,
@@ -134,14 +140,14 @@ function useBookingFacts(booking: Booking, now: Date) {
     date: moment.date,
     time: moment.time,
     guests: t('booking.guests', { count: booking.partySize }),
-    /** "Table 4 · Hall". */
-    table: t('tables.table', { label: tableValue }),
-    /** "4 · Hall", under the "Table" caption. */
+    /** "Table 4 · Hall", or that the venue chooses it on arrival. */
+    table: t(table.key, table.params),
+    /** "4 · Hall" — or "On arrival" — under the "Table" caption. */
     tableValue,
-    hasRoom: tableValue !== booking.tableLabel,
+    hasRoom: tableLabel !== null && tableLabel !== booking.tableLabel,
     // The code is in the name: it is what the diner reads out at the door, and
     // what the list is searched by.
-    label: `${where}, ${t(bookingStatusKey(booking))}, ${tableLine}, ${when}, ${booking.code}`,
+    label: `${where}, ${t(bookingStatusKey(booking))}, ${tableAndParty}, ${when}, ${booking.code}`,
   };
 }
 
@@ -205,8 +211,9 @@ export function BookingHeroCard({
   const countdown = active ? bookingCountdown(booking.slotUtc, now) : null;
   const coords = facts.place?.coords ?? null;
   const preOrder = preOrderView(booking, now);
+  // A booking by time only takes no pre-order: its ticket would wait at a table.
   const preOrderAction =
-    onPreOrder && !onBookAgain
+    onPreOrder && !onBookAgain && !bookedByTime(booking)
       ? preOrder.kind === 'offer'
         ? 'preOrder.add'
         : preOrder.kind === 'editable' && preOrder.canEdit

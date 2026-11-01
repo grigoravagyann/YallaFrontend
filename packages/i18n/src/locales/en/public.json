@@ -216,7 +216,14 @@
     "timesUnchecked": "We could not check which times are free. Pick a time, and the room will show what is free then.",
     "otherDayChosen": "Other day: {{date}}",
     "timeNotOffered": "Your current time is no longer offered. Pick another time to change the booking.",
-    "tonight": "Tonight"
+    "tonight": "Tonight",
+    "time": {
+      "what": "{{date}}, {{time}} · {{guests}}",
+      "onArrival": "The venue chooses your table when you arrive.",
+      "placesLeft_one": "{{count}} place left at this time",
+      "placesLeft_other": "{{count}} places left at this time",
+      "book": "Book for {{time}}"
+    }
   },
   "done": {
     "addCalendar": "Add to my calendar",
@@ -290,7 +297,9 @@
     "cancelledByVenueBody": "The venue cancelled this booking. Call them if you have a question.",
     "changeUnverified": "A booking made without a verified phone number cannot be changed online. Cancel it and book again, or call the venue.",
     "noReminders": "No reminders are sent for this booking. Keep this link.",
-    "cancelledByBlockBody": "Cancelled automatically: three missed bookings in three days. You can book again once the pause is over."
+    "cancelledByBlockBody": "Cancelled automatically: three missed bookings in three days. You can book again once the pause is over.",
+    "tableOnArrival": "The venue chooses it when you arrive",
+    "changeTimeOnly": "A booking by time cannot be moved online. To change it, cancel it and book again."
   },
   "header": {
     "allBranches_one": "All {{count}} branch",
@@ -355,7 +364,8 @@
       "label": "Step {{step}} of 3",
       "table": "Table",
       "phone": "Phone",
-      "name": "Name"
+      "name": "Name",
+      "time": "Time"
     },
     "back": "Back",
     "close": "Close",
@@ -367,7 +377,8 @@
       "name": "Last step",
       "done": "All set",
       "pending": "Your request",
-      "declined": "It did not work out"
+      "declined": "It did not work out",
+      "time": "Your booking"
     },
     "table": {
       "value": "{{label}} · {{seats}} · {{room}}",
@@ -419,7 +430,9 @@
       "noteHint": "{{length}} / {{max}} · only the venue sees it",
       "freeBy": "Free the table by",
       "record": "Venues you book with see how many of your bookings in the last 12 months, at all venues, you kept, missed or cancelled late, and how many were not marked. While booking is paused after three missed bookings in three days, they see that too. Just the numbers, never where.",
-      "preOrders": "After booking you can choose dishes ahead, up to 2 hours before your time."
+      "preOrders": "After booking you can choose dishes ahead, up to 2 hours before your time.",
+      "wish": "Your wish",
+      "wishPlaceholder": "For example: by the window, the smoking room, a birthday"
     },
     "done": {
       "table": "{{label}} · {{guests}}",
@@ -430,7 +443,17 @@
       "openManage": "Open the booking page",
       "back": "Back to the venue page",
       "auto": "This page updates by itself.",
-      "again": "Choose another time"
+      "again": "Choose another time",
+      "noTable": "Table chosen when you arrive · {{guests}}",
+      "timeBooked": "You are booked"
+    },
+    "time": {
+      "onArrival": "The venue chooses it when you arrive",
+      "sitting_one": "Your place is held for {{count}} minute from the start.",
+      "sitting_other": "Your place is held for {{count}} minutes from the start.",
+      "full_one": "This time has just filled up: only {{count}} more guest fits. Choose another time or fewer guests.",
+      "full_other": "This time has just filled up: only {{count}} more guests fit. Choose another time or fewer guests.",
+      "fullNone": "This time has just filled up. Choose another time."
     }
   }
 }

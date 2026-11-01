@@ -214,7 +214,7 @@ export function TodayBookings({
         status: statusWord(STATUS_STATE[result.status]),
       });
     }
-    const table = t('approvals.table', { label: result.tableLabel });
+    const table = tableWords(result.tableLabel);
     switch (result.kind) {
       case 'seat':
         return t('overview.bookings.done.seated', { name });
@@ -241,9 +241,17 @@ export function TodayBookings({
     }
   }
 
+  /** "Table 7", or "No table yet" for a booking made by time only that nobody has seated. */
+  function tableWords(label: string | null): string {
+    return label ? t('approvals.table', { label }) : t('approvals.noTable');
+  }
+
   /** Why the booking's table cannot take its party now, or `null` when it can. */
   function seatBlocker(booking: OverviewBooking): string | null {
-    const table = t('approvals.table', { label: booking.tableLabel });
+    // Booked by time only: the waiter chooses its table on the floor tablet
+    // when the party arrives, and the console has no table to seat it at.
+    if (booking.tableId === null) return t('overview.bookings.seatOnTablet');
+    const table = tableWords(booking.tableLabel);
     if (booking.tableStatus === 'occupied') return t('overview.bookings.tableTaken', { table });
     if (booking.tableStatus === 'outOfService') {
       return t('overview.bookings.tableOutOfService', { table });
@@ -264,9 +272,7 @@ export function TodayBookings({
     ) {
       return (
         seatBlocker(booking) ??
-        t('overview.bookings.tableTaken', {
-          table: t('approvals.table', { label: booking.tableLabel }),
-        })
+        t('overview.bookings.tableTaken', { table: tableWords(booking.tableLabel) })
       );
     }
     // The window to undo a no-show closed: say until when it was open.
@@ -498,8 +504,15 @@ export function TodayBookings({
                     />
                   </td>
                   <td className="yc-num">{booking.partySize}</td>
-                  <td>{t('approvals.table', { label: booking.tableLabel })}</td>
-                  <td className="yc-muted">{t(`overview.bookings.channel.${booking.channel}`)}</td>
+                  <td className={booking.tableLabel ? undefined : 'yc-muted'}>
+                    {tableWords(booking.tableLabel)}
+                  </td>
+                  <td className="yc-muted">
+                    {/* A booking staff took by hand names its taker (2026-10-31). */}
+                    {booking.channel === 'staff' && booking.takenByName
+                      ? t('overview.bookings.channelTaken', { name: booking.takenByName })
+                      : t(`overview.bookings.channel.${booking.channel}`)}
+                  </td>
                   <td>
                     <span className={PILL[state]}>
                       <span className="yc-dot" aria-hidden="true" />

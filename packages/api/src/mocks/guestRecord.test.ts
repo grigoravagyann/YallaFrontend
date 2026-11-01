@@ -327,7 +327,7 @@ describe('undoing a no-show in the staff and console mocks (review round)', () =
     const command = {
       branchId: 'b-lumen-north',
       reservationId: late.id,
-      tableId: late.tableId,
+      tableId: late.tableId!,
     };
     await consoleGateway.actOnBooking({
       ...command,
@@ -347,7 +347,7 @@ describe('undoing a no-show in the staff and console mocks (review round)', () =
       consoleGateway.actOnBooking({
         branchId: 'b-lumen-north',
         reservationId: seated.id,
-        tableId: seated.tableId,
+        tableId: seated.tableId!,
         kind: 'undoNoShow',
         clientCommandId: newCommandId(),
       }),
@@ -382,7 +382,7 @@ describe("the overview's records in the console mock (review round 2)", () => {
     await consoleGateway.actOnBooking({
       branchId: 'b-lumen-north',
       reservationId: late.id,
-      tableId: late.tableId,
+      tableId: late.tableId!,
       kind: 'seat',
       clientCommandId: newCommandId(),
     });

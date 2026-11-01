@@ -42,6 +42,12 @@ export interface EnrolDeviceScreenProps {
    */
   readonly enrolled?: EnrolledDevice | null;
   readonly onContinue?: () => void;
+  /**
+   * Back to pairing a phone. Only on a phone that chose "a floor tablet
+   * instead": installed to the Home Screen there is no browser back button,
+   * and without this the choice could not be undone.
+   */
+  readonly onBack?: (() => void) | undefined;
 }
 
 /** Names a floor actually uses. A preset is one tap; the field takes anything else. */
@@ -63,7 +69,12 @@ function failureOf(error: unknown): Failure {
   return 'failed';
 }
 
-export function EnrolDeviceScreen({ reason, enrolled, onContinue }: EnrolDeviceScreenProps) {
+export function EnrolDeviceScreen({
+  reason,
+  enrolled,
+  onContinue,
+  onBack,
+}: EnrolDeviceScreenProps) {
   const { t } = useTranslation(['staff', 'common']);
   const titleId = useId();
   const codeTitleId = useId();
@@ -136,6 +147,12 @@ export function EnrolDeviceScreen({ reason, enrolled, onContinue }: EnrolDeviceS
     <div className="staff-gate ft-gate ft-enrol" data-surface="staff">
       <main className="ft-pin" aria-labelledby={titleId}>
         <div className="ft-pin-left">
+          {onBack && !enrolled ? (
+            <button type="button" className="ft-enrol-back" onClick={onBack}>
+              <BackIcon />
+              {t('enrol.back')}
+            </button>
+          ) : null}
           <span className="ft-pin-brand">
             <Wordmark />
           </span>
@@ -323,6 +340,24 @@ function CheckIcon({ size }: { size: number }) {
       aria-hidden="true"
     >
       <path d="M20 6 9 17l-5-5" />
+    </svg>
+  );
+}
+
+function BackIcon() {
+  return (
+    <svg
+      width="18"
+      height="18"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2.2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M15 18l-6-6 6-6" />
     </svg>
   );
 }

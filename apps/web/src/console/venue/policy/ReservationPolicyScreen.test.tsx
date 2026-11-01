@@ -387,3 +387,47 @@ describe('the defaults', () => {
     ).toBeTruthy();
   });
 });
+
+describe('how guests book', () => {
+  it('asks how many guests at once only for booking by time, and saves both', async () => {
+    const user = userEvent.setup();
+    const gateway = createConsoleMockGateway({ latencyMs: 0, role: 'owner' });
+    const save = vi.spyOn(gateway, 'replaceReservationPolicy');
+    renderPolicy(gateway);
+    await ready();
+
+    const mode = group('How guests book');
+    const tables = within(mode).getByRole('radio', {
+      name: /They choose a table on the room photos/u,
+    });
+    const time = within(mode).getByRole('radio', {
+      name: /They choose only a time and how many people/u,
+    });
+    expect((tables as HTMLInputElement).checked).toBe(true);
+    expect(within(mode).queryByRole('textbox', { name: 'Guests at once' })).toBeNull();
+
+    await user.click(time);
+    const guests = input('Guests at once');
+    expect(guests.value).toBe('');
+    expect(
+      within(mode).getByText(
+        'The most booked guests you take at the same moment. Each booking counts for its whole sitting.',
+      ),
+    ).toBeTruthy();
+    // Required by time only: the save asks for it first and sends nothing.
+    await user.click(screen.getByRole('button', { name: 'Save the policy' }));
+    expect(guests.getAttribute('aria-invalid')).toBe('true');
+    expect(save).not.toHaveBeenCalled();
+
+    await user.type(guests, '40');
+    expect(within(mode).getByText(/up to 40 booked guests at once/u)).toBeTruthy();
+    await user.click(screen.getByRole('button', { name: 'Save the policy' }));
+
+    await waitFor(() => expect(save).toHaveBeenCalledTimes(1));
+    expect(save.mock.calls[0]![0].policy).toMatchObject({
+      bookingMode: 'timeOnly',
+      guestsAtOnce: 40,
+    });
+    expect(await within(saveBar()).findByText('Saved')).toBeTruthy();
+  });
+});

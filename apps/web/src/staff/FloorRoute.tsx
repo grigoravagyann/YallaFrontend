@@ -2,6 +2,7 @@ import {
   staffMayWrite,
   tableDetail,
   type AffectedReservation,
+  type BookingToCall,
   type ConversationSubjectRef,
   type EnrolledDevice,
   type FloorTable,
@@ -36,6 +37,12 @@ import { TakeawayCounter } from './takeaway/TakeawayCounter';
 import { useTakeawayReady } from './takeaway/useTakeawayReady';
 import { floorFeatures } from './floor/floorFeatures';
 import { NoShowSection, type MarkedNoShow } from './UndoNoShowNotice';
+import { arrivingBookings, dueNowCount, seatingReservationIds } from './withoutTable';
+import { WithoutTableSection } from './WithoutTablePanel';
+import { NewBookingSheet } from './booking/NewBookingSheet';
+import { PhoneToCallList } from './phone/PhoneNowSections';
+import { ToCallSection } from './ToCallPanel';
+import { useStaffBooking } from './floor/useStaffBooking';
 import { useBranchFormat } from './useBranchFormat';
 import { useConnectionState } from './useConnectionState';
 import { billRequestsForTab } from './floor/billRequests';
@@ -256,6 +263,7 @@ export function FloorRoute({ identity, device = null, paused, onUnpair }: FloorR
     requestsQuery,
     awaitingQuery,
     awaiting,
+    withoutTableQuery,
     admissionQuery,
     waitingTables,
     preOrdersQuery,
@@ -268,6 +276,8 @@ export function FloorRoute({ identity, device = null, paused, onUnpair }: FloorR
     reminderClock,
     reminders,
   } = useFloorQueries(branchId, active, timeZoneId, features);
+  /** Bookings taken by hand (2026-10-31): the sheet, and whom to call now. */
+  const staffBooking = useStaffBooking(branchId, active);
   const canWriteMessages = staffMayWrite(identity.role, {
     waitersCanWrite: inbox?.waitersCanWrite ?? true,
   });
@@ -380,6 +390,7 @@ export function FloorRoute({ identity, device = null, paused, onUnpair }: FloorR
     openTabForStaff,
     settleUnresolved,
     act,
+    seatBooking,
     undoSettled,
     release,
     startTab,
@@ -524,9 +535,21 @@ export function FloorRoute({ identity, device = null, paused, onUnpair }: FloorR
   const ordersLoading = ordersQuery.isLoading && !isOfflinePaused(ordersQuery);
   const ordersFailed = ordersQuery.isError || (isOfflinePaused(ordersQuery) && !ordersQuery.data);
   const now = new Date();
+  /**
+   * Bookings made by time only at the door (2026-10-29): soon or started, and
+   * not being seated from here this moment — a seat in the queue takes its
+   * booking off the list at once, and a refused one brings it back.
+   */
+  const seating = useMemo(() => seatingReservationIds(queue.state), [queue.state]);
+  const arriving = useMemo(
+    () => arrivingBookings(withoutTableQuery.data, minute, seating),
+    [withoutTableQuery.data, minute, seating],
+  );
   /** What waits on Now (the phone) or the floor's rail (the tablet): its tab's count. */
   const nowWaiting =
     (awaitingQuery.data?.length ?? 0) +
+    dueNowCount(arriving, minute) +
+    staffBooking.toCall.length +
     waitingTables.length +
     duePreOrders.filter(preOrderNeedsAction).length +
     (requestsQuery.data?.length ?? 0);
@@ -670,6 +693,24 @@ export function FloorRoute({ identity, device = null, paused, onUnpair }: FloorR
         releasing={releaseReservation.isPending}
         onAct={act}
         onRelease={release}
+        // A booking by hand for this table (2026-10-31): the sheet, the table chosen.
+        onBookTable={() => {
+          staffBooking.openSheet(selection.tableId);
+          setSelection(null);
+        }}
+        // The table's next booking, when staff took it and it is time to call:
+        // "Coming" and "Not coming" in place of the automatic question.
+        nextBookingToCall={
+          staffBooking.toCall.find(
+            (row) => row.reservationId === selectedDetail?.nextReservationId,
+          ) ?? null
+        }
+        onGuestNotComing={(row) =>
+          release(row.reservationId, 'guestCancelled', {
+            startUtc: row.startUtc,
+            guestName: row.guestName,
+          })
+        }
         onOpenTab={() => {
           setActiveTableId(selection.tableId);
           setOverlayTabId(selectedTabId);
@@ -746,6 +787,48 @@ export function FloorRoute({ identity, device = null, paused, onUnpair }: FloorR
       />
     ) : null;
 
+  /** "Call the guest" (2026-10-31): the staff-taken bookings in their window, on the rail or on Now. */
+  const toCallSection = (variant: 'rail' | 'phone') => {
+    const props = {
+      branchId,
+      rows: staffBooking.toCall,
+      timeZoneId,
+      online: queue.online,
+      loading: staffBooking.toCallQuery.isLoading && !isOfflinePaused(staffBooking.toCallQuery),
+      failed:
+        staffBooking.toCallQuery.isError ||
+        (isOfflinePaused(staffBooking.toCallQuery) && !staffBooking.toCallQuery.data),
+      onNotComing: (row: BookingToCall) =>
+        release(row.reservationId, 'guestCancelled', {
+          startUtc: row.startUtc,
+          guestName: row.guestName,
+        }),
+    };
+    return variant === 'phone' ? (
+      <PhoneToCallList {...props} />
+    ) : (
+      <ToCallSection {...props} variant="rail" />
+    );
+  };
+
+  /** The New booking sheet, while it is open: over the floor, on either shell. */
+  const bookingSheet = staffBooking.sheet ? (
+    <NewBookingSheet
+      // A fresh sheet per opening: nothing typed for one table carries to the next.
+      key={staffBooking.sheet.tableId ?? 'any'}
+      branchId={branchId}
+      timeZoneId={timeZoneId}
+      online={queue.online}
+      me={identity.fullName}
+      preselectedTableId={staffBooking.sheet.tableId}
+      preselectedTableLabel={
+        plan?.tables.find((table) => table.id === staffBooking.sheet?.tableId)?.label ?? null
+      }
+      variant={phone ? 'phone' : 'tablet'}
+      onClose={staffBooking.closeSheet}
+    />
+  ) : null;
+
   /** The rail as both shells draw it, but for its frame, its approvals and its takeaway. */
   const rail: FloorRailShared = {
     summary,
@@ -762,6 +845,18 @@ export function FloorRoute({ identity, device = null, paused, onUnpair }: FloorR
     claiming,
     selfStaffMemberId: identity.staffMemberId,
     onAdvance: advanceOrder,
+    withoutTable: branchId ? (
+      <WithoutTableSection
+        bookings={arriving}
+        tables={plan?.tables ?? []}
+        timeZoneId={timeZoneId}
+        now={minute}
+        onSeat={seatBooking}
+        onRelease={(booking, outcome) => release(booking.id, outcome, booking)}
+        releasing={releaseReservation.isPending}
+        online={queue.online}
+      />
+    ) : null,
     noShows: branchId ? (
       <NoShowSection
         branchId={branchId}
@@ -816,35 +911,38 @@ export function FloorRoute({ identity, device = null, paused, onUnpair }: FloorR
   };
 
   const overlays = (
-    <FloorOverlays
-      overlay={overlay}
-      onOverlay={setOverlay}
-      queue={queue}
-      identity={identity}
-      timeZoneId={timeZoneId}
-      menu={menu}
-      tabQuery={tabQuery}
-      tableLabel={activeTabLabel}
-      activeTabId={activeTabId}
-      partySize={activePartySize}
-      orderSent={orderSent}
-      orderSendId={orderSend?.id ?? null}
-      onSubmitOrder={submitOrder}
-      onOrderSentDismissed={() => setOrderSend(null)}
-      billRequests={activeBillRequests}
-      cashRefusal={cashRefusal}
-      tabActions={tabActions}
-      openOnCash={cashFirst}
-      onFreeTable={() => {
-        // Back to the table's own panel, where freeing it is one more tap
-        // behind its confirm. A tab settled from "Needs resolving" has no
-        // table left to free.
-        const tableId = activeTableId;
-        closeOverlay();
-        if (tableId && tableId !== UNRESOLVED_KEY) setSelection({ tableId });
-      }}
-      onClose={closeOverlay}
-    />
+    <>
+      {bookingSheet}
+      <FloorOverlays
+        overlay={overlay}
+        onOverlay={setOverlay}
+        queue={queue}
+        identity={identity}
+        timeZoneId={timeZoneId}
+        menu={menu}
+        tabQuery={tabQuery}
+        tableLabel={activeTabLabel}
+        activeTabId={activeTabId}
+        partySize={activePartySize}
+        orderSent={orderSent}
+        orderSendId={orderSend?.id ?? null}
+        onSubmitOrder={submitOrder}
+        onOrderSentDismissed={() => setOrderSend(null)}
+        billRequests={activeBillRequests}
+        cashRefusal={cashRefusal}
+        tabActions={tabActions}
+        openOnCash={cashFirst}
+        onFreeTable={() => {
+          // Back to the table's own panel, where freeing it is one more tap
+          // behind its confirm. A tab settled from "Needs resolving" has no
+          // table left to free.
+          const tableId = activeTableId;
+          closeOverlay();
+          if (tableId && tableId !== UNRESOLVED_KEY) setSelection({ tableId });
+        }}
+        onClose={closeOverlay}
+      />
+    </>
   );
 
   const shared = {
@@ -859,6 +957,7 @@ export function FloorRoute({ identity, device = null, paused, onUnpair }: FloorR
     queue,
     onRefresh: () => void floorQuery.refetch(),
     onOpenConflicts: () => setOverlay('conflicts'),
+    onNewBooking: () => staffBooking.openSheet(null),
     setSelection,
     minute,
     messagesWaiting,
@@ -890,6 +989,7 @@ export function FloorRoute({ identity, device = null, paused, onUnpair }: FloorR
         roster={roster}
         onUnpair={onUnpair}
         sheet={tablePanel('sheet')}
+        toCall={toCallSection('phone')}
         messagesInbox={messagesInbox(true)}
       />
     );
@@ -911,6 +1011,7 @@ export function FloorRoute({ identity, device = null, paused, onUnpair }: FloorR
       panelOpen={panelOpen}
       messagesFirst={reminders.due.length > 0}
       tablePanel={tablePanel('rail')}
+      toCall={toCallSection('rail')}
       messagesInbox={messagesInbox(false)}
     />
   );

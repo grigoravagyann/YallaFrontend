@@ -104,6 +104,7 @@ export const ACTIVITY_ACTIONS = [
   'booking.released',
   'booking.hold-extended',
   'booking.guest-answered',
+  'booking.guest-coming',
   'table.seated',
   'table.freed',
   'table.held',
@@ -594,6 +595,12 @@ export interface PerformanceFigures {
   readonly approvals: number;
   /** …and declined. */
   readonly declines: number;
+  /** Bookings they took by hand (2026-10-31), over the period. */
+  readonly bookingsTaken: number;
+  /** …of which the guests came (seated or finished). */
+  readonly bookingsCame: number;
+  /** …and did not (a no-show still standing). */
+  readonly bookingsNoShow: number;
   /** Cash they took, at tables and the takeaway counter. */
   readonly cashAmd: number;
   readonly cashPayments: number;

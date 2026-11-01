@@ -53,15 +53,19 @@ export default function ConfirmScreen() {
   const forward = useLocalSearchParams<{
     branchId: string;
     venueId?: string;
-    tableId: string;
+    /** Absent for a booking by time only (`byTime`). */
+    tableId?: string;
     slotUtc: string;
     partySize: string;
     /** The note for the venue typed on the booking screen, carried through verification. */
     requests?: string;
     /** "I'll free the table by 21:25", agreed on the booking screen before the SMS detour. */
     acceptsFreeByUtc?: string;
+    /** `'1'`: booked by time only — no table; the venue chooses it on arrival. */
+    byTime?: string;
   }>();
   const { branchId, venueId, tableId, slotUtc, partySize, requests } = forward;
+  const byTime = forward.byTime === '1';
   /*
    * The promise to free the table, when a booking follows: agreed on the
    * booking screen and carried here, or asked here — the table's must-free-by
@@ -145,7 +149,8 @@ export default function ConfirmScreen() {
    * answer is reused rather than asked for again.
    */
   const slotQuery = useSlotFloor({
-    branchId: timeZoneId ? branchId : undefined,
+    // By time only there is no table to read: the server judges the time.
+    branchId: timeZoneId && !byTime ? branchId : undefined,
     slotUtc: slotUtc ?? '',
     partySize: size,
     timeZoneId: timeZoneId ?? undefined,
@@ -167,8 +172,10 @@ export default function ConfirmScreen() {
     offline: isOfflinePaused(slotQuery),
     isLoading:
       slotQuery.isLoading || (!timeZoneId && (venueQuery.isLoading || zoneQuery.isLoading)),
-    isError: slotQuery.isError || zoneQuery.isError,
+    // By time only the zone is all there is to wait for: none found is a failure.
+    isError: slotQuery.isError || zoneQuery.isError || (byTime && !timeZoneId),
     table,
+    byTime,
   });
 
   const createBooking = useCreateBooking();
@@ -199,7 +206,7 @@ export default function ConfirmScreen() {
         const booking = await createBooking.mutateAsync({
           commandId: commandId.current,
           branchId: branchId ?? '',
-          tableId: tableId ?? '',
+          tableId: byTime ? null : (tableId ?? ''),
           slotUtc,
           timeZoneId: zone,
           partySize: size,
@@ -304,6 +311,7 @@ export default function ConfirmScreen() {
       table,
       slotQuery,
       here,
+      byTime,
     ],
   );
 
@@ -359,7 +367,11 @@ export default function ConfirmScreen() {
               }
             />
             <Row label={t('confirm.party')} value={t('booking.guests', { count: size })} />
-            <Row label={t('confirm.tableRow')} value={table?.tableLabel ?? ''} last />
+            <Row
+              label={t('confirm.tableRow')}
+              value={byTime ? t('booking.byTime.table') : (table?.tableLabel ?? '')}
+              last
+            />
           </Card>
 
           <SectionHeader label={t('confirm.nameLabel')} style={styles.section} />
@@ -379,7 +391,7 @@ export default function ConfirmScreen() {
           {requests ? (
             <>
               <SectionHeader
-                label={t('booking.note.title')}
+                label={t(byTime ? 'book.byTime.wishTitle' : 'booking.note.title')}
                 icon={actionIcon.note}
                 style={styles.section}
               />
@@ -391,7 +403,8 @@ export default function ConfirmScreen() {
 
           {/* The table's answer, said as what it is — never an empty block and a
               live button while it is still loading, failed, or gone. */}
-          <SectionHeader label={t('confirm.window')} style={styles.section} />
+          {/* By time only there is no table and no window: only a wait or a failure is said. */}
+          {byTime ? null : <SectionHeader label={t('confirm.window')} style={styles.section} />}
           {state === 'loading' ? (
             <Card style={styles.windowCard}>
               <Skeleton width="60%" height={20} />
@@ -409,7 +422,13 @@ export default function ConfirmScreen() {
                 label={t('net.retry')}
                 variant="outline"
                 fullWidth={false}
-                onPress={() => void slotQuery.refetch()}
+                onPress={() =>
+                  void (byTime
+                    ? zoneSource.lookup
+                      ? zoneQuery.refetch()
+                      : venueQuery.refetch()
+                    : slotQuery.refetch())
+                }
               />
             </Card>
           ) : state === 'missing' ? (
@@ -422,7 +441,7 @@ export default function ConfirmScreen() {
                 {line(copy.unavailable)}
               </Text>
             </Card>
-          ) : (
+          ) : byTime ? null : (
             <Card style={styles.windowCard}>
               {/* The window again, so the limit is in front of them at the moment
                   of commitment and not only back on the sheet. */}

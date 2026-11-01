@@ -55,6 +55,8 @@ const VIEW: ReservationViewWire = {
   branchName: 'Northern Avenue',
   tableId: 'tbl-7',
   tableLabel: '7',
+  bookedWithoutTable: false,
+  channel: 1,
   partySize: 2,
   startUtc: '2026-10-22T15:30:00Z',
   onMyWayOpensAtUtc: '2026-10-22T13:30:00Z',

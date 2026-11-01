@@ -102,3 +102,12 @@ describe('formatDayAndTime (QA 2026-10-16: a booking days away read as tonight)'
     });
   });
 });
+
+describe('Armenian dates need no Armenian ICU data', () => {
+  it('writes the month and the weekday from our own names', () => {
+    expect(formatDate('2026-11-02T10:00:00Z', 'Asia/Yerevan', 'hy')).toBe('2 Նոյ 2026');
+    expect(
+      formatDayAndTime('2026-11-02T10:00:00Z', 'Asia/Yerevan', 'hy', '2026-10-31T10:00:00Z').date,
+    ).toBe('Երկ, 2 Նոյ');
+  });
+});

@@ -82,12 +82,20 @@ const rowOf = (card: HTMLElement, name: string) =>
   within(card).getByText(name).closest('tr') as HTMLElement;
 
 describe('the overview', () => {
+  it('names who took a booking by hand in its channel cell (2026-10-31)', async () => {
+    renderOverview();
+    const card = await bookingsCard();
+    // The mock's phoned-in booking tonight, taken by Ani; an app booking says only the app.
+    expect(within(rowOf(card, 'Gor A.')).getByText('Phone · Ani Hakobyan')).toBeTruthy();
+    expect(within(rowOf(card, 'Narine T.')).getByText('App')).toBeTruthy();
+  });
+
   it("greets by the branch's clock and says the day, the branch and the hours", async () => {
     renderOverview();
     expect(
       await screen.findByRole('heading', { level: 1, name: /^Good evening, \S+$/u }),
     ).toBeTruthy();
-    expect(screen.getByText(/^Sunday, October 18 · North · updated \d\d:\d\d$/u)).toBeTruthy();
+    expect(screen.getByText(/^Sunday, 18 October · North · updated \d\d:\d\d$/u)).toBeTruthy();
     expect(screen.getByText(/^(Open until \d\d:\d\d|Closed)/u)).toBeTruthy();
   });
 
@@ -202,7 +210,7 @@ describe('the overview', () => {
     const chart = await screen.findByRole('img', { name: /^Booked people by hour/u });
 
     // The service day is still the evening's.
-    expect(screen.getByText(/^Sunday, October 18 · North/u)).toBeTruthy();
+    expect(screen.getByText(/^Sunday, 18 October · North/u)).toBeTruthy();
     expect(chart.getAttribute('aria-label')).toContain(
       '23:00: 12, 00:00 (next day): 8, 01:00 (next day): 2',
     );
@@ -463,6 +471,43 @@ describe("today's bookings", () => {
     expect(cancel.getAttribute('aria-disabled')).toBeNull();
   });
 
+  it('says a booking made by time only has no table yet, and leaves seating it to the floor tablet', async () => {
+    const base = mockGateway();
+    const upcoming = firstIn(await rowsOf(base), 'confirmed');
+    const act = vi.fn(base.actOnBooking);
+    const { user } = renderOverview({
+      ...base,
+      actOnBooking: act,
+      getBranchOverview: async (branchId) => {
+        const overview = await base.getBranchOverview(branchId);
+        return {
+          ...overview,
+          todayBookings: overview.todayBookings.map((row) =>
+            row.id === upcoming.id
+              ? { ...row, tableId: null, tableLabel: null, tableStatus: null }
+              : row,
+          ),
+        };
+      },
+    });
+    const card = await bookingsCard();
+    expect(within(rowOf(card, upcoming.guestName)).getByText('No table yet')).toBeTruthy();
+
+    const menu = await openMenu(user, card, upcoming.guestName);
+    const seat = within(menu).getByRole('menuitem', { name: /^Mark seated/u });
+    expect(seat.getAttribute('aria-disabled')).toBe('true');
+    expect(seat.textContent).toContain('seat them on the floor tablet');
+    await waitFor(() => expect(document.activeElement).toBe(seat));
+    await user.keyboard('{Enter}');
+    expect(act).not.toHaveBeenCalled();
+    // Cancelling needs no table.
+    expect(
+      within(screen.getByRole('menu'))
+        .getByRole('menuitem', { name: 'Cancel the booking' })
+        .getAttribute('aria-disabled'),
+    ).toBeNull();
+  });
+
   it('says the table is taken when the server refuses a seat as not possible for the table', async () => {
     const base = mockGateway();
     const { user } = renderOverview({
@@ -718,6 +763,10 @@ describe('worth a look and the setup card', () => {
     staffCount: 4,
     deviceEnrolled: true,
     deviceCount: 1,
+    bookableTableCount: 10,
+    booksByTimeOnly: false,
+    takingGuests: true,
+    missingForGuests: [],
     acceptsWebBookings: true,
     blockers: [],
   };
@@ -765,11 +814,14 @@ describe('worth a look and the setup card', () => {
       deviceEnrolled: false,
       deviceCount: 0,
       isReadyForDiners: false,
+      takingGuests: false,
+      missingForGuests: ['no-device'],
     });
     renderOverview(gateway);
 
+    // A required line is missing, so the card says diners do not see the branch.
     const setup = await screen.findByRole('region', {
-      name: 'What is still needed before guests can come',
+      name: 'Guests do not see this branch yet',
     });
     expect(within(setup).getByText('7 of 8 done')).toBeTruthy();
     expect(within(setup).getByRole('progressbar').getAttribute('aria-valuenow')).toBe('7');
@@ -780,7 +832,7 @@ describe('worth a look and the setup card', () => {
     renderOverview(gateway);
     await bookingsCard();
     await waitFor(() => expect(readiness).toHaveBeenCalledTimes(2));
-    expect(screen.queryByRole('region', { name: /what is still needed/i })).toBeNull();
+    expect(screen.queryByRole('region', { name: /left to set up|do not see/i })).toBeNull();
   });
 });
 
