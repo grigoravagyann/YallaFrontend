@@ -50,8 +50,8 @@ describe('special days on the public page', () => {
     const table = screen.getByRole('table', { name: 'Special days' });
     const rows = within(table).getAllByRole('row');
     expect(rows).toHaveLength(2);
-    expect(rows[0]!.textContent).toMatch(/December 31 · New Year’s Eve18:00–03:00$/u);
-    expect(rows[1]!.textContent).toMatch(/January 1.*Closed$/u);
+    expect(rows[0]!.textContent).toMatch(/31 December · New Year’s Eve18:00–03:00$/u);
+    expect(rows[1]!.textContent).toMatch(/1 January.*Closed$/u);
   });
 
   it('shows nothing extra when there are none', () => {

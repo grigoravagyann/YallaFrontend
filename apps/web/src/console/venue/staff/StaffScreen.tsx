@@ -6,6 +6,7 @@ import {
   type StaffRole,
   type StaffSignInLink,
 } from '@yalla/api';
+import { formatCalendarDay } from '@yalla/format';
 import {
   useBranchShifts,
   useClearPinLockout,
@@ -393,11 +394,7 @@ export function StaffScreen() {
         return line.day === 'tomorrow'
           ? t('staff.shift.tomorrowAt', { times: line.times })
           : t('staff.shift.dateAt', {
-              date: new Intl.DateTimeFormat(locale, {
-                day: 'numeric',
-                month: 'short',
-                timeZone: 'UTC',
-              }).format(new Date(`${line.date}T12:00:00Z`)),
+              date: formatCalendarDay(line.date, locale),
               times: line.times,
             });
     }

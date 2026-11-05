@@ -8,6 +8,7 @@ import {
   type StaffMember,
   type StaffShift,
 } from '@yalla/api';
+import { formatCalendarDay } from '@yalla/format';
 import { useBranchShiftsAhead, useShiftMutations } from '@yalla/api/react';
 import { useLocale, useTranslation } from '@yalla/i18n';
 import { useMemo, useState, type FormEvent } from 'react';
@@ -105,22 +106,14 @@ export function ShiftDialog({
   const earliest =
     theirs.find((shift) => shift.id === draft.editing && shift.date < today)?.date ?? today;
 
-  const dayFormat = useMemo(
-    () =>
-      new Intl.DateTimeFormat(locale, {
-        weekday: 'short',
-        day: 'numeric',
-        month: 'short',
-        timeZone: 'UTC',
-      }),
-    [locale],
-  );
+  const dayFormat = (date: string) =>
+    formatCalendarDay(date, locale, { weekday: 'short', month: 'short' });
   const dayLabel = (date: string) =>
     date === today
       ? t('staff.shift.today')
       : date === addDays(today, 1)
         ? t('staff.shift.tomorrow')
-        : dayFormat.format(new Date(`${date}T12:00:00Z`));
+        : dayFormat(date);
   const nextDay = t('hours.nextDay');
 
   const busy = create.isPending || update.isPending || remove.isPending;

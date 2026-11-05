@@ -18,7 +18,7 @@ import {
   useSaveSpecialDays,
   useSpecialDays,
 } from '@yalla/api/react';
-import { branchDayKey, formatTime, type TimeZone } from '@yalla/format';
+import { branchDayKey, formatCalendarDay, formatTime, type TimeZone } from '@yalla/format';
 import { useLocale, useTranslation, type Locale } from '@yalla/i18n';
 import { useEffect, useId, useReducer, useRef, useState, type FormEvent } from 'react';
 import { QueryFailureNotice } from '../../../components/QueryFailureNotice';
@@ -519,12 +519,7 @@ function CopyToDays({
 
 /** "31 Dec 2026": a calendar date, with no zone to move it. */
 function formatDate(dateKey: string, locale: Locale): string {
-  return new Intl.DateTimeFormat(locale, {
-    day: 'numeric',
-    month: 'short',
-    year: 'numeric',
-    timeZone: 'UTC',
-  }).format(new Date(`${dateKey}T12:00:00Z`));
+  return formatCalendarDay(dateKey, locale, { month: 'short', year: true });
 }
 
 function shiftDate(dateKey: string, days: number): string {

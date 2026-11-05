@@ -11,7 +11,7 @@ import {
   usePendingReservations,
   useRejectReservation,
 } from '@yalla/api/react';
-import { branchDayKey, type TimeZone } from '@yalla/format';
+import { branchDayKey, formatCalendarDay, type TimeZone, type Locale } from '@yalla/format';
 import { useLocale, useTranslation } from '@yalla/i18n';
 import { useEffect, useId, useRef, useState, type FormEvent } from 'react';
 import { QueryFailureNotice } from '../../../components/QueryFailureNotice';
@@ -427,13 +427,6 @@ function Clock({ countdown }: { readonly countdown: ApprovalCountdown }) {
  * "Fri 12 Sep" for a booking on another day. The date is the branch's own
  * calendar day, so it is formatted as a plain date with no zone conversion.
  */
-function dayOf(localDate: string, locale: string): string {
-  const date = new Date(`${localDate}T12:00:00Z`);
-  if (Number.isNaN(date.getTime())) return localDate;
-  return new Intl.DateTimeFormat(locale, {
-    weekday: 'short',
-    day: 'numeric',
-    month: 'short',
-    timeZone: 'UTC',
-  }).format(date);
+function dayOf(localDate: string, locale: Locale): string {
+  return formatCalendarDay(localDate, locale, { weekday: 'short', month: 'short' });
 }

@@ -1,6 +1,6 @@
 import type { Compared, ReportQuery } from '@yalla/api';
 import { useOccupancyReport, useRevenueReport } from '@yalla/api/react';
-import { formatDram, type Locale } from '@yalla/format';
+import { formatCalendarDay, formatDram, type Locale } from '@yalla/format';
 import { useTranslation } from '@yalla/i18n';
 import { QueryFailureNotice } from '../../../components/QueryFailureNotice';
 import { Delta, EmptyRange, ReportSkeleton } from './ReportCard';
@@ -112,7 +112,9 @@ export function SummarySection({ query, locale }: SummarySectionProps) {
     <>
       {startedOn ? (
         <p className="yc-alert yc-alert-warn" role="status">
-          {t('reports.partialRange', { date: startedOn })}
+          {t('reports.partialRange', {
+            date: formatCalendarDay(startedOn, locale, { month: 'long', year: true }),
+          })}
         </p>
       ) : null}
       <div className="yc-rp-stats">

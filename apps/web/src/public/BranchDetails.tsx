@@ -1,6 +1,6 @@
 import { WEEK_ORDER, type BranchDetail, type PublicBranch, type WeekdayIndex } from '@yalla/api';
 import { useNow } from '@yalla/api/react';
-import { branchDayKey, type Locale } from '@yalla/format';
+import { branchDayKey, formatCalendarDay, type Locale } from '@yalla/format';
 import { useTranslation } from '@yalla/i18n';
 import { useId } from 'react';
 import { Icon } from './icons';
@@ -197,10 +197,5 @@ export function OpeningHours({
 
 /** "Thu 31 December": a calendar date, with no zone to move it. */
 function specialDate(dateKey: string, locale: Locale): string {
-  return new Intl.DateTimeFormat(locale, {
-    weekday: 'short',
-    day: 'numeric',
-    month: 'long',
-    timeZone: 'UTC',
-  }).format(new Date(`${dateKey}T12:00:00Z`));
+  return formatCalendarDay(dateKey, locale, { weekday: 'short', month: 'long' });
 }

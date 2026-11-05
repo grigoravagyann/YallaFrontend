@@ -1,6 +1,6 @@
 import type { ReportQuery } from '@yalla/api';
 import { useRevenueReport } from '@yalla/api/react';
-import { formatDram, type Locale } from '@yalla/format';
+import { formatCalendarDay, formatDram, type Locale } from '@yalla/format';
 import { useTranslation } from '@yalla/i18n';
 import { useId, useMemo, useState } from 'react';
 import { DataTable } from '../../kit';
@@ -48,12 +48,6 @@ export function RevenueSection({ query, locale, periodName, onCsv }: RevenueSect
     // Dense from the server since VC5; filled anyway, so an older sparse
     // series never draws a straight slope across days the venue was shut.
     const days = everyDayIn({ from: query.from, to: query.to }, data.byDay);
-    const short = new Intl.DateTimeFormat(locale, {
-      day: 'numeric',
-      month: 'short',
-      timeZone: 'UTC',
-    });
-    const weekday = new Intl.DateTimeFormat(locale, { weekday: 'short', timeZone: 'UTC' });
     // No previous period (a venue's first weeks, summed to 0 by the server):
     // no dashed line of zeroes behind this one, the same rule as the deltas.
     const previous = hadPreviousPeriod(data.totalAmd) ? data.previousByDay : null;
@@ -63,8 +57,8 @@ export function RevenueSection({ query, locale, periodName, onCsv }: RevenueSect
         key: day.localDate,
         label:
           days.length <= WEEKDAY_LIMIT
-            ? `${weekday.format(date)} ${date.getUTCDate()}`
-            : short.format(date),
+            ? `${formatCalendarDay(day.localDate, locale, { weekday: 'short', day: false })} ${date.getUTCDate()}`
+            : formatCalendarDay(day.localDate, locale),
         value: day.revenueAmd,
         previous: previous ? (previous[index]?.revenueAmd ?? 0) : null,
         takeaway: day.takeawayAmd ?? 0,

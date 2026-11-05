@@ -123,7 +123,9 @@ describe('the range', () => {
     expect(screen.getByRole('button', { name: 'This week' }).getAttribute('aria-pressed')).toBe(
       'true',
     );
-    expect(screen.getByText(/^Sep 7 – 8 · 2 days · Compared with Sep 5 – 6$/u)).toBeTruthy();
+    expect(
+      screen.getByText(/^7\s*–\s*8 Sept · 2 days · Compared with 5\s*–\s*6 Sept$/u),
+    ).toBeTruthy();
     // The dates are asked for only under Custom.
     expect(screen.queryByLabelText('From')).toBeNull();
   });
@@ -166,12 +168,12 @@ describe('the range', () => {
 
   it('moves to the new day when the page is still open past midnight', async () => {
     renderReports();
-    expect(screen.getByText(/^Sep 7 – 8 · 2 days/u)).toBeTruthy();
+    expect(screen.getByText(/^7\s*–\s*8 Sept · 2 days/u)).toBeTruthy();
 
     // 00:30 on Wednesday at the branch, and the tab comes back into view.
     vi.setSystemTime(new Date('2026-09-08T20:30:00Z'));
     fireEvent(document, new Event('visibilitychange'));
-    expect(await screen.findByText(/^Sep 7 – 9 · 3 days/u)).toBeTruthy();
+    expect(await screen.findByText(/^7\s*–\s*9 Sept · 3 days/u)).toBeTruthy();
   });
 });
 
@@ -221,7 +223,7 @@ describe('a range with no data', () => {
 
     await setRange(user, '2026-08-13', '2026-08-26');
     expect(
-      await screen.findByText(`Nothing was recorded before ${LIVE_FROM} in this range.`),
+      await screen.findByText('Nothing was recorded before 20 August 2026 in this range.'),
     ).toBeTruthy();
   });
 });

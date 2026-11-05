@@ -19,6 +19,9 @@ export {
 } from './datetime';
 export type { DayAndTime, Instant, ZonedClock } from './datetime';
 
+export { formatCalendarDay, formatCalendarDayRange, formatMonthName } from './calendarDay';
+export type { CalendarDayStyle } from './calendarDay';
+
 export { formatCountdown, formatRelativeMinutes, formatDuration, minutesBetween } from './duration';
 
 export { icsEvent, icsFileName, zoneOffsetAt, zonedParts } from './calendar';
