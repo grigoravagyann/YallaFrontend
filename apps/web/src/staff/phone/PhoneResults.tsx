@@ -7,7 +7,13 @@ import {
   type StaffRecentList,
 } from '@yalla/api';
 import { useMyResults } from '@yalla/api/react';
-import { branchDayKey, intlTag, type Locale, type TimeZone } from '@yalla/format';
+import {
+  branchDayKey,
+  formatCalendarDay,
+  intlTag,
+  type Locale,
+  type TimeZone,
+} from '@yalla/format';
 import { useLocale, useTranslation } from '@yalla/i18n';
 import type { TFunction } from 'i18next';
 import { useId, useMemo, useState, type KeyboardEvent } from 'react';
@@ -260,13 +266,11 @@ function PhoneSalesChart(props: {
   );
   const dayName = (date: string, style: 'short' | 'long') => {
     if (date === today && style === 'short') return t('phone.results.chart.today');
-    const [year, month, day] = date.split('-').map(Number) as [number, number, number];
-    return new Intl.DateTimeFormat(
-      intlTag(locale),
-      style === 'long'
-        ? { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'UTC' }
-        : { weekday: 'short', timeZone: 'UTC' },
-    ).format(new Date(Date.UTC(year, month - 1, day, 12)));
+    return formatCalendarDay(
+      date,
+      locale,
+      style === 'long' ? { weekday: 'long', month: 'long' } : { weekday: 'short', day: false },
+    );
   };
   const said = (day: DailySales) =>
     t('phone.results.chart.bar', {

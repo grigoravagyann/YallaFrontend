@@ -1,4 +1,5 @@
 import type { ReportQuery } from '@yalla/api';
+import { formatCalendarDayRange } from '@yalla/format';
 import {
   useMenuReport,
   useOccupancyReport,
@@ -91,17 +92,7 @@ export function ReportsScreen() {
   const menu = useMenuReport(query);
 
   const days = daysInRange(range);
-  const dayFormat = new Intl.DateTimeFormat(locale, {
-    day: 'numeric',
-    month: 'short',
-    timeZone: 'UTC',
-  });
-  const span = (from: string, to: string) => {
-    const start = new Date(`${from}T12:00:00Z`);
-    return from === to
-      ? dayFormat.format(start)
-      : dayFormat.formatRange(start, new Date(`${to}T12:00:00Z`));
-  };
+  const span = (from: string, to: string) => formatCalendarDayRange(from, to, locale);
   const before = previousRange(range);
   const scopeLine = allBranches ? t('reports.scope.allBranches') : (branchName ?? '');
   const periodName = preset === 'custom' ? t('reports.summary.customTitle') : presetLabel(preset);

@@ -9,7 +9,13 @@ import {
   type VenueCounter,
 } from '@yalla/api';
 import { useOutboxHealth, usePlatformActivity, usePlatformOverview } from '@yalla/api/react';
-import { branchDayKey, formatDate, formatTime } from '@yalla/format';
+import {
+  branchDayKey,
+  formatCalendarDay,
+  formatDate,
+  formatMonthName,
+  formatTime,
+} from '@yalla/format';
 import { useLocale, useTranslation, type Locale } from '@yalla/i18n';
 import { useId, useState, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
@@ -458,20 +464,11 @@ function BookingsChart({
   const total = days.reduce((sum, day) => sum + day.count, 0);
   const dense = range === 30;
   const number = new Intl.NumberFormat(locale);
-  const longDate = new Intl.DateTimeFormat(locale, {
-    month: 'long',
-    day: 'numeric',
-    timeZone: 'UTC',
-  });
-  const shortDate = new Intl.DateTimeFormat(locale, {
-    month: 'short',
-    day: 'numeric',
-    timeZone: 'UTC',
-  });
-  const monthName = new Intl.DateTimeFormat(locale, { month: 'long', timeZone: 'UTC' });
-  const months = [...new Set(days.map((day) => monthName.format(dayOf(day.date))))].map(
-    (name) => name.charAt(0).toLocaleUpperCase(locale) + name.slice(1),
-  );
+  const longDate = (date: string) => formatCalendarDay(date, locale, { month: 'long' });
+  const shortDate = (date: string) => formatCalendarDay(date, locale, { month: 'short' });
+  const months = [
+    ...new Set(days.map((day) => formatMonthName(Number(day.date.slice(5, 7)), locale))),
+  ];
 
   return (
     <section className="yc-card" aria-labelledby={id}>
@@ -521,10 +518,9 @@ function BookingsChart({
             <div className={dense ? 'yc-bars is-dense' : 'yc-bars'}>
               {days.map((day, index) => {
                 const isToday = index === today;
-                const date = dayOf(day.date);
                 const label = isToday
-                  ? t('home.chart.barToday', { date: longDate.format(date), count: day.count })
-                  : t('home.chart.bar', { date: longDate.format(date), count: day.count });
+                  ? t('home.chart.barToday', { date: longDate(day.date), count: day.count })
+                  : t('home.chart.bar', { date: longDate(day.date), count: day.count });
                 const className = [
                   'yc-bar',
                   isToday ? 'is-today' : '',
@@ -556,7 +552,7 @@ function BookingsChart({
                           aria-hidden="true"
                         >
                           {t('home.chart.tip', {
-                            date: isToday ? t('home.chart.today') : shortDate.format(date),
+                            date: isToday ? t('home.chart.today') : shortDate(day.date),
                             count: day.count,
                           })}
                         </span>

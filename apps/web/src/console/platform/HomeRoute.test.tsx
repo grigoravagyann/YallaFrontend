@@ -159,7 +159,7 @@ describe('Home', () => {
     expect(bars()).toHaveLength(14);
     const today = overview.bookings.perDay.at(-1)!;
     expect(bars().at(-1)?.getAttribute('aria-label')).toBe(
-      `October 18 (today) · ${today.count} bookings`,
+      `18 October (today) · ${today.count} bookings`,
     );
     const fortnight = overview.bookings.perDay.slice(-14).reduce((sum, day) => sum + day.count, 0);
     const total = new Intl.NumberFormat('en').format(fortnight);

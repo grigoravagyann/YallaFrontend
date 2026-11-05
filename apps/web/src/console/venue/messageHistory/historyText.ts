@@ -1,6 +1,6 @@
 import type { ConversationOutcome, MessageHistoryItem } from '@yalla/api';
 import { addLocalDays } from '@yalla/api';
-import { formatDram, intlTag, type Locale } from '@yalla/format';
+import { formatCalendarDay, formatDram, type Locale } from '@yalla/format';
 import type { TFunction } from 'i18next';
 
 /**
@@ -11,25 +11,10 @@ import type { TFunction } from 'i18next';
  * own time zone.
  */
 
-const dateFormatters = new Map<string, Intl.DateTimeFormat>();
-
 /** "20 Oct", or "20 Oct 2025" for a day in another year than `today`. */
 export function localDateLabel(date: string, today: string, locale: Locale): string {
-  const [year, month, day] = date.split('-').map(Number);
-  if (!year || !month || !day) return date;
   const withYear = date.slice(0, 4) !== today.slice(0, 4);
-  const key = `${locale}|${withYear ? 'y' : ''}`;
-  let formatter = dateFormatters.get(key);
-  if (!formatter) {
-    formatter = new Intl.DateTimeFormat(intlTag(locale), {
-      day: 'numeric',
-      month: 'short',
-      ...(withYear ? { year: 'numeric' } : {}),
-      timeZone: 'UTC',
-    });
-    dateFormatters.set(key, formatter);
-  }
-  return formatter.format(new Date(Date.UTC(year, month - 1, day)));
+  return formatCalendarDay(date, locale, { month: 'short', year: withYear });
 }
 
 /** Which of "today", "yesterday" or a date a branch day is. */

@@ -362,8 +362,8 @@ describe('opening hours', () => {
     const special = await screen.findByRole('table', { name: 'Special days' });
     const rows = within(special).getAllByRole('row');
     expect(rows.map((row) => row.textContent)).toEqual([
-      expect.stringMatching(/October 21 · Staff training\s*Closed$/u),
-      expect.stringMatching(/October 25 · Wine night\s*09:00–02:00$/u),
+      expect.stringMatching(/21 October · Staff training\s*Closed$/u),
+      expect.stringMatching(/25 October · Wine night\s*09:00–02:00$/u),
     ]);
   });
 });
