@@ -568,3 +568,64 @@ export async function notificationFeed(api: APIRequestContext, diner: Diner): Pr
     'GET /api/diner/notifications',
   );
 }
+
+// --- Staff tablets --------------------------------------------------------------------
+
+export const SEED_WAITER = 'Aram Waiter';
+
+/** A one-time code a manager issues for enrolling a tablet to the demo branch. */
+export async function enrolmentCode(api: APIRequestContext, branchId: string): Promise<string> {
+  const manager = await managerSession(api);
+  const issued = await body<{ code: string }>(
+    await api.post(`/api/branches/${branchId}/devices/enrolment-codes`, {
+      data: {},
+      headers: bearer(manager.accessToken),
+    }),
+    'POST /api/branches/{id}/devices/enrolment-codes',
+  );
+  return issued.code;
+}
+
+/**
+ * Gives the seeded waiter a PIN for this run - four random digits, held in
+ * memory and never printed - and returns the person's id with it. The seed
+ * leaves PINs unset, so a tablet could sign nobody in without this.
+ */
+export async function waiterWithPin(
+  api: APIRequestContext,
+): Promise<{ readonly id: string; readonly fullName: string; readonly pin: string }> {
+  const manager = await managerSession(api);
+  const { venueId } = await demoBranch(api);
+  const staff = await body<{ id: string; fullName: string; isActive: boolean }[]>(
+    await api.get(`/api/venues/${venueId}/staff`, { headers: bearer(manager.accessToken) }),
+    'GET /api/venues/{venueId}/staff',
+  );
+  const waiter = staff.find((member) => member.fullName === SEED_WAITER && member.isActive);
+  if (!waiter) throw new Error(`The seed has no active "${SEED_WAITER}".`);
+  const pin = String(randomInt(1000, 10_000));
+  await body(
+    await api.post(`/api/venues/${venueId}/staff/${waiter.id}/pin`, {
+      data: { pin },
+      headers: bearer(manager.accessToken),
+    }),
+    'POST /api/venues/{venueId}/staff/{id}/pin',
+  );
+  return { id: waiter.id, fullName: waiter.fullName, pin };
+}
+
+export interface PublicBooking {
+  readonly code: string;
+  readonly partySize: number;
+  readonly status: number;
+  readonly tableLabel: string | null;
+  readonly localDate: string;
+  readonly localStartTime: string;
+}
+
+/** A booking as its manage link shows it to the guest - no sign-in, the token is the key. */
+export async function publicBooking(api: APIRequestContext, token: string): Promise<PublicBooking> {
+  return body<PublicBooking>(
+    await api.get(`/api/public/bookings/${token}`),
+    'GET /api/public/bookings/{token}',
+  );
+}
