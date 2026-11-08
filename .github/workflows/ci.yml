@@ -7,8 +7,8 @@
 # contract suite against a real backend built from source, because a mock that
 # is only ever checked against itself is the failure that suite was written for,
 # and fails when that backend's OpenAPI document has drifted from the committed
-# one. `diner-web-e2e` drives the diner web build and the console in a browser
-# against the same kind of backend. `backend-ref` decides which backend branch
+# one. `diner-web-e2e` drives the diner web build, the console, the staff tablet
+# and the public venue page in a browser against the same kind of backend. `backend-ref` decides which backend branch
 # both live jobs use, once, so they cannot disagree.
 #
 # None of them needs a secret. The backend repository is public, and every

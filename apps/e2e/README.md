@@ -1,6 +1,8 @@
 # @yalla/e2e
 
-Playwright specs for the diner web build and the console, against the real backend.
+Playwright specs for the diner web build, the console, the staff tablet and the
+public venue page, against the real backend. The last three are one build: the
+console's, which picks the app by path (`/staff`, `/{venue}/{branch}`).
 
 The diner web target is the QA stand-in for the phone app. Camera scanning, native
 push and the native photo picker stay on the manual checklist in
@@ -32,7 +34,10 @@ Manager". Each diner app build bakes its API URL in, so build it with
 `VITE_DATA_SOURCE=real VITE_API_URL=$E2E_API_URL`.
 
 Use a fresh database per run. The specs make their own diners, bookings and
-reviews, but the console spec changes the demo branch's cover, pins and address.
+reviews, but the console spec changes the demo branch's cover, pins and address,
+the staff spec enrols a tablet, gives "Aram Waiter" a PIN for the run and seats,
+orders and pays at table 3, and the public spec books table-or-time tomorrow at
+19:00 for two.
 
 ### Letting Playwright start the stack (`E2E_STACK=1`)
 
