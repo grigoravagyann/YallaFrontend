@@ -137,7 +137,8 @@ describe('manifest-link.js on a page served with no link', () => {
   beforeAll(() => {
     // public.html, as a diner's page arrives: no link at all.
     window.history.replaceState(null, '', '/a-cafe/main');
-    document.head.innerHTML = '<script src="/manifest-link.js"></script><title>Time to Meet</title>';
+    document.head.innerHTML =
+      '<script src="/manifest-link.js"></script><title>Time to Meet</title>';
     new Function(MANIFEST_LINK_JS)();
   });
 

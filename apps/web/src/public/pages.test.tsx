@@ -221,6 +221,8 @@ describe('the tab title of a page that is not a venue', () => {
   it('names a suspended branch', async () => {
     open('/dolmama/dalma-garden');
     await screen.findByText('Not on Time to Meet right now');
-    await waitFor(() => expect(document.title).toBe('Not on Time to Meet right now · Time to Meet'));
+    await waitFor(() =>
+      expect(document.title).toBe('Not on Time to Meet right now · Time to Meet'),
+    );
   });
 });
