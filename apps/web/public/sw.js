@@ -154,12 +154,12 @@ function pushPayload(event) {
     // Not JSON: fall through to the plain text, if any.
   }
   const text = event.data ? event.data.text() : '';
-  return { title: 'Time to Eat', body: text };
+  return { title: 'Time to Meet', body: text };
 }
 
 self.addEventListener('push', (event) => {
   const data = pushPayload(event);
-  const title = typeof data.title === 'string' && data.title ? data.title : 'Time to Eat';
+  const title = typeof data.title === 'string' && data.title ? data.title : 'Time to Meet';
   const options = {
     body: typeof data.body === 'string' ? data.body : '',
     // The collapse key: a newer push about the same booking or table replaces

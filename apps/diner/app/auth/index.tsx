@@ -15,7 +15,7 @@ import LOGO from '../../assets/images/welcome-logo.png';
 import PHOTO from '../../assets/images/welcome-photo.jpg';
 import { actionIcon, colors, layout, space, typography } from '../../src/theme';
 
-/** The Time to Eat logo (mark and wordmark), trimmed to its ink: 1082 × 727. */
+/** The Time to Meet logo (mark and wordmark), trimmed to its ink: 1082 × 727. */
 const LOGO_RATIO = 1082 / 727;
 const LOGO_HEIGHT = 68;
 /** The café photo: 776 × 555, with the corners the cards use. */
@@ -74,7 +74,7 @@ export default function WelcomeScreen() {
           style={styles.logo}
           resizeMode="contain"
           accessibilityRole="image"
-          accessibilityLabel="Time to Eat"
+          accessibilityLabel="Time to Meet"
         />
         {/* The language comes before everything else, in the corner where people look for it. */}
         <View style={styles.language}>

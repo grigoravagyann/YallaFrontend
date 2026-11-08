@@ -22,7 +22,7 @@ export interface PairPhoneDialogProps {
 
 /**
  * "Pair a phone" (Devices artboard, the QR modal): the code as a QR the
- * person scans with Time to Eat on their own phone, the same code to type by hand,
+ * person scans with Time to Meet on their own phone, the same code to type by hand,
  * and how long it has left — ten minutes, one use.
  *
  * The QR is drawn here, from `pairingUrl`, and never fetched: the code is a

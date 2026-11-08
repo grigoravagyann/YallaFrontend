@@ -1,8 +1,8 @@
 // node apps/diner/assets/images/source/render-brand.cjs <repoRoot> [logo.png]
 //
-// Renders every Time to Eat brand raster, in both apps, from the one logo raster
+// Renders every Time to Meet brand raster, in both apps, from the one logo raster
 // (`logo.png` beside this file: the fork, the clock-face plate and the knife in one burgundy line,
-// the "Time to Eat" lettering under them, on white), with Playwright's Chromium as the canvas. The
+// the "Time to Meet" lettering under them, on white), with Playwright's Chromium as the canvas. The
 // logo is never redrawn: its ink is lifted off the white once, then scaled onto each target.
 //
 // The diner's launcher icons, favicon, launch-animation layers, welcome logo and Explore wordmark;
@@ -68,14 +68,14 @@ const jobs = [
     file: 'apps/diner/assets/images/adaptive-foreground.png',
     part: 'logo',
     size: 1024,
-    fit: { circle: SAFE_ZONE },
+    fit: { circle: SAFE_ZONE * 0.99 },
   },
   // Android 13 themed icons: the same alpha in one colour, which the system tints.
   {
     file: 'apps/diner/assets/images/adaptive-monochrome.png',
     part: 'logo',
     size: 1024,
-    fit: { circle: SAFE_ZONE },
+    fit: { circle: SAFE_ZONE * 0.99 },
     colour: '#FFFFFF',
   },
   // The web target's tab icon: the mark alone, the lettering would not read at 48 px.
@@ -347,7 +347,7 @@ html,body{margin:0;background:transparent}canvas{display:block}</style></head>
     const png = fs.readFileSync(path.join(repo, svg.from)).toString('base64');
     fs.writeFileSync(
       path.join(repo, svg.file),
-      `<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 ${svg.size} ${svg.size}" role="img" aria-label="Time to Eat"><image width="${svg.size}" height="${svg.size}" href="data:image/png;base64,${png}"/></svg>\n`,
+      `<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 ${svg.size} ${svg.size}" role="img" aria-label="Time to Meet"><image width="${svg.size}" height="${svg.size}" href="data:image/png;base64,${png}"/></svg>\n`,
     );
     console.log('wrote', svg.file);
   }

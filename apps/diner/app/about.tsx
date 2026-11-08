@@ -28,7 +28,7 @@ export default function AboutScreen() {
   const router = useRouter();
   const { version, build } = appVersionFrom(Constants, Platform.OS);
   const links = legalLinks();
-  const appName = Constants.expoConfig?.name ?? 'Time to Eat';
+  const appName = Constants.expoConfig?.name ?? 'Time to Meet';
 
   const goBack = () => {
     if (router.canGoBack()) router.back();

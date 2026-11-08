@@ -19,7 +19,7 @@
  *
  * There is no rasteriser in this workspace — no `sharp`, no `canvas`, no
  * headless browser — and adding one for an asset that changes once a year
- * would be a dependency with a build step. The product is Time to Eat now, and its
+ * would be a dependency with a build step. The product is Time to Meet now, and its
  * lettering is the logo's own, with curves no polygon set draws well; so the
  * card lays the very image the web app's top bars show
  * (`src/assets/wordmark.png`, ivory on transparent) onto the cherry,
@@ -46,7 +46,7 @@ import { PNG } from 'pngjs';
 // `@yalla/tokens` is TypeScript. The contrast test in that package is what
 // keeps these honest; a mismatch here is a wrong-coloured card, not a wrong
 // product.
-const CHERRY = [0x3a, 0x09, 0x12]; // consoleColor.sidebar — the deep cherry of every Time to Eat bar
+const CHERRY = [0x3a, 0x09, 0x12]; // consoleColor.sidebar — the deep cherry of every Time to Meet bar
 const FREE = [0x35, 0xb3, 0x7e]; // consoleColor.floorFreeEdge — the free-table green
 const PAPER = [0xff, 0xff, 0xff]; // consoleColor.canvas — the white page
 

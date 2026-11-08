@@ -16194,7 +16194,7 @@ export interface components {
             branchId: string;
             /**
              * @description The features the platform allows at the branch, in numeric order. The console shows the others <b>locked</b>
-             *     ("contact Time to Eat"), never hidden; the owner's own switches work only inside this set.
+             *     ("contact Time to Meet"), never hidden; the owner's own switches work only inside this set.
              */
             features: components["schemas"]["Yalla.Domain.Enums.BranchFeature"][];
             /** @description False for a branch the platform has switched off. It is listed so the switcher can say so. */
