@@ -1,5 +1,5 @@
 import type { DailySales } from '@yalla/api';
-import { intlTag, type Locale } from '@yalla/format';
+import { formatCalendarDay, intlTag, type Locale } from '@yalla/format';
 import { useTranslation } from '@yalla/i18n';
 import { useId, useState, type KeyboardEvent } from 'react';
 import { dram } from '../activity/activityText';
@@ -63,16 +63,15 @@ export function SalesChart({ daily, today, locale }: SalesChartProps) {
 
   const dayName = (date: string, style: 'short' | 'long') => {
     if (date === today && style === 'short') return t('person.chart.today');
-    const [year, month, day] = date.split('-').map(Number) as [number, number, number];
-    const at = new Date(Date.UTC(year, month - 1, day, 12));
-    return new Intl.DateTimeFormat(
-      intlTag(locale),
+    return formatCalendarDay(
+      date,
+      locale,
       style === 'long'
-        ? { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'UTC' }
+        ? { weekday: 'long', month: 'long' }
         : dense
-          ? { day: 'numeric', timeZone: 'UTC' }
-          : { weekday: 'short', timeZone: 'UTC' },
-    ).format(at);
+          ? {}
+          : { weekday: 'short', day: false },
+    );
   };
   const said = (day: DailySales) =>
     t('person.chart.bar', { day: dayName(day.date, 'long'), amount: dram(day.salesAmd, locale) });

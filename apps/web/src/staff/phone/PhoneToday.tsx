@@ -1,6 +1,6 @@
 import { approvalCountdown } from '@yalla/api';
 import { useNow, useStaffToday } from '@yalla/api/react';
-import { intlTag } from '@yalla/format';
+import { branchDayKey, formatCalendarDay } from '@yalla/format';
 import { useLocale, useTranslation } from '@yalla/i18n';
 import { useId, useState } from 'react';
 import { QueryFailureNotice } from '../../components/QueryFailureNotice';
@@ -46,12 +46,10 @@ export function PhoneToday(props: PhoneTodayProps) {
   const format = useBranchFormat(data?.timeZoneId ?? props.timeZoneId);
   const own = !data || data.branchId === props.branchId;
 
-  const day = new Intl.DateTimeFormat(intlTag(locale), {
+  const day = formatCalendarDay(branchDayKey(now, data?.timeZoneId ?? props.timeZoneId), locale, {
     weekday: 'long',
-    day: 'numeric',
     month: 'short',
-    timeZone: data?.timeZoneId ?? props.timeZoneId,
-  }).format(now);
+  });
 
   const needs = data?.needsYou ?? null;
   const deadline = needs?.soonestApprovalDeadlineUtc
