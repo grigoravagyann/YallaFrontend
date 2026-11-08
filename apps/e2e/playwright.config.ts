@@ -145,6 +145,18 @@ export default defineConfig({
       testDir: 'specs/console',
       use: { baseURL: consoleUrl, viewport: { width: 1280, height: 900 } },
     },
+    // The staff tablet and the public page are the console's build too, chosen
+    // by path (`/staff`, `/{venue}/{branch}`), so they share its origin.
+    {
+      name: 'staff',
+      testDir: 'specs/staff',
+      use: { baseURL: consoleUrl, viewport: { width: 1180, height: 820 } },
+    },
+    {
+      name: 'public',
+      testDir: 'specs/public',
+      use: { baseURL: consoleUrl, viewport: { width: 390, height: 844 } },
+    },
   ],
   ...(webServer ? { webServer } : {}),
 });

@@ -31,3 +31,16 @@ overrides:
   react: 19.3.0
   react-dom: 19.3.0
   react-native: 0.88.0
+
+  # Advisories in the Expo CLI's own dependency tree (pnpm audit, 2026-11-05). None of these ship in
+  # an app bundle - they are the dev server and build tooling - but they are what CI installs. Every
+  # patched version is older than the release-age gate above. Drop a line once the CLI pulls it in.
+  node-forge: '>=1.4.1'
+  shell-quote: '>=1.11.0'
+  'brace-expansion@>=4.0.0 <5.0.12': '>=5.0.12'
+  compression: '>=1.8.2'
+  'js-yaml@>=4.0.0 <4.3.2': '>=4.3.2'
+  source-map-js: '>=1.2.2'
+  'zod@<4.6.6': '>=4.6.6'
+  'glob@>=9.0.0 <14.0.2': '>=14.0.2'
+  'minimatch@>=7.0.0 <11.0.1': '>=11.0.1'
