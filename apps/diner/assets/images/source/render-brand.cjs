@@ -68,14 +68,14 @@ const jobs = [
     file: 'apps/diner/assets/images/adaptive-foreground.png',
     part: 'logo',
     size: 1024,
-    fit: { circle: SAFE_ZONE },
+    fit: { circle: SAFE_ZONE * 0.99 },
   },
   // Android 13 themed icons: the same alpha in one colour, which the system tints.
   {
     file: 'apps/diner/assets/images/adaptive-monochrome.png',
     part: 'logo',
     size: 1024,
-    fit: { circle: SAFE_ZONE },
+    fit: { circle: SAFE_ZONE * 0.99 },
     colour: '#FFFFFF',
   },
   // The web target's tab icon: the mark alone, the lettering would not read at 48 px.
