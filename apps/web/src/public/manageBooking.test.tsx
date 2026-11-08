@@ -238,7 +238,7 @@ describe('the manage page in the browser chrome', () => {
     render(harness.wrap(<PublicApp />, url));
     await screen.findByText('Your booking');
 
-    await waitFor(() => expect(document.title).toBe('Your booking · Time to Eat'));
+    await waitFor(() => expect(document.title).toBe('Your booking · Time to Meet'));
     expect(screen.getByText(`Table ${tableLabel} · ${roomName}`)).toBeTruthy();
   });
 
@@ -251,7 +251,7 @@ describe('the manage page in the browser chrome', () => {
     await user.click(await screen.findByRole('button', { name: 'Cancel this booking' }));
     await user.click(screen.getByRole('button', { name: 'Yes, cancel' }));
 
-    await waitFor(() => expect(document.title).toBe('Booking cancelled · Time to Eat'));
+    await waitFor(() => expect(document.title).toBe('Booking cancelled · Time to Meet'));
   });
 
   it('titles a dead link as one', async () => {
@@ -259,6 +259,6 @@ describe('the manage page in the browser chrome', () => {
     render(harness.wrap(<PublicApp />, '/lumen-coffee/northern-avenue/booking/mbk_nope'));
 
     await screen.findByText('This link no longer works');
-    await waitFor(() => expect(document.title).toBe('This link no longer works · Time to Eat'));
+    await waitFor(() => expect(document.title).toBe('This link no longer works · Time to Meet'));
   });
 });

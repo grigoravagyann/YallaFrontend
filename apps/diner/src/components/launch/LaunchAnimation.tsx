@@ -68,7 +68,7 @@ export interface LaunchAnimationProps {
 /**
  * The opening: on white, the fork, the clock-face plate and the knife are drawn
  * in one burgundy line as in the logo, the clock's marks and hands after it; the
- * line gives way to the logo's own mark, the Time to Eat wordmark rises in beneath it, and the app fades up from underneath as
+ * line gives way to the logo's own mark, the Time to Meet wordmark rises in beneath it, and the app fades up from underneath as
  * the logo eases forward. Shown once per launch. With Reduce Motion on, the
  * logo simply appears and fades.
  */

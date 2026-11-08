@@ -110,7 +110,7 @@ describe('the public page', () => {
     renderAt(`${CASCADE}/public`);
     const listing = await screen.findByRole(
       'form',
-      { name: 'In the Time to Eat app' },
+      { name: 'In the Time to Meet app' },
       { timeout: 5000 },
     );
     expect(within(listing).getByRole('button', { name: 'Save listing' })).toBeTruthy();

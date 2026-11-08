@@ -120,7 +120,7 @@ function noteOf(t: TFunction, entry: ActivityEntry): string | null {
   return deviceLabel(t, entry);
 }
 
-/** Who did something here, for the chips: the staff the server names, then the guest and Time to Eat. */
+/** Who did something here, for the chips: the staff the server names, then the guest and Time to Meet. */
 function peopleOf(
   t: TFunction,
   timeline: ActivityTimeline,

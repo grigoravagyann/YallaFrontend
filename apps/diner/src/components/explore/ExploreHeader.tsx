@@ -4,7 +4,7 @@ import WORDMARK from '../../../assets/images/explore-wordmark.png';
 import { actionIcon, colors, layout, radius, space } from '../../theme';
 import { usePressScale } from '../motion/usePressScale';
 
-/** The logo's Time to Eat wordmark, 1082 × 206 trimmed to its ink. */
+/** The logo's Time to Meet wordmark, 1082 × 206 trimmed to its ink. */
 const WORDMARK_HEIGHT = 28;
 /**
  * The capitals fill rows 3–166 of the 206 (the e's swash hangs below them): their middle sits this
@@ -27,7 +27,7 @@ export interface ExploreHeaderProps {
 }
 
 /**
- * The top of Explore, on white: the map in the left corner, the Time to Eat wordmark
+ * The top of Explore, on white: the map in the left corner, the Time to Meet wordmark
  * from the logo in the middle, and the bell with its burgundy unread dot in
  * the right corner, both in the logo's burgundy. The two corners are the same round buttons, so the
  * wordmark sits truly centred.

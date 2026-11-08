@@ -1,5 +1,5 @@
 /**
- * The Time to Eat mark as strokes, traced over the logo raster
+ * The Time to Meet mark as strokes, traced over the logo raster
  * (`assets/images/splash-mark.png`, 1024 × 1024, the mark lifted off its paper) so each line can be drawn in
  * turn: the fork, the plate that is a clock face, its twelve hour marks, its hands and their hub,
  * and the knife. The drawing gives way to that raster at the end, so where a traced line strays a

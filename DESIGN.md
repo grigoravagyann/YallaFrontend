@@ -1,8 +1,8 @@
-# Time to Eat — design system
+# Time to Meet — design system
 
 Table reservation, ordering and the bill for restaurants and cafés in Yerevan,
-under the Time to Eat brand (the code and packages are still named Yalla). The
-brand was SHURJ from 2026-10-22 and became Time to Eat on 2026-10-29: a new
+under the Time to Meet brand (the code and packages are still named Yalla). The
+brand was SHURJ from 2026-10-22 and became Time to Meet on 2026-10-29: a new
 name and logo (the plate became a clock face), the same colours, so "SHURJ" in
 the palette's history below means that 2026-10-22 recolour. Five
 surfaces read two sets of tokens:
@@ -30,7 +30,7 @@ fills the one thing to press and marks where you are. Green, amber, red,
 burgundy and grey say what state a booking, a table, a ticket or a venue is
 in. Headings, metrics, a chart's resting bars and cards are neutral.
 
-There is **no blue in Time to Eat**. Waiting and held are burgundy, confirmed is
+There is **no blue in Time to Meet**. Waiting and held are burgundy, confirmed is
 green. Only two blues exist, and each is a convention people already know:
 the map's "you are here" dot (`colors.location` `#4C8DFF`) and the "Confirm
 with Telegram" button (`consoleColor.publicTelegram` `#2A6FB0`).
@@ -437,7 +437,7 @@ exactly as before: every phone rule sits under one of two queries
 - **Tab strips scroll** with a fade on the overflowing edge, the active tab in
   view. A messages screen shows the list or the thread, never both.
 - **Nothing is hover-only.** What a tooltip says is in the text or a tap away.
-- **Installing.** `manifest-console.webmanifest` ("Time to Eat Console", scope
+- **Installing.** `manifest-console.webmanifest` ("Time to Meet Console", scope
   and start URL `/`, which sends each role home) on the console's paths, the
   staff manifest on `/staff`, and none on a diner's pages. The link is in the
   HTML the server sends — `index.html`, `staff.html` and `public.html`, routed
@@ -467,7 +467,7 @@ and nothing functional rotates.
 
 Before the SHURJ rebrand on 2026-10-22 the product went through an ink accent,
 a violet one, a beige fill and a dark-brown console; none of those colours is
-drawn on a Time to Eat screen. The artboards under `docs/design/*` were made in the
+drawn on a Time to Meet screen. The artboards under `docs/design/*` were made in the
 brown era and recoloured afterwards, so where a `HANDOFF.md` names a colour,
 `console.ts` wins.
 

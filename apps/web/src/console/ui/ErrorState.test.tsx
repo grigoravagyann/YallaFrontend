@@ -80,7 +80,7 @@ describe('the shared error states', () => {
     renderState({ kind: 'error', reference: '7F3A-21C9', onRetry: () => {} });
     expect(screen.getByRole('alert')).toBeTruthy();
     expect(
-      screen.getByText('Error code: 7F3A-21C9 · send it to the Time to Eat team'),
+      screen.getByText('Error code: 7F3A-21C9 · send it to the Time to Meet team'),
     ).toBeTruthy();
     expect(screen.getByRole('link', { name: 'Home' })).toBeTruthy();
   });

@@ -1,7 +1,7 @@
 # Store listing assets
 
 What the App Store and Google Play need besides the build. The icon and splash live with the app
-(`../assets/images/`, the Time to Eat logo on white since 2026-10-29); this folder holds the
+(`../assets/images/`, the Time to Meet logo on white since 2026-10-29); this folder holds the
 screenshots.
 
 | Folder                       | Size        | For                                                                          |

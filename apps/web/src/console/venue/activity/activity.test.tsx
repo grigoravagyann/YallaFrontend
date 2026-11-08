@@ -134,7 +134,7 @@ describe('History', () => {
     expect(within(detail).getByRole('link', { name: 'Open the bill' })).toBeTruthy();
   });
 
-  it('filters by kind, by Time to Eat and by search, each in the address', async () => {
+  it('filters by kind, by Time to Meet and by search, each in the address', async () => {
     const user = userEvent.setup();
     renderAt('/venue/history');
     await feed();
@@ -150,7 +150,7 @@ describe('History', () => {
 
     await user.selectOptions(screen.getByLabelText('Who'), 'system');
     await waitFor(() => expect(params().get('who')).toBe('system'));
-    // Time to Eat took no payment today: the empty state offers to clear the filters.
+    // Time to Meet took no payment today: the empty state offers to clear the filters.
     expect(await screen.findByText('Nothing matches the search or the filters.')).toBeTruthy();
     await user.click(screen.getByRole('button', { name: 'Clear the filters' }));
     await waitFor(() => expect(seen.location).toBe('/venue/history'));
@@ -164,9 +164,9 @@ describe('History', () => {
   it('reads the filters from the address', async () => {
     renderAt('/venue/history?who=system');
     const table = await feed();
-    // Time to Eat's own: an automatic decline, and a tablet connected with a code.
+    // Time to Meet's own: an automatic decline, and a tablet connected with a code.
     await waitFor(() => expect(rows(table)).toHaveLength(2));
-    expect(within(table).getAllByText('Time to Eat')).toHaveLength(2);
+    expect(within(table).getAllByText('Time to Meet')).toHaveLength(2);
     const what = within(table)
       .getAllByRole('rowheader')
       .map((cell) => cell.textContent);

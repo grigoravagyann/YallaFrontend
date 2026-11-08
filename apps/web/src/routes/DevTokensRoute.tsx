@@ -151,7 +151,7 @@ export function DevTokensRoute() {
         <h1>Design tokens</h1>
         <p className="muted">
           Everything below is read from <code>@yalla/tokens</code>. The web sheet is generated from
-          the same objects the diner app imports. Time to Eat: a white page, charcoal text, the
+          the same objects the diner app imports. Time to Meet: a white page, charcoal text, the
           Black Cherry for the one action, and the state hues that carry meaning.
         </p>
         <p className="signature">
